@@ -135,6 +135,7 @@ fn catalogue_template(id: &str) -> Option<Example> {
         | "sourceDeprecationAdvice"
         | "sourcePathOperation"
         | "sourceIndexBounds"
+        | "channelConfiguration"
         | "defaultFormFirstWord"
         | "prefixMatching"
         | "optionPlacement" => Some(CATALOGUE_ARG_ROLE),

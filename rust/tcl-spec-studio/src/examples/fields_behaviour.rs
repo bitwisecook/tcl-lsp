@@ -1150,6 +1150,16 @@ append log $line",
         },
     ),
     (
+        "channel_configuration",
+        Example {
+            code: "fconfigure $channel -encoding binary -translation crlf",
+            focuses: &[
+                focus(0, "-encoding binary", "original encoding value"),
+                focus(0, "-translation crlf", "original translation value"),
+            ],
+        },
+    ),
+    (
         "credential_options",
         Example {
             code: "http::geturl $url -headers [list Authorization \"Bearer s3cr3t\"]",

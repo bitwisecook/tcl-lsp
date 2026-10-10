@@ -1,0 +1,19 @@
+
+running 3 tests
+test interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows ... 
+thread 'interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows' (965144) panicked at rust/tcl-vm/src/interp/native_command_names/info_commands_literal_tests.rs:23:5:
+assertion `left == right` failed: tcl8.4: escaped-nul-prefix: primary before getter
+  left: "list"
+ right: "none"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test value::tests::return_options_presence_preserves_retired_foreign_and_borrowed_refusals ... ok
+test value::tests::return_options_presence_uses_owned_shape_without_materialising_children ... ok
+
+failures:
+
+failures:
+    interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 736 filtered out; finished in 3.18s
+

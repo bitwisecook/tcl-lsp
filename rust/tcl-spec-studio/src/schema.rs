@@ -1367,6 +1367,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Predicate over the call's own flags deciding whether the sink applies.",
     ),
     f(
+        "channel_configuration",
+        "Channel configuration",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "channelConfiguration",
+            optional: true,
+        },
+        "Conditional original encoding/translation option relationship; no channel state or runtime acceptance.",
+    ),
+    f(
         "credential_options",
         "Credential options",
         TAINT,
@@ -2293,6 +2303,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Diagnostic code for a subcommand-shaped XSS or header-injection sink.",
     ),
     f(
+        "channel_configuration",
+        "Channel configuration",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "channelConfiguration",
+            optional: true,
+        },
+        "Conditional original encoding/translation option relationship; no channel state or runtime acceptance.",
+    ),
+    f(
         "credential_arg",
         "Credential argument",
         TAINT,
@@ -2639,6 +2659,7 @@ pub fn catalogues() -> Value {
         ("patternType", catalogue::PATTERN_TYPES),
         ("sourcePathOperation", catalogue::SOURCE_PATH_OPERATIONS),
         ("sourceIndexBounds", catalogue::SOURCE_INDEX_BOUNDS),
+        ("channelConfiguration", catalogue::CHANNEL_CONFIGURATIONS),
         (
             "taintTransformCondition",
             catalogue::TAINT_TRANSFORM_CONDITIONS,

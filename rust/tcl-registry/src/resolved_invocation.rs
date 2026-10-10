@@ -1373,6 +1373,25 @@ pub struct AuthoredSourceDescriptors<'r> {
     pub subcommand: Option<&'r crate::SubCommand>,
 }
 
+/// Selected original credential metadata, independent of runtime values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredSourceCredentialPosition {
+    /// Canonical available option whose single value carries a credential.
+    Option(&'static str),
+    /// Effective post-head ordinal of the original sensitive header name.
+    Header(usize),
+}
+
+/// One original operand selected by an existing credential descriptor.
+/// It supplies source advice, not exposure, evaluation or rewrite authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthoredSourceCredentialArgument {
+    /// Effective post-head value ordinal, including captured alias operands.
+    pub argument: usize,
+    /// Descriptor-selected option or original sensitive header position.
+    pub position: AuthoredSourceCredentialPosition,
+}
+
 /// Conditional authored publication layout, without command creation or lifetime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredSourceCommandPublicationKind {
@@ -3752,6 +3771,85 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         )?;
         scan.subcommands = subcommands;
         Some(scan)
+    }
+
+    /// Original option-value positions under the selected channel relationship
+    /// descriptor. A closed admitted option vector retains the final written or
+    /// captured value occurrence, independently of evaluation or channel state.
+    #[must_use]
+    pub fn authored_source_channel_configuration(
+        &self,
+    ) -> Option<crate::AuthoredSourceChannelConfiguration> {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let selected = self.authored_source_descriptors();
+        let descriptor = selected
+            .subcommand
+            .map_or(selected.command.channel_configuration, |subcommand| {
+                subcommand.channel_configuration
+            })?;
+        descriptor.project(self.authored_source_diagnostic_options()?)
+    }
+
+    /// Existing credential descriptors projected through this invocation's
+    /// admitted option grammar and selected subcommand. Coordinates remain
+    /// effective post-head ordinals; no literal value, exposure or edit follows.
+    #[must_use]
+    pub fn authored_source_credential_arguments(&self) -> Vec<AuthoredSourceCredentialArgument> {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let selected = self.authored_source_descriptors();
+        let mut arguments = Vec::new();
+        if !selected.command.credential_options.is_empty()
+            && let Some(scan) = self.authored_source_diagnostic_options()
+        {
+            for option in scan.options {
+                if !option.available
+                    || !selected
+                        .command
+                        .credential_options
+                        .contains(&option.option.name)
+                {
+                    continue;
+                }
+                let Some(values) = option.values else {
+                    continue;
+                };
+                if values.len() == 1 {
+                    arguments.push(AuthoredSourceCredentialArgument {
+                        argument: values.start,
+                        position: AuthoredSourceCredentialPosition::Option(option.option.name),
+                    });
+                }
+            }
+        }
+        if let Some(subcommand) = selected.subcommand
+            && let Some(argument) = subcommand.credential_arg.map(usize::from)
+            && let Some(count) = self.words.arguments().exact_argv_len()
+            && count >= 3
+            && argument < count
+        {
+            // credential_arg deliberately counts the selected subcommand at
+            // index zero, unlike the other subcommand-relative argument fields.
+            let header = 1;
+            if self
+                .words
+                .arguments()
+                .literal_at(header)
+                .is_some_and(|name| {
+                    subcommand
+                        .sensitive_headers
+                        .iter()
+                        .any(|sensitive| name.eq_ignore_ascii_case(sensitive))
+                })
+            {
+                arguments.push(AuthoredSourceCredentialArgument {
+                    argument,
+                    position: AuthoredSourceCredentialPosition::Header(header),
+                });
+            }
+        }
+        arguments
     }
 
     /// Filename position of the already selected source-file form. Exact

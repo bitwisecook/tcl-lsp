@@ -2170,9 +2170,9 @@ impl Analyser {
         self.emit_w142_context_gate(original.as_ref());
         self.emit_injection_diagnostics(original.as_ref());
         self.emit_w306_literal_expected(original.as_ref());
-        // W310 runs for every command (it scans args for credential
-        // option flags), so it takes no cmd_name guard.
-        self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);
+        // Default credential flags are lexical policy. Registry extensions
+        // require the same original selected descriptor and effective operands.
+        self.emit_w310_hardcoded_credentials(original.as_ref(), args, arg_tokens);
         // W143: direct call into a private `::tcl::` implementation
         // namespace.  Deferred — the whole-file suppressions
         // are applied by `flush_w143_diagnostics`.
@@ -2191,7 +2191,7 @@ impl Analyser {
         self.emit_source_variable_name_advice(site);
         self.emit_w104_append_list(original.as_ref());
         self.emit_w106_unbraced_switch_body(original.as_ref());
-        self.emit_w311_encoding_mismatch(cmd_name, args, arg_tokens);
+        self.emit_w311_encoding_mismatch(original.as_ref());
         self.emit_binary_field_version_gates(&format_templates);
         self.emit_w121_invalid_subnet_mask(args, arg_tokens);
         self.emit_w108_non_ascii(arg_tokens);

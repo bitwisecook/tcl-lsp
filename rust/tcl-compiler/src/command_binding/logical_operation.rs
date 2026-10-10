@@ -444,7 +444,7 @@ mod tests {
         // naming.source.logical-original-operation-transfer
         // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
         let input = input();
-        let registry = input.context_registry().commands();
+        let registry = input.borrowed_context_registry().commands();
         let options = SourceAnalysisOptions::for_logical_source(&input).unwrap();
         let binding = final_binding("set", &input);
         let state = binding.lookup_state.as_ref().unwrap().state.clone();
@@ -499,7 +499,7 @@ mod tests {
         physical.cell.as_mut().unwrap().interpreter = Some("retained interpreter".into());
         assert!(!logical_cell_is_local(&physical, &state, context));
         let mut missing = state.clone();
-        missing.baseline.logical_source_input = None;
+        super::super::Arc::make_mut(&mut missing.baseline).logical_source_input = None;
         assert!(!logical_cell_is_local(&access, &missing, context));
         let mut config = input.lexer_config();
         config.strict_quoting = !config.strict_quoting;

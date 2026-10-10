@@ -365,6 +365,11 @@ const ROWS: &[Row] = &[
         "Colours that make the sink safe.",
         "",
     ),
+    one(
+        "channel_configuration",
+        "Conditional channel-configuration source relationship.",
+        "EncodingTranslation selects original available -encoding and -translation value positions; it supplies no channel state, handler acceptance or evaluation.",
+    ),
     one("credential_options", "Options that carry a credential.", ""),
     one(
         "credential_arg",

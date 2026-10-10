@@ -22,6 +22,8 @@
 //! and storing variables, emitting increments, and parsing variable
 //! reference markers.
 
+use std::rc::Rc;
+
 use super::format::esc;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 
@@ -29,6 +31,34 @@ struct OriginalCompilerWords {
     words: Vec<tcl_lexer::NativeWord>,
     version: tcl_dialect::TclVersion,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
+}
+
+/// Syntax derived only within one immutable original invocation scope.
+/// The retained image keeps its allocation alive; equality of text is not a
+/// cache key or a grant of command, object or compiler authority.
+#[derive(Debug)]
+pub(super) struct OriginalLexicalWords {
+    image: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    words: Rc<Vec<tcl_lexer::NativeWord>>,
+}
+
+impl OriginalLexicalWords {
+    pub(super) fn matches_source(&self, image: &tcl_lexer::SourceImage) -> bool {
+        self.image.bytes().as_ptr() == image.bytes().as_ptr()
+            && self.image.len() == image.len()
+            && self.image.channel() == image.channel()
+    }
+
+    fn matches(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> bool {
+        self.matches_source(image) && self.config == config && self.protocol == protocol
+    }
 }
 
 // Literal emission.
@@ -785,28 +815,23 @@ impl CodegenCtx<'_> {
         };
         let (words, protocol) = self.original_lexical_words()?;
         Some(OriginalCompilerWords {
-            words,
+            words: words.as_ref().clone(),
             version,
             protocol,
         })
     }
 
     /// Original lexical values use their retained source and String issuer.
-    /// They do not require a C-only command compiler or create a cache recipe.
+    /// Reuse only syntax from this invocation scope, independently of Native
+    /// object caches, command compilation and successful execution.
     fn original_lexical_words(
         &self,
     ) -> Option<(
-        Vec<tcl_lexer::NativeWord>,
+        Rc<Vec<tcl_lexer::NativeWord>>,
         tcl_syntax::native_string::NativeStringProtocol,
     )> {
         let tokens = self.invocation_tokens.as_deref()?;
-        if tokens.synthetic.is_some()
-            || tokens.words().is_empty()
-            || tokens
-                .words()
-                .iter()
-                .any(|word| word.source().provenance != crate::ir::Provenance::Source)
-        {
+        if tokens.synthetic.is_some() || tokens.words().is_empty() {
             return None;
         }
         let protocol = self.source_string_protocol?;
@@ -820,17 +845,49 @@ impl CodegenCtx<'_> {
             .source_binding
             .as_ref()
             .and_then(|binding| binding.invocation_site())
-            .map_or_else(
-                || self.source_image().clone(),
-                |site| site.source.source_image().clone(),
-            );
-        let words = crate::registry_invocation::original_native_compiler_words(
-            &image,
+            .map_or_else(|| self.source_image(), |site| site.source.source_image());
+        let config = tokens.native_lexer_config(self.lexer_config());
+        if let Some(cached) = self.original_lexical_words.borrow().as_ref()
+            && cached.matches(image, config, protocol)
+        {
+            return Some((Rc::clone(&cached.words), protocol));
+        }
+        let words = Rc::new(crate::registry_invocation::original_native_compiler_words(
+            image,
             tokens.words(),
             tokens.words().first()?.source().span.start(),
-            tokens.native_lexer_config(self.lexer_config()),
-        )?;
+            config,
+        )?);
+        *self.original_lexical_words.borrow_mut() = Some(OriginalLexicalWords {
+            image: image.clone(),
+            config,
+            protocol,
+            words: Rc::clone(&words),
+        });
         Some((words, protocol))
+    }
+
+    /// A source setter changes this projection only when the invocation has
+    /// no independently retained original source owner.
+    pub(super) fn invalidate_unbound_original_lexical_words(
+        &mut self,
+        image: &tcl_lexer::SourceImage,
+    ) {
+        let source_owned = self
+            .invocation_tokens
+            .as_deref()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(|binding| binding.invocation_site())
+            .is_some();
+        if !source_owned
+            && self
+                .original_lexical_words
+                .get_mut()
+                .as_ref()
+                .is_some_and(|cached| !cached.matches_source(image))
+        {
+            self.original_lexical_words.get_mut().take();
+        }
     }
 
     /// Emit a retained written operand with the same source-channel and escape
@@ -1685,6 +1742,178 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn original_lexical_cache_reuses_one_vector_and_restores_nested_scope() {
+        // Software lexical-owner control; no Native object cache or execution grant.
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let config = tcl_lexer::LexerConfig::default();
+        let image = tcl_lexer::SourceImage::native(b"opaque A B C".as_slice());
+        let child_image = tcl_lexer::SourceImage::native(b"opaque CHILD".as_slice());
+        let tokens = increment_tokens(&image, config);
+        let child = increment_tokens(&child_image, config);
+        let mut context = CodegenCtx::new(false, &[], &registry);
+        context.ingress_lexer_config = Some(config);
+        context.set_source_image(image.clone());
+        context.with_invocation_tokens(Some(&tokens), |context| {
+            let (outer, _) = context.original_lexical_words().unwrap();
+            for word in tokens.words() {
+                assert!(context.try_emit_original_operand_word(&word.legacy_text(), word));
+                let (cached, _) = context.original_lexical_words().unwrap();
+                assert!(Rc::ptr_eq(&outer, &cached));
+            }
+            context.with_invocation_tokens(Some(&child), |context| {
+                assert!(context.original_lexical_words.get_mut().is_none());
+                context.set_source_image(child_image.clone());
+                let (nested, _) = context.original_lexical_words().unwrap();
+                assert!(!Rc::ptr_eq(&outer, &nested));
+                assert_eq!(nested.len(), 2);
+            });
+            context.set_source_image(image.clone());
+            let (restored, _) = context.original_lexical_words().unwrap();
+            assert!(Rc::ptr_eq(&outer, &restored));
+            context.with_invocation_tokens(None, |context| {
+                assert!(context.original_lexical_words().is_none());
+            });
+            assert!(Rc::ptr_eq(
+                &outer,
+                &context.original_lexical_words().unwrap().0
+            ));
+        });
+        assert!(context.original_lexical_words.get_mut().is_none());
+        assert!(context.original_lexical_words().is_none());
+    }
+
+    #[test]
+    fn original_lexical_cache_keys_allocation_channel_and_full_configuration() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let config = tcl_lexer::LexerConfig::default();
+        let image = tcl_lexer::SourceImage::native(b"opaque A".as_slice());
+        let tokens = increment_tokens(&image, config);
+        let mut context = CodegenCtx::new(false, &[], &registry);
+        context.ingress_lexer_config = Some(config);
+        context.set_source_image(image.clone());
+        context.with_invocation_tokens(Some(&tokens), |context| {
+            let (first, _) = context.original_lexical_words().unwrap();
+            context.set_source_image(image.clone());
+            assert!(Rc::ptr_eq(
+                &first,
+                &context.original_lexical_words().unwrap().0
+            ));
+            context
+                .ingress_lexer_config
+                .as_mut()
+                .unwrap()
+                .strict_quoting = true;
+            let (strict, _) = context.original_lexical_words().unwrap();
+            assert!(!Rc::ptr_eq(&first, &strict));
+            let equal = tcl_lexer::SourceImage::native(image.bytes());
+            assert_eq!(equal, image);
+            assert_ne!(equal.bytes().as_ptr(), image.bytes().as_ptr());
+            context.set_source_image(equal.clone());
+            let (reallocated, _) = context.original_lexical_words().unwrap();
+            assert!(!Rc::ptr_eq(&strict, &reallocated));
+            let document = tcl_lexer::SourceImage::from_bytes(
+                equal.shared_bytes(),
+                tcl_lexer::SourceChannel::Document,
+            );
+            assert_eq!(document.bytes().as_ptr(), equal.bytes().as_ptr());
+            context.set_source_image(document);
+            let (channel, _) = context.original_lexical_words().unwrap();
+            assert!(!Rc::ptr_eq(&reallocated, &channel));
+            context.set_source("opaque Q");
+            assert!(context.original_lexical_words().is_none());
+        });
+    }
+
+    #[test]
+    fn original_lexical_cache_rechecks_protocol_and_current_entry_issuer() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use tcl_syntax::native_string::NativeStringProtocol;
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let mut withdrawn = entry.clone();
+        withdrawn.source_string_protocol = None;
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let image = tcl_lexer::SourceImage::native(b"opaque A".as_slice());
+        let tokens = increment_tokens(&image, config);
+        let mut context = CodegenCtx::new(false, &[], &registry);
+        context.ingress_lexer_config = Some(config);
+        context.native_entry = Some(&entry);
+        context.source_string_protocol = entry.source_string_protocol;
+        context.set_source_image(image);
+        context.with_invocation_tokens(Some(&tokens), |context| {
+            let (first, protocol) = context.original_lexical_words().unwrap();
+            assert_eq!(Some(protocol), entry.source_string_protocol);
+            context.source_string_protocol = None;
+            assert!(context.original_lexical_words().is_none());
+            context.source_string_protocol = Some(NativeStringProtocol::Jim084);
+            assert!(context.original_lexical_words().is_none());
+            context.source_string_protocol = entry.source_string_protocol;
+            context.native_entry = Some(&withdrawn);
+            assert!(context.original_lexical_words().is_none());
+            context.native_entry = Some(&entry);
+            assert!(Rc::ptr_eq(
+                &first,
+                &context.original_lexical_words().unwrap().0
+            ));
+        });
+    }
+
+    #[test]
+    fn original_lexical_cache_keeps_the_retained_invocation_source_owner() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let source = "opaque A";
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            &registry,
+            crate::command_binding::SourceAnalysisOptions {
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                ..Default::default()
+            },
+        );
+        let image = tcl_lexer::SourceImage::document(source);
+        let mut tokens = increment_tokens(&image, config);
+        bindings.stamp_original_tokens(&mut tokens);
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .invocation_site()
+                .is_some()
+        );
+        let mut context = CodegenCtx::new(false, &[], &registry);
+        context.ingress_lexer_config = Some(config);
+        context.set_source_image(image);
+        context.with_invocation_tokens(Some(&tokens), |context| {
+            let (original, _) = context.original_lexical_words().unwrap();
+            context.set_source("other SOURCE");
+            assert!(Rc::ptr_eq(
+                &original,
+                &context.original_lexical_words().unwrap().0
+            ));
+            assert!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .original_normal_result(&tokens)
+                    .is_none()
+            );
+        });
     }
 
     fn increment_entry(

@@ -1991,6 +1991,12 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         taint(sub.taint_double_encode_colour),
     );
     d.insert("taint_output_sink".into(), opt_str(sub.taint_output_sink));
+    d.insert(
+        "channel_configuration".into(),
+        sub.channel_configuration.map_or(Value::Null, |descriptor| {
+            json!(catalogue::variant_name(&descriptor))
+        }),
+    );
     d.insert("credential_arg".into(), opt_index(sub.credential_arg));
     d.insert("sensitive_headers".into(), str_list(sub.sensitive_headers));
     d.insert(
@@ -2532,6 +2538,13 @@ fn command_taint(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "taint_sink_gate".into(),
         lost.expr("taint_sink_gate", spec.taint_sink_gate.is_some()),
+    );
+    d.insert(
+        "channel_configuration".into(),
+        spec.channel_configuration
+            .map_or(Value::Null, |descriptor| {
+                json!(catalogue::variant_name(&descriptor))
+            }),
     );
     d.insert(
         "credential_options".into(),

@@ -2192,3 +2192,73 @@ restored.chmod(0o755)
 ```
 
 Decompression restores the original measured ELF byte-for-byte; it supplies no new build or assertion outcome.
+
+## Sealed VM278 and independent compilation outcomes
+
+The [original VM278 pin metadata](frozen278/sealed-vm-image/pinned-vm278.json), [lossless measured image](frozen278/sealed-vm-image/pinned-vm278.elf.gz), [storage identity receipt](frozen278/sealed-vm-image/lossless-image-storage.json) and [exact source companion](frozen278/sealed-vm-image/source-snapshot.json.gz) retain the successful independent VM-only278 no-run producer. Its inventory lists739 tests. The separate276 and277 VM construction attempts fail respectively at an ordinary Compiler DiagnosticSubject import and a typed VM adapter mismatch, supplying no assertion or image. The independent Core/DB/Server278 no-run attempt fails at a private AnalysisResult fixture constructor and supplies no image or assertion.
+
+The sealed VM278 runs retain0 passed/2 failed for mathop admission,2 passed/1 failed for InfoCommands/options, and1 passed/0 failed for the original345 complete dictionary process comparator. The latter passes after reached-capture411 and before the independent Tick-vector412 ownership change; diagnostic-only409 topology still retains retired CALL-head views. It is neither a remaining345 comparator failure nor a new Native private-lifetime/frame guarantee. InfoCommands fails at the C8.4 escaped-nul-prefix primary-before-getter window (actual list, captured none); this exact failure is separate from VM275’s qualified-child String birth. No whole186-window software success is claimed.
+
+| Closed operation | Status | Recorded result | Exact receipt | Complete log |
+| --- | --- | --- | --- | --- |
+| `integration-vm-native-test-build276` | `compile-blocked`, exit 101, 58.262503s | no assertions | [Original lossless receipt](frozen276/integration-vm-native-test-build276/receipt.json.gz) | [Whole log](frozen276/integration-vm-native-test-build276/tests.log) |
+| `integration-vm-native-test-build277` | `compile-blocked`, exit 101, 73.779185s | no assertions | [Original lossless receipt](frozen277/integration-vm-native-test-build277/receipt.json.gz) | [Whole log](frozen277/integration-vm-native-test-build277/tests.log) |
+| `integration-vm-native-test-build278` | `compile-passed`, exit 0, 104.570689s | no assertions | [Original lossless receipt](frozen278/integration-vm-native-test-build278/receipt.json.gz) | [Whole log](frozen278/integration-vm-native-test-build278/tests.log) |
+| `integration-vm-current-inventory278` | `listed`, exit 0, 0.006270s | 739 listed, no assertions | [Original lossless receipt](frozen278/integration-vm-current-inventory278/receipt.json.gz) | [Whole log](frozen278/integration-vm-current-inventory278/tests.log) |
+| `diagnostic-native278-mathop-admission` | `failed`, exit 101, 4.645936s | 0 passed/2 failed | [Original lossless receipt](frozen278/diagnostic-native278-mathop-admission/receipt.json.gz) | [Whole log](frozen278/diagnostic-native278-mathop-admission/tests.log) |
+| `integration-vm-info-options-frontier278` | `failed`, exit 101, 3.200391s | 2 passed/1 failed | [Original lossless receipt](frozen278/integration-vm-info-options-frontier278/receipt.json.gz) | [Whole log](frozen278/integration-vm-info-options-frontier278/tests.log) |
+| `diagnostic-native278-dictionary345-ownership` | `passed`, exit 0, 280.646146s | 1 passed/0 failed | [Original lossless receipt](frozen278/diagnostic-native278-dictionary345-ownership/receipt.json.gz) | [Whole log](frozen278/diagnostic-native278-dictionary345-ownership/tests.log) |
+| `integration-core-db-server-test-build278` | `compile-blocked`, exit 101, 231.498612s | no assertions | [Original lossless receipt](frozen278/integration-core-db-server-test-build278/receipt.json.gz) | [Whole log](frozen278/integration-core-db-server-test-build278/tests.log) |
+
+Every command, whole log, exact source association and libtest event is retained. The739-test inventory independently gates the actual selected assertion names. Native provider evidence and original expected windows are unchanged; these pinned-image outcomes do not promote an aggregate gate or another backend. Restore from the repository root after checking both stored and measured identities:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-vm278.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-vm278.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Lossless storage restores the exact measured executable; decompression supplies no new build or assertion.
+
+## Sealed VM280 and independent compilation outcomes
+
+The [unchanged VM280 pin metadata](frozen280/sealed-vm-image/pinned-vm280.json), [lossless measured image](frozen280/sealed-vm-image/pinned-vm280.elf.gz), [storage identity receipt](frozen280/sealed-vm-image/lossless-image-storage.json) and [exact source companion](frozen280/sealed-vm-image/source-snapshot.json.gz) retain the successful independent VM-only no-run producer. The earlier combined Compiler/VM invocation fails at three Compiler fixture errors; its VM artifact event is not treated as a successful producer. The separate Core/DB/Server build fails at a DB fixture Arc borrow and produces no test image.
+
+The sealed seven-selector VM280 run retains4 passed/3 failed: two activation controls and two binary-carrier controls pass; both mathop comparators fail at the Jim namespace-info fixture, and InfoCommands fails at the C8.6 escaped-NUL primary-before-getter window (actual list, captured none). This is neither whole84/60/186 success nor an aggregate gate. The full log, exact selected names and all libtest events are retained. No absent standalone inventory receipt is invented.
+
+| Closed operation | Status | Recorded result | Exact receipt | Complete log |
+| --- | --- | --- | --- | --- |
+| `integration-compiler-vm-test-build280` | `compile-blocked`, exit 101, 221.625077s | no assertions | [Original lossless receipt](frozen280/integration-compiler-vm-test-build280/receipt.json.gz) | [Whole log](frozen280/integration-compiler-vm-test-build280/tests.log) |
+| `integration-vm-own-test-build280` | `compile-passed`, exit 0, 103.896400s | no assertions | [Original lossless receipt](frozen280/integration-vm-own-test-build280/receipt.json.gz) | [Whole log](frozen280/integration-vm-own-test-build280/tests.log) |
+| `integration-vm-native-frontier-tests280` | `failed`, exit 101, 52.828099s | 4 passed/3 failed | [Original lossless receipt](frozen280/integration-vm-native-frontier-tests280/receipt.json.gz) | [Whole log](frozen280/integration-vm-native-frontier-tests280/tests.log) |
+| `integration-core-db-server-test-build280` | `compile-blocked`, exit 101, 130.342107s | no assertions | [Original lossless receipt](frozen280/integration-core-db-server-test-build280/receipt.json.gz) | [Whole log](frozen280/integration-core-db-server-test-build280/tests.log) |
+
+Every original source association is independently byte-checked. Native provider evidence and original expected windows are unchanged. Restore the exact measured image from the repository root after checking both stored and measured identities:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-vm280.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-vm280.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Lossless storage restores the exact executable; decompression supplies no new build or assertion.

@@ -2480,7 +2480,7 @@ mod tests {
                 .unwrap();
             let selected = words
                 .with_source_schema(input.borrowed_context_registry(), |schema| {
-                    schema.semantics.command
+                    schema.authored_source_descriptors().command
                 })
                 .unwrap();
             assert!(std::ptr::eq(selected, expected), "{source}");

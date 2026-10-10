@@ -128,6 +128,10 @@ enum RegistryPurposeDescription {
     ChannelPath,
     /// Original source-file path; source/value advice supplies no file entry.
     SourceFilePath,
+    /// Static original value under selected credential metadata.
+    CredentialLiteral,
+    /// Original option values selected for channel configuration advice.
+    ChannelConfiguration,
 }
 impl From<tcl_compiler::analyser::RegistrySourceDiagnosticKind> for RegistryPurposeDescription {
     fn from(kind: tcl_compiler::analyser::RegistrySourceDiagnosticKind) -> Self {
@@ -159,6 +163,8 @@ impl From<tcl_compiler::analyser::RegistrySourceDiagnosticKind> for RegistryPurp
             Kind::ScriptReparse => Self::ScriptReparse,
             Kind::ChannelPath => Self::ChannelPath,
             Kind::SourceFilePath => Self::SourceFilePath,
+            Kind::CredentialLiteral => Self::CredentialLiteral,
+            Kind::ChannelConfiguration => Self::ChannelConfiguration,
         }
     }
 }
@@ -191,6 +197,8 @@ impl RegistryPurposeDescription {
             Self::ScriptReparse => matches!(code, "W101" | "W301" | "W309" | "W312"),
             Self::ChannelPath => code == "W103",
             Self::SourceFilePath => code == "W300",
+            Self::CredentialLiteral => code == "W310",
+            Self::ChannelConfiguration => code == "W311",
         }
     }
 }
@@ -2069,6 +2077,86 @@ mod tests {
             diagnostic.fixes.clear();
             assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
         }
+    }
+
+    #[test]
+    fn original_channel_configuration_transport_keeps_selected_captured_option_values() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "interp alias {} configure {} fconfigure stdout -encoding binary -translation {é[$literal]}; configure";
+        let result = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl");
+        let mut diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|finding| finding.code == DiagCode::W311)
+            .expect("selected channel relationship")
+            .clone();
+        assert_eq!(&source[diagnostic.span.as_range()], "{é[$literal]}");
+        let payload = diagnostic_subject_data(&diagnostic).unwrap();
+        assert_eq!(payload["subject"]["purpose"], "channelConfiguration");
+        assert_eq!(payload["subject"]["argument"], 4);
+        assert_eq!(
+            payload["subject"]["writtenArgument"],
+            serde_json::Value::Null
+        );
+        assert!(DiagnosticSubjectData::from_value(&payload, "W311").is_some());
+        assert!(DiagnosticSubjectData::from_value(&payload, "W310").is_none());
+        diagnostic.message = "translated presentation naming unrelated options".to_owned();
+        diagnostic.fixes.clear();
+        assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
+    }
+
+    #[test]
+    fn original_credential_transport_keeps_captured_literals_separate_from_lexical_policy() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "interp alias {} request {} http::geturl URL -headers {é[$literal]}; request";
+        let result = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl");
+        let mut diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|finding| finding.code == DiagCode::W310)
+            .expect("captured credential metadata")
+            .clone();
+        assert_eq!(&source[diagnostic.span.as_range()], "{é[$literal]}");
+        let payload = diagnostic_subject_data(&diagnostic).unwrap();
+        assert_eq!(payload["subject"]["purpose"], "credentialLiteral");
+        assert_eq!(payload["subject"]["argument"], 2);
+        assert_eq!(
+            payload["subject"]["writtenArgument"],
+            serde_json::Value::Null
+        );
+        assert!(DiagnosticSubjectData::from_value(&payload, "W310").is_some());
+        assert!(DiagnosticSubjectData::from_value(&payload, "W303").is_none());
+        diagnostic.message = "translated presentation naming unrelated commands".to_owned();
+        diagnostic.fixes.clear();
+        assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
+        let lexical =
+            tcl_compiler::analyser::Analyser::new().analyse("mycmd -password VALUE", "tcl8.6");
+        let lexical = lexical
+            .diagnostics
+            .iter()
+            .find(|finding| finding.code == DiagCode::W310)
+            .expect("default lexical policy");
+        assert!(diagnostic_subject_data(lexical).is_none());
     }
 
     #[test]

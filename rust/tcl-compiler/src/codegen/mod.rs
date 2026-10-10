@@ -390,6 +390,8 @@ pub struct CodegenCtx<'r> {
     native_hook_layout: Option<(String, usize)>,
     /// Original invocation proof scoped to the current emitter entry.
     invocation_tokens: Option<Box<crate::ir::CommandTokens>>,
+    /// Derived lexical words belong only to the immutable invocation scope.
+    original_lexical_words: std::cell::RefCell<Option<values::OriginalLexicalWords>>,
     /// Actual authored carriers for inline script commands, shared by the module.
     source_proofs: Option<std::sync::Arc<crate::command_binding::BodySourceProofs>>,
     /// First instruction and exact source/selection premises to its range label.
@@ -503,6 +505,7 @@ impl<'r> CodegenCtx<'r> {
             cmd_arg_braced: Vec::new(),
             native_hook_layout: None,
             invocation_tokens: None,
+            original_lexical_words: std::cell::RefCell::new(None),
             source_proofs: None,
             native_operation_origins: HashMap::new(),
             inline_body_source_base: None,
@@ -701,6 +704,7 @@ impl<'r> CodegenCtx<'r> {
     ) -> T {
         let previous =
             std::mem::replace(&mut self.invocation_tokens, tokens.cloned().map(Box::new));
+        let previous_lexical_words = self.original_lexical_words.get_mut().take();
         let previous_layout = self.native_hook_layout.take();
         let operation = if self.plain_command_dispatch {
             None
@@ -759,6 +763,7 @@ impl<'r> CodegenCtx<'r> {
             self.retain_native_operation_selection(operation_start, operation);
         }
         self.invocation_tokens = previous;
+        *self.original_lexical_words.get_mut() = previous_lexical_words;
         self.native_hook_layout = previous_layout;
         result
     }
@@ -867,12 +872,15 @@ impl<'r> CodegenCtx<'r> {
     /// carry their command's surface text for `errorInfo`.
     pub fn set_source(&mut self, source: &str) {
         self.exact_command_source = None;
-        self.source = tcl_lexer::SourceImage::document(source);
+        let image = tcl_lexer::SourceImage::document(source);
+        self.invalidate_unbound_original_lexical_words(&image);
+        self.source = image;
         self.line_index = (!source.is_empty()).then(|| tcl_lexer::LineIndex::new(source));
     }
 
     /// Retain original native source bytes and channel before emitting spans.
     pub fn set_source_image(&mut self, source: tcl_lexer::SourceImage) {
+        self.invalidate_unbound_original_lexical_words(&source);
         self.exact_command_source = None;
         self.line_index =
             (!source.is_empty()).then(|| tcl_lexer::LineIndex::from_bytes(source.bytes()));
@@ -897,6 +905,7 @@ impl<'r> CodegenCtx<'r> {
         source: tcl_lexer::SourceImage,
         line_index: tcl_lexer::LineIndex,
     ) {
+        self.invalidate_unbound_original_lexical_words(&source);
         self.exact_command_source = None;
         self.line_index = (!source.is_empty()).then_some(line_index);
         self.source = source;

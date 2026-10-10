@@ -2533,6 +2533,34 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
     None
 }
 
+/// Select a completion option through actual cached Dictionary or List storage.
+/// Keys use the interpreter's checked byte getter. No Unicode projection or
+/// message classification contributes an option identity.
+///
+/// # Errors
+/// Retains actual conversion/getter refusal; an absent member is `Ok(None)`.
+pub(crate) fn opt_get_checked(
+    vm: &mut Vm,
+    options: &Value,
+    key: &[u8],
+) -> Result<Option<Value>, tcl_syntax::value::ValueError> {
+    if let Some(pairs) = options.with_cached_dictionary_representation(|pairs, _| pairs.to_vec()) {
+        for (name, value) in pairs {
+            if tcl_syntax::value::ValueOps::native_string_bytes(vm, &name)?.as_ref() == key {
+                return Ok(Some(value));
+            }
+        }
+        return Ok(None);
+    }
+    let items = tcl_syntax::value::ValueOps::list_elements(vm, options)?;
+    for pair in items.as_chunks::<2>().0 {
+        if tcl_syntax::value::ValueOps::native_string_bytes(vm, &pair[0])?.as_ref() == key {
+            return Ok(Some(pair[1].clone()));
+        }
+    }
+    Ok(None)
+}
+
 /// `return ?-code c? ?-level l? ?-errorcode ec? ?-errorinfo ei? ?value?`.
 /// Shared with the `returnStk` opcode (C `INST_RETURN_STK` →
 /// `Tcl_SetReturnOptions`), which behaves exactly like

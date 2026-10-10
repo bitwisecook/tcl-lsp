@@ -176,6 +176,10 @@ pub enum RegistrySourceDiagnosticKind {
     ChannelPath,
     /// Selected source-file path under the original available argument form.
     SourceFilePath,
+    /// Original static value selected by the available credential metadata.
+    CredentialLiteral,
+    /// Original option values under selected channel-configuration metadata.
+    ChannelConfiguration,
 }
 
 /// A structured source diagnostic subject with original schema ownership.

@@ -41,7 +41,9 @@ pub(crate) use completion::CompletionWalk;
 pub(crate) use completion::tests::logical_unit as logical_completion_unit;
 pub(crate) use eager::{DefinitionReach, EagerInvocations};
 pub use transfer::TransferSummaries;
-pub(crate) use transfer::{CallTransfer, ModuleInputs, ModuleProcedures, Rerun, RerunStance};
+pub(crate) use transfer::{
+    CallTransfer, ModuleInputs, ModuleProcedures, OriginalSummaryScript, Rerun, RerunStance,
+};
 
 /// Depth cap shared by every `Script`/`Statement`-tree recursion in this
 /// module (`collect_instance_var_writes`; the mutually-recursive

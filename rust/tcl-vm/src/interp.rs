@@ -4477,7 +4477,9 @@ impl Vm {
     /// (the engine's own or an embedder's) or an engine-installed `TclOO`
     /// root. A command a script defines is no backing. This VM embeds no Tcl
     /// library, so nothing is reported as defined by one. Names are without a
-    /// leading `::`, and a name this VM does not mention is absent.
+    /// leading `::`. This Unicode catalogue omits opaque byte names. Private
+    /// storage keys never become public command identities; counted lookup and
+    /// publication retain their exact names independently.
     #[must_use]
     pub fn backing_report(&self) -> Vec<(String, RegisteredBacking)> {
         let mut report: Vec<(String, RegisteredBacking)> = self
@@ -4491,7 +4493,8 @@ impl Vm {
                     }
                     _ => return None,
                 };
-                Some((key.clone(), backing))
+                let display = self.command_display_key_bytes(key);
+                Some((display.try_utf8().ok()?.to_owned(), backing))
             })
             .collect();
         report.sort();
@@ -25924,6 +25927,39 @@ mod family_b_tests {
         );
         assert_eq!(vm.retain_commands(&|name| name == "watched"), 1);
         assert_eq!(vm.command_names().unwrap(), vec!["watched"]);
+    }
+
+    #[test]
+    fn backing_catalogue_uses_exact_public_names_and_never_private_storage_keys() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = Vm::new();
+        vm.register_native_command("café", Rc::new(TestNative));
+        let opaque_slot = CommandSlot {
+            namespace: ROOT_NS,
+            simple: NameBytes::from(b"opaque_\xff"),
+        };
+        let key = vm.register_command_in_slot(opaque_slot, Command::Native(Rc::new(TestNative)));
+        assert!(key.starts_with("\0tcl-command:"));
+        assert_eq!(
+            vm.command_display_key_bytes(&key).as_bytes(),
+            b"opaque_\xff"
+        );
+        let generation = vm.visible_command_generation(&key).unwrap();
+        let report = vm.backing_report();
+        assert!(
+            report
+                .iter()
+                .any(|(name, backing)| name == "café" && *backing == RegisteredBacking::Builtin)
+        );
+        assert!(
+            !report
+                .iter()
+                .any(|(name, _)| name.starts_with("\0tcl-command:") || name.starts_with("opaque_"))
+        );
+        assert!(Namespaces::find_command_bytes(&vm, ROOT_NS, b"opaque_\xff").is_some());
+        assert_eq!(vm.visible_command_generation(&key), Some(generation));
+        assert!(vm.name_world.try_borrow_mut().is_ok());
     }
 
     #[test]

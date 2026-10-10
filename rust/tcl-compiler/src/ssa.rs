@@ -4594,8 +4594,11 @@ fn scan_selected_expression_roles(
     let Some(binding) = tokens.source_binding.as_ref() else {
         return;
     };
+    let Some(config) = binding.original_lexer_config_for_tokens(tokens) else {
+        return;
+    };
     if let Some(evaluation) = binding.conditional_expression_evaluation(registry, tokens) {
-        let config = tcl_lexer::LexerConfig::from_grammar(evaluation.lexer_grammar());
+        let config = config.with_grammar(evaluation.lexer_grammar());
         let names = if scanner.element_qualified() {
             evaluation.tree().vars_element_qualified_with_config(config)
         } else {
@@ -4627,7 +4630,7 @@ fn scan_selected_expression_roles(
         return;
     };
     let parser = dialect.expression_parse_context(None);
-    let config = tcl_lexer::LexerConfig::from_grammar(parser.lexer_grammar);
+    let config = config.with_grammar(parser.lexer_grammar);
     for (index, role) in invocation.written_argument_roles() {
         if role != tcl_registry::ArgRole::Expr {
             continue;

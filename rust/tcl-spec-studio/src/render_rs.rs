@@ -1574,6 +1574,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "patternType" => "PatternType",
         "sourcePathOperation" => "SourcePathOperation",
         "sourceIndexBounds" => "SourceIndexBounds",
+        "channelConfiguration" => "ChannelConfigurationSpec",
         "formatType" => "FormatType",
         "formKind" => "FormKind",
         "definedSymbolKind" => "DefinedSymbolKind",

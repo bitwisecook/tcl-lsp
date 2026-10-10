@@ -2248,6 +2248,9 @@ pub struct CommandSpec {
     /// `-headers`) — drives credential-exposure checks. Empty = none.
     pub credential_options: &'static [&'static str],
 
+    /// Conditional source option relationship; no channel state or completion.
+    pub channel_configuration: Option<crate::ChannelConfigurationSpec>,
+
     /// HTTP header names whose values are secrets (e.g.
     /// `authorization`, `cookie`). Empty = none.
     pub sensitive_headers: &'static [&'static str],
@@ -2960,6 +2963,7 @@ impl CommandSpec {
         taint_sink_gate: None,
         taint_numeric_coercion: None,
         credential_options: &[],
+        channel_configuration: None,
         sensitive_headers: &[],
         setter_constraints: &[],
         pattern_type: None,
@@ -4367,10 +4371,13 @@ pub struct SubCommand {
     /// sink.
     pub taint_output_sink: Option<&'static str>,
 
-    /// Argument index (0-based after the subcommand word) carrying a
-    /// credential value, for credential-exposure checks. `None` =
-    /// none.
+    /// Credential-value argument index, counting the selected subcommand word
+    /// itself as zero. This field preserves the SpecTcl verbatim coordinate,
+    /// unlike other subcommand-relative argument fields. `None` = none.
     pub credential_arg: Option<u8>,
+
+    /// Conditional source option relationship; no channel state or completion.
+    pub channel_configuration: Option<crate::ChannelConfigurationSpec>,
 
     /// HTTP header names whose values are secrets, for a
     /// subcommand-shaped header sink. Empty = none.
@@ -4779,6 +4786,7 @@ impl SubCommand {
         taint_double_encode_colour: None,
         taint_output_sink: None,
         credential_arg: None,
+        channel_configuration: None,
         sensitive_headers: &[],
         pattern_type: None,
         format_string_type: None,

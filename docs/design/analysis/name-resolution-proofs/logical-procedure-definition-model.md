@@ -14,9 +14,13 @@ Can a selected source procedure definition retain diagnostic slot presence throu
 
 A positively retained complete Logical input selects a separate authored descriptor roster from its actual full ContextRegistry. The authored model descriptor roster is distinct from the original source dialect and Native release roster. A selected post-observer source procedure transfer authenticates the current Document origin, static whole words, selected Proc semantic identity/roles/arity, shared valid formal syntax and known Authored namespace. It rechecks current quiet target/source/configuration before installing the existing authored model procedure. Its continuation supplies no Native slot, publication, CPP, entered activation or Native Normal certificate. The prepared original-argv boundary independently selects the quiet Logical authored target from its positively retained full input and genuine complete source head. A unanimous selected target then consumes the same original Proc schema, formal validity, authored namespace and receipt-currentness checks. Native compilation or a Native head input is unnecessary for this separate authored model transfer; no Native preparation, lookup, publication, frame or Normal certificate follows. Shared original_static_invocation_words also authenticates complete static Document vectors against the retained Logical input, original invocation offset, source frame/namespace and current configuration before the Proc-specific selected transfer. This common source admission creates no Native values or execution receipt; bounded non-Proc symbolic operations retain their separate contract.
 
+Conditional Logical declaration values retain Unicode moves and authentic captured factory operands under the complete quiet original Document source owner. Checked UTF8, NUL refusal and original source/configuration/entry-mode guards remain independent of the source value spelling.
+
 ## Scope
 
 Static original Logical definitions under a positively retained complete input, known Authored namespace and quiet selected stock source definer. Genuine original words and effective captured-prefix operands use the selected actual source schema and strict formal grammar; labels cannot reconstruct a declaration. The full context supplies only the authored model roster; foreign context/configuration tokens, Native input and unknown/unsealed input cannot borrow it. Selected source grammar may have a Jim point without a Native name policy. Stored body validity, actual invocation, Native publication/Normal and physical frames remain independent. Unknown/rebound/dynamic/opaque/invalid-namespace inputs decline; Native and hosted source stay separate.
+
+Two additional unexecuted source/software controls confer no Native definition publication, value/name receipt, Handler/body/frame entry, physical storage or Normal completion. Existing original Native definition/formal experiments remain separate.
 
 ## Provider answers
 
@@ -86,6 +90,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_model_roster_requires_the_complete_current_input_and_source_mode` (linked): Complete genuine Logical token selects the model roster without changing its source dialect; stale configuration, foreign context token and Native input cannot adopt the model.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `static_value`: Retain checked UTF8 complete quiet Logical Document values, literal sigils and Unicode under the unchanged source/config/mode guard; NUL or Native-channel laundering refuses.
+- [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `LogicalProcedureDefinition::capture`: Join the authentic original selected definer, Unicode moves and captured factory operands within the conditional Logical source model.
+- [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_definition_keeps_unicode_moves_and_captured_factory_operands` (linked): Complete quiet retained Logical original Document values; checked UTF8 and NUL refusal; source/config/Native mode gates unchanged, no Native value/name/handler/frame/Normal/publication receipt
+- [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_static_values_keep_checked_source_and_native_channel_boundaries` (linked): Complete quiet retained Logical original Document values; checked UTF8 and NUL refusal; source/config/Native mode gates unchanged, no Native value/name/handler/frame/Normal/publication receipt
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Replay
 

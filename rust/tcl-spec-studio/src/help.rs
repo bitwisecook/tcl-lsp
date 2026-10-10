@@ -971,6 +971,10 @@ risk than bare `subst`. Code, carried by reference; state the condition in \
 the issue notes.",
     ),
     (
+        "channel_configuration",
+        "The selected command or subcommand describes channel configuration. EncodingTranslation projects the original available encoding and translation value positions for source advice; it does not establish a channel, native handler or completed configuration.",
+    ),
+    (
         "credential_options",
         "Option flags whose value is a secret — `-password`, `-token`. A \
 literal secret passed to one is reported as a hard-coded credential, and \
@@ -1575,7 +1579,13 @@ renaming or deleting one, or creating an alias. Keeps \"unknown \
 command\" honest after such calls.",
     ),
     (
+        "channelConfiguration",
+        "Channel configuration",
+        "Conditional source option relationship vocabulary. Original values and current channel state remain independent.",
+    ),
+    (
         "sourceIndexBounds",
+        "Source index bounds",
         "The source index relationship vocabulary, independently of native operation identity or runtime values.",
     ),
     (

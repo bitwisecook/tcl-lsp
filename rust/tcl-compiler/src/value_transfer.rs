@@ -770,13 +770,11 @@ pub(crate) fn call_literal_words(
 /// answer or that never completes normally.
 pub(crate) fn summary_steps(
     module: &crate::interprocedural::ModuleProcedures<'_>,
-    function: &str,
+    _function: &str,
     statement: &Statement,
-    config: &LexerConfig,
+    _config: &LexerConfig,
 ) -> Vec<(String, ExistenceStep)> {
     let Statement::Call {
-        command,
-        args,
         tokens,
         foreach_groups: None,
         ..
@@ -787,14 +785,17 @@ pub(crate) fn summary_steps(
     if statement.synthetic_marker().is_some() {
         return Vec::new();
     }
-    let Some(callee) = module.resolve(command, function, FoldTrust::ObservedBindings) else {
+    let Some(call) = tokens
+        .as_ref()
+        .and_then(|tokens| module.resolve_call_at(tokens, FoldTrust::ObservedBindings))
+    else {
         return Vec::new();
     };
-    let Some(words) = call_literal_words(args, tokens.as_ref(), config) else {
+    let Some(words) = module.original_call_arguments(&call) else {
         return Vec::new();
     };
     let words: Vec<Option<&str>> = words.iter().map(Option::as_deref).collect();
-    match module.call_transfer(&callee, &words) {
+    match module.call_transfer(&call.procedure.qualified_name, &words) {
         Some(crate::interprocedural::CallTransfer::Places(places)) => places,
         _ => Vec::new(),
     }
@@ -1499,7 +1500,6 @@ impl<'a> LatticeDriver<'a> {
         let stmt_ssa = block.statements.get(index)?;
         let Statement::Call {
             command,
-            args,
             tokens,
             foreach_groups: None,
             ..
@@ -1514,10 +1514,13 @@ impl<'a> LatticeDriver<'a> {
             return None;
         }
         let module = self.procedures_for(command)?;
-        let callee = module.resolve(command, self.function, self.procedure_trust())?;
+        let original = tokens.as_ref()?;
+        let call = module.resolve_call_at(original, self.procedure_trust())?;
+        let callee = &call.procedure.qualified_name;
         self.reads_module.set(true);
         let defs = named_defs(stmt_ssa, ssa);
-        let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
+        let cooked =
+            effective_procedure_arguments(&call.arguments, module.original_call_arguments(&call)?);
         if cooked
             .iter()
             .any(|word| word.kind == InvocationWordKind::Expanded)
@@ -1598,13 +1601,19 @@ impl<'a> LatticeDriver<'a> {
         (cooked, places): (&[ArgWord<'_>], &PlaceSteps),
         (values, ssa): (&HashMap<ValueKey, LatticeValue, S>, &SsaFunction),
     ) -> Option<CallRerun> {
-        let inputs = self.expression_inputs((&block.statements.get(index)?.uses, values, ssa));
+        let original = block.statements.get(index)?.statement.tokens()?;
+        let call = module.resolve_call_at(original, self.procedure_trust())?;
+        let mut inputs = self.expression_inputs((&block.statements.get(index)?.uses, values, ssa));
+        inputs.original = Some(original.clone());
+        inputs.written_arguments = (0..cooked.len())
+            .map(|argument| call.arguments.written_argument(argument))
+            .collect();
         let mut arguments = Vec::with_capacity(cooked.len());
-        for word in cooked {
+        for (index, word) in cooked.iter().enumerate() {
             arguments.push(match word.kind {
                 InvocationWordKind::Literal => Some(ExactValue::from_literal(&word.text)),
                 _ if word.source == OperandSource::Substituted => {
-                    match inputs.substituted(&word.text) {
+                    match inputs.substituted_argument(&word.text, index) {
                         FactView::Exact(value, _) => Some(value),
                         FactView::Pending => return Some(CallRerun::Waiting),
                         _ => None,
@@ -1657,9 +1666,8 @@ impl<'a> LatticeDriver<'a> {
         arguments: &[Option<ExactValue>],
         seeds: &[(Option<ExactValue>, Existence)],
     ) -> Option<std::rc::Rc<crate::interprocedural::Rerun>> {
-        let dialect = self.folds.and_then(|folds| folds.dialect);
         module
-            .parameter_values(callee, arguments, dialect)
+            .parameter_values(callee, arguments)
             .zip(self.rerun_stance())
             .and_then(|(params, stance)| module.rerun(callee, (&params, seeds), stance))
     }
@@ -1679,15 +1687,18 @@ impl<'a> LatticeDriver<'a> {
     fn procedure_run<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         seg: &crate::segmenter::SegmentedCommand,
+        original: Option<&CommandTokens>,
         (uses, values, ssa): Lattice<'_, S1, S2>,
         (prior, policy): (&[(PlaceRef, StoreOutcome)], NestedPolicy),
     ) -> Option<ScriptRun> {
         let head = seg.name();
-        if self.leaves_procedure_run(head, policy) {
+        let original = original?;
+        if self.leaves_procedure_run(original, policy) {
             return None;
         }
         let module = self.procedures_for(head)?;
-        let callee = module.resolve(head, self.function, self.procedure_trust())?;
+        let call = module.resolve_call_at(original, self.procedure_trust())?;
+        let callee = &call.procedure.qualified_name;
         self.reads_module.set(true);
         let binding = binding_of(head, &callee);
         let answered = |answer, writes| {
@@ -1710,7 +1721,8 @@ impl<'a> LatticeDriver<'a> {
                 member_writes(policy, Vec::new()),
             )
         };
-        let cooked = self.cooked_args(seg);
+        let cooked =
+            effective_procedure_arguments(&call.arguments, module.original_call_arguments(&call)?);
         if cooked
             .iter()
             .any(|word| word.kind == InvocationWordKind::Expanded)
@@ -1736,6 +1748,11 @@ impl<'a> LatticeDriver<'a> {
         }
         let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
         let inputs = LatticeInputs {
+            original: Some(original.clone()),
+            written_arguments: (0..cooked.len())
+                .map(|index| call.arguments.written_argument(index))
+                .collect(),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: prior.to_vec(),
             words: Words::under(policy),
@@ -1775,7 +1792,7 @@ impl<'a> LatticeDriver<'a> {
     /// nothing would carry (the effect-free policy) — there a call to a
     /// procedure of the module runs nowhere, so its completion is one no
     /// re-run decided.
-    fn leaves_procedure_run(&self, head: &str, policy: NestedPolicy) -> bool {
+    fn leaves_procedure_run(&self, original: &CommandTokens, policy: NestedPolicy) -> bool {
         if policy == NestedPolicy::Protected || self.is_throwing() {
             return true;
         }
@@ -1785,7 +1802,7 @@ impl<'a> LatticeDriver<'a> {
         }
         if self.module.is_some_and(|module| {
             module
-                .resolve(head, self.function, self.procedure_trust())
+                .resolve_call_at(original, self.procedure_trust())
                 .is_some()
         }) {
             self.record_undecided();
@@ -2339,6 +2356,9 @@ impl<'a> LatticeDriver<'a> {
                 continue;
             };
             let inputs = LatticeInputs {
+                original: None,
+                written_arguments: Vec::new(),
+                nested_source: RefCell::new(None),
                 driver: self,
                 prior_writes: Vec::new(),
                 words: Words::Independent,
@@ -2448,6 +2468,9 @@ impl<'a> LatticeDriver<'a> {
         let resolved = self.resolve(head, &words)?;
         let semantics = resolved.semantics.value.semantics()?;
         let inputs = LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -2740,6 +2763,9 @@ impl<'a> LatticeDriver<'a> {
             .collect();
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let inputs = LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -3236,7 +3262,9 @@ impl<'a> LatticeDriver<'a> {
                 command_binding,
                 ..
             } => self.ordered_expression(expr, Some(command_binding), lattice)?,
-            Statement::AssignValue { value, .. } => self.ordered_script(value, lattice)?,
+            Statement::AssignValue { value, .. } => {
+                self.ordered_script(value, &host.statement, lattice)?
+            }
             _ => return None,
         };
         let defs = named_defs(call, lattice.2);
@@ -3369,6 +3397,7 @@ impl<'a> LatticeDriver<'a> {
     fn ordered_script<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         value: &str,
+        statement: &Statement,
         lattice: Lattice<'_, S1, S2>,
     ) -> Option<Ordered> {
         use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
@@ -3382,7 +3411,17 @@ impl<'a> LatticeDriver<'a> {
             return None;
         };
         let inner = std::str::from_utf8(script).ok()?;
-        let run = self.run_script(inner, lattice, (Vec::new(), NestedPolicy::LocalWrites))?;
+        let original = self.module.and_then(|module| {
+            let parent = module.original_statement_tokens(self.function, statement)?;
+            let (_, site) = parent.words().last()?.sole_command_substitution()?;
+            module.original_substitution(&parent, site, inner)
+        });
+        let run = self.run_script(
+            inner,
+            lattice,
+            (Vec::new(), NestedPolicy::LocalWrites),
+            original.as_ref(),
+        )?;
         // A head the module rebinds has no route; a procedure of the module
         // is run as its summary says.
         if !run.procedure
@@ -3458,6 +3497,9 @@ impl<'a> LatticeDriver<'a> {
         (uses, values, ssa): Lattice<'i, S1, S2>,
     ) -> LatticeInputs<'i, S1, S2> {
         LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -3509,7 +3551,13 @@ impl<'a> LatticeDriver<'a> {
         }
         if foreach_groups.is_none() {
             let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
-            return self.evaluate_source_call(head, &cooked, &defs, (uses, values, ssa), true);
+            return self.evaluate_source_call(
+                head,
+                &cooked,
+                &defs,
+                (uses, values, ssa),
+                (true, tokens.as_ref()),
+            );
         }
         let (bound, existence) = self.evaluate_loop_header(head, args, binders, uses, values, ssa);
         DefValues::PerDef(
@@ -3632,7 +3680,7 @@ impl<'a> LatticeDriver<'a> {
                         &cooked,
                         &[],
                         (&stmt_ssa.uses, values, ssa),
-                        false,
+                        (false, tokens.as_ref()),
                     )
                 })
             }
@@ -3731,6 +3779,9 @@ impl<'a> LatticeDriver<'a> {
             InvocationLayout::LoopHeader { binders: defs },
         );
         let inputs = LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -3828,13 +3879,59 @@ impl<'a> LatticeDriver<'a> {
         cooked: &[ArgWord<'_>],
         defs: &[(String, ValueKey)],
         (uses, values, ssa): Lattice<'_, S1, S2>,
-        explain_missing: bool,
+        (explain_missing, original): (bool, Option<&CommandTokens>),
     ) -> DefValues {
-        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        if let Some(module) = self.module {
+            let Some(original) = original else {
+                return DefValues::PerDef(widened(defs));
+            };
+            return module
+                .with_original_operation(original, |operation, schema| {
+                    let cooked = self.operation_arguments(operation)?;
+                    let written = (0..cooked.len())
+                        .map(|index| operation.effective.written_argument(index))
+                        .collect();
+                    Some(self.evaluate_resolved_source_call(
+                        head,
+                        schema,
+                        (&cooked, written, Some(original)),
+                        defs,
+                        (uses, values, ssa),
+                        explain_missing,
+                    ))
+                })
+                .unwrap_or_else(|| DefValues::PerDef(widened(defs)));
+        }
         let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let Some(resolved) = self.resolve(head, &words) else {
             return DefValues::PerDef(widened(defs));
         };
+        let written = (0..cooked.len()).map(Some).collect();
+        self.evaluate_resolved_source_call(
+            head,
+            &resolved,
+            (cooked, written, original),
+            defs,
+            (uses, values, ssa),
+            explain_missing,
+        )
+    }
+
+    fn evaluate_resolved_source_call<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        head: &str,
+        resolved: &ResolvedInvocation<'_, '_>,
+        (cooked, written_arguments, original): (
+            &[ArgWord<'_>],
+            Vec<Option<usize>>,
+            Option<&CommandTokens>,
+        ),
+        defs: &[(String, ValueKey)],
+        (uses, values, ssa): Lattice<'_, S1, S2>,
+        explain_missing: bool,
+    ) -> DefValues {
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let Some(semantics) = resolved.semantics.value.semantics() else {
             if explain_missing {
                 self.explain(head, None, "declined: no-semantics".to_owned());
@@ -3843,6 +3940,9 @@ impl<'a> LatticeDriver<'a> {
         };
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let mut inputs = LatticeInputs {
+            original: original.cloned(),
+            written_arguments,
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -3915,6 +4015,7 @@ impl<'a> LatticeDriver<'a> {
             inner,
             (uses, values, ssa),
             (Vec::new(), NestedPolicy::EffectFreeOnly),
+            None,
         )?;
         // Binding validity comes first: after `rename list mylist` or a
         // shadowing `proc format …` anywhere in the unit, `[list a 1]` is a
@@ -3972,16 +4073,28 @@ impl<'a> LatticeDriver<'a> {
         script: &str,
         lattice: Lattice<'_, S1, S2>,
         under: (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
+        original: Option<&crate::interprocedural::OriginalSummaryScript>,
     ) -> Option<ScriptRun> {
-        let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(script, 0, self.lexer_config);
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            script,
+            original.map_or(0, |owner| owner.base()),
+            self.lexer_config,
+        );
         let [seg] = commands.as_slice() else {
             return None;
         };
         if split_head(script).0 != seg.name() {
             return None;
         }
-        self.run_command(seg, lattice, under)
+        if original.is_some_and(|owner| owner.text() != script) {
+            return None;
+        }
+        self.run_command(
+            seg,
+            lattice,
+            under,
+            original.and_then(|owner| owner.command_at(seg.span.start())),
+        )
     }
 
     /// A segmented command's arguments as the resolver and an evaluator read
@@ -4021,13 +4134,32 @@ impl<'a> LatticeDriver<'a> {
     fn run_command<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         seg: &crate::segmenter::SegmentedCommand,
-        (uses, values, ssa): Lattice<'_, S1, S2>,
-        (prior, policy): (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
+        lattice: Lattice<'_, S1, S2>,
+        under: (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
+        original: Option<&CommandTokens>,
     ) -> Option<ScriptRun> {
-        if let Some(run) = self.procedure_run(seg, (uses, values, ssa), (&prior, policy)) {
+        if let Some(run) = self.procedure_run(seg, original, lattice, (&under.0, under.1)) {
             return Some(run);
         }
         let head = seg.name();
+        if let Some(module) = self.module {
+            // A supplied Module is an actual-source ingress. Missing child
+            // ownership cannot reopen the standalone catalogue route.
+            let original = original?;
+            return module.with_original_operation(original, |operation, schema| {
+                let cooked = self.operation_arguments(operation)?;
+                let written = (0..cooked.len())
+                    .map(|index| operation.effective.written_argument(index))
+                    .collect();
+                self.run_resolved_command(
+                    head,
+                    schema,
+                    (&cooked, written, Some(original)),
+                    lattice,
+                    under,
+                )
+            });
+        }
         if !self.trusted(head) {
             return Some(ScriptRun {
                 head: head.to_owned(),
@@ -4040,9 +4172,59 @@ impl<'a> LatticeDriver<'a> {
             });
         }
         let cooked = self.cooked_args(seg);
-        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
-        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
+        let words: Vec<_> = cooked.iter().map(ArgWord::word).collect();
         let resolved = self.resolve(head, &words)?;
+        let written = (0..cooked.len()).map(Some).collect();
+        self.run_resolved_command(
+            head,
+            &resolved,
+            (&cooked, written, original),
+            lattice,
+            under,
+        )
+    }
+
+    fn operation_arguments<'w>(
+        &self,
+        operation: &'w crate::registry_invocation::ResolvedStatementInvocation,
+    ) -> Option<Vec<ArgWord<'w>>> {
+        if operation.effective.words.iter().any(|word| {
+            matches!(
+                word,
+                crate::ir::WordExpr::Expand { .. } | crate::ir::WordExpr::Opaque { .. }
+            )
+        }) {
+            return None;
+        }
+        let literals = (0..operation.effective.words.len().checked_sub(1)?)
+            .map(|index| {
+                operation.effective.argument_literal(
+                    index,
+                    self.lexer_config.escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&self.lexer_config),
+                )
+            })
+            .collect();
+        Some(effective_procedure_arguments(
+            &operation.effective,
+            literals,
+        ))
+    }
+
+    fn run_resolved_command<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        head: &str,
+        resolved: &ResolvedInvocation<'_, '_>,
+        (cooked, written_arguments, original): (
+            &[ArgWord<'_>],
+            Vec<Option<usize>>,
+            Option<&CommandTokens>,
+        ),
+        (uses, values, ssa): Lattice<'_, S1, S2>,
+        (prior, policy): (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
+    ) -> Option<ScriptRun> {
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let words: Vec<_> = cooked.iter().map(ArgWord::word).collect();
         let binding = binding_of(head, resolved.canonical_command);
         // An existence query reads the rung, not a route.
         if let Some(kind) = crate::existence_query::kind_of(resolved.semantics.operation) {
@@ -4059,6 +4241,9 @@ impl<'a> LatticeDriver<'a> {
         let semantics = resolved.semantics.value.semantics()?;
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let mut inputs = LatticeInputs {
+            original: original.cloned(),
+            written_arguments,
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: prior,
             words: Words::under(policy),
@@ -4237,10 +4422,12 @@ impl<'a> LatticeDriver<'a> {
             .chain(&state.writes)
             .cloned()
             .collect();
+        let original = from.nested_source.borrow().clone();
         let Some(run) = self.run_script(
             script,
             (from.uses, from.values, from.ssa),
             (prior, state.policy),
+            original.as_ref(),
         ) else {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         };
@@ -4273,13 +4460,23 @@ impl<'a> LatticeDriver<'a> {
         state: &mut EvaluationState,
         from: &LatticeInputs<'_, S1, S2>,
     ) -> EvalAnswer {
-        let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(script, 0, self.lexer_config);
+        let original = from.nested_source.borrow().clone();
+        if original
+            .as_ref()
+            .is_some_and(|owner| owner.text() != script)
+        {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            script,
+            original.as_ref().map_or(0, |owner| owner.base()),
+            self.lexer_config,
+        );
         if commands.iter().any(|seg| seg.is_partial) {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         }
         let outer_word_error = self.word_error.replace(false);
-        let answer = self.run_protected(&commands, script, state, from);
+        let answer = self.run_protected(&commands, script, state, from, original.as_ref());
         self.word_error.set(outer_word_error);
         answer
     }
@@ -4290,19 +4487,26 @@ impl<'a> LatticeDriver<'a> {
         script: &str,
         state: &mut EvaluationState,
         from: &LatticeInputs<'_, S1, S2>,
+        original: Option<&crate::interprocedural::OriginalSummaryScript>,
     ) -> EvalAnswer {
         let mut result = ExactValueOrUnavailable::exact_text("");
         let mut completion = CompletionOutcome::Normal;
         for seg in commands {
             // The command's own text: a head the source writes as the
             // command's name, which a `;` may follow (`break;`).
-            let at = usize::try_from(seg.span.start()).unwrap_or(usize::MAX);
-            let end = usize::try_from(seg.span.end()).unwrap_or(usize::MAX);
+            let base = original.map_or(0, |owner| owner.base());
+            let at = usize::try_from(seg.span.start().saturating_sub(base)).unwrap_or(usize::MAX);
+            let end = usize::try_from(seg.span.end().saturating_sub(base)).unwrap_or(usize::MAX);
             if script.get(at..end).map(|text| split_head(text).0) != Some(seg.name()) {
                 return EvalAnswer::Declined(DeclineReason::Unsupported);
             }
             let before = state.writes.len();
-            let (ended, value) = match self.protected_loop(seg, state, from) {
+            let (ended, value) = match self.protected_loop(
+                seg,
+                state,
+                from,
+                original.and_then(|owner| owner.command_at(seg.span.start())),
+            ) {
                 Some(Ok(ran)) => ran,
                 Some(Err(answer)) => return answer,
                 None => {
@@ -4316,6 +4520,7 @@ impl<'a> LatticeDriver<'a> {
                         seg,
                         (from.uses, from.values, from.ssa),
                         (prior, NestedPolicy::LocalWrites),
+                        original.and_then(|owner| owner.command_at(seg.span.start())),
                     ) else {
                         return EvalAnswer::Declined(DeclineReason::Unsupported);
                     };
@@ -4370,12 +4575,47 @@ impl<'a> LatticeDriver<'a> {
         seg: &crate::segmenter::SegmentedCommand,
         state: &mut EvaluationState,
         from: &LatticeInputs<'_, S1, S2>,
+        original: Option<&CommandTokens>,
     ) -> Option<Result<(CompletionOutcome, ExactValueOrUnavailable), EvalAnswer>> {
         let head = seg.name();
+        if let Some(module) = self.module {
+            let original = original?;
+            return module.with_original_operation(original, |operation, schema| {
+                let cooked = self.operation_arguments(operation)?;
+                let written = (0..cooked.len())
+                    .map(|index| operation.effective.written_argument(index))
+                    .collect();
+                self.protected_loop_resolved(
+                    head,
+                    schema,
+                    (&cooked, written, Some(original)),
+                    state,
+                    from,
+                )
+            });
+        }
         if !self.trusted(head) {
             return None;
         }
         let cooked = self.cooked_args(seg);
+        let words: Vec<_> = cooked.iter().map(ArgWord::word).collect();
+        let resolved = self.resolve(head, &words)?;
+        let written = (0..cooked.len()).map(Some).collect();
+        self.protected_loop_resolved(head, &resolved, (&cooked, written, original), state, from)
+    }
+
+    fn protected_loop_resolved<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        head: &str,
+        resolved: &ResolvedInvocation<'_, '_>,
+        (cooked, written_arguments, original): (
+            &[ArgWord<'_>],
+            Vec<Option<usize>>,
+            Option<&CommandTokens>,
+        ),
+        state: &mut EvaluationState,
+        from: &LatticeInputs<'_, S1, S2>,
+    ) -> Option<Result<(CompletionOutcome, ExactValueOrUnavailable), EvalAnswer>> {
         if !cooked.iter().all(|arg| {
             matches!(
                 arg.source,
@@ -4387,10 +4627,12 @@ impl<'a> LatticeDriver<'a> {
             return None;
         }
         let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
-        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
-        let resolved = self.resolve(head, &words)?;
+        let words: Vec<_> = cooked.iter().map(ArgWord::word).collect();
         let semantics = resolved.semantics.value.semantics()?;
         let inputs = LatticeInputs {
+            original: original.cloned(),
+            written_arguments,
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: from
                 .prior_writes
@@ -4505,7 +4747,7 @@ impl<'a> LatticeDriver<'a> {
                     },
                 ));
             }
-            let ran = match self.protected_script(&script, state, from) {
+            let ran = match self.protected_script(&script, state, inputs) {
                 EvalAnswer::Evaluated(ran) => ran,
                 other => return Err(other),
             };
@@ -5157,130 +5399,18 @@ impl AnalysisInputs for DetachedExpressionInputs<'_, '_> {
     }
 }
 
-/// The result of the one command `script` holds, outside a solver run, where
-/// it calls a procedure of the module that names no place and writes none
-/// outside its frame: a re-run of the callee under the call's arguments
-/// ([`crate::interprocedural::ModuleProcedures::rerun`]). Each argument is a
-/// literal word, a variable `constants` holds, or a command substitution
-/// read the same way — or one on the expression route whose one word is a
-/// literal expression. `None` wherever any of that does not hold, and for a
-/// callee that does not complete normally.
+/// Detached source text retains no original parent operand or point. A Module
+/// procedure result needs that independent receipt; this interface declines.
 fn detached_procedure_result(
-    (module, function): (&crate::interprocedural::ModuleProcedures<'_>, &str),
-    script: &str,
-    constants: &HashMap<String, ExactValue>,
-    (folds, policy): (BuiltinFoldInputs<'_>, FoldPolicy),
+    _module: (&crate::interprocedural::ModuleProcedures<'_>, &str),
+    _script: &str,
+    _constants: &HashMap<String, ExactValue>,
+    _stance: (BuiltinFoldInputs<'_>, FoldPolicy),
 ) -> Option<ExactValue> {
-    let config = module.lexer_config();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(script, 0, config);
-    let [seg] = commands.as_slice() else {
-        return None;
-    };
-    if split_head(script).0 != seg.name() {
-        return None;
-    }
-    let callee = module.resolve(seg.name(), function, folds.trust)?;
-    if !module.keeps_to_its_frame(&callee) {
-        return None;
-    }
-    let arguments: Vec<Option<ExactValue>> = seg
-        .arg_tokens()
-        .iter()
-        .zip(seg.arg_single_token())
-        .zip(seg.args())
-        .map(|((token, &single), text)| {
-            detached_word(
-                (module, function),
-                (text, token.kind, single),
-                constants,
-                (folds, policy),
-            )
-        })
-        .collect();
-    let params = module.parameter_values(&callee, &arguments, folds.dialect)?;
-    let rerun = module.rerun(
-        &callee,
-        (&params, &[]),
-        crate::interprocedural::RerunStance { policy, folds },
-    )?;
-    if !rerun.completes {
-        return None;
-    }
-    rerun.result.clone()
-}
-
-/// One argument word of a command [`detached_procedure_result`] reads.
-fn detached_word(
-    (module, function): (&crate::interprocedural::ModuleProcedures<'_>, &str),
-    (text, kind, single): (&str, TokenType, bool),
-    constants: &HashMap<String, ExactValue>,
-    (folds, policy): (BuiltinFoldInputs<'_>, FoldPolicy),
-) -> Option<ExactValue> {
-    use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
-    let config = module.lexer_config();
-    if single && let Some(value) = literal_token_value(text, kind, &config) {
-        return Some(ExactValue::from_literal(&value));
-    }
-    if let Some(name) = simple_var_ref_name(text, config.braced_var) {
-        return constants.get(name).cloned();
-    }
-    let WordBody::Parts(parts) = decompose(text.as_bytes(), SubstFlags::default(), config) else {
-        return None;
-    };
-    let [Part::Command(script)] = parts.as_slice() else {
-        return None;
-    };
-    let inner = std::str::from_utf8(script).ok()?;
-    if let Some(value) =
-        detached_procedure_result((module, function), inner, constants, (folds, policy))
-    {
-        return Some(value);
-    }
-    let expression = detached_expression_word(module.registry(), inner, folds, config)?;
-    let grammar = folds
-        .dialect
-        .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
-            profile.grammar
-        });
-    let node = tcl_syntax::expr::parser::parse_expr_with_grammar(&expression, &grammar);
-    evaluate_expression_in_module(&node, constants, (folds, policy), Some((module, function)))
-}
-
-/// The expression of the one command `script` holds where the command is on
-/// the expression route under `folds`' trust and its one word is a literal
-/// expression.
-fn detached_expression_word(
-    registry: &CommandRegistry,
-    script: &str,
-    folds: BuiltinFoldInputs<'_>,
-    config: LexerConfig,
-) -> Option<String> {
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(script, 0, config);
-    let [seg] = commands.as_slice() else {
-        return None;
-    };
-    let head = seg.name();
-    let trusted = match folds.trust {
-        FoldTrust::WholeModule => folds.mutations.trusts(head),
-        FoldTrust::ObservedBindings => folds.mutations.observed_binding_is_the_builtin(head),
-    };
-    let ([token], [true], [text]) = (seg.arg_tokens(), seg.arg_single_token(), seg.args()) else {
-        return None;
-    };
-    let expression = literal_token_value(text, token.kind, &config)?;
-    let words = [InvocationWord::Literal(&expression)];
-    let resolved = registry
-        .resolve_structured_invocation(
-            InvocationWords::structured(InvocationWord::Literal(head), &words),
-            registry.own_surface_query(),
-        )
-        .resolved()?;
-    let on_the_route = resolved
-        .semantics
-        .value
-        .semantics()
-        .is_some_and(|semantics| matches!(semantics.route(), EvalRoute::Expression { .. }));
-    (trusted && on_the_route).then(|| expression.into_owned())
+    // Detached text has no original parent operand or point receipt. Existing
+    // registry folding has its separate contract; a Module procedure join
+    // cannot be issued by reparsing equal text at offset zero.
+    None
 }
 
 /// `node` evaluated by the shared expression route outside a solver run —
@@ -5301,9 +5431,9 @@ pub(crate) fn evaluate_expression_detached(
     evaluate_expression_in_module(node, constants, (folds, policy), None)
 }
 
-/// [`evaluate_expression_detached`] with a command the expression runs that
-/// calls a procedure of `module` re-run for its result
-/// ([`detached_procedure_result`]): a re-run's exit reading.
+/// [`evaluate_expression_detached`] with descriptive Module context. Detached
+/// expression text does not retain original child invocation receipts and cannot
+/// consume conditional procedure completion or transfer summaries.
 pub(crate) fn evaluate_expression_in_module(
     node: &ExprNode,
     constants: &HashMap<String, ExactValue>,
@@ -5844,6 +5974,34 @@ impl<'t> ArgWord<'t> {
     }
 }
 
+fn effective_procedure_arguments<'a>(
+    effective: &'a crate::registry_invocation::EffectiveCommandWords,
+    literals: Vec<Option<String>>,
+) -> Vec<ArgWord<'a>> {
+    effective
+        .words
+        .iter()
+        .skip(1)
+        .zip(literals)
+        .map(|(word, literal)| match literal {
+            Some(text) => ArgWord {
+                text: Cow::Owned(text),
+                kind: InvocationWordKind::Literal,
+                source: if matches!(word, crate::ir::WordExpr::BracedLiteral { .. }) {
+                    OperandSource::BracedLiteral
+                } else {
+                    OperandSource::Literal
+                },
+            },
+            None => ArgWord {
+                text: Cow::Owned(word.legacy_text()),
+                kind: InvocationWordKind::Dynamic,
+                source: OperandSource::Substituted,
+            },
+        })
+        .collect()
+}
+
 /// A call statement's arguments as source words. The call's token snapshot
 /// says which argument was a braced, bare, or quoted literal; an argument
 /// whose spelling differs from its source word (rewritten after lowering)
@@ -6127,6 +6285,9 @@ fn identity_of(key: ValueKey) -> ValueIdentity {
 
 /// The analyser's read-only inputs over the SCCP lattice at one statement.
 struct LatticeInputs<'a, S1, S2> {
+    original: Option<CommandTokens>,
+    written_arguments: Vec<Option<usize>>,
+    nested_source: RefCell<Option<crate::interprocedural::OriginalSummaryScript>>,
     driver: &'a LatticeDriver<'a>,
     view: ResolvedInvocationView<'a>,
     uses: &'a HashMap<Symbol, Version, S1>,
@@ -6364,7 +6525,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
             InvocationWordKind::KnownBytes => FactView::Top(DeclineReason::NotText),
             InvocationWordKind::Dynamic => match self.sources.get(id.0) {
                 Some(OperandSource::Substituted) => match &self.words {
-                    Words::Independent => self.substituted(operand.text),
+                    Words::Independent => self.substituted_argument(operand.text, id.0),
                     Words::Ordered(evaluated) => self.ordered_word(evaluated, id),
                 },
                 _ => simple_var_ref_name(operand.text, self.driver.lexer_config.braced_var)
@@ -6488,11 +6649,25 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
         // Only text the word is: a brace-quoted script is not re-read as a
         // substitution, and any other spelling is not the script it runs.
         match self.sources.get(id.0) {
-            Some(OperandSource::BracedLiteral) => Ok(BodyRegion {
-                script: operand.text.to_owned(),
-                base_offset: 0,
-                frame: FrameLevel::Relative(0),
-            }),
+            Some(OperandSource::BracedLiteral) => {
+                let original =
+                    self.original
+                        .as_ref()
+                        .zip(self.driver.module)
+                        .and_then(|(parent, module)| {
+                            let argument = self.written_arguments.get(id.0).copied().flatten()?;
+                            module.original_body(parent, argument, operand.text)
+                        });
+                let base_offset = original.as_ref().map_or(0, |source| source.base());
+                let base_offset =
+                    usize::try_from(base_offset).map_err(|_| DeclineReason::NotExact)?;
+                *self.nested_source.borrow_mut() = original;
+                Ok(BodyRegion {
+                    script: operand.text.to_owned(),
+                    base_offset,
+                    frame: FrameLevel::Relative(0),
+                })
+            }
             _ => Err(DeclineReason::NotExact),
         }
     }
@@ -6555,7 +6730,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
             .map(|(index, operand)| {
                 (operand.kind == InvocationWordKind::Dynamic
                     && matches!(self.sources.get(index), Some(OperandSource::Substituted)))
-                .then(|| self.substituted_in(operand.text, &mut state))
+                .then(|| self.substituted_in(operand.text, &mut state, Some(index)))
             })
             .collect();
         Box::new(OrderedWords { facts, state })
@@ -6570,6 +6745,39 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
         }
     }
 
+    fn substitution_sources(&self, argument: Option<usize>) -> Vec<crate::ir::SourceSite> {
+        let Some((parent, index)) =
+            self.original
+                .as_ref()
+                .zip(argument)
+                .and_then(|(parent, index)| {
+                    self.written_arguments
+                        .get(index)
+                        .copied()
+                        .flatten()
+                        .map(|index| (parent, index))
+                })
+        else {
+            return Vec::new();
+        };
+        match parent.words().get(index + 1) {
+            Some(crate::ir::WordExpr::CommandSubstitution { source, .. }) => vec![source.clone()],
+            Some(crate::ir::WordExpr::Template { parts, .. }) => parts
+                .iter()
+                .filter_map(|part| match part {
+                    crate::ir::WordPart::CommandSubstitution { source, .. } => Some(source.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    fn substituted_argument(&self, text: &str, argument: usize) -> FactView {
+        let mut state = EvaluationState::new(NestedPolicy::EffectFreeOnly);
+        self.substituted_in(text, &mut state, Some(argument))
+    }
+
     /// A substituted word's value: its parts' values concatenated — the
     /// literal runs decoded under the document's grammar, each variable
     /// read at this statement's use version, each script through the
@@ -6579,13 +6787,18 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
     /// a pending part makes it pending.
     fn substituted(&self, text: &str) -> FactView {
         let mut state = EvaluationState::new(NestedPolicy::EffectFreeOnly);
-        self.substituted_in(text, &mut state)
+        self.substituted_in(text, &mut state, None)
     }
 
     /// [`Self::substituted`] under `state`: a variable reads what the state's
     /// writes leave it, and a script's writes join the state in order, so a
     /// later part sees them.
-    fn substituted_in(&self, text: &str, state: &mut EvaluationState) -> FactView {
+    fn substituted_in(
+        &self,
+        text: &str,
+        state: &mut EvaluationState,
+        argument: Option<usize>,
+    ) -> FactView {
         use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
         if let Some(name) = simple_var_ref_name(text, self.driver.lexer_config.braced_var) {
             return self.read(state, name);
@@ -6600,6 +6813,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
             }
             WordBody::Parts(parts) => parts,
         };
+        let mut sites = self.substitution_sources(argument).into_iter();
         let mut bytes = Vec::with_capacity(text.len());
         let mut pending = false;
         for part in parts {
@@ -6613,26 +6827,36 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
                     Err(reason) => return FactView::Top(reason),
                 },
                 Part::Command(script) => match std::str::from_utf8(script) {
-                    Ok(script) => match self.nested(script, state) {
-                        // A command that did not complete normally ends the
-                        // word with the writes so far: it has no value, and
-                        // an error is one the invocation never gets past.
-                        EvalAnswer::Evaluated(outcome)
-                            if outcome.completion != CompletionOutcome::Normal =>
-                        {
-                            if matches!(outcome.completion, CompletionOutcome::Error { .. }) {
-                                self.driver.word_error.set(true);
+                    Ok(script) => {
+                        let original = self.original.as_ref().zip(self.driver.module).and_then(
+                            |(parent, module)| {
+                                module.original_substitution(parent, &sites.next()?, script)
+                            },
+                        );
+                        *self.nested_source.borrow_mut() = original;
+                        let answer = self.nested(script, state);
+                        *self.nested_source.borrow_mut() = None;
+                        match answer {
+                            // A command that did not complete normally ends the
+                            // word with the writes so far: it has no value, and
+                            // an error is one the invocation never gets past.
+                            EvalAnswer::Evaluated(outcome)
+                                if outcome.completion != CompletionOutcome::Normal =>
+                            {
+                                if matches!(outcome.completion, CompletionOutcome::Error { .. }) {
+                                    self.driver.word_error.set(true);
+                                }
+                                Err(EvalAnswer::Declined(DeclineReason::StatefulNested))
                             }
-                            Err(EvalAnswer::Declined(DeclineReason::StatefulNested))
+                            EvalAnswer::Evaluated(outcome) => match outcome.result {
+                                ExactValueOrUnavailable::Exact(value) => Ok(value),
+                                ExactValueOrUnavailable::Unavailable(_) => {
+                                    Err(EvalAnswer::Declined(DeclineReason::NotExact))
+                                }
+                            },
+                            answer => Err(answer),
                         }
-                        EvalAnswer::Evaluated(outcome) => match outcome.result {
-                            ExactValueOrUnavailable::Exact(value) => Ok(value),
-                            ExactValueOrUnavailable::Unavailable(_) => {
-                                Err(EvalAnswer::Declined(DeclineReason::NotExact))
-                            }
-                        },
-                        answer => Err(answer),
-                    },
+                    }
                     Err(_) => return FactView::Top(DeclineReason::NotText),
                 },
                 Part::Expression(_) => return FactView::Top(DeclineReason::Unsupported),
@@ -9401,7 +9625,7 @@ mod tests {
             ((g, 1), LatticeValue::Const(ConstValue::Int(5))),
         ]);
         driver
-            .run_script(script, (&uses, &values, &ssa), (Vec::new(), policy))
+            .run_script(script, (&uses, &values, &ssa), (Vec::new(), policy), None)
             .expect("the script is one command the registry resolves")
     }
 
@@ -9649,6 +9873,9 @@ mod tests {
         let values: HashMap<ValueKey, LatticeValue> =
             HashMap::from([((x, 1), LatticeValue::Const(ConstValue::Int(1)))]);
         let inputs = LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            nested_source: RefCell::new(None),
             driver: &driver,
             prior_writes: Vec::new(),
             words: Words::Independent,

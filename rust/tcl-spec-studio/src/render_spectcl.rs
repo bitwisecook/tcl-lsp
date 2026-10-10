@@ -2878,6 +2878,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     set_word(out, ctx, draft, "taint_double_encode_colour");
     set_word(out, ctx, draft, "taint_sink_safe_colour");
     native_hook(out, ctx, draft, "taint_sink_gate");
+    enum_word(out, ctx, draft, "channel_configuration");
     text_list(out, ctx, draft, "credential_options");
     text_list(out, ctx, draft, "sensitive_headers");
     if ctx.set(draft, "setter_constraints") {
@@ -3976,6 +3977,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     set_word(out_body, ctx, sub, "taint_transform");
     enum_word(out_body, ctx, sub, "taint_transform_when");
     set_word(out_body, ctx, sub, "taint_double_encode_colour");
+    enum_word(out_body, ctx, sub, "channel_configuration");
     if ctx.set(sub, "credential_arg") {
         out_body.line(&format!("credential_arg {}", sub["credential_arg"]));
     }
@@ -5615,6 +5617,61 @@ mod tests {
             None,
         );
     }
+    #[test]
+    fn authored_channel_configuration_survives_render_load_and_draft() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "configure",
+            channel_configuration: Some(
+                tcl_registry::ChannelConfigurationSpec::EncodingTranslation,
+            ),
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::configure",
+            channel_configuration: Some(
+                tcl_registry::ChannelConfigurationSpec::EncodingTranslation,
+            ),
+            subcommands: MEMBERS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert_eq!(
+            text.matches("channel_configuration EncodingTranslation")
+                .count(),
+            2,
+            "{text}"
+        );
+        let rust = crate::render_rs::render(&before);
+        assert_eq!(
+            rust.matches("ChannelConfigurationSpec::EncodingTranslation")
+                .count(),
+            2,
+            "{rust}"
+        );
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let parsed = pack.command("probe::configure").unwrap().spec;
+        let after = draft::from_command_spec(parsed);
+        assert_eq!(
+            after.get("channel_configuration"),
+            before.get("channel_configuration")
+        );
+        assert_eq!(after.get("subcommands"), before.get("subcommands"));
+        assert!(parsed.successful_handler.is_none());
+        assert!(parsed.subcommands[0].successful_handler.is_none());
+        let invalid = crate::spectcl::evaluate_pack(&text.replace(
+            "channel_configuration EncodingTranslation",
+            "channel_configuration Unknown",
+        ));
+        assert!(!invalid.notices.is_empty());
+        let rejected = invalid.command("probe::configure").unwrap().spec;
+        assert!(rejected.channel_configuration.is_none());
+        assert!(rejected.subcommands[0].channel_configuration.is_none());
+    }
+
     #[test]
     fn authored_source_index_bounds_survive_render_load_and_draft() {
         // naming.diagnostic.registry-source-ownership

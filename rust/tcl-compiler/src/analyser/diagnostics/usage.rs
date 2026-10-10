@@ -28,6 +28,8 @@
 //! encoding-mismatch text (W108, W311), invalid `binary format` modifiers
 //! (W200), and an invalid subnet mask literal (W121).
 
+mod source_channel;
+
 use crate::optimiser::helpers::expr_simplify::eq_ne_compares_as_strings;
 use rustc_hash::FxHashSet;
 use tcl_core_types::DiagCode;
@@ -313,61 +315,6 @@ Use braces: {{ \u{2026} }}"
                 .with_fixes(fixes)
                 .with_subject(subject),
         );
-    }
-
-    /// W311: a channel configured with `-encoding binary` *and*
-    /// a non-binary `-translation` is contradictory (binary implies no
-    /// translation) and can corrupt data / enable encoding-differential
-    /// attacks.  Handles `fconfigure` and `chan configure`.
-    pub(in crate::analyser) fn emit_w311_encoding_mismatch(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-    ) {
-        // value-transfer-ok: options — W311 reads the encoding option's position, which `option_placement` on the registry will carry
-        let opt_start = if cmd_name == "fconfigure" {
-            1
-            // value-transfer-ok: options — W311 reads the encoding option's position, which `option_placement` on the registry will carry
-        } else if cmd_name == "chan" && args.first().map(String::as_str) == Some("configure") {
-            2
-        } else {
-            return;
-        };
-        if args.len() <= opt_start {
-            return;
-        }
-        let mut binary_tok = None;
-        let mut translation_tok = None;
-        let mut i = opt_start;
-        while i + 1 < args.len() {
-            let (opt, val) = (&args[i], &args[i + 1]);
-            if opt == "-encoding" && val == "binary" {
-                binary_tok = arg_tokens.get(i + 1);
-            } else if opt == "-translation" && val != "binary" {
-                translation_tok = arg_tokens.get(i + 1);
-            }
-            i += 2;
-        }
-        if binary_tok.is_some() && translation_tok.is_some() {
-            let target = translation_tok
-                .or(binary_tok)
-                .or_else(|| arg_tokens.first());
-            if let Some(tok) = target {
-                self.result
-                    .diagnostics
-                    .push(crate::analyser::types::Diagnostic::new(
-                        DiagCode::W311,
-                        tok.span,
-                        "Channel configured with -encoding binary and a non-binary \
-                              -translation. Binary encoding implies no translation; the \
-                              conflicting -translation may silently corrupt data or enable \
-                              encoding-differential attacks."
-                            .to_string(),
-                        super::types::Severity::Warning,
-                    ));
-            }
-        }
     }
 
     /// W200/W202: version gates on a literal `binary` template.

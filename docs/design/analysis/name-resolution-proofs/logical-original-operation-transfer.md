@@ -14,9 +14,13 @@ When can Registry-selected original Logical authored operations preserve static 
 
 transfer requires a positive actual retained Logical input, genuine whole Authored Document origin/vector, current image/configuration, invocation offset, source frame/namespace and a singleton current Registry-backed target. It resolves that selected operation under the actual ContextRegistry and source dialect, freezes genuine static written values plus literal captured alias arguments, and accepts only selected arity with no frame effect. Quiet scalar store updates the existing symbolic scalar model only when selected VarWrite roles and bounded effects agree and no observer, dynamic binding/trace, physical execution/storage identity, array/index or store error is present. Registry-selected move/delete/alias transfers require bounded command/trace/namespace effects and OnOkOnly descriptors; move/delete require a known source target, destination geometry must be valid, and alias source/target interpreter operands must both denote the current interpreter with static arguments. Unknown or replaced workers, occupied move targets, foreign interpreters, opaque domains and missing/stale ownership decline. The resulting authored continuation has no Native Normal certificate, handler, publication, command-world completion, compiler/frame/argv or actual store authority. Symbolic incoming values and subsequent W123 slot advice belong to this explicit Logical model only.
 
+Original scalar continuation retains actual Logical source values and captured setter operands while checking the current typed Authored namespace through the shared namespace footprint. Its independently retained InterpreterNamespace storage facet remains unchanged; source namespace spelling does not construct a physical owner.
+
 ## Scope
 
 Fixed source/API controls test static selected move/delete/scalar-head outcomes, captured alias composition and quiet scalar transfer with observer/foreign/missing-owner refusal. All seven providers are not tested. No C/Jim/BIG-IP interpreter stores or commands are executed by this proof; genuine full-source Logical W123 diagnostics are separate from Native head admission. Conditional original Unicode source heads and qualified definer aliases share the selected symbolic move/delete continuation. Native abrupt-edge classification and current runtime publication remain independent.
+
+Two additional software definitions retain conditional source-model continuation only. Native, worker, unknown or same-display foreign namespace, stale generations, changed configuration and missing full input refuse. No actual cell/store, physical frame, native naming/compiled recipe, Handler or Normal receipt follows.
 
 ## Provider answers
 
@@ -86,6 +90,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases` (linked): Complete positive Logical source preserves original Unicode moves and composed qualified registry alias prefixes in the authored model. These continuations prove no Native rename/alias execution, abrupt-edge exclusion or allocation.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `scalar_store`: Continue original scalar-store advice only in a genuine current Logical/Authored source coordinate; independently retained InterpreterNamespace storage remains unchanged.
+- [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `logical_cell_is_local`: Use the central typed namespace footprint and full Logical source correspondence; reported physical display text cannot construct a source namespace owner.
+- [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::logical_namespace_cell_continuation_keeps_the_independent_storage_facet` (linked): Original scalar-store authored continuation only under genuine Logical/current source coordinate; existing central namespace_footprint checks typed Authored owner; independent InterpreterNamespace storage facet retained unchanged. Native/same-display foreign/worker/unknown or stale generations/missing input/configuration refuse. No physical cells, stores, naming/frame/compiler or Normal receipts.
+- [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::logical_scalar_continuation_keeps_original_values_and_captured_set_operands` (linked): Original scalar-store authored continuation only under genuine Logical/current source coordinate; existing central namespace_footprint checks typed Authored owner; independent InterpreterNamespace storage facet retained unchanged. Native/same-display foreign/worker/unknown or stale generations/missing input/configuration refuse. No physical cells, stores, naming/frame/compiler or Normal receipts.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Replay
 

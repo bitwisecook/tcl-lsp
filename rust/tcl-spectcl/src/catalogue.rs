@@ -214,6 +214,12 @@ pub const BYTE_ARRAY_EFFECTS: &[Variant] = &[
     ),
 ];
 
+/// [`tcl_registry::ChannelConfigurationSpec`] conditional source option relationships.
+pub const CHANNEL_CONFIGURATIONS: &[Variant] = &[v(
+    "EncodingTranslation",
+    "original encoding and translation option values",
+)];
+
 /// [`tcl_registry::SourceIndexBounds`] conditional original index relationships.
 pub const SOURCE_INDEX_BOUNDS: &[Variant] = &[
     v("ListIndex", "literal list index descent"),
@@ -1240,6 +1246,12 @@ mod tests {
         }
     }
 
+    fn covered_channel_configuration(descriptor: tcl_registry::ChannelConfigurationSpec) -> bool {
+        match descriptor {
+            tcl_registry::ChannelConfigurationSpec::EncodingTranslation => true,
+        }
+    }
+
     fn covered_source_deprecation_advice(advice: tcl_registry::SourceDeprecationAdvice) -> bool {
         match advice {
             tcl_registry::SourceDeprecationAdvice::IruleMatchclass => true,
@@ -1248,6 +1260,15 @@ mod tests {
 
     #[test]
     fn enum_witnesses_compile_and_hold() {
+        for descriptor in tcl_registry::ChannelConfigurationSpec::ALL {
+            assert!(covered_channel_configuration(*descriptor));
+            let name = variant_name(descriptor);
+            assert!(
+                CHANNEL_CONFIGURATIONS
+                    .iter()
+                    .any(|variant| variant.key == name)
+            );
+        }
         for operation in tcl_registry::SourceIndexBounds::ALL {
             assert!(covered_source_index_bounds(*operation));
             let name = variant_name(operation);
@@ -1288,6 +1309,7 @@ mod tests {
             SOURCE_DEPRECATION_ADVICE,
             SOURCE_PATH_OPERATIONS,
             SOURCE_INDEX_BOUNDS,
+            CHANNEL_CONFIGURATIONS,
             COMMAND_TABLE_EFFECTS,
             PATTERN_TYPES,
             TAINT_TRANSFORM_CONDITIONS,

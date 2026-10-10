@@ -4654,6 +4654,7 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     setting_word("taint_transform"),
     setting_word("taint_double_encode_colour"),
     setting_word("taint_sink_safe_colour"),
+    setting_word("channel_configuration"),
     setting_word("credential_options"),
     setting_word("credential_arg"),
     setting_word("sensitive_headers"),

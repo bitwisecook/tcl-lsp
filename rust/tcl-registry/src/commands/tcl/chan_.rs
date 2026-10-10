@@ -489,6 +489,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan configure channelId ?-option value ...?",
         arg_roles: &[(0, ArgRole::Channel)],
         options: CONFIGURE_OPTIONS,
+        channel_configuration: Some(ChannelConfigurationSpec::EncodingTranslation),
         option_prefix_words: 1,
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

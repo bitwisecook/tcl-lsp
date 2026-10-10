@@ -1,0 +1,35 @@
+
+running 7 tests
+test cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls ... 
+thread 'cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls' (971905) panicked at rust/tcl-vm/src/cmd_mathop.rs:173:13:
+assertion `left == right` failed: jim/0 original result: Some([105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 105, 110, 102, 111, 34])
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... 
+thread 'cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls' (971939) panicked at rust/tcl-vm/src/cmd_mathop.rs:127:13:
+assertion `left == right` failed: jim/0 original result: Some([105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 105, 110, 102, 111, 34])
+  left: 1
+ right: 0
+FAILED
+test exec::tests::original_trace_procedure_heads_remain_live_during_their_actual_activation ... ok
+test exec::tests::procedure_activation_retains_original_invocation_references_until_exit ... ok
+test interp::byte_array_result_tests::binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate ... ok
+test interp::byte_array_result_tests::unsupported_declared_binary_purpose_refuses_without_native_fallback ... ok
+test interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows ... 
+thread 'interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows' (972050) panicked at rust/tcl-vm/src/interp/native_command_names/info_commands_literal_tests.rs:23:5:
+assertion `left == right` failed: tcl8.6: escaped-nul-prefix: primary before getter
+  left: "list"
+ right: "none"
+FAILED
+
+failures:
+
+failures:
+    cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls
+    cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls
+    interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows
+
+test result: FAILED. 4 passed; 3 failed; 0 ignored; 0 measured; 736 filtered out; finished in 52.70s
+

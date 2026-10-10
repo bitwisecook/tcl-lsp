@@ -113162,6 +113162,705 @@
       "requested_selectors": [
         "command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases"
       ]
+    },
+    {
+      "id": "rust.frozen276.integration-vm-native-test-build276",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen276/integration-vm-native-test-build276/receipt.json.gz",
+        "sha256": "6b60d9288fe7e4859e6e58daef7723fdf96c89a3bb46239a041c04982be9c0b6",
+        "compression": "gzip",
+        "uncompressed_sha256": "39f81d069f4580a1dc7f1d1ef13dc5753a44c6164db55a07305f6f0bebc0f4b6"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen276/integration-vm-native-test-build276/tests.log",
+        "sha256": "500d97bd595ad21f1200c3b2f08b86c4084397a5214c9033f002b5c8020cd3b2"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 58.262502768979175,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The ordinary Compiler dependency fails at the unresolved DiagnosticSubject import; no VM test image or assertion is produced."
+    },
+    {
+      "id": "rust.frozen277.integration-vm-native-test-build277",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen277/integration-vm-native-test-build277/receipt.json.gz",
+        "sha256": "0ec1a1ac4f7ce9bd4a3fb8c1e30bd537d3543fa48966fe3e0dfe368888860b4d",
+        "compression": "gzip",
+        "uncompressed_sha256": "75d8f32671447aa8456cc7b652ce8008200a4635c91a08637ae41ac45e81f87f"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen277/integration-vm-native-test-build277/tests.log",
+        "sha256": "171f0a2e3fb833a3dc76a05e9a16bd10557e3ffc6414a643cdcb777f56f997b8"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 73.77918541498366,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The VM libtest build stops at the typed native-error adapter mismatch; no test image or assertion is produced."
+    },
+    {
+      "id": "rust.frozen278.integration-vm-native-test-build278",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/integration-vm-native-test-build278/receipt.json.gz",
+        "sha256": "4e89eace72211affa198e413115ef4a57ee2b750913f629962eb20185b663612",
+        "compression": "gzip",
+        "uncompressed_sha256": "9e7e3f6ca8e865ff6b1a6e73cfe80a7a8ad28352b80deb50191fb9a1d77e0001"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/integration-vm-native-test-build278/tests.log",
+        "sha256": "0920d274b1f2f81309d031b93b933c0db9cb36f82625806b377d1c840d920a06"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 0,
+      "seconds": 104.57068870900548,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The independent VM-only278 no-run build emits the actual separately sealed VM278 test executable; construction is not an assertion result.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/pinned-vm278.elf.gz",
+        "sha256": "e919f5453ac4a9879b3acd5a17455ab98c388feac2c67cf957ff00ca92747edf",
+        "compression": "gzip",
+        "uncompressed_sha256": "729e21654434181fb8419ec09ceb0fa7a29b733f98c0b18660c2b8401706c809",
+        "uncompressed_bytes": 101468608,
+        "compressed_bytes": 19827173,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/pinned-vm278.json",
+        "metadata_sha256": "797070aba6ca1963c18922821d722c3a55c042eece6bb9c1c51f0dcfa63db6e6",
+        "build_receipt_id": "rust.frozen278.integration-vm-native-test-build278",
+        "original_source_snapshot_sha256": "68ae8b05479be6ba1fcdc04234db7745511547bb124ccf4de69cf8a9f5a2f1fd",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "da41d1597b370450be0ce86b5a757edc18dbbbcd04700094be907ed5b937a46b",
+          "compression": "gzip",
+          "uncompressed_sha256": "68ae8b05479be6ba1fcdc04234db7745511547bb124ccf4de69cf8a9f5a2f1fd"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen278.integration-vm-current-inventory278",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/integration-vm-current-inventory278/receipt.json.gz",
+        "sha256": "1d23e8617a696f37f0c073ca54d9b3bbc7787f0e9e6cfa9d5eb5d24807e43ba6",
+        "compression": "gzip",
+        "uncompressed_sha256": "7d8df3819d56f45a07556d33fc6dedb21dc9cebab66eb04ae774175318b4d1ba"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/integration-vm-current-inventory278/tests.log",
+        "sha256": "f909b9f135b6da9b451af5cad7a535841e205b0c4f06fe3fd5fec23bc168836c"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm278.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.0062698679976165295,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The actual VM278 inventory lists739 exact tests; listing confers no assertion outcome.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/pinned-vm278.elf.gz",
+        "sha256": "e919f5453ac4a9879b3acd5a17455ab98c388feac2c67cf957ff00ca92747edf",
+        "compression": "gzip",
+        "uncompressed_sha256": "729e21654434181fb8419ec09ceb0fa7a29b733f98c0b18660c2b8401706c809",
+        "uncompressed_bytes": 101468608,
+        "compressed_bytes": 19827173,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/pinned-vm278.json",
+        "metadata_sha256": "797070aba6ca1963c18922821d722c3a55c042eece6bb9c1c51f0dcfa63db6e6",
+        "build_receipt_id": "rust.frozen278.integration-vm-native-test-build278",
+        "original_source_snapshot_sha256": "68ae8b05479be6ba1fcdc04234db7745511547bb124ccf4de69cf8a9f5a2f1fd",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "da41d1597b370450be0ce86b5a757edc18dbbbcd04700094be907ed5b937a46b",
+          "compression": "gzip",
+          "uncompressed_sha256": "68ae8b05479be6ba1fcdc04234db7745511547bb124ccf4de69cf8a9f5a2f1fd"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen278.diagnostic-native278-mathop-admission",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/diagnostic-native278-mathop-admission/receipt.json.gz",
+        "sha256": "6aa1ec5dfc9e65fb6d73fde3300c5ff09e3d183ae192c39f18340d0386b0645b",
+        "compression": "gzip",
+        "uncompressed_sha256": "4db9727a0e3e5a78401a54a81ae9d2f1a4be1cba27be333170e7df50892255fc"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/diagnostic-native278-mathop-admission/tests.log",
+        "sha256": "fa19fe7a4b2423acefefcacd014090381392c598dfc21c2577a009b50dfba5d8"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC=1",
+        "/workspace/.proofs/pinned-vm278.elf",
+        "--exact",
+        "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+        "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 4.64593572501326,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "filtered_out": 737
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed VM278 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed VM278 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. Both exact mathop comparison selectors fail. Diagnostic output retains their actual original admission failures; neither complete native-window software success nor a new Native provider result is inferred.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/pinned-vm278.elf.gz",
+        "sha256": "e919f5453ac4a9879b3acd5a17455ab98c388feac2c67cf957ff00ca92747edf",
+        "compression": "gzip",
+        "uncompressed_sha256": "729e21654434181fb8419ec09ceb0fa7a29b733f98c0b18660c2b8401706c809",
+        "uncompressed_bytes": 101468608,
+        "compressed_bytes": 19827173,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/pinned-vm278.json",
+        "metadata_sha256": "797070aba6ca1963c18922821d722c3a55c042eece6bb9c1c51f0dcfa63db6e6",
+        "build_receipt_id": "rust.frozen278.integration-vm-native-test-build278",
+        "original_source_snapshot_sha256": "68ae8b05479be6ba1fcdc04234db7745511547bb124ccf4de69cf8a9f5a2f1fd",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "da41d1597b370450be0ce86b5a757edc18dbbbcd04700094be907ed5b937a46b",
+          "compression": "gzip",
+          "uncompressed_sha256": "68ae8b05479be6ba1fcdc04234db7745511547bb124ccf4de69cf8a9f5a2f1fd"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen278.integration-vm-info-options-frontier278",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/integration-vm-info-options-frontier278/receipt.json.gz",
+        "sha256": "da8d78de987b00c5b9cfe9ae47373e5f870f280b12cdbd66db7b21e410b9fc07",
+        "compression": "gzip",
+        "uncompressed_sha256": "43d5837c1b6c7f670c7ea403ab4f07fab536af3b63f11825da4885f3163d33eb"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/integration-vm-info-options-frontier278/tests.log",
+        "sha256": "6ee7d80b132403578f8e401adf9b993d9d804e9835ace0d548f594826e8eb701"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm278.elf",
+        "--exact",
+        "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+        "value::tests::return_options_presence_uses_owned_shape_without_materialising_children",
+        "value::tests::return_options_presence_preserves_retired_foreign_and_borrowed_refusals",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 3.2003909310151357,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 2,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 736
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed VM278 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-info-commands-literal-resolution"
+          ]
+        },
+        {
+          "selector": "value::tests::return_options_presence_preserves_retired_foreign_and_borrowed_refusals",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed VM278 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value::tests::return_options_presence_uses_owned_shape_without_materialising_children",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed VM278 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.original-info-commands-literal-resolution"
+      ],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The two return-options ownership controls pass; the original186-window InfoCommands comparison fails at C8.4 escaped-nul-prefix primary-before-getter (actual list, captured none). This failure is distinct from the earlier VM275 qualified-child String failure and supplies no complete186-window software success.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/pinned-vm278.elf.gz",
+        "sha256": "e919f5453ac4a9879b3acd5a17455ab98c388feac2c67cf957ff00ca92747edf",
+        "compression": "gzip",
+        "uncompressed_sha256": "729e21654434181fb8419ec09ceb0fa7a29b733f98c0b18660c2b8401706c809",
+        "uncompressed_bytes": 101468608,
+        "compressed_bytes": 19827173,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/pinned-vm278.json",
+        "metadata_sha256": "797070aba6ca1963c18922821d722c3a55c042eece6bb9c1c51f0dcfa63db6e6",
+        "build_receipt_id": "rust.frozen278.integration-vm-native-test-build278",
+        "original_source_snapshot_sha256": "68ae8b05479be6ba1fcdc04234db7745511547bb124ccf4de69cf8a9f5a2f1fd",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "da41d1597b370450be0ce86b5a757edc18dbbbcd04700094be907ed5b937a46b",
+          "compression": "gzip",
+          "uncompressed_sha256": "68ae8b05479be6ba1fcdc04234db7745511547bb124ccf4de69cf8a9f5a2f1fd"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen278.diagnostic-native278-dictionary345-ownership",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/diagnostic-native278-dictionary345-ownership/receipt.json.gz",
+        "sha256": "24b5eaf38e51ded8f861d55d73adcbb1d2741c3e98161ec80080653d32d91fc5",
+        "compression": "gzip",
+        "uncompressed_sha256": "5ec530b335af1218c781f0b6023e7068f9f4497422b98ef52ae90606e25ad6fd"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/diagnostic-native278-dictionary345-ownership/tests.log",
+        "sha256": "81b1e60f04f400cf95aa29e291b0afe09284e19ecc84427a3146913ec7c04c46"
+      },
+      "command": [
+        "env",
+        "RUST_BACKTRACE=1",
+        "TCL_LSP_ORACLE_PROGRESS=1",
+        "TCL_LSP_TRACE_NATIVE_OPTIONS=1",
+        "/workspace/.proofs/pinned-vm278.elf",
+        "--exact",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "seconds": 280.646145620005,
+      "uniform_source": true,
+      "status": "passed",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 738
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed VM278 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": [
+            "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+      ],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The exact original345 complete public-process comparison passes under VM278 after the reached-capture411 repair and before the independent Tick-vector412 ownership change. Opt-in409 topology output still records retired activation CALL heads; that narrower diagnostic view is not converted into a new lifetime/frame result or attributed as a remaining comparator failure. Whole original Native expectations remain unchanged.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/pinned-vm278.elf.gz",
+        "sha256": "e919f5453ac4a9879b3acd5a17455ab98c388feac2c67cf957ff00ca92747edf",
+        "compression": "gzip",
+        "uncompressed_sha256": "729e21654434181fb8419ec09ceb0fa7a29b733f98c0b18660c2b8401706c809",
+        "uncompressed_bytes": 101468608,
+        "compressed_bytes": 19827173,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/pinned-vm278.json",
+        "metadata_sha256": "797070aba6ca1963c18922821d722c3a55c042eece6bb9c1c51f0dcfa63db6e6",
+        "build_receipt_id": "rust.frozen278.integration-vm-native-test-build278",
+        "original_source_snapshot_sha256": "68ae8b05479be6ba1fcdc04234db7745511547bb124ccf4de69cf8a9f5a2f1fd",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "da41d1597b370450be0ce86b5a757edc18dbbbcd04700094be907ed5b937a46b",
+          "compression": "gzip",
+          "uncompressed_sha256": "68ae8b05479be6ba1fcdc04234db7745511547bb124ccf4de69cf8a9f5a2f1fd"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen278.integration-core-db-server-test-build278",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/integration-core-db-server-test-build278/receipt.json.gz",
+        "sha256": "149c693b1fc5c71836db05d7abc8c4b42b0d9aefce318a8d06b1c0e98fdcca9f",
+        "compression": "gzip",
+        "uncompressed_sha256": "7ee5f92d3aedaf7204990eb210d9b991f5610f204a90ce94c37e9ea6a6899e6a"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen278/integration-core-db-server-test-build278/tests.log",
+        "sha256": "7ceb325e7807e46aeed8005de422a6ad03dc3b73a20a3807ea4e9960bde86eb1"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-lsp-db",
+        "-p",
+        "tcl-lsp-server",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 231.49861240998143,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The separate Core/DB/Server no-run build stops at a DB libtest constructor accessing private AnalysisResult fields. No test image is sealed or inventoried and no assertions execute from that failed invocation."
+    },
+    {
+      "id": "rust.frozen280.integration-compiler-vm-test-build280",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/integration-compiler-vm-test-build280/receipt.json.gz",
+        "sha256": "1838b61650a1870796cbf4836912a2e72857249cef4316745d8423bc86190e11",
+        "compression": "gzip",
+        "uncompressed_sha256": "587ff697d6055afcd909e500f9a79bb53d148c69ed47fc10f517588843503577"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/integration-compiler-vm-test-build280/tests.log",
+        "sha256": "e04b352d547c8c29b8306ae6b6dfb698a75ce53d171dba05a432ee1fc3133837"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 221.6250770810002,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The combined invocation fails at three Compiler libtest fixture errors (nonexistent InvocationSemantics command field, temporary context borrow and Arc mutation). Its VM artifact event is preserved as an event only; this failed invocation is not the VM280 producer and seals no pin or assertion."
+    },
+    {
+      "id": "rust.frozen280.integration-vm-own-test-build280",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/integration-vm-own-test-build280/receipt.json.gz",
+        "sha256": "551be2599446618aef43541c7ec1c7ad0ad2596b9948a5614480dd7159ae603d",
+        "compression": "gzip",
+        "uncompressed_sha256": "9c894c5198f493a5ea9fe90586fad8d898e8f463898de5c8232981845beed374"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/integration-vm-own-test-build280/tests.log",
+        "sha256": "5e2401d659c70de28510057eb177d5652af7e74b47f90bb2cddbc3eb3b85b4cd"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 0,
+      "seconds": 103.89639982301742,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The independent VM-only280 no-run build emits the actual separately sealed VM280 test executable; construction is not an assertion result.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/pinned-vm280.elf.gz",
+        "sha256": "fa74b6fea42e1329eae31656217529056acb33e7a76b451a90fc0ba6bb81efdc",
+        "compression": "gzip",
+        "uncompressed_sha256": "a53a9f10a053aef8c388ffdcdbcbd523a6289b199d05c92e0d705e90b13f70b0",
+        "uncompressed_bytes": 101481896,
+        "compressed_bytes": 19862684,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/pinned-vm280.json",
+        "metadata_sha256": "42dbfde7570c94d18849122cc460af65afdc10e7859133e81fe3fc3062df240b",
+        "build_receipt_id": "rust.frozen280.integration-vm-own-test-build280",
+        "original_source_snapshot_sha256": "ce04ed22ade7c31c5aeb5a851b3286e85a79856daed436fe2cffc8967589c0f6",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "5db353d6064175a3a0cb03eae0caf60b41ed7b55eb9c57de30120a96fb9044dc",
+          "compression": "gzip",
+          "uncompressed_sha256": "ce04ed22ade7c31c5aeb5a851b3286e85a79856daed436fe2cffc8967589c0f6"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen280.integration-vm-native-frontier-tests280",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/integration-vm-native-frontier-tests280/receipt.json.gz",
+        "sha256": "60c67bcf2f13b4384543a012d7edcff57d2cd685d1efadb4a441f22b45463b75",
+        "compression": "gzip",
+        "uncompressed_sha256": "4429e929ec8543c140555ad9a7348a8d6d72bd41dd4678503c2f83b5550afbf8"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/integration-vm-native-frontier-tests280/tests.log",
+        "sha256": "e785235991b5d981c025eeffc7940df12fbf9cf9056ab4e39d403617e89abcd4"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm280.elf",
+        "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+        "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+        "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+        "exec::tests::procedure_activation_retains_original_invocation_references_until_exit",
+        "exec::tests::original_trace_procedure_heads_remain_live_during_their_actual_activation",
+        "interp::byte_array_result_tests::binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate",
+        "interp::byte_array_result_tests::unsupported_declared_binary_purpose_refuses_without_native_fallback",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 52.828099481004756,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 4,
+        "failed": 3,
+        "ignored": 0,
+        "filtered_out": 736
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed VM280 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed VM280 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "exec::tests::original_trace_procedure_heads_remain_live_during_their_actual_activation",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed VM280 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "exec::tests::procedure_activation_retains_original_invocation_references_until_exit",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed VM280 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "interp::byte_array_result_tests::binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed VM280 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "interp::byte_array_result_tests::unsupported_declared_binary_purpose_refuses_without_native_fallback",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed VM280 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed VM280 image and unchanged original source. Native provider-purpose evidence and diagnostic-only ownership views remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-info-commands-literal-resolution"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.original-info-commands-literal-resolution",
+        "naming.embedding.original-host-publication-and-fact-transport"
+      ],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The two procedure-activation and two binary-carrier software controls pass. Both mathop comparison selectors fail at Jim case0 with missing namespace info in the fixture; the log and reached C comparisons do not confer whole84/60 success. The original186-window InfoCommands comparison reaches C8.6 escaped-nul-prefix primary-before-getter and fails (actual list, captured none), after its prior C8.4/C8.5 cases. Complete Native expected streams are unchanged. The seven exact command-selected names equal all observed libtest events; no separately unrecorded --list command is fabricated.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/pinned-vm280.elf.gz",
+        "sha256": "fa74b6fea42e1329eae31656217529056acb33e7a76b451a90fc0ba6bb81efdc",
+        "compression": "gzip",
+        "uncompressed_sha256": "a53a9f10a053aef8c388ffdcdbcbd523a6289b199d05c92e0d705e90b13f70b0",
+        "uncompressed_bytes": 101481896,
+        "compressed_bytes": 19862684,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/pinned-vm280.json",
+        "metadata_sha256": "42dbfde7570c94d18849122cc460af65afdc10e7859133e81fe3fc3062df240b",
+        "build_receipt_id": "rust.frozen280.integration-vm-own-test-build280",
+        "original_source_snapshot_sha256": "ce04ed22ade7c31c5aeb5a851b3286e85a79856daed436fe2cffc8967589c0f6",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "5db353d6064175a3a0cb03eae0caf60b41ed7b55eb9c57de30120a96fb9044dc",
+          "compression": "gzip",
+          "uncompressed_sha256": "ce04ed22ade7c31c5aeb5a851b3286e85a79856daed436fe2cffc8967589c0f6"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen280.integration-core-db-server-test-build280",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/integration-core-db-server-test-build280/receipt.json.gz",
+        "sha256": "d015ccb1ea5029264a6ae8e452881cc5ebadc53846496c74db30c70d94ad37be",
+        "compression": "gzip",
+        "uncompressed_sha256": "b1cc236e3df4ee82186622da22b4ba486d1ce94d39d68863dc8e3760eca72e95"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/integration-core-db-server-test-build280/tests.log",
+        "sha256": "6a4ba256a1bf4ab636fd0d0112017b90c58f7fa6efa98ac1a0f6cc5afbcd3a13"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-lsp-db",
+        "-p",
+        "tcl-lsp-server",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 130.3421069009928,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The original decompressed receipt retains every source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed operation and unchanged complete original source association. No aggregate gate, other image/backend assertion or external Native provider promotion. The separate Core/DB/Server no-run build stops at the DB project-caller Arc-borrow fixture error. No image, listing or assertion is produced."
     }
   ]
 }

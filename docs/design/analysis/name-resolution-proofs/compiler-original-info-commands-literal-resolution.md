@@ -22,6 +22,8 @@ Exact original binary input files, public proc definition/object argv, independe
 
 Exact software assertion outcomes belong to their independently pinned Rust source/image and validation receipts. The frozen VM275 comparison stops at the original C8.4 qualified child String birth; it does not establish a complete 186-window software success. The original31-per-provider Native runs, pre-getter channels, C8.4/C8.5 no-specialised-hook evidence and distinct Jim script-token/namespace-helper results remain unchanged. Pure recipe, software retained headers, result birth or exact bytes do not establish repeated native private-header identity, another archive/compiler body, future table freshness, entered frame, Handler or general admission.
 
+The independently sealed VM278 comparison fails at the C8.4 escaped-nul-prefix primary-before-getter window (actual list, captured none). Its two return-options ownership controls pass separately; neither outcome establishes complete186-window InfoCommands software success or changes the original Native observations.
+
 ## Provider answers
 
 ### tcl8.4

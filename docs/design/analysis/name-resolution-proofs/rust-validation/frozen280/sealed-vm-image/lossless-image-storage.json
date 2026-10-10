@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/pinned-vm280.elf.gz",
+  "stored_sha256": "fa74b6fea42e1329eae31656217529056acb33e7a76b451a90fc0ba6bb81efdc",
+  "stored_bytes": 19862684,
+  "original_sha256": "a53a9f10a053aef8c388ffdcdbcbd523a6289b199d05c92e0d705e90b13f70b0",
+  "original_bytes": 101481896,
+  "original_recorded_executable": "/workspace/.proofs/pinned-vm280.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/pinned-vm280.json",
+  "pin_metadata_sha256": "42dbfde7570c94d18849122cc460af65afdc10e7859133e81fe3fc3062df240b",
+  "build_receipt_id": "rust.frozen280.integration-vm-own-test-build280",
+  "build_receipt_sha256": "9c894c5198f493a5ea9fe90586fad8d898e8f463898de5c8232981845beed374",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen280/sealed-vm-image/source-snapshot.json.gz",
+    "sha256": "5db353d6064175a3a0cb03eae0caf60b41ed7b55eb9c57de30120a96fb9044dc",
+    "compression": "gzip",
+    "uncompressed_sha256": "ce04ed22ade7c31c5aeb5a851b3286e85a79856daed436fe2cffc8967589c0f6"
+  },
+  "verification": "Exact original pin metadata is unchanged. ELF digest and independently measured byte length match the original image. The stored gzip is decompressed and fully byte-compared; source metadata matches the actual independent successful VM-only producer. Storage neither changes image identity nor supplies a new run."
+}

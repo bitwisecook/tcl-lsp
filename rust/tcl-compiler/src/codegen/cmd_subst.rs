@@ -2093,7 +2093,7 @@ impl CodegenCtx<'_> {
 
     fn emit_inline_info_commands_resolve(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
-        self.emit_cmd_subst_arg(&args[1].0, args[1].1);
+        self.emit_native_argument_word(1, &args[1].0, args[1].1);
         self.emit(Op::RESOLVE_CMD, vec![]);
         self.emit(Op::DUP, vec![]);
         self.emit(Op::STR_LEN, vec![]);

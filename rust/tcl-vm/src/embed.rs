@@ -51,7 +51,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::command::{BuiltinFn, Command, NativeCommand, opt_get, resolved_error_code};
+use crate::command::{BuiltinFn, Command, NativeCommand, opt_get_checked};
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
@@ -576,17 +576,32 @@ impl Vm {
     /// script raised is what the next command reads. A completion that is not an
     /// error publishes nothing, and nothing is published while stores are
     /// confined to the activation.
-    pub fn publish_caught_error(&mut self, completion: &Completion<Value>) {
-        if completion.code != Code::Error {
-            return;
-        }
-        let options = self.completion_options_snapshot(completion);
-        let info = opt_get(&options, "-errorinfo").map_or_else(
-            || completion.result.to_str().to_string(),
-            |value| value.to_str().to_string(),
-        );
-        let _ = self.take_error_info();
-        self.publish_error(&info, &resolved_error_code(completion));
+    /// Options are read through this interpreter's existing completion planner;
+    /// borrowed native options must have compatible backing for that planner.
+    ///
+    /// # Errors
+    /// Returns the first retained host failure before reading or publishing guest
+    /// values. Reached option/key/result access remains byte-preserving and fallible.
+    pub fn publish_caught_error(&mut self, completion: &Completion<Value>) -> Result<(), TclError> {
+        self.begin_embedding_call()?;
+        let result = (|| {
+            if completion.code != Code::Error {
+                return Ok(());
+            }
+            let options = self.completion_options_snapshot(completion);
+            let original = opt_get_checked(self, &options, b"-errorinfo")
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?
+                .unwrap_or_else(|| completion.result.clone());
+            let info = tcl_syntax::value::ValueOps::native_string_bytes(self, &original)
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?;
+            let code = opt_get_checked(self, &options, b"-errorcode")
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?
+                .unwrap_or_else(|| Value::from_string_bytes(b"NONE".as_slice()));
+            let _ = self.take_error_info();
+            self.publish_error(&info, &code);
+            Ok(())
+        })();
+        self.finish_embedding_result(result)
     }
 
     /// Every command name currently registered, sorted.

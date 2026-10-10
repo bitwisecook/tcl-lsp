@@ -30,6 +30,7 @@
 //! double-decoded `eval [subst …]` (W309), closed value arguments left
 //! open (W127), and a hardcoded credential literal (W310).
 
+mod source_credentials;
 mod source_crossing;
 mod source_paths;
 mod source_patterns;
@@ -556,100 +557,6 @@ impl Analyser {
                 .with_fixes(hit.fixes)
                 .with_subject(subject),
             );
-        }
-    }
-
-    /// **W310.** Emit "hardcoded credential" for a literal secret value.
-    /// Two strategies, one diagnostic per command:
-    ///
-    /// * **Strategy 1** — a credential-bearing option flag (the registry's
-    ///   command-independent
-    ///   [`tcl_registry::spec::DEFAULT_CREDENTIAL_OPTION_NAMES`],
-    ///   case-insensitive, unioned with the command's registry
-    ///   `credential_options`, e.g. `http::geturl`'s `-headers`) followed
-    ///   by a literal value.
-    /// * **Strategy 2** — a subcommand whose registry `credential_arg` /
-    ///   `sensitive_headers` mark a literal value at a sensitive header
-    ///   (e.g. `HTTP::header insert authorization "Bearer …"`).
-    pub(in crate::analyser) fn emit_w310_hardcoded_credentials(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-    ) {
-        if args.is_empty() || arg_tokens.is_empty() {
-            return;
-        }
-        // Registry-augmented credential option flags (all `'static`, so
-        // the `self.registry.as_deref()` borrow ends with this binding).
-        let extra_opts: &'static [&'static str] = self
-            .registry
-            .as_ref()
-            .and_then(|r| r.get(cmd_name))
-            .map_or(&[], |s| s.credential_options);
-
-        // Strategy 1: a credential option flag with a literal value.
-        for (i, text) in args.iter().enumerate() {
-            let lower = text.to_ascii_lowercase();
-            if !tcl_registry::spec::DEFAULT_CREDENTIAL_OPTION_NAMES.contains(&lower.as_str())
-                && !extra_opts.contains(&lower.as_str())
-            {
-                continue;
-            }
-            let (Some(value), Some(val_tok)) = (args.get(i + 1), arg_tokens.get(i + 1)) else {
-                continue;
-            };
-            if is_literal_credential_value(value, val_tok) {
-                self.result
-                    .diagnostics
-                    .push(crate::analyser::types::Diagnostic::new(
-                        DiagCode::W310,
-                        val_tok.span,
-                        format!(
-                            "Hardcoded credential in {text} argument. Store secrets in \
-environment variables or a vault, not in source code."
-                        ),
-                        Severity::Warning,
-                    ));
-                return; // one diagnostic per command
-            }
-        }
-
-        // Strategy 2: a subcommand credential header with a literal value.
-        if args.len() >= 3 {
-            let sub = args[0].to_ascii_lowercase();
-            // `(credential_arg, sensitive_headers)` — both copied out so
-            // the registry borrow ends before we mutate `self.result`.
-            let cred_info: Option<(usize, &'static [&'static str])> = self
-                .registry
-                .as_ref()
-                .and_then(|r| r.get(cmd_name))
-                .and_then(|s| s.resolve_subcommand(&sub))
-                .and_then(|sc| {
-                    sc.credential_arg
-                        .map(|a| (a as usize, sc.sensitive_headers))
-                });
-            if let Some((cred_arg, sensitive)) = cred_info {
-                let header_name = args[1].to_ascii_lowercase();
-                if sensitive.contains(&header_name.as_str())
-                    && cred_arg < arg_tokens.len()
-                    && let (Some(value), Some(val_tok)) =
-                        (args.get(cred_arg), arg_tokens.get(cred_arg))
-                    && is_literal_credential_value(value, val_tok)
-                {
-                    self.result
-                        .diagnostics
-                        .push(crate::analyser::types::Diagnostic::new(
-                            DiagCode::W310,
-                            val_tok.span,
-                            format!(
-                                "Hardcoded credential in {header_name} header value. \
-Store secrets in environment variables or a vault, not in source code."
-                            ),
-                            Severity::Warning,
-                        ));
-                }
-            }
         }
     }
 }

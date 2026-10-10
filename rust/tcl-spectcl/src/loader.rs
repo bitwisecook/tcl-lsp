@@ -6916,6 +6916,15 @@ fn apply_command_stmt(
             log.v12(stmt.line, "callback_taint_inputs");
             acc.callback_taint_inputs = parse_callback_taint_input_table(&value, stmt.line, log);
         }
+        "channel_configuration" => {
+            spec.channel_configuration = enum_by_name(
+                tcl_registry::ChannelConfigurationSpec::ALL,
+                &value,
+                "channel configuration",
+                stmt.line,
+                log,
+            );
+        }
         "credential_options" => spec.credential_options = leak_strs(&list_words(&value)),
         "sensitive_headers" => spec.sensitive_headers = leak_strs(&list_words(&value)),
 
@@ -8613,6 +8622,15 @@ fn apply_subcommand_stmt(
         "max_leading_option_words" => sub.max_leading_option_words = value.parse().ok(),
         "defines_command_at" => sub.defines_command_at = value.parse().ok(),
         "body_arg_implicit_args" => sub.body_arg_implicit_args = value.parse().unwrap_or(0),
+        "channel_configuration" => {
+            sub.channel_configuration = enum_by_name(
+                tcl_registry::ChannelConfigurationSpec::ALL,
+                &value,
+                "channel configuration",
+                stmt.line,
+                log,
+            );
+        }
         "credential_arg" => sub.credential_arg = value.parse().ok(),
         "sensitive_headers" => sub.sensitive_headers = leak_strs(&list_words(&value)),
         "arg_role_count_resolver" => {

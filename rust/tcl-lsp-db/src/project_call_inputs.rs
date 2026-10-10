@@ -189,7 +189,8 @@ fn project_call_site_evidence_for_inputs(
 ) -> Option<Arc<CallSiteEvidence>> {
     let mut all = CallSiteEvidence::default();
     for &file in project.files(db) {
-        all.merge_from(&file_call_site_evidence_for_inputs(db, file, project)?);
+        let evidence = file_call_site_evidence_for_inputs(db, file, project)?;
+        all.merge_from(evidence.as_ref());
     }
     Some(Arc::new(all))
 }

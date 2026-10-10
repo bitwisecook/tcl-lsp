@@ -715,6 +715,8 @@ fn failure(message: &str, options: Value) -> Completion<Value> {
 
 #[test]
 fn an_error_a_host_took_as_its_own_leaves_error_code_and_error_info() {
+    // Software metadata contract: naming.diagnostics.original-error-code-metadata-not-message
+    // docs/design/analysis/name-resolution-proofs/diagnostics-original-error-code-metadata-not-message.md
     let mut vm = vm();
     assert_eq!(
         run(&mut vm, "info exists errorCode"),
@@ -724,11 +726,13 @@ fn an_error_a_host_took_as_its_own_leaves_error_code_and_error_info() {
     vm.publish_caught_error(&failure(
         "boom",
         Value::list(vec![Value::string("-errorcode"), Value::string("MY CODE")]),
-    ));
+    ))
+    .unwrap();
     assert_eq!(run(&mut vm, "set errorCode"), "MY CODE");
     assert_eq!(run(&mut vm, "set errorInfo"), "boom");
 
-    vm.publish_caught_error(&failure("plain", Value::empty()));
+    vm.publish_caught_error(&failure("plain", Value::empty()))
+        .unwrap();
     assert_eq!(
         run(&mut vm, "set errorCode"),
         "NONE",
@@ -736,19 +740,30 @@ fn an_error_a_host_took_as_its_own_leaves_error_code_and_error_info() {
     );
     assert_eq!(run(&mut vm, "set errorInfo"), "plain");
 
-    vm.publish_caught_error(&failure("wrong # args: should be \"x\"", Value::empty()));
+    vm.publish_caught_error(&failure("wrong # args: should be \"x\"", Value::empty()))
+        .unwrap();
     assert_eq!(
         run(&mut vm, "set errorCode"),
-        "TCL WRONGARGS",
-        "and the code a usage error defaults to is the one a catch gives it"
+        "NONE",
+        "arbitrary guest text does not supply structured wrong-arguments metadata"
     );
+    vm.publish_caught_error(&failure(
+        "explicit usage failure",
+        Value::list(vec![
+            Value::string("-errorcode"),
+            Value::string("TCL WRONGARGS"),
+        ]),
+    ))
+    .unwrap();
+    assert_eq!(run(&mut vm, "set errorCode"), "TCL WRONGARGS");
 }
 
 #[test]
 fn a_completion_that_is_not_an_error_publishes_nothing() {
     let mut vm = vm();
     for code in [Code::Ok, Code::Return, Code::Break, Code::Continue] {
-        vm.publish_caught_error(&Completion::new(code, Value::string("x"), Value::empty()));
+        vm.publish_caught_error(&Completion::new(code, Value::string("x"), Value::empty()))
+            .unwrap();
     }
     assert_eq!(run(&mut vm, "info exists errorCode"), "0");
     assert_eq!(run(&mut vm, "info exists errorInfo"), "0");
@@ -758,11 +773,81 @@ fn a_completion_that_is_not_an_error_publishes_nothing() {
 fn confined_stores_keep_a_taken_error_out_of_the_globals() {
     let mut vm = vm();
     vm.set_stores_confined(true);
-    vm.publish_caught_error(&failure("boom", Value::empty()));
+    vm.publish_caught_error(&failure("boom", Value::empty()))
+        .unwrap();
     vm.set_stores_confined(false);
     assert_eq!(
         run(&mut vm, "info exists errorCode"),
         "0",
         "a body confined to its own frame leaves no global behind"
     );
+}
+
+#[test]
+fn caught_guest_publication_preserves_opaque_message_info_and_explicit_code_bytes() {
+    // Software contract: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let mut vm = vm();
+    let original = Completion::new_error_metadata(
+        Code::Error,
+        Value::from_string_bytes(b"GUEST \xff\0tail".as_slice()),
+        Value::list(vec![
+            Value::string("-errorinfo"),
+            Value::from_string_bytes(b"INFO \xfe\0exact".as_slice()),
+            Value::string("-errorcode"),
+            Value::from_string_bytes(b"RAW \xfd\0CODE".as_slice()),
+        ]),
+    );
+    vm.publish_caught_error(&original).unwrap();
+    assert_eq!(
+        vm.read_variable("::errorInfo")
+            .unwrap()
+            .resident_string_bytes()
+            .unwrap()
+            .as_ref(),
+        b"INFO \xfe\0exact"
+    );
+    assert_eq!(
+        vm.read_variable("::errorCode")
+            .unwrap()
+            .resident_string_bytes()
+            .unwrap()
+            .as_ref(),
+        b"RAW \xfd\0CODE"
+    );
+    assert_eq!(
+        original.result.resident_string_bytes().unwrap().as_ref(),
+        b"GUEST \xff\0tail"
+    );
+}
+
+#[test]
+fn caught_publication_preserves_first_typed_host_cause_before_any_guest_access() {
+    // Software contract: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let mut vm = vm();
+    vm.set_var("kept", Value::string("BEFORE")).unwrap();
+    let original = tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+        "original caught-value ingress",
+    );
+    let _ = vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(original));
+    let error = vm
+        .publish_caught_error(&failure("unentered", Value::empty()))
+        .unwrap_err();
+    assert_eq!(
+        error.into_completion().unwrap_err(),
+        tcl_vm::TclHostFailure::Execution(
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
+        )
+    );
+    assert_eq!(
+        vm.get_var("kept")
+            .unwrap()
+            .resident_string_bytes()
+            .unwrap()
+            .as_ref(),
+        b"BEFORE"
+    );
+    assert!(vm.get_var("errorInfo").is_none());
+    assert!(vm.get_var("errorCode").is_none());
 }

@@ -61,6 +61,7 @@ pub mod byte_array_effect;
 pub(crate) mod cache;
 pub mod case_bodies;
 pub mod catch_invocation;
+pub mod channel_configuration;
 pub mod clause_grammar;
 pub mod clause_shape;
 pub mod codegen_stamp;
@@ -257,6 +258,7 @@ pub mod prelude {
         BpfVerdictKind,
     };
     pub use crate::byte_array_effect::ByteArrayEffect;
+    pub use crate::channel_configuration::ChannelConfigurationSpec;
     pub use crate::clause_grammar::{
         ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming,
         DefaultClause, LoopPhase,
@@ -389,6 +391,7 @@ pub use cache::{
     core_surface_generation, default_registry, overlay_epoch, register_core_surface_specs,
     registry_for_profile_with_overlay, safe_interp_hidden_commands,
 };
+pub use channel_configuration::{AuthoredSourceChannelConfiguration, ChannelConfigurationSpec};
 pub use clause_grammar::{
     ClauseAbstention, ClauseGrammarSpec, ClauseKeyword, ClausePlan, ClauseRow, ClauseRowId,
     ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming, DefaultClause, LoopPhase,
@@ -456,13 +459,14 @@ pub use representation::RepresentationEffect;
 pub use resolved_invocation::{
     AuthoredSourceAppendArguments, AuthoredSourceArity, AuthoredSourceCaseBody,
     AuthoredSourceCommandPublication, AuthoredSourceCommandPublicationKind,
-    AuthoredSourceDescriptors, AuthoredSourceExpressionArguments, AuthoredSourceLambdaCall,
-    AuthoredSourceOption, AuthoredSourceOptionArguments, AuthoredSourceOptionBoundary,
-    AuthoredSourceOptionRelationships, AuthoredSourceOptionScan, AuthoredSourceProcedureArguments,
-    AuthoredSourceSubcommandDiagnostic, InvocationArgumentCount, InvocationFacts,
-    InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics, NamedObjectFactory,
-    OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation, ResolvedSubcommand,
-    StructuredInvocationResolution, SubcommandResolution, SubcommandResolutionKind,
+    AuthoredSourceCredentialArgument, AuthoredSourceCredentialPosition, AuthoredSourceDescriptors,
+    AuthoredSourceExpressionArguments, AuthoredSourceLambdaCall, AuthoredSourceOption,
+    AuthoredSourceOptionArguments, AuthoredSourceOptionBoundary, AuthoredSourceOptionRelationships,
+    AuthoredSourceOptionScan, AuthoredSourceProcedureArguments, AuthoredSourceSubcommandDiagnostic,
+    InvocationArgumentCount, InvocationFacts, InvocationOptions, InvocationResolutionUnresolved,
+    InvocationSemantics, NamedObjectFactory, OwnedSubcommandResolution, ResolvedForm,
+    ResolvedInvocation, ResolvedSubcommand, StructuredInvocationResolution, SubcommandResolution,
+    SubcommandResolutionKind,
 };
 pub use result_stability::ResultStability;
 pub use runtime_backing::{BodySource, RuntimeBacking};

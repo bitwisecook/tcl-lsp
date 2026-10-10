@@ -558,7 +558,8 @@ fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
             ) {
                 // The host command takes the error as its own, so `$errorCode`
                 // and `$errorInfo` are what a `catch` of the script would leave.
-                vm.publish_caught_error(&completion);
+                vm.publish_caught_error(&completion)
+                    .map_err(|error| internal_error(error, vm.native_scalar_carrier_dialect()))?;
             }
             return Err(failure);
         }
@@ -1256,7 +1257,8 @@ fn to_vm_value(
         Value::Empty => tcl_vm::Value::string(String::new()),
         Value::Str(text) => tcl_vm::Value::from_string_bytes(text.as_bytes()),
         Value::StringBytes(bytes) => tcl_vm::Value::from_string_bytes(bytes.as_ref()),
-        Value::ByteArray(bytes) => tcl_vm::Value::byte_array(Rc::clone(bytes)),
+        Value::ByteArray(bytes) => tcl_vm::Value::from_native_byte_array(Rc::clone(bytes), dialect)
+            .map_err(|error| refusal(&error))?,
         Value::NativeScalar(cache) => {
             let (cache, origin) = import_scalar_cache(cache);
             tcl_vm::Value::from_native_scalar_cache(cache, origin, dialect)
@@ -1267,7 +1269,9 @@ fn to_vm_value(
             string,
             storage,
         } => {
-            let storage = import_storage(*storage);
+            let storage =
+                tcl_syntax::scalar_getter::carrier::checked_storage(*storage, string.len())
+                    .map_err(|error| refusal(&error))?;
             if let Value::NativeScalar(cache) = value.as_ref() {
                 let (cache, origin) = import_scalar_cache(cache);
                 tcl_vm::Value::from_native_scalar_cache_with_storage(
@@ -3032,6 +3036,68 @@ mod tests {
         ));
         let foreign = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         assert!(super::to_vm_value(&original, foreign).is_err());
+    }
+
+    #[test]
+    fn binary_bridge_seals_actual_constructor_and_validates_recorded_resident_storage() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        use tcl_engine_api::NativeStringStorageIdentity;
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let binary = Value::byte_array(b"\xff\0A".as_slice());
+        let original = super::to_vm_value(&binary, dialect).unwrap();
+        let recipe = original.byte_array_origin().unwrap();
+        assert_eq!(recipe.logical_provider(), None);
+        assert_eq!(
+            recipe.protocol(),
+            tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6)
+        );
+        assert!(original.resident_string_bytes().is_none());
+        assert_eq!(
+            original.byte_array_representation().unwrap().as_ref(),
+            b"\xff\0A"
+        );
+        assert_eq!(
+            original
+                .native_string_bytes(recipe.protocol())
+                .unwrap()
+                .as_ref(),
+            b"\xc3\xbf\xc0\x80A"
+        );
+        assert_eq!(original.byte_array_origin(), Some(recipe));
+        let resident = binary.clone().with_resident_string_storage(
+            b"RECORDED\0\xff".as_slice(),
+            NativeStringStorageIdentity::Allocated,
+        );
+        let imported = super::to_vm_value(&resident, dialect).unwrap();
+        assert_eq!(
+            imported.resident_string_bytes().unwrap().as_ref(),
+            b"RECORDED\0\xff"
+        );
+        assert_eq!(
+            imported.byte_array_representation().unwrap().as_ref(),
+            b"\xff\0A"
+        );
+        assert_eq!(imported.byte_array_origin().unwrap(), recipe);
+        for bad in [
+            NativeStringStorageIdentity::Unknown,
+            NativeStringStorageIdentity::CanonicalEmpty,
+        ] {
+            let invalid = binary
+                .clone()
+                .with_resident_string_storage(b"NONEMPTY".as_slice(), bad);
+            assert!(matches!(
+                super::to_vm_value(&invalid, dialect),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+        }
+        let jim = tcl_registry::InvocationDialect::of_profile(
+            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
+        );
+        assert!(super::to_vm_value(&binary, jim).is_err());
+        let authored =
+            tcl_registry::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+        assert!(super::to_vm_value(&binary, authored).is_err());
     }
 
     #[test]

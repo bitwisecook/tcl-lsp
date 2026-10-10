@@ -21,6 +21,11 @@ impl<'a> OriginalLogicalProcedureCall<'a> {
         self.procedure
     }
 
+    /// Read the same retained effective argv, including original captured operands.
+    pub(crate) const fn effective_arguments(&self) -> &super::EffectiveCommandWords {
+        &self.arguments
+    }
+
     pub(crate) fn argument_count(&self) -> Option<usize> {
         if self
             .arguments
@@ -94,7 +99,7 @@ pub(crate) fn original_procedure_formal_count_shape(
     procedure: &Procedure,
     registry: &CommandRegistry,
 ) -> Option<FormalArgumentCountShape> {
-    let (parameters, grammar) = original_parameters(module, procedure, registry)?;
+    let (parameters, grammar) = original_procedure_parameters(module, procedure, registry)?;
     Some(tcl_syntax::formal_params::formal_argument_count_shape(
         parameters
             .iter()
@@ -113,7 +118,7 @@ pub(crate) fn original_procedure_scalar_bindings(
     registry: &CommandRegistry,
 ) -> Option<std::collections::HashSet<String>> {
     use tcl_syntax::formal_params::FormalArgumentBinding as Binding;
-    let (parameters, grammar) = original_parameters(module, procedure, registry)?;
+    let (parameters, grammar) = original_procedure_parameters(module, procedure, registry)?;
     let shape = tcl_syntax::formal_params::formal_argument_count_shape(
         parameters
             .iter()
@@ -156,7 +161,7 @@ pub(crate) fn original_procedure_scalar_bindings(
     common
 }
 
-fn original_parameters(
+pub(crate) fn original_procedure_parameters(
     module: &Module,
     procedure: &Procedure,
     registry: &CommandRegistry,
