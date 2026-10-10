@@ -39,6 +39,51 @@ fn checked_size(current: usize, extra: usize, unicode: bool) -> Result<usize, Va
         ))
 }
 
+/// The selected Jim `string cat` worker's original-object transfer and append.
+/// A sole original is returned without reaching its string getter. Each
+/// multiple-operand append reaches that source getter before replacing the
+/// fresh receiver with Jim String backing and an unknown character count.
+///
+/// The caller supplies its checked original getter and validates a sole
+/// original's live header. This recipe establishes no engine or call admission.
+/// Jim's `OPT_CAT`, `Jim_AppendObj`, and `SetStringFromAny` own this order.
+///
+/// # Errors
+/// Preserves the actual selected getter/updater cause and allocation refusal.
+pub fn concatenate_jim<O: NativeAppendObjects>(
+    ops: &O,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    inputs: &[O::Value],
+    mut original_string: impl FnMut(&O::Value) -> Result<Rc<[u8]>, ValueError>,
+) -> Result<O::Value, ValueError> {
+    if !protocol.is_jim084() {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "Jim string cat worker",
+        ));
+    }
+    if let [only] = inputs {
+        return Ok(only.clone());
+    }
+    let result = ops.new_string(Rc::from(&b""[..]));
+    let mut bytes = Vec::new();
+    for input in inputs {
+        let original = original_string(input)?;
+        checked_size(bytes.len(), original.len(), false)?;
+        bytes.extend_from_slice(&original);
+        ops.set_string(
+            &result,
+            protocol,
+            Some((
+                Rc::from(bytes.as_slice()),
+                tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
+            )),
+            None,
+            None,
+        )?;
+    }
+    Ok(result)
+}
+
 struct NativeCatLayout {
     first: usize,
     last: usize,

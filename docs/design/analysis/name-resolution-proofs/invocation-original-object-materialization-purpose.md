@@ -16,9 +16,13 @@ ObjectMaterialization keeps three purpose tags with one retained recipe: Native 
 
 Selected name inventory is separately governed by [original-variable-inventory-policy](invocation-original-variable-inventory-policy.md). General embedding transport keeps its own [host-publication-and-fact contract](embedding-original-host-publication-and-fact-transport.md). These source/API bindings do not change either question’s original provider status or independently pinned software outcome.
 
+An additional marked lower software control requires the authentic compound recipe before returning cached dictionary members. Foreign recipes refuse for both List and Dict carriers with or without resident text, preserving primary storage, member references and residency; the authentic recipe preserves original member identity.
+
 ## Scope
 
 Four marked VM software controls cover actual C86 engine with unknown Jim source, explicitly installed F5 authored materialization and terminal withdrawal despite a retained C90 physical engine, independently selected actual activation, separately tagged Distribution C/Jim compatibility and unknown-source refusal, and foreign C90 backing under actual C86. Constructors/getters/length retain the original member objects; failures occur before rendering untouched members. These are API/source definitions, not original external-provider comparisons or completed Rust assertion outcomes. Original engine/source/frame/header/object/cache authority, scalar/numeral/expression/character policies, Normal completion and artifact admission remain independent. The failed Source290 inventory-positive assertion remains separately archived; this definition does not replace it with a pass or imply whole Info186 comparison success.
+
+These are constructed software carrier/cache assertions, not new original C-produced object observations or conversion/worker admission. The earlier Source295 foreign-dictionary failure remains independently archived. No assertion result, Native frame/handler or provider behavior is added by this source binding.
 
 ## Provider answers
 
@@ -89,6 +93,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/interp/object_materialization.rs](../../../../rust/tcl-vm/src/interp/object_materialization.rs), `interp::object_materialization::tests::actual_object_materialization_preserves_foreign_compound_refusal` (linked): Actual C86 getters and length reject sealed foreign C90 list/dictionary backing without rendering original members or replacing the genuine foreign protocol.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs), `Value::native_object_dict_pairs`: Check original header access and the independently sealed compound string recipe before any cached dictionary/list members; cached storage or resident text cannot repair a foreign recipe.
+- [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs), `value::tests::native_dictionary_getter_checks_foreign_compound_recipe_before_cached_members` (linked): Cached List and Dict software carriers, with and without resident text, refuse a foreign sealed compound string recipe before returning members; original primary/residency/member references stay unchanged and the authentic recipe retains original key/member identity.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

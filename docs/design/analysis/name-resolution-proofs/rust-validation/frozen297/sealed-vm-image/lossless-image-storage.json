@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/pinned-vm297.elf.gz",
+  "stored_sha256": "63397e11cf690249131f0df1f3ec0dea94b3ce3fd182a9d4b668b07e2b125b04",
+  "stored_bytes": 19955972,
+  "original_sha256": "fe3ddb8ea5fe05ffad39f64c46145fcd5f880a4f01146fbbb27b566f2ea5da9c",
+  "original_bytes": 101839104,
+  "original_recorded_executable": "/workspace/.proofs/pinned-vm297.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/pinned-vm297.json",
+  "pin_metadata_sha256": "c109b94520849ea7cd02321642a211ab1daba7c3a7db52133e6ab828669d452b",
+  "build_receipt_id": "rust.frozen297.integration-vm-own-test-build297",
+  "build_receipt_sha256": "b4ebf7493d77a8a48851c823b99db12a28da3868df05c92a38b5a7462ea5bbf8",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/source-snapshot.json.gz",
+    "sha256": "6c67cd4e952f7622dc21c2e66a449cb68bfcae23fb690afd79ba4abb865e7b4b",
+    "compression": "gzip",
+    "uncompressed_sha256": "121d2992a31feef5ad1aa4d971b3b2ffdce7011a0cfd25aedd568ca5ffb25d2b"
+  },
+  "verification": "Successful VM own-producer and strict original pin/source correspondence; full gzip restoration byte/SHA/size comparison. No original unlink, build or run."
+}

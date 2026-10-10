@@ -14,6 +14,8 @@ How do Tcl_ReadChars and counted Tcl_EvalEx differ for literal NUL, U+1F600, CR/
 
 C8.4.20, C8.5.19, C8.6.18, C9.0.4 and C9.1.0; public Tcl_ReadChars on -encoding utf-8/-translation auto versus Tcl_EvalEx with explicit source length. Unicode Document and counted NativeValue are separate inputs.
 
+The software roundtrip is separate from the original captured guest observation that supplies its bytes. It adds no getter/header identity, Native source admission, current name slot, execution/frame, renderer assertion outcome or new provider process.
+
 ## Measured answers
 
 | Provider | Status | Answer |
@@ -29,6 +31,8 @@ C8.4.20, C8.5.19, C8.6.18, C9.0.4 and C9.1.0; public Tcl_ReadChars on -encoding 
 ## Conclusion
 
 Counted evaluation preserves raw NUL, four-byte supplementary source bytes and CR/CRLF literals. UTF-8 ReadChars produces modified NUL and translated LF on every tested C release; supplementary source produces Latin-1 units per input byte on C8.4/8.5, UTF-16 surrogate units on C8.6, and a scalar four-byte sequence on C9. Escape evaluation consumes the produced native source. These observations do not determine Jim file ingress, BIG-IP configuration ingress or arbitrary malformed external bytes.
+
+An additional marked source-renderer definition reads the exact independently retained ingress observation bytes and checks their Document text inverse and roundtrip. Invalid opaque bytes, NativeValue modified-NUL input and a legacy unpaired surrogate cannot become Document text through this inverse.
 
 ## Evidence
 
@@ -78,6 +82,11 @@ Counted evaluation preserves raw NUL, four-byte supplementary source bytes and C
 - `rust/tcl-registry/src/native_compiler_word_projection.rs`: `native_compiler_word_projection::tests::document_expansion_preserves_source_spans_and_native_produced_units`. Static expansion retains original member source spans while the selected channel value matches the native unit fixture.
 
 Native output is evidence for the interpreter operation. Rust tests must independently pass to establish implementation correspondence.
+
+- [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs), `native_literal_source_text`: Invert only checked complete literal source units under the explicit source channel and selected string protocol; opaque or unrepresentable units refuse instead of borrowing Document presentation.
+- [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs), `backslash::tests::literal_text_inverse_roundtrips_actual_document_ingress_units` (linked): A separately scoped software renderer inverts the retained original Document ingress units A/NUL/supplementary character/LF/B/LF/C across all five C protocols and rejects invalid UTF8, NativeValue modified-NUL and legacy unpaired-surrogate inputs.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Reconfirmation
 

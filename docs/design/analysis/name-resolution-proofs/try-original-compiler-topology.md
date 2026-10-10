@@ -14,9 +14,13 @@ How do the original try sources 19 through 39 select handler locals, bytecode ra
 
 The retained C tables distinguish each original try/finally/on/trap source, local layout, instruction/range selection and completion result. Pre-try releases retain guest command failures rather than a fabricated exception compiler. No resulting source role proves that a constructor or callback completes.
 
+The marked Runtime consumer definition compares63 public Guest completion/result pairs and36 selected actual Operation::Try-presence assertions in cached procedure artifacts.
+
 ## Scope
 
 C Tcl releases explicitly identified in the retained provider rows. Jim and BIG-IP are not tested unless a separate row identifies them. Cases19–39 of the unchanged40-source procedure probe, genuine compiled layouts after the call and exact result hex.
+
+These source assertions have no attached run outcome. They cover the unchanged21 case sources19..39 only for C8.6.18/C9.0.4/C9.1.0, not C8.4/C8.5/Jim/BIG-IP. Recipe presence does not compare exact disassembled opcodes, catch ranges, local layout, result refcounts or independent effect chronology, and grants no fresh external native execution or private frame/header observation.
 
 ## Provider answers
 
@@ -90,6 +94,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 No implementation binding is claimed by this observation record.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [runtime/rust/src/interp/native_body_artifact/native_try.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_try.rs), `Builder::try_operation`: Retain the selected original native Try recipe, preparations and actual result/options/local bindings separately from generic or rejected compilation.
+- [runtime/rust/src/interp/native_body_artifact/native_try.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_try.rs), `Interp::execute_body_try`: Execute the admitted software protected completion, handler and finally plan with original retained result/options owners and typed Host refusal boundaries.
+- [runtime/rust/src/interp/native_body_artifact/native_try.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_try.rs), `interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally` (linked): The unchanged case19..39 source subset compares63 public Guest completions/results across C8.6/C9.0/C9.1 software interpreters with no Host refusal; cases19..24 and34..39 additionally require36 genuine cached procedure artifacts to contain an Operation::Try.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

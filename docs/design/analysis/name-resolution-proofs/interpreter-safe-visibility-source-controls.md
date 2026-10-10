@@ -14,9 +14,13 @@ For the eight fixed original child-interpreter source controls, what do the capt
 
 C8.4/8.5 report source in the tested safe info commands query, while calls to source, ::source and ::::source each fail. C8.6–9.1 omit that card and return the same three call errors. All five C captures distinguish literal :source/:held from a colon namespace and plain names; hide of ::held with a separate token succeeds, qualified default tokens and nonglobal source commands return their exact errors, and hidden/visible collisions preserve REDEFINED versus ORIGINAL results. The one source-constructed held-zero-x command hides and invokes with COUNTED. Current Jim rejects child-interpreter entry in all eight cases with wrong # args: should be "interp"; no child visibility, hide/expose or counted-name answer is established for Jim.
 
+An additional marked source definition retains the original path word and typed visibility subject for source, ::source and ::::source in the conditional C child body. Each subject preserves six independent applicability obligations and refuses foreign source; Jim source analysis supplies none of that C surface.
+
 ## Scope
 
 One exact ASCII LF source-file CLI probe per C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 and current Jim. Each fixed case owns and deletes its child; caught inner codes/results remain distinct from the outer OBSERVATION and process status. The binary-produced counted-zero case is one exact source construction, not an arbitrary raw-input protocol. These results establish finite guest cards/calls/errors only: no child activation receipt, physical table/token/object/header/cache identity, compiler admission, deferred callback, Normal/effect closure or BIG-IP answer. Conditional Compiler source visibility advice remains an independent implementation purpose.
+
+The original Native safe-visibility rows remain independent observations. This control tests source ownership and possible edges only; it supplies no actual child allocation/interpreter entry, command token, handler/frame, Normal or edit permission, and no assertion result is attached.
 
 ## Provider answers
 
@@ -257,6 +261,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 No implementation binding is claimed by this observation record.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `Analyser::original_interp_visibility_body`: Require the genuine selected child source visibility/body purpose with complete original input and words; reporting spellings cannot supply the independent child allocation or entry.
+- [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `analyser::interp_visibility::tests::original_child_visibility_is_scoped_conditional_and_retains_possible_source_edges` (linked): Conditional C child source loads retain three original source-qualified forms, their exact path word and current source subject with six independent obligations; foreign source refuses, and Jim does not inherit the C child surface.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

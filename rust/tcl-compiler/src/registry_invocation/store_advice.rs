@@ -404,8 +404,10 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         // Availability describes the selected setter; original local cells,
         // contents order and observer requirements remain independently needed.
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut registry =
+            tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
-        let mut registry = baseline.commands().as_ref().clone();
         let mut setter = registry.get("set").unwrap().clone();
         setter.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
         registry.insert(setter);

@@ -1,0 +1,39 @@
+{
+  "selected": [
+    "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+    "command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier",
+    "command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default",
+    "command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects",
+    "embed::embedding_settlement_tests::public_completion_option_bytes_preserves_first_host_before_any_getter",
+    "embed::embedding_settlement_tests::public_completion_option_bytes_retains_opaque_empty_and_absent_members",
+    "error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values",
+    "error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising",
+    "interp::byte_array_result_tests::binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate",
+    "interp::byte_array_result_tests::unsupported_declared_binary_purpose_refuses_without_native_fallback",
+    "interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile",
+    "interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter",
+    "interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose",
+    "interp::object_materialization::tests::actual_object_materialization_preserves_foreign_compound_refusal",
+    "interp::object_materialization::tests::actual_object_materialization_survives_unknown_source_without_losing_original_members",
+    "interp::object_materialization::tests::selected_authored_materialization_refuses_without_physical_fallback",
+    "interp::object_materialization::tests::standalone_compatibility_is_separate_and_unknown_source_cannot_select_a_recipe",
+    "value::script::execution_tests::deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script",
+    "value::script::execution_tests::deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers",
+    "value::script::execution_tests::deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit",
+    "value::tests::native_dictionary_getter_checks_foreign_compound_recipe_before_cached_members"
+  ],
+  "zero_matches": [],
+  "inputs": [
+    {
+      "path": "/workspace/.proofs/vm-software-source-request297.json",
+      "sha256": "f50cab4b1a4e60194150563352ab3296c0f56b292d977c8fda3f9d99ef7e06ea"
+    }
+  ],
+  "actual_inventory_count": 763,
+  "actual_inventory_receipt": "/workspace/.proofs/integration-vm-inventory297.json",
+  "actual_inventory_receipt_sha256": "66932e9936ebda4780958b7d3927e8a2404364c21249980af2faa195d8723f09",
+  "inventory_log_sha256": "d4fa2e6a3d4c01df117aca09dc5a8dc94526313b579be51d35197e20a3dcf3fb",
+  "strict_image_sha256": "fe3ddb8ea5fe05ffad39f64c46145fcd5f880a4f01146fbbb27b566f2ea5da9c",
+  "source_snapshot": "297",
+  "scope": "Actual --list admission only. Assertions and external provider outcomes require the separately closed exact run."
+}

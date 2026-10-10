@@ -154,29 +154,33 @@ pub(crate) fn set_native_append_bytes(
 pub(crate) fn scalar_getter_string(
     value: *mut TclObj,
     protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
-) -> Option<Vec<u8>> {
+) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    obj::check_native_liveness(value)?;
     if !obj::native_string_available(value) {
-        return None;
+        return Err(ValueError::ScalarNumericInputUnavailable);
     }
     if obj::has_string_rep(value) {
-        return Some(obj::bytes_of(value));
+        return Ok(obj::bytes_of(value));
     }
     if obj::obj_type_ptr(value) != &TCL_BYTE_ARRAY_TYPE {
         let selected = protocol.tcl_version().map_or(
             tcl_syntax::native_string::NativeStringProtocol::Jim084,
             tcl_syntax::native_string::NativeStringProtocol::C,
         );
-        return crate::dict::native_object_bytes(value, selected).ok();
+        return crate::dict::native_object_bytes(value, selected);
     }
     // SAFETY: the exact byte-array type owns this backing allocation.
     let backing = unsafe { byte_array_ref(value) };
     // The getter still independently refuses unsupported actual storage. The
     // object's retained updater recipe owns physical materialization.
-    protocol.materialize(
-        tcl_syntax::scalar_getter::NativeScalarStringStorage::ByteArray,
-        &backing.bytes,
-    )?;
-    Some(obj::bytes_of(value))
+    protocol
+        .materialize(
+            tcl_syntax::scalar_getter::NativeScalarStringStorage::ByteArray,
+            &backing.bytes,
+        )
+        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    Ok(obj::bytes_of(value))
 }
 
 /// Query the selected native byte-array length shortcut before generating a
@@ -488,3 +492,6 @@ mod tests {
         assert_eq!(counters::finalize(), 0);
     }
 }
+
+#[cfg(test)]
+mod native_scalar_string_refusal_tests;

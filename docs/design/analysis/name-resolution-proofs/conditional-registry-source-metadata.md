@@ -14,9 +14,13 @@ Can one conditional source metadata owner preserve original Registry roles and e
 
 The Native issuer validates the actual complete ContextRegistry, genuine original head and complete source vector, selected source scope and Registry generation. The hosted issuer validates its genuine VendorSourceNameInput and full original words under the actual hosted context; it never converts them into Native keys. Both use the same current source-cell classifier. Known custom implementations, missing cells and document overrides are terminal; unknown or alternate cells retain explicit applicability obligations. Hosted coordinates always retain their authored-source limitation. Returned roles, receiver forms, traits and declaration cards are conditional source metadata. They supply no actual Native command, completed execution, handler effects, current variable cell, Normal, compiler admission or edit grant. Hosted source metadata retains separate VendorSourceCatalogueBarriers from genuine preceding root source transition intentions under the actual complete context, independent vendor policy and full original vectors. Definite written procedure, alias, rename and delete coordinates suppress nominal catalogue candidates. Unknown mutations withdraw definite barriers and retain explicit MAY applicability with has_unknown_transitions. These source intentions supply no physical runtime table, successful transition, commit or Normal grant.
 
+An additional marked source definition withholds conditional catalogue metadata for custom current source cells in both hosted and Tcl source fixtures. It selects the actual whole-source nested command before metadata and does not borrow an outer script role for an inner miss.
+
 ## Scope
 
 Current shared Compiler conditional Registry source metadata for Native C/Jim purposes and separately authored hosted purposes. Fixed controls distinguish occupied custom cells, tombstones and unknown alternatives, preserve source cards under unknown applicability, and retain full original source/configuration/context/Registry ownership. No native provider result or executed Rust receipt is attached. Hosted transition-intention barriers cover preceding root source only; deferred procedure bodies and arbitrary nested source transitions cannot establish a definite barrier or current handler.
+
+This is a source lookup barrier control, not a native table publication, installer execution, vendor runtime attestation or positive body/frame grant. Original provider evidence and independent assertion receipts remain unchanged.
 
 ## Provider answers
 
@@ -84,6 +88,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/registry_invocation/vendor_source_barriers.rs](../../../../rust/tcl-compiler/src/registry_invocation/vendor_source_barriers.rs), `registry_invocation::vendor_source_barriers::tests::original_hosted_source_barriers_keep_declarations_moves_and_unknowns_separate` (linked): Actual hosted source declarations, moved/deleted coordinates and aliases suppress the nominal schema, while unknown mutations retain MAY obligations; deferred bodies cannot publish a current handler.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs), `classify_catalogue_source_cell`: Keep known custom/current source-cell barriers shared by conditional Native and authored hosted catalogue issuers; nested original vectors must retain their own owner.
+- [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs), `command_binding::original_command_table::conditional_catalogue_source_tests::original_conditional_source_catalogue_requires_current_custom_cell_barriers` (linked): Authentic whole-source nested invocation selection withholds catalogue metadata after custom hosted call or Tcl defstyle cells; no outer script role can supply the missing inner selected owner.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

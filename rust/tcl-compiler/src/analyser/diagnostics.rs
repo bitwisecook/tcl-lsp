@@ -629,6 +629,7 @@ impl Analyser {
                     crate::ir::when_event_name(qname),
                     concerns,
                     registry,
+                    &cu.ir_module,
                 );
             }
             // IRULE4005 — racy ``static::``
@@ -646,6 +647,7 @@ impl Analyser {
                         event,
                         &scope.racy_static_cells,
                         registry,
+                        &cu.ir_module,
                     );
                 }
             }

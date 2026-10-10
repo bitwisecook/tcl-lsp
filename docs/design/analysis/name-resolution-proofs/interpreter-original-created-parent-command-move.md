@@ -14,9 +14,13 @@ After moving a created parent command once, twice or into a namespace, which ori
 
 All five C releases preserve the original child path when its parent command is renamed, including repeated and namespace-qualified moves. Deleting the child path removes the moved parent command, and deleting the moved parent command removes its child. Current Jim rejects the tested interp forms and supplies no child move/deletion answer.
 
+Two additional marked Compiler source definitions retain the original child path through direct and qualified parent-command moves. The source warning/edge remains conditional on the selected original source operations, and exposure, deletion or an unknown transition withdraws it.
+
 ## Scope
 
 Six fresh provider processes retain six actual version rows and 174 sequential caught observations of the exact ASCII source. Each provider shares source state across creation, rename, calls and deletion. These results establish finite public command/path relationships and caught completions only; no original object/token, physical child namespace, pointer/epoch, allocation identity, arbitrary constructor Normal, entered frame, runtime effect closure or compiler admission is measured. Jim successful namespace creation is separate from unsupported interp forms. All native errorCode differences remain exact in the archived streams; no BIG-IP or executed Rust coverage is supplied.
+
+These are source visibility projections under five C source grammars. They do not re-execute the independently retained Native command-move observations and establish no hidden allocation, entered interpreter, physical frame, Native target/handler or edit authority. No software outcome is attached.
 
 ## Provider answers
 
@@ -96,6 +100,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 No implementation binding is claimed by this observation record.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `Analyser::original_interp_handle_visibility_body`: Retain the source child-path owner independently of the moved parent command, requiring the current original visibility/body projection before source advice.
+- [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `Analyser::observe_indirect_interp_visibility`: Project conditional source operations through the authentic current created-handle route; exposure/deletion/unknown transitions cannot donate a live child source purpose.
+- [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `analyser::interp_visibility::tests::original_moved_handle_visibility_uses_the_original_child_path` (linked): Conditional original child-handle source advice retains the child path through one, two and qualified parent-command moves, preserving the authentic source subject and possible source edge across five selected C source grammars.
+- [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `analyser::interp_visibility::tests::original_child_path_visibility_survives_parent_command_moves` (linked): The distinct original child path remains available to conditional interp eval advice after parent-command moves, while exposure, child deletion and an unknown source barrier withdraw that advice.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -82,7 +82,8 @@ impl NativeReturnOps {
 impl ReturnOptionsOps for NativeReturnOps {
     type Value = Owned;
     fn bytes(&mut self, value: &Owned) -> Result<Vec<u8>, CmdError> {
-        crate::typed_value::completion_code_string_bytes(value.as_ptr()).map_err(CmdError::from)
+        crate::typed_value::completion_code_string_bytes(value.as_ptr(), self.string)
+            .map_err(CmdError::from)
     }
     fn list(&mut self, value: &Owned) -> Result<Vec<Owned>, CmdError> {
         if matches!(
@@ -334,3 +335,6 @@ mod tests {
         assert_eq!(obj::bytes_of(carried[0].value.as_ptr()), b"B");
     }
 }
+
+#[cfg(test)]
+mod native_string_access_tests;

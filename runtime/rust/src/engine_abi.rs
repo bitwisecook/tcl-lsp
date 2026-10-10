@@ -29,8 +29,8 @@
 use core::ffi::{c_char, c_int};
 
 use crate::budget::LimitKind;
-use crate::interp::{new_string, obj_bytes, Code, Interp};
-use crate::obj::{decr_ref_count, incr_ref_count, TclObj};
+use crate::interp::{Code, Interp, new_string};
+use crate::obj::{TclObj, decr_ref_count, incr_ref_count};
 
 const TCL_OK: c_int = 0;
 const TCL_ERROR: c_int = 1;
@@ -218,6 +218,30 @@ pub unsafe extern "C" fn tcl_engine_define_unit(
     }
 }
 
+/// Read a borrowed ABI original without publishing after a reached Host cause.
+fn original_input_bytes(
+    interp: &mut Interp,
+    original: *mut TclObj,
+) -> Result<std::rc::Rc<[u8]>, tcl_runtime_api::NativeExecutionError> {
+    if let Some(cause) = interp.native_execution_refusal() {
+        return Err(cause);
+    }
+    crate::obj::check_native_liveness(original)
+        .map_err(|error| interp.refuse_completion_value_access(error))?;
+    // The allocation lease preserves memory across an updater without adding a
+    // native reference or changing the original object's shared/unshared role.
+    let original = crate::obj::NativeObjectLifetime::retain(original);
+    let bytes = interp
+        .native_object_string_bytes(original.as_ptr())
+        .map_err(|error| interp.refuse_completion_value_access(error))?;
+    crate::obj::check_native_liveness(original.as_ptr())
+        .map_err(|error| interp.refuse_completion_value_access(error))?;
+    if let Some(cause) = interp.native_execution_refusal() {
+        return Err(cause);
+    }
+    Ok(bytes)
+}
+
 /// Common ordinary-procedure producer; status adapters retain its exact cause.
 fn define_unit_original(
     interp: &mut Interp,
@@ -225,16 +249,22 @@ fn define_unit_original(
     params: *mut TclObj,
     body: *mut TclObj,
 ) -> Result<u64, c_int> {
+    let name = original_input_bytes(interp, name).map_err(|_| TCL_ERROR)?;
+    let chosen_body = interp
+        .choose_original_procedure_body(body)
+        .map_err(|error| {
+            i32::try_from(interp.report_cmd_error(error.into()).as_int()).unwrap_or(TCL_ERROR)
+        })?;
     if interp.host_refusal_pending() {
         return Err(TCL_ERROR);
     }
-    let name = obj_bytes(name);
-    let chosen_body = interp.choose_original_procedure_body(body).map_err(|error| {
-        i32::try_from(interp.report_cmd_error(error.into()).as_int()).unwrap_or(TCL_ERROR)
-    })?;
-    let parameters = crate::cmd_proc::parse_params_object(interp, params, &name).map_err(|error| {
-        i32::try_from(interp.report_cmd_error(error).as_int()).unwrap_or(TCL_ERROR)
-    })?;
+    let parameters =
+        crate::cmd_proc::parse_params_object(interp, params, &name).map_err(|error| {
+            i32::try_from(interp.report_cmd_error(error).as_int()).unwrap_or(TCL_ERROR)
+        })?;
+    if interp.host_refusal_pending() {
+        return Err(TCL_ERROR);
+    }
     let generation = interp.install_proc_chosen_storage(
         &name,
         parameters,
@@ -265,7 +295,13 @@ pub unsafe extern "C" fn tcl_engine_provide_package(
 ) -> c_int {
     // SAFETY: caller guarantees a live interpreter.
     let interp = unsafe { &mut *interp };
-    match crate::cmd_package::provide_package(interp, &obj_bytes(name), &obj_bytes(version)) {
+    let Ok(name) = original_input_bytes(interp, name) else {
+        return TCL_ERROR;
+    };
+    let Ok(version) = original_input_bytes(interp, version) else {
+        return TCL_ERROR;
+    };
+    match crate::cmd_package::provide_package(interp, &name, &version) {
         Code::Ok => TCL_OK,
         _ => TCL_ERROR,
     }
@@ -305,8 +341,18 @@ pub unsafe extern "C" fn tcl_engine_fail(
 ) -> c_int {
     // SAFETY: caller guarantees a live interpreter.
     let interp = unsafe { &mut *interp };
-    let code = (!code.is_null()).then(|| obj_bytes(code));
-    interp.c_api_error(&obj_bytes(message), code.as_deref());
+    let code = if code.is_null() {
+        None
+    } else {
+        let Ok(code) = original_input_bytes(interp, code) else {
+            return TCL_ERROR;
+        };
+        Some(code)
+    };
+    let Ok(message) = original_input_bytes(interp, message) else {
+        return TCL_ERROR;
+    };
+    interp.c_api_error(&message, code.as_deref());
     TCL_ERROR
 }
 
@@ -411,3 +457,6 @@ pub use command_receipts::*;
 
 pub(crate) mod value_carriers;
 pub use value_carriers::*;
+
+#[cfg(test)]
+mod original_input_tests;

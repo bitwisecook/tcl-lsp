@@ -217,7 +217,7 @@ mod tests {
     fn original_lexical_list_fields_keep_unicode_escapes_and_literal_ancestry() {
         // naming.source.original-editor-body-structure
         // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
-        let source = "list {é {lo\\u006eng 5} escaped\\ name}";
+        let source = "list {é {lo\\u006eg 5} escaped\\ name}";
         let original = word(source, tcl_lexer::LexerConfig::default());
         let fields = original_static_word_list_elements(&original).unwrap();
         assert_eq!(fields[0].value(), "é");
@@ -226,7 +226,7 @@ mod tests {
         assert_eq!(pair[0].value(), "long");
         assert_eq!(
             &source[pair[0].source_span().unwrap().as_range()],
-            r"lo\u006eng"
+            r"lo\u006eg"
         );
         let cooked = fields[2].elements().unwrap();
         assert_eq!(cooked.len(), 2);

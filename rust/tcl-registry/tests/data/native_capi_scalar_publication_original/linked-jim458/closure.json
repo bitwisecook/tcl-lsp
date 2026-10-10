@@ -1,0 +1,19 @@
+{
+  "question": "naming.numeric.original-capi-scalar-publication-width",
+  "request_sha256": "c2a087d6106866479e665a0cc006dfa2204df4711fd1d7adf3dd7ca2db197a4b",
+  "providers": [
+    {
+      "provider": "jim",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": [
+        {
+          "exit": 0,
+          "timeout": false,
+          "rows": 145
+        }
+      ]
+    }
+  ],
+  "scope": "Whole original streams and all unexpected compile/process errors retained. Assertions and Native application grants remain separate."
+}

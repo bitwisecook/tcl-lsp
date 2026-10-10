@@ -3565,6 +3565,7 @@ file; this call falls through to the 'unknown' handler."
         event: &str,
         concerns: &std::collections::HashMap<crate::connection_scope::EventCell, HashSet<String>>,
         registry: &tcl_registry::CommandRegistry,
+        module: &crate::ir::Module,
     ) {
         let points = crate::place_bridge::build_point_resolve_contexts_with_entry(
             &fu.cfg,
@@ -3574,7 +3575,15 @@ file; this call falls through to the 'unknown' handler."
         let mut emitted = FxHashSet::default();
         for (&id, block) in &fu.cfg.blocks {
             for (index, statement) in block.statements.iter().enumerate() {
-                if crate::connection_scope::statement_destroys(statement, registry) {
+                if crate::connection_scope::statement_destroys(
+                    fu,
+                    id,
+                    index,
+                    registry,
+                    Some(module),
+                )
+                .is_some_and(|destroys| destroys)
+                {
                     continue;
                 }
                 for place in crate::place_bridge::def_places(
@@ -3617,6 +3626,7 @@ file; this call falls through to the 'unknown' handler."
         event: &str,
         racy_cells: &HashSet<crate::connection_scope::EventCell>,
         registry: &tcl_registry::CommandRegistry,
+        module: &crate::ir::Module,
     ) {
         if self.disabled_diagnostics.contains("IRULE4005") {
             return;
@@ -3635,7 +3645,15 @@ file; this call falls through to the 'unknown' handler."
         let mut emitted = FxHashSet::default();
         for (&id, block) in &fu.cfg.blocks {
             for (index, statement) in block.statements.iter().enumerate() {
-                if crate::connection_scope::statement_destroys(statement, registry) {
+                if crate::connection_scope::statement_destroys(
+                    fu,
+                    id,
+                    index,
+                    registry,
+                    Some(module),
+                )
+                .is_some_and(|destroys| destroys)
+                {
                     continue;
                 }
                 for place in crate::place_bridge::def_places(

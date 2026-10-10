@@ -2898,7 +2898,7 @@ impl CompilationUnit {
         };
         let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
         let body_units = Self::build_body_units(&ir_module, &extra_callers, body_unit_context);
-        let connection_scope = Self::build_connection_scope(&procedures, registry);
+        let connection_scope = Self::build_connection_scope(&procedures, registry, &ir_module);
         Self::drop_cross_event_existence_folds(
             &mut procedures,
             connection_scope.as_ref(),
@@ -3034,6 +3034,7 @@ impl CompilationUnit {
     fn build_connection_scope(
         procedures: &HashMap<String, FunctionUnit>,
         registry: &CommandRegistry,
+        module: &crate::ir::Module,
     ) -> Option<crate::connection_scope::ConnectionScope> {
         let when_procs: HashMap<String, FunctionUnit> = procedures
             .iter()
@@ -3041,7 +3042,11 @@ impl CompilationUnit {
             .map(|(qname, unit)| (qname.clone(), unit.clone()))
             .collect();
         (!when_procs.is_empty()).then(|| {
-            crate::connection_scope::build_connection_scope_with_registry(&when_procs, registry)
+            crate::connection_scope::build_connection_scope_for_module(
+                &when_procs,
+                registry,
+                module,
+            )
         })
     }
 

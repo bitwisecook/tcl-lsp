@@ -31,7 +31,7 @@
 
 use tcl_cmd_core::prefix::Resolution;
 
-use crate::interp::{Code, Interp, new_string, obj_bytes};
+use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
 /// Register `append` + the `string` ensemble.
@@ -641,12 +641,13 @@ fn tcl_prefix_longest(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn str_cat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut out = Vec::new();
-    for &a in &argv[2..] {
-        out.extend_from_slice(&obj_bytes(a));
+    match tcl_cmd_core::string::cat(interp, &argv[2..]) {
+        Ok(original) => {
+            interp.set_result(original);
+            Code::Ok
+        }
+        Err(error) => interp.report_cmd_error(error),
     }
-    interp.set_result_bytes(&out);
-    Code::Ok
 }
 
 fn str_repeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {

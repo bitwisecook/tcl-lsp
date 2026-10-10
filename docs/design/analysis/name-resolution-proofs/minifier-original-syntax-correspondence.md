@@ -14,9 +14,13 @@ Does Native minification preserve every original complete word under the current
 
 The retained-analysis entry validates complete original source/channel/configuration and Registry/profile. Native lexical compaction selects regions through SourceStructure::capture_for_syntax_compaction and original native lexical plans. Descendant script roles require a selected current source invocation and an independent original operand lookup-preservation facet. Readonly conditional or hosted schema advice, declaration bodies and incomplete-body candidates cannot supply that facet. It changes only comment and separator gaps in those regions; ordinary data, unsupported cooked bodies and blocked roles retain their original bytes. Every emitted region checks its command/word counts and each original written word after independently selected descendant-gap edits under the same configuration. Alpha output is reanalysed under the same complete ResolvedAnalysisInput before body geometry is selected. Unknown ownership, malformed tails or changed correspondence return unchanged source with a typed refusal. This supplies lexical source correspondence, with no runtime reflection, line-number, execution, name, evaluated body or edit-equivalence authority.
 
+An additional marked Server source definition checks compact formal-renamed output together with its symbol map through the real command handler. The isolated request retains the same syntax presentation and explicitly reports missing-alpha-rename-contract.
+
 ## Scope
 
 Current Core minifier lexical syntax and typed refusals across six selected protocols. Independently authenticated descendant script gaps may change within an outer body word; ordinary word content remains exact. Separately authorised alpha edits are reanalysed with the same retained input before syntax correspondence. No runtime reflection equivalence or native result is attached.
+
+Syntax output and reporting symbols do not prove Native rename identity or execution/edit equivalence. The local formal contract and isolated refusal remain distinct; no provider or software assertion outcome is attached.
 
 ## Provider answers
 
@@ -84,6 +88,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::original_hosted_syntax_compaction_preserves_zero_gap_word_and_bracket_boundaries` (linked): The retained f5-irules source configuration owns its implicit brace separator; actual zero-gap NativeWord geometry preserves parent, bracket and empty-word boundaries, with idempotent source compaction and no appliance observation.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `Backend::minify_document_command`: Keep compact syntax correspondence and symbol reporting separate from the explicitly supplied alpha-rename contract; isolated missing-contract requests preserve a refusal.
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `tests::minify_document_command_compact_includes_symbol_map` (linked): The actual compact Server minifier returns matching renamed formal source and symbol-map data for the local formal contract; the separate isolated request retains syntax output and reports missing-alpha-rename-contract rather than treating syntax as permission.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

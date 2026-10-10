@@ -34,6 +34,9 @@ mod native_concat;
 #[cfg(test)]
 #[path = "value_ops/native_concat_tests.rs"]
 mod native_concat_tests;
+#[cfg(test)]
+#[path = "value_ops/native_jim_string_cat_tests.rs"]
+mod native_jim_string_cat_tests;
 #[path = "value_ops/native_list_index.rs"]
 mod native_list_index;
 
@@ -523,6 +526,33 @@ impl ValueOps for Vm {
     }
     fn native_concat_string_result(&mut self, bytes: &[u8]) -> Result<Self::Value, ValueError> {
         native_concat::string(self, bytes)
+    }
+
+    fn native_jim_string_cat(&mut self, args: &[Value]) -> Result<Option<Value>, ValueError> {
+        let protocol = self
+            .object_materialization()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "selected string cat object materialization",
+            ))?
+            .protocol();
+        if !protocol.is_jim084() {
+            return Ok(None);
+        }
+        if let [only] = args {
+            only.check_native_header()?;
+        }
+        tcl_cmd_core::native_cat::concatenate_jim(
+            &crate::value::VmAppendObjects,
+            protocol,
+            args,
+            |original| {
+                original.check_native_header()?;
+                original.native_string_bytes(protocol).map_err(|error| {
+                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into()
+                })
+            },
+        )
+        .map(|result| Some(result.into_native_reference()))
     }
 
     fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {

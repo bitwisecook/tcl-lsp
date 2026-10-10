@@ -14,9 +14,13 @@ What code, original template primary, result primary, resident string state and 
 
 The retained C5 rows distinguish ordinary values, counted zero, syntax errors and completion handling under all eight masks. In the full v6 inputs, flags7 returns 700070c08058587461696c for the raw-zero template, VALUEpX for the return template and OTHERpX for code7; continue skips its command and break stops at the reached prefix. Error and result header rows are observed before their result getter. This is the exact input/flag question, not a universal arbitrary-object or compiler admission claim.
 
+An additional marked lexical source definition retains variable, escape and command parts inside an array index when outer command/backslash substitution is disabled. Disabling variables preserves the entire original source literal. The four source grammar selections remain explicit.
+
 ## Scope
 
 Ten original native-value templates, masks7 through0, ROOT and ROOT_REPEAT. v1 shortens the final x of return sources8/9; v2-v6 use lengths17/25. Other setup labels are retained independently. Jim and BIG-IP were not run for this C private-header probe.
+
+Word-part recognition is a software syntax obligation; it does not execute an index child or re-observe the original counted Native subst completion rows. Jim grammar selection stays separate from C evaluator purposes. No Native object/getter/frame/handler, completion, source admission or assertion result is added.
 
 ## Provider answers
 
@@ -145,6 +149,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `word_parts::template_policy_tests::c_template_retains_disabled_sigil_and_escape_token_boundaries` (linked): C86/C90/C91 selected template token segmentation retains disabled sigils, escapes and raw zero independently of WrittenWord merging. Jim source inspection is a separate question and supplies no C matrix outcome.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `decompose`: Apply the actual selected source grammar and substitution mask at each original word/index boundary; an outer command mask cannot erase the independently selected array-index children.
+- [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `word_parts::tests::outer_substitution_mask_does_not_disable_array_index_commands` (linked): The original word-part grammar retains array-index variable, escaped-text and command children despite the outer commands/backslashes mask; disabling variables instead preserves the whole source as literal under the four selected source grammars.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

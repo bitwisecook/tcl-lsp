@@ -144550,6 +144550,473 @@
       "tests": [],
       "question_ids": [],
       "limits": "Four Compiler libtest fixture errors refer to source_registry_words_at through the wrong helper namespace. The failed invocation records four partial executable events: Syntax is marked fresh; Server, Database and Registry are marked newly built. These events are retained without a sealed pin or an assertion result. No successful aggregate producer, Compiler executable pin, inventory, unit assertion, Native provider outcome or overall gate result follows."
+    },
+    {
+      "id": "rust.frozen297.integration-compiler-registry-syntax-own-test-build297",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/integration-compiler-registry-syntax-own-test-build297/receipt.json.gz",
+        "sha256": "3dac31771b3f3486c64515f742a3848cd2c2360aa2b97c8d3e41979f363ecefb",
+        "compression": "gzip",
+        "uncompressed_sha256": "cf16c6fed30dcae268700fc5777b126a5ea3aa2f81590f78bf0c411c72743697"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/integration-compiler-registry-syntax-own-test-build297/tests.log",
+        "sha256": "69fa5221000fb2e0f6278c44656fad5c443e84d84ee4832af9bf6a6638e96298"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 207.62816289500915,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed receipt retains exact immutable source archive/compile paths and every original hash/command association. All32170 leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Compiler libtest fails one owned-Registry fixture type error. The failed command records unsealed Syntax fresh and Registry newly-created executable events only; no successful aggregate producer, Compiler pin, inventory or assertions. All original external provider observations remain immutable; no aggregate gate PASS or mutable anchor refresh."
+    },
+    {
+      "id": "rust.frozen297.integration-vm-own-test-build297",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/integration-vm-own-test-build297/receipt.json.gz",
+        "sha256": "b947b3a734e8c36e5cb60de7a157a459488845a13974adafb31b28ad32c1ffcc",
+        "compression": "gzip",
+        "uncompressed_sha256": "b4ebf7493d77a8a48851c823b99db12a28da3868df05c92a38b5a7462ea5bbf8"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/integration-vm-own-test-build297/tests.log",
+        "sha256": "1e1d94ab79fef5ac6130f10eebc22af1a28c898303130a48d1120f0c56f24611"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 0,
+      "seconds": 92.21390498499386,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed receipt retains exact immutable source archive/compile paths and every original hash/command association. All32170 leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Independent VM own-build succeeds and records its actual sealed tcl_vm libtest artifact; no unit assertion executes during no-run compilation. All original external provider observations remain immutable; no aggregate gate PASS or mutable anchor refresh.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/pinned-vm297.elf.gz",
+        "sha256": "63397e11cf690249131f0df1f3ec0dea94b3ce3fd182a9d4b668b07e2b125b04",
+        "compression": "gzip",
+        "uncompressed_sha256": "fe3ddb8ea5fe05ffad39f64c46145fcd5f880a4f01146fbbb27b566f2ea5da9c",
+        "uncompressed_bytes": 101839104,
+        "compressed_bytes": 19955972,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/pinned-vm297.json",
+        "metadata_sha256": "c109b94520849ea7cd02321642a211ab1daba7c3a7db52133e6ab828669d452b",
+        "build_receipt_id": "rust.frozen297.integration-vm-own-test-build297",
+        "original_source_snapshot_sha256": "121d2992a31feef5ad1aa4d971b3b2ffdce7011a0cfd25aedd568ca5ffb25d2b",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/source-snapshot.json.gz",
+          "sha256": "6c67cd4e952f7622dc21c2e66a449cb68bfcae23fb690afd79ba4abb865e7b4b",
+          "compression": "gzip",
+          "uncompressed_sha256": "121d2992a31feef5ad1aa4d971b3b2ffdce7011a0cfd25aedd568ca5ffb25d2b"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen297.integration-vm-inventory297",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/integration-vm-inventory297/receipt.json.gz",
+        "sha256": "2c52d50d5fdecc36809d53dd536c2986b7811cec48e59828e31bafdde85f373f",
+        "compression": "gzip",
+        "uncompressed_sha256": "66932e9936ebda4780958b7d3927e8a2404364c21249980af2faa195d8723f09"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/integration-vm-inventory297/tests.log",
+        "sha256": "d4fa2e6a3d4c01df117aca09dc5a8dc94526313b579be51d35197e20a3dcf3fb"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm297.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.006714430986903608,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed receipt retains exact immutable source archive/compile paths and every original hash/command association. All32170 leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Strict successful VM297 --list records763 exact tests; listing executes no assertion. All original external provider observations remain immutable; no aggregate gate PASS or mutable anchor refresh.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/pinned-vm297.elf.gz",
+        "sha256": "63397e11cf690249131f0df1f3ec0dea94b3ce3fd182a9d4b668b07e2b125b04",
+        "compression": "gzip",
+        "uncompressed_sha256": "fe3ddb8ea5fe05ffad39f64c46145fcd5f880a4f01146fbbb27b566f2ea5da9c",
+        "uncompressed_bytes": 101839104,
+        "compressed_bytes": 19955972,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/pinned-vm297.json",
+        "metadata_sha256": "c109b94520849ea7cd02321642a211ab1daba7c3a7db52133e6ab828669d452b",
+        "build_receipt_id": "rust.frozen297.integration-vm-own-test-build297",
+        "original_source_snapshot_sha256": "121d2992a31feef5ad1aa4d971b3b2ffdce7011a0cfd25aedd568ca5ffb25d2b",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/source-snapshot.json.gz",
+          "sha256": "6c67cd4e952f7622dc21c2e66a449cb68bfcae23fb690afd79ba4abb865e7b4b",
+          "compression": "gzip",
+          "uncompressed_sha256": "121d2992a31feef5ad1aa4d971b3b2ffdce7011a0cfd25aedd568ca5ffb25d2b"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen297.integration-vm-software-tests297",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/integration-vm-software-tests297/receipt.json.gz",
+        "sha256": "ddccf359447b682c02530c95bad3386f9dc5e8d35c9a21058c8e50a44b049bc0",
+        "compression": "gzip",
+        "uncompressed_sha256": "10a566d03234e9c147d01b340b64b796653479521505379c6f29125927f8c7a8"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/integration-vm-software-tests297/tests.log",
+        "sha256": "14f095568895f90aa4bc999cee1b12663e07248cecf9e18cda3f2092d3602390"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm297.elf",
+        "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+        "command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier",
+        "command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default",
+        "command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects",
+        "embed::embedding_settlement_tests::public_completion_option_bytes_preserves_first_host_before_any_getter",
+        "embed::embedding_settlement_tests::public_completion_option_bytes_retains_opaque_empty_and_absent_members",
+        "error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values",
+        "error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising",
+        "interp::byte_array_result_tests::binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate",
+        "interp::byte_array_result_tests::unsupported_declared_binary_purpose_refuses_without_native_fallback",
+        "interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile",
+        "interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter",
+        "interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose",
+        "interp::object_materialization::tests::actual_object_materialization_preserves_foreign_compound_refusal",
+        "interp::object_materialization::tests::actual_object_materialization_survives_unknown_source_without_losing_original_members",
+        "interp::object_materialization::tests::selected_authored_materialization_refuses_without_physical_fallback",
+        "interp::object_materialization::tests::standalone_compatibility_is_separate_and_unknown_source_cannot_select_a_recipe",
+        "value::script::execution_tests::deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script",
+        "value::script::execution_tests::deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers",
+        "value::script::execution_tests::deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit",
+        "value::tests::native_dictionary_getter_checks_foreign_compound_recipe_before_cached_members",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "seconds": 6.482244492013706,
+      "uniform_source": true,
+      "status": "passed",
+      "result": {
+        "passed": 21,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 742
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed receipt retains exact immutable source archive/compile paths and every original hash/command association. All32170 leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+          "status": "passed",
+          "purpose": "Exact software current Jim helper header-retention control passes; it does not establish specialised Jim mathop execution or new original provider equivalence.",
+          "proof_ids": [
+            "naming.mathop.original-jim-source-and-helper-context"
+          ]
+        },
+        {
+          "selector": "command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier",
+          "status": "passed",
+          "purpose": "Exact software checked completion options, original opaque members and first Host refusal settlement assertion passes without an external native process or private cache/frame observation.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default",
+          "status": "passed",
+          "purpose": "Exact software checked completion options, original opaque members and first Host refusal settlement assertion passes without an external native process or private cache/frame observation.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects",
+          "status": "passed",
+          "purpose": "Exact software checked completion options, original opaque members and first Host refusal settlement assertion passes without an external native process or private cache/frame observation.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "embed::embedding_settlement_tests::public_completion_option_bytes_preserves_first_host_before_any_getter",
+          "status": "passed",
+          "purpose": "Exact software checked completion options, original opaque members and first Host refusal settlement assertion passes without an external native process or private cache/frame observation.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "embed::embedding_settlement_tests::public_completion_option_bytes_retains_opaque_empty_and_absent_members",
+          "status": "passed",
+          "purpose": "Exact software checked completion options, original opaque members and first Host refusal settlement assertion passes without an external native process or private cache/frame observation.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values",
+          "status": "passed",
+          "purpose": "Exact software checked completion options, original opaque members and first Host refusal settlement assertion passes without an external native process or private cache/frame observation.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising",
+          "status": "passed",
+          "purpose": "Exact software checked completion options, original opaque members and first Host refusal settlement assertion passes without an external native process or private cache/frame observation.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "interp::byte_array_result_tests::binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate",
+          "status": "passed",
+          "purpose": "Exact software sealed binary producer/origin and unsupported source-purpose refusal assertion passes independently of original Native byte-array observations.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "interp::byte_array_result_tests::unsupported_declared_binary_purpose_refuses_without_native_fallback",
+          "status": "passed",
+          "purpose": "Exact software sealed binary producer/origin and unsupported source-purpose refusal assertion passes independently of original Native byte-array observations.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile",
+          "status": "passed",
+          "purpose": "Exact software selected/genuine-core versus source-profile/standalone inventory purpose assertion passes; no external provider inventory replay or result is inferred.",
+          "proof_ids": [
+            "naming.invocation.original-variable-inventory-policy"
+          ]
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter",
+          "status": "passed",
+          "purpose": "Exact software selected/genuine-core versus source-profile/standalone inventory purpose assertion passes; no external provider inventory replay or result is inferred.",
+          "proof_ids": [
+            "naming.invocation.original-variable-inventory-policy"
+          ]
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose",
+          "status": "passed",
+          "purpose": "Exact software selected/genuine-core versus source-profile/standalone inventory purpose assertion passes; no external provider inventory replay or result is inferred.",
+          "proof_ids": [
+            "naming.invocation.original-variable-inventory-policy"
+          ]
+        },
+        {
+          "selector": "interp::object_materialization::tests::actual_object_materialization_preserves_foreign_compound_refusal",
+          "status": "passed",
+          "purpose": "Exact software selected materialisation and foreign-compound seal/cache/member boundary assertion passes; no original Native object/header identity or provider observation is supplied.",
+          "proof_ids": [
+            "naming.invocation.original-object-materialization-purpose"
+          ]
+        },
+        {
+          "selector": "interp::object_materialization::tests::actual_object_materialization_survives_unknown_source_without_losing_original_members",
+          "status": "passed",
+          "purpose": "Exact software selected materialisation and foreign-compound seal/cache/member boundary assertion passes; no original Native object/header identity or provider observation is supplied.",
+          "proof_ids": [
+            "naming.invocation.original-object-materialization-purpose"
+          ]
+        },
+        {
+          "selector": "interp::object_materialization::tests::selected_authored_materialization_refuses_without_physical_fallback",
+          "status": "passed",
+          "purpose": "Exact software selected materialisation and foreign-compound seal/cache/member boundary assertion passes; no original Native object/header identity or provider observation is supplied.",
+          "proof_ids": [
+            "naming.invocation.original-object-materialization-purpose"
+          ]
+        },
+        {
+          "selector": "interp::object_materialization::tests::standalone_compatibility_is_separate_and_unknown_source_cannot_select_a_recipe",
+          "status": "passed",
+          "purpose": "Exact software selected materialisation and foreign-compound seal/cache/member boundary assertion passes; no original Native object/header identity or provider observation is supplied.",
+          "proof_ids": [
+            "naming.invocation.original-object-materialization-purpose"
+          ]
+        },
+        {
+          "selector": "value::script::execution_tests::deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script",
+          "status": "passed",
+          "purpose": "Exact software deferred Jim script-owner activation/transport/refusal assertion passes; original public435 observations and actual private Native lifecycle remain independent.",
+          "proof_ids": [
+            "naming.source.jim-original-deferred-script-ownership"
+          ]
+        },
+        {
+          "selector": "value::script::execution_tests::deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers",
+          "status": "passed",
+          "purpose": "Exact software deferred Jim script-owner activation/transport/refusal assertion passes; original public435 observations and actual private Native lifecycle remain independent.",
+          "proof_ids": [
+            "naming.source.jim-original-deferred-script-ownership"
+          ]
+        },
+        {
+          "selector": "value::script::execution_tests::deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit",
+          "status": "passed",
+          "purpose": "Exact software deferred Jim script-owner activation/transport/refusal assertion passes; original public435 observations and actual private Native lifecycle remain independent.",
+          "proof_ids": [
+            "naming.source.jim-original-deferred-script-ownership"
+          ]
+        },
+        {
+          "selector": "value::tests::native_dictionary_getter_checks_foreign_compound_recipe_before_cached_members",
+          "status": "passed",
+          "purpose": "Exact software selected materialisation and foreign-compound seal/cache/member boundary assertion passes; no original Native object/header identity or provider observation is supplied.",
+          "proof_ids": [
+            "naming.invocation.original-object-materialization-purpose"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.embedding.original-host-publication-and-fact-transport",
+        "naming.invocation.original-object-materialization-purpose",
+        "naming.invocation.original-variable-inventory-policy",
+        "naming.mathop.original-jim-source-and-helper-context",
+        "naming.source.jim-original-deferred-script-ownership"
+      ],
+      "limits": "Independent21-control software selection passes all21 only within exact successful VM297/source purpose; this is no full Native frontier or overall gate. All original external provider observations remain immutable; no aggregate gate PASS or mutable anchor refresh.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/pinned-vm297.elf.gz",
+        "sha256": "63397e11cf690249131f0df1f3ec0dea94b3ce3fd182a9d4b668b07e2b125b04",
+        "compression": "gzip",
+        "uncompressed_sha256": "fe3ddb8ea5fe05ffad39f64c46145fcd5f880a4f01146fbbb27b566f2ea5da9c",
+        "uncompressed_bytes": 101839104,
+        "compressed_bytes": 19955972,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/pinned-vm297.json",
+        "metadata_sha256": "c109b94520849ea7cd02321642a211ab1daba7c3a7db52133e6ab828669d452b",
+        "build_receipt_id": "rust.frozen297.integration-vm-own-test-build297",
+        "original_source_snapshot_sha256": "121d2992a31feef5ad1aa4d971b3b2ffdce7011a0cfd25aedd568ca5ffb25d2b",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/source-snapshot.json.gz",
+          "sha256": "6c67cd4e952f7622dc21c2e66a449cb68bfcae23fb690afd79ba4abb865e7b4b",
+          "compression": "gzip",
+          "uncompressed_sha256": "121d2992a31feef5ad1aa4d971b3b2ffdce7011a0cfd25aedd568ca5ffb25d2b"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen297.integration-vm-info-diagnostic-tests297",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/integration-vm-info-diagnostic-tests297/receipt.json.gz",
+        "sha256": "9ab39dbe01351d5188b54c628f8a45db655955b74ee5e3924974c9e958312191",
+        "compression": "gzip",
+        "uncompressed_sha256": "24a59e2686ca26379bcf99bb309bbe43199589123cd2678ee72c5c3d256befa6"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/integration-vm-info-diagnostic-tests297/tests.log",
+        "sha256": "3da2e98cd8d1373495de95778b57572bc928a96cd2a7e4c65cc020bfa3a5617b"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm297.elf",
+        "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 42.423378505016444,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 762
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed receipt retains exact immutable source archive/compile paths and every original hash/command association. All32170 leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+          "status": "failed",
+          "purpose": "Exact186-window comparator fails at Jim absolute-existing original result primary before the getter: actual none versus original string. Earlier unsupported namespace-info failure is not this receipt; partial loop advancement grants no whole186 or Native provider pass.",
+          "proof_ids": [
+            "naming.compiler.original-info-commands-literal-resolution"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.original-info-commands-literal-resolution"
+      ],
+      "limits": "IndependentInfo186 diagnostic selection fails0 passed/1 failed at genuine Jim absolute-existing pre-getter primary none versus original string. No whole186 comparison, other-image failure cause or partial-provider PASS is inferred. All original external provider observations remain immutable; no aggregate gate PASS or mutable anchor refresh.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/pinned-vm297.elf.gz",
+        "sha256": "63397e11cf690249131f0df1f3ec0dea94b3ce3fd182a9d4b668b07e2b125b04",
+        "compression": "gzip",
+        "uncompressed_sha256": "fe3ddb8ea5fe05ffad39f64c46145fcd5f880a4f01146fbbb27b566f2ea5da9c",
+        "uncompressed_bytes": 101839104,
+        "compressed_bytes": 19955972,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image/pinned-vm297.json",
+        "metadata_sha256": "c109b94520849ea7cd02321642a211ab1daba7c3a7db52133e6ab828669d452b",
+        "build_receipt_id": "rust.frozen297.integration-vm-own-test-build297",
+        "original_source_snapshot_sha256": "121d2992a31feef5ad1aa4d971b3b2ffdce7011a0cfd25aedd568ca5ffb25d2b",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/source-snapshot.json.gz",
+          "sha256": "6c67cd4e952f7622dc21c2e66a449cb68bfcae23fb690afd79ba4abb865e7b4b",
+          "compression": "gzip",
+          "uncompressed_sha256": "121d2992a31feef5ad1aa4d971b3b2ffdce7011a0cfd25aedd568ca5ffb25d2b"
+        }
+      }
     }
   ]
 }

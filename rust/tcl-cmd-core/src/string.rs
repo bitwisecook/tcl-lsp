@@ -642,12 +642,15 @@ pub fn insert<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, C
 }
 
 /// `string cat ?arg ...?` — concatenate the string reps of all arguments.
-pub fn cat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
+pub fn cat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    if let Some(original) = ops.native_jim_string_cat(args)? {
+        return Ok(original);
+    }
     let mut output = Vec::new();
     for value in args {
-        output.extend_from_slice(&ops.as_bytes(value));
+        output.extend_from_slice(&ops.native_string_bytes(value)?);
     }
-    ops.new_bytes(&output)
+    Ok(ops.new_bytes(&output))
 }
 
 /// The default `string trim` set — every Unicode space character plus NUL
@@ -1010,7 +1013,7 @@ pub fn dispatch_canon<O: ValueOps>(
         }
         "equal" => Some(compare(ops, rest, CompareMode::Equal)),
         "compare" => Some(compare(ops, rest, CompareMode::Compare)),
-        "cat" => Some(Ok(cat(ops, rest))),
+        "cat" => Some(cat(ops, rest)),
         "match" => Some(string_match(ops, rest)),
         "map" => Some(map(ops, rest)),
         "toupper" => Some(case_convert(

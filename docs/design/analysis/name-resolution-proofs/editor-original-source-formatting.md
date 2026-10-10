@@ -20,6 +20,8 @@ Actual-analysis formatting retains the supplied complete realm/input/config, Sou
 
 Formatter newline presentation consumes the shared Document line-ending owner, with already-LF input retained as a borrowed view. A failed complete projection preserves the original text; the derived presentation cannot replace the actual analysis source/input or selected parent-member receipt.
 
+An additional marked standalone source-formatting definition uses selected procedure traits for qualified proc spacing, keeps a shadowed proc surface ordinary and preserves the source when a foreign lexer configuration is paired with the retained layout.
+
 ## Scope
 
 Current formatting source-role and argument-presentation consumers, exact source case/list layout, captured operand geometry and separate literal-expression bracing. Fixed tests assert a retained alias prefix cannot widen written operands, a real custom handler keeps its argument as data, actual for-body presentation remains selected, and static bracing differs from dynamic/shadowed inputs. Seven native providers are not tested for this Rust implementation contract; no executed formatter receipt is attached.
@@ -29,6 +31,8 @@ These two linked formatting controls are current source geometry and ownership d
 These five linked software controls cover actual owner retention and original source geometry, not Native execution or rewrite equivalence. Standalone formatting retains its explicit separate input contract; lexical budget refusal occurs before layout capture. Presentation offsets grant no original value, descriptor, command table, body/frame entry, Normal or edit admission. No assertion outcome or original-provider result is attached to these bindings.
 
 This owner-only refinement changes no linked assertion or provider answer. LF/CRLF/lone-CR Document presentation supplies no Native run-time string, command word, body entry, source rewrite equivalence or original value authority.
+
+This control exercises the explicit standalone formatting entry. It does not establish the separate supplied-analysis issuer, Native declaration/body execution, handler/frame or inserted edit equivalence. Actual analysis-backed formatting and original terminator geometry retain their own independent controls and receipts; no new result is attached.
 
 ## Provider answers
 
@@ -118,6 +122,12 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 - [rust/tcl-lsp-core/src/formatting/mod.rs](../../../../rust/tcl-lsp-core/src/formatting/mod.rs), `normalise_document_line_endings`: Use the shared DocumentLineEndingProjection for formatter LF presentation while keeping already-LF input borrowed; inability to represent a complete checked extent preserves the original text.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-lsp-core/src/formatting/engine.rs](../../../../rust/tcl-lsp-core/src/formatting/engine.rs), `FormattingSourceLayout`: Retain exact source/configuration and selected source traits for presentation layout; standalone capture and supplied actual analysis remain distinct entry purposes.
+- [rust/tcl-lsp-core/src/formatting/engine.rs](../../../../rust/tcl-lsp-core/src/formatting/engine.rs), `format_body`: Require the retained source-layout configuration before procedure/body spacing, preserving text on a foreign configuration.
+- [rust/tcl-lsp-core/src/formatting/engine.rs](../../../../rust/tcl-lsp-core/src/formatting/engine.rs), `formatting::engine::tests::procedure_spacing_uses_selected_source_traits` (linked): The explicit standalone formatting source layout uses selected procedure traits for qualified proc spacing, declines the shadowed proc surface and preserves text when the retained layout is paired with foreign lexer configuration.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

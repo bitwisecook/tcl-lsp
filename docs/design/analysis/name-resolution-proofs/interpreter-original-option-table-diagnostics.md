@@ -14,9 +14,13 @@ What exact public completions and bad/ambiguous option tables do the eight origi
 
 All 48 fresh original external API control processes and six actual driver compilations exit zero; all case stderr streams are empty. C8.4.20/C8.5.19 interp c j succeeds with original code0/value j, while C8.6.18/C9.0.4/C9.1.0 returns code1/ambiguous option c. Empty/x/e root controls return their exact ambiguous/bad option diagnostics, with release-specific tables. All five C child preludes return code0/kid; child empty/x/h/hi controls return exact bad/ambiguous diagnostics under distinct child tables. C8.5 adds bgerror/debug/limit to the measured root/child tables; C8.6 root tables include cancel/children; C9.0/C9.1 root diagnostic tables omit slaves; C9.1 root and child diagnostics include set. Table omission alone does not prove primary dispatch rejection or command absence. Jim 0.84-9-g5bac7c9 returns code1/wrong # args: should be "interp" for every exact original root control and child prelude; each subsequent independently evaluated child original returns code1/invalid command name "kid". No supported Jim child-handle API is substituted. Every complete original VERSION/PRELUDE/ORIGINAL hex row, exact option order and diagnostic spelling remains authoritative. These controls observe public completion/error-table presentation and the successful C84/C85 c abbreviation only; no private token/child identity, general option effect, Native compilation/frame/argv/admission or successful Rust assertion follows. BIG-IP is not tested.
 
+A marked Runtime source definition consumes all48 original option-table control inputs; the child cases compare their independent PRELUDE before the ORIGINAL observation and preserve unsupported Jim child-door diagnostics.
+
 ## Scope
 
 Eight exact ASCII LF source files and one independently evaluated child prelude use the unchanged native202 counted-source driver in fresh full Tcl_Init or Jim core/static-extension interpreters. Each original source is passed directly without surrounding eval/catch/puts; prelude failure does not suppress the subsequent original observation. Reported actual version comes from a counted VERSION evaluation and retains its separate CLI provider association. Required original executable/library/header/Makefile/source pins and original driver compile commands are preserved. Primary dispatch tables and source recipe implementations remain separate from the printed public diagnostics.
+
+No launched or passing software assertion is attached. The comparator checks public completion/result presentation, not private option tables, child allocation/header identity, physical frame, effect chronology or compiler admission. Fresh external original processes and their version/build receipts retain their separate measured scope.
 
 ## Provider answers
 
@@ -254,6 +258,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 No implementation binding is claimed by this observation record.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [runtime/rust/src/cmd_alias/native_option_tables.rs](../../../../runtime/rust/src/cmd_alias/native_option_tables.rs), `compare`: Compare exact retained public completion and decoded counted result for the named PRELUDE or ORIGINAL phase without replacing unsupported child purposes.
+- [runtime/rust/src/cmd_alias/native_option_tables.rs](../../../../runtime/rust/src/cmd_alias/native_option_tables.rs), `cmd_alias::native_option_tables::interp_subcommand_words_resolve_like_original_native_option_tables` (linked): Eight unchanged original counted source inputs are evaluated in fresh selected software interpreters for all six providers (48 ORIGINAL comparisons); each of four child cases first compares its retained PRELUDE completion/result. Exact public result bytes and absent Host refusal are checked, with ownership counters clean.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

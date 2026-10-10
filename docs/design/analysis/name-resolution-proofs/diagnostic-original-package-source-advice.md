@@ -14,9 +14,13 @@ How do package-requirement and ordering diagnostics retain actual selected sourc
 
 authored_source_package_reference selects the actual package grammar and exact count/option layout. A provide-name query supplies no provision receipt; only genuine version-supplying provision can contribute source ordering advice. OriginalSourcePackageReference retains complete original words, selected purpose/effective name and the actual immutable context; ASCII matching uses its independently selected source value/key purpose. W120/H301 select these source descriptors and typed Registry package subjects instead of reporting label scans. Optional Native package keys remain independently owned and are absent for unsupported source domains. Core preserves required package and purpose independently of messages and fixes. No installed package, accepted loader/callback or runtime presence follows.
 
+Two additional marked source definitions retain the four reported Tcltest body programs while changing only original alias/header fixture words. Selected package roles preserve setup/body/cleanup source reads and captured-versus-written origins, while genuine absent reads remain warnings and result data stays opaque. Missing/changed input or unselected/replaced package handlers withhold those roles.
+
 ## Scope
 
 Original complete retained source/input/config/ContextRegistry and selected source descriptor own package and suggestion diagnostics. Package provide name query is not source provision; actual supplying version and shared option/count grammar required. Metadata/source advice cannot prove package installation, native handler, successful callback or eventual presence. W120 and H301 typed Registry subjects preserve required metadata and optional original Native policy key without borrowing native recipes for Logical/hosted inputs. W123 heuristic suggestions follow authenticated emitter and actual-context candidate filter; replacement syntax retains original whole word and selected Native string grammar, is review-required, and grants no presence. Five linked controls cover finite selected query/provision/option/cardinality grammar, authenticated captured alias-definition package operands and whole-image/full-config/foreign-context withdrawal, genuine provision ordering, mutated reporting maps and typed transport. Alias source correspondence supplies no runtime alias success; semantic package-key availability remains separate from installation.
+
+The Compiler source assertions are unexecuted bindings, distinct from the public [original Tcltest caller experiment](tcltest-original-alias-caller-frame-lifecycle.md). That Native experiment uses benign values rather than the reported tclopt constructors and observes no Compiler diagnostic or physical frame receipt. The failed Source296 helper-namespace compilation remains independently archived; no passing source assertion or provider outcome is added.
 
 ## Provider answers
 
@@ -91,6 +95,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `diagnostic_subject::tests::original_package_source_subject_transport_retains_selected_purpose_and_package` (linked): Core transport retains required package and typed original purpose independently of message/fix presentation; the payload creates no loader, installed package or runtime key authority.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `source_registry_words_at`: Select authentic original package/alias source roles at the exact original point with complete source/configuration correspondence and effective origins, independently of Native entry.
+- [rust/tcl-compiler/src/provider_fixtures.rs](../../../../rust/tcl-compiler/src/provider_fixtures.rs), `analyse`: Supply the explicit selected software package environment for source controls; a package requirement or reported name alone does not authenticate the provider surface.
+- [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs), `analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads` (linked): The four original reported Tcltest fixture bodies remain byte-exact through direct or captured name/description aliases; a genuine selected source package provider keeps setup/body/cleanup reads defined and retains captured-versus-written effective ordinals.
+- [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs), `analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque` (linked): Selected Tcltest source advice reports only the genuine original absent body read, keeps bracket-looking result data opaque and withdraws missing/changed input or unselected/replaced package handlers rather than borrowing lifecycle roles.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

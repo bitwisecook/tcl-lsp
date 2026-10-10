@@ -14,9 +14,13 @@ How do pattern hover and semantic colours retain exact selected source context a
 
 Pattern hover and semantic colours use ResolvedInvocation::authored_source_pattern_arguments under the retained full ContextRegistry. The same selected descriptors supply embedded language, actual option availability, prefix/value widths, roles and effective ordinals. Structured glob and string-match roles retain unknown ordinary payloads without a literal surrogate. The paired resolver receives borrowed selected options only after the actual prefix and compatibility widths agree. Captured alias values keep effective slots without a fabricated source anchor. Stale source/configuration/context, unknown selectors, expanded cardinality and known shadows remain unavailable. Every embedded-language hover entry, including positively sealed Logical source, uses the same original command inventory. The same whole original command inventory and shared operand geometry supply every retained source domain. The Logical semantic-token branch uses the same selected pattern projection and whole original operand geometry, with no compatibility pattern relookup when a receipt is unavailable.
 
+An additional marked Compiler source definition retains the original written Unicode pattern after a captured option on a genuine Logical alias. It explicitly keeps Normal representation and physical SSA literal-read projection absent, and withholds captured pattern data, expansions, replacements and missing ownership.
+
 ## Scope
 
 Readonly source pattern metadata for exact complete retained source words and the actual full context. This grants no Native value, object, handler, compile admission, entered body, Normal, match result or edit equivalence. The compatibility Registry APIs remain separate from this retained-schema projection. Ten exact linked selectors retain the Registry, Hover and semantic source-domain and operand controls; linked coverage supplies no executed result.
+
+This readonly pattern-role/span control is separate from reached Native regex evaluation, physical SSA read identity and editor rewrite eligibility. No provider or software assertion result is attached.
 
 ## Provider answers
 
@@ -92,6 +96,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `semantic_tokens::original::original_source_schema_tests::logical_pattern_colours_keep_nested_and_alias_original_operand_anchors` (linked): Nested and current written aliased patterns keep their original tokens; captured values, uncertain option selectors and shadows refuse.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/regex_source.rs](../../../../rust/tcl-compiler/src/regex_source.rs), `regex_pattern_word`: Use authentic selected source pattern role and effective-to-written origin under actual whole-Module metadata; captured data and conditional roles cannot supply physical Native reads.
+- [rust/tcl-compiler/src/regex_source.rs](../../../../rust/tcl-compiler/src/regex_source.rs), `regex_source::tests::original_regex_roles_keep_alias_origins_and_do_not_supply_native_reads` (linked): A genuine Logical regexp alias with captured -- selects the original written Unicode pattern span, while Normal representation and physical SSA literal-read projection remain absent; captured pattern data, expansion, replacement and missing owner refuse written pattern advice.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -14,9 +14,13 @@ How do E004 clause defects, W302 error-capture advice and W142 lexical-context a
 
 ClauseShapeChecker and ContextGate consume structured InvocationArguments through the common Registry ABI. Exact cardinality retains unknown payload positions; unknown selectors and unproved expansion counts cannot select a clause grammar. ResolvedInvocation::authored_source_clause_shape, authored_source_context_gate and authored_source_optional_trailing_names read the already selected source descriptor and effective argument layout. OriginalDiagnosticInvocation retains that schema under the actual current source/context and maps effective ordinals to genuine whole written operands. E004 carries ClauseShape purpose; captured conditions cannot issue a word-anchored diagnostic, and clause fixes require a complete consecutive ordinary written vector. W302 requires the selected Catch descriptor, one genuine unchanged original body and no result operand. Its optional result-name proposals append at the whole written body extent; only an independently selected genuine child teardown descriptor suppresses the hint. W142 uses lexical event context and known count without inventing operand values. Core retains ClauseShape, ContextGate and ErrorCapture purpose. These are source syntax/context and reviewed proposal facts, without handler success, error capture, executing frame, channel existence, Native admission or runtime equivalence. ClauseShapeIssue retains the error and an optional ClauseShapeRepair selected by the same grammar walk. A MergeTrailingWords body ordinal or RemoveTrailingClause keyword ordinal selects whole original NativeWord spans. The compatibility shape projection returns the error only. Diagnostic-only pack hooks carry no repair anchor.
 
+An additional marked source definition keeps the original if clause shape after the source move to myif and checks one E004 for the malformed written sequence.
+
 ## Scope
 
 Eight marked Rust source controls use C8.6 if/catch source inputs and an f5-irules authoring context. Direct, moved and aliased if preserve an unknown condition and its E004 purpose; a proc replacement and unknown clause keyword refuse. An alias to catch retains W302 and whole-body EOF insertion geometry. A user procedure named application::close does not borrow stock teardown metadata, while a replaced catch supplies no stock hint. Event-body return with an unknown result retains W142 by count; a procedure-body return does not. A captured alias condition supplies no call-site clause anchor. The common pack thunks retain structured word facts and exact count through the same ABI; these eight controls do not execute a pack guest or native provider. Two additional source edit controls keep trailing[command] whole and remove a dangling clause at its opening elseif even when the condition is also spelled elseif. A Registry control verifies these ordinals and that a diagnostic-only issue has no repair. The pack guest ABI control verifies that a guest defect does not borrow a stock edit anchor; linked coverage is not an execution claim.
+
+This is source diagnostic advice, not an original native parse, command-entry or completion observation. The control definition has no attached software result, and existing provider evidence is unchanged.
 
 ## Provider answers
 
@@ -105,6 +109,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-spec-hooks/tests/families_e2e.rs](../../../../rust/tcl-spec-hooks/tests/families_e2e.rs), `a_clause_shape_check_reports_the_first_structural_defect` (linked): An actual pack guest through the common checker ABI retains its defect with no stock clause repair anchor; linked test does not claim an observed run.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/analyser/diagnostics/validity.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/validity.rs), `Analyser::emit_e004_clause_shape_diagnostic`: Use the selected source clause grammar for malformed conditional advice after a genuine source move; diagnostic shape does not grant Native parse/evaluation authority.
+- [rust/tcl-compiler/src/analyser/state.rs](../../../../rust/tcl-compiler/src/analyser/state.rs), `analyser::state::tests::renamed_if_keeps_its_original_clause_shape` (linked): A source move from if to myif retains the original selected clause-shape advice and produces one E004 for the malformed original clause sequence.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

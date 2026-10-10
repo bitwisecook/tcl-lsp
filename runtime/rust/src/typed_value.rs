@@ -47,13 +47,19 @@ pub(crate) fn adopt_completion_code_cache(
 /// Jim's stringless return-code representation has no native updater.
 pub(crate) fn completion_code_string_bytes(
     value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
 ) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
-    if !obj::native_string_available(value) {
+    obj::check_native_liveness(value)?;
+    if matches!(
+        completion_code_cache(value),
+        Some(tcl_cmd_core::return_options::CompletionCodeCache::Jim(_))
+    ) && !obj::has_string_rep(value)
+    {
         return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "Jim return-code string updater",
         ));
     }
-    Ok(obj::bytes_of(value))
+    crate::dict::native_object_bytes(value, protocol)
 }
 
 /// Reach an error-neutral native getter, retaining cache effects without
@@ -100,8 +106,7 @@ pub(crate) fn native_scalar_probe_with_environment(
     let conversion = if let Some(conversion) = cached {
         conversion
     } else {
-        let original = crate::bytearray::scalar_getter_string(value, protocol)
-            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let original = crate::bytearray::scalar_getter_string(value, protocol)?;
         if protocol.is_jim084()
             && matches!(
                 kind,
@@ -129,8 +134,7 @@ pub(crate) fn native_scalar_probe_with_environment(
     };
     let (materialize, cache, outcome) = conversion.into_parts();
     if materialize {
-        crate::bytearray::scalar_getter_string(value, protocol)
-            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        crate::bytearray::scalar_getter_string(value, protocol)?;
     }
     if let Some(cache) = cache {
         obj::adopt_native_scalar_cache(value, cache, protocol)?;
@@ -174,8 +178,7 @@ pub(crate) fn native_number_probe(
     let conversion = if let Some(conversion) = cached {
         conversion
     } else {
-        let original = crate::bytearray::scalar_getter_string(value, protocol)
-            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let original = crate::bytearray::scalar_getter_string(value, protocol)?;
         protocol
             .fresh_number_conversion(kind, &original)
             .ok_or(ValueError::ScalarNumericInputUnavailable)?
@@ -210,8 +213,7 @@ pub(crate) fn native_scalar_getter_with_environment(
             let protocol = dialect
                 .native_scalar_getter_protocol()
                 .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-            let original = crate::bytearray::scalar_getter_string(value, protocol)
-                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            let original = crate::bytearray::scalar_getter_string(value, protocol)?;
             let record = protocol
                 .failure_presentation(kind, failure, &original)
                 .ok_or(ValueError::ScalarNumericInputUnavailable)?;
@@ -286,6 +288,24 @@ impl TypedError {
     }
 }
 
+/// Obtain expression input through the selected original object's updater.
+/// This physical String producer has no Guest parser or completion publisher.
+fn scalar_input_bytes(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<Vec<u8>, tcl_syntax::raw_string::NativeValueAccessRefusal> {
+    let recipe = dialect
+        .native_string_materialization(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        ))
+        .ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable)?;
+    crate::dict::native_object_bytes(value, recipe.protocol()).map_err(|error| {
+        error
+            .native_access_refusal()
+            .expect("physical original String access has only operational failures")
+    })
+}
+
 /// Prepare a scalar getter on its original object under the actual engine's
 /// byte boundary. This never changes the retained spelling or parses source.
 pub(crate) fn scalar_number(
@@ -330,7 +350,7 @@ pub(crate) fn scalar_number(
     if obj::obj_type_ptr(value) == &obj::TCL_DOUBLE_TYPE {
         return Ok((!integer_only).then(|| Number::Double(obj::double_of(value))));
     }
-    let original = obj::bytes_of(value);
+    let original = scalar_input_bytes(value, dialect)?;
     let Some(text) = core::str::from_utf8(policy.input_bytes(&original)).ok() else {
         return Ok(None);
     };
@@ -376,8 +396,9 @@ pub(crate) fn boolean_in(
     let policy = dialect
         .scalar_numeric_input_policy()
         .ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable)?;
+    let had_string = obj::has_string_rep(value);
+    let original = scalar_input_bytes(value, dialect)?;
     if policy == NativeScalarNumericInputPolicy::NulTerminatedJim084 {
-        let original = obj::bytes_of(value);
         if let Ok(text) = core::str::from_utf8(policy.input_bytes(&original)) {
             if let Some(boolean) = tcl_syntax::boolean::parse_boolean_word(text.trim()) {
                 return Ok(Ok(boolean));
@@ -387,14 +408,13 @@ pub(crate) fn boolean_in(
             let _ = scalar_number(value, dialect, false)?;
         }
     }
-    if obj::has_string_rep(value)
+    if had_string
         && dialect
             .native_scalar_getter_protocol()
             .and_then(|protocol| protocol.tcl_version())
             .is_some()
     {
-        let bytes = obj::bytes_of(value);
-        if core::str::from_utf8(&bytes)
+        if core::str::from_utf8(&original)
             .ok()
             .and_then(|text| tcl_syntax::boolean::parse_boolean_word(text.trim()))
             .is_some()
@@ -1404,7 +1424,13 @@ mod tests {
             completion_code_cache(value.as_ptr()),
             Some(CompletionCodeCache::Jim(7))
         );
-        assert!(completion_code_string_bytes(value.as_ptr()).is_err());
+        assert!(
+            completion_code_string_bytes(
+                value.as_ptr(),
+                tcl_syntax::native_string::NativeStringProtocol::Jim084
+            )
+            .is_err()
+        );
         assert!(!obj::has_string_rep(value.as_ptr()));
         let duplicate = obj::Owned::fresh(obj::duplicate(value.as_ptr()));
         assert_eq!(
@@ -1419,7 +1445,11 @@ mod tests {
         let named = obj::Owned::fresh(obj::new_string_bytes(b"return"));
         adopt_completion_code_cache(named.as_ptr(), CompletionCodeCache::TclKeyword(2)).unwrap();
         assert_eq!(
-            completion_code_string_bytes(named.as_ptr()).unwrap(),
+            completion_code_string_bytes(
+                named.as_ptr(),
+                tcl_syntax::native_string::NativeStringProtocol::C(TclVersion::V8_6)
+            )
+            .unwrap(),
             b"return"
         );
     }
@@ -1490,3 +1520,7 @@ mod tests {
 #[cfg(test)]
 #[path = "native_number_tests.rs"]
 mod native_number_tests;
+
+#[cfg(test)]
+#[path = "typed_value/native_scalar_input_tests.rs"]
+mod native_scalar_input_tests;

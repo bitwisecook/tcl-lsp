@@ -1,0 +1,108 @@
+{
+  "question_id": "naming.numeric.original-capi-scalar-publication-width",
+  "question": "For original live objects, what are the public Int/Long/Wide/Double/Boolean results, sentinel preservation, primary cache and string-residency changes, primitive result and observable error-code changes under an actual live interpreter or the C null-interpreter route, at the measured native C ABI widths?",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "external_provider": {
+    "bigip": "not-tested"
+  },
+  "probe_file": "/tmp/receiver-capi-scalar-getter-request456/probe.c",
+  "probe_sha256": "fdc84725bcc14b05047411b032ccd5cae4b29310f694245ed743600c465c8071",
+  "compile": {
+    "language": "C99",
+    "C_defines": [],
+    "Jim_defines": [
+      "JIM_PROBE"
+    ],
+    "include_and_library": "Root independently pinned provider header/static library/configuration; use actual full-init libraries and environment.",
+    "never_define_width_macros_to_simulate_abi": true
+  },
+  "processes": {
+    "C": [
+      "live",
+      "null"
+    ],
+    "Jim": [
+      "live"
+    ],
+    "argv": "probe.elf <mode>",
+    "each_row": "fresh actual full-init interpreter and original constructor object; errno explicitly cleared before getter",
+    "timeout_seconds": 60
+  },
+  "case_map": {
+    "0": "String empty",
+    "1": "String 17",
+    "2": "String 2147483648",
+    "3": "String 4294967295",
+    "4": "String 4294967296",
+    "5": "String -4294967295",
+    "6": "String -2147483649",
+    "7": "String 9223372036854775807",
+    "8": "String 9223372036854775808",
+    "9": "String 18446744073709551615",
+    "10": "String 18446744073709551616",
+    "11": "String -18446744073709551615",
+    "12": "String -9223372036854775809",
+    "13": "String 08",
+    "14": "String 0o10",
+    "15": "String true",
+    "16": "String bad",
+    "17": "String NaN",
+    "18": "String 1.0",
+    "19": "String counted 1 NUL X",
+    "20": "Int constructor 17",
+    "21": "Long constructor 17",
+    "22": "Wide constructor 17",
+    "23": "Double constructor 17.0",
+    "24": "Double constructor NaN",
+    "25": "Boolean constructor 17 (C only)",
+    "26": "Wide constructor 4294967296",
+    "27": "ByteArray constructor 1 NUL X (C only)",
+    "28": "String 50 ASCII scalars plus U+1F600 plus Z"
+  },
+  "getter_map": {
+    "0": "C Tcl_GetIntFromObj (Jim unavailable)",
+    "1": "C Tcl_GetLongFromObj / Jim_GetLong",
+    "2": "C Tcl_GetWideIntFromObj / Jim_GetWide",
+    "3": "C Tcl_GetDoubleFromObj / Jim_GetDouble",
+    "4": "C Tcl_GetBooleanFromObj / Jim_GetBoolean"
+  },
+  "capture": [
+    "whole stdout and stderr without filtering",
+    "compile stdout/stderr/exit and exact argv",
+    "execute exit and exact argv",
+    "probe/source/header/config/library/executable SHA256",
+    "actual runtime VERSION and ABI rows",
+    "compiler --version; flags/configure facts only if genuinely recorded",
+    "separate actual provider CLI version process with whole stdout/stderr/exit/executable SHA256"
+  ],
+  "cli_version_sources": {
+    "C": {
+      "file": "/tmp/receiver-capi-scalar-getter-request456/c-version.tcl",
+      "sha256": "94435c94329c585b6c1aeab67588b472dfce542e43c68cfc63a214ccdc6e72ea"
+    },
+    "Jim": {
+      "file": "/tmp/receiver-capi-scalar-getter-request456/jim-version.tcl",
+      "sha256": "67c43f03e646543de96a1a97809fc0ab06a21cf2db5be74389b56938db38ec21"
+    }
+  },
+  "error_observer_boundary": "Result/cache/residency are printed immediately after getter, before error-code and input string observers. C8.5+ error code is a public Tcl_GetReturnOptions/dict query; C8.4 and Jim are public global errorCode variables. These are distinct observations; no absent C8.4 private error-code identity is inferred.",
+  "width_scope": {
+    "native_lp64": "report actual ABI rows; no assumptions",
+    "wasm32_or_llp64": "not-tested unless separately authentic native libraries/headers and runnable ABI are available; never -D a long width to simulate it"
+  },
+  "Jim_null": "not-launched; public failure paths require live interpreter; do not invoke a crashing null error route or invent a compatibility analogue",
+  "purpose_limits": [
+    "no expression numeral/truth equivalence",
+    "no Native object/interpreter/header/frame identity",
+    "no application ABI issuer inferred from output",
+    "no unsupported provider or 32-bit platform promotion",
+    "no current implementation or Rust-test execution claim"
+  ]
+}

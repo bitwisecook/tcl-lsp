@@ -1317,9 +1317,14 @@ pub(crate) fn normalize_compiled_primary84(
                 )
             })?;
         } else {
-            let original = crate::bytearray::scalar_getter_string(value.as_ptr(), protocol).ok_or_else(|| {
-                ExprError::host_refusal(tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable)
-            })?;
+            let original = crate::bytearray::scalar_getter_string(value.as_ptr(), protocol)
+                .map_err(|error| {
+                    ExprError::host_refusal(
+                        error
+                            .native_access_refusal()
+                            .expect("original scalar String access refusal"),
+                    )
+                })?;
             if protocol.expression_integer_spelling84(&original) {
                 if let Some(environment) = environment {
                     tcl_cmd_core::native_numeric::fresh_c84_conversion(
@@ -1750,9 +1755,14 @@ fn fixed_integer_with_environment(
             ))
         ) && !obj::has_string_rep(value);
         if !integer && !absent_double {
-            let original = crate::bytearray::scalar_getter_string(value, protocol).ok_or_else(|| {
-                ExprError::host_refusal(tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable)
-            })?;
+            let original =
+                crate::bytearray::scalar_getter_string(value, protocol).map_err(|error| {
+                    ExprError::host_refusal(
+                        error
+                            .native_access_refusal()
+                            .expect("original scalar String access refusal"),
+                    )
+                })?;
             if let Some(environment) = environment.filter(|_| {
                 protocol.expression_integer_spelling84(&original)
                     && current

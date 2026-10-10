@@ -46,6 +46,7 @@ use tcl_registry::{CommandRegistry, Traits};
 
 use crate::compilation_unit::FunctionUnit;
 use crate::ir::Statement;
+use crate::registry_invocation::InvocationMetadataContext;
 use crate::var_resolve::{VariableCellKey, VariableCellSet, VariableCellTable};
 
 /// A resolved cross-event cell; namespace cells and flow locals never alias.
@@ -232,6 +233,17 @@ pub fn event_resolve_context(event: &str) -> crate::var_resolve::ResolveContext 
 pub fn build_connection_scope<S: std::hash::BuildHasher>(
     when_procedures: &HashMap<String, FunctionUnit, S>,
 ) -> ConnectionScope {
+    if let Some(input) = when_procedures
+        .values()
+        .find_map(FunctionUnit::source_metadata_input)
+    {
+        return build_connection_scope_with_registry(
+            when_procedures,
+            input.borrowed_context_registry().commands(),
+        );
+    }
+    // Explicit standalone compatibility only. A supplied-missing source owner
+    // still refuses at the shared FU/point guards below.
     let registry =
         CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules());
     build_connection_scope_with_registry(when_procedures, &registry)
@@ -243,6 +255,25 @@ pub fn build_connection_scope_with_registry<S: std::hash::BuildHasher>(
     when_procedures: &HashMap<String, FunctionUnit, S>,
     commands: &CommandRegistry,
 ) -> ConnectionScope {
+    build_connection_scope_in(when_procedures, commands, None)
+}
+
+/// Resolve the source-owned handlers under the same actual Module and FU input.
+/// This does not issue event execution, physical frame or worker-cell receipts.
+#[must_use]
+pub(crate) fn build_connection_scope_for_module<S: std::hash::BuildHasher>(
+    when_procedures: &HashMap<String, FunctionUnit, S>,
+    commands: &CommandRegistry,
+    module: &crate::ir::Module,
+) -> ConnectionScope {
+    build_connection_scope_in(when_procedures, commands, Some(module))
+}
+
+fn build_connection_scope_in<S: std::hash::BuildHasher>(
+    when_procedures: &HashMap<String, FunctionUnit, S>,
+    commands: &CommandRegistry,
+    module: Option<&crate::ir::Module>,
+) -> ConnectionScope {
     let events = EventRegistry::build();
     let mut summaries: HashMap<String, EventVarSummary> = HashMap::new();
     let mut handlers = HashMap::new();
@@ -250,8 +281,11 @@ pub fn build_connection_scope_with_registry<S: std::hash::BuildHasher>(
         let Some(body) = &fu.irules_event_body else {
             continue;
         };
+        if function_metadata(fu, commands, module).is_none() {
+            continue;
+        }
         let event = body.event();
-        let summary = extract_event_summary(event, fu, commands);
+        let summary = extract_event_summary(event, fu, commands, module);
         handlers.insert(qname.clone(), summary.clone());
         if let Some(previous) = summaries.get_mut(event) {
             previous.defs.extend(summary.defs);
@@ -395,43 +429,148 @@ fn merge_cell_names(
     }
 }
 
-pub(crate) fn statement_destroys(statement: &Statement, commands: &CommandRegistry) -> bool {
-    let (Statement::Call {
-        tokens: Some(tokens),
-        ..
+fn function_metadata<'a>(
+    function: &'a FunctionUnit,
+    commands: &CommandRegistry,
+    module: Option<&crate::ir::Module>,
+) -> Option<Option<InvocationMetadataContext<'a>>> {
+    if let Some(module) = module {
+        module
+            .retained_source_bindings
+            .as_deref()?
+            .matches_module(module, commands)
+            .then_some(())?;
+        return function
+            .invocation_metadata_context_for_module(commands, module)
+            .map(Some);
     }
-    | Statement::Barrier {
-        tokens: Some(tokens),
-        ..
-    }) = statement
-    else {
-        return false;
+    if function.source_metadata_input().is_some() {
+        return function.invocation_metadata_context(commands).map(Some);
+    }
+    function
+        .cfg
+        .metadata_context
+        .is_standalone()
+        .then_some(())?;
+    function.cfg.metadata_context.metadata_context(commands)
+}
+
+fn point_metadata<'a>(
+    function: &FunctionUnit,
+    tokens: &'a crate::ir::CommandTokens,
+    commands: &CommandRegistry,
+    module: Option<&crate::ir::Module>,
+) -> Option<Option<InvocationMetadataContext<'a>>> {
+    if let Some(module) = module {
+        function.invocation_metadata_context_for_module(commands, module)?;
+        return tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_module(tokens, module, commands)
+            .map(Some);
+    }
+    tokens
+        .source_binding
+        .as_ref()?
+        .original_invocation_metadata_for_function(tokens, function, commands)
+}
+
+/// Selected destruction at an authentic original operation. Unknown source,
+/// availability or member selection establishes neither destruction nor a
+/// preservation fact; independent physical cell proofs remain required.
+pub(crate) fn statement_destroys(
+    function: &FunctionUnit,
+    block: crate::cfg::BlockId,
+    index: usize,
+    commands: &CommandRegistry,
+    module: Option<&crate::ir::Module>,
+) -> Option<bool> {
+    function_metadata(function, commands, module)?;
+    let statement = function.cfg.blocks.get(&block)?.statements.get(index)?;
+    if !matches!(
+        statement,
+        Statement::Call { .. } | Statement::Barrier { .. }
+    ) {
+        return Some(false);
+    }
+    let tokens = function.cfg.source_tokens_at(block, index)?;
+    let context = point_metadata(function, tokens, commands, module)?;
+    let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+        commands, context, tokens,
+    )
+    .or_else(|| {
+        let context = context?;
+        crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            commands, context, tokens,
+        )
+        .or_else(|| {
+            crate::registry_invocation::original_structured_invocation_with_metadata_context(
+                commands, context, tokens,
+            )
+        })
+    })?;
+    if !matches!(
+        invocation.facts.subcommand,
+        tcl_registry::OwnedSubcommandResolution::NotApplicable
+            | tcl_registry::OwnedSubcommandResolution::Exact { .. }
+            | tcl_registry::OwnedSubcommandResolution::UniquePrefix { .. }
+    ) {
+        return None;
+    }
+    let destroys = invocation.facts.traits.contains(Traits::DESTROYS_VARIABLE);
+    let Some(context) = context else {
+        return Some(destroys);
     };
-    if crate::registry_invocation::normal_transfer_invocation(
-        commands,
-        commands
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-        tokens,
-    )
-    .is_some_and(|normal| normal.variable_traits().contains(Traits::DESTROYS_VARIABLE))
-    {
+    let realm = tokens.source_binding.as_ref()?.invocation_realm()?;
+    invocation.with_metadata_schema(commands, context, realm, |schema| {
+        Some(
+            destroys
+                || schema
+                    .authored_source_descriptors()
+                    .subcommand
+                    .is_some_and(|subcommand| subcommand.destructive),
+        )
+    })
+}
+
+/// A selected original call may clear coverage even when its destructive
+/// variable operand is unknown. Missing point metadata remains a clobber;
+/// structural statements retain their independent typed boundary effects.
+fn statement_clobbers(
+    function: &FunctionUnit,
+    block: crate::cfg::BlockId,
+    index: usize,
+    commands: &CommandRegistry,
+    module: Option<&crate::ir::Module>,
+) -> bool {
+    let Some(mut context) = function_metadata(function, commands, module) else {
         return true;
+    };
+    let Some(statement) = function
+        .cfg
+        .blocks
+        .get(&block)
+        .and_then(|block| block.statements.get(index))
+    else {
+        return true;
+    };
+    if statement.is_executable_invocation() {
+        if let Some(tokens) = function.cfg.source_tokens_at(block, index) {
+            let Some(original) = point_metadata(function, tokens, commands, module) else {
+                return true;
+            };
+            context = original;
+        } else if matches!(
+            statement,
+            Statement::Call { .. }
+                | Statement::Barrier { .. }
+                | Statement::NativeCall { .. }
+                | Statement::UpFrame { .. }
+        ) {
+            return true;
+        }
     }
-    matches!(
-        crate::registry_invocation::resolve_command_tokens(
-            commands,
-            Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-                tcl_dialect::DialectProfile::irules(),
-            )),
-            tokens,
-        ),
-        Ok(crate::registry_invocation::RegistryInvocationResolution::Resolved(facts))
-            if facts.traits.contains(Traits::DESTROYS_VARIABLE) ||
-                facts.subcommand.canonical_name().and_then(|name| {
-                    commands.get(&facts.canonical_command).and_then(|spec| spec.resolve_subcommand(name))
-                }).is_some_and(|subcommand| subcommand.destructive)
-    )
+    crate::memory_ssa::is_clobber_with_metadata_context(statement, commands, context)
 }
 
 pub(crate) fn cell_from_place(place: &crate::place::Place) -> Option<EventCell> {
@@ -503,6 +642,7 @@ fn extract_event_summary(
     event: &str,
     fu: &FunctionUnit,
     commands: &CommandRegistry,
+    module: Option<&crate::ir::Module>,
 ) -> EventVarSummary {
     let entry = event_resolve_context(event);
     let fallback_contexts;
@@ -525,7 +665,11 @@ fn extract_event_summary(
     for (block_id, block) in &fu.ssa.blocks {
         for (statement_index, stmt) in block.statements.iter().enumerate() {
             let context = contexts.before_statement(*block_id, statement_index);
-            let is_unset = statement_destroys(&stmt.statement, commands);
+            let Some(is_unset) =
+                statement_destroys(fu, *block_id, statement_index, commands, module)
+            else {
+                continue;
+            };
             let places = if is_unset {
                 crate::place_bridge::statement_mutation_places_with_continuation(
                     &stmt.statement,
@@ -575,7 +719,7 @@ fn extract_event_summary(
         &mut source_labels,
         &mut cell_reads,
     );
-    let must_defs = definite_exit_cells(fu, commands, contexts);
+    let must_defs = definite_exit_cells(fu, commands, contexts, module);
     EventVarSummary {
         event: event.to_string(),
         defs,
@@ -639,6 +783,7 @@ fn definite_exit_cells(
     fu: &FunctionUnit,
     commands: &CommandRegistry,
     contexts: &crate::variable_bindings::PointResolveContexts,
+    module: Option<&crate::ir::Module>,
 ) -> HashSet<EventCell> {
     use std::collections::VecDeque;
     let mut incoming: HashMap<crate::cfg::BlockId, HashSet<EventCell>> =
@@ -654,18 +799,15 @@ fn definite_exit_cells(
         if let Some(ssa) = fu.ssa.blocks.get(&id) {
             for (index, statement) in ssa.statements.iter().enumerate() {
                 let context = contexts.before_statement(id, index);
-                if crate::memory_ssa::is_clobber(
-                    &statement.statement,
-                    commands,
-                    commands
-                        .profile()
-                        .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-                ) {
+                if statement_clobbers(fu, id, index, commands, module) {
                     // A proved native command without callbacks keeps existing
                     // cells. An unresolved or evaluating call can destroy them.
                     state.clear();
                 }
-                let destroys = statement_destroys(&statement.statement, commands);
+                let Some(destroys) = statement_destroys(fu, id, index, commands, module) else {
+                    state.clear();
+                    continue;
+                };
                 let places = if destroys {
                     crate::place_bridge::statement_mutation_places_with_continuation(
                         &statement.statement,
@@ -875,6 +1017,299 @@ mod tests {
             .filter(|(_, unit)| unit.irules_event_body.is_some())
             .map(|(qn, fu)| (qn.clone(), fu.clone()))
             .collect()
+    }
+
+    fn supplied_unit(
+        source: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        native: bool,
+    ) -> (CompilationUnit, Option<tcl_vm::Vm>) {
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(context),
+            config,
+        );
+        let (owner, entry) = if native {
+            let (owner, entry) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            (
+                Some(owner),
+                Some(crate::command_binding::SourceAnalysisEntry {
+                    native_entry: Some(std::sync::Arc::new(entry)),
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                    ..Default::default()
+                }),
+            )
+        } else {
+            (None, None)
+        };
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            entry.as_ref(),
+            &input,
+        );
+        (unit, owner)
+    }
+
+    fn original_position(function: &FunctionUnit, head: &str) -> (crate::cfg::BlockId, usize) {
+        function
+            .cfg
+            .blocks
+            .iter()
+            .find_map(|(&block, data)| {
+                data.statements.iter().enumerate().find_map(|(index, _)| {
+                    let tokens = function.cfg.source_tokens_at(block, index)?;
+                    (tokens.argv_texts.first().is_some_and(|word| word == head))
+                        .then_some((block, index))
+                })
+            })
+            .expect("original complete statement carrier")
+    }
+
+    #[test]
+    fn original_connection_destruction_keeps_current_availability_and_source_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // The actual entry retains native source lookup. This query describes
+        // selected destruction; it does not execute an unset or supply a cell.
+        use crate::analyser::ResolvedAnalysisInput;
+        use std::sync::Arc;
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut registry = CommandRegistry::build_default().project_for_profile(profile);
+        let mut unset = registry.get("unset").unwrap().clone();
+        unset.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(unset);
+        let current = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(Arc::new(registry)),
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(current.commands())),
+        );
+        assert!(Arc::ptr_eq(current.commands(), older.commands()));
+        let (unit, _native_owner) = supplied_unit(
+            "set {$literal} VALUE; unset {$literal}",
+            profile,
+            &current,
+            true,
+        );
+        let function = &unit.top_level;
+        let (block, index) = original_position(function, "unset");
+        assert_eq!(
+            statement_destroys(
+                function,
+                block,
+                index,
+                current.commands(),
+                Some(&unit.ir_module)
+            ),
+            Some(true)
+        );
+        assert!(!statement_clobbers(
+            function,
+            block,
+            index,
+            current.commands(),
+            Some(&unit.ir_module)
+        ));
+        let tokens = function.cfg.source_tokens_at(block, index).unwrap();
+        let config = function.source_lexer_config();
+        for facet in 0..4 {
+            let mut changed = function.clone();
+            match facet {
+                0 => changed.source_metadata_input = None,
+                1 => {
+                    changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                        profile,
+                        profile,
+                        Arc::clone(&older),
+                        config,
+                    ))
+                }
+                2 => {
+                    changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                        profile,
+                        profile,
+                        tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                            .default_context_registry(),
+                        config,
+                    ))
+                }
+                3 => changed.source_config.strict_quoting = !changed.source_config.strict_quoting,
+                _ => unreachable!(),
+            }
+            assert!(
+                point_metadata(&changed, tokens, current.commands(), Some(&unit.ir_module))
+                    .is_none(),
+                "changed point facet {facet}"
+            );
+            assert_eq!(
+                statement_destroys(
+                    &changed,
+                    block,
+                    index,
+                    current.commands(),
+                    Some(&unit.ir_module)
+                ),
+                None,
+                "changed destruction facet {facet}"
+            );
+            assert!(
+                statement_clobbers(
+                    &changed,
+                    block,
+                    index,
+                    current.commands(),
+                    Some(&unit.ir_module)
+                ),
+                "changed clobber facet {facet}"
+            );
+        }
+        let mut stale = unit.ir_module.clone();
+        stale.top_level_namespace = "::stale".into();
+        assert_eq!(
+            statement_destroys(function, block, index, current.commands(), Some(&stale)),
+            None
+        );
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(
+            point_metadata(
+                function,
+                &changed,
+                current.commands(),
+                Some(&unit.ir_module)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn original_connection_destruction_keeps_captured_aliases_and_unknown_members_separate() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Genuine Logical selected source operations grant no Native handler,
+        // successful mutation, event worker, storage identity or definite exit.
+        use std::sync::Arc;
+        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let current = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(Arc::new(registry)),
+        );
+        for (source, head) in [
+            (
+                "interp alias {} erase {} array unset; erase {$literal}",
+                "erase",
+            ),
+            ("rename array moved; moved unset {$literal}", "moved"),
+        ] {
+            let (unit, _owner) = supplied_unit(source, profile, &current, false);
+            let (block, index) = original_position(&unit.top_level, head);
+            let tokens = unit.top_level.cfg.source_tokens_at(block, index).unwrap();
+            assert!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .proved_execution_target()
+                    .is_none()
+            );
+            assert_eq!(
+                statement_destroys(
+                    &unit.top_level,
+                    block,
+                    index,
+                    current.commands(),
+                    Some(&unit.ir_module)
+                ),
+                Some(true),
+                "original source {source}"
+            );
+        }
+        for source in [
+            "array $member {$literal}",
+            "proc array {args} {}; array unset {$literal}",
+        ] {
+            let (unit, _owner) = supplied_unit(source, profile, &current, false);
+            let (block, index) = original_position(&unit.top_level, "array");
+            assert_eq!(
+                statement_destroys(
+                    &unit.top_level,
+                    block,
+                    index,
+                    current.commands(),
+                    Some(&unit.ir_module)
+                ),
+                None,
+                "unselected member or shadow {source}"
+            );
+            assert!(statement_clobbers(
+                &unit.top_level,
+                block,
+                index,
+                current.commands(),
+                Some(&unit.ir_module)
+            ));
+        }
+    }
+
+    #[test]
+    fn original_connection_summary_requires_the_hosted_module_and_function_owner() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Retained appliance authoring policy identifies a source handler; it
+        // supplies no executing TMM worker or current connection-frame slots.
+        let environment = tcl_registry::model::ingress::resolve_environment("f5-irules");
+        let context = environment.default_context_registry();
+        let (unit, _owner) = supplied_unit(
+            "when HTTP_REQUEST {set local VALUE}",
+            environment.unit_profile(),
+            &context,
+            false,
+        );
+        let procedures = when_procs(&unit);
+        let function = procedures.values().next().expect("actual event body owner");
+        assert!(function_metadata(function, context.commands(), Some(&unit.ir_module)).is_some());
+        let scope =
+            build_connection_scope_for_module(&procedures, context.commands(), &unit.ir_module);
+        assert!(scope.summaries.contains_key("HTTP_REQUEST"));
+        let mut missing = procedures.clone();
+        for function in missing.values_mut() {
+            function.source_metadata_input = None;
+        }
+        assert!(
+            build_connection_scope_for_module(&missing, context.commands(), &unit.ir_module)
+                .summaries
+                .is_empty()
+        );
+        let mut stale = unit.ir_module.clone();
+        stale.top_level_namespace = "::other".into();
+        assert!(
+            build_connection_scope_for_module(&procedures, context.commands(), &stale)
+                .summaries
+                .is_empty()
+        );
+        let mut absent = unit.ir_module.clone();
+        absent.source_metadata_input = None;
+        assert!(
+            build_connection_scope_for_module(&procedures, context.commands(), &absent)
+                .summaries
+                .is_empty()
+        );
     }
 
     #[test]

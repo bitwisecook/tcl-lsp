@@ -746,6 +746,17 @@ pub trait ValueOps {
         drop(value);
     }
 
+    /// Select Jim's original-object `string cat` worker independently of C
+    /// concatenation. A selected unavailable purpose must return an error;
+    /// `None` means this adapter did not select that worker. Standalone or
+    /// authored compatibility grants no native execution or object admission.
+    fn native_jim_string_cat(
+        &mut self,
+        _args: &[Self::Value],
+    ) -> Result<Option<Self::Value>, ValueError> {
+        Ok(None)
+    }
+
     /// Complete selected container index policy. Unknown adapters abstain.
     fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {
         None

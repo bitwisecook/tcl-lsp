@@ -2529,3 +2529,37 @@ Restoration proves payload identity, not a new build, replay, Native observation
 The exact original six-package library no-run command closes with exit `101` after 362.937164s and `uniform_source: true`. Four Compiler libtest fixture errors refer to source_registry_words_at through the wrong helper namespace. The failed invocation records four partial executable events: Syntax is marked fresh; Server, Database and Registry are marked newly built. These events are retained without a sealed pin or an assertion result. No Rust unit assertion is launched. The partial artifact events supply no successful aggregate producer, Compiler pin, test inventory, Native provider answer or overall PASS.
 
 The [unchanged original receipt](frozen296/integration-compiler-registry-syntax-core-db-server-own-test-build296/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen296/integration-compiler-registry-syntax-core-db-server-own-test-build296/tests.log) preserves all four errors and artifact events, including their actual fresh flags. All 32150 immutable source associations are byte-checked. Original command, source/archive paths and timing remain unchanged; separate later fixture corrections are outside this frozen operation.
+
+## Source297 independent build and assertion records
+
+The Compiler/Registry/Syntax no-run command fails one Compiler libtest fixture type error: expected owned CommandRegistry, found a borrowed registry in store_advice.rs. Its partial Syntax/Registry artifact events remain unsealed. The independent VM no-run producer succeeds; its strict copied image and complete source companion support a fresh inventory of 763 tests. The separate 21-control software run passes all 21. The separate Info186 run fails 0 passed/1 failed at Jim absolute-existing primary before the getter: actual none versus original string. This actual receipt does not report the earlier namespace-info availability failure. No partial loop advancement is a completed 186 assertion or Native provider pass, and there is no aggregate gate PASS.
+
+| Closed operation | Recorded outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-compiler-registry-syntax-own-test-build297` | `compile-blocked`, exit 101, 207.628163s; compilation only; no assertions | [Original receipt](frozen297/integration-compiler-registry-syntax-own-test-build297/receipt.json.gz) | [Whole log](frozen297/integration-compiler-registry-syntax-own-test-build297/tests.log) |
+| `integration-vm-own-test-build297` | `compile-passed`, exit 0, 92.213905s; compilation only; no assertions | [Original receipt](frozen297/integration-vm-own-test-build297/receipt.json.gz) | [Whole log](frozen297/integration-vm-own-test-build297/tests.log) |
+| `integration-vm-inventory297` | `listed`, exit 0, 0.006714s; 763 listed; no assertions | [Original receipt](frozen297/integration-vm-inventory297/receipt.json.gz) | [Whole log](frozen297/integration-vm-inventory297/tests.log) |
+| `integration-vm-software-tests297` | `passed`, exit 0, 6.482244s; 21 passed/0 failed | [Original receipt](frozen297/integration-vm-software-tests297/receipt.json.gz) | [Whole log](frozen297/integration-vm-software-tests297/tests.log) |
+| `integration-vm-info-diagnostic-tests297` | `failed`, exit 101, 42.423379s; 0 passed/1 failed | [Original receipt](frozen297/integration-vm-info-diagnostic-tests297/receipt.json.gz) | [Whole log](frozen297/integration-vm-info-diagnostic-tests297/tests.log) |
+
+The [21-control selection](frozen297/selections/vm-software-selection297.json) and [Info diagnostic selection](frozen297/selections/vm-info-diagnostic-selection297.json) preserve exact strict image/inventory gates. The [unchanged pin](frozen297/sealed-vm-image/pinned-vm297.json), [lossless image storage record](frozen297/sealed-vm-image/lossless-image-storage.json) and [complete source companion](frozen297/source-snapshot.json.gz) preserve every original association. All 160,850 source associations across five receipts are independently byte-checked. Question IDs attach only where the entire current source leaf equals the frozen producer; later changed definitions borrow no result.
+
+Restore the exact measured image with both compressed and original integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen297/sealed-vm-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-vm297.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-vm297.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Restoration proves payload identity only and launches no assertion. Software materialisation/foreign seal/cache, deferred script ownership, completion options, binary origin and inventory-purpose assertions retain their own exact scopes; they do not produce an original Native header/cache/frame observation or application admission.

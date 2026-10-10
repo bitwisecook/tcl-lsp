@@ -18,6 +18,8 @@ Readonly body-name ownership preserves the genuine counted source ByteLiteral co
 
 The marked file candidate definition joins original selected body roles to their timing purpose. An authentic Potential loader body can retain its original source operand as a candidate; ReferenceOnly syntax cannot.
 
+An additional marked custom-descriptor source control keeps nested readonly syntax visible in both ReferenceOnly and PotentialEvaluation bodies. Only the latter contributes a possible dispatch segment under the genuine full selected input.
+
 ## Scope
 
 One shared geometry owner and selected Registry timing owner. Genuine reference-only and potential Body descriptors are distinguished without a new parser or reporting-head lookup. Unsupported source geometry/context stays unavailable. Source syntax and potential evaluation do not authorise runtime execution or edits.
@@ -25,6 +27,8 @@ One shared geometry owner and selected Registry timing owner. Genuine reference-
 This existing-control source refinement changes no assertion identity or status. Logical Body versus ReferenceOnly purposes and missing/foreign source refusals remain independent. It establishes no Native body/frame entry, evaluated value, completed store, cell identity, Normal or assertion outcome.
 
 A candidate is conditional source provenance only. No actual package load/file existence, closed path, entered child/frame, Native dispatch, completion or assertion outcome follows from this definition.
+
+Readonly nested recognition remains separate from source dispatch eligibility and from actual execution. No Native entered body, argv/frame, handler, Normal, store/read exclusion, edit permission or passing assertion follows from the Body role alone.
 
 ## Provider answers
 
@@ -104,6 +108,12 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 - [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `FileCandidateScanner::new`: Capture genuine original source/analysis input for selected package body and operand candidate scans.
 - [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `FileCandidateScanner::collect`: Require Potential loader evaluation purpose before recording the original source operand as a file candidate; ReferenceOnly roles do not donate it.
 - [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `package_resolver::original_names::file_candidates::tests::original_package_file_candidates_require_potential_loader_evaluation` (linked): Authentic custom package body roles yield a SourceOperand file candidate only for Potential loader evaluation; ReferenceOnly body syntax retains its independent non-evaluation purpose.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `collect_substitution_heads`: Keep readonly source-head recognition under the actual original descriptor and complete input independently of evaluation-purpose dispatch eligibility.
+- [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `collect_substitution_segments`: Require original PotentialEvaluation source purpose for possible nested dispatch segments; ReferenceOnly text retains syntax without that dispatch grant.
+- [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `analyser::commands::original_nested_source_tests::nested_source_inventory_keeps_reference_only_scripts_out_of_dispatch` (linked): A genuine custom selected Body role retains readonly nested format syntax under ReferenceOnly and PotentialEvaluation purposes, while only PotentialEvaluation contributes a possible dispatch segment.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

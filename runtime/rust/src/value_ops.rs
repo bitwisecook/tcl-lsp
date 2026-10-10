@@ -55,7 +55,7 @@ use tcl_syntax::number::{self, Number};
 use tcl_syntax::value::IntegerMagnitude;
 use tcl_syntax::value::{ValueError, ValueOps};
 
-use crate::interp::{Interp, obj_bytes};
+use crate::interp::{obj_bytes, Interp};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -102,6 +102,18 @@ impl RuntimeAppendValue {
     pub(crate) fn as_ptr(&self) -> *mut TclObj {
         self.pointer
     }
+    /// Move this working reference into the normal unowned result transport.
+    /// The next actual receiver retains it; no owning reference is leaked or
+    /// dropped while a fresh native refcount-zero result is in transit.
+    fn into_native_unowned(mut self) -> *mut TclObj {
+        if !self.retained {
+            return self.pointer;
+        }
+        self.retained = false;
+        // SAFETY: this handle transfers its one independently owned +1.
+        unsafe { obj::Owned::from_raw(self.pointer) }.into_native_unowned()
+    }
+
     pub(crate) fn retain(pointer: *mut TclObj) -> Self {
         // SAFETY: each retained working object owns one actual native reference.
         unsafe { obj::incr_ref_count(pointer) };
@@ -787,6 +799,52 @@ impl ValueOps for Interp {
         drop(obj::Owned::fresh(value));
     }
 
+    fn native_jim_string_cat(
+        &mut self,
+        args: &[*mut TclObj],
+    ) -> Result<Option<*mut TclObj>, ValueError> {
+        use tcl_registry::native_string_materialization::LogicalStringProvider;
+        let dialect = self.native_invocation_dialect();
+        let policy = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "selected string cat object purpose",
+            ))?;
+        let provider = (policy.authority()
+            == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation)
+            .then_some(LogicalStringProvider::Tcl84CoreSimulation);
+        let protocol = dialect
+            .native_string_materialization(provider)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "selected string cat object materialization",
+            ))?
+            .protocol();
+        if !protocol.is_jim084() {
+            return Ok(None);
+        }
+        if let [only] = args {
+            obj::check_native_liveness(*only)?;
+        }
+        let originals: Vec<_> = args
+            .iter()
+            .copied()
+            .map(RuntimeAppendValue::borrowed)
+            .collect();
+        let objects = RuntimeAppendObjects {
+            dialect,
+            binary_recipe: None,
+        };
+        tcl_cmd_core::native_cat::concatenate_jim(&objects, protocol, &originals, |original| {
+            crate::dict::native_object_bytes_with_integer_formatter(
+                original.as_ptr(),
+                protocol,
+                self.host().native_integer_formatter(),
+            )
+            .map(Rc::from)
+        })
+        .map(|result| Some(result.into_native_unowned()))
+    }
+
     fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {
         self.native_invocation_dialect().index_syntax()
     }
@@ -922,7 +980,7 @@ impl ValueOps for Interp {
 
     fn array_existence_result(&mut self, present: bool) -> Result<*mut TclObj, ValueError> {
         use tcl_registry::native_array_compilation::{
-            NativeArrayExistenceResult, native_array_existence_result,
+            native_array_existence_result, NativeArrayExistenceResult,
         };
         if self.observed_name_policy_selected() {
             return Ok(self.new_bool(present));
@@ -1419,11 +1477,9 @@ mod tests {
                 NativeStringProtocol::C(version),
             ));
             let mut original = receiver.as_ptr();
-            assert!(
-                interp
-                    .try_list_append_in_place(&mut original, &first.as_ptr())
-                    .unwrap()
-            );
+            assert!(interp
+                .try_list_append_in_place(&mut original, &first.as_ptr())
+                .unwrap());
             assert_eq!(original, receiver.as_ptr());
             crate::list::append_prepared_native_elements(
                 original,

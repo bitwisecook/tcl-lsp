@@ -1,0 +1,19 @@
+{
+  "selected": [
+    "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows"
+  ],
+  "zero_matches": [],
+  "inputs": [
+    {
+      "path": "/workspace/.proofs/vm-info-diagnostic-selection295.json",
+      "sha256": "656f2ffb3b1fb65992baf16137d2843d4b6f1d9de700b2b3b0ba97cee4f684be"
+    }
+  ],
+  "actual_inventory_count": 763,
+  "actual_inventory_receipt": "/workspace/.proofs/integration-vm-inventory297.json",
+  "actual_inventory_receipt_sha256": "66932e9936ebda4780958b7d3927e8a2404364c21249980af2faa195d8723f09",
+  "inventory_log_sha256": "d4fa2e6a3d4c01df117aca09dc5a8dc94526313b579be51d35197e20a3dcf3fb",
+  "strict_image_sha256": "fe3ddb8ea5fe05ffad39f64c46145fcd5f880a4f01146fbbb27b566f2ea5da9c",
+  "source_snapshot": "297",
+  "scope": "Actual --list admission only. Assertions and external provider outcomes require the separately closed exact run."
+}
