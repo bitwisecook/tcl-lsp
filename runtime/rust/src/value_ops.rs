@@ -40,6 +40,9 @@ mod native_concat;
 #[cfg(test)]
 #[path = "value_ops/native_concat_tests.rs"]
 mod native_concat_tests;
+#[cfg(test)]
+#[path = "value_ops/native_integer_refusal_tests.rs"]
+mod native_integer_refusal_tests;
 #[path = "value_ops/native_list_index.rs"]
 pub(crate) mod native_list_index;
 
@@ -1366,8 +1369,14 @@ fn integer_object(value: Number) -> *mut TclObj {
     }
 }
 
-/// Preserve the selected arithmetic diagnostic at native command adapters.
+/// Preserve typed Host refusals and selected arithmetic diagnostics at command adapters.
 pub(crate) fn integer_error(interp: &mut Interp, error: ValueError) -> crate::interp::Code {
+    if interp.host_refusal_pending() {
+        return crate::interp::Code::Error;
+    }
+    if error.native_access_refusal().is_some() {
+        return interp.report_cmd_error(error.into());
+    }
     let dialect = interp.native_invocation_dialect();
     if error == ValueError::IntegerOverflow
         && dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide)

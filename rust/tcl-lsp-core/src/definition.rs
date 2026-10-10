@@ -952,7 +952,18 @@ fn object_dispatch_mask_at_command(
     {
         return ExternalObjectDispatchMask::Unavailable;
     }
-    let Some((_, tokens)) = binding.original_recorded_command() else {
+    let image = tcl_lexer::SourceImage::document(source);
+    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        current.config(),
+        command,
+    );
+    let Some(original) = tcl_compiler::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        head.span.start(),
+        tokens.native_lexer_config(current.config()),
+    ) else {
         return ExternalObjectDispatchMask::Unavailable;
     };
     let Some(head) = tokens.word_exprs.first() else {
@@ -961,7 +972,7 @@ fn object_dispatch_mask_at_command(
     if binding
         .receiver_self_method_entry(current.registry())
         .is_some()
-        || original_internal_dispatch(source, analysis, command, tokens, current)
+        || original_internal_dispatch(source, analysis, command, current)
     {
         return ExternalObjectDispatchMask::Clear;
     }
@@ -989,6 +1000,14 @@ fn object_dispatch_mask_at_command(
         } else {
             ExternalObjectDispatchMask::Native
         };
+    }
+    if original
+        .first()
+        .is_some_and(|head| original_self_receiver_head(source, analysis, head, current))
+    {
+        // An original self result identifies the receiver only. External
+        // visibility requires its independent actual method entry above.
+        return ExternalObjectDispatchMask::Unavailable;
     }
     let position = LineIndex::new(source).position_at_utf16(cursor, source);
     let Some((receiver, method, _)) = instance_method_at_cursor(
@@ -1081,18 +1100,17 @@ fn original_object_configuration_anchor(
     selected
 }
 
-/// Conditional internal-dispatch shape from the original selected descriptor.
-/// A variable's reporting name is never interpreted as a command head.
+/// Conditional internal dispatch through the original selected descriptor.
+/// Self identity alone never changes an external call's visibility purpose.
 fn original_internal_dispatch(
     source: &str,
     analysis: &AnalysisResult,
     command: &tcl_compiler::segmenter::SegmentedCommand,
-    tokens: &tcl_compiler::ir::CommandTokens,
     current: &crate::original_context::CurrentSourceContext<'_>,
 ) -> bool {
     use tcl_compiler::registry_invocation::source_structure;
     let context = current.context();
-    if source_structure::source_registry_words(source, analysis, command).and_then(|words| {
+    source_structure::source_registry_words(source, analysis, command).and_then(|words| {
         words.with_source_schema(&context, |schema| {
             schema
                 .semantics
@@ -1100,21 +1118,19 @@ fn original_internal_dispatch(
                 .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
         })
     }) == Some(true)
-    {
-        return true;
-    }
-    let Some(original) = tcl_compiler::registry_invocation::original_native_compiler_words(
-        &tcl_lexer::SourceImage::document(source),
-        tokens.words(),
-        command.argv.first().map_or(0, |word| word.span.start()),
-        tokens.native_lexer_config(current.config()),
-    ) else {
-        return false;
-    };
-    let Some(child) = original
-        .first()
-        .and_then(source_structure::original_single_source_command_substitution)
-    else {
+}
+
+/// The selected source head may describe the current object's identity.
+/// This shape grants no internal dispatcher or external visibility receipt.
+fn original_self_receiver_head(
+    source: &str,
+    analysis: &AnalysisResult,
+    head: &tcl_lexer::NativeWord,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+) -> bool {
+    use tcl_compiler::registry_invocation::source_structure;
+    let context = current.context();
+    let Some(child) = source_structure::original_single_source_command_substitution(head) else {
         return false;
     };
     let Some(head) = child.command().words.first() else {
@@ -4419,6 +4435,75 @@ mod tests {
             ExternalObjectDispatchMask::Clear
         );
         assert!(!external_mask_at(source, &analysis, "Hidden}").withholds_workspace_fallback());
+    }
+
+    #[test]
+    fn original_external_self_visibility_requires_its_own_entry_after_internal_dispatch() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        // Measured EXTERNAL_SELF_UNEXPORTED in native_method_visibility/v2
+        // rejects on C8.6/C9. UNEXPORT_FULL_INTERNAL uses actual my dispatch.
+        // C9 EXTERNAL_SELF_PRIVATE is a separate declaring-class scope rule,
+        // not evidence that an unexported entry is externally callable.
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (head, method, expected) in [
+                ("my", "Hidden", ExternalObjectDispatchMask::Clear),
+                ("[self]", "Hidden", ExternalObjectDispatchMask::Native),
+                ("[self]", "visible", ExternalObjectDispatchMask::Clear),
+            ] {
+                let source = format!(
+                    "oo::class create C {{method {method} {{}} {{}}; method invoke {{}} {{{head} {method}}}}}; C create c; c invoke"
+                );
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let call = format!("{head} {method}");
+                let offset = u32::try_from(source.find(&call).unwrap()).unwrap();
+                let binding = analysis
+                    .retained_command_realm()
+                    .unwrap()
+                    .invocation_at_source(head, offset);
+                if head == "my" {
+                    assert!(
+                        binding
+                            .receiver_self_method_entry(analysis.resolved_registry().unwrap())
+                            .is_some()
+                    );
+                } else {
+                    let selected =
+                        tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+                            &call,
+                            offset,
+                            analysis.body_lexer_config.unwrap(),
+                        )
+                        .into_iter()
+                        .next()
+                        .unwrap();
+                    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+                        &tcl_lexer::SourceMap::new(&source),
+                        analysis.body_lexer_config.unwrap(),
+                        &selected,
+                    );
+                    let (_, entry, _) = binding
+                        .frozen_object_receiver_method_entry(tokens.word_exprs.first().unwrap())
+                        .expect(
+                            "the reached self head retains an independent external method entry",
+                        );
+                    assert_eq!(entry.is_exported(), method == "visible");
+                }
+                assert_eq!(
+                    external_mask_at(&source, &analysis, &format!("{method}}}")),
+                    expected,
+                    "{dialect}: {source}"
+                );
+            }
+            let deferred =
+                "oo::class create C {method Hidden {} {}; method invoke {} {[self] Hidden}}";
+            let analysis = Analyser::new().analyse(deferred, dialect);
+            assert_eq!(
+                external_mask_at(deferred, &analysis, "Hidden}}"),
+                ExternalObjectDispatchMask::Unavailable,
+                "source self identity cannot donate a missing actual method entry"
+            );
+        }
     }
 
     #[test]

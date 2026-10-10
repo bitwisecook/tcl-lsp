@@ -42,7 +42,7 @@ use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
 use crate::compilation_unit::CompilationUnit;
-use crate::ir::{Script, Statement};
+use crate::ir::{Module, Script, Statement};
 use crate::naming::normalise_var_name;
 
 use super::helpers::literals::{is_safe_word, is_static_var_word};
@@ -56,11 +56,11 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // the shared value-motion barrier. O114 (`set`/`expr`
     // → `incr`) rewrites a statement in place and stays on.
     let top_pack = !cu.top_level.dynamic_barrier_blocks_value_motion();
-    walk_script(ctx, &cu.ir_module.top_level, top_pack, 0);
+    walk_script(ctx, &cu.ir_module.top_level, &cu.ir_module, top_pack, 0);
     for (qname, proc) in &cu.ir_module.procedures {
         let fu = cu.procedures.get(qname);
         let pack = fu.is_some_and(|f| !f.dynamic_barrier_blocks_value_motion());
-        walk_script(ctx, &proc.body, pack, 0);
+        walk_script(ctx, &proc.body, &cu.ir_module, pack, 0);
     }
     // O128 — end-offset index rewrites (its own segment-level walk over
     // the same source).
@@ -74,7 +74,13 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`]. `pack` gates the O119 multi-`set`
 /// packing (off for a function whose dynamic-name barrier blocks value
 /// motion — see [`run`]).
-fn walk_script(ctx: &mut PassContext<'_>, script: &Script, pack: bool, depth: u32) {
+fn walk_script(
+    ctx: &mut PassContext<'_>,
+    script: &Script,
+    module: &Module,
+    pack: bool,
+    depth: u32,
+) {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
         return;
     }
@@ -82,7 +88,7 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script, pack: bool, depth: u3
         detect_multi_set_packing(ctx, script);
     }
     for stmt in &script.statements {
-        walk_statement(ctx, script, stmt, pack, depth);
+        walk_statement(ctx, script, stmt, module, pack, depth);
     }
 }
 
@@ -239,6 +245,7 @@ fn walk_statement(
     ctx: &mut PassContext<'_>,
     script: &Script,
     stmt: &Statement,
+    module: &Module,
     pack: bool,
     depth: u32,
 ) {
@@ -247,7 +254,7 @@ fn walk_statement(
         | Statement::AssignValue { span, .. }
         | Statement::Call { span, .. } => {
             if let Some(proof) = ctx.registry.and_then(|registry| {
-                crate::increment_rewrite::assess_increment_rewrite(script, stmt, registry)
+                crate::increment_rewrite::assess_increment_rewrite(script, stmt, registry, module)
             }) {
                 let replacement = proof.replacement();
                 ctx.report(Optimisation::new(
@@ -262,34 +269,34 @@ fn walk_statement(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, &c.body, pack, depth + 1);
+                walk_script(ctx, &c.body, module, pack, depth + 1);
             }
             if let Some(b) = else_body {
-                walk_script(ctx, b, pack, depth + 1);
+                walk_script(ctx, b, module, pack, depth + 1);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, init, pack, depth + 1);
-            walk_script(ctx, next, pack, depth + 1);
-            walk_script(ctx, body, pack, depth + 1);
+            walk_script(ctx, init, module, pack, depth + 1);
+            walk_script(ctx, next, module, pack, depth + 1);
+            walk_script(ctx, body, module, pack, depth + 1);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => walk_script(ctx, body, pack, depth + 1),
+        | Statement::Foreach { body, .. } => walk_script(ctx, body, module, pack, depth + 1),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, body, pack, depth + 1);
+            walk_script(ctx, body, module, pack, depth + 1);
             for h in handlers {
-                walk_script(ctx, &h.body, pack, depth + 1);
+                walk_script(ctx, &h.body, module, pack, depth + 1);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, fb, pack, depth + 1);
+                walk_script(ctx, fb, module, pack, depth + 1);
             }
         }
         Statement::Switch {
@@ -297,11 +304,11 @@ fn walk_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, b, pack, depth + 1);
+                    walk_script(ctx, b, module, pack, depth + 1);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(ctx, b, pack, depth + 1);
+                walk_script(ctx, b, module, pack, depth + 1);
             }
         }
         _ => {}

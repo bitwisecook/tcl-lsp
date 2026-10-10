@@ -69,26 +69,80 @@ impl SourceInvocationBinding {
         }
         let module_metadata = InvocationMetadataContext::for_module(registry, module)?;
         let module_input = module_metadata.source_analysis_input()?;
-        let snapshot = self.lookup_state.as_ref()?;
-        let point = snapshot
+        let metadata =
+            self.original_invocation_metadata_for_input(tokens, module_input, registry)?;
+        if !original_module_origin(&self.invocation_site()?.source, module) {
+            return None;
+        }
+        Some(metadata)
+    }
+
+    /// Availability retained by this function and its exact original point.
+    /// This validates the FU input/configuration and complete source vector; it
+    /// cannot authenticate a whole changed Module without the Module overload.
+    /// Neither route grants a handler, physical frame, read or normal result.
+    ///
+    /// The outer `None` is terminal refusal. A missing FU input is compatible
+    /// only when the original point independently retains explicit Standalone;
+    /// supplied-missing ownership never reconstructs that mode.
+    pub(crate) fn original_invocation_metadata_for_function<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        function: &crate::compilation_unit::FunctionUnit,
+        registry: &CommandRegistry,
+    ) -> Option<Option<InvocationMetadataContext<'a>>> {
+        if let Some(input) = function.source_metadata_input() {
+            function.invocation_metadata_context(registry)?;
+            return self
+                .original_invocation_metadata_for_input(tokens, input, registry)
+                .map(Some);
+        }
+        let config = self.original_invocation_config(tokens, registry)?;
+        if config.nested().normalized() != function.source_lexer_config().nested().normalized() {
+            return None;
+        }
+        let owner = &self.lookup_state.as_ref()?.state.baseline.metadata_context;
+        owner.is_standalone().then_some(())?;
+        owner.metadata_context(registry)
+    }
+
+    fn original_invocation_metadata_for_input<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &CommandRegistry,
+    ) -> Option<InvocationMetadataContext<'a>> {
+        let config = self.original_invocation_config(tokens, registry)?;
+        let point = self
+            .lookup_state
+            .as_ref()?
             .state
             .baseline
             .metadata_context
             .source_analysis_input()?;
-        if point != module_input && point != &module_input.for_nested_source() {
+        if point != input && point != &input.for_nested_source() {
             return None;
         }
-        let config = self.original_lexer_config_for_tokens(tokens)?;
-        let metadata = InvocationMetadataContext::for_source_input(
+        InvocationMetadataContext::for_source_input(
             registry,
             point,
             config,
             Some(point.unit_profile()),
-        )?;
+        )
+    }
+
+    /// Common original point/vector geometry for actual FU and Module inputs.
+    /// Availability and source ancestry are checked by their separate callers.
+    fn original_invocation_config(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<LexerConfig> {
+        let snapshot = self.lookup_state.as_ref()?;
+        let config = self.original_lexer_config_for_tokens(tokens)?;
         let site = self.invocation_site()?;
         if snapshot.state.current_source_origin.as_ref() != Some(&site.source)
             || snapshot.state.baseline.registry_snapshot != Some(registry.snapshot().semantic_key())
-            || !original_module_origin(&site.source, module)
         {
             return None;
         }
@@ -98,7 +152,7 @@ impl SourceInvocationBinding {
             site.offset,
             config,
         )?;
-        Some(metadata)
+        Some(config)
     }
 
     /// Select this installer's retained point input under the genuine Module
@@ -775,6 +829,126 @@ mod tests {
             binding
                 .original_invocation_metadata_for_module(tokens, &missing, context.commands())
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn original_function_point_metadata_retains_input_without_granting_module_or_normality() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Actual FU/point metadata is distinct from whole-Module currency and
+        // from a reached handler, successful read, physical frame or result.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = unit("missing_original_command VALUE", &context);
+        let function = &unit.top_level;
+        let script = &unit.ir_module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.unknown || binding.may_be_absent);
+        let metadata = binding
+            .original_invocation_metadata_for_function(tokens, function, context.commands())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            metadata.source_analysis_input(),
+            function.source_metadata_input()
+        );
+        assert!(
+            crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                context.commands(),
+                Some(metadata),
+                tokens,
+            )
+            .is_none()
+        );
+        let mut changed = unit.ir_module.clone();
+        changed.top_level_namespace = "::changed".into();
+        assert!(
+            binding
+                .original_invocation_metadata_for_module(tokens, &changed, context.commands())
+                .is_none()
+        );
+        assert!(
+            binding
+                .original_invocation_metadata_for_function(tokens, function, context.commands())
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn original_function_point_metadata_declines_missing_foreign_stale_and_changed_geometry() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Even a same-store availability change cannot replace the point's
+        // original full input. Missing supplied input is never Standalone.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = unit("missing_original_command VALUE", &context);
+        let function = &unit.top_level;
+        let script = &unit.ir_module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let input = function.source_metadata_input().unwrap();
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        assert!(Arc::ptr_eq(older.commands(), context.commands()));
+        for change in 0..4 {
+            let mut changed = function.clone();
+            match change {
+                0 => changed.source_metadata_input = None,
+                1 => {
+                    changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                        input.analyser_profile(),
+                        input.unit_profile(),
+                        Arc::clone(&older),
+                        input.lexer_config(),
+                    ))
+                }
+                2 => {
+                    changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                        input.analyser_profile(),
+                        input.unit_profile(),
+                        tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                            .default_context_registry(),
+                        input.lexer_config(),
+                    ))
+                }
+                3 => changed.source_config.strict_quoting = !changed.source_config.strict_quoting,
+                _ => unreachable!(),
+            }
+            assert!(binding.original_invocation_metadata_for_function(
+                tokens, &changed, context.commands(),
+            ).is_none(), "changed facet {change}");
+        }
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(
+            binding
+                .original_invocation_metadata_for_function(&changed, function, context.commands(),)
+                .is_none()
+        );
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let standalone =
+            CompilationUnit::build_for("missing_original_command VALUE", &registry, false);
+        let script = &standalone.ir_module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        assert!(standalone.top_level.source_metadata_input().is_none());
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_invocation_metadata_for_function(tokens, &standalone.top_level, &registry)
+                .is_some()
         );
     }
 

@@ -14,9 +14,13 @@ How do representation diagnostic consumers retain complete actual availability a
 
 ShimmerContext::for_function retains the actual FunctionUnit input, immutable command store, complete availability and exact normalized source configuration. Missing, foreign and config-drift input refuses before conversion metadata is selected. All analysed use-site, commit, expression, sharing, thunking and byte-array consumers carry this same owner through source replay, as does CompilerChecks::shimmer_family_checks. The selected expression parser and word/number policies come from that retained input/config, while independently required normal-representation invocation and original expression proofs remain separate. Known source replacement cannot inherit the stock conversion hint. ShimmerContext::standalone is an explicitly separate compatibility ingress for independently supplied SSA; it cannot repair an analysed function that lacks input. These source diagnostic candidates and refusal controls establish no actual Native conversion, opcode admission, physical object/header/cache/lifetime, entered body/frame or safe rewrite. TypePropagationMetadata::for_function retains the same actual complete availability, exact normalized source lexer configuration and separately selected numeric/list/expression grammar. WordTypingCtx and StatementTypingCtx carry it through conditional normal-result/transfer candidates and callee-result inference. Genuine current positive result hints remain available, while missing/foreign/config drift and known replacements refuse before stock type hints are selected. These analytical type candidates do not establish a reached Native Normal worker, object primary/cache, compiler admission or runtime value.
 
+Two additional marked source definitions preserve literal dollar-prefixed and unmatched Unicode scalar roots in original SSA increment reads and byte-provenance diagnostics. Both use the genuine retained function metadata and source view rather than reconstructing names from sigils or element syntax.
+
 ## Scope
 
 Three marked source/API controls cover complete availability and selected grammar; genuine positive source reads with missing/foreign owner refusal; and known replacement versus stock conversion hints. The shared owner feeds analysed representation consumers across all six diagnostic families and CompilerChecks. All seven providers are not tested for this API contract; actual native result/header/compiler/effect observations and separate Normal/equivalence purposes are unchanged. Two marked type controls independently vary actual command availability versus selected source grammar and require positive current results with missing/foreign/replacement refusal. Complete packages and original source tokens remain explicit premises; all seven provider observations stay not tested for this source/API contract.
+
+These conditional SSA/representation projections establish no reached C conversion, byte-array primary/cache, native header identity, execution, current store, observer exclusion or safe edit. Existing independently pinned outcomes and original Native records retain their own exact scope; no assertion result is attached to these definitions.
 
 ## Provider answers
 
@@ -90,6 +94,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/type_infer.rs](../../../../rust/tcl-compiler/src/type_infer.rs), `type_infer::tests::original_type_consumers_keep_positive_normal_results_and_refuse_missing_foreign_metadata` (linked): Genuine current positive analytical Int/result candidates are retained; absent/foreign actual metadata and known stock replacement cannot borrow result/transfer hints. No reached Native Normal completion is observed.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/shimmer/commit.rs](../../../../rust/tcl-compiler/src/shimmer/commit.rs), `typed_reads_of_statement`: Project representation expectations from the original SSA use/symbol and retained source view without reparsing a stored literal name.
+- [rust/tcl-compiler/src/shimmer/byte_array.rs](../../../../rust/tcl-compiler/src/shimmer/byte_array.rs), `find_byte_array_warnings_with_context`: Keep source byte-provenance advice on actual retained function metadata and original literal store/read roots, independently of physical cache or conversion evidence.
+- [rust/tcl-compiler/src/shimmer/commit.rs](../../../../rust/tcl-compiler/src/shimmer/commit.rs), `shimmer::commit::tests::retained_increment_reads_use_literal_operand_names_without_reparsing_sigils` (linked): An actual retained FunctionUnit projects increment reads from literal original SSA names $value and unmatched Unicode é(, preserving their original symbol/version rather than stripping sigils or reparsing an element.
+- [rust/tcl-compiler/src/shimmer/byte_array.rs](../../../../rust/tcl-compiler/src/shimmer/byte_array.rs), `shimmer::byte_array::tests::retained_byte_provenance_uses_literal_sigil_and_unicode_store_roots` (linked): Actual retained byte-provenance diagnostics keep literal sigil and Unicode store roots distinct from their plain names while selecting the same current function metadata and original source reads.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

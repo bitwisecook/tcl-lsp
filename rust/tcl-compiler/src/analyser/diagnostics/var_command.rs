@@ -1816,6 +1816,9 @@ fn dispatch_table_values(
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // Availability and lexer overrides remain separate from reached cell contents.
     let registry = context.commands();
+    if config.nested().normalized() != unit.source_lexer_config().nested().normalized() {
+        return None;
+    }
     if head.sole_variable_substitution().is_some() {
         return crate::table_value_provenance::table_values(
             compilation,
@@ -1827,17 +1830,54 @@ fn dispatch_table_values(
             registry,
         );
     }
-    tokens
-        .source_binding
-        .as_ref()?
-        .variable_context
-        .invocation_dialect?;
-    let mut nested =
-        crate::word_subst::whole_word_command_tokens(head, tokens.native_lexer_config(config))?;
+    let module = &compilation.ir_module;
+    let owner = module.retained_source_bindings.as_deref()?;
+    if !owner.matches_module(module, registry) {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = if module.source_metadata_input.is_some() {
+        unit.invocation_metadata_context_for_module(registry, module)?;
+        Some(binding.original_invocation_metadata_for_module(tokens, module, registry)?)
+    } else {
+        if !module.source_entry.metadata_context.is_standalone()
+            || !owner.owns_original_tokens(tokens)
+        {
+            return None;
+        }
+        binding.original_invocation_metadata_for_function(tokens, unit, registry)?
+    };
+    let config = unit.source_lexer_config();
+    let calls =
+        if let Some(actual) = metadata.filter(|actual| actual.source_analysis_input().is_some()) {
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                tokens, config, registry, actual,
+            )?
+        } else {
+            crate::word_subst::checked_lifted_calls(tokens, config)?
+        };
+    let mut nested = crate::word_subst::whole_word_command_tokens(head, config)?;
     nested.inherit_nested_bindings(tokens);
+    if !calls
+        .iter()
+        .any(|call| call.tokens.as_ref() == Some(&nested))
+    {
+        return None;
+    }
+    let nested_binding = nested.source_binding.as_ref()?;
+    let metadata = if module.source_metadata_input.is_some() {
+        Some(nested_binding.original_invocation_metadata_for_module(&nested, module, registry)?)
+    } else {
+        if !owner.owns_original_tokens(&nested) {
+            return None;
+        }
+        nested_binding.original_invocation_metadata_for_function(&nested, unit, registry)?
+    };
     let (input, keys) =
-        crate::registry_invocation::normal_representation_invocation_in_context(context, &nested)?
-            .dictionary_lookup()?;
+        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+            registry, metadata, &nested,
+        )?
+        .dictionary_lookup()?;
     if keys.is_empty() {
         return None;
     }

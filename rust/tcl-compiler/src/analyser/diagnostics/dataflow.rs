@@ -745,6 +745,7 @@ file; this call falls through to the 'unknown' handler."
         scope_aliases: &HashSet<String>,
         cross_event_vars: &HashSet<String>,
         cell_facts: &super::helpers::DiagnosticCellFacts,
+        module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) {
         use crate::def_use::DefKind;
         use std::fmt::Write as _;
@@ -758,6 +759,13 @@ file; this call falls through to the 'unknown' handler."
         let place_suppressed = self.place_suppressed_dead_stores(fu);
         let generation = self.analysis_context();
         let registry = generation.commands();
+        let metadata = match module {
+            Some(module) => module.invocation_metadata_context_for_function(fu, registry),
+            None => fu.invocation_metadata_context(registry),
+        };
+        let Some(metadata) = metadata else {
+            return;
+        };
         let unread_layout = std::cell::OnceCell::new();
         let visibility = DeadStoreVisibility {
             scope_aliases,
@@ -791,7 +799,7 @@ file; this call falls through to the 'unknown' handler."
             ) {
                 continue;
             }
-            let overwrite = original_overwrite_advice(fu, &chain.definition, var, registry);
+            let overwrite = original_overwrite_advice(fu, &chain.definition, var, registry, module);
             let conditional_unread = fu.dynamic_names.reads
                 && chain.is_dead()
                 && !hidden_reads.contains(var)
@@ -801,6 +809,7 @@ file; this call falls through to the 'unknown' handler."
                     var,
                     registry,
                     &unread_layout,
+                    module,
                 );
             if !chain.is_dead() && overwrite.is_none() {
                 continue;
@@ -838,7 +847,7 @@ file; this call falls through to the 'unknown' handler."
                 &chain.definition,
                 overwrite.is_some(),
                 registry,
-                Some(generation.as_ref().into()),
+                Some(metadata),
                 &place_suppressed,
             ) else {
                 continue;
@@ -4029,6 +4038,7 @@ fn original_overwrite_advice(
     definition: &crate::def_use::DefSite,
     variable: &str,
     registry: &tcl_registry::CommandRegistry,
+    module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
 ) -> Option<OverwriteDiagnostic> {
     let block = fu.cfg.block_by_name(&definition.block)?;
     let Ok(index) = usize::try_from(definition.statement_index) else {
@@ -4040,14 +4050,46 @@ fn original_overwrite_advice(
         crate::ssa::SsaSourceView::at_statement(&fu.ssa, block_id, index).source_tokens()?;
     let next =
         crate::ssa::SsaSourceView::at_statement(&fu.ssa, block_id, index + 1).source_tokens()?;
-    if crate::registry_invocation::overwritten_local_store_advice(registry, first, next)
-        .is_some_and(|advice| advice.name() == variable && advice.owns(first, next))
+    let first_metadata = original_store_metadata(fu, first, registry, module)?;
+    let next_metadata = original_store_metadata(fu, next, registry, module)?;
+    // Each point must retain its own actual generation. The second query does
+    // not repair the first from an adjacent spelling or a shared frame label.
+    if first_metadata.source_analysis_input() != next_metadata.source_analysis_input() {
+        return None;
+    }
+    if crate::registry_invocation::overwritten_local_store_advice(
+        registry,
+        Some(first_metadata),
+        first,
+        next,
+    )
+    .is_some_and(|advice| advice.name() == variable && advice.owns(first, next))
     {
         return Some(OverwriteDiagnostic::Closed);
     }
-    crate::registry_invocation::conditional_overwritten_local_store_advice(registry, first, next)
-        .filter(|advice| advice.name() == variable && advice.owns(first, next))
-        .map(|_| OverwriteDiagnostic::Conditional)
+    crate::registry_invocation::conditional_overwritten_local_store_advice(
+        registry,
+        Some(first_metadata),
+        first,
+        next,
+    )
+    .filter(|advice| advice.name() == variable && advice.owns(first, next))
+    .map(|_| OverwriteDiagnostic::Conditional)
+}
+
+fn original_store_metadata<'a>(
+    function: &crate::compilation_unit::FunctionUnit,
+    tokens: &'a crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
+) -> Option<crate::registry_invocation::InvocationMetadataContext<'a>> {
+    if let Some(module) = module {
+        return module.original_invocation_metadata_for_function(function, tokens, registry);
+    }
+    tokens
+        .source_binding
+        .as_ref()?
+        .original_invocation_metadata_for_function(tokens, function, registry)?
 }
 
 fn function_declaration_flow(
@@ -4171,6 +4213,7 @@ fn original_unread_store_advice(
     layout: &std::cell::OnceCell<
         Option<std::sync::Arc<crate::command_binding::DeclarationFlowReport>>,
     >,
+    module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
 ) -> bool {
     let Some(block) = fu.cfg.block_id(&definition.block) else {
         return false;
@@ -4192,8 +4235,16 @@ fn original_unread_store_advice(
     let Some(report) = report else {
         return false;
     };
-    crate::registry_invocation::conditional_unread_local_store_advice(registry, tokens, report)
-        .is_some_and(|advice| advice.name() == variable && advice.owns(tokens))
+    let Some(metadata) = original_store_metadata(fu, tokens, registry, module) else {
+        return false;
+    };
+    crate::registry_invocation::conditional_unread_local_store_advice(
+        registry,
+        Some(metadata),
+        tokens,
+        report,
+    )
+    .is_some_and(|advice| advice.name() == variable && advice.owns(tokens))
 }
 
 #[cfg(test)]
@@ -4232,7 +4283,7 @@ pub(crate) fn report_original_store_diagnostic_gates(
                 registry,
                 fu.invocation_metadata_context(registry)
             ),
-            original_overwrite_advice(fu, &chain.definition, variable, registry),
+            original_overwrite_advice(fu, &chain.definition, variable, registry, None),
             tokens.map(|tokens| &tokens.argv_texts),
             tokens
                 .and_then(|tokens| tokens
@@ -5474,5 +5525,130 @@ mod original_matcher_admission_tests {
                 .collect::<Vec<_>>();
             assert_eq!(spans, expected.into_iter().collect::<Vec<_>>(), "{source}");
         }
+    }
+}
+
+#[cfg(test)]
+mod original_store_context_tests {
+    use super::original_store_metadata;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    use std::sync::Arc;
+
+    fn original_unit() -> (
+        Arc<tcl_registry::model::ContextRegistry>,
+        CompilationUnit,
+        tcl_vm::Vm,
+    ) {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+        let source = "set {$literal} FIRST; set {$literal} SECOND";
+        let (native_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (context, unit, native_owner)
+    }
+
+    #[test]
+    fn original_store_points_keep_actual_module_function_and_source_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // This authentic original point validates metadata only. A native cell,
+        // literal contents, adjacency and callbacks remain separate store gates.
+        let (context, unit, _native_owner) = original_unit();
+        let input = unit.top_level.source_metadata_input().unwrap();
+        let profile = input.unit_profile();
+        let config = input.lexer_config();
+        let function = &unit.top_level;
+        let (&block, data) = function
+            .cfg
+            .blocks
+            .iter()
+            .find(|(_, block)| !block.statements.is_empty())
+            .unwrap();
+        let tokens = function
+            .cfg
+            .source_tokens_at(block, 0)
+            .expect("original setter vector survives structural lowering");
+        assert!(!data.statements[0].span().is_empty());
+        assert!(original_store_metadata(function, tokens, context.commands(), None).is_some());
+        let module = crate::interprocedural::ModuleProcedures::of_unit(&unit, context.commands());
+        assert!(
+            original_store_metadata(function, tokens, context.commands(), Some(&module)).is_some()
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        assert!(Arc::ptr_eq(context.commands(), older.commands()));
+        for facet in 0..4 {
+            let mut changed = function.clone();
+            match facet {
+                0 => changed.source_metadata_input = None,
+                1 => {
+                    changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                        profile,
+                        profile,
+                        Arc::clone(&older),
+                        config,
+                    ))
+                }
+                2 => {
+                    changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                        profile,
+                        profile,
+                        tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                            .default_context_registry(),
+                        config,
+                    ))
+                }
+                3 => changed.source_config.strict_quoting = !changed.source_config.strict_quoting,
+                _ => unreachable!(),
+            }
+            assert!(
+                original_store_metadata(&changed, tokens, context.commands(), None).is_none(),
+                "changed function facet {facet}"
+            );
+            assert!(
+                original_store_metadata(&changed, tokens, context.commands(), Some(&module))
+                    .is_none(),
+                "changed module/function facet {facet}"
+            );
+        }
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(
+            original_store_metadata(function, &changed, context.commands(), Some(&module))
+                .is_none()
+        );
+        let mut stale = unit.clone();
+        stale.ir_module.top_level_namespace = "::stale".into();
+        let stale_module =
+            crate::interprocedural::ModuleProcedures::of_unit(&stale, context.commands());
+        assert!(
+            original_store_metadata(function, tokens, context.commands(), Some(&stale_module))
+                .is_none()
+        );
     }
 }

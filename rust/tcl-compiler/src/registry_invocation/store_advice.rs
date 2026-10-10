@@ -3,6 +3,7 @@
 //! This projection leaves command dispatch, observer schedules and executable
 //! stores unchanged. It is not a dead-store elimination or replay contract.
 
+use super::InvocationMetadataContext;
 use crate::command_binding::CommandAllocationSite;
 use crate::ir::{CommandTokens, WordExpr};
 use crate::place::{CellGeneration, CellOwner, Place, PlaceKind};
@@ -79,6 +80,7 @@ impl ConditionalUnreadLocalStoreAdvice {
 /// dead-store removal permission.
 pub(crate) fn conditional_unread_local_store_advice(
     registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
     report: &crate::command_binding::DeclarationFlowReport,
 ) -> Option<ConditionalUnreadLocalStoreAdvice> {
@@ -89,7 +91,7 @@ pub(crate) fn conditional_unread_local_store_advice(
     if !binding.unobserved_native_dispatch() {
         return None;
     }
-    let place = original_literal_store(registry, tokens)?;
+    let place = original_literal_store(registry, context, tokens)?;
     let site = binding.invocation_site()?;
     report
         .local_store_may_be_unread(site, &place.name)
@@ -134,10 +136,11 @@ impl OverwrittenLocalStoreAdvice {
 /// their original statement sequence, without crossing a branch or callback.
 pub(crate) fn overwritten_local_store_advice(
     registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
     first: &CommandTokens,
     next: &CommandTokens,
 ) -> Option<OverwrittenLocalStoreAdvice> {
-    overwrite_interval(registry, first, next, true)
+    overwrite_interval(registry, context, first, next, true)
 }
 
 /// A local overwrite if native object conversion and release hooks do not
@@ -159,14 +162,17 @@ impl ConditionalOverwrittenLocalStoreAdvice {
 /// requirements while retaining the explicit object-callback condition.
 pub(crate) fn conditional_overwritten_local_store_advice(
     registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
     first: &CommandTokens,
     next: &CommandTokens,
 ) -> Option<ConditionalOverwrittenLocalStoreAdvice> {
-    overwrite_interval(registry, first, next, false).map(ConditionalOverwrittenLocalStoreAdvice)
+    overwrite_interval(registry, context, first, next, false)
+        .map(ConditionalOverwrittenLocalStoreAdvice)
 }
 
 fn overwrite_interval(
     registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
     first: &CommandTokens,
     next: &CommandTokens,
     closed_object_effects: bool,
@@ -190,8 +196,8 @@ fn overwrite_interval(
     {
         return None;
     }
-    let first_place = original_literal_store(registry, first)?;
-    let next_place = original_literal_store(registry, next)?;
+    let first_place = original_literal_store(registry, context, first)?;
+    let next_place = original_literal_store(registry, context, next)?;
     let mut published = first_place.cell.clone()?;
     let next_cell = next_place.cell.as_ref()?;
     if published.generation == CellGeneration::Incoming
@@ -217,9 +223,23 @@ fn overwrite_interval(
     })
 }
 
-fn original_literal_store(registry: &CommandRegistry, tokens: &CommandTokens) -> Option<Place> {
+fn original_literal_store(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<Place> {
+    let context = context?;
     let binding = tokens.source_binding.as_ref()?;
-    let normal = super::normal_transfer_invocation(registry, None, tokens)?;
+    if let Some(input) = context.source_analysis_input()
+        && binding
+            .original_lexer_config_for_tokens(tokens)?
+            .normalized()
+            != input.lexer_config().normalized()
+    {
+        return None;
+    }
+    let normal =
+        super::normal_transfer_invocation_with_metadata_context(registry, Some(context), tokens)?;
     if normal.stored_value_argument()? != 1 || normal.written_argument(1)? != 1 {
         return None;
     }
@@ -292,8 +312,21 @@ fn original_gap_is_empty(first: &CommandTokens, next: &CommandTokens) -> bool {
 
 #[cfg(test)]
 mod tests {
+    fn standalone_context() -> Option<super::InvocationMetadataContext<'static>> {
+        Some(tcl_registry::model::ingress::static_context_for("tcl8.6").into())
+    }
+
     fn setters(source: &str) -> Vec<crate::ir::CommandTokens> {
-        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        setters_in(
+            source,
+            tcl_registry::model::ingress::static_context_for("tcl8.6").commands(),
+        )
+    }
+
+    fn setters_in(
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Vec<crate::ir::CommandTokens> {
         let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
             source,
             registry,
@@ -340,7 +373,7 @@ mod tests {
                 eprintln!("overwrite {label}: no original binding");
                 continue;
             };
-            let place = super::original_literal_store(registry, tokens);
+            let place = super::original_literal_store(registry, standalone_context(), tokens);
             let normal =
                 crate::registry_invocation::normal_transfer_invocation(registry, None, tokens);
             eprintln!(
@@ -363,6 +396,77 @@ mod tests {
                     .is_some()),
             );
         }
+    }
+
+    #[test]
+    fn original_store_advice_keeps_actual_availability_and_literal_cell_names() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Availability describes the selected setter; original local cells,
+        // contents order and observer requirements remain independently needed.
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline.commands().as_ref().clone();
+        let mut setter = registry.get("set").unwrap().clone();
+        setter.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(setter);
+        let current =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(registry)));
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(current.commands()));
+        assert!(std::sync::Arc::ptr_eq(current.commands(), older.commands()));
+        let registry = current.commands();
+        let source = "proc p {} {set {$literal} FIRST; set {$literal} SECOND; puts ${$literal}}";
+        let tokens = setters_in(source, registry);
+        assert_eq!(tokens.len(), 2);
+        let advice = super::conditional_overwritten_local_store_advice(
+            registry,
+            Some(current.as_ref().into()),
+            &tokens[0],
+            &tokens[1],
+        )
+        .expect("same original literal cell under selected current availability");
+        assert_eq!(advice.name(), "$literal");
+        assert!(advice.owns(&tokens[0], &tokens[1]));
+        assert!(
+            super::conditional_overwritten_local_store_advice(
+                registry,
+                Some((&older).into()),
+                &tokens[0],
+                &tokens[1],
+            )
+            .is_none()
+        );
+        assert!(
+            super::conditional_overwritten_local_store_advice(
+                registry, None, &tokens[0], &tokens[1],
+            )
+            .is_none()
+        );
+        assert!(
+            super::conditional_overwritten_local_store_advice(
+                registry,
+                Some(tcl_registry::model::ingress::static_context_for("tcl9.1").into()),
+                &tokens[0],
+                &tokens[1],
+            )
+            .is_none()
+        );
+        let profile = registry.profile().unwrap();
+        let mut config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        config.strict_quoting = !config.strict_quoting;
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&current),
+            config,
+        );
+        let changed = super::InvocationMetadataContext::for_analysis_input(registry, &input);
+        assert!(
+            super::conditional_overwritten_local_store_advice(
+                registry, changed, &tokens[0], &tokens[1],
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -418,7 +522,12 @@ mod tests {
                 .as_ref()
                 .and_then(|binding| binding.declaration_flow_report(registry));
             let advice = report.as_ref().and_then(|report| {
-                super::conditional_unread_local_store_advice(registry, &tokens, report)
+                super::conditional_unread_local_store_advice(
+                    registry,
+                    standalone_context(),
+                    &tokens,
+                    report,
+                )
             });
             if expected
                 && advice.is_none()
@@ -427,7 +536,8 @@ mod tests {
                 eprintln!(
                     "conditional unread setter: unobserved={} local_literal={}",
                     binding.unobserved_native_dispatch(),
-                    super::original_literal_store(registry, &tokens).is_some()
+                    super::original_literal_store(registry, standalone_context(), &tokens)
+                        .is_some()
                 );
                 if let Some(site) = binding.invocation_site()
                     && let Some(report) = &report
@@ -451,8 +561,12 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let tokens = setters("proc p {} {set a 1; set x 1; set x 2; return [subst {$a$x}]}");
         assert_eq!(tokens.len(), 3);
-        let advice =
-            super::conditional_overwritten_local_store_advice(registry, &tokens[1], &tokens[2]);
+        let advice = super::conditional_overwritten_local_store_advice(
+            registry,
+            standalone_context(),
+            &tokens[1],
+            &tokens[2],
+        );
         if advice.is_none() {
             report_overwrite_gates(registry, &tokens[1], &tokens[2]);
         }
@@ -469,11 +583,21 @@ mod tests {
         let tokens = setters(source);
         assert_eq!(tokens.len(), 2);
         assert!(
-            super::overwritten_local_store_advice(registry, &tokens[0], &tokens[1]).is_none(),
+            super::overwritten_local_store_advice(
+                registry,
+                standalone_context(),
+                &tokens[0],
+                &tokens[1]
+            )
+            .is_none(),
             "an unentered declaration does not close object callbacks"
         );
-        let advice =
-            super::conditional_overwritten_local_store_advice(registry, &tokens[0], &tokens[1]);
+        let advice = super::conditional_overwritten_local_store_advice(
+            registry,
+            standalone_context(),
+            &tokens[0],
+            &tokens[1],
+        );
         if advice.is_none() {
             report_overwrite_gates(registry, &tokens[0], &tokens[1]);
         }
@@ -489,8 +613,13 @@ mod tests {
             let tokens = setters(source);
             assert_eq!(tokens.len(), 2, "original setters: {source}");
             assert!(
-                super::conditional_overwritten_local_store_advice(registry, &tokens[0], &tokens[1])
-                    .is_none(),
+                super::conditional_overwritten_local_store_advice(
+                    registry,
+                    standalone_context(),
+                    &tokens[0],
+                    &tokens[1]
+                )
+                .is_none(),
                 "no conditional original overwrite: {source}"
             );
         }

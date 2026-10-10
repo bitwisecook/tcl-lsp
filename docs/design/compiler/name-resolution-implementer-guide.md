@@ -1850,8 +1850,8 @@ explicit caller contract; they cannot recover missing actual input from a
 Registry profile. Source metadata availability does not provide a Native
 execution entry.
 
-Synthetic optimisation modules retain all three ingress facts: the actual
-lexer configuration, resolved dialect profile and registry snapshot. The
+Synthetic optimisation modules retain the complete `ResolvedAnalysisInput`
+with the actual lexer configuration, unit profile and registry snapshot. The
 database's function memo takes them from its memo key; a top-level projection
 copies them from the original module. Reconstructing a registry or grammar
 from the display dialect can lose independent or custom axes and gives future
@@ -3035,20 +3035,26 @@ statement-wide versions. The paired regressions cover qualified/quoted reads,
 proof still requires every reaching definition to be lexical source; a known
 result from substitution does not become an editable pattern literal.
 
-A positioned pattern consumer with its owning `FunctionUnit` follows the same
-sequence as production:
+A normal-representation pattern consumer with its owning `FunctionUnit` and
+Module checks their shared input before asking for a physical read:
 
 ```rust,ignore
+let metadata = function.invocation_metadata_context_for_module(registry, module)?;
 let tokens = function.cfg.source_input_tokens_at(block, index)?;
-let normal = normal_representation_invocation(registry, None, tokens)?;
+let normal = normal_representation_invocation_with_metadata_context(
+    registry, Some(metadata), tokens,
+)?;
 let argument = normal.pattern_source_argument_index(registry)?;
-let word = tokens.words().get(argument + 1)?;
+let word = tokens.words().get(argument.checked_add(1)?)?;
 let read = SsaSourceView::at_statement(&function.ssa, block, index).read_word(word)?;
 ```
 
-Here `None` in the invocation call does not substitute a dialect: the tokens
-retain their source binding and native axes. Each failed query declines the
-consumer's proof. Preserve `read`'s physical identity and optional version;
+The pattern index query projects effective roles back to a genuine written
+argument and declines captured patterns. Missing actual metadata cannot be
+replaced by a token's retained native axes. Readonly Logical pattern positions
+use their original source schema; they cannot substitute for this normal-handler
+and physical-read query. Each failed query declines the consumer's proof.
+Preserve `read`'s physical identity and optional version;
 do not replace a missing version with a name-based search or version zero.
 If the consumer queries broader contents provenance, retain its explicit
 `unknown_residual` as well.
@@ -3096,7 +3102,7 @@ separate `errorInfo` presentation. Catch and try use this same selected emitter.
 
 CFG command replay projects the unanimous immutable entry baseline from its retained execution lookup snapshots. It rebuilds the initial world with that actual dialect, entry phase, native table, compiler mode, loader contracts and unknown-entry flag; it never uses a post-argv command table as the entry world. Conflicting or missing lookup snapshots on retained invocation carriers make replay opaque. Registry snapshots must agree before a retained baseline can be reused.
 
-`Function` retains its `CfgMetadataContext` from CFG construction. `analyse_command_binding` uses the same retained availability and grammar owner for replay, `binding_at`, rebound names and wildcard detection. Each statement obtains its command lookup namespace from unanimous original invocation tokens. That holder is separate from the reporting `cfg.name`, variable activation namespace and procedure publication namespace. Native source queries retain their original naming input and exact interpreter namespace identity; a positive Logical source producer uses its own retained source model. Missing source consensus, a foreign store or namespace owner, changed grammar and unavailable supplied metadata leave the lookup Unknown. They cannot borrow the body holder or reconstruct a namespace from a displayed function name.
+`Function` retains the shared `OwnedInvocationMetadataContext` from CFG construction; `CfgMetadataContext` is the internal alias for that same owner. `analyse_command_binding` uses the same retained availability and grammar owner for replay, `binding_at`, rebound names and wildcard detection. Each statement obtains its command lookup namespace from unanimous original invocation tokens. That holder is separate from the reporting `cfg.name`, variable activation namespace and procedure publication namespace. Native source queries retain their original naming input and exact interpreter namespace identity; a positive Logical source producer uses its own retained source model. Missing source consensus, a foreign store or namespace owner, changed grammar and unavailable supplied metadata leave the lookup Unknown. They cannot borrow the body holder or reconstruct a namespace from a displayed function name.
 
 An explicitly standalone CFG without retained source ownership has a separate unpositioned contract. Supplied-source paths never enter that contract after a failed original query. These command-state projections do not issue handler selection, body admission, compiler instructions, runtime frames or Normal completion.
 
@@ -8218,11 +8224,12 @@ arity receipts.
 
 `InvocationMetadataContext` takes the actual full availability context and
 command generation. Use the shared metadata-context entry for role, body,
-symbol and variable-name queries. Positioned completion and representation use
-`resolved_tokens_invocation_in_context` and
-`normal_representation_invocation_in_context` with the actual ContextRegistry.
-Use `registry_invocation_assistance_in_context` for candidate/residual metadata
-and `resolved_statement_invocation_in_context` for genuine original Statements.
+symbol and variable-name queries. Positioned source completion and representation retain complete input through
+`resolved_tokens_invocation_with_metadata_context` and
+`normal_representation_invocation_with_metadata_context`. Candidate/residual
+source metadata uses `original_registry_invocation_assistance_with_metadata_context`;
+Statements retain the same checked Module owner. Availability-only `_in_context`
+adapters remain distinct from these source-input projections.
 `normal_transfer_invocation_in_context` selects supported normal variable
 transfer; `possible_variable_name_operands_in_context` retains possible name
 positions and unknown alternatives. Neither projection supplies body entry.
@@ -8247,9 +8254,12 @@ fn selected_metadata(
     module: &tcl_compiler::ir::Module,
     tokens: &tcl_compiler::ir::CommandTokens,
 ) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
-    let context = module.source_metadata_input.as_ref()?.context_registry();
-    tcl_compiler::registry_invocation::resolved_tokens_invocation_in_context(
-        &context, tokens,
+    let registry = module.resolved_registry();
+    let metadata = tcl_compiler::registry_invocation::InvocationMetadataContext::for_module(
+        registry, module,
+    )?;
+    tcl_compiler::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+        registry, Some(metadata), tokens,
     )
 }
 ```
@@ -8289,13 +8299,41 @@ source implementation controls and unmeasured counted-NUL values.
 
 ### Retain metadata across bodies, callbacks and CFGs
 
-`InvocationMetadataContext::from(&ContextRegistry)` borrows the supplied full
-availability and command-store generation. Retain packages, authoring scope,
-realm and dialect axes through each query. The shared `_in_context` adapters
-join that metadata to the original invocation; they do not select an otherwise
-unknown handler. Internal `_with_metadata_context` kernels accept the same
-borrowed carrier. An explicitly static `SemanticContext` is a separate caller
-contract, not a replacement for unavailable analysis input.
+`InvocationMetadataContext::from(&ContextRegistry)` borrows the supplied
+availability and command-store generation, including packages and authoring
+scope. That availability-only carrier does not retain a complete source input,
+its unit profile, lexer configuration or source-entry policy. Source consumers
+use `for_source_input(registry, input, config, profile)` or
+`for_module(registry, module)` to validate those independent axes. A function
+combined with its Module uses `invocation_metadata_context_for_module` instead
+of borrowing the function's input alone.
+
+The public grouped queries `resolved_tokens_invocation_with_metadata_context`,
+`original_registry_invocation_assistance_with_metadata_context`,
+`normal_representation_invocation_with_metadata_context` and
+`ResolvedStatementInvocation::with_metadata_schema` retain the same borrowed
+owner. `original_structured_invocation_with_metadata_context` requires its
+independent positive Logical source applicability. The shared `_in_context`
+adapters preserve supplied availability, and internal kernels use the same
+carrier; none selects an otherwise unknown handler. An explicitly static
+`SemanticContext` is a separate caller contract, not a replacement for
+unavailable analysis input.
+
+`SourceAnalysisOptions::metadata_context` tags that ingress with
+`InvocationMetadataInput`. Retaining it creates the shared
+`OwnedInvocationMetadataContext` used by source-entry baselines and CFGs:
+
+| Borrowed ingress | Retained owner | Permitted use |
+| --- | --- | --- |
+| `Standalone` | `Standalone` | Explicit catalogue compatibility; never recovery for withheld document input. |
+| `Supplied(&Arc<ContextRegistry>)` | `Supplied` | Actual availability only; no complete source input or source-entry policy is manufactured. |
+| `SuppliedSource(Some(input))` | `SuppliedSource` | Complete actual source input, checked against the consumer's command store, profile and full configuration. |
+| `SuppliedSource(None)` | `Unavailable` | Terminal missing ownership; cannot enter standalone compatibility. |
+| `Retained(&owner)` | The same retained mode | Reborrow or clone the existing owner without changing its applicability or refusal. |
+
+Metadata and lexical/source observations supply no Native invocation, entered
+frame, physical variable receiver, compiler admission, Normal completion or
+rewrite equivalence. Each such consumer retains its independent issuer.
 
 Source-body consumers acquire `OriginalRegistryWords` from the complete source
 and actual analysis. Select `OriginalSourceScriptPurpose::Syntax` for readonly
@@ -8926,8 +8964,9 @@ and observed source class/provider provenance. Stand-ins, defaults and stale
 inputs refuse. This purpose supplies no Native class identity, formal grammar
 or dispatch worker; Native/hosted canonical source selection remains separate.
 
-Registry recipe and Runtime/VM source controls remain coverage links until
-independent actual software receipts execute them.
+Registry recipe and Runtime/VM source controls describe software contracts.
+Their assertion results belong to the exact software image and remain separate
+from measured provider observations.
 
 
 ## Current dispatch regions and selected procedure fallback
@@ -8956,9 +8995,14 @@ and both Server method fallback tiers call `withholds_workspace_fallback`:
 The retained Native own-object configuration ledger accepts method definitions;
 source `unexport` summaries keep their independent conditional purpose. A report
 summary cannot supply a Native receiver or refresh that ledger. Internal `my`
-and genuine `[self]` shape use the original selected descriptor or receiver-local
-entry. `$my` remains a variable receiver, and literal `{[self]}` is an object name
-rather than a command substitution. These outcomes grant no method execution,
+uses its original selected dispatcher or receiver-local entry. Genuine `[self]`
+is an external receiver expression: current-object source identity cannot supply
+visibility. Its independent retained external entry selects ordinary exported
+versus unexported visibility; a missing entry returns `Unavailable`. C9
+true-private declaring-class scope remains a separate native purpose and is not
+inferred from that ordinary visibility bit. `$my` remains a variable receiver,
+and literal `{[self]}` is an object name rather than a command substitution.
+These outcomes grant no method execution,
 Normal completion, edit coverage or permission to select a workspace method.
 The [dispatch-region contract](../analysis/name-resolution-proofs/core-original-dispatch-region-context.md)
 keeps the corresponding source/software controls separate from provider results.

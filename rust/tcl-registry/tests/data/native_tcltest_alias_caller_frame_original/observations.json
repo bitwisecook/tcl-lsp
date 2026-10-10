@@ -1,0 +1,421 @@
+{
+  "scope": "Derived byte/hash-checked review, not an independent original observation or Rust result. Six original main successes and the independent metadata process failure remain distinct.",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "version": "8.4.20",
+      "package_version": "2.2.11",
+      "main": {
+        "exit": 0,
+        "seconds": 0.008855513005983084,
+        "rows": [
+          "PACKAGE 0 2.2.11",
+          "WRAPPERS 1 0",
+          "C_CALLER qualified 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER imported 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER direct_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER captured_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_NAMESPACE_CALLER 0 {{setup body READY cleanup READY} READY}"
+        ],
+        "stdout_sha256": "c36d66aa5f88e37448c5110e669583d225d0c36fcf76171eb0f37139b6a0f7dd",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "separate_metadata_query": {
+        "exit": 0,
+        "seconds": 0.008149926987243816,
+        "rows": [
+          "version 8.4.20",
+          "package 0 2.2.11",
+          "package_ifneeded {source /workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl}",
+          "auto_path {/workspace/tcl-lsp/tmp/tcl8.4.20/library /workspace/tcl-lsp/tmp/tcl8.4.20 /workspace/tcl-lsp/tmp/tcl8.4.20/lib /workspace/.proofs/native-providers/gcc14-compatibility/8.4.20/install/lib}"
+        ],
+        "stdout_sha256": "4e44c2dc31131029871a34b264a84328d9965aed4921458033058306f5c60a6f",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "scope": "Fresh public version/package/ifneeded/auto_path query in a separate original process."
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "version": "8.5.19",
+      "package_version": "2.3.8",
+      "main": {
+        "exit": 0,
+        "seconds": 0.007985092990566045,
+        "rows": [
+          "PACKAGE 0 2.3.8",
+          "WRAPPERS 1 0",
+          "C_CALLER qualified 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER imported 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER direct_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER captured_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_NAMESPACE_CALLER 0 {{setup body READY cleanup READY} READY}"
+        ],
+        "stdout_sha256": "ade3596823ec7149c6b50c8be0811825759f43e82773a265337d3afa2b3e8f15",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "separate_metadata_query": {
+        "exit": 0,
+        "seconds": 0.00891544297337532,
+        "rows": [
+          "version 8.5.19",
+          "package 0 2.3.8",
+          "package_ifneeded {source /workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl}",
+          "auto_path {/workspace/tcl-lsp/tmp/tcl8.5.19/library /workspace/tcl-lsp/tmp/tcl8.5.19 /workspace/tcl-lsp/tmp/tcl8.5.19/lib /workspace/.proofs/native-providers/gcc14-compatibility/8.5.19/install/lib}"
+        ],
+        "stdout_sha256": "f6d8632a47d2243bfab5fe5f873c0245d036d08a0cf3149f70f26c8b49ff5f07",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "scope": "Fresh public version/package/ifneeded/auto_path query in a separate original process."
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "version": "8.6.18",
+      "package_version": "2.5.11",
+      "main": {
+        "exit": 0,
+        "seconds": 0.010067161987535655,
+        "rows": [
+          "PACKAGE 0 2.5.11",
+          "WRAPPERS 1 0",
+          "C_CALLER qualified 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER imported 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER direct_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER captured_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_NAMESPACE_CALLER 0 {{setup body READY cleanup READY} READY}"
+        ],
+        "stdout_sha256": "7e9c29a4d6db15cfd8f27978b5b4e85497c8b7a09586ee515fc0a9c164af8de8",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "separate_metadata_query": {
+        "exit": 0,
+        "seconds": 0.01141547498991713,
+        "rows": [
+          "version 8.6.18",
+          "package 0 2.5.11",
+          "package_ifneeded {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl}",
+          "auto_path {/workspace/tcl-lsp/tmp/tcl8.6.18/library /workspace/tcl-lsp/tmp/tcl8.6.18 /workspace/tcl-lsp/tmp/tcl8.6.18/lib /workspace/.proofs/native-providers/8.6.18/install/lib}"
+        ],
+        "stdout_sha256": "1f6b67486950c4a493ab9a6ddbd7b44a1d9c2b779698f1ee5045f1ac20bbdc63",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "scope": "Fresh public version/package/ifneeded/auto_path query in a separate original process."
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "version": "9.0.4",
+      "package_version": "2.5.11",
+      "main": {
+        "exit": 0,
+        "seconds": 0.02110638900194317,
+        "rows": [
+          "PACKAGE 0 2.5.11",
+          "WRAPPERS 1 0",
+          "C_CALLER qualified 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER imported 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER direct_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER captured_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_NAMESPACE_CALLER 0 {{setup body READY cleanup READY} READY}"
+        ],
+        "stdout_sha256": "7e9c29a4d6db15cfd8f27978b5b4e85497c8b7a09586ee515fc0a9c164af8de8",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "separate_metadata_query": {
+        "exit": 0,
+        "seconds": 0.015661743993405253,
+        "rows": [
+          "version 9.0.4",
+          "package 0 2.5.11",
+          "package_ifneeded {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}",
+          "auto_path {/workspace/tcl-lsp/tmp/tcl9.0.4/library /workspace/tcl-lsp/tmp/tcl9.0.4 /workspace/tcl-lsp/tmp/tcl9.0.4/lib /workspace/.proofs/native-providers/9.0.4/install/lib}"
+        ],
+        "stdout_sha256": "af1d4e5a4ad8c4545ab832b2511c223b109b79a5e83ad0fb4e695fb08d7af8d9",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "scope": "Fresh public version/package/ifneeded/auto_path query in a separate original process."
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "version": "9.1.0",
+      "package_version": "2.6.0",
+      "main": {
+        "exit": 0,
+        "seconds": 0.026112972002010792,
+        "rows": [
+          "PACKAGE 0 2.6.0",
+          "WRAPPERS 1 0",
+          "C_CALLER qualified 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER imported 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER direct_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_CALLER captured_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}",
+          "C_NAMESPACE_CALLER 0 {{setup body READY cleanup READY} READY}"
+        ],
+        "stdout_sha256": "a8511c574a540bb7b4e84895444272f26db1106deb30b14206f2ffd67cc162c2",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "separate_metadata_query": {
+        "exit": 0,
+        "seconds": 0.17327277699951082,
+        "rows": [
+          "version 9.1.0",
+          "package 0 2.6.0",
+          "package_ifneeded {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl}",
+          "auto_path {/workspace/tcl-lsp/tmp/tcl9.1.0/library /workspace/tcl-lsp/tmp/tcl9.1.0 /workspace/tcl-lsp/tmp/tcl9.1.0/lib /workspace/.proofs/native-providers/9.1.0/install/lib}"
+        ],
+        "stdout_sha256": "0e299358ffaae14a192d5572d5c77be2244d5682bb6f08f13115888fb9ede0f5",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "scope": "Fresh public version/package/ifneeded/auto_path query in a separate original process."
+      }
+    },
+    {
+      "provider": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "package_version": "1.0",
+      "main": {
+        "exit": 0,
+        "seconds": 0.004518125002505258,
+        "rows": [
+          "PACKAGE 0 1.0",
+          "WRAPPERS 0 1",
+          "GLOBAL_CALLER 0 {{setup body READY cleanup READY} READY}",
+          "GLOBAL_SETUP_ERROR 0 {setup body cleanup}",
+          "C_ALIAS_LIFECYCLE_UNAVAILABLE no-qualified-wrapper"
+        ],
+        "stdout_sha256": "ef49c4ba21fdea10a28084f6b7c04c89a34f7d37c8fe5d9024ff1b4b43bf74ff",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "separate_metadata_query": {
+        "exit": 1,
+        "seconds": 0.005588943022303283,
+        "rows": [
+          "version 0.84-9-g5bac7c9",
+          "package 0 1.0"
+        ],
+        "stdout_sha256": "76fc518228c480b487805bac885cc5d03cb3bf20bce451d0d33ea8faaef89fc1",
+        "stderr_sha256": "872027a82f4dc2e8d64d8325d2d44bad3ba617beded4fe2e2cae970b2a59aded",
+        "scope": "Jim records version/package success then unsupported package-ifneeded failure; no auto_path row or successful metadata process inferred."
+      }
+    }
+  ],
+  "source_windows": [
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+      "first_line": 1948,
+      "last_line": 1983,
+      "source_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.4.20/1948-1983.tcl",
+      "window_sha256": "818586941af93da02224d9863797440ff434c44d1bf2632e6617d06396ebdf22",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+      "first_line": 1978,
+      "last_line": 1995,
+      "source_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.4.20/1978-1995.tcl",
+      "window_sha256": "094837066559344a9c1cfab8092b4809616b2a6edc18a66d24afd94c9a17cab7",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+      "first_line": 2269,
+      "last_line": 2290,
+      "source_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.4.20/2269-2290.tcl",
+      "window_sha256": "536ba0f3eb97ef81aa8e233d1ef80b9057f5c36c0383f8f236fd3c2e3422748b",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+      "first_line": 1610,
+      "last_line": 1628,
+      "source_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.4.20/1610-1628.tcl",
+      "window_sha256": "705a854612363d2728723c8766b9a9cb78e76ce30f8e0ce6b81c7228d3e2ca1e",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+      "first_line": 1960,
+      "last_line": 1995,
+      "source_sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.5.19/1960-1995.tcl",
+      "window_sha256": "350579f773d5aa2a59ce29d12108cf027796bbc2109b95f97fc23c675133bcc2",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+      "first_line": 2034,
+      "last_line": 2051,
+      "source_sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.5.19/2034-2051.tcl",
+      "window_sha256": "1adc5706faca84e5ab02a472cb5137c614e36c5f827159c3c70216ad77594c53",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+      "first_line": 2302,
+      "last_line": 2323,
+      "source_sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.5.19/2302-2323.tcl",
+      "window_sha256": "536ba0f3eb97ef81aa8e233d1ef80b9057f5c36c0383f8f236fd3c2e3422748b",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+      "first_line": 1627,
+      "last_line": 1645,
+      "source_sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.5.19/1627-1645.tcl",
+      "window_sha256": "15036237537b28ad6c64a8ba83e9b782e11f71ed8cf3a4aae1c052c0b11fd002",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+      "first_line": 2044,
+      "last_line": 2079,
+      "source_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.6.18/2044-2079.tcl",
+      "window_sha256": "cd277ed7a03d40e570e25b8ce75873eeae41aff0843ab1f5c2990f207701c140",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+      "first_line": 2141,
+      "last_line": 2158,
+      "source_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.6.18/2141-2158.tcl",
+      "window_sha256": "988ccb32ffc4c2ca74399dcc92df9dd94dcad8a841f459566c6a585efd794f78",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+      "first_line": 2468,
+      "last_line": 2489,
+      "source_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.6.18/2468-2489.tcl",
+      "window_sha256": "18da4885461946594b98e7a9be34cce8979640d29aac905ac37033106087bf77",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+      "first_line": 1695,
+      "last_line": 1713,
+      "source_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/8.6.18/1695-1713.tcl",
+      "window_sha256": "15036237537b28ad6c64a8ba83e9b782e11f71ed8cf3a4aae1c052c0b11fd002",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+      "first_line": 2044,
+      "last_line": 2079,
+      "source_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/9.0.4/2044-2079.tcl",
+      "window_sha256": "cd277ed7a03d40e570e25b8ce75873eeae41aff0843ab1f5c2990f207701c140",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+      "first_line": 2141,
+      "last_line": 2158,
+      "source_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/9.0.4/2141-2158.tcl",
+      "window_sha256": "988ccb32ffc4c2ca74399dcc92df9dd94dcad8a841f459566c6a585efd794f78",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+      "first_line": 2468,
+      "last_line": 2489,
+      "source_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/9.0.4/2468-2489.tcl",
+      "window_sha256": "18da4885461946594b98e7a9be34cce8979640d29aac905ac37033106087bf77",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+      "first_line": 1695,
+      "last_line": 1713,
+      "source_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/9.0.4/1695-1713.tcl",
+      "window_sha256": "15036237537b28ad6c64a8ba83e9b782e11f71ed8cf3a4aae1c052c0b11fd002",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+      "first_line": 2056,
+      "last_line": 2091,
+      "source_sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/9.1.0/2056-2091.tcl",
+      "window_sha256": "cd277ed7a03d40e570e25b8ce75873eeae41aff0843ab1f5c2990f207701c140",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+      "first_line": 2153,
+      "last_line": 2170,
+      "source_sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/9.1.0/2153-2170.tcl",
+      "window_sha256": "988ccb32ffc4c2ca74399dcc92df9dd94dcad8a841f459566c6a585efd794f78",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+      "first_line": 2480,
+      "last_line": 2501,
+      "source_sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/9.1.0/2480-2501.tcl",
+      "window_sha256": "18da4885461946594b98e7a9be34cce8979640d29aac905ac37033106087bf77",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+      "first_line": 1701,
+      "last_line": 1719,
+      "source_sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/9.1.0/1701-1719.tcl",
+      "window_sha256": "15036237537b28ad6c64a8ba83e9b782e11f71ed8cf3a4aae1c052c0b11fd002",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tcltest.tcl",
+      "first_line": 314,
+      "last_line": 339,
+      "source_sha256": "21f225ae1ef2f8fe631a808a99ad9e4a80077a3dadb6f74ea2ca020787511dce",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/jim/314-339.tcl",
+      "window_sha256": "d7ec1371ab5d0b74405d0580d45d39c3e06b207c2da090965016cee4d537547a",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tcltest.tcl",
+      "first_line": 345,
+      "last_line": 372,
+      "source_sha256": "21f225ae1ef2f8fe631a808a99ad9e4a80077a3dadb6f74ea2ca020787511dce",
+      "window_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/source-windows/jim/345-372.tcl",
+      "window_sha256": "cbacde94b7541fc8bb3ef83db3d4b5cc295566c06d647908e7b5b2148f086be3",
+      "interpretation": "Package script caller routing only; no physical frame, header or Native entry observation."
+    }
+  ]
+}

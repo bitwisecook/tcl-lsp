@@ -1,0 +1,64 @@
+{
+  "question": "naming.tcltest.original-alias-caller-frame-lifecycle",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.007985092990566045,
+  "source_sha256": "3f0c9a8a6c6d554834088d4973dfcfa621e8c927b6f376e1315b77995cd9a9a2",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "stdout_sha256": "ade3596823ec7149c6b50c8be0811825759f43e82773a265337d3afa2b3e8f15",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "package_query": {
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "/workspace/.proofs/native-tcltest-alias-caller-frame437/package-query.tcl"
+    ],
+    "exit": 0,
+    "seconds": 0.00891544297337532,
+    "source_sha256": "6fa3a46f0e03854df2828dc4acf2400b70192aa88695e85211e2e98e7e8eeb38",
+    "stdout_sha256": "f6d8632a47d2243bfab5fe5f873c0245d036d08a0cf3149f70f26c8b49ff5f07",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "listed_inputs_verified_before_and_after": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPkg.c": "2365436253e7777a7773f3fa00d9099929fae8406590cd2daebb2914a0a4f0b3",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/auto.tcl": "f33b4e6ca8ac8a86ace39ad57628d7588ef04ec3d8d86c700f54ccba77b242fc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/word.tcl": "64585c5327b0710d31bff61c14564ff289acaad8743174f95544d8c04306d8c7",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/clock.tcl": "71966a6cecd4d718b8b6286573bf50539c1d4bffad26a1126d056a5da48a66e4",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tm.tcl": "5d86054b2ce7ecb7ad39a6a2ee7afc98816a837e9819ce7b7c31c19ba0b123cf",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/parray.tcl": "ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/history.tcl": "f136e0db9e71468e4d9d93200cd2d04e6915d5546681bfeca6cb9a620ba648ba",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/package.tcl": "be3df25f0cf653c20b69784aee0fd719634d5421746b5b1141bc0592a59841c9",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/safe.tcl": "953bc6cbf03a7ff492de59828c6d31a12d80b45873d85c03cb62a6099fed976c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/platform.tcl": "d4b3d9601454ea4828dff3be426c33fb845d005e98d2cc139dbb0d69cad3168b",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/shell.tcl": "2f812a0550716b88930174a8ca245698427cd286680c0968558ae269ab52440d",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/pkgIndex.tcl": "1d808c59aaf46b7a24ea360246a5fa3824a510d703750eb234b702f8106c708c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/pkgIndex.tcl": "f33a19dafa35af4765cd1a6dd8557047a73a21b2b8a7288d52cec6bdf7cea6cc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/http.tcl": "425f41cbee04fe48b5803a77f1649257e4dcb475491c01f6d58704c3af4399c1",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/msgcat.tcl": "2efa43679969abd5748f6e7d64408617396300b469e1ec9d0b6c1a7764c886e5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/pkgIndex.tcl": "8989f8e8d7f96da5fd51f5271cd32aadc4fa5c23d7c4010838378d921c3d8d1e",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/reg/pkgIndex.tcl": "24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/pkgIndex.tcl": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/http.tcl": "88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/dde/pkgIndex.tcl": "21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/optparse.tcl": "217074e45fc877ceddb0eb10fca94fcf43dc235dd8dc4bd1c9b6ec3121ae726c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/pkgIndex.tcl": "a088e549d18ade683273e31c004daa7e614642fe801afb3861eb85445250186b",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/pkgIndex.tcl": "29c57ad6fe369a9fed7d378471aec5a7bdd5bd153c57222f83485245a3f23e44"
+  },
+  "prior_build_input_receipt": "rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19/receipt.json",
+  "prior_build_input_receipt_sha256": "5c357fa1bd8f44e02b0b08fca76640fecbe85297493b116cb8e8e0a78aa617e7",
+  "scope": "Public catch codes, full results/events, same-caller procedure variable visibility, literal expected-result data versus evaluation, original package version and handler availability for this exact source only. C alias ordinals originate in genuine interp alias commands and real selected package loading. Jim/global-test branch is independent and does not borrow C qualified lifecycle identity. The test source deliberately uses benign named values for original #2286 reported variables; it does not execute tclopt constructors. No Native object/header/argv identity, current diagnostic source span, physical frame receipt, Registry stock attestation, entered worker, Normal/effect/allocation/SSA/edit permission, or whole compiler parity follows.",
+  "build_limit": "Pinned original CLI, original library .tcl inputs and listed build closure verified without recompilation. Compiler version and unlisted inherited environment not recorded. Package query is a separate fresh original process; main experiment reports its own actual package availability and version."
+}

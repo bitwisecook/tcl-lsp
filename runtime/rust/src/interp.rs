@@ -18868,6 +18868,8 @@ mod native_error_log_tests;
 
 #[cfg(test)]
 mod native_error_code_projection_tests;
+#[cfg(test)]
+mod native_import_chain_tests;
 
 mod native_command_traces;
 mod native_error_headers;

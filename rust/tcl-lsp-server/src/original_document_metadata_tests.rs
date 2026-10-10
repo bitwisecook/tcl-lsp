@@ -1366,3 +1366,168 @@ required_package Tk
         "{unavailable}"
     );
 }
+
+async fn formatter_request_edits(backend: &Backend, uri: &Uri) -> [Option<Vec<TextEdit>>; 3] {
+    let full: DocumentFormattingParams = serde_json::from_value(serde_json::json!({
+        "textDocument": { "uri": uri.as_str() },
+        "options": { "tabSize": 2, "insertSpaces": true }
+    }))
+    .unwrap();
+    let range: DocumentRangeFormattingParams = serde_json::from_value(serde_json::json!({
+        "textDocument": { "uri": uri.as_str() },
+        "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 3, "character": 0 } },
+        "options": { "tabSize": 2, "insertSpaces": true }
+    }))
+    .unwrap();
+    let save: WillSaveTextDocumentParams = serde_json::from_value(serde_json::json!({
+        "textDocument": { "uri": uri.as_str() },
+        "reason": 1
+    }))
+    .unwrap();
+    [
+        backend.formatting(full).await.unwrap(),
+        backend.range_formatting(range).await.unwrap(),
+        backend.will_save_wait_until(save).await.unwrap(),
+    ]
+}
+
+fn assert_formatter_request_edit(edits: Option<Vec<TextEdit>>, ending: &str) {
+    let edits = edits.expect("the current whole source supports a nonempty formatting edit");
+    assert_eq!(edits.len(), 1);
+    let edit = &edits[0];
+    assert_eq!(edit.range.start, Position::new(0, 0));
+    assert_eq!(edit.range.end, Position::new(3, 0));
+    assert!(
+        edit.new_text
+            .contains(&format!("{ending}  SSL::c3d cert_lifespan 24{ending}")),
+        "{}",
+        edit.new_text
+    );
+    assert!(edit.new_text.ends_with(ending));
+    if ending == "\n" {
+        assert!(!edit.new_text.contains('\r'));
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn original_formatter_requests_keep_checked_availability_raw_coordinates_and_withdrawn_input()
+{
+    // naming.editor.original-source-formatting
+    // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+    // These public requests retain actual source/configuration; no appliance
+    // execution or Native body entry is supplied by the event/source roles.
+    use salsa::Setter as _;
+    let backend = crate::tests::test_backend();
+    let uri = Uri::from_str("file:///workspace/formatter-source-currency.tcl").unwrap();
+    let source = "when CLIENTSSL_HANDSHAKE {\r\nSSL::c3d cert_lifespan 24\r\n}\r\n";
+    backend.documents.lock("test").await.insert(
+        uri.clone(),
+        DocumentState::new(source.to_owned(), "f5-irules".to_owned()),
+    );
+    backend
+        .db_set_source(&uri, source, "f5-irules".to_owned())
+        .await;
+    assert!(
+        backend
+            .apply_global_formatting(&serde_json::json!({
+                "formatting": { "indentSize": 2, "lineEnding": "auto" }
+            }))
+            .await
+            .is_none()
+    );
+    let older = backend
+        .analysis_for(&uri, Arc::from(source), "f5-irules".to_owned())
+        .await;
+    let older_input = older
+        .resolved_input
+        .as_ref()
+        .expect("the actual older document input exists");
+    assert!(
+        older
+            .diagnostics
+            .iter()
+            .any(|row| row.code == DiagCode::W150)
+    );
+    assert!(!older.command_invocations.is_empty());
+    let [full, range, save] = formatter_request_edits(&backend, &uri).await;
+    assert_formatter_request_edit(full, "\r\n");
+    assert_formatter_request_edit(range, "\r\n");
+    assert!(save.is_none(), "format-on-save is opt-in");
+    backend
+        .feature_toggles
+        .lock()
+        .await
+        .set
+        .insert("willSaveWaitUntil".to_owned(), true);
+
+    *backend.bigip_version.lock().await = Some("21.1.0".to_owned());
+    backend.sync_db_config().await;
+    backend.invalidate_diag_inputs();
+    let current = backend
+        .analysis_for(&uri, Arc::from(source), "f5-irules".to_owned())
+        .await;
+    let current_input = current.resolved_input.as_ref().unwrap();
+    assert_ne!(current_input, older_input);
+    assert!(Arc::ptr_eq(
+        current_input.borrowed_context_registry().commands(),
+        older_input.borrowed_context_registry().commands(),
+    ));
+    assert!(
+        !current
+            .diagnostics
+            .iter()
+            .any(|row| row.code == DiagCode::W150)
+    );
+    assert_eq!(
+        current.body_lexer_config,
+        Some(current_input.lexer_config())
+    );
+    assert_eq!(
+        backend.read_local_document(&uri).await.unwrap().raw(),
+        source
+    );
+    for edits in formatter_request_edits(&backend, &uri).await {
+        assert_formatter_request_edit(edits, "\r\n");
+    }
+    assert!(
+        backend
+            .apply_global_formatting(&serde_json::json!({
+                "formatting": { "indentSize": 2, "lineEnding": "lf" }
+            }))
+            .await
+            .is_none()
+    );
+    for edits in formatter_request_edits(&backend, &uri).await {
+        assert_formatter_request_edit(edits, "\n");
+    }
+    assert_eq!(
+        backend.read_local_document(&uri).await.unwrap().raw(),
+        source
+    );
+
+    // Withdraw the actual generation through its DB input. Previously retained
+    // populated analysis stays independent and cannot donate a formatter owner.
+    {
+        let mut db = backend.db.lock().await;
+        backend
+            .db_config
+            .lock()
+            .await
+            .set_spec_pack_key(&mut *db)
+            .to(u64::MAX - 379);
+    }
+    backend.invalidate_diag_inputs();
+    let withdrawn = backend
+        .analysis_for(&uri, Arc::from(source), "f5-irules".to_owned())
+        .await;
+    assert!(withdrawn.analysis_context_unavailable.is_some());
+    assert!(withdrawn.resolved_input.is_none());
+    assert!(!current.command_invocations.is_empty());
+    assert!(current.resolved_input.is_some());
+    for edits in formatter_request_edits(&backend, &uri).await {
+        assert!(
+            edits.is_none(),
+            "an actual unavailable/missing document owner supplies no formatting edits"
+        );
+    }
+}

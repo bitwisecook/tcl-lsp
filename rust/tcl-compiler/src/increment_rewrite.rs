@@ -4,7 +4,8 @@
 
 //! Original physical read/store and native conversion schedule for increments.
 
-use crate::ir::{Script, Statement};
+use crate::ir::{CommandTokens, Module, Script, Statement};
+use crate::registry_invocation::InvocationMetadataContext;
 use tcl_registry::CommandRegistry;
 
 /// A closed source edit, including any original literal normalization that
@@ -35,11 +36,16 @@ pub(crate) fn assess_increment_rewrite(
     script: &Script,
     statement: &Statement,
     registry: &CommandRegistry,
+    module: &Module,
 ) -> Option<SourceIncrementRewrite> {
-    use crate::registry_invocation::{normal_transfer_invocation, resolved_tokens_invocation};
+    use crate::registry_invocation::{
+        normal_transfer_invocation_with_metadata_context,
+        resolved_tokens_invocation_with_metadata_context,
+    };
     use tcl_registry::{SemanticOperationId, hooks::LoweringHookId};
     let tokens = script.retained_source_tokens_for_statement(statement)?;
-    let setter = resolved_tokens_invocation(registry, None, tokens)?;
+    let metadata = original_increment_metadata(tokens, module, registry)?;
+    let setter = resolved_tokens_invocation_with_metadata_context(registry, metadata, tokens)?;
     if setter.facts.operation != SemanticOperationId::StructuredLowering(LoweringHookId::Set)
         || !setter.effective.binding_prefix.is_empty()
     {
@@ -50,8 +56,8 @@ pub(crate) fn assess_increment_rewrite(
         return None;
     }
     let dialect = binding.variable_context.invocation_dialect?;
-    let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
-    let transfer = normal_transfer_invocation(registry, None, tokens)?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let transfer = normal_transfer_invocation_with_metadata_context(registry, metadata, tokens)?;
     let name = transfer.argument_literal(0)?;
     if !super::optimiser::helpers::literals::is_safe_word(&name) {
         return None;
@@ -67,7 +73,12 @@ pub(crate) fn assess_increment_rewrite(
         return None;
     }
     let expression = nested.remove(0);
-    let selected = resolved_tokens_invocation(registry, None, &expression)?;
+    let expression_metadata = original_increment_metadata(&expression, module, registry)?;
+    let selected = resolved_tokens_invocation_with_metadata_context(
+        registry,
+        expression_metadata,
+        &expression,
+    )?;
     if selected.facts.operation != SemanticOperationId::StructuredLowering(LoweringHookId::Expr)
         || !selected.effective.binding_prefix.is_empty()
         || selected.dialect != Some(dialect)
@@ -101,8 +112,51 @@ pub(crate) fn assess_increment_rewrite(
         &name,
         &schedule,
         normalisation,
-        registry,
+        SelectionContext {
+            registry,
+            metadata,
+            config,
+        },
     )
+}
+
+struct SelectionContext<'a> {
+    registry: &'a CommandRegistry,
+    metadata: Option<InvocationMetadataContext<'a>>,
+    config: tcl_lexer::LexerConfig,
+}
+
+/// The actual CU and original whole-vector owner retain availability and full
+/// syntax independently of the native read/store proof. Only positively tagged
+/// standalone modules can select their explicit compatibility metadata.
+fn original_increment_metadata<'a>(
+    tokens: &'a CommandTokens,
+    module: &'a Module,
+    registry: &CommandRegistry,
+) -> Option<Option<InvocationMetadataContext<'a>>> {
+    let owner = module.retained_source_bindings.as_deref()?;
+    if !owner.matches_module(module, registry) {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    if config.nested().normalized() != module.lexer_config.nested().normalized() {
+        return None;
+    }
+    if module.source_entry.metadata_context.is_standalone()
+        && module.source_metadata_input.is_none()
+    {
+        if !owner.owns_original_tokens(tokens) {
+            return None;
+        }
+        return module
+            .source_entry
+            .metadata_context
+            .metadata_context(registry);
+    }
+    Some(Some(binding.original_invocation_metadata_for_module(
+        tokens, module, registry,
+    )?))
 }
 
 /// A single retained read and the original setter select the same physical
@@ -224,12 +278,15 @@ fn prospective_increment(
     name: &str,
     schedule: &tcl_registry::runtime_expr_validation::NativeIncrementExpressionSchedule<'_>,
     normalisation: OperandNormalisation,
-    registry: &CommandRegistry,
+    selection: SelectionContext<'_>,
 ) -> Option<SourceIncrementRewrite> {
     use tcl_registry::runtime_expr_validation::NativeIncrementAmountConversion as Conversion;
+    let SelectionContext {
+        registry,
+        metadata,
+        config,
+    } = selection;
     let binding = tokens.source_binding.as_ref()?;
-    let dialect = binding.variable_context.invocation_dialect?;
-    let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
     let increment_binding = binding.lookup_command_word("incr");
     let increment = increment_binding.proved_handler_target()?;
     if !increment_binding.unobserved_native_dispatch()
@@ -272,10 +329,14 @@ fn prospective_increment(
         segment,
     );
     proposed.source_binding = Some(increment_binding);
-    let native = crate::registry_invocation::normal_transfer_invocation(registry, None, &proposed)?;
+    let native = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry, metadata, &proposed,
+    )?;
     native.numeric_store_production()?;
     let outputs = native.mutation_places(&binding.variable_context, registry);
-    let original = crate::registry_invocation::normal_transfer_invocation(registry, None, tokens)?;
+    let original = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry, metadata, tokens,
+    )?;
     if outputs != original.mutation_places(&binding.variable_context, registry)
         || !binding
             .sole_rhs_read_store_observations()?
@@ -324,4 +385,178 @@ fn retained_operand_normalisation(
         return None;
     };
     Some(source)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    use std::sync::Arc;
+    use tcl_lexer::LexerConfig;
+    use tcl_registry::model::{ContextRegistry, ingress};
+
+    fn logical_unit(
+        source: &str,
+        context: &Arc<ContextRegistry>,
+        config: LexerConfig,
+    ) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(context),
+            config,
+        );
+        CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        )
+    }
+
+    #[test]
+    fn original_increment_metadata_keeps_actual_configuration_and_available_generation() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current = ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig {
+            strict_quoting: true,
+            expand_syntax: false,
+            ..LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let source = "set x [expr {$x+1}]";
+        let unit = logical_unit(source, &current, config);
+        let module = &unit.ir_module;
+        let script = &module.top_level;
+        let statement = script.statements.last().unwrap();
+        let tokens = script
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let metadata = original_increment_metadata(tokens, module, current.commands())
+            .unwrap()
+            .unwrap();
+        assert!(std::ptr::eq(metadata.context(), current.context()));
+        assert_eq!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_lexer_config_for_tokens(tokens)
+                .unwrap(),
+            config
+        );
+        assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            current.commands(), metadata, tokens,
+        ).is_some());
+        assert!(
+            assess_increment_rewrite(script, statement, current.commands(), module).is_none(),
+            "source selection supplies no Native read/store or integer conversion witness"
+        );
+        let older = Arc::new(
+            ingress::resolve_environment("tcl8.4")
+                .default_context_registry()
+                .with_command_store(current.commands().snapshot().shared_registry()),
+        );
+        for (context, available) in [(&current, true), (&older, false)] {
+            let unit = logical_unit(source, context, config);
+            let script = &unit.ir_module.top_level;
+            let tokens = script
+                .retained_source_tokens_for_statement(script.statements.last().unwrap())
+                .unwrap();
+            let metadata = original_increment_metadata(tokens, &unit.ir_module, context.commands())
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                metadata
+                    .context()
+                    .resolve_spec_in_realm(
+                        context.commands(),
+                        "throw",
+                        tcl_dialect::model::InvocationRealm::InterpreterRuntime
+                    )
+                    .is_some(),
+                available
+            );
+        }
+        let word = tokens.words().last().unwrap();
+        let expression =
+            crate::value_shapes::command_substitution_tokens(word, Some(tokens), config)
+                .unwrap()
+                .remove(0);
+        let child = original_increment_metadata(&expression, module, current.commands())
+            .unwrap()
+            .unwrap();
+        assert!(std::ptr::eq(child.context(), current.context()));
+        assert_eq!(
+            expression
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_lexer_config_for_tokens(&expression)
+                .unwrap()
+                .nested()
+                .normalized(),
+            config.nested().normalized()
+        );
+    }
+
+    #[test]
+    fn original_increment_metadata_withdraws_supplied_owners_without_standalone_fallback() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current = ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let unit = logical_unit("set x [expr {$x+1}]", &current, config);
+        let script = &unit.ir_module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(script.statements.last().unwrap())
+            .unwrap();
+        assert!(original_increment_metadata(tokens, &unit.ir_module, current.commands()).is_some());
+        for change in 0..5 {
+            let mut module = unit.ir_module.clone();
+            match change {
+                0 => module.source_metadata_input = None,
+                1 => module.lexer_config.strict_quoting = !config.strict_quoting,
+                2 => module.retained_source_bindings = None,
+                3 => {
+                    module.source_entry.metadata_context =
+                        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+                }
+                _ => module.source = tcl_lexer::SourceImage::document("set x OTHER"),
+            }
+            assert!(original_increment_metadata(tokens, &module, current.commands()).is_none());
+        }
+        let foreign = CommandRegistry::build_default();
+        assert!(original_increment_metadata(tokens, &unit.ir_module, &foreign).is_none());
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(
+            original_increment_metadata(&missing, &unit.ir_module, current.commands()).is_none()
+        );
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let standalone = CompilationUnit::build_for("set x 0", &registry, false);
+        assert!(
+            standalone
+                .ir_module
+                .source_entry
+                .metadata_context
+                .is_standalone()
+        );
+        let script = &standalone.ir_module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(script.statements.last().unwrap())
+            .unwrap();
+        assert!(original_increment_metadata(tokens, &standalone.ir_module, &registry).is_some());
+    }
 }

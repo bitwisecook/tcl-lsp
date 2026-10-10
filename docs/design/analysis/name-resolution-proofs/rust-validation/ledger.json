@@ -143998,6 +143998,558 @@
       "tests": [],
       "question_ids": [],
       "limits": "One VM test fixture type error blocks this exact no-run command: the inherent dictionary convenience query returns a String key, while this control requires the original Value key identity. No test executable creation event is recorded. No successful producer pin, test inventory, unit assertion, Native provider outcome or aggregate gate result is claimed."
+    },
+    {
+      "id": "rust.frozen295.integration-vm-own-test-build295",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-vm-own-test-build295/receipt.json.gz",
+        "sha256": "5370fd00743d7c6e70a86a8b6e962422c3d8861a9da7669969dda5aa4ebc98e8",
+        "compression": "gzip",
+        "uncompressed_sha256": "87bfd2b47352b7920ee37ea0aa2fc36565234bf368c49a84856b1e757479fa12"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-vm-own-test-build295/tests.log",
+        "sha256": "7b6f3f82cd897b6c0b8271afda9b2ea3b5425ee7e0071eeee38010565fb56df2"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 0,
+      "seconds": 118.14370036200853,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains every source hash, compile/archive path, head and exact command association. All immutable source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Successful VM-only no-run producer records one actual tcl_vm libtest artifact. This compilation executes no unit assertions. Existing immutable original-provider records and other-image outcomes remain independent; no final gate or mutable source refresh is claimed.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/pinned-vm295.elf.gz",
+        "sha256": "96e5b9875f483a797ca5a4976292d84b4a600ed05cc7e46d03d58388267bd245",
+        "compression": "gzip",
+        "uncompressed_sha256": "08c65dc06ae2eefbdd6d037fa32e2490bf6ce78830c85603e30f4e08767f261c",
+        "uncompressed_bytes": 101830376,
+        "compressed_bytes": 19922947,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/pinned-vm295.json",
+        "metadata_sha256": "b518bfad2d658239c350577e985ebb77646cf9de5104967712877c1057a923cf",
+        "build_receipt_id": "rust.frozen295.integration-vm-own-test-build295",
+        "original_source_snapshot_sha256": "ca829545f905517b6066bc0dbdff99cf9c963ff382b6996513d1aa82ec1c3e16",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/source-snapshot.json.gz",
+          "sha256": "742e28a8567976d946086a7acb699085228df674e88c5d3d5f7b36584bbe2c79",
+          "compression": "gzip",
+          "uncompressed_sha256": "ca829545f905517b6066bc0dbdff99cf9c963ff382b6996513d1aa82ec1c3e16"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen295.integration-vm-inventory295",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-vm-inventory295/receipt.json.gz",
+        "sha256": "fe04f7805d745e45748b2ba52cf03090b520955ee2a6e66f20d8b94693cfa08e",
+        "compression": "gzip",
+        "uncompressed_sha256": "8a07c50d29ff7dfb3b974c38fdd658ff51ce5a52671139b28b5833d5f6363f33"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-vm-inventory295/tests.log",
+        "sha256": "c04b1f277c47a7c602ead1cc87e79ab7e8bc2ed79cdae07e5dc82efddf5dab7c"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm295.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.011223512992728502,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains every source hash, compile/archive path, head and exact command association. All immutable source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The strict copied VM295 image lists762 tests. Listing supplies no assertion outcome. Existing immutable original-provider records and other-image outcomes remain independent; no final gate or mutable source refresh is claimed.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/pinned-vm295.elf.gz",
+        "sha256": "96e5b9875f483a797ca5a4976292d84b4a600ed05cc7e46d03d58388267bd245",
+        "compression": "gzip",
+        "uncompressed_sha256": "08c65dc06ae2eefbdd6d037fa32e2490bf6ce78830c85603e30f4e08767f261c",
+        "uncompressed_bytes": 101830376,
+        "compressed_bytes": 19922947,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/pinned-vm295.json",
+        "metadata_sha256": "b518bfad2d658239c350577e985ebb77646cf9de5104967712877c1057a923cf",
+        "build_receipt_id": "rust.frozen295.integration-vm-own-test-build295",
+        "original_source_snapshot_sha256": "ca829545f905517b6066bc0dbdff99cf9c963ff382b6996513d1aa82ec1c3e16",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/source-snapshot.json.gz",
+          "sha256": "742e28a8567976d946086a7acb699085228df674e88c5d3d5f7b36584bbe2c79",
+          "compression": "gzip",
+          "uncompressed_sha256": "ca829545f905517b6066bc0dbdff99cf9c963ff382b6996513d1aa82ec1c3e16"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen295.integration-vm-software-tests295",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-vm-software-tests295/receipt.json.gz",
+        "sha256": "e2d8be9d586bc6fcb78a22e7dca5b2ab4c6685f25d5fc25619979d32617f3b9f",
+        "compression": "gzip",
+        "uncompressed_sha256": "c91fabb30114585db8f78fe56bc7a9f6731da4f1e005a63a86c24897d6cbc0da"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-vm-software-tests295/tests.log",
+        "sha256": "89302fad33d8285ba6319e9ea760a1b8e413cb70cc0a75ba76fe827d78d97514"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm295.elf",
+        "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+        "command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier",
+        "command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default",
+        "command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects",
+        "embed::embedding_settlement_tests::public_completion_option_bytes_preserves_first_host_before_any_getter",
+        "embed::embedding_settlement_tests::public_completion_option_bytes_retains_opaque_empty_and_absent_members",
+        "error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values",
+        "error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising",
+        "interp::byte_array_result_tests::binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate",
+        "interp::byte_array_result_tests::unsupported_declared_binary_purpose_refuses_without_native_fallback",
+        "interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile",
+        "interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter",
+        "interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose",
+        "interp::object_materialization::tests::actual_object_materialization_preserves_foreign_compound_refusal",
+        "interp::object_materialization::tests::actual_object_materialization_survives_unknown_source_without_losing_original_members",
+        "interp::object_materialization::tests::selected_authored_materialization_refuses_without_physical_fallback",
+        "interp::object_materialization::tests::standalone_compatibility_is_separate_and_unknown_source_cannot_select_a_recipe",
+        "value::script::execution_tests::deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script",
+        "value::script::execution_tests::deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers",
+        "value::script::execution_tests::deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 7.457860468013678,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 19,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 742
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains every source hash, compile/archive path, head and exact command association. All immutable source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.mathop.original-jim-source-and-helper-context"
+          ]
+        },
+        {
+          "selector": "command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "embed::embedding_settlement_tests::public_completion_option_bytes_preserves_first_host_before_any_getter",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "embed::embedding_settlement_tests::public_completion_option_bytes_retains_opaque_empty_and_absent_members",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "interp::byte_array_result_tests::binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "interp::byte_array_result_tests::unsupported_declared_binary_purpose_refuses_without_native_fallback",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.invocation.original-variable-inventory-policy"
+          ]
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.invocation.original-variable-inventory-policy"
+          ]
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.invocation.original-variable-inventory-policy"
+          ]
+        },
+        {
+          "selector": "interp::object_materialization::tests::actual_object_materialization_preserves_foreign_compound_refusal",
+          "status": "failed",
+          "purpose": "Exact Source295 foreign compound getter refusal fails at vm.dict_pairs(&dictionary).is_err(); original cached dictionary control retained without borrowing a later shared-recipe guard result.",
+          "proof_ids": [
+            "naming.invocation.original-object-materialization-purpose"
+          ]
+        },
+        {
+          "selector": "interp::object_materialization::tests::actual_object_materialization_survives_unknown_source_without_losing_original_members",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.invocation.original-object-materialization-purpose"
+          ]
+        },
+        {
+          "selector": "interp::object_materialization::tests::selected_authored_materialization_refuses_without_physical_fallback",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.invocation.original-object-materialization-purpose"
+          ]
+        },
+        {
+          "selector": "interp::object_materialization::tests::standalone_compatibility_is_separate_and_unknown_source_cannot_select_a_recipe",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.invocation.original-object-materialization-purpose"
+          ]
+        },
+        {
+          "selector": "value::script::execution_tests::deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.source.jim-original-deferred-script-ownership"
+          ]
+        },
+        {
+          "selector": "value::script::execution_tests::deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.source.jim-original-deferred-script-ownership"
+          ]
+        },
+        {
+          "selector": "value::script::execution_tests::deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit",
+          "status": "passed",
+          "purpose": "Exact Source295 software/API ownership, typed completion, byte carrier, inventory or deferred-script assertion; no external provider behavior or generic Native authority.",
+          "proof_ids": [
+            "naming.source.jim-original-deferred-script-ownership"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.embedding.original-host-publication-and-fact-transport",
+        "naming.invocation.original-object-materialization-purpose",
+        "naming.invocation.original-variable-inventory-policy",
+        "naming.mathop.original-jim-source-and-helper-context",
+        "naming.source.jim-original-deferred-script-ownership"
+      ],
+      "limits": "Twenty exact software/API assertions close19 passed/1 failed. Genuine unknown-source actual-engine inventory, three nonforeign object controls, three deferred Jim ownership controls, first Host/completion/byte controls pass. Foreign dictionary getter refusal fails its exact assertion; later shared dictionary recipe guard is a separate source image. No aggregate pass or original provider result is inferred. Existing immutable original-provider records and other-image outcomes remain independent; no final gate or mutable source refresh is claimed.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/pinned-vm295.elf.gz",
+        "sha256": "96e5b9875f483a797ca5a4976292d84b4a600ed05cc7e46d03d58388267bd245",
+        "compression": "gzip",
+        "uncompressed_sha256": "08c65dc06ae2eefbdd6d037fa32e2490bf6ce78830c85603e30f4e08767f261c",
+        "uncompressed_bytes": 101830376,
+        "compressed_bytes": 19922947,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/pinned-vm295.json",
+        "metadata_sha256": "b518bfad2d658239c350577e985ebb77646cf9de5104967712877c1057a923cf",
+        "build_receipt_id": "rust.frozen295.integration-vm-own-test-build295",
+        "original_source_snapshot_sha256": "ca829545f905517b6066bc0dbdff99cf9c963ff382b6996513d1aa82ec1c3e16",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/source-snapshot.json.gz",
+          "sha256": "742e28a8567976d946086a7acb699085228df674e88c5d3d5f7b36584bbe2c79",
+          "compression": "gzip",
+          "uncompressed_sha256": "ca829545f905517b6066bc0dbdff99cf9c963ff382b6996513d1aa82ec1c3e16"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen295.integration-vm-info-diagnostic-tests295",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-vm-info-diagnostic-tests295/receipt.json.gz",
+        "sha256": "46b5d420ff7edbaa3a2cde353431bcd0d523b10750c16d48f637dcb1e4f368b8",
+        "compression": "gzip",
+        "uncompressed_sha256": "a59e5f3ac04f3dd1109e6d8546eaacb8daf9e9c88a2167dd87635166d18b5dcb"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-vm-info-diagnostic-tests295/tests.log",
+        "sha256": "6f67d4cbae3b4eddedd8d4b5bc96f82ff829e73d532c6342eeedff5fe59840bf"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm295.elf",
+        "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 73.34613987401826,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 761
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains every source hash, compile/archive path, head and exact command association. All immutable source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+          "status": "failed",
+          "purpose": "Unchanged original186 comparator stops at Jim absolute-existing Guest1 versus observed0 with live/readable result, diagnosing absent namespace info fixture. No whole Info comparator pass or header lifetime failure is inferred.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [],
+      "limits": "The exact unchanged Info186 comparator closes0 passed/1 failed after advancing through C rows to Jim absolute-existing. The recorded diagnostic retains Guest1 invalid command namespace info versus expected0 and live/readable headers. It supplies no complete Info PASS, later explicit helper result or provider behavior failure. Existing immutable original-provider records and other-image outcomes remain independent; no final gate or mutable source refresh is claimed.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/pinned-vm295.elf.gz",
+        "sha256": "96e5b9875f483a797ca5a4976292d84b4a600ed05cc7e46d03d58388267bd245",
+        "compression": "gzip",
+        "uncompressed_sha256": "08c65dc06ae2eefbdd6d037fa32e2490bf6ce78830c85603e30f4e08767f261c",
+        "uncompressed_bytes": 101830376,
+        "compressed_bytes": 19922947,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/pinned-vm295.json",
+        "metadata_sha256": "b518bfad2d658239c350577e985ebb77646cf9de5104967712877c1057a923cf",
+        "build_receipt_id": "rust.frozen295.integration-vm-own-test-build295",
+        "original_source_snapshot_sha256": "ca829545f905517b6066bc0dbdff99cf9c963ff382b6996513d1aa82ec1c3e16",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/source-snapshot.json.gz",
+          "sha256": "742e28a8567976d946086a7acb699085228df674e88c5d3d5f7b36584bbe2c79",
+          "compression": "gzip",
+          "uncompressed_sha256": "ca829545f905517b6066bc0dbdff99cf9c963ff382b6996513d1aa82ec1c3e16"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen295.integration-compiler-registry-syntax-core-db-server-test-build295",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-compiler-registry-syntax-core-db-server-test-build295/receipt.json.gz",
+        "sha256": "9c059dceafa62b741050e43e82ad9f863ca9a0a4252e5a5a0448d94cab65db08",
+        "compression": "gzip",
+        "uncompressed_sha256": "8e8b0b01447d9b7e3dce8f8a03c4f60564b6e417fefeb727f60b94afbfdaf44d"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-compiler-registry-syntax-core-db-server-test-build295/tests.log",
+        "sha256": "8a42aeebafb6f6cf0ef5ca4c674941494a8377a11a255cf07ced1049ffdfd027"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-lsp-db",
+        "-p",
+        "tcl-lsp-server",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 191.64344478602288,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains every source hash, compile/archive path, head and exact command association. All immutable source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This failed no-run command records two ordinary Core dependency compilation errors (private original_recorded_command and receiver_identity type mismatch). One partial Syntax libtest executable event remains in the whole log but is unsealed: no successful aggregate producer, Compiler pin, list or assertion is admitted. Existing immutable original-provider records and other-image outcomes remain independent; no final gate or mutable source refresh is claimed."
+    },
+    {
+      "id": "rust.frozen295.integration-compiler-registry-syntax-own-test-build295",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-compiler-registry-syntax-own-test-build295/receipt.json.gz",
+        "sha256": "bdb7c7d50fc6e8b87f4168da4fed749dc2ea6e691c44a97546bf9d508b437a6c",
+        "compression": "gzip",
+        "uncompressed_sha256": "5b737b35739ae20870d6de5220509d69204b7238bfe39f584b3d727429a3e7c5"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/integration-compiler-registry-syntax-own-test-build295/tests.log",
+        "sha256": "bacfb572c2f922e8b2c5f25471b957f36ee699189dbf446d9ada230bf8d60bac"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 110.22193026100285,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains every source hash, compile/archive path, head and exact command association. All immutable source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This failed no-run command records two ordinary Core dependency compilation errors (private original_recorded_command and receiver_identity type mismatch). One partial Syntax libtest executable event remains in the whole log but is unsealed: no successful aggregate producer, Compiler pin, list or assertion is admitted. Existing immutable original-provider records and other-image outcomes remain independent; no final gate or mutable source refresh is claimed."
+    },
+    {
+      "id": "rust.frozen296.integration-compiler-registry-syntax-core-db-server-own-test-build296",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen296/integration-compiler-registry-syntax-core-db-server-own-test-build296/receipt.json.gz",
+        "sha256": "0cd7b08b3b2793fc609bf53665143003d16fb6593ea50c48e754fbb6535a88e0",
+        "compression": "gzip",
+        "uncompressed_sha256": "0cbb1cbcc0ebe16d10c11c60cfba8c24b2a0dc3b79e79ec175b84e9ee7396a97"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen296/integration-compiler-registry-syntax-core-db-server-own-test-build296/tests.log",
+        "sha256": "d51332d7ee9ad23030de88bd4c4e1fae3108b68fd27218cd3f56a9b1b4fc0ce8"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-lsp-db",
+        "-p",
+        "tcl-lsp-server",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 362.937163908995,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains every immutable source hash, compile/archive path, head and exact command association. All32150 original source associations are independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Four Compiler libtest fixture errors refer to source_registry_words_at through the wrong helper namespace. The failed invocation records four partial executable events: Syntax is marked fresh; Server, Database and Registry are marked newly built. These events are retained without a sealed pin or an assertion result. No successful aggregate producer, Compiler executable pin, inventory, unit assertion, Native provider outcome or overall gate result follows."
     }
   ]
 }

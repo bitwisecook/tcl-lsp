@@ -931,7 +931,13 @@ impl Analyser {
         // default registry when the analyser has none loaded.
         let generation = self.analysis_context();
         let scan_registry = self.registry.as_deref().unwrap_or(generation.commands());
-        let Some(metadata) = function_unit.invocation_metadata_context(scan_registry) else {
+        let metadata = match module {
+            Some(module) => {
+                module.invocation_metadata_context_for_function(function_unit, scan_registry)
+            }
+            None => function_unit.invocation_metadata_context(scan_registry),
+        };
+        let Some(metadata) = metadata else {
             return;
         };
         let scope_aliases = crate::optimiser::elimination::scan_scope_aliases_with_metadata_context(
@@ -975,6 +981,7 @@ impl Analyser {
             &scope_aliases,
             cross_event_vars,
             cell_facts,
+            module,
         );
         if let Some(procedure) = ir_proc {
             self.emit_conditional_declared_store_diagnostics(

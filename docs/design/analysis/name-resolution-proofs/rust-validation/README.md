@@ -2488,3 +2488,44 @@ The [unchanged original receipt](frozen293/integration-vm-own-test-build293/rece
 The exact original `cargo test -p tcl-vm --lib --no-run` command closes with exit101 after 129.602939s and `uniform_source: true`. One VM test fixture type error blocks this exact no-run command: the inherent dictionary convenience query returns a String key, while this control requires the original Value key identity. No test executable creation event is recorded. The retained unused-import warning remains in the whole log. No successful producer pin, test inventory, unit assertion, Native provider outcome or aggregate gate result is claimed.
 
 The [unchanged original receipt](frozen294/integration-vm-own-test-build294/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen294/integration-vm-own-test-build294/tests.log) preserves every diagnostic. All 31999 immutable source archive leaves are independently byte-checked. Original command, paths, source association and timing remain unchanged.
+
+## Sealed Source295 VM image and separate dependency-blocked builds
+
+The successful independent VM no-run producer and its strict copied executable retain the exact source/pin association. The actual inventory lists 762 tests. The twenty-control software focus closes19 passed/1 failed: the foreign dictionary getter refusal fails while the other nineteen assertions pass, including genuine unknown-source actual-engine inventory and the three deferred Jim ownership controls. The unchanged Info186 comparator closes0 passed/1 failed at Jim absolute-existing with Guest1 versus observed0 and live/readable result headers; it establishes no whole comparator pass. Both independent Compiler dependency commands fail on the same two ordinary Core errors, each with one unsealed partial Syntax artifact event and no Compiler pin or assertions. Original provider observations remain independent.
+
+| Exact closed operation | Recorded outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-vm-own-test-build295` | `compile-passed`, exit0, 118.143700s; one sealed VM artifact; no assertions | [Original receipt](frozen295/integration-vm-own-test-build295/receipt.json.gz) | [Whole log](frozen295/integration-vm-own-test-build295/tests.log) |
+| `integration-vm-inventory295` | `listed`, exit0, 0.011224s; 762 listed; no assertions | [Original receipt](frozen295/integration-vm-inventory295/receipt.json.gz) | [Whole log](frozen295/integration-vm-inventory295/tests.log) |
+| `integration-vm-software-tests295` | `failed`, exit101, 7.457860s; 19 passed/1 failed | [Original receipt](frozen295/integration-vm-software-tests295/receipt.json.gz) | [Whole log](frozen295/integration-vm-software-tests295/tests.log) |
+| `integration-vm-info-diagnostic-tests295` | `failed`, exit101, 73.346140s; 0 passed/1 failed | [Original receipt](frozen295/integration-vm-info-diagnostic-tests295/receipt.json.gz) | [Whole log](frozen295/integration-vm-info-diagnostic-tests295/tests.log) |
+| `integration-compiler-registry-syntax-core-db-server-test-build295` | `compile-blocked`, exit101, 191.643445s; two Core errors; partial Syntax event unsealed; no assertions | [Original receipt](frozen295/integration-compiler-registry-syntax-core-db-server-test-build295/receipt.json.gz) | [Whole log](frozen295/integration-compiler-registry-syntax-core-db-server-test-build295/tests.log) |
+| `integration-compiler-registry-syntax-own-test-build295` | `compile-blocked`, exit101, 110.221930s; two Core errors; partial Syntax event unsealed; no assertions | [Original receipt](frozen295/integration-compiler-registry-syntax-own-test-build295/receipt.json.gz) | [Whole log](frozen295/integration-compiler-registry-syntax-own-test-build295/tests.log) |
+
+The [software selection](frozen295/selection/vm-software-selection295.json), [Info diagnostic selection](frozen295/selection/vm-info-diagnostic-selection295.json), [original pin](frozen295/sealed-vm-image/pinned-vm295.json), [lossless image record](frozen295/sealed-vm-image/lossless-image-storage.json) and [complete source companion](frozen295/source-snapshot.json.gz) retain their original command associations. All 192234 immutable source-leaf associations are independently checked. Current question IDs attach only when the entire current definition leaf matches the frozen image. Definition links and later source fixes do not borrow outcomes.
+
+Restore the exact measured VM executable with compressed and original integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-vm295.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-vm295.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Restoration proves payload identity, not a new build, replay, Native observation or current assertion pass.
+
+## Compiler, Registry, Syntax, Core, Database and Server no-run build296: compilation only
+
+The exact original six-package library no-run command closes with exit `101` after 362.937164s and `uniform_source: true`. Four Compiler libtest fixture errors refer to source_registry_words_at through the wrong helper namespace. The failed invocation records four partial executable events: Syntax is marked fresh; Server, Database and Registry are marked newly built. These events are retained without a sealed pin or an assertion result. No Rust unit assertion is launched. The partial artifact events supply no successful aggregate producer, Compiler pin, test inventory, Native provider answer or overall PASS.
+
+The [unchanged original receipt](frozen296/integration-compiler-registry-syntax-core-db-server-own-test-build296/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen296/integration-compiler-registry-syntax-core-db-server-own-test-build296/tests.log) preserves all four errors and artifact events, including their actual fresh flags. All 32150 immutable source associations are byte-checked. Original command, source/archive paths and timing remain unchanged; separate later fixture corrections are outside this frozen operation.

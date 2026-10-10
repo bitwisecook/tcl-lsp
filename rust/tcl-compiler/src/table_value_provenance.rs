@@ -8,7 +8,10 @@ use crate::{
     compilation_unit::{CompilationUnit, FunctionUnit},
     ir::{CommandTokens, Provenance, WordExpr, WordPart},
     place::Place,
-    registry_invocation::{normal_representation_invocation, normal_transfer_invocation},
+    registry_invocation::{
+        InvocationMetadataContext, normal_representation_invocation_with_metadata_context,
+        normal_transfer_invocation_with_metadata_context,
+    },
     value_provenance::ValueContributor,
     var_resolve::{ContentsOrigin, ContentsPresence, ResolveContext},
 };
@@ -54,6 +57,10 @@ pub(crate) fn table_values(
     source: &str,
     registry: &CommandRegistry,
 ) -> Option<Vec<TableValueContributor>> {
+    let units: Vec<_> = compilation.all_body_function_units().collect();
+    if !units.iter().any(|candidate| std::ptr::eq(*candidate, unit)) {
+        return None;
+    }
     let (_, site) = word.sole_variable_substitution()?;
     let access = tokens.variable_access_for_site(site)?;
     if access.context_residual() != crate::command_binding::SourceVariableReadResidual::Closed {
@@ -62,12 +69,14 @@ pub(crate) fn table_values(
     let syntax = access.variable_context.invocation_dialect?.word_values.list;
     let mut query = Query {
         unit,
-        units: compilation.all_body_function_units().collect(),
+        units,
+        module: &compilation.ir_module,
         source,
         registry,
         syntax,
         active: HashSet::new(),
     };
+    query.invocation_metadata(tokens)?;
     let mut result = Vec::new();
     for context in access.context_alternatives() {
         if context.invocation_dialect?.word_values.list != syntax {
@@ -210,6 +219,7 @@ fn select(
 struct Query<'a> {
     unit: &'a FunctionUnit,
     units: Vec<&'a FunctionUnit>,
+    module: &'a crate::ir::Module,
     source: &'a str,
     registry: &'a CommandRegistry,
     syntax: tcl_dialect::ListParse,
@@ -224,6 +234,32 @@ type StorePoint<'a> = (
 );
 
 impl<'a> Query<'a> {
+    /// Keep whole-Module currency separate from FU/point availability. Only an
+    /// independently retained Standalone entry can use the compatibility route.
+    fn invocation_metadata<'b>(
+        &self,
+        tokens: &'b CommandTokens,
+    ) -> Option<Option<InvocationMetadataContext<'b>>> {
+        let owner = self.module.retained_source_bindings.as_deref()?;
+        if !owner.matches_module(self.module, self.registry) {
+            return None;
+        }
+        let binding = tokens.source_binding.as_ref()?;
+        if self.module.source_metadata_input.is_some() {
+            self.unit
+                .invocation_metadata_context_for_module(self.registry, self.module)?;
+            return binding
+                .original_invocation_metadata_for_module(tokens, self.module, self.registry)
+                .map(Some);
+        }
+        if !self.module.source_entry.metadata_context.is_standalone()
+            || !owner.owns_original_tokens(tokens)
+        {
+            return None;
+        }
+        binding.original_invocation_metadata_for_function(tokens, self.unit, self.registry)
+    }
+
     fn values_at(&mut self, target: &Place, context: &ResolveContext) -> Option<Vec<Stored>> {
         if !context.contents_have_authored_source(target, self.source)
             || target.observed
@@ -320,7 +356,9 @@ impl<'a> Query<'a> {
         if !self.authored_carrier(tokens) {
             return None;
         }
-        let normal = normal_transfer_invocation(self.registry, None, tokens)?;
+        let metadata = self.invocation_metadata(tokens)?;
+        let normal =
+            normal_transfer_invocation_with_metadata_context(self.registry, metadata, tokens)?;
         let context = &tokens.source_binding.as_ref()?.variable_context;
         if let Some(word) = normal.stored_value_word(context, self.registry) {
             return self.word_value(word, tokens);
@@ -402,17 +440,36 @@ impl<'a> Query<'a> {
         if let Some(value) = self.literal(word) {
             return Some(vec![Stored::Literal(value)]);
         }
-        let dialect = tokens
-            .source_binding
-            .as_ref()?
-            .variable_context
-            .invocation_dialect?;
-        let mut nested = crate::word_subst::whole_word_command_tokens(
-            word,
-            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-        )?;
+        let metadata = self.invocation_metadata(tokens)?;
+        let config = self.unit.source_lexer_config();
+        let calls = if let Some(actual) =
+            metadata.filter(|actual| actual.source_analysis_input().is_some())
+        {
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                tokens,
+                config,
+                self.registry,
+                actual,
+            )?
+        } else {
+            // The invocation metadata issuer has already proved explicit
+            // Standalone ownership and the original complete source vector.
+            crate::word_subst::checked_lifted_calls(tokens, config)?
+        };
+        let mut nested = crate::word_subst::whole_word_command_tokens(word, config)?;
         nested.inherit_nested_bindings(tokens);
-        let normal = normal_representation_invocation(self.registry, None, &nested)?;
+        if !calls
+            .iter()
+            .any(|call| call.tokens.as_ref() == Some(&nested))
+        {
+            return None;
+        }
+        let metadata = self.invocation_metadata(&nested)?;
+        let normal = normal_representation_invocation_with_metadata_context(
+            self.registry,
+            metadata,
+            &nested,
+        )?;
         if let Some(words) = normal.list_constructor_words() {
             if words.len() > VALUE_BUDGET {
                 return None;
@@ -544,4 +601,110 @@ fn put(
         )?;
     }
     (entries.len() <= VALUE_BUDGET).then_some(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::compilation_unit::UnitBuildOptions;
+    use std::sync::Arc;
+
+    fn read_values(
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+    ) -> Option<Vec<TableValueContributor>> {
+        let script = &unit.ir_module.top_level;
+        let tokens = script.retained_source_tokens_for_statement(script.statements.last()?)?;
+        table_values(
+            unit,
+            &unit.top_level,
+            tokens,
+            tokens.words().get(1)?,
+            Some(&[Some("alpha".into())]),
+            &unit.source,
+            registry,
+        )
+    }
+
+    #[test]
+    fn original_table_values_keep_actual_constructor_selection_and_whole_module_owner() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original literal ancestry of a separately admitted cell/read and
+        // construction handler; neither context nor ancestry grants execution.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::SuppliedSource(
+                    Box::new(input.clone()),
+                ),
+            native_entry: Some(Arc::new(native)),
+            ..Default::default()
+        };
+        for (source, expected) in [
+            (
+                "set table [dict create alpha {helper baked}]; puts $table",
+                Some("helper baked"),
+            ),
+            (
+                "rename dict nativeDict; set table [nativeDict create alpha {helper baked}]; puts $table",
+                Some("helper baked"),
+            ),
+            (
+                "proc dict {args} {return {alpha {helper baked}}}; set table [dict create alpha {helper baked}]; puts $table",
+                None,
+            ),
+        ] {
+            let unit = CompilationUnit::build_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                Some(&entry),
+                &input,
+            );
+            let values = read_values(&unit, context.commands());
+            assert_eq!(
+                values
+                    .as_ref()
+                    .and_then(|values| values.first())
+                    .map(|value| value.literal().value.as_str()),
+                expected,
+                "{source}"
+            );
+            if let Some(values) = values {
+                assert_eq!(values.len(), 1);
+                assert_eq!(
+                    source.get(values[0].literal().literal_span.unwrap().as_range()),
+                    expected
+                );
+            }
+            let mut changed = unit.clone();
+            changed.ir_module.top_level_namespace = "::changed".into();
+            assert!(read_values(&changed, context.commands()).is_none());
+            let mut missing = unit.clone();
+            missing.top_level.source_metadata_input = None;
+            assert!(read_values(&missing, context.commands()).is_none());
+            let mut unavailable = unit.clone();
+            let older = Arc::new(
+                tcl_registry::model::ingress::static_context_for("tcl8.4")
+                    .with_command_store(Arc::clone(context.commands())),
+            );
+            unavailable.top_level.source_metadata_input =
+                Some(ResolvedAnalysisInput::new(profile, profile, older, config));
+            assert!(read_values(&unavailable, context.commands()).is_none());
+        }
+    }
 }

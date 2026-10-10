@@ -909,6 +909,31 @@ impl<'a> ModuleProcedures<'a> {
         })
     }
 
+    /// Reborrow this function's complete input only under the same Module owner.
+    pub(crate) fn invocation_metadata_context_for_function<'f>(
+        &self,
+        function: &'f crate::compilation_unit::FunctionUnit,
+        registry: &CommandRegistry,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'f>> {
+        function.invocation_metadata_context_for_module(registry, self.ir)
+    }
+
+    /// Metadata for an exact original function point under this Module owner.
+    /// Availability, whole source and original vector correspondence remain
+    /// distinct from a successful command or physical variable operation.
+    pub(crate) fn original_invocation_metadata_for_function<'f>(
+        &self,
+        function: &crate::compilation_unit::FunctionUnit,
+        tokens: &'f crate::ir::CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'f>> {
+        self.invocation_metadata_context_for_function(function, registry)?;
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_module(tokens, self.ir, registry)
+    }
+
     /// A built callee keeps its own source input. Its missing input is not
     /// repaired from a sibling module record; fresh CFGs use the actual module.
     fn source_metadata_input_for(

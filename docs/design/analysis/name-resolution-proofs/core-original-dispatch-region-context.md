@@ -24,6 +24,8 @@ The shared Core CurrentSourceContext receipt validates the original complete sou
 
 Source-backed inline and data-group consumers share CurrentSourceContext and actual selected command geometry. Complete image/input/configuration and genuine original clauses remain required, including when selected operands originate in a captured prefix.
 
+Five additional marked Core definitions retain current captured-method metadata and typed external/internal object masks. Original selected receiver-local dispatch differs from variable or literal object names; ConditionalSource advice stays separate from canonical visibility, and Unavailable masks withhold workspace fallbacks despite populated facts.
+
 ## Scope
 
 Current Core source-region implementation contract. Two fixed controls check retained custom schema/PotentialEvaluation versus ReferenceOnly, and original moved namespace source versus replacement/delete/missing/stale ownership. All seven providers are not tested; original provider dispatch/lifetime observations remain separate.
@@ -37,6 +39,8 @@ Three additional Core source controls have no executed assertion or provider rec
 Seven additional current Core source controls have no executed assertion result here. Source correspondence and lexical frames do not establish Native command/class identity, current runtime frame/receiver, actual method dispatch/body entry, observer closure or edit authority.
 
 Two added source/software definitions attach no assertion outcome. Current source currency, original dispatch roles and conditional output metadata remain separate from physical receiver/frame identity, Native entry and safe insertion/movement/rewrite authority.
+
+These source API definitions do not establish Native receiver allocation, method entry, current frame, physical identity, visibility behavior on an original provider or edit permission. Full source/configuration/availability/store currency remains required independently of reported names; no assertion outcome is attached.
 
 ## Provider answers
 
@@ -142,6 +146,17 @@ These source bindings establish no executed assertion result; exact software out
 - [rust/tcl-lsp-core/src/refactor/datagroup.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup.rs), `refactor::datagroup::tests::supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner` (linked): Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
+
+- [rust/tcl-lsp-core/src/receiver_identity.rs](../../../../rust/tcl-lsp-core/src/receiver_identity.rs), `captured_methods_at_command`: Join actual current full source/input/configuration to original captured method registration geometry before source advice.
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `ExternalObjectDispatchMask`: Keep canonical visibility, ConditionalSource and Unavailable mask purposes typed separately; unavailable advice withholds fallback.
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `object_dispatch_mask`: Require current original source context and selected receiver-local or external purpose, without textual self/my classification or reporting-map fallback.
+- [rust/tcl-lsp-core/src/receiver_identity.rs](../../../../rust/tcl-lsp-core/src/receiver_identity.rs), `receiver_identity::tests::captured_method_registration_keeps_actual_metadata_and_source_currency` (linked): Captured method registration retains genuine current full metadata/source configuration and original callback geometry; missing, changed, foreign and unavailable owners withdraw it.
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::tests::original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch` (linked): External object mask advice distinguishes variable/literal receiver names from internal self dispatch and survives erased reporting maps; retained canonical visibility purpose is independent of names such as my or literal [self].
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::tests::original_internal_visibility_uses_the_selected_receiver_local_head` (linked): Internal method visibility consumes the genuinely selected receiver-local head despite a same-spelling global decoy, rather than textual head recognition.
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose` (linked): Full retained BOM/lexer/source input supplies a typed ConditionalSource mask without inventing Native object configuration; changing a display dialect cannot widen it and another source namespace withholds it.
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::tests::original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input` (linked): Populated reporting/configuration facts do not bypass missing, typed unavailable, stale grammar/source, older same-store availability or foreign complete input; Unavailable masks withhold every workspace fallback.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

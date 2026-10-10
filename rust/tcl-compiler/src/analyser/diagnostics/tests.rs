@@ -13372,7 +13372,7 @@ fn tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads() {
                     undefined.is_empty(),
                     "{profile}/captured={captured}/{aliased}\n{undefined:?}"
                 );
-                let words = crate::registry_invocation::source_registry_words_at(
+                let words = crate::registry_invocation::source_structure::source_registry_words_at(
                     &aliased, &analysis, offset,
                 )
                 .expect("actual package-selected original alias source");
@@ -13446,7 +13446,7 @@ fn tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque() {
             );
             let call_offset = u32::try_from(source.rfind("report_test ").unwrap()).unwrap();
             assert!(
-                crate::registry_invocation::source_registry_words_at(
+                crate::registry_invocation::source_structure::source_registry_words_at(
                     &source,
                     &selected,
                     call_offset,
@@ -13456,7 +13456,7 @@ fn tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque() {
             let mut missing = selected.clone();
             missing.resolved_input = None;
             assert!(
-                crate::registry_invocation::source_registry_words_at(
+                crate::registry_invocation::source_structure::source_registry_words_at(
                     &source,
                     &missing,
                     call_offset,
@@ -13464,7 +13464,7 @@ fn tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque() {
                 .is_none()
             );
             assert!(
-                crate::registry_invocation::source_registry_words_at(
+                crate::registry_invocation::source_structure::source_registry_words_at(
                     &(source.clone() + "# changed image\n"),
                     &selected,
                     call_offset,

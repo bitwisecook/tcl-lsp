@@ -14,9 +14,13 @@ Can a positively selected Logical source owner retain general formal bindings an
 
 The immutable receipt retains the exact full Logical input, actual context/Registry, selected Procedure schema, literal formal fields, unchanged parent body and complete original scalar reads. Incoming argument links remain separate from subsequent unknown binding effects. Isolated alpha-renaming additionally requires complete whole-body/root binding coverage and excludes aliases, mutation, reflection, frames and unsupported evaluation. The independently selected Registry Return source purpose bounds ordinary zero/one-result binding preservation without resolving Native return effects or Normal. Native/hosted inputs stay outside this source model. Zero-result Return retains an empty authored role vector; one-result Return retains the selected Result role at ordinal0. Both keep unknown Native effects. Readonly navigation asks the positively sealed full-input Logical formal factory before the independent legacy compatibility flag. Native return effects require an independently selected Native naming protocol before the existing release/family/number grammar may close result-only state effects. A positively Logical or unmeasured profile keeps Native effects conservative while its separate lexical binding metadata remains available.
 
+Two additional marked source definitions retain literal Unicode formal declarations, original scalar-read geometry and default fields while cooked or unrepresentable values and withdrawn full source owners remain unavailable.
+
 ## Scope
 
 Bounded root Logical procedure authoring with unique fixed scalar formals, selected strict list syntax, unchanged defaults and original straight-line body words. Source geometry, readonly declaration correspondence, binding-name closure and the caller isolated policy remain separate. Variadic args, cooked/opaque/duplicate formals, aliases, local writes, traces, reflection, unknown source operations, arrays and nested command/expression/control evaluation cannot enable alpha edits. No Native lookup/cell/store/activation/observer/Normal/runtime equivalence follows.
+
+The lossless Unicode source facade supplies String-compatible values only; raw==cooked geometry and the original Logical binder are independent requirements. Formal source correspondence alone supplies no Native argv/frame, reached evaluation, alpha edit licence, observer purity or new assertion outcome.
 
 ## Provider answers
 
@@ -92,6 +96,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs), `registry::native_return_effect_ingress_tests::native_return_effect_requires_its_independent_selected_protocol` (linked): No dialect, positive Logical and unmeasured Jim remain conservative; independently selected measured Native recipes retain their bounded result-only effect answer.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/registry_invocation/logical_formals.rs](../../../../rust/tcl-compiler/src/registry_invocation/logical_formals.rs), `original_logical_procedure_bindings`: Retain strict original whole list/literal Unicode geometry, unique scalar formal names and current complete Logical source owner before declaration/reference correspondence.
+- [rust/tcl-compiler/src/registry_invocation/logical_formals.rs](../../../../rust/tcl-compiler/src/registry_invocation/logical_formals.rs), `registry_invocation::logical_formals::tests::logical_unicode_formals_retain_literal_fields_and_original_scalar_reads` (linked): Genuine literal Unicode formal fields retain original declaration/reference spans, default-list fields, scalar reads and same whole source owner; reported names are not recooked to establish alpha binding.
+- [rust/tcl-compiler/src/registry_invocation/logical_formals.rs](../../../../rust/tcl-compiler/src/registry_invocation/logical_formals.rs), `registry_invocation::logical_formals::tests::logical_unicode_formals_refuse_cooked_units_and_withdrawn_source_owners` (linked): Cooked escape declarations, unrepresentable units, duplicate/NUL fields and changed source/configuration/foreign/missing owners withdraw the formal correspondence rather than borrow replacement presentation.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -1,0 +1,4 @@
+version 9.1.0
+package 0 2.6.0
+package_ifneeded {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl}
+auto_path {/workspace/tcl-lsp/tmp/tcl9.1.0/library /workspace/tcl-lsp/tmp/tcl9.1.0 /workspace/tcl-lsp/tmp/tcl9.1.0/lib /workspace/.proofs/native-providers/9.1.0/install/lib}

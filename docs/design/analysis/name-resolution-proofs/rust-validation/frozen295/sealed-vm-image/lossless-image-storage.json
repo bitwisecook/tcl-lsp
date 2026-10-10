@@ -1,0 +1,25 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/pinned-vm295.elf.gz",
+  "stored_sha256": "96e5b9875f483a797ca5a4976292d84b4a600ed05cc7e46d03d58388267bd245",
+  "stored_bytes": 19922947,
+  "original_sha256": "08c65dc06ae2eefbdd6d037fa32e2490bf6ce78830c85603e30f4e08767f261c",
+  "original_bytes": 101830376,
+  "original_recorded_executable": "/workspace/.proofs/pinned-vm295.elf",
+  "recorded_producer_artifact": {
+    "package": "path+file:///workspace/.checkpoints/naming-validation/rust/tcl-vm#0.1.0",
+    "target": "tcl_vm",
+    "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_vm-872623e976969ce6"
+  },
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/sealed-vm-image/pinned-vm295.json",
+  "pin_metadata_sha256": "b518bfad2d658239c350577e985ebb77646cf9de5104967712877c1057a923cf",
+  "build_receipt_id": "rust.frozen295.integration-vm-own-test-build295",
+  "build_receipt_sha256": "87bfd2b47352b7920ee37ea0aa2fc36565234bf368c49a84856b1e757479fa12",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen295/source-snapshot.json.gz",
+    "sha256": "742e28a8567976d946086a7acb699085228df674e88c5d3d5f7b36584bbe2c79",
+    "compression": "gzip",
+    "uncompressed_sha256": "ca829545f905517b6066bc0dbdff99cf9c963ff382b6996513d1aa82ec1c3e16"
+  },
+  "verification": "Strict successful VM producer/pin/source association retained. Full original gzip restoration byte/SHA/size compared with measured copied ELF. No unlink, build or run. Failed Compiler dependency invocations own no producer pin."
+}

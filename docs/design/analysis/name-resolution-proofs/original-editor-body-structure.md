@@ -22,6 +22,8 @@ Deferred Logical procedure substitutions retain their genuine original parent bo
 
 Additional marked source definitions preserve analysis-issued body ancestry and explicit standalone alias body roles without turning a detached equal-text body into a new source entry. Known replacement or deletion withdraws conditional source roles.
 
+Two additional marked source definitions keep genuine Unicode child geometry and ordered child effects under unknown computed parents. The enclosing parent remains unknown; an earlier child rename can withdraw a later descriptor without inventing parent dispatch.
+
 ## Scope
 
 Readonly source geometry and presentation for original C Tcl/Jim/hosted source. No command occupancy, CPP admission, runtime frame, handler Normal or rewrite equivalence follows; explicit Logical compatibility is a separate ingress. Explicit Logical lexical list/formal geometry remains distinct from Native naming/list receipts. Only genuine complete original parent words and proved source mappings supply interior extents; cooked/opaque/malformed/dynamic/expanded or stale operands cannot fabricate formal colours, Native objects or frame facts.
@@ -33,6 +35,8 @@ This marked Registry source-shape control supplies no evaluated option value, Na
 The two linked source contracts keep parent-body geometry separate from immediate root data. Neither grants Native body/frame entry, reached deferred callback, evaluated argv, future table contents, handler admission or Normal. Conditional child transitions do not publish completed mutations into the enclosing graph, and no assertion outcome is attached.
 
 These definitions add source correspondence and purpose bindings only. They establish no entered body/frame, future lookup, runtime command mutation, safe rewrite or assertion outcome; original provider objects remain unchanged.
+
+Conditional child/body schemas require the original complete Logical owner and exact retained configuration. Transformed equal presentation and a missing parent receipt cannot fill them; no Native handler/body entry, frame, Normal, argv or assertion result is supplied.
 
 ## Provider answers
 
@@ -168,6 +172,12 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 - [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `OriginalRegistryWords::source_script_bodies`: Retain selected original conditional body geometry and its source purpose; this facade does not issue lookup-preserving operands or Native body entry.
 - [rust/tcl-lsp-core/src/namespace_rename/original.rs](../../../../rust/tcl-lsp-core/src/namespace_rename/original.rs), `namespace_rename::original::tests::original_namespace_coverage_reuses_analysis_body_sources_and_rejects_foreign_images` (linked): Namespace coverage uses the actual analysis-issued body and child sources; a foreign whole image or missing input cannot recapture detached bodies from a nominal standalone registry.
 - [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::tests::original_standalone_selected_alias_roles_keep_source_purpose` (linked): An explicit standalone source owner selects original alias roles/body geometry under retained configuration, with no lookup-preserving operands; deletion/replacement withdraws that conditional selection.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs), `AdviceInvocationContext::retain_logical_procedure_body`: Retain true parent-body source geometry for conditional deferred children, independently of immediate root children and unknown enclosing dispatch.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs), `command_binding::source_transition_advice::logical_body::tests::logical_unicode_body_children_keep_exact_original_source_geometry` (linked): Genuine deferred Unicode body children retain whole original source geometry/full Logical input; transformed body text, changed image/configuration and Native-purpose substitution cannot supply the original Logical body owner.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs), `command_binding::source_transition_advice::logical_body::tests::logical_computed_heads_keep_children_and_refuse_parent_dispatch` (linked): Computed unknown parents retain ordered original child schemas under root or real deferred body scope, while the parent dispatch remains unknown and earlier rename barriers withdraw later child selection.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

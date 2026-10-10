@@ -14,9 +14,13 @@ How does the shared owner project callback lookup purpose only for selected exec
 
 Selected metadata combines complete valid argv, actual role/prefix/option positions and script timing with an explicit optional ScriptLookupScope. InvokingFrame, GlobalFrame and TriggerFrame select coordinates only; reference-only forms, data operands, incomplete argv and missing scope remain unavailable. Command and subcommand fields round-trip through Studio Rust/DSL renderers and loader, while an invalid scope spelling withdraws the field. A caller still needs the actual operand producer and an independent command table at reached entry. Callback producers retain the exact selected effective operand ordinal and readonly head lineage. List receivers use native list children; trace script receivers additionally require actual counted/CString script and appended-suffix argv equivalence. InvokingFrame lookup uses the authentic post-argument caller point or a quiet conditional declaration point; GlobalFrame retains root coordinates without a future table, and unreached relative TriggerFrame names retain no lookup. A C-owned absolute name can retain its genuine target slot independently of an unknown trigger namespace; it keeps TriggerFrame purpose and no caller naming scope. This does not select future command occupancy or callback entry. Background scans can borrow an independently retained exact-image and full-config source inventory through the same prefix issuer. Header-only scans never run binding analysis; they retain static readonly lineage after the selected evaluator check and leave lookup absent. Background callback rows are emitted only from authentic OriginalCallbackPrefix and its reported_source_head projection. A matching original inventory, including refusal for a replaced/deleted installer or changed vector, is authoritative and cannot fall back to nominal header metadata. Without a site issuer, independently selected authoring ingress and selected prefix evaluator can retain readonly header lineage with absent lookup. Both foreground and background rows retain argc absent and rename_safe false.
 
+Two additional marked Database source definitions keep exact execution-trace suffix-count alternatives and TriggerFrame purpose even when the future lookup is unavailable. Mixed enter/leave counts remain distinct across handler declaration shapes and cannot borrow installer coordinates for arity advice.
+
 ## Scope
 
 Current Registry facts and descriptor/authoring parity contract. Native observations for exact lsort, after and trace namespace lookup remain separate records. These Rust selectors are coverage bindings and are not claimed executed here.
+
+Registration syntax supplies count/scope metadata only. These source controls neither observe a future command table/trigger namespace nor establish callback execution, Native frame/argv, actual completion or a passing assertion; original callback provider records remain unchanged.
 
 ## Provider answers
 
@@ -93,6 +97,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/signature_scan/mod.rs](../../../../rust/tcl-compiler/src/signature_scan/mod.rs), `signature_scan::original_callback_scan_tests::original_callback_scan_respects_selected_installer_moves_and_terminal_barriers` (linked): Moved and aliased installers retain authentic prefixes; known replacement/deletion supplies no callback row, with no argc or rename permission.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/command_binding/original_callback_lookup.rs](../../../../rust/tcl-compiler/src/command_binding/original_callback_lookup.rs), `SourceInvocationBinding::original_callback_prefix`: Retain the authentic callback operand and selected appended-count/scope purpose without converting registration-time metadata into a future trigger lookup.
+- [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::execution_trace_source_counts_keep_unavailable_future_frame` (linked): Execution-trace source registrations retain exact selected enter/leave appended-count alternatives and TriggerFrame purpose while future lookup is absent; unavailable future coordinates cannot supply arity diagnostics.
+- [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::mixed_execution_trace_source_counts_do_not_issue_a_future_lookup` (linked): Mixed execution-trace enter/leave source alternatives retain both appended counts across exact/default/variadic handler shapes without issuing future lookup or installer-frame arity claims.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 
