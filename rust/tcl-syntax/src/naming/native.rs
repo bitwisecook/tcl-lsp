@@ -408,6 +408,34 @@ impl<'a> NativeVariableProjection<'a> {
 }
 
 impl NativeNameProtocol {
+    /// Construct a C ensemble map-prefix head from its original counted bytes.
+    /// A rooted head is unchanged; a relative head appends to the actual
+    /// namespace report, with a separator only when that namespace has a parent.
+    /// Parent presence is supplied by the live owner, never inferred from the
+    /// report's spelling. Construction grants no command slot or later lookup.
+    ///
+    /// # Errors
+    /// Refuses C8.4 and Jim, whose original commands do not supply this C purpose.
+    pub fn ensemble_map_prefix_input<'a>(
+        self,
+        namespace_report: &[u8],
+        namespace_has_parent: bool,
+        original: &'a [u8],
+    ) -> Result<Cow<'a, [u8]>, NameProjectionUnavailable> {
+        if !matches!(self, Self::C(version) if version >= TclVersion::V8_5) {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        if original.starts_with(b"::") {
+            return Ok(Cow::Borrowed(original));
+        }
+        let mut qualified = namespace_report.to_vec();
+        if namespace_has_parent {
+            qualified.extend_from_slice(b"::");
+        }
+        qualified.extend_from_slice(original);
+        Ok(Cow::Owned(qualified))
+    }
+
     /// Namespace subcommand indexing consumes `CString` bytes in the audited
     /// C and Jim dispatch tables, independently from the original argv object.
     #[must_use]
@@ -2405,6 +2433,75 @@ mod tests {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ];
+
+    #[test]
+    fn ensemble_map_prefix_construction_preserves_counted_heads_before_lookup() {
+        // naming.ensemble.original-counted-map-prefix-construction
+        // docs/design/analysis/name-resolution-proofs/ensemble-original-counted-map-prefix-construction.md
+        // Native312 public map heads/calls are separate from this pure API
+        // projection; a namespace report alone never selects a physical holder.
+        for version in [
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let protocol = NativeNameProtocol::C(version);
+            let relative = protocol
+                .ensemble_map_prefix_input(b"::N", true, b"p\0tail")
+                .unwrap();
+            assert_eq!(relative.as_ref(), b"::N::p\0tail");
+            assert_eq!(
+                protocol
+                    .ensemble_map_prefix_input(b"::", false, b"p\0tail")
+                    .unwrap()
+                    .as_ref(),
+                b"::p\0tail"
+            );
+            let rooted = b"::N::p\0tail";
+            assert!(
+                matches!(protocol.ensemble_map_prefix_input(b"::Q", true, rooted).unwrap(), Cow::Borrowed(value) if value == rooted)
+            );
+            assert_eq!(
+                protocol
+                    .command_lookup_input(NativeNameContext::root(), &relative)
+                    .unwrap()
+                    .selected(),
+                b"::N::p"
+            );
+        }
+    }
+
+    #[test]
+    fn ensemble_map_prefix_requires_its_selected_purpose_and_actual_parent_fact() {
+        // Authored pure API negatives, not native detached-holder observations.
+        for protocol in [
+            NativeNameProtocol::C(TclVersion::V8_4),
+            NativeNameProtocol::Jim084,
+        ] {
+            assert_eq!(
+                protocol
+                    .ensemble_map_prefix_input(b"::N", true, b"p")
+                    .unwrap_err(),
+                NameProjectionUnavailable::PurposeNotModelled
+            );
+        }
+        let protocol = NativeNameProtocol::C(TclVersion::V9_1);
+        assert_eq!(
+            protocol
+                .ensemble_map_prefix_input(b"::N", false, b"p")
+                .unwrap()
+                .as_ref(),
+            b"::Np"
+        );
+        assert_eq!(
+            protocol
+                .ensemble_map_prefix_input(b"::N", true, b"p")
+                .unwrap()
+                .as_ref(),
+            b"::N::p"
+        );
+    }
 
     #[test]
     fn trace_subject_registration_keeps_escaped_zero_distinct_from_raw_zero() {

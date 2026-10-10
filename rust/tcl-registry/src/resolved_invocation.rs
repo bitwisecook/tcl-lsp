@@ -758,14 +758,7 @@ impl<'r> InvocationOptions<'r> {
         placement: crate::OptionPlacement,
     ) -> Option<AuthoredSourceOptionScan<'r>> {
         let count = arguments.exact_argv_len()?;
-        let reserved = match self.case_list {
-            Some(case) => case.option_scan_reserved_for_arguments(
-                arguments,
-                self.availability.query,
-                self.reserved_trailing_words,
-            )?,
-            None => self.reserved_trailing_words,
-        };
+        let reserved = self.reserved_word_count(arguments)?;
         let mut scan = AuthoredSourceOptionScan {
             options: Vec::new(),
             accepts_terminator: self.available().any(|option| option.name == "--"),
@@ -837,6 +830,94 @@ impl<'r> InvocationOptions<'r> {
         Some(scan)
     }
 
+    fn reserved_word_count(self, arguments: crate::InvocationArguments<'_>) -> Option<usize> {
+        match self.case_list {
+            Some(case) => case.option_scan_reserved_for_arguments(
+                arguments,
+                self.availability.query,
+                self.reserved_trailing_words,
+            ),
+            None => Some(self.reserved_trailing_words),
+        }
+    }
+
+    /// Possible option words under the selected grammar. Unknown operands
+    /// branch over admitted option widths; they do not supply values or prove
+    /// that any branch reaches a handler. Ordinals are relative to this slice.
+    fn possible_option_arguments(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+        placement: crate::OptionPlacement,
+    ) -> Option<Vec<usize>> {
+        let count = arguments.exact_argv_len()?;
+        let end = count.saturating_sub(self.reserved_word_count(arguments)?);
+        let options = self.available().collect::<Vec<_>>();
+        let mut reachable = vec![false; end.checked_add(1)?];
+        *reachable.get_mut(self.positional_prefix_words)? = true;
+        let mut possible = Vec::new();
+        for index in self.positional_prefix_words..end {
+            if !reachable[index] {
+                continue;
+            }
+            match arguments.literal_at(index) {
+                Some("--") => {}
+                Some(word) if !word.starts_with('-') || word == "-" => {
+                    if placement == crate::OptionPlacement::Anywhere {
+                        reachable[index + 1] = true;
+                    }
+                }
+                Some(word) => {
+                    possible.push(index);
+                    if let Some(option) = crate::spec::resolve_available_option_prefix_with(
+                        &options,
+                        word,
+                        self.prefix_matching,
+                    ) {
+                        Self::retain_possible_option_successors(
+                            &mut reachable,
+                            arguments,
+                            index,
+                            option,
+                        );
+                    }
+                }
+                None => {
+                    possible.push(index);
+                    for option in options.iter().copied().filter(|option| option.name != "--") {
+                        Self::retain_possible_option_successors(
+                            &mut reachable,
+                            arguments,
+                            index,
+                            option,
+                        );
+                    }
+                }
+            }
+        }
+        Some(possible)
+    }
+
+    fn retain_possible_option_successors(
+        reachable: &mut [bool],
+        arguments: crate::InvocationArguments<'_>,
+        index: usize,
+        option: &OptionSpec,
+    ) {
+        let first = index + 1;
+        if let Some(width) = option.value_word_count_for_arguments(arguments, index) {
+            if let Some(next) = first
+                .checked_add(width)
+                .and_then(|next| reachable.get_mut(next))
+            {
+                *next = true;
+            }
+        } else {
+            // An unresolved authored width can consume any later slot. Keep
+            // every remaining position possible rather than guessing a width.
+            reachable[first..].fill(true);
+        }
+    }
+
     /// Options admitted by the retained ingress surface and package floor.
     /// Shared and form-local rows keep their own inherited surfaces.
     pub fn available(self) -> impl Iterator<Item = &'r OptionSpec> + 'r {
@@ -894,14 +975,7 @@ impl<'r> InvocationOptions<'r> {
             &table,
             arguments.slice_from(self.positional_prefix_words),
             self.prefix_matching,
-            match self.case_list {
-                Some(case) => case.option_scan_reserved_for_arguments(
-                    arguments,
-                    self.availability.query,
-                    self.reserved_trailing_words,
-                )?,
-                None => self.reserved_trailing_words,
-            },
+            self.reserved_word_count(arguments)?,
         )?;
         self.positional_prefix_words.checked_add(consumed)
     }
@@ -1158,6 +1232,18 @@ pub struct AuthoredSourceCaseBody {
     pub single_block: bool,
 }
 
+/// Effective authored procedure declaration positions. This layout accepts
+/// no native parameter grammar and proves no publication or entered body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthoredSourceProcedureArguments {
+    /// Original effective post-head procedure-name ordinal.
+    pub name: usize,
+    /// Original effective post-head formal-list ordinal.
+    pub parameters: usize,
+    /// Original effective post-head deferred-body ordinal.
+    pub body: usize,
+}
+
 /// Registry descriptors already selected for readonly source assistance.
 /// These references retain their selected availability and argv context;
 /// they cannot establish installed handlers, execution or rewrite permission.
@@ -1266,6 +1352,17 @@ pub struct AuthoredSourceOptionScan<'r> {
     pub subcommands: Vec<&'static str>,
     /// Exact reason and coordinate where option interpretation stops.
     pub boundary: AuthoredSourceOptionBoundary,
+}
+
+/// Possible option operands from one selected source descriptor and actual
+/// argument layout. These ordinals grant no evaluated value, accepted handler,
+/// successful completion or editable source correspondence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredSourceOptionArguments {
+    /// Effective post-head ordinals that can be parsed as options.
+    pub arguments: Vec<usize>,
+    /// Already selected canonical selector path, for presentation only.
+    pub subcommands: Vec<&'static str>,
 }
 
 /// Relationship grammar and source facts from the same selected option scan.
@@ -2286,6 +2383,45 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         self.argument_roles_with_native_definition(false, false)
     }
 
+    /// Source-only procedure declaration shape from the selected descriptor.
+    /// Original argv cardinality and authored role consensus stay mandatory;
+    /// native parameter acceptance and successful definition remain separate.
+    #[must_use]
+    pub fn authored_source_procedure_arguments(&self) -> Option<AuthoredSourceProcedureArguments> {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        self.semantics.procedure_definition?;
+        if self.semantics.frame_effect.is_some()
+            || !self
+                .semantics
+                .traits
+                .contains(Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY)
+            || !self
+                .semantics
+                .arity
+                .accepts(self.argument_count_for_arity()?)
+        {
+            return None;
+        }
+        let count = self.words.arguments().exact_argv_len()?;
+        let (roles, complete) = self.authored_source_argument_roles();
+        if !complete {
+            return None;
+        }
+        let ordinal = |wanted| {
+            let mut positions = roles.iter().filter_map(|&(position, role)| {
+                (role == wanted).then_some(self.semantics.argument_offset + usize::from(position))
+            });
+            let first = positions.next()?;
+            (first < count && positions.next().is_none()).then_some(first)
+        };
+        Some(AuthoredSourceProcedureArguments {
+            name: ordinal(ArgRole::Name)?,
+            parameters: ordinal(ArgRole::ParamList)?,
+            body: ordinal(ArgRole::Body)?,
+        })
+    }
+
     /// Readonly roles in an independently retained Logical source model.
     /// Frame positions use only unanimous existing authored Tcl layouts over
     /// the same structured argv. Dynamic or divergent selectors stay unknown.
@@ -2963,6 +3099,38 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         )?;
         scan.subcommands = subcommands;
         Some(scan)
+    }
+
+    /// Possible option positions for conditional source advice. Selection,
+    /// prefixes, value widths, reserved data and terminator availability all
+    /// use this invocation's retained context. Dynamic operands preserve every
+    /// admitted continuation; no Normal completion or option value is proved.
+    #[must_use]
+    pub fn authored_source_possible_option_arguments(
+        &self,
+    ) -> Option<AuthoredSourceOptionArguments> {
+        let scan = self.authored_source_diagnostic_options()?;
+        if !scan.accepts_terminator {
+            return None;
+        }
+        let selected = self.semantics.script_metadata;
+        let arguments = self.semantics.options.possible_option_arguments(
+            self.words
+                .arguments()
+                .slice_from(self.semantics.argument_offset),
+            selected
+                .subcommand
+                .map_or(selected.command.option_placement, |sub| {
+                    sub.option_placement
+                }),
+        )?;
+        Some(AuthoredSourceOptionArguments {
+            arguments: arguments
+                .into_iter()
+                .map(|index| self.semantics.argument_offset + index)
+                .collect(),
+            subcommands: scan.subcommands,
+        })
     }
 
     /// Relationship facts from the shared actual source option topology.
@@ -3905,6 +4073,75 @@ mod tests {
     }
 
     #[test]
+    fn source_possible_options_branch_over_admitted_widths_and_terminators() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Pure selected descriptor/source layout, without handler execution.
+        static OPTIONS: &[crate::hover::OptionSpec] = &[
+            crate::hover::OptionSpec {
+                name: "--",
+                surface: Some(SpecSurface::TCL86_PLUS),
+                ..crate::hover::OptionSpec::DEFAULT
+            },
+            crate::hover::OptionSpec {
+                name: "-flag",
+                ..crate::hover::OptionSpec::DEFAULT
+            },
+            crate::hover::OptionSpec {
+                name: "-value",
+                value: crate::hover::OptionValue::value("value"),
+                ..crate::hover::OptionSpec::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(crate::CommandSpec {
+            name: "source-options",
+            options: OPTIONS,
+            ..crate::CommandSpec::DEFAULT
+        });
+        let dynamic = crate::InvocationWord::Dynamic;
+        let literal = crate::InvocationWord::Literal;
+        for (arguments, expected) in [
+            (vec![dynamic, literal("data"), dynamic], vec![0, 2]),
+            (vec![literal("-v"), dynamic, dynamic], vec![0, 2]),
+            (vec![literal("--"), dynamic], vec![]),
+            (vec![literal("data"), dynamic], vec![]),
+            (vec![literal("-missing"), dynamic], vec![0]),
+        ] {
+            let words = crate::InvocationWords::structured(literal("source-options"), &arguments);
+            let selected = registry
+                .resolve_structured_invocation(words, Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+                .resolved()
+                .unwrap();
+            assert_eq!(
+                selected
+                    .authored_source_possible_option_arguments()
+                    .unwrap()
+                    .arguments,
+                expected
+            );
+            let older = registry
+                .resolve_structured_invocation(words, Some(SurfaceQuery::core(Family::Tcl, "8.4")))
+                .resolved()
+                .unwrap();
+            assert!(older.authored_source_possible_option_arguments().is_none());
+        }
+        let expanded = [crate::InvocationWord::Expanded];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(literal("source-options"), &expanded),
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
+            .resolved()
+            .unwrap();
+        assert!(
+            selected
+                .authored_source_possible_option_arguments()
+                .is_none()
+        );
+    }
+
+    #[test]
     fn selected_option_variable_scope_shares_availability_prefix_and_value_geometry() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
@@ -4150,6 +4387,16 @@ mod tests {
         assert!(complete);
         assert!(roles.contains(&(1, ArgRole::ParamList)));
         assert!(roles.contains(&(2, ArgRole::Body)));
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        assert_eq!(
+            selected.authored_source_procedure_arguments(),
+            Some(AuthoredSourceProcedureArguments {
+                name: 0,
+                parameters: 1,
+                body: 2,
+            })
+        );
         for facts in [selected.facts(), selected.facts_after_success()] {
             assert!(!facts.arg_roles_complete);
             assert!(facts.arg_roles.is_empty());
@@ -4166,6 +4413,7 @@ mod tests {
             .resolved()
             .unwrap();
         assert!(selected.words.arguments().exact_argv_len().is_none());
+        assert!(selected.authored_source_procedure_arguments().is_none());
         assert!(!selected.facts().arg_roles_complete);
     }
 

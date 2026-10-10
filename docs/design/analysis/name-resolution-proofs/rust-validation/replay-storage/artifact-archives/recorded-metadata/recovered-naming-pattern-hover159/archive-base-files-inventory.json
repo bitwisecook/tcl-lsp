@@ -1,0 +1,105 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-naming-pattern-hover159.base-files.tar.gz",
+  "archive_sha256": "14fb8dcac6111168a48281da4f598e23141e574beb3a0cda7a456df30ff7504c",
+  "archive_bytes": 128768,
+  "uncompressed_bytes": 528180,
+  "source_manifest_sha256": "c04f73f2b8054bd9f15dedbee971de4307f244bc92156fee61e0a51ee2b91492",
+  "source_patch_sha256": "fae6b41de17a491ff2814aea1bc38a1c076bd1362071940f16dd4b434a41fbb3",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/fae6b41de17a491ff2814aea1bc38a1c076bd1362071940f16dd4b434a41fbb3.patch",
+  "original_application_journal_sha256": "fae6b41de17a491ff2814aea1bc38a1c076bd1362071940f16dd4b434a41fbb3",
+  "member_count": 10,
+  "members": {
+    "recovered-naming-pattern-hover159/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532945.4122076,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-pattern-hover159/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532945.4122076,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-pattern-hover159/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532945.4122076,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-pattern-hover159/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532945.4122076,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-pattern-hover159/base/rust/tcl-lsp-core/src/hover.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791518890.8536854,
+      "size": 260244,
+      "sha256": "114c164bc45f0a52c55fae01869d85bab2ca9c81a404539ea65d31bd540045e7"
+    },
+    "recovered-naming-pattern-hover159/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532945.4157915,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-pattern-hover159/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532945.4157915,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-pattern-hover159/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532945.4157915,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-pattern-hover159/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532945.4157915,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-pattern-hover159/files/rust/tcl-lsp-core/src/hover.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532945.480207,
+      "size": 267936,
+      "sha256": "8768feb179c947456b62592a360bf655caafd70eb05d1e700b3d41dcd433749f"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

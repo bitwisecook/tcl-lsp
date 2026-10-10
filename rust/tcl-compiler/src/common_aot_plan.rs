@@ -33,6 +33,11 @@ use crate::ssa::{SsaBlock, SsaStatement, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice, TypeShape, type_join};
 use crate::var_escape::{EscapeTag, ProcEscapeSummary, analyse_var_escape_cu_with_registry};
 
+mod declared_arguments;
+pub use declared_arguments::{
+    DeclaredArgumentDecision, DeclaredArgumentEvidence, DeclaredArgumentIdentity,
+};
+
 /// Stable identity of one CFG invocation, including an immediate command
 /// substitution nested in one argument of the enclosing statement.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -587,6 +592,7 @@ pub struct CommonAotProofPlan {
     semantic_calls: BTreeMap<DirectCallSiteId, SemanticCallDecision>,
     closed_program_coverage: ClosedProgramCoverageDecision,
     materialisable_slots: BTreeMap<SsaValueIdentity, MaterialisableSlotDecision>,
+    declared_arguments: BTreeMap<DeclaredArgumentIdentity, DeclaredArgumentDecision>,
     coverage_declines: Vec<CommonAotCoverageDecline>,
 }
 
@@ -701,6 +707,9 @@ impl CommonAotProofPlan {
             &closed_program_coverage,
         );
 
+        let declared_arguments =
+            declared_arguments::collect(unit, registry, selection, &escape, &propagated, config);
+
         let mut coverage_declines = Vec::new();
         if !unit.methods.is_empty() {
             coverage_declines.push(CommonAotCoverageDecline::TclOoMethods);
@@ -715,6 +724,7 @@ impl CommonAotProofPlan {
             semantic_calls,
             closed_program_coverage,
             materialisable_slots,
+            declared_arguments,
             coverage_declines,
         }
     }
@@ -768,6 +778,41 @@ impl CommonAotProofPlan {
         &self,
     ) -> impl Iterator<Item = (&SsaValueIdentity, &MaterialisableSlotDecision)> {
         self.materialisable_slots.iter()
+    }
+
+    /// Proposed declared argument storage, independent of physical SSA slots.
+    pub fn declared_arguments(
+        &self,
+    ) -> impl Iterator<Item = (&DeclaredArgumentIdentity, &DeclaredArgumentDecision)> {
+        self.declared_arguments.iter()
+    }
+
+    /// Join an exact incoming read to its canonical original declaration.
+    /// A slot label alone or a different source occurrence cannot select this
+    /// proposed argument, and no physical SSA symbol is created.
+    #[must_use]
+    pub fn declared_argument_for_incoming_read(
+        &self,
+        procedure: &ProcedureIdentity,
+        read: &crate::ssa::SsaIncomingSlotRead,
+    ) -> Option<(&DeclaredArgumentIdentity, &DeclaredArgumentEvidence)> {
+        self.declared_arguments
+            .iter()
+            .find_map(|(identity, decision)| {
+                if &identity.procedure != procedure {
+                    return None;
+                }
+                let DeclaredArgumentDecision::Selected(evidence) = decision else {
+                    return None;
+                };
+                (evidence.reads().contains(read)
+                    && evidence
+                        .declaration()
+                        .arguments()
+                        .ordinal(read.slot.as_bytes())
+                        == Some(identity.ordinal))
+                .then_some((identity, evidence.as_ref()))
+            })
     }
 
     /// Deliberately excluded semantic surfaces.
@@ -2384,6 +2429,92 @@ mod tests {
         )
     }
 
+    /// An explicit authored compiler/naming model, without an entered Native world.
+    fn authored_program_unit(
+        source: &str,
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        assert_eq!(
+            entry
+                .options()
+                .execution_name_policy()
+                .unwrap()
+                .native_recipe()
+                .unwrap()
+                .authority(),
+            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation,
+        );
+        CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        )
+    }
+
+    #[test]
+    fn authored_program_storage_keeps_original_coverage_without_native_frame_or_body_grants() {
+        // naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = authored_program_unit(
+            "proc p {x y} {}; set d 2; set e 4; puts [p $d $e]",
+            std::sync::Arc::clone(&context),
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::SealedProgram,
+        );
+        let ClosedProgramCoverageDecision::Selected(coverage) = plan.closed_program_coverage()
+        else {
+            panic!("authored original statement coverage absent: {plan:#?}");
+        };
+        assert_eq!(coverage.statements.len(), 4);
+        for variable in ["d", "e"] {
+            assert!(plan.materialisable_slots().any(|(identity, decision)| {
+                identity.function == "::top" && matches!(decision,
+                    MaterialisableSlotDecision::Selected(evidence)
+                        if evidence.variable == variable && evidence.shape == TypeShape::Int
+                        && matches!(evidence.authority, MaterialisableSlotAuthority::SealedProgramCell { .. })
+                        && evidence.runtime_guards.variable_trace_epoch
+                        && evidence.runtime_guards.interpreter_policy_epoch)
+            }), "authored storage for {variable}: {plan:#?}");
+        }
+        let direct = plan
+            .direct_calls()
+            .find_map(|(_, decision)| match decision {
+                DirectProcDecision::Selected(direct) if direct.callee.qualified_name == "::p" => {
+                    Some(direct)
+                }
+                _ => None,
+            })
+            .expect("original empty procedure call retains its independent declaration");
+        assert!(matches!(
+            direct.body,
+            DirectProcBodyDecision::Declined(DirectProcBodyDecline::UnsupportedBodyShape)
+        ));
+        assert!(!direct.frame_elidable);
+        assert!(plan.materialisable_slots().all(|(_, decision)| !matches!(decision,
+            MaterialisableSlotDecision::Selected(evidence) if matches!(evidence.authority, MaterialisableSlotAuthority::NativeFrame(_)))));
+    }
+
     #[test]
     fn original_declared_argument_slots_do_not_borrow_the_parent_native_frame() {
         // Implementation contract: naming.variable.aot-original-slot-purpose
@@ -2879,6 +3010,55 @@ mod tests {
         rows.join("\n")
     }
 
+    fn assert_declared_add_arguments(
+        plan: &CommonAotProofPlan,
+        unit: &CompilationUnit,
+        direct: &DirectProcEvidence,
+    ) {
+        let selected: Vec<_> = plan
+            .declared_arguments()
+            .filter_map(|(identity, decision)| match decision {
+                DeclaredArgumentDecision::Selected(evidence)
+                    if identity.procedure == direct.callee =>
+                {
+                    Some((identity, evidence))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            selected.len(),
+            2,
+            "{}\n{plan:#?}",
+            original_formal_diagnostics(&unit, "::add")
+        );
+        assert!(
+            selected
+                .iter()
+                .all(|(_, slot)| slot.shape() == &TypeShape::Int)
+        );
+        assert!(selected.iter().all(|(_, slot)| {
+            slot.storage() == VarStorage::MaterializableSlot
+                && slot.recipe()
+                    == MaterialisationRecipe::RetainOriginalTclObject {
+                        sharing: SharingState::Shared,
+                    }
+        }));
+        assert!(
+            plan.materialisable_slots().all(|(identity, decision)| {
+                identity.function != "::add"
+                    || !matches!(decision, MaterialisableSlotDecision::Selected(_))
+            }),
+            "declared arguments cannot fabricate a physical SSA value"
+        );
+        assert!(selected.iter().all(|(identity, slot)| {
+            slot.reads().iter().all(|read| {
+                plan.declared_argument_for_incoming_read(&direct.callee, read)
+                    .is_some_and(|(selected, _)| selected == *identity)
+            })
+        }));
+    }
+
     #[test]
     fn add_call_and_integer_formals_receive_common_proofs() {
         let context =
@@ -2912,31 +3092,7 @@ mod tests {
                 .all(|ty| ty.tcl_type() == Some(TclType::Int))
         );
 
-        let selected: Vec<_> = plan
-            .materialisable_slots()
-            .filter_map(|(_, decision)| match decision {
-                MaterialisableSlotDecision::Selected(evidence)
-                    if matches!(evidence.variable.as_str(), "b" | "c") =>
-                {
-                    Some(evidence)
-                }
-                _ => None,
-            })
-            .collect();
-        assert_eq!(
-            selected.len(),
-            2,
-            "{}\n{plan:#?}",
-            original_formal_diagnostics(&unit, "::add")
-        );
-        assert!(selected.iter().all(|slot| slot.shape == TypeShape::Int));
-        assert!(selected.iter().all(|slot| {
-            slot.storage == VarStorage::MaterializableSlot
-                && slot.recipe
-                    == MaterialisationRecipe::RetainOriginalTclObject {
-                        sharing: SharingState::Shared,
-                    }
-        }));
+        assert_declared_add_arguments(&plan, &unit, direct);
 
         assert_eq!(direct.actual_values.len(), 2);
         assert!(direct.actual_values.iter().all(|actual| matches!(
@@ -2964,6 +3120,129 @@ mod tests {
                 call
             }] if call.nested_argument == Some(0)
         ));
+    }
+
+    #[test]
+    fn declared_arguments_keep_distinct_reached_cells_and_exact_source_receipts() {
+        // naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc p {x y} {return [expr {$x + $y}]}; p 1 2; p 3 4",
+            std::sync::Arc::clone(&context),
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        let arguments: Vec<_> = plan
+            .declared_arguments()
+            .filter_map(|(identity, decision)| {
+                let DeclaredArgumentDecision::Selected(evidence) = decision else {
+                    return None;
+                };
+                Some((identity, evidence))
+            })
+            .collect();
+        assert_eq!(arguments.len(), 2, "{plan:#?}");
+        assert_eq!(
+            arguments
+                .iter()
+                .map(|(identity, _)| identity.ordinal)
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
+        assert!(
+            arguments
+                .iter()
+                .all(|(_, evidence)| evidence.reads().iter().any(|read| read.cells.len() >= 2))
+        );
+        assert!(
+            plan.materialisable_slots()
+                .all(|(identity, decision)| identity.function != "::p"
+                    || !matches!(decision, MaterialisableSlotDecision::Selected(_)))
+        );
+        let (identity, evidence) = arguments[0];
+        let read = &evidence.reads()[0];
+        assert!(
+            plan.declared_argument_for_incoming_read(&identity.procedure, read)
+                .is_some()
+        );
+        let mut wrong_source = read.clone();
+        wrong_source.source.span =
+            tcl_lexer::Span::new(read.source.span.start() + 1, read.source.span.end());
+        let mut wrong_cell = read.clone();
+        wrong_cell.cells.pop();
+        let mut wrong_slot = read.clone();
+        wrong_slot.slot = "y".into();
+        for invalid in [wrong_source, wrong_cell, wrong_slot] {
+            assert!(
+                plan.declared_argument_for_incoming_read(&identity.procedure, &invalid)
+                    .is_none()
+            );
+        }
+        let mut wrong_declaration = identity.procedure.clone();
+        wrong_declaration.definition_start += 1;
+        assert!(
+            plan.declared_argument_for_incoming_read(&wrong_declaration, read)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn declared_arguments_refuse_missing_owners_changed_contents_and_future_callers() {
+        // naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc p {x} {return [expr {$x + 0}]}; p 1",
+            std::sync::Arc::clone(&context),
+        );
+        let make_plan = |unit: &CompilationUnit| {
+            CommonAotProofPlan::build_with_retained_metadata(
+                unit,
+                context.commands(),
+                enabled(),
+                CommonAotEnvironment::Hosted,
+            )
+        };
+        assert!(
+            make_plan(&unit)
+                .declared_arguments()
+                .any(|(_, decision)| matches!(decision, DeclaredArgumentDecision::Selected(_)))
+        );
+        let mut missing = (*unit).clone();
+        missing.ir_module.source_metadata_input = None;
+        let mut changed = (*unit).clone();
+        changed.ir_module.source =
+            tcl_lexer::SourceImage::document("proc p {x} {return DIFFERENT}; p 1");
+        for refused in [&missing, &changed] {
+            assert!(
+                make_plan(refused)
+                    .declared_arguments()
+                    .all(|(_, decision)| matches!(decision, DeclaredArgumentDecision::Declined(_)))
+            );
+        }
+        for source in [
+            "proc p {x} {set x 9; return [expr {$x + 0}]}; p 1",
+            "proc p {x} {trace add variable x read {list}; return [expr {$x + 0}]}; p 1",
+            "proc p {x} {return [expr {$x + 0}]}; proc future {y} {p $y}; p 1",
+        ] {
+            let unit = native_unit(source, std::sync::Arc::clone(&context));
+            let plan = make_plan(&unit);
+            assert!(
+                plan.declared_arguments()
+                    .all(
+                        |(identity, decision)| identity.procedure.qualified_name != "::p"
+                            || matches!(decision, DeclaredArgumentDecision::Declined(_))
+                    ),
+                "{source}: {plan:#?}"
+            );
+        }
     }
 
     #[test]
@@ -3036,8 +3315,27 @@ mod tests {
     }
 
     #[test]
-    fn sealed_program_proves_exact_top_slots_proc_and_output_boundary() {
-        let plan = plan_in_environment(ADD, enabled(), CommonAotEnvironment::SealedProgram);
+    fn retained_native_program_coverage_does_not_donate_root_frame_slots() {
+        // naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(ADD, std::sync::Arc::clone(&context));
+        assert!(
+            unit.ir_module
+                .source_entry
+                .native_entry
+                .as_ref()
+                .unwrap()
+                .compiled_local_layout
+                .is_none()
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::SealedProgram,
+        );
         let ClosedProgramCoverageDecision::Selected(coverage) = plan.closed_program_coverage()
         else {
             panic!("sealed program coverage missing: {plan:#?}");
@@ -3052,24 +3350,27 @@ mod tests {
                 ClosedProgramStatementEvidence::SemanticBoundary { .. }
             ]
         ));
-        for (variable, expected) in [("d", 2), ("e", 4)] {
-            assert!(
-                plan.materialisable_slots().any(|(identity, decision)| {
+        for variable in ["d", "e"] {
+            let decisions: Vec<_> = plan
+                .materialisable_slots()
+                .filter(|(identity, _)| {
                     identity.function == "::top"
-                        && matches!(
-                            decision,
-                            MaterialisableSlotDecision::Selected(evidence)
-                                if matches!(evidence.as_ref(), MaterialisableSlotEvidence {
-                                    variable: selected,
-                                    shape: TypeShape::Int,
-                                    constant: Some(LatticeValue::Const(
-                                        crate::analyses::ConstValue::Int(value)
-                                    )),
-                                    ..
-                                } if selected == variable && *value == expected)
-                        )
-                }),
-                "missing sealed {variable}={expected}: {plan:#?}"
+                        && unit.top_level.ssa.var_name(identity.symbol) == variable
+                })
+                .map(|(_, decision)| decision)
+                .collect();
+            assert!(
+                !decisions.is_empty(),
+                "original root {variable} is represented"
+            );
+            assert!(
+                decisions.iter().all(|decision| matches!(
+                    decision,
+                    MaterialisableSlotDecision::Declined(
+                        MaterialisableSlotDecline::OriginalSlotUnavailable
+                    )
+                )),
+                "captured ScriptCode cannot borrow a procedure local: {decisions:#?}"
             );
         }
 
@@ -3246,10 +3547,12 @@ mod tests {
 
     #[test]
     fn unknown_actual_type_poisons_cross_call_formal_propagation() {
+        // naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let unit = native_unit(
-            "proc add {b c} {return [expr {$b+$c}]}\nproc caller {x} {set d 2; add $d $x}\nset d 2\nset e 4\nadd $d $e\n",
+            "proc add {b c} {return [expr {$b+$c}]}\nproc caller {x} {set d 2; add $d $x}\nset d 2\nset e 4\nadd $d $e\ncaller [eval {set original_input 4}]\n",
             std::sync::Arc::clone(&context),
         );
         let plan = CommonAotProofPlan::build_with_retained_metadata(
@@ -3258,9 +3561,9 @@ mod tests {
             enabled(),
             CommonAotEnvironment::Hosted,
         );
-        // The caller formal exists by its native activation contract but has
-        // unknown contents. Reading an unprovided global argv would instead
-        // introduce an unrelated entry/dispatch refusal before this join.
+        // The second caller is actually entered. Its original eval operand
+        // is not a represented SSA actual, so the call's type remains unknown
+        // independently of the runtime bytes produced by the original setter.
         // Exact source reads can be retained without a scalar SSA entry key.
         // Join the same selected-caller type owner used by materialisation;
         // absence of a physical formal SSA key cannot be replaced by fake v0.
@@ -3293,6 +3596,52 @@ mod tests {
             identity.function == "::add"
                 && matches!(decision, MaterialisableSlotDecision::Selected(_))
         }));
+    }
+
+    #[test]
+    fn unentered_unknown_caller_keeps_a_refusal_without_fabricating_a_reached_call() {
+        // naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc add {b c} {return [expr {$b+$c}]}\nproc caller {x} {set d 2; add $d $x}\nset d 2\nset e 4\nadd $d $e\n",
+            std::sync::Arc::clone(&context),
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert_eq!(plan.direct_calls().filter(|(_, decision)| matches!(decision,
+            DirectProcDecision::Selected(evidence) if evidence.callee.qualified_name == "::add"
+        )).count(), 1, "{plan:#?}");
+        assert!(
+            plan.direct_calls()
+                .any(|(site, decision)| site.function == "::caller"
+                    && matches!(
+                        decision,
+                        DirectProcDecision::Declined(DirectProcDecline::BindingNotProcedure {
+                            kind: BindingKind::Unknown
+                        })
+                    )),
+            "future conditional lookup cannot grant reached procedure dispatch: {plan:#?}"
+        );
+        assert!(
+            plan.declared_arguments()
+                .any(
+                    |(identity, decision)| identity.procedure.qualified_name == "::add"
+                        && identity.ordinal == 1
+                        && matches!(
+                            decision,
+                            DeclaredArgumentDecision::Declined(
+                                MaterialisableSlotDecline::TypeNotSingleton
+                            )
+                        )
+                ),
+            "unresolved source caller remains an independent poison premise: {plan:#?}"
+        );
     }
 
     #[test]

@@ -1223,14 +1223,13 @@ impl CfgBuilder<'_> {
         }
     }
 
-    /// The completion code a `try` handler's selector names, decoded with the
-    /// registry's own numeral grammar: `on 010` selects code 8 in Tcl 8.x
-    /// and 10 in 9.0, and decoding it as 9.0 dropped a live 8.x handler
-    /// (found in review).
+    /// The completion code named by the handler under its retained source
+    /// numeral grammar. Catalogue availability does not choose this grammar;
+    /// unavailable input permits only selectors on which all grammars agree.
     fn handler_code(&self, handler: &crate::ir::TryHandler) -> Option<tcl_core_types::Code> {
         crate::executable_ir::try_handler_code_in(
             handler,
-            tcl_syntax::number::Numbers::of_profile(self.registry.profile()),
+            self.command_classes.source_numbers(self.config),
         )
     }
 
@@ -2145,7 +2144,9 @@ fn handler_var_defs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cfg_builder::build_cfg_function as build_cfg_function_for_registry;
+    use crate::cfg_builder::{
+        CfgCommandClasses, build_cfg_function as build_cfg_function_for_registry,
+    };
     use crate::ir::{ForeachIterator, Script, SwitchArm, TryHandler};
     use tcl_lexer::Span;
     use tcl_registry::CommandRegistry;
@@ -2158,6 +2159,78 @@ mod tests {
             &CommandRegistry::build_default(),
             false,
         )
+    }
+
+    #[test]
+    fn original_try_handler_codes_keep_source_grammar_over_catalogue_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Source-clause selection only; no native completion was executed.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let source = "try {} on 8 {} {} on 010 {} {}";
+        for (numbers, expected, shadowed) in [
+            (
+                tcl_dialect::NumberSyntax::Tcl85,
+                tcl_core_types::Code::Other(8),
+                true,
+            ),
+            (
+                tcl_dialect::NumberSyntax::Tcl90,
+                tcl_core_types::Code::Other(10),
+                false,
+            ),
+        ] {
+            let mut profile = tcl_dialect::DialectProfile::plain_tcl().clone();
+            profile.grammar.numbers = numbers;
+            let profile = profile.intern();
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&context),
+                config,
+            );
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(input.clone());
+            let module = lowerer.lower(source).clone();
+            let Statement::Try { handlers, .. } = &module.top_level.statements[0] else {
+                panic!("genuine source try clauses: {:?}", module.top_level);
+            };
+            assert_eq!(handlers.len(), 2);
+            let mut builder = CfgBuilder::new(false, registry).with_lexer_config(config);
+            builder.command_classes = CfgCommandClasses::from_source_input(registry, Some(&input));
+            assert_eq!(builder.handler_code(&handlers[1]), Some(expected));
+            assert_eq!(
+                builder.handler_shadowed(&handlers[..1], &handlers[1]),
+                shadowed
+            );
+            builder.command_classes = CfgCommandClasses::from_source_input(registry, None);
+            assert_eq!(builder.handler_code(&handlers[1]), None);
+            assert!(!builder.handler_shadowed(&handlers[..1], &handlers[1]));
+            assert_eq!(
+                builder.handler_code(&handlers[0]),
+                Some(tcl_core_types::Code::Other(8))
+            );
+            let foreign = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                    .default_context_registry(),
+                config,
+            );
+            builder.command_classes =
+                CfgCommandClasses::from_source_input(registry, Some(&foreign));
+            assert_eq!(builder.handler_code(&handlers[1]), None);
+            builder.command_classes = CfgCommandClasses::from_source_input(registry, Some(&input));
+            let changed = tcl_lexer::LexerConfig {
+                expand_syntax: !config.expand_syntax,
+                ..config
+            };
+            builder = builder.with_lexer_config(changed);
+            assert_eq!(builder.handler_code(&handlers[1]), None);
+        }
     }
 
     #[test]

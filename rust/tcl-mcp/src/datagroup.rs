@@ -40,7 +40,7 @@ use tcl_lsp_core::refactor::{
     OriginalExactSwitchSource, extract_to_datagroup, original_exact_switch_source_at_analysis,
     scalar_variable_source_syntax,
 };
-use tcl_lsp_core::source_structure::SourceSyntaxStructure;
+use tcl_lsp_core::SourceSyntaxStructure;
 
 const DIALECT: &str = "f5-irules";
 

@@ -1,0 +1,348 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/consumer-cfg-source-context267.source-trees.tar.gz",
+  "archive_sha256": "00378249eedd125b7d5d797a9f29ff29393a21b0ceccb9e4aabe0460ee4614bb",
+  "archive_bytes": 338061,
+  "uncompressed_bytes": 1423570,
+  "source_manifest_sha256": "222db42ee67045b28c3e0ccf624eefff754dbfd35c06a4e686f2ada32dba71fa",
+  "source_patch_sha256": "96c71ef0f5ec488f1a5ca2399293fa43dd92de2f9588ca87b6cbfea1df0a5c24",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 26,
+  "members": {
+    "consumer-cfg-source-context267/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2253082,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2253082,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2253082,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609248.7807572,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2296166,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler/src/analyser/irules_event_checks.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2298634,
+      "size": 89062,
+      "sha256": "97a304bb77986c37de0895fdf07143274ced304099e7b34f66806e0fea42dfe8"
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler/src/cfg_builder": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.229175,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler/src/cfg_builder/cfg_lower.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.22891,
+      "size": 103322,
+      "sha256": "82534cb5cd2e7131535e5acbb51fd21e28c21179de74b64042858e6ecde67af4"
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler/src/cfg_builder/execution_regions.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2294655,
+      "size": 48614,
+      "sha256": "acd93117dbb4948cab038af4fe27903d122a0a9d3fbc4afc4567a510dbb12b75"
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler/src/cfg_builder/mod.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2273884,
+      "size": 240963,
+      "sha256": "117c045b6ba8fe1ee98cf9e6effbfffc782658142cde0a235ad30fb0c0acd667"
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler/src/compilation_unit.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609248.7835357,
+      "size": 223020,
+      "sha256": "6591baa837639e9b19d61f8edfa9d1351c15b1c962de6a38ef9c25b630ff6a6f"
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler/src/registry_invocation": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2302172,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/base/rust/tcl-compiler/src/registry_invocation/metadata_context.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2306163,
+      "size": 1824,
+      "sha256": "281d31d79676a3c9eecd4200578f83045d5aea43a31a66d07e2d501049968b3c"
+    },
+    "consumer-cfg-source-context267/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2273884,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2273884,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2273884,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609248.7835357,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2298634,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler/src/analyser/irules_event_checks.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.24427,
+      "size": 89290,
+      "sha256": "a55e7b055605c3340c1408bdc184bd548deb26ae152d37b58a455a2f18b0cf40"
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler/src/cfg_builder": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2294655,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler/src/cfg_builder/cfg_lower.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2428083,
+      "size": 103332,
+      "sha256": "9d22bf8dfdf981509005eeb9197d5fd84d9f508776d8cea54d0d6c9c3ef1bf68"
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler/src/cfg_builder/execution_regions.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609276.932535,
+      "size": 48586,
+      "sha256": "af019f0c19a52ba19870246dcf607ac7a4ea4f4bfa40ecfe4702f55ef1cfef75"
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler/src/cfg_builder/mod.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609294.424088,
+      "size": 250389,
+      "sha256": "96dde10db8bdde9ad978281aeacb1302b7b5cef726d55a25f99febb4f861e83a"
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler/src/compilation_unit.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609248.7877576,
+      "size": 223344,
+      "sha256": "a20d92816cac0ddb8967c838a2223ecd9c9cbe94a0af2412e8ea6b04d75a95d1"
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler/src/registry_invocation": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.2306163,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-cfg-source-context267/candidate/rust/tcl-compiler/src/registry_invocation/metadata_context.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791609178.243417,
+      "size": 1824,
+      "sha256": "6658dac111de56d296a218c7186146740f7ccea67e263a35ebe55632f38a1231"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/irules_event_checks.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "a55e7b055605c3340c1408bdc184bd548deb26ae152d37b58a455a2f18b0cf40",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/irules_event_checks.rs",
+      "hash_key": "base_sha256",
+      "sha256": "97a304bb77986c37de0895fdf07143274ced304099e7b34f66806e0fea42dfe8",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/cfg_lower.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "9d22bf8dfdf981509005eeb9197d5fd84d9f508776d8cea54d0d6c9c3ef1bf68",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/cfg_lower.rs",
+      "hash_key": "base_sha256",
+      "sha256": "82534cb5cd2e7131535e5acbb51fd21e28c21179de74b64042858e6ecde67af4",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/execution_regions.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "af019f0c19a52ba19870246dcf607ac7a4ea4f4bfa40ecfe4702f55ef1cfef75",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/execution_regions.rs",
+      "hash_key": "base_sha256",
+      "sha256": "acd93117dbb4948cab038af4fe27903d122a0a9d3fbc4afc4567a510dbb12b75",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "96dde10db8bdde9ad978281aeacb1302b7b5cef726d55a25f99febb4f861e83a",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "hash_key": "base_sha256",
+      "sha256": "117c045b6ba8fe1ee98cf9e6effbfffc782658142cde0a235ad30fb0c0acd667",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "a20d92816cac0ddb8967c838a2223ecd9c9cbe94a0af2412e8ea6b04d75a95d1",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "hash_key": "base_sha256",
+      "sha256": "6591baa837639e9b19d61f8edfa9d1351c15b1c962de6a38ef9c25b630ff6a6f",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/metadata_context.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "6658dac111de56d296a218c7186146740f7ccea67e263a35ebe55632f38a1231",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/metadata_context.rs",
+      "hash_key": "base_sha256",
+      "sha256": "281d31d79676a3c9eecd4200578f83045d5aea43a31a66d07e2d501049968b3c",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

@@ -4,7 +4,6 @@
 
 //! Public precision lifecycle controls from six original native providers.
 
-use super::Vm;
 
 #[test]
 fn original_precision_unset_matches_all_six_native_sources() {
@@ -60,13 +59,9 @@ fn original_precision_unset_matches_all_six_native_sources() {
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect();
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-            let mut vm = Vm::with_native_core(
-                Box::new(std::io::sink()),
-                std::rc::Rc::new(crate::host_native::NativeHost::new()),
-                profile,
-                tcl_registry::special_vars::NativeBootstrapInputs::default(),
-            )
-            .unwrap();
+            // The unchanged original is evaluated as source; the core issuer
+            // and actual bytecode compile service remain separate capabilities.
+            let mut vm = crate::native_fixture::interpreter(profile);
             let completion = vm.eval_source(source).unwrap();
             assert_eq!(
                 completion.code,

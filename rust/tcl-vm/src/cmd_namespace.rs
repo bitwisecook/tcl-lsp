@@ -1081,13 +1081,10 @@ fn apply_ensemble_map(
             .native_name_operand_bytes(&elements[0])
             .map_err(|error| vm.refuse_host_command(error.to_string()))?;
         let mut prefix = None;
-        if !original.starts_with(b"::") {
-            let qualified = vm
-                .qualify_native_command_prefix_bytes(
-                    tcl_runtime_api::Namespaces::current(vm),
-                    &original,
-                )
-                .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+        let selected = vm
+            .native_ensemble_map_prefix_input(tcl_runtime_api::Namespaces::current(vm), &original)
+            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+        if let std::borrow::Cow::Owned(qualified) = selected {
             let mut words = elements.to_vec();
             words[0] = Value::from_native_string_bytes(qualified);
             let copy = if creating {
@@ -2259,3 +2256,6 @@ mod original_ensemble_tests {
 
 #[cfg(test)]
 mod native_store_tests;
+
+#[cfg(test)]
+mod native_map_prefix_tests;

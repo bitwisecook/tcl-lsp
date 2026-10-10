@@ -1,0 +1,177 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/native-editor-consumers199.base-files.tar.gz",
+  "archive_sha256": "9ceba5a62f2fdbb84c7ac8fbffd292bf4552e35356ec165dac522c849b49941c",
+  "archive_bytes": 135071,
+  "uncompressed_bytes": 613425,
+  "source_manifest_sha256": "1fe9c2c93200d304e64fe108b232fe835a7e53ce56f6153b317eb83327b717a5",
+  "source_patch_sha256": "876198e05e6abbfb9fb8304149b187b4307346daaae3c468750b30d10639d07e",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/876198e05e6abbfb9fb8304149b187b4307346daaae3c468750b30d10639d07e.patch",
+  "original_application_journal_sha256": "876198e05e6abbfb9fb8304149b187b4307346daaae3c468750b30d10639d07e",
+  "member_count": 18,
+  "members": {
+    "native-editor-consumers199/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557391.46145,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557391.46145,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557391.46145,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557391.4639478,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/base/rust/tcl-lsp-core/src/completion.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557391.4641194,
+      "size": 242950,
+      "sha256": "bb1521bccd095f8286927a807666c5c03e83bd8dce70df841902b278b374d1c0"
+    },
+    "native-editor-consumers199/base/rust/tcl-lsp-core/src/signature_help.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557391.4635618,
+      "size": 53275,
+      "sha256": "699aad8b134372e090aeadf4afb29cd1f7575e389400cdda828f0da826b8bc42"
+    },
+    "native-editor-consumers199/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791558234.18286,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/files/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791558234.18286,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/files/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791558234.18286,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/files/docs/design/analysis": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791558234.18286,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/files/docs/design/analysis/name-resolution-proofs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791558234.1888516,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/files/docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791558234.1905243,
+      "size": 2948,
+      "sha256": "7f310382f1c5d41d266f65a9b5aea85577bd105089dee24896e04b88726f3b79"
+    },
+    "native-editor-consumers199/files/docs/design/analysis/name-resolution-proofs/original-signature-schema-rendering.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791558234.1888516,
+      "size": 2739,
+      "sha256": "236d93575149bae40ea0973d4f15f5428b7167483fda78d97c8f83852cea273f"
+    },
+    "native-editor-consumers199/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557391.4635618,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557391.4635618,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557391.4641194,
+      "size": 0,
+      "sha256": null
+    },
+    "native-editor-consumers199/files/rust/tcl-lsp-core/src/completion.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791558125.3525572,
+      "size": 247833,
+      "sha256": "3d0bc8b4ec2e7e6cd5bbbf50181571f780976192f326597cd2c0f5f7446066b8"
+    },
+    "native-editor-consumers199/files/rust/tcl-lsp-core/src/signature_help.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791558069.6881616,
+      "size": 63680,
+      "sha256": "1b097a864b86e694836942e51910f8aaa44aab3ef7cec4ed294fb46533f67574"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

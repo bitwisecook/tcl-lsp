@@ -46,7 +46,10 @@ use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
 use crate::sccp::SccpResult;
 use crate::semantic_analysis::SemanticAnalysisBundle;
 use crate::ssa::{SsaFunction, ValueKey, build_ssa_with_context_for_entry_and_metadata};
-use crate::taint::{TaintGraph, TaintLattice, instance_classes_for_function, propagate_taints};
+use crate::taint::{
+    TaintGraph, TaintLattice, TaintPropagationInputs, TaintSourceContext,
+    instance_classes_for_function, propagate_taints,
+};
 use crate::type_infer::{TypePropagationMetadata, propagate_types_with_metadata_context};
 use crate::types::TypeLattice;
 use crate::unit_scope::{
@@ -1180,13 +1183,15 @@ impl FunctionUnit {
         let instance_classes = instance_classes_for_function(&cfg, registry, None, false);
         let taints = propagate_taints(
             &TaintGraph::new(&cfg, &ssa, &sccp),
-            registry,
-            Some(&rendered_props),
-            None,
-            None,
-            None,
-            None,
-            &instance_classes,
+            TaintPropagationInputs {
+                registry,
+                rendered_props: Some(&rendered_props),
+                interproc: None,
+                source: TaintSourceContext::for_input(registry, source_metadata_input, config),
+                param_taints: None,
+                taint_summaries: None,
+                instance_classes: &instance_classes,
+            },
         );
         cfg.retain_math_invocations(&sccp.required_math_invocations);
         cfg.retain_expression_preparations(&sccp.required_expression_preparations);
@@ -1460,18 +1465,20 @@ impl FunctionUnit {
         &self,
         registry: &CommandRegistry,
         ia: &InterproceduralAnalysis,
-        dialect: Option<&'static tcl_dialect::DialectProfile>,
+        _dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> HashMap<ValueKey, TaintLattice> {
         let instance_classes = instance_classes_for_function(&self.cfg, registry, Some(ia), true);
         propagate_taints(
             &TaintGraph::new(&self.cfg, &self.ssa, &self.sccp),
-            registry,
-            Some(&self.rendered_props),
-            Some(ia),
-            dialect,
-            None,
-            None,
-            &instance_classes,
+            TaintPropagationInputs {
+                registry,
+                rendered_props: Some(&self.rendered_props),
+                interproc: Some(ia),
+                source: TaintSourceContext::for_function(registry, self),
+                param_taints: None,
+                taint_summaries: None,
+                instance_classes: &instance_classes,
+            },
         )
     }
 }
@@ -2802,26 +2809,34 @@ impl CompilationUnit {
                 &self.top_level.ssa,
                 &self.top_level.sccp,
             ),
-            registry,
-            Some(&self.top_level.rendered_props),
-            Some(&interproc),
-            dialect,
-            None,
-            None,
-            &top_instance_classes,
+            TaintPropagationInputs {
+                registry,
+                rendered_props: Some(&self.top_level.rendered_props),
+                interproc: Some(&interproc),
+                source: TaintSourceContext::for_module_function(
+                    registry,
+                    &self.ir_module,
+                    &self.top_level,
+                ),
+                param_taints: None,
+                taint_summaries: None,
+                instance_classes: &top_instance_classes,
+            },
         ));
         for fu in self.procedures.values_mut() {
             let instance_classes =
                 instance_classes_for_function(&fu.cfg, registry, Some(&interproc), true);
             fu.taints = Arc::new(propagate_taints(
                 &TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp),
-                registry,
-                Some(&fu.rendered_props),
-                Some(&interproc),
-                dialect,
-                None,
-                None,
-                &instance_classes,
+                TaintPropagationInputs {
+                    registry,
+                    rendered_props: Some(&fu.rendered_props),
+                    interproc: Some(&interproc),
+                    source: TaintSourceContext::for_module_function(registry, &self.ir_module, fu),
+                    param_taints: None,
+                    taint_summaries: None,
+                    instance_classes: &instance_classes,
+                },
             ));
         }
 

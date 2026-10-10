@@ -81,7 +81,6 @@ use super::helpers::{
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::analyser::utils::param_name_spans;
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{ExprNode, UnaryOp};
 
 /// Scope facts that make a store observable outside its local SSA chain.
@@ -439,45 +438,9 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
         registry: &tcl_registry::CommandRegistry,
     ) -> FxHashSet<String> {
-        use crate::var_refs::{VarReferenceScanner, VarScanOptions};
-        let mut out = FxHashSet::default();
-        // Command-argument + AssignValue substitutions (deep RMW scan minus
-        // shallow), already factored out for the optimiser's elimination pass.
-        out.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
-            fu, registry,
-        ));
-        // Branch conditions and expr-valued statements carry their `[…]` in an
-        // `ExprNode`, not a word. Walk the AST for `Command` nodes (bracketed
-        // substitution text) and scan each — their inner reads are invisible to
-        // the version-precise `used` set, so they keep every write alive. A
-        // bare `$x` in `if {$x}` is already a version-precise condition use, so
-        // it is not collected here.
-        let mut deep = VarReferenceScanner::for_registry(
-            VarScanOptions {
-                include_var_read_roles: true,
-                recurse_cmd_substitutions: true,
-                include_reads_before_write: true,
-                element_qualified: false,
-            },
-            registry,
-        );
-        let mut cmd_texts: Vec<String> = Vec::new();
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                if let crate::ir::Statement::AssignExpr { expr, .. }
-                | crate::ir::Statement::ExprEval { expr, .. } = stmt
-                {
-                    collect_expr_command_texts(expr, &mut cmd_texts);
-                }
-            }
-            if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
-                collect_expr_command_texts(condition, &mut cmd_texts);
-            }
-        }
-        for text in &cmd_texts {
-            out.extend(deep.scan_word(text, registry));
-        }
-        out
+        crate::optimiser::elimination::collect_rmw_hidden_reads(fu, registry)
+            .into_iter()
+            .collect()
     }
 
     /// W220 — dead-store hint.
@@ -3497,12 +3460,14 @@ fn irules_possible_handler_namespace_writes(
 /// an `expr` AST (recursing operands but stopping at the substitution
 /// boundary). Used to recover
 /// variable reads hidden inside `if`/`while` conditions and `expr` values.
+#[cfg(test)]
 fn collect_expr_command_texts(node: &ExprNode, out: &mut Vec<String>) {
     // Entry point: the top of an expression tree is nesting depth 0 (the
     // recursion cap lives in [`collect_expr_command_texts_at`]).
     collect_expr_command_texts_at(node, out, 0);
 }
 
+#[cfg(test)]
 fn collect_expr_command_texts_at(node: &ExprNode, out: &mut Vec<String>, depth: u32) {
     // Native-stack safety net: walks the `ExprNode` tree, one native frame
     // per level. Past the cap, stop descending — a collector
@@ -3925,20 +3890,6 @@ fn barrier_body_locally_sets(
     {
         return false;
     }
-    if let Some(possible) = tokens
-        .evaluated_body()
-        .and_then(|region| region.possible_bodies.as_ref())
-    {
-        return possible.conditional_sources.iter().flatten().any(|advice| {
-            crate::script_binds::script_image_binds_name(
-                &advice.source().text,
-                var,
-                crate::script_binds::Ownership::Bindings,
-                registry,
-                advice.config(),
-            )
-        });
-    }
     if !matches!(stmt, Some(crate::ir::Statement::Barrier { .. })) {
         return false;
     }
@@ -3949,9 +3900,27 @@ fn barrier_body_locally_sets(
     else {
         return false;
     };
-    // Potentially evaluated foreign-frame scripts provide lexical ownership
-    // only. Reference-only syntax cannot supply this suppression; an authored
-    // Body role is never a completed store in the enclosing frame.
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        config,
+        Some(input.unit_profile()),
+    );
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    let Some(footprint) =
+        binding.original_materialized_footprint(tokens, source, registry, metadata)
+    else {
+        return false;
+    };
+    // Possible local ownership uses the selected installer's source world.
+    // Ordinary interpolation supplies no binding; an unavailable child table
+    // cannot borrow this installer's command descriptors or aliases.
+    let root = crate::naming::split_element_ref(var).map_or(var, |(root, _)| root);
     words
         .source_script_bodies_for(
             context,
@@ -3959,21 +3928,12 @@ fn barrier_body_locally_sets(
         )
         .iter()
         .any(|body| {
-            if !body.matches_source(&tcl_lexer::SourceImage::document(source), config)
-                || !body.matches_context(context)
-            {
-                return false;
-            }
-            let Some(text) = source.get(body.content_span().as_range()) else {
-                return false;
-            };
-            crate::script_binds::script_binds_name(
-                text,
-                var,
-                crate::script_binds::Ownership::BindingsOrNameReads,
-                registry,
-                config,
-            )
+            let names = footprint.body_name_ownership(body);
+            names
+                .names
+                .iter()
+                .chain(&names.read_names)
+                .any(|name| name == root)
         })
 }
 
@@ -4634,16 +4594,16 @@ mod issue996_tests {
     fn opaque_body_local_set_requires_original_body_owner() {
         // naming.source.original-editor-body-structure
         // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
-        // Lexical suppression only; this test proves no entered child/store.
-        let source = "interp create child\ninterp eval child {set x 1; puts $x}\n";
-        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        // Conditional source suppression only; no entered interpreter or store.
+        let source = "interp eval {} {set x 1; puts $x}\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
         let config = analysis.body_lexer_config.unwrap();
         let context = analysis.resolved_input.as_ref().unwrap().context_registry();
         let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,
-            &segments[1],
+            &segments[0],
         );
         analysis
             .retained_command_realm()
@@ -4651,12 +4611,12 @@ mod issue996_tests {
             .stamp_original_tokens(&mut tokens);
         let stmt = crate::ir::Statement::Barrier {
             span: tokens.argv[0],
-            reason: "child interpreter".to_owned(),
+            reason: "original current-interpreter body".to_owned(),
             command: "interp".to_owned(),
             canonical_command: Some("::interp".to_owned()),
             args: vec![
                 "eval".to_owned(),
-                "child".to_owned(),
+                String::new(),
                 "set x 1; puts $x".to_owned(),
             ],
             tokens: Some(tokens.clone()),
@@ -4680,11 +4640,93 @@ mod issue996_tests {
         assert!(!barrier_body_locally_sets(
             Some(&stmt),
             "x",
-            "interp create child\ninterp eval child {set y 1; puts $y}\n",
+            "interp eval {} {set y 1; puts $y}\n",
             &analysis,
             &context,
             Some(&tokens)
         ));
+    }
+
+    #[test]
+    fn original_body_ownership_keeps_installer_horizon_and_child_refusal() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        // Conditional suppression, never an entered child or completed store.
+        for (source, target, expected) in [
+            ("interp eval {} {puts $missing}", "missing", false),
+            ("interp eval {} {set missing}", "missing", true),
+            (
+                "interp alias {} put {} set {$literal}; interp eval {} {put VALUE}",
+                "$literal",
+                true,
+            ),
+            (
+                "interp alias {} put {} set café; rename set {}; interp eval {} {put VALUE}",
+                "café",
+                false,
+            ),
+            (
+                "interp create child; interp eval child {set x VALUE}",
+                "x",
+                false,
+            ),
+            ("interp eval {} {set {café(open} VALUE}", "café(open", true),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let config = analysis.body_lexer_config.unwrap();
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            let segments =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                segments.last().unwrap(),
+            );
+            analysis
+                .retained_command_realm()
+                .unwrap()
+                .stamp_original_tokens(&mut tokens);
+            let stmt = crate::ir::Statement::Barrier {
+                span: segments.last().unwrap().span,
+                reason: "conditional body".into(),
+                command: segments.last().unwrap().texts[0].clone(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: Some(tokens.clone()),
+            };
+            assert_eq!(
+                barrier_body_locally_sets(
+                    Some(&stmt),
+                    target,
+                    source,
+                    &analysis,
+                    &context,
+                    Some(&tokens)
+                ),
+                expected,
+                "{source}"
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(!barrier_body_locally_sets(
+                Some(&stmt),
+                target,
+                source,
+                &missing,
+                &context,
+                Some(&tokens)
+            ));
+            let foreign = tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                .default_context_registry();
+            assert!(!barrier_body_locally_sets(
+                Some(&stmt),
+                target,
+                source,
+                &analysis,
+                &foreign,
+                Some(&tokens)
+            ));
+        }
     }
 }
 
@@ -4722,7 +4764,7 @@ mod source_body_purpose_tests {
                 ..CommandSpec::DEFAULT
             });
         }
-        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
         let context = Arc::new(
             tcl_registry::model::context_for_profile(profile)
                 .with_command_store(Arc::new(registry)),
@@ -4736,7 +4778,7 @@ mod source_body_purpose_tests {
         );
         let analysis = crate::analyser::Analyser::new()
             .with_resolved_input(input)
-            .analyse(source, "tcl8.6");
+            .analyse(source, "tcl");
         let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
         for (index, expected) in [(0, false), (1, true)] {
             let mut tokens = crate::ir::CommandTokens::from_segmented(

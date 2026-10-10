@@ -1,0 +1,212 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/current-naming-owner-gate83.source-trees.tar.gz",
+  "archive_sha256": "e8974364f28aac5695386c8b6775ac7f0e61156dec4745a463cd3b65f528a942",
+  "archive_bytes": 290684,
+  "uncompressed_bytes": 983677,
+  "source_manifest_sha256": "1662eabeca5b74a6b0b15b72393420ccd8bc06fadcc326dba21c89649d5d699b",
+  "source_patch_sha256": "fc4e8022c8b215f4e51d0707b4609f056d53192189859bb479f6feffbc86ea55",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": false,
+  "member_count": 18,
+  "members": {
+    "current-naming-owner-gate83/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.0270548,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/base/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.0270548,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/base/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.0270548,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/base/docs/design/contracts": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.0270548,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/base/docs/design/contracts/shared-utility-contracts-rust.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.0292912,
+      "size": 414053,
+      "sha256": "62ece8c79b47b211f34b49d17cdd61ad040b2b64d224061ccc66b69d74bb7832"
+    },
+    "current-naming-owner-gate83/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523349.9670553,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/base/rust/xtask": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523349.9670553,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/base/rust/xtask/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523349.9670553,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/base/rust/xtask/src/owner_resolution.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523349.9692197,
+      "size": 73426,
+      "sha256": "df77cd9cef1d5e6848d3f296c3ef9214c04749938b0510e13d50dcea00f2a55a"
+    },
+    "current-naming-owner-gate83/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.0292912,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/files/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.0292912,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/files/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.0292912,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/files/docs/design/contracts": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.0292912,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/files/docs/design/contracts/shared-utility-contracts-rust.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.029992,
+      "size": 415241,
+      "sha256": "b67513d3fdfa24a70d0781a7de0e36c1e7dd40ac7a9dd7bca977e8f7ce631796"
+    },
+    "current-naming-owner-gate83/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523349.9692197,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/files/rust/xtask": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523349.9692197,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/files/rust/xtask/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523349.9692197,
+      "size": 0,
+      "sha256": null
+    },
+    "current-naming-owner-gate83/files/rust/xtask/src/owner_resolution.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791523350.015055,
+      "size": 80957,
+      "sha256": "e9db834d6648bc1ddebd9fa1ec1dd28fb00b596efd2f25308029997b9778e264"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/xtask/src/owner_resolution.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "e9db834d6648bc1ddebd9fa1ec1dd28fb00b596efd2f25308029997b9778e264",
+      "trees": [
+        "files"
+      ]
+    },
+    {
+      "path": "rust/xtask/src/owner_resolution.rs",
+      "hash_key": "base_sha256",
+      "sha256": "df77cd9cef1d5e6848d3f296c3ef9214c04749938b0510e13d50dcea00f2a55a",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "hash_key": "candidate_sha256",
+      "sha256": "b67513d3fdfa24a70d0781a7de0e36c1e7dd40ac7a9dd7bca977e8f7ce631796",
+      "trees": [
+        "files"
+      ]
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "hash_key": "base_sha256",
+      "sha256": "62ece8c79b47b211f34b49d17cdd61ad040b2b64d224061ccc66b69d74bb7832",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

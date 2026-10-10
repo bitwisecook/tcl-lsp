@@ -1653,6 +1653,9 @@ pub(super) fn original_definition_places(
     index: usize,
     registry: &tcl_registry::CommandRegistry,
 ) -> Vec<crate::place::Place> {
+    let Some(metadata) = fu.invocation_metadata_context(registry) else {
+        return Vec::new();
+    };
     let Some(tokens) =
         crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()
     else {
@@ -1663,7 +1666,7 @@ pub(super) fn original_definition_places(
     };
     let Some(normal) = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
         registry,
-        fu.invocation_metadata_context(registry),
+        Some(metadata),
         tokens,
     ) else {
         return Vec::new();
@@ -1847,6 +1850,7 @@ pub(super) fn special_variable_definition_at_span(
     span: tcl_lexer::Span,
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<String> {
+    let metadata = fu.invocation_metadata_context(registry)?;
     fu.cfg.blocks.iter().find_map(|(&block, data)| {
         data.statements.iter().enumerate().find_map(|(index, _)| {
             let tokens =
@@ -1855,7 +1859,7 @@ pub(super) fn special_variable_definition_at_span(
             let normal =
                 crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
                     registry,
-                    fu.invocation_metadata_context(registry),
+                    Some(metadata),
                     tokens,
                 )?;
             if normal
@@ -2310,12 +2314,28 @@ mod exact_cell_diagnostic_tests {
         );
         let original = unit.procedures.values().next().unwrap();
         let span = occurrence_span(source, "::auto_path");
+        let definitions = |function: &crate::compilation_unit::FunctionUnit| {
+            function
+                .cfg
+                .blocks
+                .iter()
+                .flat_map(|(&block, body)| {
+                    (0..body.statements.len()).flat_map(move |index| {
+                        original_definition_places(function, block, index, registry)
+                    })
+                })
+                .collect::<Vec<_>>()
+        };
+        assert!(definitions(original).iter().any(|place| {
+            crate::var_resolve::root_namespace_variable_simple_name(place) == Some("auto_path")
+        }));
         assert_eq!(
             special_variable_definition_at_span(original, span, registry),
             Some("auto_path".to_owned())
         );
         let mut missing = original.clone();
         missing.source_metadata_input = None;
+        assert!(definitions(&missing).is_empty());
         assert_eq!(
             special_variable_definition_at_span(&missing, span, registry),
             None
@@ -2328,6 +2348,7 @@ mod exact_cell_diagnostic_tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
             input.lexer_config(),
         ));
+        assert!(definitions(&foreign).is_empty());
         assert_eq!(
             special_variable_definition_at_span(&foreign, span, registry),
             None

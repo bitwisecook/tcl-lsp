@@ -1,0 +1,131 @@
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+    Checking tcl-test-support v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-test-support)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking openssl-probe v0.2.1
+    Checking rustls-native-certs v0.8.4
+   Compiling tcl-cli v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cli)
+    Checking clap_complete v4.6.11
+    Checking anyhow v1.0.104
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+    Checking tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bytecode)
+    Checking libsqlite3-sys v0.38.2
+    Checking dns-lookup v4.0.2
+    Checking fallible-streaming-iterator v0.1.9
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+    Checking fallible-iterator v0.3.0
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking rusqlite v0.40.2
+    Checking borrow-or-share v0.2.4
+    Checking fluent-uri v0.4.1
+    Checking sync_wrapper v1.0.2
+   Compiling semver v1.0.28
+    Checking tower-service v0.3.3
+    Checking tower-layer v0.3.3
+    Checking tower v0.5.3
+   Compiling rustc_version v0.4.1
+    Checking ls-types v0.0.6
+    Checking tower-lsp-server v0.23.0
+   Compiling curve25519-dalek v5.0.0
+   Compiling version_check v0.9.5
+   Compiling cfg_aliases v0.2.2
+   Compiling nix v0.31.3
+   Compiling generic-array v0.14.7
+    Checking ssh-encoding v0.3.0
+   Compiling curve25519-dalek-derive v0.1.1
+    Checking keccak v0.2.2
+   Compiling strsim v0.11.1
+   Compiling rustversion v1.0.23
+    Checking byteorder v1.5.0
+   Compiling ident_case v1.0.1
+   Compiling darling_core v0.24.1
+    Checking blowfish v0.10.0
+    Checking ed25519 v3.0.0
+    Checking poly1305 v0.9.1
+    Checking blake2 v0.11.0
+    Checking sha1 v0.11.0
+   Compiling serde_json v1.0.151
+    Checking argon2 v0.6.0
+    Checking ssh-cipher v0.3.0
+    Checking ed25519-dalek v3.0.0
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+    Checking bcrypt-pbkdf v0.11.0
+   Compiling darling_macro v0.24.1
+    Checking sha3 v0.11.0
+    Checking p521 v0.14.0
+    Checking module-lattice v0.2.3
+   Compiling serde_derive_internals v0.30.0
+    Checking kem v0.3.0
+    Checking hex v0.4.3
+    Checking sponge-cursor v0.1.0
+    Checking sha3 v0.12.0
+   Compiling enum_dispatch v0.3.13
+    Checking ssh-key v0.7.0-rc.11
+    Checking ml-kem v0.3.2
+   Compiling schemars_derive v1.2.2
+   Compiling darling v0.24.1
+    Checking generic-array v1.4.5
+    Checking russh-cryptovec v0.62.0
+    Checking russh-util v0.52.0
+   Compiling delegate v0.13.5
+    Checking md-5 v0.11.0
+    Checking ripemd v0.2.0
+    Checking serde_bytes v0.11.19
+    Checking hex-literal v1.1.0
+    Checking dyn-clone v1.0.20
+   Compiling rmcp v3.5.0
+    Checking md5 v0.8.1
+    Checking russh v0.64.1
+    Checking schemars v1.2.2
+    Checking russh-sftp v3.0.1
+   Compiling rmcp-macros v3.5.0
+    Checking tcl-f5mku v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-f5mku)
+    Checking uuid v1.27.0
+   Compiling pastey v0.2.3
+    Checking tcl-irules v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-irules)
+    Checking tcl-sslictcl v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-sslictcl)
+    Checking tcl-bigip v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bigip)
+    Checking tcl-lsp-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-lsp-core)
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-engine-tclvm)
+    Checking tcl-spec-hooks v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-spec-hooks)
+    Checking tcl-spectcl v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-spectcl)
+    Checking tcl-spec-studio v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-spec-studio)
+    Checking tcl-lsp-db v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-lsp-db)
+    Checking tcl-explorer v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-explorer)
+    Checking tcl-diagram v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-diagram)
+    Checking tcl-cli-support v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cli-support)
+    Checking tcl-bigip-query v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bigip-query)
+    Checking f5-xc v0.1.0 (/workspace/.checkpoints/naming-validation/rust/f5-xc)
+    Checking tcl-lsp-server v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-lsp-server)
+warning: function `resolve_source_uri` is never used
+     --> rust/tcl-lsp-server/src/lib.rs:32092:4
+      |
+32092 | fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
+      |    ^^^^^^^^^^^^^^^^^^
+      |
+      = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-server` (lib) generated 1 warning
+    Checking tcl-irule-test v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-irule-test)
+    Checking tcl-bigip-io v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bigip-io)
+    Checking f5-cli v0.1.0 (/workspace/.checkpoints/naming-validation/rust/f5-cli)
+    Checking tcl-mcp v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-mcp)
+error[E0603]: module `source_structure` is private
+   --> rust/tcl-mcp/src/datagroup.rs:43:19
+    |
+ 43 | use tcl_lsp_core::source_structure::SourceSyntaxStructure;
+    |                   ^^^^^^^^^^^^^^^^  --------------------- struct `SourceSyntaxStructure` is not publicly re-exported
+    |                   |
+    |                   private module
+    |
+note: the module `source_structure` is defined here
+   --> rust/tcl-lsp-core/src/lib.rs:102:1
+    |
+102 | mod source_structure;
+    | ^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0603`.
+error: could not compile `tcl-mcp` (bin "tcl-mcp") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

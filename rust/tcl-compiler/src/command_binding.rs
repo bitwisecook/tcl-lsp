@@ -258,7 +258,9 @@ pub use deferred_method::{
     SourceMethodReceiver, SourceReceiverMethodEntries, SourceReceiverMethodEntry,
 };
 pub use object_instance::{SourceObjectAllocation, SourceObjectInstanceProof};
+mod cfg_lookup_context;
 mod namespace_context;
+use cfg_lookup_context::{CfgLookupContexts, CfgPointContext};
 mod namespace_slots;
 pub(crate) use namespace_context::NamespaceKeyQuery;
 pub(crate) use namespace_context::SourceCommandKey;
@@ -1415,6 +1417,22 @@ impl OriginalCompilationLookupAdvice {
                 .is_none_or(|namespace| namespace == &self.namespace)
     }
 
+    /// Closed command layout in the positively retained Logical source world.
+    /// Namespace and original target consensus are independent of a physical
+    /// variable frame; this cannot certify native lookup or an entered frame.
+    pub(crate) fn closed_logical_source_lookup(&self) -> bool {
+        let state = &self.snapshot.state;
+        state
+            .logical_source_name_advice_input()
+            .is_some_and(|input| source_analysis_entry::source_input_dialect(input) == self.dialect)
+            && !self.unknown
+            && !self.may_be_absent
+            && !self.targets.is_empty()
+            && !state.has_opaque_domain()
+            && matches!(&self.namespace, SourceNamespaceKey::Authored(_))
+            && state.namespaces.contains(&self.namespace)
+    }
+
     /// A declaration's conditional receiver-body traits use its authentic
     /// source namespace. The future private runtime namespace stays unknown.
     pub(crate) fn closed_receiver_trait_lookup(
@@ -2012,15 +2030,25 @@ fn original_site_layout_advice(
         return None;
     }
     let original = crate::registry_invocation::native_compiler_replay_source(tokens, site)?;
+    let dialect = snapshot.state.source_variables.invocation_dialect?;
+    let logical_source = snapshot
+        .state
+        .logical_source_name_advice_input()
+        .is_some_and(|input| {
+            input.lexer_config() == config
+                && source_analysis_entry::source_input_dialect(input) == dialect
+        });
+    // Conditional Logical command layout uses its retained source namespace
+    // and lookup world. It does not require or issue a physical variable frame.
     if snapshot.state.current_source_origin.as_ref() != Some(&site.source)
-        || matches!(
-            snapshot.state.variable_frame,
-            crate::var_resolve::VariableExecutionFrame::Unknown
-        )
+        || (!logical_source
+            && matches!(
+                snapshot.state.variable_frame,
+                crate::var_resolve::VariableExecutionFrame::Unknown
+            ))
     {
         return None;
     }
-    let dialect = snapshot.state.source_variables.invocation_dialect?;
     let image = tcl_lexer::SourceImage::from_bytes(
         original.as_bytes(),
         site.source.source_image().channel(),
@@ -2045,65 +2073,27 @@ fn original_site_layout_advice(
         config,
     )?;
     let head = native.first()?;
-    let projection = if let Some(policy) = snapshot
-        .state
-        .source_variables
-        .execution_name_policy
-        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
-    {
-        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-            head,
-            tcl_syntax::word_rules::WordValueRules::from_config(&config),
-            policy,
-        )?;
-        let projection = source_binding_from_original_input_in(
-            &snapshot.state,
-            &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key),
-            namespace,
-            CommandTargetLookup::NamedSlots,
+    let projection = original_static_layout_projection(
+        snapshot,
+        namespace,
+        head,
+        config,
+        dialect,
+        logical_source,
+    )?;
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+        eprintln!(
+            "ORIGINAL_DECLARATION offset={} stage=layout logical={} frame={:?} targets={} unknown={} absent={} opaque={}",
+            site.offset,
+            logical_source,
+            snapshot.state.variable_frame,
+            projection.targets.len(),
+            projection.unknown,
+            projection.may_be_absent,
+            snapshot.state.opaque_binding_mutation,
         );
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
-            eprintln!(
-                "ORIGINAL_DECLARATION offset={} stage=lookup available={} targets={} unknown={} absent={} opaque={}",
-                site.offset,
-                projection.is_some(),
-                projection
-                    .as_ref()
-                    .map_or(0, |binding| binding.targets.len()),
-                projection.as_ref().is_none_or(|binding| binding.unknown),
-                projection
-                    .as_ref()
-                    .is_none_or(|binding| binding.may_be_absent),
-                snapshot.state.opaque_binding_mutation,
-            );
-        }
-        projection?
-    } else {
-        // A positively retained Logical input selects source advice even
-        // when its independent dialect also has an authored simulation recipe.
-        // Neither that recipe nor lexical presentation issues a Native slot.
-        let logical_source = snapshot
-            .state
-            .logical_source_name_advice_input()
-            .is_some_and(|input| {
-                input.lexer_config() == config
-                    && source_analysis_entry::source_input_dialect(input) == dialect
-            });
-        (logical_source || dialect.authored_name_policy().is_none()).then_some(())?;
-        let presentation = if logical_source {
-            tcl_syntax::word_rules::original_static_word_source_bytes(head)?
-        } else {
-            tcl_syntax::word_rules::original_static_word_ascii_presentation(head)?
-        };
-        let head = std::str::from_utf8(&presentation).ok()?;
-        source_binding_projection_in(
-            &snapshot.state,
-            head,
-            namespace,
-            CommandTargetLookup::NamedSlots,
-        )
-    };
+    }
     if projection.targets.is_empty()
         || projection.targets.iter().any(|target| {
             !target.registry_backed
@@ -2122,6 +2112,49 @@ fn original_site_layout_advice(
         unknown: projection.unknown,
         may_be_absent: projection.may_be_absent,
     })
+}
+
+fn original_static_layout_projection(
+    snapshot: &SourceLookupSnapshot,
+    namespace: &SourceNamespaceKey,
+    head: &tcl_lexer::NativeWord,
+    config: tcl_lexer::LexerConfig,
+    dialect: tcl_registry::InvocationDialect,
+    logical_source: bool,
+) -> Option<SourceInvocationBinding> {
+    if let Some(policy) = snapshot
+        .state
+        .source_variables
+        .execution_name_policy
+        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+    {
+        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            head,
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            policy,
+        )?;
+        source_binding_from_original_input_in(
+            &snapshot.state,
+            &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key),
+            namespace,
+            CommandTargetLookup::NamedSlots,
+        )
+    } else {
+        // Independent authored simulation metadata does not issue a Native slot.
+        (logical_source || dialect.authored_name_policy().is_none()).then_some(())?;
+        let presentation = if logical_source {
+            tcl_syntax::word_rules::original_static_word_source_bytes(head)?
+        } else {
+            tcl_syntax::word_rules::original_static_word_ascii_presentation(head)?
+        };
+        let head = std::str::from_utf8(&presentation).ok()?;
+        Some(source_binding_projection_in(
+            &snapshot.state,
+            head,
+            namespace,
+            CommandTargetLookup::NamedSlots,
+        ))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -15266,6 +15299,14 @@ struct BindingWalkContext<'a> {
 struct InvocationBindingContext<'a> {
     retained_roots: &'a mut RetainedBindingRoots,
     source_order_mode: bool,
+    metadata: BindingInvocationMetadata<'a>,
+}
+
+/// Explicit compatibility is separate from a supplied metadata refusal.
+#[derive(Clone, Copy)]
+enum BindingInvocationMetadata<'a> {
+    Standalone,
+    Supplied(Option<crate::registry_invocation::InvocationMetadataContext<'a>>),
 }
 
 fn interpret_binding_source(
@@ -15617,6 +15658,7 @@ fn collect_binding_states(
                     let mut invocation_context = InvocationBindingContext {
                         retained_roots: context.retained_roots,
                         source_order_mode: context.source_order_mode,
+                        metadata: BindingInvocationMetadata::Standalone,
                     };
                     let observation_was_updated = apply_may_invocation_transitions(
                         stmt,
@@ -15782,6 +15824,27 @@ fn apply_embedded_transitions(
     namespace: &crate::ir_helpers::ExecutionNamespace,
     source_order_mode: bool,
 ) -> bool {
+    apply_embedded_transitions_in(
+        stmt,
+        registry,
+        bindings,
+        namespace,
+        source_order_mode,
+        (BindingInvocationMetadata::Standalone, None),
+    )
+}
+
+fn apply_embedded_transitions_in(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    bindings: &mut ModuleCommandBindings,
+    namespace: &crate::ir_helpers::ExecutionNamespace,
+    source_order_mode: bool,
+    selection: (
+        BindingInvocationMetadata<'_>,
+        Option<tcl_lexer::LexerConfig>,
+    ),
+) -> bool {
     let state = std::cell::RefCell::new(bindings);
     let resolve = |head: &str| state.borrow().resolved_embedded_head(head, namespace);
     let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
@@ -15792,13 +15855,34 @@ fn apply_embedded_transitions(
             &mut state.borrow_mut(),
             namespace,
             source_order_mode,
+            selection.0,
         );
         if let Some(skipped) = skipped {
             state.borrow_mut().join(&skipped);
         }
     };
-    let embedded =
-        evaluated_command_substitutions_with_replay(stmt, registry, Some(&resolve), Some(&observe));
+    let embedded = match selection {
+        (BindingInvocationMetadata::Standalone, _) => evaluated_command_substitutions_with_replay(
+            stmt,
+            registry,
+            Some(&resolve),
+            Some(&observe),
+        ),
+        (BindingInvocationMetadata::Supplied(metadata), Some(config)) => {
+            crate::ir_helpers::evaluated_command_substitutions_with_replay_and_metadata_context(
+                stmt,
+                registry,
+                Some(&resolve),
+                Some(&observe),
+                metadata,
+                config,
+            )
+        }
+        (BindingInvocationMetadata::Supplied(_), None) => {
+            state.borrow_mut().mark_opaque_binding_mutation();
+            return true;
+        }
+    };
     let observed = embedded.opaque || embedded.all_commands().next().is_some();
     if embedded.opaque {
         state.borrow_mut().mark_opaque_binding_mutation();
@@ -15812,6 +15896,7 @@ fn apply_embedded_command_transition(
     bindings: &mut ModuleCommandBindings,
     namespace: &crate::ir_helpers::ExecutionNamespace,
     source_order_mode: bool,
+    metadata: BindingInvocationMetadata<'_>,
 ) {
     let Some(head) = words.first() else {
         return;
@@ -15834,7 +15919,18 @@ fn apply_embedded_command_transition(
     {
         bindings.mark_source_order_user_procedure_call();
     }
-    let facts = bindings.resolve_command_words(words, registry, command_namespace.as_ref());
+    let facts = match metadata {
+        BindingInvocationMetadata::Standalone => {
+            bindings.resolve_command_words(words, registry, command_namespace.as_ref())
+        }
+        BindingInvocationMetadata::Supplied(metadata) => bindings
+            .resolve_command_words_with_metadata_context(
+                words,
+                registry,
+                metadata,
+                command_namespace.as_ref(),
+            ),
+    };
     apply_resolved_may_transitions(
         facts,
         source_may_be_unknown,
@@ -15852,6 +15948,7 @@ fn invocation_transition_inputs(
     bindings: &ModuleCommandBindings,
     command_namespace: &(impl NamespaceKeyQuery + ?Sized),
     source_order_mode: bool,
+    metadata: BindingInvocationMetadata<'_>,
 ) -> (bool, Vec<ResolvedBindingInvocation>, bool) {
     let (Statement::Call { command, .. } | Statement::Barrier { command, .. }) = stmt else {
         return (false, Vec::new(), false);
@@ -15864,7 +15961,18 @@ fn invocation_transition_inputs(
             .any(|target| !target.registry_backed);
     (
         source_may_be_unknown,
-        bindings.resolve_statement(stmt, registry, command_namespace),
+        match metadata {
+            BindingInvocationMetadata::Standalone => {
+                bindings.resolve_statement(stmt, registry, command_namespace)
+            }
+            BindingInvocationMetadata::Supplied(metadata) => bindings
+                .resolve_statement_with_metadata_context(
+                    stmt,
+                    registry,
+                    metadata,
+                    command_namespace,
+                ),
+        },
         reaches_user_procedure,
     )
 }
@@ -15897,6 +16005,7 @@ fn apply_may_invocation_transitions(
         bindings,
         command_namespace,
         context.source_order_mode,
+        context.metadata,
     );
     let single_exact_invocation = !source_may_be_unknown && invocations.len() == 1;
     let mut joined: Option<ModuleCommandBindings> = source_may_be_unknown.then(|| bindings.clone());
@@ -18043,15 +18152,7 @@ pub struct CommandBinding<'a> {
     cfg: &'a CfgFunction,
     registry: &'a CommandRegistry,
     seed: ModuleCommandBindings,
-}
-
-fn cfg_execution_namespace(cfg: &CfgFunction) -> crate::ir::ExecutionNamespace {
-    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(&cfg.name);
-    crate::ir::ExecutionNamespace::Exact(if holder.is_empty() {
-        "::".to_owned()
-    } else {
-        holder.to_owned()
-    })
+    lookup_contexts: CfgLookupContexts,
 }
 
 fn unavailable_cfg_entry(registry: &CommandRegistry) -> ModuleCommandBindings {
@@ -18100,7 +18201,14 @@ fn cfg_entry_state(cfg: &CfgFunction, registry: &CommandRegistry) -> ModuleComma
     }
     retained.map_or_else(
         || {
-            if cfg.statement_sources.values().any(Option::is_some) {
+            if cfg.statement_sources.values().any(Option::is_some)
+                || cfg.executed_source.is_some()
+                || cfg.namespace_context.is_some()
+                || !matches!(
+                    &cfg.metadata_context,
+                    crate::cfg_builder::CfgMetadataContext::Standalone
+                )
+            {
                 unavailable_cfg_entry(registry)
             } else {
                 ModuleCommandBindings::initial(registry)
@@ -18114,12 +18222,25 @@ fn transfer_cfg_statement(
     stmt: &Statement,
     state: &mut ModuleCommandBindings,
     registry: &CommandRegistry,
-    namespace: &crate::ir::ExecutionNamespace,
+    point: Option<&CfgPointContext>,
+    metadata: BindingInvocationMetadata<'_>,
 ) {
     if !stmt.is_executable_invocation() {
         return;
     }
-    apply_embedded_transitions(stmt, registry, state, namespace, false);
+    let Some(point) = point else {
+        state.mark_opaque_binding_mutation();
+        return;
+    };
+    let namespace = &point.namespace;
+    apply_embedded_transitions_in(
+        stmt,
+        registry,
+        state,
+        namespace,
+        false,
+        (metadata, point.config),
+    );
     if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
         return;
     }
@@ -18133,6 +18254,7 @@ fn transfer_cfg_statement(
     let mut context = InvocationBindingContext {
         retained_roots: &mut retained,
         source_order_mode: false,
+        metadata,
     };
     apply_may_invocation_transitions(
         stmt,
@@ -18153,9 +18275,14 @@ impl CommandBinding<'_> {
             .cloned()
             .unwrap_or_else(|| self.seed.clone());
         if let Some(blk) = self.cfg.blocks.get(&block) {
-            let namespace = cfg_execution_namespace(self.cfg);
-            for stmt in blk.statements.iter().take(stmt_idx) {
-                transfer_cfg_statement(stmt, &mut state, self.registry, &namespace);
+            for (index, stmt) in blk.statements.iter().enumerate().take(stmt_idx) {
+                transfer_cfg_statement(
+                    stmt,
+                    &mut state,
+                    self.registry,
+                    self.lookup_contexts.point(block, index),
+                    CfgLookupContexts::metadata(self.cfg, self.registry),
+                );
             }
         }
         state
@@ -18165,42 +18292,8 @@ impl CommandBinding<'_> {
     #[must_use]
     pub fn binding_at(&self, block: BlockId, stmt_idx: usize, command_name: &str) -> Binding {
         let state = self.state_at_block(block, stmt_idx);
-        let namespace = cfg_execution_namespace(self.cfg);
-        let Some(namespace) = namespace.for_head_context(command_name) else {
-            return Binding::of(BindingKind::Unknown);
-        };
-        let proof = source_binding(&state, command_name, namespace.as_ref());
-        let slots = state.source_keys(command_name, namespace.as_ref());
-        let alternatives = slots
-            .iter()
-            .filter_map(|slot| state.bindings.get(slot))
-            .flatten()
-            .collect::<Vec<_>>();
-        if let [MayBinding::Target(target)] = alternatives.as_slice()
-            && !target.terminal
-        {
-            return Binding {
-                kind: BindingKind::Alias,
-                target: Some(nqn(&target.command)),
-            };
-        }
-        if state.definitely_absent(command_name, namespace.as_ref()) {
-            return Binding::of(BindingKind::Opaque);
-        }
-        if proof.unknown {
-            return Binding::of(BindingKind::Unknown);
-        }
-        let Some(target) = proof.proved_target() else {
-            return Binding::of(if proof.targets.is_empty() {
-                BindingKind::Opaque
-            } else {
-                BindingKind::Unknown
-            });
-        };
-        Binding {
-            kind: target.kind,
-            target: (!target.registry_backed).then(|| target.command.clone()),
-        }
+        self.lookup_contexts
+            .binding_at(self.cfg, &state, block, stmt_idx, command_name)
     }
 
     /// Whether the source name still selects its original registry command.
@@ -18219,7 +18312,6 @@ impl CommandBinding<'_> {
     #[must_use]
     pub fn rebound_names(&self) -> HashSet<String> {
         let mut names = HashSet::new();
-        let namespace = cfg_execution_namespace(self.cfg);
         for block in &self.ordered_blocks {
             let mut state = self
                 .block_entry
@@ -18233,8 +18325,14 @@ impl CommandBinding<'_> {
                     .filter_map(|key| state.callable_spelling_for_key(key)),
             );
             if let Some(blk) = self.cfg.blocks.get(block) {
-                for stmt in &blk.statements {
-                    transfer_cfg_statement(stmt, &mut state, self.registry, &namespace);
+                for (index, stmt) in blk.statements.iter().enumerate() {
+                    transfer_cfg_statement(
+                        stmt,
+                        &mut state,
+                        self.registry,
+                        self.lookup_contexts.point(*block, index),
+                        CfgLookupContexts::metadata(self.cfg, self.registry),
+                    );
                     names.extend(
                         state
                             .bindings
@@ -18261,23 +18359,11 @@ impl CommandBinding<'_> {
     }
 }
 
-/// Flow-sensitive CFG analysis using the same state and transition kernel as
-/// source interpretation and module effect summaries.
-#[must_use]
-pub fn analyse_command_binding<'a>(
-    cfg: &'a CfgFunction,
-    registry: &'a CommandRegistry,
+fn cfg_seed_with_initial(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
     initial: &[(String, Binding)],
-) -> CommandBinding<'a> {
-    let mut preds: HashMap<BlockId, Vec<BlockId>> =
-        cfg.blocks.keys().map(|id| (*id, Vec::new())).collect();
-    for &id in cfg.blocks.keys() {
-        for succ in cfg.block_successors(id) {
-            if let Some(incoming) = preds.get_mut(&succ) {
-                incoming.push(id);
-            }
-        }
-    }
+) -> ModuleCommandBindings {
     let mut seed = cfg_entry_state(cfg, registry);
     for (name, binding) in initial {
         let name = nqn(name);
@@ -18306,8 +18392,29 @@ pub fn analyse_command_binding<'a>(
         }
         seed.install(name, value);
     }
+    seed
+}
+
+/// Flow-sensitive CFG analysis using the same state and transition kernel as
+/// source interpretation and module effect summaries.
+#[must_use]
+pub fn analyse_command_binding<'a>(
+    cfg: &'a CfgFunction,
+    registry: &'a CommandRegistry,
+    initial: &[(String, Binding)],
+) -> CommandBinding<'a> {
+    let mut preds: HashMap<BlockId, Vec<BlockId>> =
+        cfg.blocks.keys().map(|id| (*id, Vec::new())).collect();
+    for &id in cfg.blocks.keys() {
+        for succ in cfg.block_successors(id) {
+            if let Some(incoming) = preds.get_mut(&succ) {
+                incoming.push(id);
+            }
+        }
+    }
+    let seed = cfg_seed_with_initial(cfg, registry, initial);
     let order = cfg.reverse_postorder();
-    let namespace = cfg_execution_namespace(cfg);
+    let lookup_contexts = CfgLookupContexts::new(cfg, registry, &seed);
     let mut block_entry = HashMap::<BlockId, ModuleCommandBindings>::new();
     let mut block_exit = HashMap::<BlockId, ModuleCommandBindings>::new();
     loop {
@@ -18331,8 +18438,14 @@ pub fn analyse_command_binding<'a>(
             block_entry.insert(*id, entry.clone());
             let mut exit = entry;
             if let Some(block) = cfg.blocks.get(id) {
-                for stmt in &block.statements {
-                    transfer_cfg_statement(stmt, &mut exit, registry, &namespace);
+                for (index, stmt) in block.statements.iter().enumerate() {
+                    transfer_cfg_statement(
+                        stmt,
+                        &mut exit,
+                        registry,
+                        lookup_contexts.point(*id, index),
+                        CfgLookupContexts::metadata(cfg, registry),
+                    );
                 }
             }
             if block_exit
@@ -18353,6 +18466,7 @@ pub fn analyse_command_binding<'a>(
         cfg,
         registry,
         seed,
+        lookup_contexts,
     }
 }
 
@@ -18888,6 +19002,102 @@ mod tests {
                 ..SourceAnalysisOptions::default()
             },
         )
+    }
+
+    #[test]
+    fn logical_command_layout_keeps_unknown_physical_frames_separate() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let image = tcl_lexer::SourceImage::document("proc subject {} {return VALUE}");
+        let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
+            &image,
+            &crate::var_resolve::VariableExecutionFrame::Unknown,
+            config,
+            context.commands(),
+            SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        )
+        .unwrap();
+        let point = bindings.points.first().expect("original source command");
+        assert_eq!(point.state.logical_source_name_advice_input(), Some(&input));
+        assert_eq!(
+            point.state.variable_frame,
+            crate::var_resolve::VariableExecutionFrame::Unknown
+        );
+        let segment =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap()
+                .remove(0);
+        let tokens =
+            crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        let site = CommandAllocationSite {
+            source: Arc::clone(point.state.current_source_origin.as_ref().unwrap()),
+            offset: segment.span.start(),
+        };
+        let snapshot = Arc::new(SourceLookupSnapshot::new(point.state.clone()));
+        let selected = original_site_operand_layout_advice(
+            &site,
+            &tokens,
+            &snapshot,
+            &point.namespace_key,
+            config,
+        )
+        .expect("conditional original Logical layout");
+        assert_eq!(
+            selected.frame(),
+            &crate::var_resolve::VariableExecutionFrame::Unknown
+        );
+        assert!(selected.targets.iter().all(|target| target.registry_backed));
+        assert!(snapshot.state.baseline.native_entry.is_none());
+        assert!(snapshot.state.baseline.execution_name_policy.is_none());
+
+        let mut stale = config;
+        stale.strict_quoting = !stale.strict_quoting;
+        assert!(
+            original_site_operand_layout_advice(
+                &site,
+                &tokens,
+                &snapshot,
+                &point.namespace_key,
+                stale,
+            )
+            .is_none()
+        );
+        let mut unowned = snapshot.state.clone();
+        Arc::make_mut(&mut unowned.baseline).logical_source_input = None;
+        let unowned = Arc::new(SourceLookupSnapshot::new(unowned));
+        assert!(
+            original_site_operand_layout_advice(
+                &site,
+                &tokens,
+                &unowned,
+                &point.namespace_key,
+                config,
+            )
+            .is_none()
+        );
+        let mut foreign_source = snapshot.state.clone();
+        foreign_source.current_source_origin = None;
+        let foreign_source = Arc::new(SourceLookupSnapshot::new(foreign_source));
+        assert!(
+            original_site_operand_layout_advice(
+                &site,
+                &tokens,
+                &foreign_source,
+                &point.namespace_key,
+                config,
+            )
+            .is_none()
+        );
     }
 
     #[test]

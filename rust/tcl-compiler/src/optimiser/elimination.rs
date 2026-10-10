@@ -37,6 +37,9 @@
 //! Emission order is the deterministic CFG `cfg_order` (reverse
 //! post-order from the entry, unreachable blocks appended).
 
+mod source_purity;
+mod source_reads;
+
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 use tcl_lexer::TokenType;
@@ -46,149 +49,51 @@ use tcl_registry::CommandRegistry;
 use crate::cfg::Function as CfgFunction;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::def_use::DefKind;
-use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::sccp::{SccpResult, cfg_order};
-use crate::side_effects::classify_side_effects;
 
 use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
-/// True when `text` (a Tcl word body) contains a command substitution
-/// that has an observable side effect — writes a variable, prints to
-/// stdout, mutates global state, runs a dynamic barrier, etc. Used to
-/// gate elimination of unused / dead assignments: `set v [puts X]`
-/// discards the result but still prints, so the assignment is NOT safe
-/// to delete.
-///
-/// `interproc_pure` is the set of qualified user-proc names proven pure
-/// by interprocedural analysis; a cmd-sub of such a proc is treated as
-/// side-effect-free even though [`classify_side_effects`] is
-/// conservative for user commands. `pure_methods` + `enclosing_class`
-/// recognise a pure `my <method>` self-dispatch. Conservative:
-/// anything we can't classify (unknown proc, dynamic dispatch,
-/// unparseable / no registry) is treated as having a side effect.
-/// Read-only purity context for the dead-code side-effect gates: the command
-/// registry plus the interprocedurally-proven pure procs / methods and the
-/// enclosing class for `my`-dispatch resolution. Bundled so the recursive
-/// side-effect checks stay within the argument limit.
+/// Actual source input for the substitution effect gate. Interprocedural
+/// names assist only a Logical target joined to its original declaration.
 #[derive(Clone, Copy)]
 pub(crate) struct PurityCtx<'a> {
     pub(crate) registry: Option<&'a CommandRegistry>,
     pub(crate) interproc_pure: &'a HashSet<String>,
-    pub(crate) pure_methods: &'a HashSet<String>,
     pub(crate) enclosing_class: Option<&'a str>,
     /// The document's lexer configuration.  The purity walk re-lexes an
-    /// already-extracted word to find its `[…]` substitutions and segments
-    /// each one into a head plus arguments, so it must read the bytes under
+    /// already-extracted word only to recognise command substitution syntax;
+    /// original child receipts supply dispatch and arguments. It reads under
     /// the grammar the document was lexed with — an iRules `}{`, a Jim
     /// `$(…)` or an 8.4 `{*}` puts the head in a different place.
     pub(crate) config: tcl_lexer::LexerConfig,
+    pub(crate) metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    pub(crate) module: Option<&'a crate::ir::Module>,
 }
 
 #[derive(Clone, Copy)]
 struct EffectCtx<'a> {
     purity: PurityCtx<'a>,
-    execution_namespace: Option<&'a crate::ir::ExecutionNamespace>,
+    source_tokens: Option<&'a crate::ir::CommandTokens>,
 }
 
-fn word_has_observable_side_effect(text: &str, effect: EffectCtx<'_>, depth: u32) -> bool {
-    // Native-stack safety net: this recurses into nested `[cmd
-    // …]` substitutions inside a single word's raw text, a genuinely
-    // unbounded axis. Past the cap, assume an observable side effect — the
-    // conservative direction, so an assignment whose RHS nests deeper than we
-    // can scan is never wrongly deleted.
-    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-        return true;
-    }
-    let purity = effect.purity;
-    let PurityCtx {
-        interproc_pure,
-        pure_methods,
-        enclosing_class,
-        ..
-    } = purity;
+fn word_has_observable_side_effect(text: &str, effect: EffectCtx<'_>) -> bool {
     if !text.contains('[') {
         return false;
     }
-    // No registry to classify embedded commands → conservative.
-    let Some(registry) = purity.registry else {
+    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, effect.purity.config)
+        .as_quoted_body()
+        .tokenise_all()
+    else {
         return true;
     };
-    let sm = tcl_lexer::SourceMap::new(text);
-    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, purity.config).tokenise_all() else {
-        return true; // unparseable → conservative
-    };
-    for tok in &tokens {
-        if tok.kind != tcl_lexer::TokenType::Cmd {
-            continue;
-        }
-        // `token_text` yields the command substitution's inner text
-        // (brackets stripped); segment it to get name + args.
-        let cmds = crate::segmenter::segment_commands_with_offset_and_config(
-            sm.token_text(*tok),
-            0,
-            purity.config,
-        );
-        if cmds.len() != 1 || cmds[0].texts.is_empty() {
-            // Multi-command substitution or empty → conservative.
-            return true;
-        }
-        let cmd_name = cmds[0].texts[0].as_str();
-        let cmd_args: &[String] = &cmds[0].texts[1..];
-        if effect
-            .execution_namespace
-            .is_some_and(|namespace| namespace.for_head(cmd_name).is_none())
-        {
-            // TclOO selects the receiver namespace at invocation time. A
-            // relative command there can be shadowed by an object-local
-            // command, including `my` / `next`; a registry spelling is not an
-            // exact binding proof.
-            return true;
-        }
-        let se = classify_side_effects(registry, cmd_name, cmd_args, None, None);
-        if !se.pure {
-            // A user proc / method that the registry can't classify may
-            // have been interprocedurally proven pure — consult those.
-            let proc_pure = interproc_pure.contains(cmd_name)
-                || interproc_pure.contains(format!("::{cmd_name}").as_str())
-                || interproc_pure.contains(cmd_name.trim_start_matches(':'));
-            // The contextual self-dispatch keyword is registry data, not a
-            // name literal. Runtime-selected spellings already returned
-            // conservatively above.
-            let self_dispatch_pure = registry.method_dispatch_keyword(cmd_name)
-                == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
-                && !cmd_args.is_empty()
-                && enclosing_class.is_some_and(|cls| method_pure(cls, &cmd_args[0], pure_methods));
-            if !proc_pure && !self_dispatch_pure {
-                return true;
-            }
-        }
-        // Recurse into nested substitutions inside the args.
-        for arg in cmd_args {
-            if word_has_observable_side_effect(arg, effect, depth + 1) {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-/// Return `true` iff `class_qname::method_name` (or a common qualifier
-/// spelling) is in `pure_methods`.
-fn method_pure(class_qname: &str, method_name: &str, pure_methods: &HashSet<String>) -> bool {
-    if method_name.is_empty() {
+    if !tokens.iter().any(|token| token.kind == TokenType::Cmd) {
         return false;
     }
-    let cls = class_qname.trim_start_matches(':');
-    [
-        format!("{class_qname}::{method_name}"),
-        format!("::{cls}::{method_name}"),
-        format!("{cls}::{method_name}"),
-    ]
-    .iter()
-    .any(|k| pure_methods.contains(k))
+    !source_purity::substitutions_are_pure(effect)
 }
 
 /// Expr-tree analogue of [`word_has_observable_side_effect`] — `true`
@@ -199,15 +104,17 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
     // native frame per level. Past the cap, assume an observable side effect
     // — the conservative direction, so an expression assignment nested deeper
     // than we can walk is never wrongly deleted. (Calls into
-    // `word_has_observable_side_effect` re-enter that walker at bracket-text
-    // depth 0: a leaf's raw text is a separate, independent recursion axis.)
+    // `word_has_observable_side_effect` only recognises a leaf's selected
+    // lexical substitution syntax; it does not recursively parse commands.)
     if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
         return true;
     }
     match node {
-        ExprNode::Command { text, .. } | ExprNode::Raw { text } => {
-            word_has_observable_side_effect(text, effect, 0)
-        }
+        // Command nodes retain the inner script, without bracket delimiters.
+        // The AST itself proves evaluation syntax; dispatch still requires
+        // the original nested receipts rather than re-lexing that script.
+        ExprNode::Command { .. } => !source_purity::substitutions_are_pure(effect),
+        ExprNode::Raw { text } => word_has_observable_side_effect(text, effect),
         ExprNode::Binary { left, right, .. } => {
             expr_has_observable_side_effect(left, effect, depth + 1)
                 || expr_has_observable_side_effect(right, effect, depth + 1)
@@ -231,7 +138,7 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
         // `set y [expr {"[incr x]"}]` and lost the `incr` (#2227, found in
         // review).
         ExprNode::String { text, .. } => crate::word_subst::quoted_operand_body(text)
-            .is_some_and(|body| word_has_observable_side_effect(body, effect, 0)),
+            .is_some_and(|body| word_has_observable_side_effect(body, effect)),
         _ => false,
     }
 }
@@ -242,12 +149,25 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
 /// substitution to be provably side-effect-free; `incr v` is safe
 /// unless its optional amount word has a side effect. Any other
 /// statement form is conservatively unsafe.
-pub(crate) fn assignment_safe_to_delete(stmt: &Statement, purity: PurityCtx<'_>) -> bool {
+pub(crate) fn assignment_safe_to_delete_at(
+    function: &FunctionUnit,
+    block: crate::cfg::BlockId,
+    index: usize,
+    purity: PurityCtx<'_>,
+) -> bool {
+    let Some(statement) = function
+        .cfg
+        .blocks
+        .get(&block)
+        .and_then(|block| block.statements.get(index))
+    else {
+        return false;
+    };
     assignment_safe_to_delete_with_effect(
-        stmt,
+        statement,
         EffectCtx {
             purity,
-            execution_namespace: None,
+            source_tokens: function.cfg.source_tokens_at(block, index),
         },
     )
 }
@@ -255,14 +175,14 @@ pub(crate) fn assignment_safe_to_delete(stmt: &Statement, purity: PurityCtx<'_>)
 fn assignment_safe_to_delete_with_effect(stmt: &Statement, effect: EffectCtx<'_>) -> bool {
     match stmt {
         Statement::AssignConst { .. } => true,
-        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, effect, 0),
+        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, effect),
         Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(expr, effect, 0),
         // `incr v` reads + writes v — the assignment itself is the
         // observable effect, so deleting it is OK when v is dead and
         // the optional amount word is side-effect-free.
         Statement::Incr { amount, .. } => match amount {
             None => true,
-            Some(a) => !word_has_observable_side_effect(a, effect, 0),
+            Some(a) => !word_has_observable_side_effect(a, effect),
         },
         // Unknown statement form — conservative.
         _ => false,
@@ -626,22 +546,13 @@ fn command_write_targets<'s>(
 /// analysis has proven pure — threaded into the O109 / O126 RHS-purity
 /// gates so `set unused [pureProc]` / `set unused [my pureMethod]` can
 /// fold.
-fn pure_call_targets(ctx: &PassContext<'_>) -> (HashSet<String>, HashSet<String>) {
-    let interproc_pure: HashSet<String> = ctx
-        .interproc
+fn pure_call_targets(ctx: &PassContext<'_>) -> HashSet<String> {
+    ctx.interproc
         .procedures
         .iter()
-        .filter(|(_, s)| s.pure)
-        .map(|(q, _)| q.clone())
-        .collect();
-    let pure_methods: HashSet<String> = ctx
-        .interproc
-        .methods
-        .iter()
-        .filter(|(_, s)| s.base.pure)
-        .map(|(q, _)| q.clone())
-        .collect();
-    (interproc_pure, pure_methods)
+        .filter(|(_, summary)| summary.pure)
+        .map(|(name, _)| name.clone())
+        .collect()
 }
 
 /// Run the elimination pass — emits O107, O108, O109, O126
@@ -651,24 +562,23 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // O109/O126 closure: the user-proc / TclOO-method purity sets
     // that gate RHS-side-effect-safe deletion (owned so the `&mut ctx`
     // calls below don't alias `ctx.interproc`).
-    let (interproc_pure, pure_methods) = pure_call_targets(ctx);
+    let interproc_pure = pure_call_targets(ctx);
     if deep_analysis_available(&cu.top_level) {
         emit_unreachable(ctx, &cu.top_level);
         let purity = PurityCtx {
             registry: ctx.registry,
             interproc_pure: &interproc_pure,
-            pure_methods: &pure_methods,
             enclosing_class: None,
-            config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+            config: cu.top_level.source_lexer_config(),
+            metadata: ctx.registry.and_then(|registry| {
+                cu.top_level
+                    .invocation_metadata_context_for_module(registry, &cu.ir_module)
+            }),
+            module: Some(&cu.ir_module),
         };
-        let baseline = emit_dead_stores_and_unused(
-            ctx,
-            &cu.top_level,
-            is_top_level(&cu.top_level),
-            purity,
-            None,
-        );
-        emit_adce(ctx, &cu.top_level, &baseline, purity, None, true);
+        let baseline =
+            emit_dead_stores_and_unused(ctx, &cu.top_level, is_top_level(&cu.top_level), purity);
+        emit_adce(ctx, &cu.top_level, &baseline, purity, true);
     }
 
     // `manager::build_pass_context` populates this shared safety fact once,
@@ -691,19 +601,21 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let purity = PurityCtx {
             registry: ctx.registry,
             interproc_pure: &interproc_pure,
-            pure_methods: &pure_methods,
             enclosing_class: None,
-            config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+            config: fu.source_lexer_config(),
+            metadata: ctx.registry.and_then(|registry| {
+                fu.invocation_metadata_context_for_module(registry, &cu.ir_module)
+            }),
+            module: Some(&cu.ir_module),
         };
-        let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, None);
-        emit_adce(ctx, fu, &baseline, purity, None, false);
+        let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity);
+        emit_adce(ctx, fu, &baseline, purity, false);
     }
     ctx.cross_event_vars = saved_proc_cross;
 
-    // Optimise TclOO method bodies as functions too, passing both the owning
-    // class qname and the command execution namespace. The O126 `my <method>`
-    // purity gate may resolve a same-class method only after namespace
-    // selection proves the command head. Instance variables
+    // Method functions retain the same original nested dispatch requirements.
+    // The owning class selects parameter metadata, not receiver-method purity.
+    // Instance variables
     // escape the method frame (they are object state), so they are fed
     // through the same escaping channel iRules cross-event state uses —
     // the dead-store / unused-assignment passes must not delete a
@@ -715,7 +627,6 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         }
         let ir_method = cu.ir_module.methods.get(mqname);
         let enclosing_class = ir_method.map(|m| m.class_name.as_str());
-        let execution_namespace = ir_method.map(|m| &m.execution_namespace);
         ctx.cross_event_vars = ir_method
             .map(|m| m.instance_vars.clone())
             .unwrap_or_default();
@@ -723,12 +634,15 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let purity = PurityCtx {
             registry: ctx.registry,
             interproc_pure: &interproc_pure,
-            pure_methods: &pure_methods,
             enclosing_class,
-            config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+            config: fu.source_lexer_config(),
+            metadata: ctx.registry.and_then(|registry| {
+                fu.invocation_metadata_context_for_module(registry, &cu.ir_module)
+            }),
+            module: Some(&cu.ir_module),
         };
-        let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, execution_namespace);
-        emit_adce(ctx, fu, &baseline, purity, execution_namespace, false);
+        let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity);
+        emit_adce(ctx, fu, &baseline, purity, false);
     }
     ctx.cross_event_vars = saved_cross;
 }
@@ -841,7 +755,6 @@ fn emit_dead_stores_and_unused(
     fu: &FunctionUnit,
     is_top_level: bool,
     purity: PurityCtx<'_>,
-    execution_namespace: Option<&crate::ir::ExecutionNamespace>,
 ) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
     // A dynamic read (`[set $name]`, `subst $tmpl`) can observe *any* store,
     // so no assignment in this function is provably dead.  Deleting one would
@@ -923,7 +836,7 @@ fn emit_dead_stores_and_unused(
         // when evaluating the value cannot raise (#2249).
         let effect = EffectCtx {
             purity,
-            execution_namespace,
+            source_tokens: fu.cfg.source_tokens_at(def_block, idx),
         };
         if !assignment_safe_to_delete_with_effect(stmt, effect)
             || !raise_proof.value_cannot_raise(def_block, idx, stmt, &chain.key)
@@ -1003,11 +916,15 @@ fn dead_store_observation_unbounded(ctx: &PassContext<'_>, fu: &FunctionUnit) ->
 /// Supplementary reads retained when the SSA model cannot represent the
 /// corresponding interpolation or nested read-modify-write invocation.
 fn dead_store_textual_reads(ctx: &PassContext<'_>, fu: &FunctionUnit) -> HashSet<String> {
-    let mut reads =
-        collect_textual_var_references(ctx.source, &fu.cfg, fu.base_offset, ctx.braced_var());
-    if let Some(registry) = ctx.registry {
-        reads.extend(collect_rmw_hidden_reads(fu, registry));
-    }
+    let Some(registry) = ctx.registry else {
+        return fu.ssa.var_names().iter().cloned().collect();
+    };
+    let metadata = ctx.ir_module.map_or_else(
+        || fu.invocation_metadata_context(registry),
+        |module| fu.invocation_metadata_context_for_module(registry, module),
+    );
+    let mut reads = source_reads::original_hidden_reads(fu, registry, metadata).possible_names(fu);
+    reads.extend(collect_textual_var_references(ctx.source, fu, registry));
     reads
 }
 
@@ -1059,7 +976,10 @@ fn dead_store_name_observed(
     is_top_level: bool,
     writes: &[crate::place::Place],
 ) -> bool {
-    let base = crate::naming::normalise_var_name(var);
+    // The SSA name is decoded literal naming data, not a `$` reference.
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let base = crate::naming::split_element_ref(var).map_or(var, |(root, _)| root);
     writes.iter().any(|written| {
         written.kind == crate::place::PlaceKind::UpvarAlias
             || written.kind == crate::place::PlaceKind::InstanceVar
@@ -1165,7 +1085,6 @@ fn emit_adce(
     fu: &FunctionUnit,
     baseline: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
     purity: PurityCtx<'_>,
-    execution_namespace: Option<&crate::ir::ExecutionNamespace>,
     top_level: bool,
 ) {
     if dead_store_observation_unbounded(ctx, fu) {
@@ -1186,7 +1105,7 @@ fn emit_adce(
         &stmt_to_defs,
         EffectCtx {
             purity,
-            execution_namespace,
+            source_tokens: None,
         },
         &raise_proof,
     );
@@ -1339,8 +1258,13 @@ fn run_adce_fixpoint(
             // statement live. This reuses the same `PurityCtx` /
             // `assignment_safe_to_delete` gate O109/DSE applies rather than
             // treating every assignment as pure.
-            if !assignment_safe_to_delete_with_effect(stmt, effect)
-                || !raise_proof.value_cannot_raise(def_block, idx, stmt, key)
+            if !assignment_safe_to_delete_with_effect(
+                stmt,
+                EffectCtx {
+                    source_tokens: fu.cfg.source_tokens_at(def_block, idx),
+                    ..effect
+                },
+            ) || !raise_proof.value_cannot_raise(def_block, idx, stmt, key)
             {
                 continue;
             }
@@ -1408,476 +1332,27 @@ fn emit_adce_reports(
     }
 }
 
-/// Scan a slice for `$var` and `${var}` references, inserting names
-/// into *out*.  Extracted from `collect_textual_var_references`, which
-/// narrows the scan to the function's own CFG extent.
-///
-/// `braced_var` is the document's `${…}` close rule; the closer is located by
-/// the shared owner [`tcl_lexer::braced_var_name_end`], never re-derived here.
-/// This harvest is what keeps a textually-referenced variable's def alive, so
-/// a name it fails to see is a *wrong transform*, not a missed opportunity:
-/// under the default (9.x) rule the lexer spans `${a{b}c}` as one reference to
-/// `a{b}c`, while a first-`}` walk harvests `a{b` — a name nothing else in
-/// the pipeline uses — leaving `set {a{b}c} 1` reported as a dead store
-/// (O109) and an unused variable (W211) despite the live read.
-fn scan_dollar_refs(
-    slice: &str,
-    braced_var: tcl_dialect::BracedVarStyle,
-    out: &mut HashSet<String>,
-) {
-    let bytes = slice.as_bytes();
-    let mut pos = 0;
-    while pos < bytes.len() {
-        if bytes[pos] != b'$' {
-            pos += 1;
-            continue;
-        }
-        pos += 1;
-        if pos >= bytes.len() {
-            break;
-        }
-        if bytes[pos] == b'{' {
-            // ${name} — the name starts just past the `${`.
-            let start = pos + 1;
-            // An unterminated reference has no name to harvest; resume after
-            // the `{` so the rest of the slice is still scanned.
-            let close = match tcl_lexer::braced_var_name_end(bytes, start, braced_var) {
-                tcl_lexer::BracedVarEnd::Closed(end) => end,
-                tcl_lexer::BracedVarEnd::Unterminated => {
-                    pos = start;
-                    continue;
-                }
-            };
-            if start < close
-                && let Ok(name) = std::str::from_utf8(&bytes[start..close])
-            {
-                // Strip any array index.
-                let name = name.split('(').next().unwrap_or(name);
-                if !name.is_empty() {
-                    out.insert(name.to_owned());
-                }
-            }
-            pos = close + 1; // resume past the closing `}`
-            continue;
-        }
-        // $name: identifier chars (letters, digits, underscore, ::).
-        let start = pos;
-        while pos < bytes.len() {
-            let byte = bytes[pos];
-            if byte.is_ascii_alphanumeric() || byte == b'_' {
-                pos += 1;
-            } else if byte == b':' && pos + 1 < bytes.len() && bytes[pos + 1] == b':' {
-                pos += 2;
-            } else {
-                break;
-            }
-        }
-        if start < pos
-            && let Ok(name) = std::str::from_utf8(&bytes[start..pos])
-        {
-            out.insert(name.to_owned());
-        }
-    }
-}
-
-/// Scan a slice for `[set NAME]` (1-arg read form) references.
-fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
-    let bytes = slice.as_bytes();
-    let mut pos = 0;
-    while pos < bytes.len() {
-        if bytes[pos] != b'[' {
-            pos += 1;
-            continue;
-        }
-        let open = pos;
-        let mut cursor = pos + 1;
-        while cursor < bytes.len() && (bytes[cursor] == b' ' || bytes[cursor] == b'\t') {
-            cursor += 1;
-        }
-        if slice[cursor..].starts_with("::") {
-            cursor += 2;
-        }
-        if !slice[cursor..].starts_with("set") {
-            pos = open + 1;
-            continue;
-        }
-        let after_set = cursor + 3;
-        if after_set >= bytes.len() || !(bytes[after_set] == b' ' || bytes[after_set] == b'\t') {
-            pos = open + 1;
-            continue;
-        }
-        let mut name_cursor = after_set;
-        while name_cursor < bytes.len()
-            && (bytes[name_cursor] == b' ' || bytes[name_cursor] == b'\t')
-        {
-            name_cursor += 1;
-        }
-        // The slice can end right here — a half-typed `[set ` is an ordinary
-        // intermediate state while editing, and this scan runs over partial
-        // functions. There is no name word to read, so
-        // the conservative answer is "this bracket contributes nothing":
-        // stop rather than index off the end (nothing follows it either).
-        if name_cursor >= bytes.len() {
-            break;
-        }
-        // A **brace-quoted** name word (`[set {$n}]`, `[set {a b}]`,
-        // `[set {arr($i)}]`) is Tcl's literal spelling for a name the bareword
-        // scan below cannot match: the braces suppress substitution, so the
-        // content *is* the name.  Without this arm the read goes unseen and
-        // its `set {$n} 1` is reported unused (W211) / dead (W220) where the
-        // identical plain-named script is not.
-        if bytes[name_cursor] == b'{' {
-            let inner_start = name_cursor + 1;
-            let mut depth = 1usize;
-            let mut scan = inner_start;
-            while scan < bytes.len() && depth > 0 {
-                match bytes[scan] {
-                    b'{' => depth += 1,
-                    b'}' => depth -= 1,
-                    _ => {}
-                }
-                if depth > 0 {
-                    scan += 1;
-                }
-            }
-            if depth == 0 {
-                let mut tail = scan + 1;
-                while tail < bytes.len() && (bytes[tail] == b' ' || bytes[tail] == b'\t') {
-                    tail += 1;
-                }
-                if tail < bytes.len()
-                    && bytes[tail] == b']'
-                    && let Ok(name) = std::str::from_utf8(&bytes[inner_start..scan])
-                    && !name.is_empty()
-                {
-                    // Both the element-qualified spelling and its array base,
-                    // matching the two naming modes the consumers use.
-                    out.insert(name.to_owned());
-                    let base = crate::naming::normalise_var_name_braced(name, true);
-                    if !base.is_empty() {
-                        out.insert(base.to_owned());
-                    }
-                }
-                pos = scan + 1;
-                continue;
-            }
-            pos = open + 1;
-            continue;
-        }
-        let name_start = name_cursor;
-        while name_cursor < bytes.len() {
-            let byte = bytes[name_cursor];
-            if byte.is_ascii_alphanumeric() || byte == b'_' {
-                name_cursor += 1;
-            } else if byte == b':'
-                && name_cursor + 1 < bytes.len()
-                && bytes[name_cursor + 1] == b':'
-            {
-                name_cursor += 2;
-            } else {
-                break;
-            }
-        }
-        if name_cursor == name_start {
-            pos = open + 1;
-            continue;
-        }
-        let mut tail = name_cursor;
-        while tail < bytes.len() && (bytes[tail] == b' ' || bytes[tail] == b'\t') {
-            tail += 1;
-        }
-        if tail < bytes.len()
-            && bytes[tail] == b']'
-            && let Ok(name) = std::str::from_utf8(&bytes[name_start..name_cursor])
-            && !name.is_empty()
-        {
-            out.insert(name.to_owned());
-        }
-        pos = name_cursor;
-    }
-}
-
+/// Possible source reads using actual function grammar and original targets.
 pub(crate) fn collect_textual_var_references(
     source: &str,
-    cfg: &CfgFunction,
-    base_offset: i64,
-    braced_var: tcl_dialect::BracedVarStyle,
+    function: &FunctionUnit,
+    registry: &CommandRegistry,
 ) -> HashSet<String> {
-    // CFG spans are relative to `base_offset` (0 for a real-position build, the
-    // body offset for a memoised offset-0 unit); shift to absolute before
-    // slicing `source` (the whole-file text).
-    let span_iter = cfg.blocks.values().flat_map(|b| {
-        let stmts = b.statements.iter().map(crate::ir::Statement::span);
-        let term = b.terminator.as_ref().and_then(crate::cfg::Terminator::span);
-        stmts.chain(term)
-    });
-    let Some((lo, hi)) = span_iter.fold(None, |acc: Option<(u32, u32)>, span| {
-        let s = span.start();
-        let e = span.end();
-        match acc {
-            None => Some((s, e)),
-            Some((l, h)) => Some((l.min(s), h.max(e))),
-        }
-    }) else {
-        return HashSet::new();
-    };
-    let abs =
-        |v: u32| -> usize { usize::try_from((i64::from(v) + base_offset).max(0)).unwrap_or(0) };
-    let mut start = abs(lo);
-    let mut end = abs(hi).min(source.len());
-    if start >= end {
-        return HashSet::new();
-    }
-    // The envelope is a union of statement spans, and a statement span can land
-    // inside a multi-byte sequence.  This scan only harvests
-    // variable *names* and is suppress-only, so widen to the enclosing `char`
-    // boundaries — a superset region — rather than dropping the scan.
-    while !source.is_char_boundary(start) {
-        start -= 1;
-    }
-    while !source.is_char_boundary(end) {
-        end += 1;
-    }
-    let slice = &source[start..end];
-    let mut out: HashSet<String> = HashSet::new();
-    scan_dollar_refs(slice, braced_var, &mut out);
-    scan_set_read_refs(slice, &mut out);
-    out
+    source_reads::original_textual_reads(source, function, registry)
 }
 
-/// Variable names read *inside command substitutions* that the shallow word
-/// scan misses — chiefly a read-modify-write command's target buried in a
-/// substitution (`lappend r [incr i $j]` reads `i`), plus vars read via a
-/// `VarRead`-role argument of a substituted command.  Name-level only and
-/// **suppress-only**: it keeps a feeding `set i 0` from being reported as a
-/// dead store / unused variable.  Deliberately computed *outside* SSA `uses`
-/// so read-before-set versioning is unperturbed.  Computed as the deep RMW
-/// scan minus the shallow scan.
+/// By-name/expression reads hidden in genuine nested source invocations.
+/// Missing owners retain unknown reads rather than donating catalogue roles.
 pub(crate) fn collect_rmw_hidden_reads(
-    fu: &FunctionUnit,
+    function: &FunctionUnit,
     registry: &CommandRegistry,
 ) -> HashSet<String> {
-    use crate::var_refs::{VarReferenceScanner, VarScanOptions};
-    // The document's grammar, from the dialect-selected registry's own
-    // profile — the same route `dynamic_names::lexer_config_for` takes.
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-    let mut deep = VarReferenceScanner::with_config(
-        VarScanOptions {
-            include_var_read_roles: true,
-            recurse_cmd_substitutions: true,
-            include_reads_before_write: true,
-            element_qualified: false,
-        },
-        config,
-    );
-    let mut shallow = VarReferenceScanner::with_config(VarScanOptions::default(), config);
-    let mut out: HashSet<String> = HashSet::new();
-    let mut scan = |word: &str| {
-        if !word.contains('[') {
-            return;
-        }
-        let d = deep.scan_word(word, registry);
-        let s = shallow.scan_word(word, registry);
-        out.extend(d.difference(&s).cloned());
-        // Reads buried inside a `[expr {…}]` (or any `[…]`) command substitution
-        // whose `{…}` braces suppress `$`-substitution to the generic scanner,
-        // but which the inner command re-evaluates as an expression — e.g.
-        // `incr i [expr {$w}]` reads `w` (FP-DS-02). Collect every `$var` that
-        // appears inside a command substitution. Over-approximating reads is
-        // safe for the dead-store / unused suppression: it only ever silences a
-        // warning, matching the analyser's correctness-first (err-toward-silence)
-        // bias.
-        out.extend(dollar_reads_in_cmd_subs(word, registry, config));
-    };
-    let mut terminator_values: Vec<String> = Vec::new();
-    for block in fu.cfg.blocks.values() {
-        for stmt in &block.statements {
-            match stmt {
-                Statement::Call { args, .. } | Statement::Barrier { args, .. } => {
-                    for arg in args {
-                        scan(arg);
-                    }
-                }
-                Statement::AssignValue { value, .. } => scan(value),
-                // `incr i [expr {$w}]`: the amount word is not a Call/AssignValue
-                // arg, so scan it explicitly for the same buried-read reason.
-                Statement::Incr {
-                    amount: Some(amount),
-                    ..
-                } => scan(amount),
-                _ => {}
-            }
-        }
-        // A `return`'s value word is a terminator, not a statement, so the
-        // loop above never saw it — yet `return [set x]` / `return [incr i]`
-        // read exactly as the same word would in an argument position.
-        // Missing it reported the feeding `set x 2` as a dead store on code
-        // that reads it (tclsh 9.0.4 / 8.6.14: `proc f {} {set n 1; set n 2;
-        // return [set n]}; f` → 2).
-        //
-        // Deliberately the *precise* deep-minus-shallow scan only, without the
-        // `dollar_reads_in_cmd_subs` over-approximation the argument scan adds:
-        // that one credits every `$x` inside any `[…]`, which on a terminator
-        // (`return [subst {$a$b}]`) would silence a genuine dead store of `b`
-        // earlier in the proc (FP-DS-12's TN control).  A terminator read is
-        // recoverable exactly, so approximating it buys nothing.
-        if let Some(crate::cfg::Terminator::Return { value: Some(v), .. }) = &block.terminator
-            && v.contains('[')
-        {
-            terminator_values.push(v.clone());
-        }
-    }
-    // Collected above rather than scanned in place: `scan` holds `deep` /
-    // `shallow` / `out` mutably borrowed for the duration of the walk.
-    for v in &terminator_values {
-        let d = deep.scan_word(v, registry);
-        let sh = shallow.scan_word(v, registry);
-        out.extend(d.difference(&sh).cloned());
-    }
-    out
-}
-
-/// Collect every `$name` / `${name}` / `$arr(idx)` variable reference that
-/// appears inside a `[…]` command substitution within `word`. Reads inside an
-/// `[expr {…}]` are invisible to the brace-aware generic scanner (the `{…}`
-/// suppresses `$`-substitution), yet `expr` (and `if`/`while`/…) re-evaluate
-/// that text as an expression where the `$var` is a genuine read. Returns the
-/// bare variable names (no `$`).
-///
-/// Deliberately over-approximating — crediting a read only ever *silences* a
-/// dead-store / unused-variable warning — with **one** exception, which is
-/// where the over-approximation was not conservative but simply wrong: a
-/// brace-quoted word the registry puts in a variable-**name** role
-/// ([`tcl_registry::ArgRole::names_variable`]).  `[set {$n}]` reads the cell
-/// whose name is the two characters `$n`; it never reads `n`, so crediting
-/// `n` masked a W220 real tclsh confirms (`proc f {} {set n 1; puts [set
-/// {$n}]}` — `n` is assigned and never read; 9.0.4 / 8.6.16 alike report
-/// `can't read "$n": no such variable`, proving the read went to the other
-/// cell).
-///
-/// Everything else keeps abstaining toward silence: an `[expr {…}]` brace, a
-/// word that merely *contains* a substitution, an unresolvable head.
-fn dollar_reads_in_cmd_subs(
-    word: &str,
-    registry: &CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    push_substituted_script_reads(word, registry, &mut out, 0, config);
-    out
-}
-
-/// Recursion cap for the descent through nested `[…]` substitutions.
-const MAX_SUBST_DEPTH: u32 = 32;
-
-/// Find each `[…]` substitution in an already-extracted **value word** and
-/// hand its inner script to [`push_script_dollar_reads`].
-fn push_substituted_script_reads(
-    text: &str,
-    registry: &CommandRegistry,
-    out: &mut Vec<String>,
-    depth: u32,
-    config: tcl_lexer::LexerConfig,
-) {
-    if depth >= MAX_SUBST_DEPTH || !text.contains('[') {
-        return;
-    }
-    for inner in crate::var_refs::command_subst_texts_with_config(text, config) {
-        push_script_dollar_reads(&inner, registry, out, depth + 1, config);
-    }
-}
-
-/// Every `$name` appearing in one command substitution's script, minus the
-/// words the registry proves are *literal* variable names.
-fn push_script_dollar_reads(
-    script: &str,
-    registry: &CommandRegistry,
-    out: &mut Vec<String>,
-    depth: u32,
-    config: tcl_lexer::LexerConfig,
-) {
-    for cmd in crate::segmenter::segment_commands_with_offset_and_config(script, 0, config) {
-        let literal_names: HashSet<usize> =
-            crate::var_refs::variable_name_role_words(&cmd, registry)
-                .into_iter()
-                .filter(|w| w.braced_literal)
-                .map(|w| w.word_index)
-                .collect();
-        for (i, text) in cmd.texts.iter().enumerate() {
-            if literal_names.contains(&i) {
-                continue;
-            }
-            let is_substitution = cmd.argv.get(i).is_some_and(|t| t.kind == TokenType::Cmd)
-                && cmd.single_token_word.get(i) == Some(&true);
-            if is_substitution {
-                // A nested substitution is a fresh script — descend so its own
-                // name words are recognised rather than byte-scanned.
-                let inner = text
-                    .strip_prefix('[')
-                    .and_then(|t| t.strip_suffix(']'))
-                    .unwrap_or(text);
-                push_script_dollar_reads(inner, registry, out, depth + 1, config);
-            } else {
-                scan_dollar_names(text, out);
-                push_substituted_script_reads(text, registry, out, depth, config);
-            }
-        }
-    }
-}
-
-/// Push every `$name` / `${name}` / `$arr(idx)` spelled in `text`, whatever
-/// quoting surrounds it — the deliberate over-approximation.
-///
-/// The `${…}` form follows C Tcl 9's `Tcl_ParseVarName` exactly
-/// (`generic/tclParse.c`): the name runs to the **matching** close brace, with
-/// inner `{`/`}` counted as a nesting pair and a backslash consuming the byte
-/// after it, so `${a{b}c}` names `a{b}c` and `${a\}b}` names `a\}b`. Scanning
-/// to the *first* `}` truncated both. An unterminated `${…}` is a parse error
-/// in C (`missing close-brace for variable name`), never a read; the trailing
-/// text is still credited so a mid-edit buffer cannot turn a suppression into
-/// a spurious warning.
-fn scan_dollar_names(text: &str, out: &mut Vec<String>) {
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] != b'$' {
-            i += 1;
-            continue;
-        }
-        let mut j = i + 1;
-        if bytes.get(j) == Some(&b'{') {
-            j += 1;
-            let start = j;
-            let mut brace_depth: u32 = 0;
-            while j < bytes.len() && (brace_depth > 0 || bytes[j] != b'}') {
-                match bytes[j] {
-                    b'{' => brace_depth += 1,
-                    b'}' => brace_depth = brace_depth.saturating_sub(1),
-                    b'\\' if j + 1 < bytes.len() => j += 1,
-                    _ => {}
-                }
-                j += 1;
-            }
-            if j > start {
-                out.push(text[start..j].to_string());
-            }
-            i = j.saturating_add(1);
-            continue;
-        }
-        // $name / $ns::name / $arr(idx)
-        let start = j;
-        while j < bytes.len()
-            && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
-        {
-            j += 1;
-        }
-        if j > start {
-            // Bare scalar / namespaced name (the array-base name is the
-            // tracked dead-store key; the `(idx)` suffix is dropped).
-            out.push(text[start..j].to_string());
-        }
-        i = j.max(i + 1);
-    }
+    source_reads::original_hidden_reads(
+        function,
+        registry,
+        function.invocation_metadata_context(registry),
+    )
+    .possible_names(function)
 }
 
 /// Supplied availability refines original alias and write-trace declarations.
@@ -2111,43 +1586,29 @@ mod tests {
 
     // internal helper tests
 
-    /// `expr_has_observable_side_effect`
-    /// recurses once per `ExprNode` level (Tier 1A) and
-    /// `word_has_observable_side_effect` once per nested `[cmd …]`
-    /// substitution inside a single word's raw text (Tier 1B) — both
-    /// genuinely unbounded before this fix. Empirically each overflowed the
-    /// native stack (SIGABRT) in the low thousands of levels on a 2 MiB
-    /// thread (`cargo test`'s default). 3000 is comfortably past that crash
-    /// range and past both caps (256); the assertion is that each returns at
-    /// all.
+    /// Deep analytical expressions remain stack-safe; source substitutions
+    /// without original receipts remain uncertain even under a pure name label.
     #[test]
     fn deeply_nested_side_effect_walks_survive() {
         let reg = registry();
-        // `a` is treated as an interprocedurally-pure command so
-        // `word_has_observable_side_effect` recurses through the nested
-        // substitutions rather than early-returning at the first command.
-        let interproc_pure: HashSet<String> = ["a".to_owned()].into_iter().collect();
-        let pure_methods: HashSet<String> = HashSet::new();
+        let interproc_pure = ["a".to_owned()].into_iter().collect();
         let purity = PurityCtx {
             registry: Some(&reg),
             interproc_pure: &interproc_pure,
-            pure_methods: &pure_methods,
             enclosing_class: None,
             config: tcl_lexer::LexerConfig::default(),
+            metadata: None,
+            module: None,
         };
         let effect = EffectCtx {
             purity,
-            execution_namespace: None,
+            source_tokens: None,
         };
-
-        // Tier 1B: `[a [a [a … [a x] … ]]]` nested substitutions.
         let mut deep = "x".to_owned();
         for _ in 0..3000 {
             deep = format!("[a {deep}]");
         }
-        let _ = word_has_observable_side_effect(&deep, effect, 0);
-
-        // Tier 1A: a 3000-deep `ExprNode` tree (nested unary `!`).
+        assert!(word_has_observable_side_effect(&deep, effect));
         let mut node = ExprNode::Literal {
             text: "1".into(),
             start: 0,
@@ -2159,7 +1620,62 @@ mod tests {
                 operand: Box::new(node),
             };
         }
-        let _ = expr_has_observable_side_effect(&node, effect, 0);
+        assert!(expr_has_observable_side_effect(&node, effect, 0));
+    }
+
+    #[test]
+    fn resolved_store_observer_advice_preserves_literal_sigil_and_scalar_names() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // This is the store-observer suppression gate, not a current Native
+        // trace, reaching cell, SSA use or deletion proof.
+        let mut context = PassContext::new("", InterproceduralAnalysis::default());
+        let traced = ["counter".to_owned(), "café".to_owned()]
+            .into_iter()
+            .collect();
+        assert!(dead_store_name_observed(
+            &context,
+            "counter",
+            Some(&traced),
+            true,
+            &[]
+        ));
+        assert!(!dead_store_name_observed(
+            &context,
+            "$counter",
+            Some(&traced),
+            true,
+            &[]
+        ));
+        assert!(!dead_store_name_observed(
+            &context,
+            "café(open",
+            Some(&traced),
+            true,
+            &[]
+        ));
+        assert!(dead_store_name_observed(
+            &context,
+            "café(key)",
+            Some(&traced),
+            true,
+            &[]
+        ));
+        context.cross_event_vars.insert("$counter".into());
+        assert!(dead_store_name_observed(
+            &context,
+            "$counter(key)",
+            None,
+            true,
+            &[]
+        ));
+        assert!(!dead_store_name_observed(
+            &context,
+            "counter",
+            None,
+            true,
+            &[]
+        ));
     }
 
     #[test]
@@ -2587,42 +2103,6 @@ mod tests {
         );
     }
 
-    /// The textual liveness harvest reads `${…}` through the
-    /// shared owner, so the name it keeps alive is the one the lexer spanned.
-    ///
-    /// This scan is *suppress-only*: a name it fails to see lets O109 delete a
-    /// live store and W211 call a read variable unused. Under the default (9.x)
-    /// rule the reference names `a{b}c`; under 8.x it names `a{b` and `c}` is
-    /// ordinary word text: `set {a{b}c} 7; subst {${a{b}c}}` is `7` on
-    /// tclsh 9.0.4 and `can't read "a{b"` on 8.6.16 (`Tcl_ParseVarName`,
-    /// `tclParse.c:1315` vs `:1398`).
-    #[test]
-    fn scan_dollar_refs_follows_the_release_close_rule() {
-        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
-        let names = |slice: &str, style| {
-            let mut out = HashSet::new();
-            scan_dollar_refs(slice, style, &mut out);
-            let mut v: Vec<String> = out.into_iter().collect();
-            v.sort();
-            v
-        };
-
-        assert_eq!(
-            names("puts ${a{b}c}", Tcl9Nesting),
-            vec!["a{b}c".to_owned()]
-        );
-        assert_eq!(names("puts ${a{b}c}", FirstClose), vec!["a{b".to_owned()]);
-        assert_eq!(
-            names(r"puts ${a\}b}", Tcl9Nesting),
-            vec![r"a\}b".to_owned()]
-        );
-        assert_eq!(names(r"puts ${a\}b}", FirstClose), vec![r"a\".to_owned()]);
-
-        // A `${…}` that never closes yields no name, and must not swallow the
-        // rest of the slice: the following `$tail` is still harvested.
-        assert_eq!(names("${a{b $tail", Tcl9Nesting), vec!["tail".to_owned()]);
-    }
-
     #[test]
     fn collect_textual_var_references_detects_set_one_arg_read() {
         // ``[set varname]`` (1-arg form) is a variable read; without
@@ -2642,63 +2122,6 @@ mod tests {
             0,
             "[set x] should count as a read for x; got {opts:?}",
         );
-    }
-
-    /// The `[set …]` name scan must survive a slice that ends inside the
-    /// command.
-    ///
-    /// A half-typed `[set ` is an ordinary intermediate state while editing,
-    /// and this scan runs over *partial* functions, so the whitespace skip can
-    /// walk `name_cursor` to `bytes.len()`. Indexing there would panic, taking
-    /// down whatever optimiser / diagnostic pass was asking, where a
-    /// conservative answer is wanted.
-    #[test]
-    fn scan_set_read_refs_survives_truncated_input() {
-        for slice in [
-            // The slice ends after the separator.
-            "[set ",
-            "[set  ",
-            "[set\t",
-            // Off-by-one neighbours around the same cursor.
-            "[set",
-            "[set ]",
-            // Unclosed brace-quoted name words (the arm the guard precedes).
-            "[set {",
-            "[set {$n",
-            "[set {$n}",
-            "[set {{",
-            "[set {}",
-            // Unclosed bareword names.
-            "[set n",
-            "[set ::",
-        ] {
-            let mut out = HashSet::new();
-            scan_set_read_refs(slice, &mut out);
-            assert_eq!(
-                out.len(),
-                0,
-                "a truncated `[set …]` names nothing; {slice:?} yielded {out:?}"
-            );
-        }
-    }
-
-    /// TP control for the guard: truncation must not cost the *complete*
-    /// reads earlier in the same slice, and the complete forms still parse.
-    #[test]
-    fn scan_set_read_refs_keeps_complete_reads_before_a_truncation() {
-        let mut out = HashSet::new();
-        scan_set_read_refs("puts [set x]; return [set ", &mut out);
-        assert!(
-            out.contains("x"),
-            "the complete read is still seen: {out:?}"
-        );
-
-        let mut braced = HashSet::new();
-        scan_set_read_refs("[set {$n}]", &mut braced);
-        assert!(braced.contains("$n"), "{braced:?}");
-        let mut spaced = HashSet::new();
-        scan_set_read_refs("[set  {$n} ]", &mut spaced);
-        assert!(spaced.contains("$n"), "{spaced:?}");
     }
 
     /// The same shape through the real entry point: an incomplete command in

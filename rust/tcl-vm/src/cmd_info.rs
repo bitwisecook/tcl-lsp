@@ -77,7 +77,9 @@ fn native_ensemble_available(vm: &Vm) -> bool {
 macro_rules! info_members {
     ($($function:ident => $member:literal),+ $(,)?) => {
         const INFO_MEMBERS: &[(&str, crate::command::BuiltinFn)] = &[
-            $(($member, $function)),+
+            $(($member, $function)),+,
+            ("commands", info_commands),
+            ("procs", info_procs),
         ];
         $(fn $function(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             let mut invocation = Vec::with_capacity(args.len() + 1);
@@ -90,16 +92,55 @@ macro_rules! info_members {
 
 info_members! {
     info_args => "args", info_body => "body", info_class => "class",
-    info_cmdcount => "cmdcount", info_cmdtype => "cmdtype", info_commands => "commands",
+    info_cmdcount => "cmdcount", info_cmdtype => "cmdtype",
     info_complete => "complete", info_constant => "constant", info_consts => "consts",
     info_coroutine => "coroutine", info_default => "default", info_errorstack => "errorstack",
     info_exists => "exists", info_frame => "frame", info_functions => "functions",
     info_globals => "globals", info_hostname => "hostname", info_level => "level",
     info_library => "library", info_loaded => "loaded", info_locals => "locals",
     info_nameofexecutable => "nameofexecutable", info_object => "object",
-    info_patchlevel => "patchlevel", info_procs => "procs", info_script => "script",
+    info_patchlevel => "patchlevel", info_script => "script",
     info_sharedlibextension => "sharedlibextension", info_tclversion => "tclversion",
     info_vars => "vars", info_version => "version",
+}
+
+fn info_commands(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    info_command_listing(vm, args, None, false)
+}
+
+fn info_procs(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    info_command_listing(vm, args, None, true)
+}
+
+/// Validate the original worker argv before entering the shared pattern owner.
+fn info_command_listing(
+    vm: &mut Vm,
+    args: &[Value],
+    original_member: Option<&Value>,
+    procs_only: bool,
+) -> Completion<Value> {
+    if args.len() > 1 {
+        let Some(head) = vm.invoked_name_value() else {
+            return vm
+                .refuse_host_command("original info inventory invocation is unavailable".into());
+        };
+        let mut prefix = vec![head];
+        prefix.extend(original_member.cloned());
+        let prefix = tcl_cmd_core::ensemble::rewrite_argument_usage(
+            &prefix,
+            &vm.native_invocation.usage_rewrites,
+        );
+        let mut usage = match vm.native_argument_usage_header(&prefix) {
+            Ok(usage) => usage,
+            Err(refusal) => return refusal,
+        };
+        usage.extend_from_slice(b" ?pattern?");
+        return crate::command::native_wrong_args_bytes(vm, &usage);
+    }
+    match tcl_cmd_core::info::command_list(vm, args.first(), procs_only) {
+        Ok(value) => ok(value),
+        Err(error) => completion_from_cmd_error(vm, error),
+    }
 }
 
 /// `info`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it — the
@@ -324,14 +365,8 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // commands/procs route through the shared namespace-aware core (over the
         // `Namespaces` enumeration rungs), which gives the VM correct qualified
         // patterns + global-scope visibility.
-        "commands" => match tcl_cmd_core::info::command_list(vm, rest.first(), false) {
-            Ok(value) => ok(value),
-            Err(error) => crate::command::completion_from_cmd_error(vm, error),
-        },
-        "procs" => match tcl_cmd_core::info::command_list(vm, rest.first(), true) {
-            Ok(value) => ok(value),
-            Err(error) => crate::command::completion_from_cmd_error(vm, error),
-        },
+        "commands" => info_command_listing(vm, rest, args.first(), false),
+        "procs" => info_command_listing(vm, rest, args.first(), true),
         // vars/locals/globals route through the shared variable-listing cores
         // (namespace-aware over `Namespaces::vars_in` + the active-frame
         // `Frames::var_names`/`in_proc`). This splits `vars` from `locals` (aliasing

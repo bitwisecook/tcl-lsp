@@ -932,9 +932,8 @@ impl Analyser {
         let mut textually_referenced =
             crate::optimiser::elimination::collect_textual_var_references(
                 &self.source,
-                &function_unit.cfg,
-                function_unit.base_offset,
-                self.grammar().braced_var,
+                function_unit,
+                scan_registry,
             );
         // A var read in another iRule event, or consumed *by name* via a
         // call-by-name upvar callee, is "used" — suppress

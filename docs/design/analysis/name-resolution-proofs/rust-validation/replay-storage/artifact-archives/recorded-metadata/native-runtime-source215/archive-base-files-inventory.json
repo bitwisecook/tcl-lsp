@@ -1,0 +1,285 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/native-runtime-source215.base-files.tar.gz",
+  "archive_sha256": "d5ef2d7670541833895044cb82599baabb52fe617906f888783971a48bded109",
+  "archive_bytes": 417865,
+  "uncompressed_bytes": 1724194,
+  "source_manifest_sha256": "604398fea1a421e27ea17d4c16fc146a66fbb1da49bb28fb62b5acb6d40905c6",
+  "source_patch_sha256": "424ab3c53cc8097ff67273356166d7f64fa1912b59529046bae718b5ec430f76",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/424ab3c53cc8097ff67273356166d7f64fa1912b59529046bae718b5ec430f76.patch",
+  "original_application_journal_sha256": "424ab3c53cc8097ff67273356166d7f64fa1912b59529046bae718b5ec430f76",
+  "member_count": 30,
+  "members": {
+    "native-runtime-source215/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6001754,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/base/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6001754,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/base/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6001754,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/base/docs/design/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6001754,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/base/docs/design/rust/engineering-guide.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6004515,
+      "size": 19476,
+      "sha256": "fa0efb90460446924f9907397d1730a279aa440c87e4e84834da96a333dc4439"
+    },
+    "native-runtime-source215/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.587051,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.5910509,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.5998363,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/base/runtime/rust/src/cmd_error.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6000144,
+      "size": 52380,
+      "sha256": "d9d73bd3b55b16a3fc864413f8817ab424e69093d470498b34128f510e918fb6"
+    },
+    "native-runtime-source215/base/runtime/rust/src/cmd_switch.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.5997221,
+      "size": 23437,
+      "sha256": "f0968a8a8fb869ad3deeb9caea9f59ea60463bbaee40b216d2f8b042c6a881d9"
+    },
+    "native-runtime-source215/base/runtime/rust/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.5993824,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/base/runtime/rust/src/interp/native_body_artifact": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.5993824,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/base/runtime/rust/src/interp/native_body_artifact/native_substitution.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.599491,
+      "size": 15583,
+      "sha256": "5e912cd1b10ba96bf0ab6cc50c7fc2f4e6af5774fdf36e4e9d167fdfcf3e3715"
+    },
+    "native-runtime-source215/base/runtime/rust/src/interp/native_script.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.5992339,
+      "size": 7766,
+      "sha256": "f237105bbcad1bbda719783b013afae393a3f5c89770bc34a3e9130595505270"
+    },
+    "native-runtime-source215/base/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.5941205,
+      "size": 738785,
+      "sha256": "dd6582abb4925814766009308fc10fd98127a523a4889b5aaaa19282a91d7cad"
+    },
+    "native-runtime-source215/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6004515,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/files/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6004515,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/files/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6004515,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/files/docs/design/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6004515,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/files/docs/design/rust/engineering-guide.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6163344,
+      "size": 20034,
+      "sha256": "140dd5502b6f33c0ad97407060ebb2ee4de824b8a6f01ba45e9b5576240227e7"
+    },
+    "native-runtime-source215/files/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.5941205,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/files/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.5941205,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/files/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.6000144,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/files/runtime/rust/src/cmd_error.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565397.9429312,
+      "size": 52846,
+      "sha256": "c725a4ebd1e19deb666ac50e0d21329ce23618085730f73ef3ebbe12814f44ae"
+    },
+    "native-runtime-source215/files/runtime/rust/src/cmd_switch.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565397.9309313,
+      "size": 23837,
+      "sha256": "8a2f842b5cfe5f95b3c053af5f9f187b5e64296b6acf7b9b22ce7f923debf3a7"
+    },
+    "native-runtime-source215/files/runtime/rust/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.599491,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/files/runtime/rust/src/interp/native_body_artifact": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565382.599491,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-source215/files/runtime/rust/src/interp/native_body_artifact/native_substitution.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565483.7182617,
+      "size": 16943,
+      "sha256": "1761200e2d8e346abe6db41c29bb6bcce3e7048bdf85315e8564bfe59a910cff"
+    },
+    "native-runtime-source215/files/runtime/rust/src/interp/native_script.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565687.8206666,
+      "size": 12262,
+      "sha256": "0f795733bf810a4497d013eeecd026aaccde1c2fba014d5b5e7d6c679ebe894f"
+    },
+    "native-runtime-source215/files/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791565632.6250978,
+      "size": 740845,
+      "sha256": "1d3e05b0be7a794e2ac739801663dafc61bce2ea4d819aa9c08e5969a280a964"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

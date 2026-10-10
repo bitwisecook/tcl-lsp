@@ -190,15 +190,7 @@ pub fn inlay_hints_in_program(
     let mut out = Vec::new();
 
     if type_hints && let Some(registry) = registry {
-        collect_type_hints(
-            source,
-            dialect,
-            analysis,
-            registry,
-            range,
-            &line_index,
-            &mut out,
-        );
+        collect_type_hints(source, analysis, registry, range, &line_index, &mut out);
         // Format-string specifier labels are registry-driven too (which
         // words carry a conversion string, and in which mini-language), so
         // they need the registry the same way the type hints do.
@@ -327,26 +319,30 @@ fn type_display(tl: &TypeLattice) -> Option<String> {
 /// compatibility branch retains its separate reporting-scope projection.
 fn collect_type_hints(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     range: LspRange,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
-    let config = analysis
-        .body_lexer_config
-        .unwrap_or_else(|| tcl_lexer::LexerConfig::from_grammar(dialect.grammar));
-    let cu = CompilationUnit::build_with_options(
+    let Some(config) = analysis.body_lexer_config else {
+        return;
+    };
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return;
+    };
+    let cu = CompilationUnit::build_with_analysis_input(
         source,
         tcl_compiler::compilation_unit::UnitBuildOptions {
             registry,
             defer_top_level: false,
             config,
-            dialect: Some(dialect),
+            dialect: Some(input.unit_profile()),
             external_call_sites: None,
             declared_commands: None,
         },
+        None,
+        input,
     );
     if !analysis.allows_lexical_declaration_advice() {
         let image = tcl_lexer::SourceImage::document(source);
@@ -355,13 +351,15 @@ fn collect_type_hints(
         }
         let mut hints = std::collections::BTreeMap::new();
         for function in cu.functions() {
+            let metadata = function.invocation_metadata_context_for_module(registry, &cu.ir_module);
             for (&block, body) in &function.ssa.blocks {
                 for (index, statement) in body.statements.iter().enumerate() {
                     let view =
                         tcl_compiler::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
                     for (&symbol, &version) in &statement.defs {
-                        let Some(definition) = view.original_definition_name(symbol, registry)
-                        else {
+                        let Some(definition) = view.original_definition_name_with_metadata_context(
+                            symbol, registry, metadata,
+                        ) else {
                             continue;
                         };
                         let span = function.abs_span(definition.span());
@@ -2409,6 +2407,9 @@ mod original_variable_type_tests {
             )
             .is_empty()
         );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(super::original_variable_type_tests::hints(source, &missing).is_empty());
         analysis.original_variable_symbols.clear();
         assert!(super::original_variable_type_tests::hints(source, &analysis).is_empty());
     }

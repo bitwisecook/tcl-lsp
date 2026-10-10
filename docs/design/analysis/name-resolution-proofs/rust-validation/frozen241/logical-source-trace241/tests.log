@@ -1,0 +1,75 @@
+
+running 2 tests
+test lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence ... ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=false
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=32 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=32 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=32 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+
+thread 'lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence' (863172) panicked at rust/tcl-compiler/src/lowering/mod.rs:9569:9:
+assertion failed: module.procedures.contains_key("::subject")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test lowering::tests::logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads ... ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=18 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+
+thread 'lowering::tests::logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads' (863173) panicked at rust/tcl-compiler/src/lowering/mod.rs:9634:13:
+rename proc ::α; ::α subject {} {return VALUE}
+FAILED
+
+failures:
+
+failures:
+    lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence
+    lowering::tests::logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 8569 filtered out; finished in 0.32s
+

@@ -1,0 +1,264 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/info-native-geometry269.source-trees.tar.gz",
+  "archive_sha256": "2b38e849ed3465f01801818f614223e2d7a96d072a46459b843b72493632129e",
+  "archive_bytes": 167140,
+  "uncompressed_bytes": 961160,
+  "source_manifest_sha256": "714bfe40f2aa621c01d482e7d8dbd1849d1ab88bbee3009a774e594c7122d50a",
+  "source_patch_sha256": "229f67fc8aa308b6c240730d272d50382edc13c307e082eea12826712550b177",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 22,
+  "members": {
+    "info-native-geometry269/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.803814,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.7993631,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.7993631,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.8013825,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/base/runtime/rust/src/cmd_info.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.7996073,
+      "size": 57718,
+      "sha256": "b64274baabb402fd7bea6f0fda78906efc37faa9191ff52c1c9bd5e27d7b8071"
+    },
+    "info-native-geometry269/base/runtime/rust/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.8013825,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/base/runtime/rust/src/interp/native_compilation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.8014724,
+      "size": 76659,
+      "sha256": "11f9844a1298e195e4844ae6139cc3ace0771dc5183cf2cd951738ed4303c23b"
+    },
+    "info-native-geometry269/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.803814,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.803814,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.803814,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/base/rust/tcl-registry/src/native_compilation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.8040593,
+      "size": 344268,
+      "sha256": "67465d96827350878b83aeed6c7947f175058f10f34e0d057f0afff3f40c77d2"
+    },
+    "info-native-geometry269/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.8014724,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/candidate/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.7941966,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/candidate/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.7941966,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/candidate/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.7996073,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/candidate/runtime/rust/src/cmd_info.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.7993631,
+      "size": 57981,
+      "sha256": "36d3e24a0095a55abfda19676f5aa89bb65d0cf563c9b40335112ee8915f9839"
+    },
+    "info-native-geometry269/candidate/runtime/rust/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.7996073,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/candidate/runtime/rust/src/interp/native_compilation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.8013825,
+      "size": 76907,
+      "sha256": "6f31adc6667b26aa87d3c625fc8fcfa243295f273f4a29078dbe12bea55bb1e3"
+    },
+    "info-native-geometry269/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.8014724,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/candidate/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.8014724,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/candidate/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.8014724,
+      "size": 0,
+      "sha256": null
+    },
+    "info-native-geometry269/candidate/rust/tcl-registry/src/native_compilation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614722.803814,
+      "size": 347627,
+      "sha256": "7c5ac90ff1e94ced7e691e5e0a16bb5b00bac842119eef719978619e110bdb4f"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "runtime/rust/src/cmd_info.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "36d3e24a0095a55abfda19676f5aa89bb65d0cf563c9b40335112ee8915f9839",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/cmd_info.rs",
+      "hash_key": "base_sha256",
+      "sha256": "b64274baabb402fd7bea6f0fda78906efc37faa9191ff52c1c9bd5e27d7b8071",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp/native_compilation.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "6f31adc6667b26aa87d3c625fc8fcfa243295f273f4a29078dbe12bea55bb1e3",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp/native_compilation.rs",
+      "hash_key": "base_sha256",
+      "sha256": "11f9844a1298e195e4844ae6139cc3ace0771dc5183cf2cd951738ed4303c23b",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/src/native_compilation.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "7c5ac90ff1e94ced7e691e5e0a16bb5b00bac842119eef719978619e110bdb4f",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/src/native_compilation.rs",
+      "hash_key": "base_sha256",
+      "sha256": "67465d96827350878b83aeed6c7947f175058f10f34e0d057f0afff3f40c77d2",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

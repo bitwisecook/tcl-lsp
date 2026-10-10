@@ -13,6 +13,7 @@ use tcl_registry::CommandRegistry;
 /// Readonly source lookup for possible writes in a materialized script value.
 /// It supplies no authored child word/span, Native entry, frame or store.
 pub(crate) struct OriginalSourceMaterializedFootprint<'a> {
+    binding: &'a SourceInvocationBinding,
     state: &'a ModuleCommandBindings,
     namespace: &'a SourceNamespaceKey,
     registry: &'a CommandRegistry,
@@ -22,6 +23,32 @@ pub(crate) struct OriginalSourceMaterializedFootprint<'a> {
 }
 
 impl SourceInvocationBinding {
+    /// Conditional original procedure allocations in the retained Logical
+    /// model. Native handler/activation purposes consume their separate owners.
+    pub(crate) fn original_logical_procedure_call_targets(
+        &self,
+        tokens: &CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<super::SourceCommandTarget>> {
+        if !input.has_logical_source_name_context()
+            || self.logical_source_name_advice_input() != Some(input)
+            || self.original_lexer_config_for_tokens(tokens)?.normalized()
+                != input.lexer_config().normalized()
+        {
+            return None;
+        }
+        let advice = self.original_declared_layout_advice(tokens, true)?;
+        if !advice.closed_logical_source_lookup()
+            || advice.targets().iter().any(|target| {
+                target.kind != super::BindingKind::Proc
+                    || target.implementation_allocation.is_none()
+            })
+        {
+            return None;
+        }
+        Some(advice.targets().to_vec())
+    }
+
     /// Retain this genuine installer's closed source lookup independently of
     /// the child script's text. Missing source, context or namespace refuses.
     pub(crate) fn original_materialized_footprint<'a>(
@@ -77,6 +104,7 @@ impl SourceInvocationBinding {
         .into_iter()
         .next()?;
         Some(OriginalSourceMaterializedFootprint {
+            binding: self,
             state,
             namespace: &self.lookup_namespace_key,
             registry,
@@ -98,6 +126,125 @@ impl OriginalSourceMaterializedFootprint<'_> {
             &crate::ir::ExecutionNamespace::SourceContext(self.namespace.clone()),
             Some(self.metadata),
             self.config,
+        )
+    }
+
+    /// Possible local bindings and by-name reads in an original whole body.
+    /// The selected interpreter must be the installer's current interpreter;
+    /// named children require their independently retained command world.
+    pub(crate) fn body_name_ownership(
+        &self,
+        body: &crate::registry_invocation::OriginalSourceScriptBody,
+    ) -> crate::ir_helpers::VariableWriteEffects {
+        let unavailable = || crate::ir_helpers::VariableWriteEffects {
+            opaque: true,
+            ..Default::default()
+        };
+        let Some(input) = self.metadata.source_analysis_input() else {
+            return unavailable();
+        };
+        let context = input.context_registry();
+        let words = body.source_words();
+        if words.head_source().and_then(|head| head.word()) != Some(&self.head)
+            || !body.matches_source(self.head.image(), input.lexer_config())
+            || !body.matches_context(&context)
+            || body.original_container().content_span().ok() != Some(body.content_span())
+        {
+            return unavailable();
+        }
+        let current = words.with_source_schema(&context, |schema| {
+            schema
+                .semantics
+                .body_interpreter
+                .resolve(schema.words.arguments())
+                == tcl_registry::InterpreterScope::Current
+        });
+        if current != Some(true) {
+            return unavailable();
+        }
+        let Some(value) =
+            words
+                .operands()
+                .iter()
+                .zip(words.arguments())
+                .find_map(|(operand, value)| {
+                    (operand.as_ref().and_then(|operand| operand.word())
+                        == Some(body.original_container()))
+                    .then(|| value.as_registry_word().literal().map(str::to_owned))
+                    .flatten()
+                })
+        else {
+            return unavailable();
+        };
+        crate::ir_helpers::script_value_name_ownership_with_metadata_context(
+            &value,
+            self.registry,
+            self.state,
+            &crate::ir::ExecutionNamespace::SourceContext(self.namespace.clone()),
+            self.metadata,
+            self.config,
+        )
+    }
+
+    /// Conditional by-name and re-evaluated-body reads of this exact original
+    /// command. Its own lookup horizon supplies the alias target; no newly
+    /// parsed child command receives an original source or entered frame.
+    pub(crate) fn invocation_reads(&self) -> crate::ir_helpers::VariableWriteEffects {
+        self.read_footprint(true)
+    }
+
+    /// Reads in selected re-evaluated expressions and immediate source values.
+    pub(crate) fn reevaluated_reads(&self) -> crate::ir_helpers::VariableWriteEffects {
+        self.read_footprint(false)
+    }
+
+    fn read_footprint(&self, include_invocation: bool) -> crate::ir_helpers::VariableWriteEffects {
+        let Some((command, tokens)) = self.binding.original_recorded_command() else {
+            return crate::ir_helpers::VariableWriteEffects {
+                opaque: true,
+                ..Default::default()
+            };
+        };
+        let image = self.head.image();
+        let map = tcl_lexer::SourceMap::from_image(image);
+        let Some(config) = self.binding.original_lexer_config_for_tokens(&tokens) else {
+            return crate::ir_helpers::VariableWriteEffects {
+                opaque: true,
+                ..Default::default()
+            };
+        };
+        let Some(site) = self.binding.invocation_site() else {
+            return crate::ir_helpers::VariableWriteEffects {
+                opaque: true,
+                ..Default::default()
+            };
+        };
+        let Some(native) = crate::registry_invocation::original_native_compiler_words(
+            image,
+            tokens.words(),
+            site.offset,
+            config,
+        ) else {
+            return crate::ir_helpers::VariableWriteEffects {
+                opaque: true,
+                ..Default::default()
+            };
+        };
+        if native.first() != Some(&self.head) {
+            return crate::ir_helpers::VariableWriteEffects {
+                opaque: true,
+                ..Default::default()
+            };
+        }
+        let words = crate::ir_helpers::footprint_command_words(&map, config, &command);
+        crate::ir_helpers::command_possible_reads_with_metadata_context(
+            &words,
+            self.registry,
+            self.state,
+            &crate::ir::ExecutionNamespace::SourceContext(self.namespace.clone()),
+            self.metadata,
+            self.config,
+            include_invocation,
         )
     }
 

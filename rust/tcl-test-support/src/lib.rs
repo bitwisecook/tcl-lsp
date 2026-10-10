@@ -33,6 +33,7 @@ use tcl_dialect::TclVersion;
 
 pub mod automatic_errors;
 pub mod binary_values;
+pub mod ensemble_map_prefix;
 pub mod expressions;
 pub mod fixed_sources;
 mod jim;

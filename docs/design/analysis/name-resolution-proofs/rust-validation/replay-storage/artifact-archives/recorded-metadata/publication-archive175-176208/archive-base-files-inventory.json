@@ -1,0 +1,285 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-publication-review-packet-copies",
+  "archive": "/workspace/.proofs/publication-archive175-176208.base-files.tar.gz",
+  "archive_sha256": "fa7546369acd413b1a19711a666d9bffd1941e2c566115231bc03fb518ef0f0d",
+  "archive_bytes": 3782039,
+  "uncompressed_bytes": 7991995,
+  "source_manifest_sha256": "e4992bf322929f722d35760cac5c801e9344b364d7042b6c41ad177a0efb135b",
+  "source_patch_sha256": "f44ebc5b5afcc93f681d14ac558d5c66e99e871362725266202dba901e02af59",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": false,
+  "member_count": 30,
+  "members": {
+    "publication-archive175-176208/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.2969375,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/base/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.2969375,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/base/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.2969375,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/base/docs/design/analysis": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.2969375,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/base/docs/design/analysis/name-resolution-proofs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.2969375,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/base/docs/design/analysis/name-resolution-proofs/rust-validation": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.3088999,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/base/docs/design/analysis/name-resolution-proofs/rust-validation/README.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.309277,
+      "size": 116578,
+      "sha256": "36e66cc2face576496cb0f35154b8b4a219f60672e682aaea3e3b280b7e64a11"
+    },
+    "publication-archive175-176208/base/docs/design/analysis/name-resolution-proofs/rust-validation/ledger.json": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.3002906,
+      "size": 2053970,
+      "sha256": "df96fe4229795a359791555117028c1eccabf71115a3c913492127e3803e670b"
+    },
+    "publication-archive175-176208/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591788.9409401,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591788.9409401,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591788.9409401,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design/analysis": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591788.9409401,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591788.9409401,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.3049374,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/README.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.3088999,
+      "size": 117831,
+      "sha256": "f470110f180b2a6b3335576f5c8f765b54509e5a343b4876310808d17577ff2d"
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen175": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.0489392,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen175/compiler-build175": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591788.94494,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen175/compiler-build175/receipt.json.gz": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591788.944316,
+      "size": 835215,
+      "sha256": "fdd41ad625c7a8943f80fa2588814df2926c6fa9c2cec6a88dc34a96bb298a1d"
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen175/compiler-build175/tests.log": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591788.9472213,
+      "size": 141356,
+      "sha256": "f64adf98747bcb485d827afb6efe1c11ed3e463e217aa30e3f6cadbdd47b37eb"
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen175/workspace-clippy175": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.0529392,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen175/workspace-clippy175/receipt.json.gz": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.0524163,
+      "size": 835190,
+      "sha256": "c6265ac405b9f1a4fe00ba5117a78362d6340be628a584b151e14ac8da77fedc"
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen175/workspace-clippy175/tests.log": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.0553262,
+      "size": 792,
+      "sha256": "7fa63c2f7f50d246f57c02fcbf456184c25c107d92a21d471f938fc942e55240"
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen176": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.2649376,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen176/compiler-build176": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.1612048,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen176/compiler-build176/receipt.json.gz": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.1612048,
+      "size": 838828,
+      "sha256": "1902b7531a9b09fd0553498e86a7449f7d0721dfddaebfe6b465aa52b3bcfd34"
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen176/compiler-build176/tests.log": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.1640277,
+      "size": 150548,
+      "sha256": "1466a84c91100a18ce99a2bbeae28e99d7e9744d4fc7c377221fbbe49fe501c9"
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen176/workspace-clippy176": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.266495,
+      "size": 0,
+      "sha256": null
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen176/workspace-clippy176/receipt.json.gz": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.266495,
+      "size": 838799,
+      "sha256": "d0fce212f68fa09a8c60f7b81043bf7e2687c72fb0b56080af18b9aff180e1e5"
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/frozen176/workspace-clippy176/tests.log": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.2693338,
+      "size": 1754,
+      "sha256": "d45e3d417c0ee7013a0c0642e4ff76196e82ed53494f05831593fc32842393f4"
+    },
+    "publication-archive175-176208/files/docs/design/analysis/name-resolution-proofs/rust-validation/ledger.json": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591789.2941577,
+      "size": 2061134,
+      "sha256": "922c34beb4b8df16b20123c7c17d00327fba3a4f2907120964e165db75b15f92"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

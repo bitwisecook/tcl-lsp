@@ -1,0 +1,176 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/diagnostic-finish-jim-crossing309.source-trees.tar.gz",
+  "archive_sha256": "0ad51ba01e678a2d45c3430ad8897392219afcc632447cd177761ff7017d432c",
+  "archive_bytes": 363817,
+  "uncompressed_bytes": 1548778,
+  "source_manifest_sha256": "7b6eb00af034c2e49d15bd1533381d0c5b9704dbe5b57a71191b1bcb042e045e",
+  "source_patch_sha256": "13e511bf279373d1bf6d099b1c2d732ebcfcca03c0dde48f0c645e25f82ab491",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 14,
+  "members": {
+    "diagnostic-finish-jim-crossing309/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.6966856,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-crossing309/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.6966856,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-crossing309/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.6966856,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-crossing309/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.7926848,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-crossing309/base/runtime/rust/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.7926848,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-crossing309/base/runtime/rust/src/interp/native_children.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.7952557,
+      "size": 20554,
+      "sha256": "8c881f13d44ad4f867fb1a888f488d2ad471a46d299332175dc43aa0c4fd4635"
+    },
+    "diagnostic-finish-jim-crossing309/base/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.699937,
+      "size": 748983,
+      "sha256": "4344aed39443eb9bfd4911d781840aae310bd3958637e8ebfec8cd0fc5e73898"
+    },
+    "diagnostic-finish-jim-crossing309/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.7006855,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-crossing309/candidate/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.7006855,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-crossing309/candidate/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.7006855,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-crossing309/candidate/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.7952557,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-crossing309/candidate/runtime/rust/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.7952557,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-crossing309/candidate/runtime/rust/src/interp/native_children.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.7955024,
+      "size": 28935,
+      "sha256": "0d8d2986f332d1ccf8b6df71346cf30e683c4c9258c88d1256a4e920ad5c13ec"
+    },
+    "diagnostic-finish-jim-crossing309/candidate/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608242.7029994,
+      "size": 750306,
+      "sha256": "bccc38c595caa020df63a1e81f62cf8fdeb06c41fef0025552a02467f830d9e1"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "bccc38c595caa020df63a1e81f62cf8fdeb06c41fef0025552a02467f830d9e1",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "base_sha256",
+      "sha256": "4344aed39443eb9bfd4911d781840aae310bd3958637e8ebfec8cd0fc5e73898",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp/native_children.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "0d8d2986f332d1ccf8b6df71346cf30e683c4c9258c88d1256a4e920ad5c13ec",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp/native_children.rs",
+      "hash_key": "base_sha256",
+      "sha256": "8c881f13d44ad4f867fb1a888f488d2ad471a46d299332175dc43aa0c4fd4635",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

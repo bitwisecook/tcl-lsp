@@ -1,0 +1,678 @@
+
+running 1 test
+test cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows ... oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-plain
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-plain operation=vm-new-complete elapsed_ms=265
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-plain operation=profile-complete elapsed_ms=265
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-plain operation=compiler-complete elapsed_ms=265
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-plain operation=eval-complete elapsed_ms=1833
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-plain operation=assertions-complete elapsed_ms=1833
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-plain operation=vm-drop-complete elapsed_ms=1834
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-plain completed=1
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-remove
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-remove operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-remove operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-remove operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-remove operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-remove operation=eval-complete elapsed_ms=268
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-remove operation=assertions-complete elapsed_ms=268
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-remove operation=vm-drop-complete elapsed_ms=268
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-remove completed=2
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-unset
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-unset operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-unset operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-unset operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-unset operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-unset operation=eval-complete elapsed_ms=252
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-unset operation=assertions-complete elapsed_ms=252
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-unset operation=vm-drop-complete elapsed_ms=253
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-unset completed=3
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-invalid
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-invalid operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-invalid operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-invalid operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-invalid operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-invalid operation=eval-complete elapsed_ms=240
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-invalid operation=assertions-complete elapsed_ms=240
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-invalid operation=vm-drop-complete elapsed_ms=241
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-invalid completed=4
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-replace
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-replace operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-replace operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-replace operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-replace operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-replace operation=eval-complete elapsed_ms=247
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-replace operation=assertions-complete elapsed_ms=247
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-replace operation=vm-drop-complete elapsed_ms=247
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-root-replace completed=5
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-error operation=eval-complete elapsed_ms=244
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-error operation=assertions-complete elapsed_ms=244
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-error operation=vm-drop-complete elapsed_ms=245
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-error completed=6
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-return
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-return operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-return operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-return operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-return operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-return operation=eval-complete elapsed_ms=261
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-return operation=assertions-complete elapsed_ms=261
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-return operation=vm-drop-complete elapsed_ms=262
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-guest-return completed=7
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-local-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-local-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-local-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-local-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-local-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-local-read-error operation=eval-complete elapsed_ms=242
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-local-read-error operation=assertions-complete elapsed_ms=242
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-local-read-error operation=vm-drop-complete elapsed_ms=242
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-local-read-error completed=8
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-read-error operation=eval-complete elapsed_ms=241
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-read-error operation=assertions-complete elapsed_ms=241
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-read-error operation=vm-drop-complete elapsed_ms=242
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-read-error completed=9
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-write-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-write-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-write-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-write-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-write-error operation=eval-complete elapsed_ms=245
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-write-error operation=assertions-complete elapsed_ms=245
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-write-error operation=vm-drop-complete elapsed_ms=245
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-dict-write-error completed=10
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-plain
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-plain operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-plain operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-plain operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-plain operation=eval-complete elapsed_ms=373
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-plain operation=assertions-complete elapsed_ms=373
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-plain operation=vm-drop-complete elapsed_ms=373
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-plain completed=11
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-remove
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-remove operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-remove operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-remove operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-remove operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-remove operation=eval-complete elapsed_ms=237
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-remove operation=assertions-complete elapsed_ms=237
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-remove operation=vm-drop-complete elapsed_ms=237
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-remove completed=12
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-unset
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-unset operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-unset operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-unset operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-unset operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-unset operation=eval-complete elapsed_ms=281
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-unset operation=assertions-complete elapsed_ms=281
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-unset operation=vm-drop-complete elapsed_ms=281
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-unset completed=13
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-invalid
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-invalid operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-invalid operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-invalid operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-invalid operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-invalid operation=eval-complete elapsed_ms=247
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-invalid operation=assertions-complete elapsed_ms=247
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-invalid operation=vm-drop-complete elapsed_ms=248
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-invalid completed=14
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-replace
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-replace operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-replace operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-replace operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-replace operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-replace operation=eval-complete elapsed_ms=266
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-replace operation=assertions-complete elapsed_ms=266
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-replace operation=vm-drop-complete elapsed_ms=266
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-root-replace completed=15
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-error operation=eval-complete elapsed_ms=244
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-error operation=assertions-complete elapsed_ms=244
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-error operation=vm-drop-complete elapsed_ms=244
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-error completed=16
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-return
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-return operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-return operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-return operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-return operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-return operation=eval-complete elapsed_ms=246
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-return operation=assertions-complete elapsed_ms=246
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-return operation=vm-drop-complete elapsed_ms=246
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-guest-return completed=17
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-local-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-local-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-local-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-local-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-local-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-local-read-error operation=eval-complete elapsed_ms=370
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-local-read-error operation=assertions-complete elapsed_ms=370
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-local-read-error operation=vm-drop-complete elapsed_ms=370
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-local-read-error completed=18
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-read-error operation=eval-complete elapsed_ms=246
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-read-error operation=assertions-complete elapsed_ms=246
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-read-error operation=vm-drop-complete elapsed_ms=247
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-read-error completed=19
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-write-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-write-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-write-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-write-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-write-error operation=eval-complete elapsed_ms=247
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-write-error operation=assertions-complete elapsed_ms=247
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-write-error operation=vm-drop-complete elapsed_ms=248
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-dict-write-error completed=20
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-nul
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-nul operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-nul operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-nul operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-nul operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-nul operation=eval-complete elapsed_ms=316
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-nul operation=assertions-complete elapsed_ms=316
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-nul operation=vm-drop-complete elapsed_ms=316
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-nul completed=21
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-nul
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-nul operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-nul operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-nul operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-nul operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-nul operation=eval-complete elapsed_ms=200
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-nul operation=assertions-complete elapsed_ms=200
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-nul operation=vm-drop-complete elapsed_ms=200
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-nul completed=22
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-ff
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-ff operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-ff operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-ff operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-ff operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-ff operation=eval-complete elapsed_ms=75
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-ff operation=assertions-complete elapsed_ms=75
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-ff operation=vm-drop-complete elapsed_ms=75
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-raw-ff completed=23
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-ff
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-ff operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-ff operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-ff operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-ff operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-ff operation=eval-complete elapsed_ms=75
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-ff operation=assertions-complete elapsed_ms=75
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-ff operation=vm-drop-complete elapsed_ms=75
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-raw-ff completed=24
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-modified-nul
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-modified-nul operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-modified-nul operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-modified-nul operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-modified-nul operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-modified-nul operation=eval-complete elapsed_ms=71
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-modified-nul operation=assertions-complete elapsed_ms=71
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-modified-nul operation=vm-drop-complete elapsed_ms=72
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-modified-nul completed=25
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-modified-nul
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-modified-nul operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-modified-nul operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-modified-nul operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-modified-nul operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-modified-nul operation=eval-complete elapsed_ms=73
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-modified-nul operation=assertions-complete elapsed_ms=73
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-modified-nul operation=vm-drop-complete elapsed_ms=73
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-modified-nul completed=26
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-update-array-name
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-array-name operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-array-name operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-array-name operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-array-name operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-array-name operation=eval-complete elapsed_ms=200
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-array-name operation=assertions-complete elapsed_ms=200
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-update-array-name operation=vm-drop-complete elapsed_ms=200
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-update-array-name completed=27
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=compiled-with-array-name
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-array-name operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-array-name operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-array-name operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-array-name operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-array-name operation=eval-complete elapsed_ms=196
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-array-name operation=assertions-complete elapsed_ms=196
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=compiled-with-array-name operation=vm-drop-complete elapsed_ms=197
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=compiled-with-array-name completed=28
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-plain
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-plain operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-plain operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-plain operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-plain operation=eval-complete elapsed_ms=227
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-plain operation=assertions-complete elapsed_ms=227
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-plain operation=vm-drop-complete elapsed_ms=227
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-plain completed=29
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-remove
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-remove operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-remove operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-remove operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-remove operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-remove operation=eval-complete elapsed_ms=216
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-remove operation=assertions-complete elapsed_ms=216
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-remove operation=vm-drop-complete elapsed_ms=216
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-remove completed=30
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-unset
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-unset operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-unset operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-unset operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-unset operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-unset operation=eval-complete elapsed_ms=214
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-unset operation=assertions-complete elapsed_ms=214
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-unset operation=vm-drop-complete elapsed_ms=215
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-unset completed=31
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-invalid
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-invalid operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-invalid operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-invalid operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-invalid operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-invalid operation=eval-complete elapsed_ms=220
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-invalid operation=assertions-complete elapsed_ms=220
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-invalid operation=vm-drop-complete elapsed_ms=221
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-invalid completed=32
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-replace
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-replace operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-replace operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-replace operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-replace operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-replace operation=eval-complete elapsed_ms=219
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-replace operation=assertions-complete elapsed_ms=219
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-replace operation=vm-drop-complete elapsed_ms=219
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-root-replace completed=33
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-error operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-error operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-error operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-error operation=eval-complete elapsed_ms=216
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-error operation=assertions-complete elapsed_ms=216
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-error operation=vm-drop-complete elapsed_ms=217
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-error completed=34
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-return
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-return operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-return operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-return operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-return operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-return operation=eval-complete elapsed_ms=212
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-return operation=assertions-complete elapsed_ms=212
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-return operation=vm-drop-complete elapsed_ms=213
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-guest-return completed=35
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-local-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-local-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-local-read-error operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-local-read-error operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-local-read-error operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-local-read-error operation=eval-complete elapsed_ms=240
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-local-read-error operation=assertions-complete elapsed_ms=240
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-local-read-error operation=vm-drop-complete elapsed_ms=241
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-local-read-error completed=36
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-read-error operation=eval-complete elapsed_ms=228
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-read-error operation=assertions-complete elapsed_ms=228
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-read-error operation=vm-drop-complete elapsed_ms=228
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-read-error completed=37
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-write-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-write-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-write-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-write-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-write-error operation=eval-complete elapsed_ms=217
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-write-error operation=assertions-complete elapsed_ms=217
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-write-error operation=vm-drop-complete elapsed_ms=218
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-dict-write-error completed=38
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-plain
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-plain operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-plain operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-plain operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-plain operation=eval-complete elapsed_ms=320
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-plain operation=assertions-complete elapsed_ms=320
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-plain operation=vm-drop-complete elapsed_ms=320
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-plain completed=39
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-remove
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-remove operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-remove operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-remove operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-remove operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-remove operation=eval-complete elapsed_ms=212
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-remove operation=assertions-complete elapsed_ms=212
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-remove operation=vm-drop-complete elapsed_ms=213
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-remove completed=40
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-unset
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-unset operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-unset operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-unset operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-unset operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-unset operation=eval-complete elapsed_ms=212
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-unset operation=assertions-complete elapsed_ms=212
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-unset operation=vm-drop-complete elapsed_ms=212
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-unset completed=41
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-invalid
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-invalid operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-invalid operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-invalid operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-invalid operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-invalid operation=eval-complete elapsed_ms=212
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-invalid operation=assertions-complete elapsed_ms=212
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-invalid operation=vm-drop-complete elapsed_ms=213
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-invalid completed=42
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-replace
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-replace operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-replace operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-replace operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-replace operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-replace operation=eval-complete elapsed_ms=237
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-replace operation=assertions-complete elapsed_ms=237
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-replace operation=vm-drop-complete elapsed_ms=237
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-root-replace completed=43
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-error operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-error operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-error operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-error operation=eval-complete elapsed_ms=214
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-error operation=assertions-complete elapsed_ms=214
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-error operation=vm-drop-complete elapsed_ms=214
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-error completed=44
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-return
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-return operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-return operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-return operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-return operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-return operation=eval-complete elapsed_ms=213
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-return operation=assertions-complete elapsed_ms=213
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-return operation=vm-drop-complete elapsed_ms=213
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-guest-return completed=45
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-local-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-local-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-local-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-local-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-local-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-local-read-error operation=eval-complete elapsed_ms=218
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-local-read-error operation=assertions-complete elapsed_ms=218
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-local-read-error operation=vm-drop-complete elapsed_ms=219
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-local-read-error completed=46
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-read-error operation=eval-complete elapsed_ms=224
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-read-error operation=assertions-complete elapsed_ms=224
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-read-error operation=vm-drop-complete elapsed_ms=225
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-read-error completed=47
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-write-error
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-write-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-write-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-write-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-write-error operation=eval-complete elapsed_ms=214
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-write-error operation=assertions-complete elapsed_ms=214
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-write-error operation=vm-drop-complete elapsed_ms=214
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-dict-write-error completed=48
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-nul
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-nul operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-nul operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-nul operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-nul operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-nul operation=eval-complete elapsed_ms=167
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-nul operation=assertions-complete elapsed_ms=167
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-nul operation=vm-drop-complete elapsed_ms=168
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-nul completed=49
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-nul
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-nul operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-nul operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-nul operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-nul operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-nul operation=eval-complete elapsed_ms=164
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-nul operation=assertions-complete elapsed_ms=164
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-nul operation=vm-drop-complete elapsed_ms=164
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-nul completed=50
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-ff
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-ff operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-ff operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-ff operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-ff operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-ff operation=eval-complete elapsed_ms=87
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-ff operation=assertions-complete elapsed_ms=87
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-ff operation=vm-drop-complete elapsed_ms=88
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-raw-ff completed=51
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-ff
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-ff operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-ff operation=vm-new-complete elapsed_ms=16
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-ff operation=profile-complete elapsed_ms=16
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-ff operation=compiler-complete elapsed_ms=16
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-ff operation=eval-complete elapsed_ms=121
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-ff operation=assertions-complete elapsed_ms=121
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-ff operation=vm-drop-complete elapsed_ms=124
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-raw-ff completed=52
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-modified-nul
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-modified-nul operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-modified-nul operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-modified-nul operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-modified-nul operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-modified-nul operation=eval-complete elapsed_ms=95
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-modified-nul operation=assertions-complete elapsed_ms=95
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-modified-nul operation=vm-drop-complete elapsed_ms=96
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-modified-nul completed=53
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-modified-nul
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-modified-nul operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-modified-nul operation=vm-new-complete elapsed_ms=13
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-modified-nul operation=profile-complete elapsed_ms=13
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-modified-nul operation=compiler-complete elapsed_ms=13
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-modified-nul operation=eval-complete elapsed_ms=115
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-modified-nul operation=assertions-complete elapsed_ms=115
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-modified-nul operation=vm-drop-complete elapsed_ms=116
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-modified-nul completed=54
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-update-array-name
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-array-name operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-array-name operation=vm-new-complete elapsed_ms=12
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-array-name operation=profile-complete elapsed_ms=12
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-array-name operation=compiler-complete elapsed_ms=12
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-array-name operation=eval-complete elapsed_ms=517
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-array-name operation=assertions-complete elapsed_ms=522
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-update-array-name operation=vm-drop-complete elapsed_ms=522
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-update-array-name completed=55
+oracle-row start suite=dictionary-body329 engine=tcl8.4 case=generic-with-array-name
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-array-name operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-array-name operation=vm-new-complete elapsed_ms=24
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-array-name operation=profile-complete elapsed_ms=24
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-array-name operation=compiler-complete elapsed_ms=24
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-array-name operation=eval-complete elapsed_ms=308
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-array-name operation=assertions-complete elapsed_ms=308
+oracle-phase suite=dictionary-body329 engine=tcl8.4 case=generic-with-array-name operation=vm-drop-complete elapsed_ms=308
+oracle-row complete suite=dictionary-body329 engine=tcl8.4 case=generic-with-array-name completed=56
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-update-plain
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-plain operation=vm-new-complete elapsed_ms=92
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-plain operation=profile-complete elapsed_ms=92
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-plain operation=compiler-complete elapsed_ms=92
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-plain operation=eval-complete elapsed_ms=964
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-plain operation=assertions-complete elapsed_ms=964
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-plain operation=vm-drop-complete elapsed_ms=965
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-update-plain completed=57
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-update-remove
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-remove operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-remove operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-remove operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-remove operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-remove operation=eval-complete elapsed_ms=319
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-remove operation=assertions-complete elapsed_ms=319
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-remove operation=vm-drop-complete elapsed_ms=320
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-update-remove completed=58
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-unset
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-unset operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-unset operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-unset operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-unset operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-unset operation=eval-complete elapsed_ms=306
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-unset operation=assertions-complete elapsed_ms=306
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-unset operation=vm-drop-complete elapsed_ms=306
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-unset completed=59
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-invalid
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-invalid operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-invalid operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-invalid operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-invalid operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-invalid operation=eval-complete elapsed_ms=455
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-invalid operation=assertions-complete elapsed_ms=455
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-invalid operation=vm-drop-complete elapsed_ms=456
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-invalid completed=60
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-replace
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-replace operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-replace operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-replace operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-replace operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-replace operation=eval-complete elapsed_ms=329
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-replace operation=assertions-complete elapsed_ms=329
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-replace operation=vm-drop-complete elapsed_ms=330
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-update-root-replace completed=61
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-error
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-error operation=vm-new-complete elapsed_ms=10
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-error operation=profile-complete elapsed_ms=10
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-error operation=compiler-complete elapsed_ms=10
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-error operation=eval-complete elapsed_ms=478
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-error operation=assertions-complete elapsed_ms=478
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-error operation=vm-drop-complete elapsed_ms=479
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-error completed=62
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-return
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-return operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-return operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-return operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-return operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-return operation=eval-complete elapsed_ms=328
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-return operation=assertions-complete elapsed_ms=328
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-return operation=vm-drop-complete elapsed_ms=328
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-update-guest-return completed=63
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-update-local-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-local-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-local-read-error operation=vm-new-complete elapsed_ms=8
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-local-read-error operation=profile-complete elapsed_ms=8
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-local-read-error operation=compiler-complete elapsed_ms=8
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-local-read-error operation=eval-complete elapsed_ms=560
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-local-read-error operation=assertions-complete elapsed_ms=560
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-local-read-error operation=vm-drop-complete elapsed_ms=562
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-update-local-read-error completed=64
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-read-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-read-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-read-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-read-error operation=eval-complete elapsed_ms=750
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-read-error operation=assertions-complete elapsed_ms=750
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-read-error operation=vm-drop-complete elapsed_ms=751
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-read-error completed=65
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-write-error
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-write-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-write-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-write-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-write-error operation=eval-complete elapsed_ms=639
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-write-error operation=assertions-complete elapsed_ms=640
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-write-error operation=vm-drop-complete elapsed_ms=641
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-update-dict-write-error completed=66
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-with-plain
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-plain operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-plain operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-plain operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-plain operation=eval-complete elapsed_ms=444
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-plain operation=assertions-complete elapsed_ms=444
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-plain operation=vm-drop-complete elapsed_ms=445
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-with-plain completed=67
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-with-remove
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-remove operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-remove operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-remove operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-remove operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-remove operation=eval-complete elapsed_ms=453
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-remove operation=assertions-complete elapsed_ms=453
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-remove operation=vm-drop-complete elapsed_ms=454
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-with-remove completed=68
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-unset
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-unset operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-unset operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-unset operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-unset operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-unset operation=eval-complete elapsed_ms=325
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-unset operation=assertions-complete elapsed_ms=325
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-unset operation=vm-drop-complete elapsed_ms=326
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-unset completed=69
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-invalid
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-invalid operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-invalid operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-invalid operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-invalid operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-invalid operation=eval-complete elapsed_ms=322
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-invalid operation=assertions-complete elapsed_ms=322
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-invalid operation=vm-drop-complete elapsed_ms=323
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-invalid completed=70
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-replace
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-replace operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-replace operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-replace operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-replace operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-replace operation=eval-complete elapsed_ms=335
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-replace operation=assertions-complete elapsed_ms=335
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-replace operation=vm-drop-complete elapsed_ms=335
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-with-root-replace completed=71
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-error
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-error operation=eval-complete elapsed_ms=332
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-error operation=assertions-complete elapsed_ms=332
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-error operation=vm-drop-complete elapsed_ms=333
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-error completed=72
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-return
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-return operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-return operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-return operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-return operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-return operation=eval-complete elapsed_ms=342
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-return operation=assertions-complete elapsed_ms=342
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-return operation=vm-drop-complete elapsed_ms=343
+oracle-row complete suite=dictionary-body329 engine=tcl8.5 case=compiled-with-guest-return completed=73
+oracle-row start suite=dictionary-body329 engine=tcl8.5 case=compiled-with-local-read-error
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-local-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-local-read-error operation=vm-new-complete elapsed_ms=10
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-local-read-error operation=profile-complete elapsed_ms=10
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-local-read-error operation=compiler-complete elapsed_ms=10
+oracle-phase suite=dictionary-body329 engine=tcl8.5 case=compiled-with-local-read-error operation=eval-complete elapsed_ms=473
+
+thread 'cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows' (868902) panicked at rust/tcl-vm/src/cmd_dict.rs:1455:61:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("native string materialisation")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 705 filtered out; finished in 22.34s
+

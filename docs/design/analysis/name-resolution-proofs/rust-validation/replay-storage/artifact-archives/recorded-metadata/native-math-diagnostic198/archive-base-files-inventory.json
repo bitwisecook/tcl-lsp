@@ -1,0 +1,420 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/native-math-diagnostic198.base-files.tar.gz",
+  "archive_sha256": "5d43f71e67a538bedc399bfa5cc764970defff76ee88c278b4c51020cfc1bc34",
+  "archive_bytes": 1686330,
+  "uncompressed_bytes": 7199370,
+  "source_manifest_sha256": "72057a7edd09cfaac4704ca200a46ebcf7624684fb293885fc7af16cb52a17b7",
+  "source_patch_sha256": "393d2997415c947400a34e1fda9f4fcb532654a9ee76ce86108e0c0139df699c",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/393d2997415c947400a34e1fda9f4fcb532654a9ee76ce86108e0c0139df699c.patch",
+  "original_application_journal_sha256": "393d2997415c947400a34e1fda9f4fcb532654a9ee76ce86108e0c0139df699c",
+  "member_count": 45,
+  "members": {
+    "native-math-diagnostic198/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.446037,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4587038,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.446037,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4543223,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4559557,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src/analyser/diagnostic_subject.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4544833,
+      "size": 2670,
+      "sha256": "b4c829668e1b3f841be184776e79d4e620b33acef2139393912dfff8f1314675"
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src/analyser/diagnostics": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.456494,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src/analyser/diagnostics/tests.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4566104,
+      "size": 598892,
+      "sha256": "d532df1e6e26355e5c84a4c4def1cfbad5334b6727cde21b09622b8bd4e10a23"
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.456304,
+      "size": 37011,
+      "sha256": "5d6f26e09ab409c5d2c38f6fadadaed7ee53cd83c5a6f6e109ce504e78acfc5a"
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src/analyser/mod.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4547272,
+      "size": 4762,
+      "sha256": "65569c844cbe508c16cf052b145dfd2c2ff949671695240e30dd83c73e41c2a1"
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src/analyser/per_item.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4557734,
+      "size": 149964,
+      "sha256": "9cb25d24aed000b44752fbc92a9e82b867c55651c30fa696f4fb40eade42136b"
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src/analyser/types.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4549403,
+      "size": 236271,
+      "sha256": "a8cfd33d244c9c55b478850b7f658c5bcfe9876a1992d126ae213d00126c5506"
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.450037,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust/tcl-compiler/src/command_binding/original_math_function.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4540052,
+      "size": 22909,
+      "sha256": "c54a84411ee10b7c76df090c5385723d2bf0326d1cefb3bd740ce928fc9d24b7"
+    },
+    "native-math-diagnostic198/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.457094,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.457094,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust/tcl-lsp-core/src/diagnostic_subject.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4584944,
+      "size": 9815,
+      "sha256": "1168b10e3561f6a7b545dcee386bc278af2caccfe166785e76f2af951236f671"
+    },
+    "native-math-diagnostic198/base/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4587038,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4587038,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/base/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4588885,
+      "size": 2525127,
+      "sha256": "16219bad7c2cf45c4b692ded537468321b1e19a020773435df0a947c010f9566"
+    },
+    "native-math-diagnostic198/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556739.3184826,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556739.3184826,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556739.3184826,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/docs/design/analysis": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556739.3184826,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/docs/design/analysis/name-resolution-proofs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556739.3184826,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/docs/design/analysis/name-resolution-proofs/diagnostic-original-math-function-subject.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556905.4473205,
+      "size": 2500,
+      "sha256": "aa1fd20a57eaaf0c2c76ef708391324e107dd873f4b100176c7a6f9eab4b268e"
+    },
+    "native-math-diagnostic198/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4588885,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4540052,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4544833,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.456304,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src/analyser/diagnostic_subject.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556582.4037318,
+      "size": 10264,
+      "sha256": "75d109faf0b54a02d618566653aaeea722ae93e3d3bc9c00fd3d67fba2b8bec0"
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src/analyser/diagnostics": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4566104,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src/analyser/diagnostics/tests.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556363.6975913,
+      "size": 601149,
+      "sha256": "f3da0bb7a1661297df1cf5bcd2f9a362737fc4c6d1acac72107e681f57eee82e"
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4783154,
+      "size": 38286,
+      "sha256": "d35a2d3fac4d4ed1eb64d33cc56e72bd9f21d1e57cd4201fd47549550ebdf0dd"
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src/analyser/mod.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.472032,
+      "size": 4806,
+      "sha256": "13858a733e2f62f7aba5c3af826b06ac634cbbaa94976e50b9e3ff2c406ee64e"
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src/analyser/per_item.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4755673,
+      "size": 150038,
+      "sha256": "32d98903b1e9cddf22c12e35d7e116c35d14ddd78631096d9832328272e5b539"
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src/analyser/types.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.475047,
+      "size": 236863,
+      "sha256": "fe8ae4f542b224c9e9d98a7f5e14acb10fe9a7a2eb383cb56c7e204561c37683"
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4540052,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/rust/tcl-compiler/src/command_binding/original_math_function.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556905.1612127,
+      "size": 26385,
+      "sha256": "2a61d77b4ddb2050c1001d399c50d083b706c9d3d6459abebaa2b4483166ee33"
+    },
+    "native-math-diagnostic198/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4584944,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4584944,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/rust/tcl-lsp-core/src/diagnostic_subject.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556518.9967194,
+      "size": 15933,
+      "sha256": "3d5f327c56c03b29424fe76f24cf57a4ed607159420aa361ed10efc094b81163"
+    },
+    "native-math-diagnostic198/files/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4588885,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.4588885,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic198/files/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556286.5445898,
+      "size": 2525725,
+      "sha256": "c57a2a295a5a156148b67eb5cc68b3575ba802c7df9639018779523c8c4fae77"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

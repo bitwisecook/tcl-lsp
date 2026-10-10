@@ -1,0 +1,195 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/current-document-grammar93.base-files.tar.gz",
+  "archive_sha256": "323b894b1ce700c74f49a1623c77aaab9f12dd8a3f30f0976726f4186438f5d5",
+  "archive_bytes": 321124,
+  "uncompressed_bytes": 1470321,
+  "source_manifest_sha256": "71483b672c0b569248171604371d4b7539d037fc0b19ad87f42313865428b702",
+  "source_patch_sha256": "25419a97d517ca4df767490d11d683ce01ebc709a5dbe7e31908ab1485ec498e",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/25419a97d517ca4df767490d11d683ce01ebc709a5dbe7e31908ab1485ec498e.patch",
+  "original_application_journal_sha256": "25419a97d517ca4df767490d11d683ce01ebc709a5dbe7e31908ab1485ec498e",
+  "member_count": 20,
+  "members": {
+    "current-document-grammar93/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5691586,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5722284,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5722284,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5733883,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/base/rust/tcl-lsp-core/src/code_actions": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5733883,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/base/rust/tcl-lsp-core/src/code_actions/spec_notice.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5737495,
+      "size": 14628,
+      "sha256": "f86d62ff3ea087811d2762df2aebce19956e8901b567795edaa774820a26d8fb"
+    },
+    "current-document-grammar93/base/rust/tcl-lsp-core/src/oo_body.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5732722,
+      "size": 30432,
+      "sha256": "f517e43a5de2b8f45821c2b41fc4601e04ef1140b339a17c5d5d10b3ea1f8c17"
+    },
+    "current-document-grammar93/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5691586,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5691586,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/base/rust/tcl-registry/src/registry.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5713685,
+      "size": 688767,
+      "sha256": "f2180b776cf1fe63940084b34303d20f252aae0562e3891f19864c386f22578f"
+    },
+    "current-document-grammar93/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5691586,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5722284,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5722284,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5733883,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/files/rust/tcl-lsp-core/src/code_actions": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5737495,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/files/rust/tcl-lsp-core/src/code_actions/spec_notice.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5738108,
+      "size": 14972,
+      "sha256": "f1643690633e657e172a87d468d81b399c0ce22184ddf58c57d8d8abe2cfa12a"
+    },
+    "current-document-grammar93/files/rust/tcl-lsp-core/src/oo_body.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5733883,
+      "size": 30562,
+      "sha256": "8a7fa2d06533e8786fd223a2723a2ccf39bbe23ed35df4a50cefae5a2b217f86"
+    },
+    "current-document-grammar93/files/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5691586,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/files/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5713685,
+      "size": 0,
+      "sha256": null
+    },
+    "current-document-grammar93/files/rust/tcl-registry/src/registry.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532824.5722284,
+      "size": 690960,
+      "sha256": "c73da75d1fb87033f3630454209f386cabecde33486dcf305317e474f466f050"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

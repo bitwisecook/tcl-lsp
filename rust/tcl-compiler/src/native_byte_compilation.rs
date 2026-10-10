@@ -331,10 +331,10 @@ fn compiler_dialect(
     if tcl_syntax::naming::NamePolicyProtocol::for_native_point(point) != Some(policy) {
         return Err(NativeByteCommandUnavailable::Entry);
     }
-    let version = point
+    point
         .tcl_version()
         .ok_or(NativeByteCommandUnavailable::Entry)?;
-    Ok(InvocationDialect::for_version(version))
+    Ok(InvocationDialect::of_point(point))
 }
 
 fn registered_command_plan(

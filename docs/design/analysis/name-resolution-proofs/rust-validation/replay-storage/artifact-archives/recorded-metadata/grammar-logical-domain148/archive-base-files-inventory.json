@@ -1,0 +1,177 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-logical-domain148.base-files.tar.gz",
+  "archive_sha256": "ae6c426eea92e4a2001c439dbe42c518c34ca10a9b09ac623f752e14a3ed751c",
+  "archive_bytes": 181648,
+  "uncompressed_bytes": 716584,
+  "source_manifest_sha256": "73680f24002596ae109d1b049518935796669c7462f6818434ae0a2b886d3dd7",
+  "source_patch_sha256": "02cb41d7b99322503f858f369cd8bdc497389ec9fee267ae170b3140439059ad",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/02cb41d7b99322503f858f369cd8bdc497389ec9fee267ae170b3140439059ad.patch",
+  "original_application_journal_sha256": "02cb41d7b99322503f858f369cd8bdc497389ec9fee267ae170b3140439059ad",
+  "member_count": 18,
+  "members": {
+    "grammar-logical-domain148/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.90632,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.90632,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.90632,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9141147,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9122875,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/base/rust/tcl-compiler/src/analyser/input.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.912187,
+      "size": 10489,
+      "sha256": "73f7e91aca11b098c5a21b3563decf23b788b9cbed62d6306d3e5f863d843c9c"
+    },
+    "grammar-logical-domain148/base/rust/tcl-compiler/src/analyser/state.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9133487,
+      "size": 331266,
+      "sha256": "fcbd4a8431aba976c9ba500b9ec17c60da5e1f5122e8f93d7eb920f2a973fd26"
+    },
+    "grammar-logical-domain148/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9141147,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/base/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9147313,
+      "size": 15203,
+      "sha256": "f8690df81e610a7f55c167b23da291a3bbc62f1fa715db0783172af73158a9d0"
+    },
+    "grammar-logical-domain148/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.90632,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.90632,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.90632,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9141147,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9133487,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/files/rust/tcl-compiler/src/analyser/input.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9122875,
+      "size": 13074,
+      "sha256": "9e0b081fd9c90ddd3e0e8d4b0181d6b234b4889e8d2046a97ad012a4b7e5ee9c"
+    },
+    "grammar-logical-domain148/files/rust/tcl-compiler/src/analyser/state.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9141147,
+      "size": 331168,
+      "sha256": "742f9b7ca59596c75cedf48bb47efb3d6208fd34ffd42601efb024363563f9f3"
+    },
+    "grammar-logical-domain148/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9147313,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-domain148/files/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791563927.9148254,
+      "size": 15384,
+      "sha256": "59a69d4fc0e5bd29c44833fafdd36a29ccdc07739fe7153e3934a260202eb145"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

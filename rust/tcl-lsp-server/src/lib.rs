@@ -32089,6 +32089,7 @@ pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
 /// document's URI string, keyed the same way the workspace index keys
 /// documents ([`canonical_file_uri`]).  `None` for a non-`file:` URI or an
 /// unmappable path.
+#[cfg(test)]
 fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
     let parent = Uri::from_str(parent_uri).ok()?;
     let parent_path = parent.to_file_path()?;

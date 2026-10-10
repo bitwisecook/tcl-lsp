@@ -1,0 +1,105 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/native-vm-exec-style222.base-files.tar.gz",
+  "archive_sha256": "27e78a74b51d4ad5ddff11125626df4460134de8788c7e74cf282a4b3fb29cd1",
+  "archive_bytes": 183468,
+  "uncompressed_bytes": 860407,
+  "source_manifest_sha256": "82c45bf3b65b03750e7bcecd5b9aa7c1970a2fd2929504de52e0ada013323da7",
+  "source_patch_sha256": "0679f7405b59ba0850ce489716ed2144cd5eb46c20b207b605b963089a69ccfc",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/0679f7405b59ba0850ce489716ed2144cd5eb46c20b207b605b963089a69ccfc.patch",
+  "original_application_journal_sha256": "0679f7405b59ba0850ce489716ed2144cd5eb46c20b207b605b963089a69ccfc",
+  "member_count": 10,
+  "members": {
+    "native-vm-exec-style222/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791571579.5546296,
+      "size": 0,
+      "sha256": null
+    },
+    "native-vm-exec-style222/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791571579.5546296,
+      "size": 0,
+      "sha256": null
+    },
+    "native-vm-exec-style222/base/rust/tcl-vm": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791571579.5546296,
+      "size": 0,
+      "sha256": null
+    },
+    "native-vm-exec-style222/base/rust/tcl-vm/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791571579.5546296,
+      "size": 0,
+      "sha256": null
+    },
+    "native-vm-exec-style222/base/rust/tcl-vm/src/exec.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791571579.5588727,
+      "size": 429832,
+      "sha256": "fa1aeb0f027485dd829d7d07e3620c4c9e45973db7de8c8f1c59a4096a914608"
+    },
+    "native-vm-exec-style222/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791571579.5588727,
+      "size": 0,
+      "sha256": null
+    },
+    "native-vm-exec-style222/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791571579.5588727,
+      "size": 0,
+      "sha256": null
+    },
+    "native-vm-exec-style222/files/rust/tcl-vm": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791571579.5588727,
+      "size": 0,
+      "sha256": null
+    },
+    "native-vm-exec-style222/files/rust/tcl-vm/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791571579.5588727,
+      "size": 0,
+      "sha256": null
+    },
+    "native-vm-exec-style222/files/rust/tcl-vm/src/exec.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791571681.44585,
+      "size": 430575,
+      "sha256": "1ec3bf6e5d005f4ed35ff8d85e54351511708724606dc24d24645d90eea01f05"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

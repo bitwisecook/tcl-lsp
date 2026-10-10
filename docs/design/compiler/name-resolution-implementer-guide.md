@@ -353,12 +353,41 @@ export to other documents. Import agreement requires equal naming issuers and
 equal values across every route. Dynamic or unsupported scope and alias paths
 withdraw advice; unsupported body scopes cannot borrow enclosing globals.
 
-`SourceResolver` receives the original site offset and typed assignment and
-imported-constant inventories. Preserve those inputs through workspace edge
-refresh, source seeds, package `auto_path` resolution and document links. This
-is single-assignment navigation advice, not native variable/frame identity or
-normal-completion proof. A plain-map mini-evaluator remains an explicitly
-authored C abstraction and does not replace the retained scoped inventory.
+`OriginalSourcePathExpression` retains one genuine whole source word, full
+input/configuration, exact source image and Realm generation. Selected
+`SourcePathOperation` metadata owns Join, Dirname, Normalize or ScriptPath and
+its effective argument ordinals, including bound values. A command with a
+`file` spelling but a selected list implementation supplies no path operation.
+Completed values remain data; they are never reparsed as Tcl source.
+
+Use `capture_source_target_path_expression(analysis, target)` for source edges
+and `capture_source_path_expression_at_analysis(analysis, span)` for an
+independently required original whole-word span. Missing actual input, foreign
+source/configuration, uncertain operations or unavailable whole operands
+withdraw the plan. `matches_analysis` checks the same actual generation;
+`matches_assignments` joins a plan to its retained path inventory before a host
+folds an indexed edge. `evaluate(document_filename, resolve_var)` takes explicit
+host filename advice and the position-gated variable resolver. It supplies a
+candidate path, without observed Tcl values, current cwd or `info script`.
+
+`WorkspaceSource::original_path_expression` carries that plan into
+`SourceResolver`, alongside the original site offset and typed assignment and
+imported-constant inventories. A reporting path or literal flag cannot replace
+an absent plan. `WorkspaceIndex::resolved_source_edges` supplies the same edge
+inventory to source seeds, imports, run order and source-ancestor package
+queries. Preserve the plan and inventory generation through every refresh.
+Explicit literal-only graph and standalone evaluator APIs keep their own
+caller contracts; they cannot reconstruct unavailable actual analysis.
+
+`capture_source_auto_path_expression(analysis, entry)` independently checks the
+selected assignment or list-append schema, genuine receiver and value operand.
+`OriginalSourceAutoPathExpression::evaluate` completes the whole argument
+before interpreting its value: assignment splits a list under the same selected
+grammar, while list append retains one element. Neither list element is parsed
+again as a substitution. Unproved local/global aliases and known shadows
+contribute no package directories. This is package path advice, not an observed
+global mutation or package installation. See the
+[retained path contract](../analysis/name-resolution-proofs/retained-path-source-inventory.md).
 
 Background `signature_scan::extract_signatures` consumes this authored policy
 from the retained document registry. Procedure declarations use the shared
@@ -1166,6 +1195,18 @@ Compiler-hook presence is another independent axis. A host command can have opaq
 
 Native compilation has its own frame and context: file-root direct evaluation, a compiled script object, and a procedure compiler differ. Runtime caller frames used by `upvar` or `uplevel` are another axis. Retain loop and exception-range context through the registry's body-operand transitions. A separately compiled body starts a new compiler context even when it runs in the same variable activation.
 
+### Retain conditional source declarations
+
+Authored procedure layout comes from `ResolvedInvocation::authored_source_procedure_arguments`. The selected descriptor, original argv cardinality and authored name/formal/body roles define possible source positions. This query supplies no native parameter acceptance, successful publication or entered body. Native `InvocationFacts` retain their own completeness and acceptance outcomes.
+
+`SourceCommandBindings::original_logical_procedure_declaration(tokens, registry, input)` issues a conditional declaration from the complete positive Logical input and unanimous original declaration observations. It checks source geometry, lexer configuration, command store, retained namespace and selected source descriptor. Its `LogicalProcedureDeclaration` supplies the authored name/key, strict shared formals, original parameter text and original deferred body. Captured alias operands retain their effective positions; an original body must retain its actual written word. Lowerer consumes this source recipe for procedure/body inventory while preserving generic runtime dispatch.
+
+`OriginalCompilationLookupAdvice::closed_logical_source_lookup` checks the independently retained Logical command world. Missing targets, unknown or absent alternatives, opaque mutations and missing namespace/input remain terminal. An unknown physical variable frame does not supply or retract this separate source command layout. The query grants no physical frame, native lookup, normal completion or execution effects.
+
+Quiet Logical rename and alias continuations use their exact original source vector, selected Registry transition, retained source table, occupancy checks and observer guards. Registry abrupt-edge commit classifications remain unchanged. The conditional authored continuation is not a native successful-completion certificate.
+
+`ResolvedInvocation::authored_source_possible_option_arguments` follows selected availability, prefix grammar, reserved words, option widths and terminators. A dynamic source operand preserves every admitted next position; unresolved option widths preserve later uncertainty. Compiler taint advice consumes the same whole original vector under retained metadata and lexer configuration. Missing, foreign or mismatched supplied metadata refuses assistance; explicit standalone source queries retain their separate contracts.
+
 ## Retain original source bytes and parser channels
 
 `SourceImage` owns an immutable byte buffer and its `SourceChannel`. A document
@@ -1369,6 +1410,19 @@ their original element line receipts; dynamic expansion does not invent source
 coordinates.
 
 An ensemble's runtime implementation and its compiler registration/configuration are independent owners. A modified native map can make the runtime handler opaque while retaining the same native ensemble compiler. `NativeCommandCompiler` exports its actual configuration; `NativeEnsembleCompilerPrerequisite` retains the public token, namespace incarnation, map and selected worker's compiler capability. `SourceNamedInvocationProof::captured_name()` returns the compiled name without donating stock semantics to its late handler. An unmodelled delegated worker compiler remains a provider obligation.
+
+Map construction has its own counted-input purpose:
+`NativeNameProtocol::ensemble_map_prefix_input(namespace_report,
+namespace_has_parent, original)`. The Runtime and VM adapters retain the actual
+entered namespace token and obtain its report and parent presence from that
+owner. Parent presence cannot be inferred from the report's spelling. The C8.5+
+recipe preserves the complete original rooted head; it qualifies a relative
+head while retaining its raw NUL suffix. C8.4 and Jim refuse this C construction
+purpose. Do not apply publication or later command-lookup extent before storing
+the prefix. Map readback, later call selection, live implementation and compiler
+admission remain separate questions. The
+[counted map observations](../analysis/name-resolution-proofs/ensemble-original-counted-map-prefix-construction.md)
+retain all original vector fields and their distinct provider outcomes.
 
 `compile_original_selected_worker` consumes the actual retained worker binding
 and an `OriginalSelectedWorkerInvocation` containing the complete original
@@ -1749,6 +1803,14 @@ metadata joins. Keep an actual Native entry separate. Constructed literal
 bodies in global and caller-frame summaries retain the same source-advice
 policy; their possible write footprint grants no entered frame, physical link
 or store.
+
+`FunctionUnit::build_full` supplies that checked metadata to
+`build_ssa_with_context_for_entry_and_metadata`, retaining it across SSA rename
+passes. Validate the complete source configuration before normalising nested
+fragment settings such as BOM handling. Standalone SSA entrypoints keep their
+explicit caller contract; they cannot recover missing actual input from a
+Registry profile. Source metadata availability does not provide a Native
+execution entry.
 
 Synthetic optimisation modules retain all three ingress facts: the actual
 lexer configuration, resolved dialect profile and registry snapshot. The
@@ -4184,6 +4246,26 @@ bytes. Jim has no C ByteArray updater; its binary format/scan byte values use ra
 string storage. Missing recipes cause a typed host refusal before allocating a
 ByteArray or replacing the guest result.
 
+For the supported `encoding convertto utf-8` path, call
+`tcl_cmd_core::encoding::convert_to_utf8(ops, original)`. It requires actual
+Native C8.4–9.1 authority, reads the original through its selected string getter
+and delegates result construction to `ValueOps::native_external_utf8_result`.
+Each backend independently authenticates the matching C ByteArray recipe.
+`external_utf8_octets` is a pure byte codec; equal output bytes cannot grant
+result storage or worker availability. Preserve C9 strict-error character
+index and byte offset independently, with their typed errorCode and String
+result producer. The retained
+[object-storage observations](../analysis/name-resolution-proofs/encoding-original-utf8-convertto-object-storage.md)
+and [error-coordinate observation](../analysis/name-resolution-proofs/encoding-original-utf8-convertto-error-offset.md)
+record the fixed inputs and release differences.
+
+Only the UTF-8 output target is modelled by this conversion path; other output
+targets return a typed refusal. `encoding convertfrom` remains a bootstrap
+passthrough without external-decoding semantics. Jim's separate encoding
+extension capability is not supplied by the C recipe or a registration shim;
+the tested initialized Jim image reports `encoding` unavailable. Unsupported,
+foreign and authored-only result issuers refuse before physical construction.
+
 Canonical empty-string storage is a physical identity, not `bytes.is_empty()`.
 VM `NativeStringStorageIdentity` distinguishes CanonicalEmpty, Allocated and
 Unknown. A selected native constructor supplies its actual receipt through
@@ -6519,6 +6601,15 @@ independently of message text. `ContextDiagnosticData` transports a bounded
 process-local handle to that actual warning; decoding client JSON cannot create
 a new subject. This transport supplies neither a native name nor edit permission.
 
+Use `find_taint_warnings_for_function` for a retained FunctionUnit and
+`find_taint_warnings_for_module_function` when its original Module is available.
+Their shared `TaintSourceContext` checks the actual input, availability,
+profiles and complete source grammar; a supplied dialect label cannot restore
+missing metadata. `retain_diagnostic_source_context` attaches provenance after
+final whole-document spans are known and checks the emitting Module's command
+generation. The standalone warning API retains its explicit caller contract
+and cannot replace unavailable actual unit context.
+
 `context_diagnostic_actions_in_analysis` independently checks the diagnostic
 code and range, complete source/configuration, and both current Registry owners.
 It selects the actual source sink and read geometry before considering an
@@ -6549,6 +6640,58 @@ that permission through a substituted iRules profile.
 Branch conversion, substituted expression rewrites and temporary dictionary
 insertion require their own evaluation, control-flow, cell, observer and store
 permissions. Missing permission returns an explicit disabled action without edits.
+
+`original_exact_case_source_at_analysis(source, analysis, head_offset)` joins
+selected exact, case-sensitive case layout to the genuine effective source
+operands. `OriginalExactCaseSource::subject` retains an arbitrary whole original
+word, including inert braces, quoted compounds and variable syntax;
+`pairs` contains completed literal pattern/body data. Preserve that subject's
+original spelling when proposing an operand. Data values have no original
+word identity and must use the shared literal renderer before entering proposed
+Tcl source. Unknown option selectors, selected case-insensitive matching,
+malformed case data, known replacements, unavailable operands and stale
+complete input refuse the receipt.
+
+```rust
+fn original_case_summary(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    head_offset: u32,
+) -> Option<(String, usize)> {
+    let case = tcl_lsp_core::refactor::original_exact_case_source_at_analysis(
+        source, analysis, head_offset,
+    )?;
+    Some((case.subject().try_text().ok()?.to_owned(), case.pairs().len()))
+}
+```
+
+This example returns descriptive source syntax and a pair count. Dictionary
+conversion still consumes the independent `RewriteObligation`; the case
+receipt cannot enable Native edits. Data-group advice uses the separate
+`original_exact_switch_source_at_analysis` scalar projection: exactly one
+original variable component, the selected `whole_var_ref` grammar and shared
+root/closed-element partition must agree. Its subject preserves the complete
+reference spelling, including spaces, quotes, literal dollar/backslash and
+Unicode. Arrays, compound substitutions and inert braced data remain outside
+that scalar projection. Explicit standalone data-group authoring retains its
+supplied Registry/configuration contract. Both proposed-script consumers check
+complete generated lexical syntax without claiming BIG-IP runtime equivalence.
+See the [exact case contract](../analysis/name-resolution-proofs/original-exact-case-source.md)
+and [data-group subject contract](../analysis/name-resolution-proofs/original-datagroup-variable-subject.md).
+
+For an equality operand extracted from a source expression, use
+`scalar_variable_source_syntax(fragment, config)` with the caller's exact
+`LexerConfig`. `ScalarVariableSourceSyntax` returns only the scalar root and
+unchanged reference spelling. It shares the selected whole-reference kernel
+with the genuine original-word subject, without retaining its input or operand
+provenance. Core data-group, MCP data-group and `if_to_switch` consumers retain
+their bounded equality/OR shapes and use this projection instead of character
+classes or regex variable names. Preserve `reference()` when proposing a word;
+rebuilding `$` plus `name()` loses braces, quotes and literal name bytes. The
+fragment does not establish expression truth, a native receiver or permission
+to change dispatch. Generated syntax checks and `RewriteObligation` remain
+independent. See the
+[selected IF scalar contract](../analysis/name-resolution-proofs/selected-if-scalar-source-syntax.md).
 
 For one static original expression operand,
 `SourceInvocationBinding::original_literal_expression_bracing` checks the exact
@@ -6938,6 +7081,18 @@ layout. Original lambda owners retain the parent word and selected native list
 geometry. Decoded values do not acquire cooked-source offsets, writable child
 keys or runtime entry. Folding and selection consume this same structure;
 plain data, blocked roles and stale owners cannot borrow a sibling body.
+
+Public readonly syntax consumers use `SourceSyntaxStructure::capture(source,
+analysis)`. `commands` exposes genuine whole-document command geometry;
+`lexical_regions` exposes each `SourceSyntaxRegion::span` and its already
+joined lexical `tokens`. Lexer `source_region_tokens_in` owns checked region
+slicing and complete-image token rebasing. Consumers do not add local offsets,
+recapture a child input, infer a body from newlines or use a reporting command
+head to select roles. CLI ANSI/HTML highlighting and MCP data-group source
+traversal consume this same geometry. ReferenceOnly syntax remains readable
+without potential-evaluation authority; missing or stale input refuses capture.
+These spans and tokens grant neither entered bodies nor Native names or edits.
+See the [highlight geometry contract](../analysis/name-resolution-proofs/cli-original-source-highlight-geometry.md).
 
 `format_tcl_with_input` accepts the caller's actual `ResolvedAnalysisInput`.
 `FormatterConfig::for_resolved_input` keeps its complete lexer configuration,
@@ -9004,6 +9159,15 @@ returns its checked ContextRegistry for internal consumers that need the owned
 availability handle. Keep `for_source_input` for requests that have their full
 input and exact source configuration but no Module.
 
+Readonly compiler field reviews use
+`durable_inventory::{FUNCTION_UNIT_FIELDS, COMPILATION_UNIT_FIELDS}` and
+`assert_durable_field_inventory(unit)`. The owner declares each field roster
+beside its exhaustive no-`..` witness, including private retained input and
+configuration fields. Explorer checks that every field has one current review
+and that no obsolete row survives. Reviewers use the existing checked unit
+accessors to consume metadata; a field-name string exposes no private value and
+grants no authority to replace it, select availability or admit execution.
+
 ```rust
 fn function_metadata<'a>(
     function: &'a tcl_compiler::compilation_unit::FunctionUnit,
@@ -9056,6 +9220,54 @@ stock writes. CFG condition footprints use the same retained context and
 literal-name owner; they remain analysis facts. The [materialized footprint
 contract](../analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md)
 records the bounded source/API controls independently of provider execution.
+
+## Conditional reads and substitution purity
+
+Hidden-read consumers use the original CFG carrier at each actual block and
+statement index through `Function::source_tokens_at`. A consumed typed statement
+has the same source carrier requirement as an ordinary call. Each child in
+`CommandTokens::nested_bindings` supplies its own `original_recorded_command`,
+lookup state, source origin and grammar. The outer command's post-substitution
+world cannot stand in for the child's earlier lookup horizon. Known replacement,
+a held alias target moved away, refused availability or conflicting original
+observations must remain visible.
+
+`OriginalSourceMaterializedFootprint::invocation_reads` combines conditional
+by-name roles with selected expression and immediate-body reads.
+`reevaluated_reads` selects only those expression and body reads, for a parent
+whose ordinary variable operands are already represented. Alias-captured
+operands retain their original values and origins. Materialized text supplies
+possible names and an opaque residual; it supplies no authored child word or
+span, Native entry, physical read, represented SSA use or normal completion.
+Lexical interpolation uses `VarReferenceScanner::with_config` with the retained
+source configuration, preserving protected braces and literal variable-name
+syntax independently of selected command roles. Missing or foreign metadata is
+opaque. Elimination uses opaque coverage to retain possible stores; expanding
+that coverage to existing symbolic SSA names does not create read occurrences
+or SSA versions.
+
+Substitution purity uses the same original child receipts and the function's
+Module-aware metadata. The Native branch requires closed execution alternatives
+and the independently proved normal handler. The Logical branch uses
+`original_logical_operation_invocation_with_metadata_context`, which validates
+the exact retained Logical input and resolves original alias captures and the
+selected subcommand. Catalogue traits attached to a displayed head are
+insufficient. Conditional procedure summaries additionally join the original
+implementation allocation to one matching declaration source site; a procedure
+name is a summary key only after that join. Receiver-method labels do not supply
+a method receipt.
+
+A literal with no evaluation can remain pure without a command query. An
+expression `Command` node already identifies evaluated script syntax even when
+its text lacks bracket delimiters; it consumes original receipts directly.
+Purity describes the selected implementation's effect contract, separately from
+whether evaluating its operands can raise, whether traces or external accesses
+observe the store, and whether the original source is editable. DSE, ADCE and
+constant-store coupling keep those independent error, observer and source-edit
+gates. Tests distinguish each dependency using aliases, held and moved targets,
+replacement, availability, exact lexer configuration, and missing or foreign
+Module/function input. The [metadata proof contract](../analysis/name-resolution-proofs/original-analysis-metadata-context.md)
+records the bounded source controls separately from native process observations.
 
 ## Typed write-chain source proposals
 
@@ -9115,6 +9327,24 @@ and the exact SSA activation cell. Every represented use must match the
 original topology and activation, with independently closed observers. A
 parent Native compilation entry does not turn the new declaration's arguments
 into slots borrowed from that parent's frame.
+
+`CommonAotProofPlan::declared_arguments()` keeps declaration argument decisions
+separate from `materialisable_slots()`. A `DeclaredArgumentIdentity` selects the
+canonical original procedure and counted argument ordinal. Its evidence retains
+the declaration receipt, independently selected singleton shape, and every exact
+`SsaIncomingSlotRead`. Distinct reached activations keep their physical cell
+identities; they need not share a scalar SSA value. Missing owners, changed
+contents, observers, unresolved caller types or conflicting formal topology
+withdraw the decision.
+
+Use `declared_argument_for_incoming_read` to join a typed incoming operand to
+this evidence. The query compares the complete source read, counted slot and
+physical alternatives under the canonical declaration. The WASM operand adapter
+also requires the direct call's complete original formal receipt to agree.
+This permits a compiler allocated argument position without inventing a version
+zero SSA value or borrowing the root frame. It does not erase operand coercion,
+original object sharing, body admission, overflow, caller evaluation or the
+required trace and interpreter policy guards.
 
 Use `OriginalNativeFrameSlot` for an existing root frame. It requires the
 retained layout owner and incarnation, actual compiled primary and ordinal,

@@ -278,14 +278,19 @@ impl Lowerer<'_> {
         tokens: &CommandTokens,
     ) -> Option<EvaluatedBodyRegion> {
         use tcl_registry::native_compilation::PossibleBodyTopology;
+        let context = self.invocation_metadata_context()?;
         let (selected, entered) = if let Some(selected) =
-            crate::registry_invocation::possible_body_invocation(self.registry, None, tokens)
-        {
+            crate::registry_invocation::possible_body_invocation_with_metadata_context(
+                self.registry,
+                Some(context),
+                tokens,
+            ) {
             (selected, true)
         } else {
             (
-                crate::registry_invocation::conditional_body_topology_advice(
+                crate::registry_invocation::conditional_body_topology_advice_with_metadata_context(
                     self.registry,
+                    context,
                     tokens,
                     self.source_bindings.as_ref()?,
                 )?,
@@ -1351,6 +1356,11 @@ mod tests {
         for unavailable in [Some(older), Some(foreign), None] {
             lowerer.dialect_context = unavailable;
             assert!(lowerer.selected_body_provider(&segment, &tokens).is_none());
+            assert!(
+                lowerer
+                    .prove_possible_bodies(&segment, "::", &tokens)
+                    .is_none()
+            );
         }
         lowerer.dialect_context = Some(std::sync::Arc::clone(&context));
         assert!(lowerer.selected_body_provider(&segment, &tokens).is_some());

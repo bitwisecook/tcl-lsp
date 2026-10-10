@@ -1,0 +1,141 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-declared-function-export247.base-files.tar.gz",
+  "archive_sha256": "a54bbbe98d20e863f55be2fd9f68b1a199e401c4819d53dd65f5ec8109a1c6f7",
+  "archive_bytes": 139291,
+  "uncompressed_bytes": 728647,
+  "source_manifest_sha256": "03b24b504f4b393801756d9c004b79ec91db5f962e60f939b92a9e820234279b",
+  "source_patch_sha256": "40eeb6b98c2e7100fa563c99484db70efbc72f3f350661938bbc239a011cd72e",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/40eeb6b98c2e7100fa563c99484db70efbc72f3f350661938bbc239a011cd72e.patch",
+  "original_application_journal_sha256": "40eeb6b98c2e7100fa563c99484db70efbc72f3f350661938bbc239a011cd72e",
+  "member_count": 14,
+  "members": {
+    "grammar-declared-function-export247/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.9591684,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-declared-function-export247/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.9591684,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-declared-function-export247/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.9591684,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-declared-function-export247/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.9751682,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-declared-function-export247/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.9751682,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-declared-function-export247/base/rust/tcl-compiler/src/command_binding/source_declared_command.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.9809616,
+      "size": 29848,
+      "sha256": "8f716a012cd0b5484be4e2cb658c2b145151b3a42a4f08d87853d6bead42aa17"
+    },
+    "grammar-declared-function-export247/base/rust/tcl-compiler/src/registry_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.963221,
+      "size": 334468,
+      "sha256": "7d38a799514b8b7b6175b92dd8a30cb2f0ecf01b8099bad9e1762d7147a63e1f"
+    },
+    "grammar-declared-function-export247/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.963221,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-declared-function-export247/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.963221,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-declared-function-export247/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.963221,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-declared-function-export247/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.9809616,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-declared-function-export247/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.9809616,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-declared-function-export247/files/rust/tcl-compiler/src/command_binding/source_declared_command.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.9812717,
+      "size": 29828,
+      "sha256": "ea335547fb19969defce3a65279a7dade97187f901e444517a05974b795f0831"
+    },
+    "grammar-declared-function-export247/files/rust/tcl-compiler/src/registry_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594059.9655073,
+      "size": 334503,
+      "sha256": "9af6f53fb1343f7d341097a89d88a03bb401c8e6a605e9da31304a9e89e32171"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

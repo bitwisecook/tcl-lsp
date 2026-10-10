@@ -57,7 +57,7 @@ fn embedded_registration_keeps_script_publication_slots_and_counted_name_boundar
         assert_eq!(host_result(&mut vm, &unicode), 3);
 
         let holder = if engine == "jim" {
-            vm.intern_jim_namespace_object(NameBytes::from(b"a:".as_slice()))
+            vm.intern_jim_namespace_object(b"a:")
         } else {
             vm.activate_namespace_written("::a:")
         };

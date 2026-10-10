@@ -76,6 +76,25 @@ pub(in crate::analyser) fn original_word_has_substitution(word: &tcl_lexer::Nati
 }
 
 impl Analyser {
+    /// Parser topology from the actual source input, independently of handler
+    /// success. Complete availability validates the owner without choosing its
+    /// expression or variable-reference grammar.
+    fn original_expression_parser_context(
+        &self,
+    ) -> Option<tcl_syntax::expr::parser::ExprParseContext> {
+        let input = self.result.resolved_input.as_ref()?;
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            self.registry.as_deref()?,
+            input,
+            self.lexer_config(),
+            self.unit_profile,
+        )?;
+        let mut parser = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            .expression_parse_context(Some(input.unit_profile()));
+        parser.lexer_grammar = input.lexer_config().grammar_over(parser.lexer_grammar);
+        Some(parser)
+    }
+
     /// **W105.** Emit "unbraced code block" warnings for body
     /// arguments that aren't braced.
     ///
@@ -217,9 +236,7 @@ Use braces: {{ \u{2026} }}"
         let span = tcl_lexer::Span::new(word.span().start(), end.span().end());
         let text = self.source.get(span.as_range()).map(str::to_owned)?;
         let safe = if expressions.concatenates {
-            let mut context = tcl_syntax::expr::parser::ExprParseContext::for_profile(self.profile);
-            context.lexer_grammar = self.lexer_config().grammar_over(self.grammar());
-            context.native_syntax = tcl_syntax::expr::parser::NativeExprSyntax::Unknown;
+            let context = self.original_expression_parser_context()?;
             is_safe_literal_expr_in_context(text.trim(), &context)
         } else {
             is_safe_literal(text.trim())
@@ -957,7 +974,10 @@ Use braces: {{ \u{2026} }}"
 (the brace form applies no further substitution to its content)"
                     );
                     Self::push_w216_replacement(
-                        &mut self.result.diagnostics, span, message, corrected,
+                        &mut self.result.diagnostics,
+                        span,
+                        message,
+                        corrected,
                     );
                 }
                 continue;
@@ -991,9 +1011,7 @@ Use braces: {{ \u{2026} }}"
                 "`${{{text}}}({inner})` is parsed as scalar `${{{text}}}` followed by \
 literal text `({inner})`"
             );
-            Self::push_w216_replacement(
-                &mut self.result.diagnostics, span, message, corrected,
-            );
+            Self::push_w216_replacement(&mut self.result.diagnostics, span, message, corrected);
         }
     }
 
@@ -1072,7 +1090,10 @@ literal text `({inner})`"
             return;
         }
         let trimmed = expr_text.trim();
-        let parsed = crate::parse_expr_for_profile(trimmed, Some(self.profile));
+        let Some(context) = self.original_expression_parser_context() else {
+            return;
+        };
+        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(trimmed, &context);
         // ``ExprNode::Raw`` means the expression was unparseable.
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
@@ -1941,5 +1962,72 @@ mod issue996_tests {
         }
         let _ = find_string_eq_ne_ops(&node, "");
         let _ = node_extent(&node);
+    }
+}
+
+#[cfg(test)]
+mod original_expression_grammar_tests {
+    use super::*;
+
+    #[test]
+    fn original_string_comparison_advice_uses_retained_variable_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Source parser and warning/edit geometry only; no runtime equivalence.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let source = r#"expr {${a{b}c} == "needle"}"#;
+        for (braced_var, expected) in [
+            (tcl_dialect::BracedVarStyle::FirstClose, 0),
+            (tcl_dialect::BracedVarStyle::Tcl9Nesting, 1),
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                braced_var,
+                ..tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+            };
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&context),
+                config,
+            );
+            let mut analyser = Analyser::new().with_resolved_input(input);
+            let result = analyser.analyse(source, "presentation-only");
+            let hints: Vec<_> = result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == DiagCode::W110)
+                .collect();
+            assert_eq!(
+                hints.len(),
+                expected,
+                "{braced_var:?}: {:?}",
+                result.diagnostics
+            );
+            if let Some(hint) = hints.first() {
+                assert_eq!(source.get(hint.span.as_range()), Some("=="));
+                assert_eq!(hint.fixes.len(), 1);
+                assert_eq!(hint.fixes[0].new_text, "eq");
+            }
+            assert_eq!(
+                analyser
+                    .original_expression_parser_context()
+                    .unwrap()
+                    .lexer_grammar
+                    .braced_var,
+                braced_var
+            );
+            analyser.result.resolved_input = None;
+            assert!(analyser.original_expression_parser_context().is_none());
+            analyser.result.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                    .default_context_registry(),
+                config,
+            ));
+            assert!(analyser.original_expression_parser_context().is_none());
+        }
     }
 }

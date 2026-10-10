@@ -1,0 +1,177 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-naming-catalogue-diagnostic160.base-files.tar.gz",
+  "archive_sha256": "119789d19ec8c88b07e60e331c4a1649f477a12aac40f04aba5a2ee6b1a0507a",
+  "archive_bytes": 137001,
+  "uncompressed_bytes": 667168,
+  "source_manifest_sha256": "424c29475a3d2e2d6c0f492fe43d4c4a7292bee6ea9795a1edba40e41caf16c3",
+  "source_patch_sha256": "a39100bbb345d46d187c66374d08b6284f389f03f0ac715c31eac16f2c9d2b32",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/a39100bbb345d46d187c66374d08b6284f389f03f0ac715c31eac16f2c9d2b32.patch",
+  "original_application_journal_sha256": "a39100bbb345d46d187c66374d08b6284f389f03f0ac715c31eac16f2c9d2b32",
+  "member_count": 18,
+  "members": {
+    "recovered-naming-catalogue-diagnostic160/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533020.499615,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533088.6088347,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533020.499615,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533020.499615,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533020.499615,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/base/rust/tcl-compiler/src/command_binding/original_command_table.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791529652.8699641,
+      "size": 95954,
+      "sha256": "93cb281955f2eda7f3ea0ff3e1f65313b93d88a2a87b37173a4ae20d5795448c"
+    },
+    "recovered-naming-catalogue-diagnostic160/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533088.6088347,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533088.6088347,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/base/rust/tcl-lsp-core/src/completion.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791527193.0829682,
+      "size": 236305,
+      "sha256": "616df05a84095dd0edb25eca8d10611bde2d383916324321886bf3d491cb6df7"
+    },
+    "recovered-naming-catalogue-diagnostic160/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533020.5055568,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533088.609547,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533020.5055568,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533020.5055568,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533020.5055568,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/files/rust/tcl-compiler/src/command_binding/original_command_table.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533088.6088347,
+      "size": 98478,
+      "sha256": "f320ad15ce69ad01d7bf1d43579e5eae0fddebeee266cd7a52047f479f3c917c"
+    },
+    "recovered-naming-catalogue-diagnostic160/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533088.609547,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533088.609547,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-catalogue-diagnostic160/files/rust/tcl-lsp-core/src/completion.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791533142.9975457,
+      "size": 236431,
+      "sha256": "c594f2d0f56b37a3113e703de51876035e8b629b33394c1f220863d6bac9c776"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

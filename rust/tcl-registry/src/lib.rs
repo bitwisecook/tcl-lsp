@@ -423,12 +423,12 @@ pub use resolved_invocation::{
     AuthoredSourceAppendArguments, AuthoredSourceArity, AuthoredSourceCaseBody,
     AuthoredSourceCommandPublication, AuthoredSourceCommandPublicationKind,
     AuthoredSourceDescriptors, AuthoredSourceExpressionArguments, AuthoredSourceLambdaCall,
-    AuthoredSourceOption, AuthoredSourceOptionBoundary, AuthoredSourceOptionRelationships,
-    AuthoredSourceOptionScan, AuthoredSourceSubcommandDiagnostic, InvocationArgumentCount,
-    InvocationFacts, InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics,
-    NamedObjectFactory, OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation,
-    ResolvedSubcommand, StructuredInvocationResolution, SubcommandResolution,
-    SubcommandResolutionKind,
+    AuthoredSourceOption, AuthoredSourceOptionArguments, AuthoredSourceOptionBoundary,
+    AuthoredSourceOptionRelationships, AuthoredSourceOptionScan, AuthoredSourceProcedureArguments,
+    AuthoredSourceSubcommandDiagnostic, InvocationArgumentCount, InvocationFacts,
+    InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics, NamedObjectFactory,
+    OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation, ResolvedSubcommand,
+    StructuredInvocationResolution, SubcommandResolution, SubcommandResolutionKind,
 };
 pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};

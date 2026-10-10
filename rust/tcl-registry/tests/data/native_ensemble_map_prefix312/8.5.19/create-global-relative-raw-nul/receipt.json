@@ -1,0 +1,50 @@
+{
+  "provider": "8.5.19",
+  "case": {
+    "index": 4,
+    "id": "create-global-relative-raw-nul"
+  },
+  "command": [
+    "/workspace/.proofs/native-ensemble-map-prefix312-capture/8.5.19/probe.elf",
+    "4"
+  ],
+  "exit": 0,
+  "seconds": 0.0025057420134544373,
+  "rows": [
+    "VERSION|0|382e352e3139",
+    "SETUP|0|",
+    "INPUT|6|70007461696c",
+    "OPERATION|0|3a3a72323238365f6d61705f45",
+    "STORED_HEAD|8|3a3a70007461696c",
+    "MAP_QUERY|0|676f207b3a3a70007461696c2046495253547d",
+    "CALL|0|474c4f42414c204649525354"
+  ],
+  "executable_sha256": "df606914bd70df117cb1b056f157d7b4f24f93d9e5e9e514f2c02fcf33893564",
+  "compile_receipt_sha256": "3a8dda10bc9545f9a4127c80de1c0314bcaf79b5ddb8490323c68347b40d4fb8",
+  "source_sha256": "a54fbcb61246d7ab55944af90578043c8a42f9af0e85c5b700fdc30b42aadd76",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPkg.c": "2365436253e7777a7773f3fa00d9099929fae8406590cd2daebb2914a0a4f0b3",
+    "/workspace/.proofs/native-info-original-dispatch292-capture/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c": "9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdAH.c": "cdd328ee0a0d0c3ec7b67da50c90ae22b40591cc52e9492f19d7b257355fcf43",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclEncoding.c": "b100161e6fbcdc9b4055b28308071fa123000526abcb51dc1a65eeb83e94b292",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtf.c": "3352c62e891cff1d131260183af69bd2c2334e1014bfe2874c25722be871b580",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclObj.c": "25136b8ad5a833dfecd5e45a2f8f54e52d78e10ff516a5abc61fbdfb7e6ee014",
+    "/workspace/.proofs/native-ensemble-map-prefix312-capture/probe.c": "a54fbcb61246d7ab55944af90578043c8a42f9af0e85c5b700fdc30b42aadd76"
+  },
+  "stdout_sha256": "602e8d34e43fe4d58bec368043fc3d02141eb0463989f2ce2d4ae881f72eb63d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "request_sha256": "5c262bd83996939cdb172c66ad744d0401f88682ba0cc7e6b2014e74b9721fc2",
+  "provider_version_row": "VERSION|0|382e352e3139",
+  "channel": "A registered original C/Jim callback is invoked in an actual entered namespace by fixed ASCII namespace eval source. The callback constructs head with Tcl_NewStringObj/Jim_NewStringObj from explicit raw bytes and length, constructs original prefix and map list objects, and invokes the actual namespace ensemble create/configure vector without parsing or serialising the map. Readback query and subsequent public invocation are distinct original vectors. Each provider/case is a fresh fullInit process; no binary NUL construction or ByteArray substitutes the original String."
+}

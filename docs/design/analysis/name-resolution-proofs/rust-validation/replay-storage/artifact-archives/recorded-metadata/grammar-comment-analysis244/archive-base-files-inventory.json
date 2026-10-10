@@ -1,0 +1,465 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-comment-analysis244.base-files.tar.gz",
+  "archive_sha256": "3341973f9d1426f47692577929d1a9dc008c3d54afd01d8f7153ea2a250ce172",
+  "archive_bytes": 1383655,
+  "uncompressed_bytes": 6002479,
+  "source_manifest_sha256": "ce6892906a48813bbdbe0eb99f072ab16e3214cbfbb4eae1c9a197f8d7d3519b",
+  "source_patch_sha256": "b15d80a24c1d758d67069c0179e5459fdb3c9c12ced89b42ce51d2a129a82a33",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/b15d80a24c1d758d67069c0179e5459fdb3c9c12ced89b42ce51d2a129a82a33.patch",
+  "original_application_journal_sha256": "b15d80a24c1d758d67069c0179e5459fdb3c9c12ced89b42ce51d2a129a82a33",
+  "member_count": 50,
+  "members": {
+    "grammar-comment-analysis244/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.5121691,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6447144,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-cli": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6401677,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-cli/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6401677,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-cli/src/commands": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6401677,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-cli/src/commands/diag.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6427968,
+      "size": 23014,
+      "sha256": "e6ff25b1a351d2444ee78469cba34eb310326117d63fd818ef75d75d4302e5ea"
+    },
+    "grammar-comment-analysis244/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.5121691,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593475.1167924,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.5121691,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-compiler/src/analyser/utils.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.520169,
+      "size": 121372,
+      "sha256": "65db44c8a3f95b21df9439e91148f50291e3f62f1c7ce84ce6f4d62523fd9195"
+    },
+    "grammar-comment-analysis244/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593144.7689981,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-compiler/src/command_binding/source_declared_command.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593144.7692795,
+      "size": 25619,
+      "sha256": "9c1be0a0d2fda4b44f913b0d31fd4605e25a05f3a4f40be7a378a35f141c1d2f"
+    },
+    "grammar-comment-analysis244/base/rust/tcl-compiler/src/registry_invocation": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593144.7622685,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593144.7684,
+      "size": 33258,
+      "sha256": "6002fc76902264984ab4ee02baea3e5bc8e7caeabc569f4d2cfb23bbc4d0aebc"
+    },
+    "grammar-comment-analysis244/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.5242367,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593144.7696352,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-lsp-core/src/code_actions.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.5253885,
+      "size": 171304,
+      "sha256": "229c8616b7afee31ae769fb9b368aa3a0f808d2b87d6127671dadb638fde1275"
+    },
+    "grammar-comment-analysis244/base/rust/tcl-lsp-core/src/source_structure.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593144.7699754,
+      "size": 26204,
+      "sha256": "bb12300d915975fe4443937d9ac3c1fffb975e2b709aef0abb127ebe550e981b"
+    },
+    "grammar-comment-analysis244/base/rust/tcl-lsp-core/src/source_style.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.5248082,
+      "size": 29970,
+      "sha256": "8b7e4060eebc4c5cac24a10e91b8d9cd128b2495764275ab3974dc7ff379c846"
+    },
+    "grammar-comment-analysis244/base/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.5259547,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.5259547,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.624168,
+      "size": 2528568,
+      "sha256": "a93326f9108f1c6279314e000458750fbe6436660cd8f5cf7ffe616986b417b5"
+    },
+    "grammar-comment-analysis244/base/rust/xtask": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6447144,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/xtask/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6447144,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/base/rust/xtask/src/fp_sweep.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6451898,
+      "size": 28595,
+      "sha256": "fd1ae0c33031dd581f518f25e1fc1ad05a6ae74f0d57d950fbee247d29e66e78"
+    },
+    "grammar-comment-analysis244/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.520169,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6451898,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-cli": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6427968,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-cli/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6427968,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-cli/src/commands": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6427968,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-cli/src/commands/diag.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593195.7658684,
+      "size": 23039,
+      "sha256": "922c2af2541574530dffc4d1bbbb5300898ee1c09c627b06cf2858c529c65d29"
+    },
+    "grammar-comment-analysis244/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.520169,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593475.1167924,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.520169,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-compiler/src/analyser/utils.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593195.2658725,
+      "size": 124509,
+      "sha256": "da695232af9c9a25797274b44bd9576135ee819648add2adc276079b8b4fa8a2"
+    },
+    "grammar-comment-analysis244/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593144.7692795,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-compiler/src/command_binding/source_declared_command.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593475.1165636,
+      "size": 29928,
+      "sha256": "ba0219e446eb028446bdd34d591ea3f36e1e1ace9fb10518de2c4cbdc5079717"
+    },
+    "grammar-comment-analysis244/files/rust/tcl-compiler/src/registry_invocation": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593144.7684,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593195.7778685,
+      "size": 36871,
+      "sha256": "5fc6659ab2c58dcbdc4a067e958b4471c3008ab6bee4613499d4c606d88aff18"
+    },
+    "grammar-comment-analysis244/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.5248082,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593144.7699754,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-lsp-core/src/code_actions.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593195.3058722,
+      "size": 174211,
+      "sha256": "2a1acdcd606708912545ca7ba5d132912ff3819ce2777269ce2b8973b4522deb"
+    },
+    "grammar-comment-analysis244/files/rust/tcl-lsp-core/src/source_structure.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593475.1167924,
+      "size": 26906,
+      "sha256": "74b7a010bb89007c6862ebf306c2ed43f54b99eead0fbe86d5fe3ab9547d3629"
+    },
+    "grammar-comment-analysis244/files/rust/tcl-lsp-core/src/source_style.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593195.2738724,
+      "size": 41814,
+      "sha256": "dd62b2ec9a06c9721009a4b87bf59b46134ff374f51af701d577134771cc3842"
+    },
+    "grammar-comment-analysis244/files/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.624168,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.624168,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592934.1999562,
+      "size": 2528688,
+      "sha256": "81fcd89d9705b829e661b6a4e8bf8537200cd20d11e1c0af9d370bc79258c5a9"
+    },
+    "grammar-comment-analysis244/files/rust/xtask": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6451898,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/xtask/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791592910.6451898,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-comment-analysis244/files/rust/xtask/src/fp_sweep.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791593195.7698686,
+      "size": 28609,
+      "sha256": "02e5a0ebf3d814dd7369015e3df196f8d7bf9991830d5e8a1919deaddc04c873"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

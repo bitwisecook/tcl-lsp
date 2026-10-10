@@ -1,0 +1,193 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/vm-native-retirement206.source-trees.tar.gz",
+  "archive_sha256": "dd1b07018965cf168f65128b040638eb47963007983229d4110acf5fce318cfa",
+  "archive_bytes": 117706,
+  "uncompressed_bytes": 611099,
+  "source_manifest_sha256": "901eef3402f3c0ad3002b1a548b1480a4e1802bd31280f8cd6c107f884a4ffeb",
+  "source_patch_sha256": "d7101e11011c51ca6e53ff5bdac28a08d71bb34d3918dbbc86aa5c7b1ccce8df",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 15,
+  "members": {
+    "vm-native-retirement206/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601310.106572,
+      "size": 0,
+      "sha256": null
+    },
+    "vm-native-retirement206/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601310.106572,
+      "size": 0,
+      "sha256": null
+    },
+    "vm-native-retirement206/base/rust/tcl-vm": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601310.106572,
+      "size": 0,
+      "sha256": null
+    },
+    "vm-native-retirement206/base/rust/tcl-vm/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601310.1185718,
+      "size": 0,
+      "sha256": null
+    },
+    "vm-native-retirement206/base/rust/tcl-vm/src/cmd_list.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601310.1083798,
+      "size": 38479,
+      "sha256": "a93d24ffd085a481719f2081b5a4a6ccaa7711801e977001fbe044ddce865439"
+    },
+    "vm-native-retirement206/base/rust/tcl-vm/src/value": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601310.1083798,
+      "size": 0,
+      "sha256": null
+    },
+    "vm-native-retirement206/base/rust/tcl-vm/src/value.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601310.121619,
+      "size": 265931,
+      "sha256": "816be7c077fce66d27a9db84f4c84e848b0d34a7cff791a5027795d8d441ccb5"
+    },
+    "vm-native-retirement206/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601280.6148064,
+      "size": 0,
+      "sha256": null
+    },
+    "vm-native-retirement206/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601280.6148064,
+      "size": 0,
+      "sha256": null
+    },
+    "vm-native-retirement206/candidate/rust/tcl-vm": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601280.6148064,
+      "size": 0,
+      "sha256": null
+    },
+    "vm-native-retirement206/candidate/rust/tcl-vm/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601280.658512,
+      "size": 0,
+      "sha256": null
+    },
+    "vm-native-retirement206/candidate/rust/tcl-vm/src/cmd_list.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601280.6648467,
+      "size": 37413,
+      "sha256": "4a9d8f34c5f114d1223b7b847db8c109d62dd70db1b49ac2af263aa10ace009f"
+    },
+    "vm-native-retirement206/candidate/rust/tcl-vm/src/value": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601280.6148064,
+      "size": 0,
+      "sha256": null
+    },
+    "vm-native-retirement206/candidate/rust/tcl-vm/src/value/native_retirement.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601280.7428055,
+      "size": 3245,
+      "sha256": "067e79df6b9fca59793126b0734e8feb5c2dfad15b009ef61bcd791a90757f3b"
+    },
+    "vm-native-retirement206/candidate/rust/tcl-vm/src/value.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601280.7388055,
+      "size": 266031,
+      "sha256": "d984b02ffaf838ee69c3ea78e655e7d45c47612f4963b637dc11e84ec3e0d0b7"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-vm/src/cmd_list.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "4a9d8f34c5f114d1223b7b847db8c109d62dd70db1b49ac2af263aa10ace009f",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_list.rs",
+      "hash_key": "base_sha256",
+      "sha256": "a93d24ffd085a481719f2081b5a4a6ccaa7711801e977001fbe044ddce865439",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-vm/src/value/native_retirement.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "067e79df6b9fca59793126b0734e8feb5c2dfad15b009ef61bcd791a90757f3b",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-vm/src/value.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "d984b02ffaf838ee69c3ea78e655e7d45c47612f4963b637dc11e84ec3e0d0b7",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-vm/src/value.rs",
+      "hash_key": "base_sha256",
+      "sha256": "816be7c077fce66d27a9db84f4c84e848b0d34a7cff791a5027795d8d441ccb5",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

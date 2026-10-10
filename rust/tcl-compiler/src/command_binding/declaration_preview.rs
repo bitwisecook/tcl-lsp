@@ -42,8 +42,39 @@ pub(super) struct DeclaredProcedureBody {
     pub(super) source: ExecutedScriptSource,
     pub(super) namespace: super::SourceNamespaceKey,
     pub(super) parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    logical_name: Option<String>,
+    logical_parameters_text: Option<String>,
     pub(super) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
     pub(super) frame: crate::var_resolve::VariableExecutionFrame,
+}
+
+/// A sealed declaration in the independently retained Logical source model.
+/// It describes an original source slot, strict formals and deferred body;
+/// it grants no Native publication, formal ABI, entered frame or completion.
+#[derive(Debug, Clone)]
+pub(crate) struct LogicalProcedureDeclaration {
+    body: DeclaredProcedureBody,
+}
+
+impl LogicalProcedureDeclaration {
+    pub(crate) fn qualified_name(&self) -> Option<&str> {
+        self.body.slot.authored_spelling()
+    }
+    pub(crate) fn name(&self) -> Option<&str> {
+        self.body.logical_name.as_deref()
+    }
+    pub(crate) fn parameters_text(&self) -> Option<&str> {
+        self.body.logical_parameters_text.as_deref()
+    }
+    pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
+        &self.body.parameters
+    }
+    pub(crate) fn source(&self) -> &ExecutedScriptSource {
+        &self.body.source
+    }
+    pub(crate) fn namespace(&self) -> &super::SourceNamespaceKey {
+        &self.body.namespace
+    }
 }
 
 /// One lexical body under its complete immutable parent lookup worlds.
@@ -241,6 +272,42 @@ impl NestedLayoutTrace {
 }
 
 impl SourceCommandBindings {
+    /// Conditional declaration from complete supplied Logical input and exact
+    /// original source observations. Labels cannot reconstruct this receipt.
+    pub(crate) fn original_logical_procedure_declaration(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<LogicalProcedureDeclaration> {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        if !input.has_logical_source_name_context()
+            || input
+                .context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+                != registry.snapshot().semantic_key()
+        {
+            return None;
+        }
+        let site = tokens.source_binding.as_ref()?.invocation_site()?;
+        for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
+            if row.config != input.lexer_config()
+                || row.snapshot.state.logical_source_name_advice_input() != Some(input)
+                || declaration_tokens(site, row)?.words() != tokens.words()
+            {
+                return None;
+            }
+        }
+        let body = self.original_declared_procedure_at(site, registry)?;
+        body.slot.authored_spelling()?;
+        body.original_parameters
+            .is_none()
+            .then_some(LogicalProcedureDeclaration { body })
+    }
+
     /// Unanimous conditional procedure body at its genuine declaration.
     /// The lexical recipe is independent of installation and entered calls.
     pub(super) fn original_declared_procedure_at(
@@ -796,6 +863,13 @@ fn declared_body(
         );
     }
     let advice = advice?;
+    if let Some(input) = observation
+        .snapshot
+        .state
+        .logical_source_name_advice_input()
+    {
+        return logical_procedure_body_recipe(site, tokens, observation, registry, input, &advice);
+    }
     let dialect = advice.dialect();
     let mut agreed = None;
     for target in advice.targets() {
@@ -844,6 +918,105 @@ fn declared_body(
             return None;
         }
         agreed = Some(recipe);
+    }
+    agreed
+}
+
+fn logical_procedure_body_recipe(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    observation: &DeclarationLayoutObservation,
+    registry: &tcl_registry::CommandRegistry,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    advice: &super::OriginalCompilationLookupAdvice,
+) -> Option<DeclaredProcedureBody> {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    if !advice.closed_logical_source_lookup()
+        || input.lexer_config() != observation.config
+        || input
+            .context_registry()
+            .commands()
+            .snapshot()
+            .semantic_key()
+            != registry.snapshot().semantic_key()
+        || !observation.entry.owns_source(&site.source, site.offset)
+        || !observation
+            .entry
+            .owns_original_context(&observation.snapshot.state.source_variables)
+        || observation.snapshot.state.variable_frame != *observation.entry.frame()
+        || observation.snapshot.state.current_source_origin.as_ref() != Some(&site.source)
+    {
+        return None;
+    }
+    let dialect = advice.dialect();
+    let mut agreed = None;
+    for target in advice.targets() {
+        let effective = effective_words_for_target(tokens, target)?;
+        let values = effective
+            .words
+            .iter()
+            .map(|word| {
+                effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
+            })
+            .collect::<Vec<_>>();
+        let words = values
+            .iter()
+            .map(EffectiveInvocationWord::as_registry_word)
+            .collect::<Vec<_>>();
+        let (&head, arguments) = words.split_first()?;
+        let resolution =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                registry,
+                Some(input.context_registry().context()),
+                tcl_registry::InvocationWords::structured(head, arguments).with_dialect(dialect),
+                advice.realm(),
+            );
+        let shape = resolution
+            .resolved()?
+            .authored_source_procedure_arguments()?;
+        let name = words.get(shape.name + 1)?.literal()?;
+        let key = super::logical_definition::source_procedure_key(
+            &observation.snapshot.state,
+            &observation.namespace,
+            name,
+        )?;
+        let parameters = super::logical_definition::static_formals(
+            words.get(shape.parameters + 1)?.literal()?,
+            observation.config.list_parse,
+        )?;
+        let crate::registry_invocation::InvocationWordOrigin::Written(written) =
+            effective.origins.get(shape.body + 1)?
+        else {
+            return None;
+        };
+        let source = ExecutedScriptSource::from_word(
+            site.clone(),
+            written.checked_sub(1)?,
+            tokens.words().get(*written)?,
+            words.get(shape.body + 1)?.literal()?,
+            observation.config,
+        );
+        if source.origin != site.source {
+            return None;
+        }
+        let namespace = key.holder().into_owned();
+        let body = DeclaredProcedureBody {
+            declaration: site.clone(),
+            candidate: target.clone(),
+            slot: key,
+            frame: declared_procedure_frame(site, &namespace),
+            source,
+            namespace,
+            parameters,
+            logical_name: Some(name.to_owned()),
+            logical_parameters_text: Some(words.get(shape.parameters + 1)?.literal()?.to_owned()),
+            original_parameters: None,
+        };
+        if agreed.as_ref().is_some_and(|previous| previous != &body) {
+            return None;
+        }
+        agreed = Some(body);
     }
     agreed
 }
@@ -1006,6 +1179,8 @@ fn procedure_body_recipe(
         source,
         namespace,
         parameters,
+        logical_name: None,
+        logical_parameters_text: None,
         original_parameters,
         frame,
     })
@@ -1353,6 +1528,31 @@ mod tests {
         let source = "if {1} {if {1} {if {1} {if {1} {if {1} {if {1} {if {1} {puts done}}}}}}}";
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let (mut cached, _) = inventory(source, "puts done");
+        if std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some() {
+            let mut first = None;
+            for (site, rows) in cached.declaration_layouts.iter() {
+                let Some(originals) = original_declaration_layouts(rows) else {
+                    continue;
+                };
+                for original in originals {
+                    let state = &original.snapshot.state;
+                    let first = first.get_or_insert(state);
+                    eprintln!(
+                        "NESTED_LAYOUT_ORIGINAL_WORLD offset={} rows={} same_state={} same_variables={} same_literal_pool={} same_command_world={} epoch={:?} epoch_high={:?} contents_epoch={:?} contents_high={:?}",
+                        site.offset,
+                        rows.len(),
+                        *first == state,
+                        first.source_variables == state.source_variables,
+                        first.ordinary_literal_pool == state.ordinary_literal_pool,
+                        first.original_command_world == state.original_command_world,
+                        state.source_variables.representation_epoch,
+                        state.source_variables.representation_epoch_high_water,
+                        state.source_variables.original_contents_epoch,
+                        state.source_variables.original_contents_epoch_high_water,
+                    );
+                }
+            }
+        }
         let mut uncached = cached.clone();
         let cached_visits = cached.retain_nested_declared_layouts(registry);
         let uncached_visits = uncached.retain_nested_declared_layouts_with(registry, |_, _| true);

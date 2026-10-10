@@ -59,6 +59,78 @@ use crate::variable_bindings::PointResolveContexts;
 #[cfg(test)]
 use crate::variable_bindings::build_point_resolve_contexts;
 
+/// Metadata selection for a complete SSA scan. Supplied absence remains
+/// unavailable; only the explicit standalone adapters select catalogue context.
+#[derive(Clone, Copy)]
+struct SsaInvocationContext<'a> {
+    registry: &'a CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    standalone: bool,
+}
+
+impl<'a> SsaInvocationContext<'a> {
+    fn standalone(registry: &'a CommandRegistry) -> Self {
+        Self {
+            registry,
+            metadata: registry.profile().map(|profile| {
+                tcl_registry::model::semantic::SemanticContext::for_profile(profile).into()
+            }),
+            standalone: true,
+        }
+    }
+
+    fn supplied(
+        registry: &'a CommandRegistry,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    ) -> Self {
+        Self {
+            registry,
+            metadata,
+            standalone: metadata.is_some_and(|context| context.source_analysis_input().is_none()),
+        }
+    }
+
+    fn token_metadata(
+        self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'a>> {
+        if self.standalone {
+            return self.metadata;
+        }
+        let binding = tokens.source_binding.as_ref()?;
+        supplied_ssa_metadata(
+            self.registry,
+            binding.original_lexer_config_for_tokens(tokens)?,
+            self.metadata,
+        )
+    }
+
+    fn normal(
+        self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::NormalTransferInvocation> {
+        let metadata = self.token_metadata(tokens)?;
+        crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+            self.registry,
+            Some(metadata),
+            tokens,
+        )
+    }
+
+    fn resolve(
+        self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::RegistryInvocationResolution> {
+        let metadata = self.token_metadata(tokens)?;
+        crate::registry_invocation::resolve_command_tokens_with_metadata_context(
+            self.registry,
+            Some(metadata),
+            tokens,
+        )
+        .ok()
+    }
+}
+
 fn bound_names(
     names: Vec<String>,
     context: &ResolveContext,
@@ -103,8 +175,9 @@ fn bound_defs(
     block: BlockId,
     index: usize,
     points: &PointResolveContexts,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
 ) -> Vec<VariableCellKey> {
+    let registry = selection.registry;
     let context = points.before_statement(block, index);
     let after = points.after_statement(block, index);
     if matches!(
@@ -130,7 +203,7 @@ fn bound_defs(
         definitions
     } else {
         bound_names(
-            defs_of_with_registry(statement, Some(registry)),
+            defs_of_in_context(statement, Some(selection)),
             context,
             registry,
         )
@@ -843,7 +916,8 @@ impl<'a> SsaSourceView<'a> {
             .source_tokens_at(block, index)
     }
 
-    /// Match one actual SSA definition to its original variable receiver.
+    /// Match an SSA definition under explicitly standalone catalogue selection.
+    /// Supplied-input consumers use `original_definition_name_with_metadata_context`.
     /// Definition phase, effective-to-written ordinal and byte-cell identity
     /// come from the retained normal-transfer and original operand owners.
     /// Equal names, catalogue roles or a source span cannot issue this mapping.
@@ -852,6 +926,23 @@ impl<'a> SsaSourceView<'a> {
         self,
         symbol: Symbol,
         registry: &CommandRegistry,
+    ) -> Option<OriginalSsaDefinitionName> {
+        let metadata = registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+            .map(crate::registry_invocation::InvocationMetadataContext::from);
+        self.original_definition_name_with_metadata_context(symbol, registry, metadata)
+    }
+
+    /// Join the exact original SSA definition under supplied availability and
+    /// source grammar. Missing, foreign or incompatible metadata stays absent;
+    /// physical cell and successful-transfer requirements remain independent.
+    #[must_use]
+    pub fn original_definition_name_with_metadata_context(
+        self,
+        symbol: Symbol,
+        registry: &CommandRegistry,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     ) -> Option<OriginalSsaDefinitionName> {
         use tcl_registry::native_compilation::VariableOperandBindingPhase;
         let (block, index) = self.point?;
@@ -864,13 +955,17 @@ impl<'a> SsaSourceView<'a> {
             return None;
         }
         let binding = tokens.source_binding.as_ref()?;
-        let selected_invocation = crate::registry_invocation::normal_transfer_invocation(
+        let metadata = supplied_ssa_metadata(
             registry,
-            registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-            tokens,
-        );
+            binding.original_lexer_config_for_tokens(tokens)?,
+            metadata,
+        )?;
+        let selected_invocation =
+            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                registry,
+                Some(metadata),
+                tokens,
+            );
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_SSA_DEFINITION").is_some() {
             eprintln!(
@@ -2499,7 +2594,68 @@ fn registry_barrier_defs(
     defs
 }
 
-/// Registry-aware `defs_of`.
+fn selected_barrier_defs(
+    selection: SsaInvocationContext<'_>,
+    tokens: &CommandTokens,
+) -> Vec<String> {
+    let Some(crate::registry_invocation::RegistryInvocationResolution::Resolved(facts)) =
+        selection.resolve(tokens)
+    else {
+        return Vec::new();
+    };
+    if facts
+        .traits
+        .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS)
+        || !facts.arg_roles_complete
+    {
+        return Vec::new();
+    }
+    let Some(effective) = crate::registry_invocation::effective_command_words(tokens) else {
+        return Vec::new();
+    };
+    let Some(config) = tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.original_lexer_config_for_tokens(tokens))
+    else {
+        return Vec::new();
+    };
+    let conditional = facts.repeated_args.iter().any(|layout| {
+        layout.conditional_binding && layout.role == tcl_registry::ArgRole::LoopVarList
+    });
+    let mut defs = selection
+        .normal(tokens)
+        .map_or_else(Vec::new, |invocation| invocation.definition_names());
+    if !conditional {
+        for &(index, role) in &facts.arg_roles {
+            if role != tcl_registry::ArgRole::LoopVarList {
+                continue;
+            }
+            let Some(word) = effective
+                .words
+                .get(facts.argument_offset + usize::from(index) + 1)
+            else {
+                continue;
+            };
+            let Some(text) = crate::registry_invocation::invocation_word(word).literal() else {
+                continue;
+            };
+            if let Ok(names) =
+                tcl_syntax::word_rules::WordValueRules::from_config(&config).split_list(text)
+            {
+                defs.extend(
+                    names
+                        .into_iter()
+                        .map(std::borrow::Cow::into_owned)
+                        .filter(|name| !name.is_empty()),
+                );
+            }
+        }
+    }
+    defs
+}
+
+/// Explicit standalone registry-aware `defs_of`.
 ///
 /// Barrier defs route through
 /// `ArgRole::VarWrite` instead of a hardcoded string-match.  The
@@ -2510,6 +2666,14 @@ fn registry_barrier_defs(
 /// `VarWrite` walk).
 #[must_use]
 pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry>) -> Vec<String> {
+    defs_of_in_context(stmt, registry.map(SsaInvocationContext::standalone))
+}
+
+fn defs_of_in_context(
+    stmt: &Statement,
+    selection: Option<SsaInvocationContext<'_>>,
+) -> Vec<String> {
+    let registry = selection.map(|selection| selection.registry);
     if !stmt.is_executable_invocation() || stmt.has_opaque_native_accesses() {
         return Vec::new(); // Unknown writes are clobbers, never definite named values.
     }
@@ -2541,20 +2705,16 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             // fans the def over the array's known elements).
             vec![crate::naming::element_var_name_braced(name, *name_braced).to_owned()]
         }
-        Statement::Call { defs, .. } if !defs.is_empty() => defs.clone(),
+        Statement::Call { defs, .. }
+            if !defs.is_empty() && selection.is_none_or(|s| s.standalone) =>
+        {
+            defs.clone()
+        }
         Statement::Call {
             tokens: Some(tokens),
             ..
-        } => registry
-            .and_then(|registry| {
-                crate::registry_invocation::normal_transfer_invocation(
-                    registry,
-                    registry
-                        .profile()
-                        .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-                    tokens,
-                )
-            })
+        } => selection
+            .and_then(|selection| selection.normal(tokens))
             .map_or_else(Vec::new, |invocation| {
                 invocation
                     .definition_names()
@@ -2568,6 +2728,11 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             tokens,
             ..
         } => {
+            if let Some(selection) = selection.filter(|selection| !selection.standalone) {
+                return tokens
+                    .as_ref()
+                    .map_or_else(Vec::new, |tokens| selected_barrier_defs(selection, tokens));
+            }
             // Loop-header barriers (`::tcl::dict::for`/`::map`, `::tcl::array::for`
             // — any ensemble subcommand the registry marks `loop_list_header`):
             // args[0] is the iteration-variable list, so extract the names.
@@ -2623,9 +2788,22 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
         Statement::Switch {
             default_body: Some(_),
             ..
-        } => crate::cfg_builder::switch_must_defines(stmt, registry)
-            .into_iter()
-            .collect(),
+        } => match selection {
+            Some(selection) if !selection.standalone => {
+                crate::cfg_builder::switch_must_defines_with_source_input(
+                    stmt,
+                    selection.registry,
+                    selection
+                        .metadata
+                        .and_then(|metadata| metadata.source_analysis_input()),
+                )
+                .into_iter()
+                .collect()
+            }
+            _ => crate::cfg_builder::switch_must_defines(stmt, registry)
+                .into_iter()
+                .collect(),
+        },
         _ => Vec::new(),
     }
 }
@@ -2914,7 +3092,7 @@ pub(crate) fn compute_phi_vars(
     compute_phi_vars_with_config(
         func,
         df,
-        registry,
+        SsaInvocationContext::standalone(registry),
         elems,
         tcl_lexer::LexerConfig::for_profile(registry.profile()),
         &build_point_resolve_contexts(func, &func.name, registry),
@@ -2926,7 +3104,7 @@ pub(crate) fn compute_phi_vars(
 fn compute_phi_vars_with_config(
     func: &cfg::Function,
     df: &HashMap<BlockId, HashSet<BlockId>>,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
     elems: &ArrayElems,
     config: tcl_lexer::LexerConfig,
     points: &PointResolveContexts,
@@ -2934,7 +3112,7 @@ fn compute_phi_vars_with_config(
 ) -> HashMap<BlockId, HashSet<VariableCellKey>> {
     let reachable = func.reachable_blocks();
     let (nonlocal_names, mut all_defsites) =
-        nonlocal_names_and_defsites(func, &reachable, registry, elems, config, points);
+        nonlocal_names_and_defsites(func, &reachable, selection, elems, config, points);
     for (block, markers) in clobbers {
         for name in markers.values().flatten() {
             all_defsites.entry(name.clone()).or_default().insert(*block);
@@ -3121,7 +3299,7 @@ fn expand_uses(
 fn nonlocal_names_and_defsites(
     func: &cfg::Function,
     reachable: &HashSet<BlockId>,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
     elems: &ArrayElems,
     config: tcl_lexer::LexerConfig,
     points: &PointResolveContexts,
@@ -3129,9 +3307,10 @@ fn nonlocal_names_and_defsites(
     FxHashSet<VariableCellKey>,
     FxHashMap<VariableCellKey, FxHashSet<BlockId>>,
 ) {
+    let registry = selection.registry;
     let mut scanner = VarReferenceScanner::with_config(
         VarScanOptions {
-            include_var_read_roles: true,
+            include_var_read_roles: selection.standalone,
             recurse_cmd_substitutions: true,
             include_reads_before_write: false,
             element_qualified: true,
@@ -3148,8 +3327,14 @@ fn nonlocal_names_and_defsites(
         let mut defined_here: FxHashSet<VariableCellKey> = FxHashSet::default();
         for (index, stmt) in block.statements.iter().enumerate() {
             let context = points.before_statement(*bn, index);
-            let mut direct_uses =
-                bound_names(uses_of(stmt, &mut scanner, registry), context, registry);
+            let mut direct_uses = bound_names(
+                uses_of_classified_in_context(stmt, &mut scanner, selection)
+                    .into_iter()
+                    .map(|(name, _)| name)
+                    .collect(),
+                context,
+                registry,
+            );
             direct_uses.extend(
                 source_read_bindings(points, *bn, index, registry)
                     .into_iter()
@@ -3158,7 +3343,7 @@ fn nonlocal_names_and_defsites(
             direct_uses.extend(invocation_read_bindings(
                 points, *bn, index, context, registry,
             ));
-            let direct_defs = bound_defs(stmt, *bn, index, points, registry);
+            let direct_defs = bound_defs(stmt, *bn, index, points, selection);
             for u in
                 direct_uses
                     .iter()
@@ -3398,7 +3583,7 @@ impl ClassifiedUses {
     }
 }
 
-/// [`uses_of`] with each name's [`UseClass`].
+/// Explicit standalone [`uses_of`] with each name's [`UseClass`].
 ///
 /// A name reached by both a substituted word and a brace-quoted one is
 /// [`UseClass::Substituted`] — the definite read wins.
@@ -3407,6 +3592,15 @@ pub fn uses_of_classified(
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
 ) -> Vec<(String, UseClass)> {
+    uses_of_classified_in_context(stmt, scanner, SsaInvocationContext::standalone(registry))
+}
+
+fn uses_of_classified_in_context(
+    stmt: &Statement,
+    scanner: &mut VarReferenceScanner,
+    selection: SsaInvocationContext<'_>,
+) -> Vec<(String, UseClass)> {
+    let registry = selection.registry;
     if !stmt.is_executable_invocation() {
         return Vec::new();
     }
@@ -3455,7 +3649,7 @@ pub fn uses_of_classified(
             uses_in_assignment(
                 stmt,
                 scanner,
-                registry,
+                selection,
                 &mut found.substituted,
                 &mut found.by_name,
                 &mut reads_own_def,
@@ -3463,7 +3657,7 @@ pub fn uses_of_classified(
         }
 
         Statement::Call { .. } => {
-            uses_in_call(stmt, scanner, registry, &mut found, &mut reads_own_def);
+            uses_in_call(stmt, scanner, selection, &mut found, &mut reads_own_def);
         }
 
         // A braced return value is literal: `proc f {} { return {$y} }`
@@ -3490,7 +3684,7 @@ pub fn uses_of_classified(
         }
 
         Statement::Barrier { .. } => {
-            uses_in_barrier(stmt, scanner, registry, &mut found, &mut reads_own_def);
+            uses_in_barrier(stmt, scanner, selection, &mut found, &mut reads_own_def);
         }
 
         // A non-lowered (glob/regexp/fall-through) `switch` is kept opaque as a
@@ -3510,7 +3704,7 @@ pub fn uses_of_classified(
                 default_body.as_ref(),
                 *patterns_braced,
                 scanner,
-                registry,
+                selection,
             ));
             // The subject is read *before* any arm assigns, so it stays a live
             // read even when an arm also defines it (`defs_of` may now report
@@ -3526,20 +3720,20 @@ pub fn uses_of_classified(
         _ => {}
     }
 
-    finish_classified_uses(found, &reads_own_def, stmt, registry)
+    finish_classified_uses(found, &reads_own_def, stmt, selection)
 }
 
 fn finish_classified_uses(
     found: ClassifiedUses,
     reads_own_def: &BTreeSet<String>,
     stmt: &Statement,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
 ) -> Vec<(String, UseClass)> {
     // Exclude variables defined by this statement, unless they're
     // read-before-write.  Route through the registry so
     // `trace add variable` defs come from the registry's VarWrite
     // role rather than a string match.
-    let defs: HashSet<String> = defs_of_with_registry(stmt, Some(registry))
+    let defs: HashSet<String> = defs_of_in_context(stmt, Some(selection))
         .into_iter()
         .collect();
     // A name reached more than one way keeps its most definite class, and the
@@ -3571,10 +3765,11 @@ fn finish_classified_uses(
 fn uses_in_barrier(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
     found: &mut ClassifiedUses,
     reads_own_def: &mut BTreeSet<String>,
 ) {
+    let registry = selection.registry;
     let Statement::Barrier {
         command,
         canonical_command,
@@ -3591,7 +3786,7 @@ fn uses_in_barrier(
         args,
         tokens.as_ref(),
         scanner,
-        registry,
+        selection,
         found,
     );
     // Scope-alias subcommands (`dict with` / `dict update` — any
@@ -3608,16 +3803,7 @@ fn uses_in_barrier(
     // Without this, a proc whose only reference to a parameter is
     // `dict with $param {}` would produce a false unused-parameter
     // diagnostic.
-    let resolution = tokens.as_ref().and_then(|tokens| {
-        crate::registry_invocation::resolve_command_tokens(
-            registry,
-            registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-            tokens,
-        )
-        .ok()
-    });
+    let resolution = tokens.as_ref().and_then(|tokens| selection.resolve(tokens));
     if let Some(crate::registry_invocation::RegistryInvocationResolution::Resolved(facts)) =
         resolution
     {
@@ -3654,7 +3840,7 @@ fn uses_in_barrier(
         }
         return;
     }
-    if tokens.is_some() {
+    if tokens.is_some() || !selection.standalone {
         return;
     }
     let creates_scope_alias = registry
@@ -3699,26 +3885,21 @@ fn canonical_set_value<'a>(
     canonical_command: Option<&str>,
     args: &'a [String],
     defs: &[String],
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
     tokens: Option<&CommandTokens>,
 ) -> Option<&'a str> {
+    let registry = selection.registry;
     if defs.len() != 1 {
         return None;
     }
     if let Some(tokens) = tokens {
-        let invocation = crate::registry_invocation::normal_transfer_invocation(
-            registry,
-            registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-            tokens,
-        )?;
+        let invocation = selection.normal(tokens)?;
         let value_argument = invocation.stored_value_argument()?;
         return args
             .get(invocation.written_argument(value_argument)?)
             .map(String::as_str);
     }
-    if args.len() != 2 {
+    if !selection.standalone || args.len() != 2 {
         return None;
     }
     let canon = canonical_command.unwrap_or(command);
@@ -3786,19 +3967,11 @@ fn set_value_reads(
 fn normal_handler_reads(
     tokens: Option<&CommandTokens>,
     defs: &[String],
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
     found: &mut ClassifiedUses,
     reads_own_def: &mut BTreeSet<String>,
 ) {
-    if let Some(invocation) = tokens.and_then(|tokens| {
-        crate::registry_invocation::normal_transfer_invocation(
-            registry,
-            registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-            tokens,
-        )
-    }) {
+    if let Some(invocation) = tokens.and_then(|tokens| selection.normal(tokens)) {
         for (index, role) in invocation.variable_roles() {
             if role != tcl_registry::ArgRole::VarRead
                 && !(role == tcl_registry::ArgRole::VarWrite
@@ -3822,10 +3995,11 @@ fn normal_handler_reads(
 fn uses_in_call(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
     found: &mut ClassifiedUses,
     reads_own_def: &mut BTreeSet<String>,
 ) {
+    let registry = selection.registry;
     let Statement::Call {
         command,
         canonical_command,
@@ -3845,7 +4019,7 @@ fn uses_in_call(
         args,
         tokens.as_ref(),
         scanner,
-        registry,
+        selection,
         found,
     );
     let vars_found = &mut found.substituted;
@@ -3854,7 +4028,7 @@ fn uses_in_call(
         canonical_command.as_deref(),
         args,
         defs,
-        registry,
+        selection,
         tokens.as_ref(),
     ) {
         for v in set_value_reads(value, tokens.as_ref(), scanner, registry) {
@@ -3864,11 +4038,15 @@ fn uses_in_call(
             vars_found.insert(v);
         }
     }
+    let retained_roles = selection.standalone
+        || tokens
+            .as_ref()
+            .is_some_and(|tokens| selection.normal(tokens).is_some());
     // `reads` are the registry's `ArgRole::VarRead` positions and
     // `reads_own_defs` its `READS_BEFORE_WRITE` targets: both name the cell
     // rather than substituting it, so they are `UseClass::Name` — a real read
     // with no operand word behind it.
-    for name in reads {
+    for name in reads.iter().filter(|_| retained_roles) {
         if name.is_empty() {
             continue;
         }
@@ -3882,32 +4060,23 @@ fn uses_in_call(
             reads_own_def.insert(name.clone());
         }
     }
-    if *reads_own_defs {
+    if *reads_own_defs && retained_roles {
         for name in defs {
             found.by_name.insert(name.clone());
             reads_own_def.insert(name.clone());
         }
     }
-    normal_handler_reads(tokens.as_ref(), defs, registry, found, reads_own_def);
+    normal_handler_reads(tokens.as_ref(), defs, selection, found, reads_own_def);
     // A destroying command (`unset a(k)`) consumes the target's *existence*:
     // the killed store is not dead — deleting it would make the unset error
     // on every call. Record the prior version as a read (DESTROYS_VARIABLE,
     // matching the pre-per-element behaviour the base-level use gave).
-    let facts = tokens.as_ref().and_then(|tokens| {
-        crate::registry_invocation::resolve_command_tokens(
-            registry,
-            registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-            tokens,
-        )
-        .ok()
-    });
+    let facts = tokens.as_ref().and_then(|tokens| selection.resolve(tokens));
     let traits = match facts.as_ref() {
         Some(crate::registry_invocation::RegistryInvocationResolution::Resolved(facts)) => {
             facts.traits
         }
-        _ if tokens.is_none() => registry
+        _ if tokens.is_none() && selection.standalone => registry
             .get(canonical_command.as_deref().unwrap_or(command))
             .map_or(tcl_registry::Traits::empty(), |spec| spec.traits),
         _ => tcl_registry::Traits::empty(),
@@ -3946,11 +4115,12 @@ fn uses_in_call(
 fn uses_in_assignment(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
     vars_found: &mut BTreeSet<String>,
     by_name: &mut BTreeSet<String>,
     reads_own_def: &mut BTreeSet<String>,
 ) {
+    let registry = selection.registry;
     // A brace-quoted target's `$` is part of a literal name, not a
     // substitution: it is neither a dynamic target nor a read of the
     // `$`-less lookalike.
@@ -4000,7 +4170,13 @@ fn uses_in_assignment(
             // rules, so `set r [list [expr {0 in $x}]]` reads `x` just as
             // `puts [list [expr {0 in $x}]]` does. Same owner, one more
             // statement kind — not a second recovery.
-            scan_nested_substitution_words(tokens.as_ref(), scanner, registry, vars_found);
+            scan_nested_substitution_words(
+                tokens.as_ref(),
+                scanner,
+                selection,
+                vars_found,
+                by_name,
+            );
             if is_dynamic_write_target(name, *name_braced) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
@@ -4057,21 +4233,13 @@ fn scan_command_words(
     args: &[String],
     tokens: Option<&CommandTokens>,
     scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
     out: &mut ClassifiedUses,
 ) {
+    let registry = selection.registry;
     out.substituted.extend(scanner.scan_word(command, registry));
     let lookup = canonical_command.unwrap_or(command);
-    let resolution = tokens.and_then(|tokens| {
-        crate::registry_invocation::resolve_command_tokens(
-            registry,
-            registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-            tokens,
-        )
-        .ok()
-    });
+    let resolution = tokens.and_then(|tokens| selection.resolve(tokens));
     let facts = match resolution.as_ref() {
         Some(crate::registry_invocation::RegistryInvocationResolution::Resolved(facts)) => {
             Some(facts.as_ref())
@@ -4107,15 +4275,15 @@ fn scan_command_words(
                 }
             }
         }
-    } else if tokens.is_none() {
+    } else if tokens.is_none() && selection.standalone {
         body_indices.extend(structural_body_indices(lookup, args, tokens, registry));
         let arguments: Vec<_> = args.iter().map(String::as_str).collect();
         in_frame_braced.extend(registry.arg_indices_evaluated_in_frame(lookup, &arguments));
     }
     let described = if tokens.is_some() {
-        facts.is_some()
+        facts.is_some() || !selection.standalone
     } else {
-        registry_describes(registry, lookup)
+        selection.standalone && registry_describes(registry, lookup)
     };
     for (idx, arg) in args.iter().enumerate() {
         if body_indices.contains(&idx) || name_role_braced.contains(&idx) {
@@ -4141,7 +4309,13 @@ fn scan_command_words(
             };
         }
     }
-    scan_nested_substitution_words(tokens, scanner, registry, &mut out.substituted);
+    scan_nested_substitution_words(
+        tokens,
+        scanner,
+        selection,
+        &mut out.substituted,
+        &mut out.by_name,
+    );
 }
 
 /// Record the reads inside a nested `[cmd …]`'s brace-quoted words that the
@@ -4204,10 +4378,17 @@ fn scan_command_words(
 fn scan_nested_substitution_words(
     tokens: Option<&CommandTokens>,
     scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
     substituted: &mut BTreeSet<String>,
+    by_name: &mut BTreeSet<String>,
 ) {
+    let registry = selection.registry;
     let config = scanner.lexer_config();
+    if !selection.standalone
+        && tokens.is_none_or(|tokens| selection.token_metadata(tokens).is_none())
+    {
+        return;
+    }
     if tokens.is_some_and(|tokens| tokens.source_binding.is_some()) {
         for evaluation in
             crate::word_subst::entered_expression_evaluations(tokens, config, registry)
@@ -4227,7 +4408,23 @@ fn scan_nested_substitution_words(
         if let Some(child) = lifted.tokens.as_ref()
             && child.source_binding.is_some()
         {
-            scan_selected_expression_roles(child, scanner, registry, substituted);
+            scan_selected_expression_roles(child, scanner, selection, substituted);
+            if let Some(invocation) = selection.normal(child) {
+                for (index, role) in invocation.variable_roles() {
+                    if (role == tcl_registry::ArgRole::VarRead
+                        || (role == tcl_registry::ArgRole::VarWrite
+                            && invocation
+                                .variable_traits()
+                                .contains(tcl_registry::Traits::READS_BEFORE_WRITE)))
+                        && let Some(name) = invocation.argument_literal(index)
+                    {
+                        by_name.insert(normalise_var_name(&name).to_owned());
+                    }
+                }
+            }
+            continue;
+        }
+        if !selection.standalone {
             continue;
         }
         let arg_strs: Vec<&str> = lifted.args.iter().map(String::as_str).collect();
@@ -4256,9 +4453,13 @@ fn scan_nested_substitution_words(
 fn scan_selected_expression_roles(
     tokens: &CommandTokens,
     scanner: &VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
     substituted: &mut BTreeSet<String>,
 ) {
+    let registry = selection.registry;
+    let Some(metadata) = selection.token_metadata(tokens) else {
+        return;
+    };
     let Some(binding) = tokens.source_binding.as_ref() else {
         return;
     };
@@ -4276,7 +4477,11 @@ fn scan_selected_expression_roles(
         return;
     }
     let Some(invocation) =
-        crate::registry_invocation::resolved_handler_invocation(registry, None, tokens)
+        crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+            registry,
+            Some(metadata),
+            tokens,
+        )
     else {
         return;
     };
@@ -4408,8 +4613,9 @@ fn switch_reads(
     default_body: Option<&crate::ir::Script>,
     patterns_braced: bool,
     scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
 ) -> ClassifiedUses {
+    let registry = selection.registry;
     let mut reads = ClassifiedUses {
         substituted: scanner.scan_word(subject, registry),
         quoted: BTreeSet::new(),
@@ -4429,11 +4635,11 @@ fn switch_reads(
         };
         pattern_sink.extend(scanner.scan_word(&arm.pattern, registry));
         if let Some(body) = &arm.body {
-            reads.merge(free_reads_in_script(body, scanner, registry));
+            reads.merge(free_reads_in_script(body, scanner, selection));
         }
     }
     if let Some(db) = default_body {
-        reads.merge(free_reads_in_script(db, scanner, registry));
+        reads.merge(free_reads_in_script(db, scanner, selection));
     }
     reads
 }
@@ -4445,13 +4651,16 @@ fn switch_reads(
 fn free_reads_in_script(
     script: &crate::ir::Script,
     scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
 ) -> ClassifiedUses {
+    let registry = selection.registry;
     let mut defs: HashSet<String> = crate::ir_helpers::defs_from_ir_script(script)
         .into_iter()
         .collect();
-    defs.extend(collapsed_extra_defs(script, registry, 0));
-    let mut reads = reads_in_script(script, scanner, registry);
+    if selection.standalone {
+        defs.extend(collapsed_extra_defs(script, registry, 0));
+    }
+    let mut reads = reads_in_script(script, scanner, selection);
     reads.remove_defs(&defs);
     reads
 }
@@ -4460,11 +4669,11 @@ fn free_reads_in_script(
 fn reads_in_script(
     script: &crate::ir::Script,
     scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
 ) -> ClassifiedUses {
     let mut reads = ClassifiedUses::default();
     for stmt in &script.statements {
-        reads.merge(reads_in_stmt(stmt, scanner, registry));
+        reads.merge(reads_in_stmt(stmt, scanner, selection));
     }
     reads
 }
@@ -4481,10 +4690,11 @@ fn reads_in_script(
 fn reads_in_stmt(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
 ) -> ClassifiedUses {
+    let registry = selection.registry;
     let mut reads = ClassifiedUses::default();
-    reads.merge_classified(uses_of_classified(stmt, scanner, registry));
+    reads.merge_classified(uses_of_classified_in_context(stmt, scanner, selection));
     match stmt {
         Statement::If {
             clauses, else_body, ..
@@ -4493,17 +4703,17 @@ fn reads_in_stmt(
                 reads
                     .substituted
                     .extend(expr_vars_for(scanner, &clause.condition));
-                reads.merge(reads_in_script(&clause.body, scanner, registry));
+                reads.merge(reads_in_script(&clause.body, scanner, selection));
             }
             if let Some(eb) = else_body {
-                reads.merge(reads_in_script(eb, scanner, registry));
+                reads.merge(reads_in_script(eb, scanner, selection));
             }
         }
         Statement::While {
             condition, body, ..
         } => {
             reads.substituted.extend(expr_vars_for(scanner, condition));
-            reads.merge(reads_in_script(body, scanner, registry));
+            reads.merge(reads_in_script(body, scanner, selection));
         }
         Statement::For {
             init,
@@ -4512,10 +4722,10 @@ fn reads_in_stmt(
             body,
             ..
         } => {
-            reads.merge(reads_in_script(init, scanner, registry));
+            reads.merge(reads_in_script(init, scanner, selection));
             reads.substituted.extend(expr_vars_for(scanner, condition));
-            reads.merge(reads_in_script(next, scanner, registry));
-            reads.merge(reads_in_script(body, scanner, registry));
+            reads.merge(reads_in_script(next, scanner, selection));
+            reads.merge(reads_in_script(body, scanner, selection));
         }
         Statement::Foreach {
             iterators, body, ..
@@ -4534,10 +4744,10 @@ fn reads_in_stmt(
                 };
                 sink.extend(scanner.scan_word(&it.list_arg, registry));
             }
-            reads.merge(reads_in_script(body, scanner, registry));
+            reads.merge(reads_in_script(body, scanner, selection));
         }
         Statement::Catch { body, .. } => {
-            reads.merge(reads_in_script(body, scanner, registry));
+            reads.merge(reads_in_script(body, scanner, selection));
         }
         Statement::Try {
             body,
@@ -4545,12 +4755,12 @@ fn reads_in_stmt(
             finally_body,
             ..
         } => {
-            reads.merge(reads_in_script(body, scanner, registry));
+            reads.merge(reads_in_script(body, scanner, selection));
             for handler in handlers {
-                reads.merge(reads_in_script(&handler.body, scanner, registry));
+                reads.merge(reads_in_script(&handler.body, scanner, selection));
             }
             if let Some(fb) = finally_body {
-                reads.merge(reads_in_script(fb, scanner, registry));
+                reads.merge(reads_in_script(fb, scanner, selection));
             }
         }
         _ => {}
@@ -5416,7 +5626,8 @@ impl<'a> RenameWalk<'a> {
             stacks: HashMap::new(),
             scanner: VarReferenceScanner::with_config(
                 VarScanOptions {
-                    include_var_read_roles: true,
+                    include_var_read_roles: metadata
+                        .is_some_and(|context| context.source_analysis_input().is_none()),
                     recurse_cmd_substitutions: true,
                     include_reads_before_write: false,
                     element_qualified: true,
@@ -5522,7 +5733,10 @@ impl<'a> RenameWalk<'a> {
             self.unknown_source_names.insert(name.clone());
         }
         if context.execution_name_policy.is_none() {
-            for name in defs_of_with_registry(stmt, Some(registry)) {
+            for name in defs_of_in_context(
+                stmt,
+                Some(SsaInvocationContext::supplied(registry, self.metadata)),
+            ) {
                 let after = self.points.after_statement(point.0, point.1);
                 let bound = definition_source_name(stmt, &name, after, registry);
                 if let Some(bound) = bound {
@@ -5588,7 +5802,11 @@ impl<'a> RenameWalk<'a> {
         context: &ResolveContext,
         registry: &CommandRegistry,
     ) -> Vec<(VariableCellKey, UseClass)> {
-        let raw_classified = uses_of_classified(stmt, &mut self.scanner, registry);
+        let raw_classified = uses_of_classified_in_context(
+            stmt,
+            &mut self.scanner,
+            SsaInvocationContext::supplied(registry, self.metadata),
+        );
         let captured = source_read_bindings(&self.points, point.0, point.1, registry);
         let captured_names = captured_read_names(&self.points, point.0, point.1);
         let mut classified: Vec<_> = raw_classified
@@ -5677,7 +5895,13 @@ impl<'a> RenameWalk<'a> {
             }
         }
 
-        let direct_defs = bound_defs(stmt, frame.block, index, &self.points, registry);
+        let direct_defs = bound_defs(
+            stmt,
+            frame.block,
+            index,
+            &self.points,
+            SsaInvocationContext::supplied(registry, self.metadata),
+        );
         let destructions = crate::place_bridge::ssa_destruction_keys(
             stmt,
             context,
@@ -5902,7 +6126,7 @@ fn array_root_refresh_metadata(
     interner: &VarInterner,
     blocks: &HashMap<BlockId, SsaBlock>,
     points: &PointResolveContexts,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
 ) -> ArrayRootRefreshMetadata {
     let mut metadata = ArrayRootRefreshMetadata::default();
     if points
@@ -5921,7 +6145,7 @@ fn array_root_refresh_metadata(
     let mut ordinary_definitions = HashSet::new();
     for (&block_id, block) in blocks {
         for (index, statement) in block.statements.iter().enumerate() {
-            let direct = bound_defs(&statement.statement, block_id, index, points, registry);
+            let direct = bound_defs(&statement.statement, block_id, index, points, selection);
             for (&symbol, &version) in &statement.defs {
                 if roots.contains(&symbol)
                     && statement.may_defs.contains(&symbol)
@@ -6185,8 +6409,15 @@ fn build_ssa_inner(
     let points =
         crate::variable_bindings::build_point_resolve_contexts_with_entry(func, entry, registry);
     let elems = collect_array_elems(func, registry, &points);
-    let phi_vars =
-        compute_phi_vars_with_config(func, &df, registry, &elems, config, &points, clobbers);
+    let phi_vars = compute_phi_vars_with_config(
+        func,
+        &df,
+        SsaInvocationContext::supplied(registry, metadata),
+        &elems,
+        config,
+        &points,
+        clobbers,
+    );
 
     // 2. Set up rename state: the transient version stacks / counters, the
     // use-scanner, name interner, and per-block outputs (keyed by variable
@@ -6214,7 +6445,7 @@ fn build_ssa_inner(
         &walk.interner,
         &ssa_blocks,
         &walk.points,
-        registry,
+        SsaInvocationContext::supplied(registry, metadata),
     );
     let cell_names = walk.interner.names.clone();
     let cell_keys = walk.interner.keys.clone();
@@ -6257,6 +6488,159 @@ mod tests {
     use crate::expr_ast::ExprNode;
     use tcl_lexer::Span;
 
+    fn logical_role_metadata_fixture() -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        crate::compilation_unit::CompilationUnit,
+    ) {
+        use std::sync::Arc;
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut info = registry.get("info").unwrap().clone();
+        info.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(info);
+        let context = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry::for_logical_source(&input)
+            .expect("genuine positive supplied Logical input");
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "info exists selected",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (context, unit)
+    }
+
+    #[test]
+    fn supplied_ssa_role_scans_keep_actual_availability_grammar_and_missing_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Selected source roles are independent of Native NamePolicy and actual execution.
+        use crate::registry_invocation::InvocationMetadataContext;
+        use std::sync::Arc;
+        let (context, unit) = logical_role_metadata_fixture();
+        let registry = context.commands();
+        let function = &unit.top_level;
+        let input = function.source_metadata_input().unwrap();
+        let statement = function
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|body| &body.statements)
+            .find(|statement| statement.tokens().is_some())
+            .unwrap();
+        let scan = |metadata| {
+            let mut scanner = VarReferenceScanner::with_config(
+                VarScanOptions {
+                    include_var_read_roles: false,
+                    ..Default::default()
+                },
+                function.source_lexer_config(),
+            );
+            uses_of_classified_in_context(
+                statement,
+                &mut scanner,
+                SsaInvocationContext::supplied(registry, metadata),
+            )
+        };
+        let metadata = function.invocation_metadata_context_for_module(registry, &unit.ir_module);
+        assert!(metadata.is_some());
+        assert!(
+            function
+                .ssa
+                .point_contexts
+                .as_ref()
+                .unwrap()
+                .before_statement(function.cfg.entry, 0)
+                .execution_name_policy
+                .is_none()
+        );
+        assert_eq!(scan(metadata), vec![("selected".into(), UseClass::Name)]);
+        assert!(scan(None).is_empty());
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        assert!(Arc::ptr_eq(older.commands(), registry));
+        let older_input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older,
+            input.lexer_config(),
+        );
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        );
+        let mut grammar = input.lexer_config();
+        grammar.strict_quoting = !grammar.strict_quoting;
+        let changed = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::clone(&context),
+            grammar,
+        );
+        for withheld in [&older_input, &foreign, &changed] {
+            assert!(
+                scan(InvocationMetadataContext::for_analysis_input(
+                    registry, withheld
+                ))
+                .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn supplied_ssa_definition_and_lexical_reads_do_not_reconstruct_catalogue_roles() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let (context, unit) = logical_role_metadata_fixture();
+        let registry = context.commands();
+        let function = &unit.top_level;
+        let statement = function
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|body| &body.statements)
+            .find(|statement| statement.tokens().is_some())
+            .unwrap();
+        let unavailable = SsaInvocationContext::supplied(registry, None);
+        assert!(defs_of_in_context(statement, Some(unavailable)).is_empty());
+        let tokens = statement.tokens().unwrap();
+        assert!(unavailable.normal(tokens).is_none());
+        assert!(unavailable.resolve(tokens).is_none());
+        // Pure word substitution remains lexical even when command roles are withheld.
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions {
+                include_var_read_roles: false,
+                ..Default::default()
+            },
+            function.source_lexer_config(),
+        );
+        assert_eq!(
+            scanner.scan_word("$lexical [info exists nominal]", registry),
+            BTreeSet::from(["lexical".to_owned()])
+        );
+    }
+
     fn original_operand_metadata_fixture() -> (
         std::sync::Arc<tcl_registry::model::ContextRegistry>,
         crate::environment_ingress::RetainedNativeUnit,
@@ -6294,6 +6678,106 @@ mod tests {
             context,
             crate::environment_ingress::RetainedNativeUnit::new(unit, owner),
         )
+    }
+
+    fn original_setter_definition_point(
+        function: &crate::compilation_unit::FunctionUnit,
+    ) -> (BlockId, usize, Symbol) {
+        function
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        statement
+                            .defs
+                            .keys()
+                            .next()
+                            .map(|&symbol| (block, index, symbol))
+                    })
+            })
+            .expect("genuine selected original setter definition")
+    }
+
+    #[test]
+    fn original_definition_subjects_keep_supplied_availability_and_missing_input_separate() {
+        // naming.variable.original-ssa-definition-operand
+        // docs/design/analysis/name-resolution-proofs/original-ssa-definition-operand.md
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::registry_invocation::InvocationMetadataContext;
+        use std::sync::Arc;
+        let (context, unit) = original_operand_metadata_fixture();
+        let function = &unit.top_level;
+        let (block, index, symbol) = original_setter_definition_point(function);
+        let view = SsaSourceView::at_statement(&function.ssa, block, index);
+        let registry = context.commands();
+        let select = |metadata| {
+            view.original_definition_name_with_metadata_context(symbol, registry, metadata)
+        };
+        let metadata = function.invocation_metadata_context_for_module(registry, &unit.ir_module);
+        let original =
+            select(metadata).expect("actual original receiver under current availability");
+        assert_eq!(original.original_name_input().bytes(), b"selected");
+        assert_eq!(original.cell(), function.ssa.cell_key(symbol));
+        assert!(select(None).is_none());
+        let input = function.source_metadata_input().unwrap();
+        let older_context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        assert!(Arc::ptr_eq(older_context.commands(), context.commands()));
+        let older = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older_context,
+            input.lexer_config(),
+        );
+        assert!(
+            select(InvocationMetadataContext::for_analysis_input(
+                registry, &older
+            ))
+            .is_none()
+        );
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        );
+        assert!(
+            select(InvocationMetadataContext::for_analysis_input(
+                registry, &foreign
+            ))
+            .is_none()
+        );
+        let mut changed_config = input.lexer_config();
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        assert_ne!(
+            changed_config.normalized(),
+            input.lexer_config().normalized()
+        );
+        let changed = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::clone(&context),
+            changed_config,
+        );
+        assert!(
+            select(InvocationMetadataContext::for_analysis_input(
+                registry, &changed
+            ))
+            .is_none()
+        );
+        let mut unavailable_module = unit.ir_module.clone();
+        unavailable_module.source_metadata_input = None;
+        assert!(
+            select(function.invocation_metadata_context_for_module(registry, &unavailable_module))
+                .is_none()
+        );
     }
 
     #[test]

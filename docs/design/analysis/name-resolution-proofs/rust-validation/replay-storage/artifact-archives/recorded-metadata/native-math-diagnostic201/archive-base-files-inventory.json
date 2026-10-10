@@ -1,0 +1,105 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/native-math-diagnostic201.base-files.tar.gz",
+  "archive_sha256": "15199a65e6d53eadf38321f1ea43935c96465d088a1cc2c2b07612d4e1f4d984",
+  "archive_bytes": 1156163,
+  "uncompressed_bytes": 5054167,
+  "source_manifest_sha256": "7c25788602e323e2525c4ba71c15f09f54be621aa9360eaa6dd353937d9435ae",
+  "source_patch_sha256": "92ab0ac65c1eedf68a50ac836f865ea3a3b345b4bc3fbfd1449d38f0c7c66037",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/92ab0ac65c1eedf68a50ac836f865ea3a3b345b4bc3fbfd1449d38f0c7c66037.patch",
+  "original_application_journal_sha256": "92ab0ac65c1eedf68a50ac836f865ea3a3b345b4bc3fbfd1449d38f0c7c66037",
+  "member_count": 10,
+  "members": {
+    "native-math-diagnostic201/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559183.7554748,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic201/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559183.7554748,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic201/base/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559183.7554748,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic201/base/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559183.7594748,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic201/base/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559300.1448057,
+      "size": 2527047,
+      "sha256": "90c4161094095786cca4bb0d538a03234e0376b4e8f278f22e07a4c90c5e95fa"
+    },
+    "native-math-diagnostic201/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559183.7554748,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic201/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559183.7554748,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic201/files/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559183.7554748,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic201/files/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559183.7634747,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-diagnostic201/files/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559300.1505702,
+      "size": 2527120,
+      "sha256": "1fea45341ac5732684ea170ee73fbbd2c04634d2acb778953d3e12664cf0abed"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

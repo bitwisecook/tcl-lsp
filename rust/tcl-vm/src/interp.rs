@@ -8383,55 +8383,27 @@ impl Vm {
         Some(self.in_interp(id, |vm| vm.invoke_own_hidden_value(cmd, args)))
     }
 
-    pub(crate) fn qualify_native_command_prefix_bytes(
+    /// Counted ensemble map construction from an actual entered namespace.
+    /// Its report and parent state are independent from later command lookup.
+    pub(crate) fn native_ensemble_map_prefix_input<'a>(
         &self,
         context: NsId,
-        original: &[u8],
-    ) -> Result<Vec<u8>, NativeCommandLookupUnavailable> {
+        original: &'a [u8],
+    ) -> Result<std::borrow::Cow<'a, [u8]>, NativeCommandLookupUnavailable> {
         let protocol = self
             .name_policy_protocol()
             .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
             .recipe();
-        let path = self.ns_path(context);
-        let jim_object = self
+        let mut report = b"::".to_vec();
+        report.extend_from_slice(self.ns_name_bytes(context).as_bytes());
+        let has_parent = self
             .name_world
             .borrow()
-            .jim_namespace_objects
-            .get(&context)
-            .cloned();
-        let native_context = if protocol.is_jim084() {
-            tcl_syntax::naming::NativeNameContext::with_jim_namespace(
-                &path,
-                jim_object
-                    .as_ref()
-                    .ok_or(NativeCommandLookupUnavailable::NamespaceContextUnavailable)?
-                    .as_bytes(),
-            )
-        } else {
-            tcl_syntax::naming::NativeNameContext::new(&path)
-        };
-        let projected = protocol
-            .command_publication_input(native_context, original)
-            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
-        if protocol.is_jim084() {
-            let mut rooted = b"::".to_vec();
-            rooted.extend_from_slice(
-                projected
-                    .jim_flat_key()
-                    .ok_or(NativeCommandLookupUnavailable::NamespaceContextUnavailable)?,
-            );
-            return Ok(rooted);
-        }
-        if projected.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute {
-            return Ok(projected.selected().to_vec());
-        }
-        let mut qualified = b"::".to_vec();
-        if context != ROOT_NS {
-            qualified.extend_from_slice(self.ns_name_bytes(context).as_bytes());
-            qualified.extend_from_slice(b"::");
-        }
-        qualified.extend_from_slice(projected.selected());
-        Ok(qualified)
+            .physical_namespace_parent(context)
+            .is_some();
+        protocol
+            .ensemble_map_prefix_input(&report, has_parent, original)
+            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)
     }
 
     pub(crate) fn native_command_lookup_context(
@@ -19445,11 +19417,10 @@ impl Vm {
         if self.dictionary_variable_containers() {
             return self.remove_dictionary_element(base_id, key);
         }
-        // As for a scalar: the element goes, and its own traces come out of the
-        // table, before the callbacks run. The *array's* traces stay — C leaves
-        // them on the array's own `Var` — so they are still live in the walk and
-        // still visible to `trace info`. The trace key is resolved while the
-        // element is still present.
+        // The selected element becomes undefined and its own traces move out
+        // before callbacks. Its original hash slot stays while the operation
+        // holds the cell. The containing array's traces remain live, including
+        // when this member has no callback registration of its own.
         let raw = match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
             Some(Local::Array(elements)) => elements.get(key).copied(),
             _ => None,
@@ -19459,24 +19430,32 @@ impl Vm {
         spelling.push(b'(');
         spelling.extend_from_slice(key);
         spelling.push(b')');
-        let traced = self.variable_observers_active().then(|| {
-            id.map(|id| VarTraceCell {
-                id: Some(id),
-                array: Some(base_id),
-                elem: Some(tcl_core_types::NameBytes::from(key)),
-            })
+        let Some((raw, id)) = raw.zip(id) else {
+            return false;
+        };
+        let cell = VarTraceCell {
+            id: Some(id),
+            array: Some(base_id),
+            elem: Some(tcl_core_types::NameBytes::from(key)),
+        };
+        let traced = self.variable_observers_active();
+        let publication = self.authored_static_unset_address(id);
+        // Retain the actual member and parent before destruction. A parent
+        // unset trace needs that member even when it has no trace pin of its
+        // own. TclPtrUnsetVarIdx retains the reached Var until CleanupVar
+        // after callbacks (C8.6 tclVar.c:2460–2514).
+        let existed = self.with_variable_operation(&cell, |vm| {
+            let existed = vm.unbind_array_element(base_id, key, raw, id);
+            // Unset callbacks retain their native ignored-error contract.
+            let _ = vm.publish_authored_static_unset(publication);
+            if traced {
+                vm.fire_taken_unset(&spelling, reported.or(Some(name)), cell.clone(), true);
+            }
+            existed
         });
-        let publication = id.and_then(|id| self.authored_static_unset_address(id));
-        let existed = match (raw, id) {
-            (Some(raw), Some(id)) => self.unbind_array_element(base_id, key, raw, id),
-            _ => false,
-        };
-        // Unset callbacks retain their native ignored-error contract.
-        let _ = self.publish_authored_static_unset(publication);
-        let Some(Some(cell)) = traced else {
-            return existed;
-        };
-        self.fire_taken_unset(&spelling, reported.or(Some(name)), cell, true);
+        // A refill, alias or fresh trace keeps this selected member. Cleanup
+        // removes only its unchanged undefined table slot after the hold ends.
+        self.discard_undefined_array_shell(base_id, key, id);
         existed
     }
 
@@ -22717,8 +22696,8 @@ impl Vm {
         }
     }
 
-    /// Compile and run a Tcl source string via the injected [`CompileService`]
-    /// (the runtime-`eval` / command-substitution path) in the *current* frame.
+    /// Evaluate source in the current frame through the actual Jim Script owner
+    /// or the independently installed C bytecode [`CompileService`].
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
         self.host_execution_depth += 1;
         let result = self.eval_source_internal(src, None);
@@ -22796,6 +22775,13 @@ impl Vm {
     ) -> Result<Completion<Value>, TclError> {
         if let Some(refusal) = self.execution_refusal.clone() {
             return Err(TclError::from_execution_failure(refusal));
+        }
+        if self
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return self.eval_native_jim_source_bytes(source.bytes(), location);
         }
         self.claim_number_grammar();
         self.reset_error_state_for_eval();
@@ -22926,6 +22912,13 @@ impl Vm {
         if let Some(refusal) = self.execution_refusal.clone() {
             return Err(TclError::from_execution_failure(refusal));
         }
+        if self
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return self.eval_native_jim_source_bytes(src.as_bytes(), location);
+        }
         self.claim_number_grammar();
         self.reset_error_state_for_eval();
         // C parses one command immediately before evaluating it, so every
@@ -23049,6 +23042,31 @@ impl Vm {
             Rc::new(module.top_level.clone()),
             module.source_namespace.clone(),
         ))
+    }
+
+    /// Public original Jim source is parsed by the actual Script object owner,
+    /// independently of the C bytecode compile service and loaded Tcl helpers.
+    fn eval_native_jim_source_bytes(
+        &mut self,
+        source: &[u8],
+        location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
+    ) -> Result<Completion<Value>, TclError> {
+        let context = self.native_jim_object_context()?;
+        let original = Value::new_native_string_bytes(source);
+        if let Some(location) = &location {
+            original.install_native_jim_source(
+                crate::value::NativeJimSourceInfo {
+                    filename: Value::new_native_string_bytes(location.file.as_bytes()),
+                    line: location.line.cast_signed(),
+                },
+                &context,
+            )?;
+        }
+        self.eval_original_script_value(
+            &original,
+            tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+            location,
+        )
     }
 
     /// Materialize original script storage through the physical string issuer.
@@ -28666,6 +28684,9 @@ impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Vm {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod native_array_unset_lifetime_tests;
 
 #[cfg(test)]
 mod native_error_log_tests;

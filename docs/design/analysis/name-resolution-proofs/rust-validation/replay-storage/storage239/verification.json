@@ -1,0 +1,118 @@
+{
+  "journal_sha256": "7a619aa59021f28a34d99f26593c444dd77d28255c147216bb54c7edb1e0e5c7",
+  "files": [
+    {
+      "original_path": "/workspace/.proofs/pinned-compiler224.elf",
+      "published_pin": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen224/pinned-compiler224.json",
+      "original_sha256": "bf4eacb0fdec7783289da44a91a762251b5870485642118465368ac2ad5eec9f",
+      "original_size": 181666728,
+      "compressed_path": "/workspace/.proofs/pinned-compiler224.elf.gz",
+      "compressed_sha256": "ae1890d76b633f0dfe4e0da717e470014dedf57abf98edeb62d5e671e56e7d59",
+      "compressed_size": 35655367,
+      "compressed_verified": true,
+      "decompressed_verified": true,
+      "published_pin_verified": true
+    },
+    {
+      "original_path": "/workspace/.proofs/pinned-compiler232.elf",
+      "published_pin": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen232/pinned-compiler232.json",
+      "original_sha256": "c90a6ab0224527fa64518b401872ece4149b386093b3c2ca01dd6efd8dd18d67",
+      "original_size": 182270088,
+      "compressed_path": "/workspace/.proofs/pinned-compiler232.elf.gz",
+      "compressed_sha256": "094421a72955141eb43733d41628ece18a8b6bb3557248667868c3ec486ec0b8",
+      "compressed_size": 35778523,
+      "compressed_verified": true,
+      "decompressed_verified": true,
+      "published_pin_verified": true
+    },
+    {
+      "original_path": "/workspace/.proofs/pinned-runtime223.elf",
+      "published_pin": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen223/pinned-runtime223.json",
+      "original_sha256": "995bca81ccf44b031ca0b8cec4946bd3c2954f84a6db79ed561b0abc017670f0",
+      "original_size": 56694040,
+      "compressed_path": "/workspace/.proofs/pinned-runtime223.elf.gz",
+      "compressed_sha256": "13e41de445bab64e5c4e5c8d09b69ed81bae955d00223867a3ba51a37ce10715",
+      "compressed_size": 11688493,
+      "compressed_verified": true,
+      "decompressed_verified": true,
+      "published_pin_verified": true
+    },
+    {
+      "original_path": "/workspace/.proofs/pinned-runtime225.elf",
+      "published_pin": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen225/pinned-runtime225.json",
+      "original_sha256": "87e448c12aa30ca90f085365575564ff90796e0e73009a16329504c3cccd5302",
+      "original_size": 56702712,
+      "compressed_path": "/workspace/.proofs/pinned-runtime225.elf.gz",
+      "compressed_sha256": "f59232b9e736ed1a3e3f02acc095ec4a7be45fe26c9f0ade93c7e280cdf7e000",
+      "compressed_size": 11712070,
+      "compressed_verified": true,
+      "decompressed_verified": true,
+      "published_pin_verified": true
+    },
+    {
+      "original_path": "/workspace/.proofs/pinned-runtime227.elf",
+      "published_pin": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen227/pinned-runtime227.json",
+      "original_sha256": "4e528e880cec535c9e1dac91d7c7f10f8900266a64dd6878a44bb1d6c4033232",
+      "original_size": 56790888,
+      "compressed_path": "/workspace/.proofs/pinned-runtime227.elf.gz",
+      "compressed_sha256": "9fadc5677b228e4ff340e12774975148fc05a8a25b6e9c361485435f40392563",
+      "compressed_size": 11717175,
+      "compressed_verified": true,
+      "decompressed_verified": true,
+      "published_pin_verified": true
+    },
+    {
+      "original_path": "/workspace/.proofs/pinned-runtime229.elf",
+      "published_pin": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen229/pinned-runtime229.json",
+      "original_sha256": "4dcbd78ee0c09a2c7a298a7271a0445d2617345ac6f6d114ee649eb852c41e88",
+      "original_size": 56793600,
+      "compressed_path": "/workspace/.proofs/pinned-runtime229.elf.gz",
+      "compressed_sha256": "d15eafbd38d66fc2a901cad99f7dc71bb74bbf8ef0f572218e7348545b894b6e",
+      "compressed_size": 11712698,
+      "compressed_verified": true,
+      "decompressed_verified": true,
+      "published_pin_verified": true
+    },
+    {
+      "original_path": "/workspace/.proofs/pinned-runtime233.elf",
+      "published_pin": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen233/pinned-runtime233.json",
+      "original_sha256": "52a23ee9409925987b604fb0789d32bac4cc212128a78245fef2c2b66f68ea8c",
+      "original_size": 56816568,
+      "compressed_path": "/workspace/.proofs/pinned-runtime233.elf.gz",
+      "compressed_sha256": "9140fe9bcb3428a8d24f4544addf5cdcc6b46aa3cd5fd9cb40ad6a26cb12bb1c",
+      "compressed_size": 11713605,
+      "compressed_verified": true,
+      "decompressed_verified": true,
+      "published_pin_verified": true
+    },
+    {
+      "original_path": "/workspace/.proofs/pinned-runtime234.elf",
+      "published_pin": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen234/pinned-runtime234.json",
+      "original_sha256": "1901bff0ecbc8c1a1ab7cd1ac15bb188e00d13cf5206645f8a23c9260790257f",
+      "original_size": 56866832,
+      "compressed_path": "/workspace/.proofs/pinned-runtime234.elf.gz",
+      "compressed_sha256": "d62495f098440b053db0bfe2db4f3f6a8828c17ca81f58c889eace44bb4e7191",
+      "compressed_size": 11737870,
+      "compressed_verified": true,
+      "decompressed_verified": true,
+      "published_pin_verified": true
+    },
+    {
+      "original_path": "/workspace/.proofs/pinned-registry228.elf",
+      "published_pin": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen228/pinned-registry228.json",
+      "original_sha256": "cb73fa67611ff5803ff759507d515070c01f9b3b20a1a39f8ea3e48cad77ca64",
+      "original_size": 50833680,
+      "compressed_path": "/workspace/.proofs/pinned-registry228.elf.gz",
+      "compressed_sha256": "5c93479a7e217cd83c8b7604b55b7459b2165c269f801164a9264b091b4ec44b",
+      "compressed_size": 8986064,
+      "compressed_verified": true,
+      "decompressed_verified": true,
+      "published_pin_verified": true
+    }
+  ],
+  "file_count": 9,
+  "original_bytes": 755435136,
+  "compressed_bytes": 150701865,
+  "native_or_rust_launches": 0,
+  "scope": "Independent streaming compressed/decompressed byte-length and SHA-256 verification, with unchanged published executable-pin correspondence. No original artifact is rewritten or restored; no command replay, assertion or source/provider digest refresh occurs."
+}

@@ -978,6 +978,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "coroutine",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::InfoCoroutine,
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         traits: Traits::CURRENT_FRAME_INTROSPECTION,
         arity: Arity::exact(0),
         detail: "Returns the name of the current coroutine, or the empty string if there is no current coroutine.",

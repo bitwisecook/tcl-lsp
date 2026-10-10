@@ -1,0 +1,123 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-core-type-import278.base-files.tar.gz",
+  "archive_sha256": "915b4918e0129aa71d8213805cfb1a80ca9eafddebf2628f1e4c6a48010e44b1",
+  "archive_bytes": 219578,
+  "uncompressed_bytes": 932696,
+  "source_manifest_sha256": "1bb83555d2230d2f7e93e359cffea49867086ee6e72478fb6f0ada412c7bda2a",
+  "source_patch_sha256": "58e028e184d4016e30fba655ea2796060d6d3283d37a170588a14ad6fbe3b1a4",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/58e028e184d4016e30fba655ea2796060d6d3283d37a170588a14ad6fbe3b1a4.patch",
+  "original_application_journal_sha256": "58e028e184d4016e30fba655ea2796060d6d3283d37a170588a14ad6fbe3b1a4",
+  "member_count": 12,
+  "members": {
+    "grammar-core-type-import278/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596642.9390461,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-core-type-import278/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596642.9390461,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-core-type-import278/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596642.9390461,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-core-type-import278/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596643.1150446,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-core-type-import278/base/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596643.1193852,
+      "size": 434939,
+      "sha256": "597ce98c51cfb8c90908f82a078ac61852f75a311c3dd4c23b70aaa299f6bd9a"
+    },
+    "grammar-core-type-import278/base/rust/tcl-lsp-core/src/source_structure.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596642.9423504,
+      "size": 31395,
+      "sha256": "30b8df1518e386b610152deb8357ef98e2d8612c2073d365e649d50a46577c2c"
+    },
+    "grammar-core-type-import278/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596642.9423504,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-core-type-import278/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596642.9423504,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-core-type-import278/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596642.9423504,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-core-type-import278/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596643.1193852,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-core-type-import278/files/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596643.1245093,
+      "size": 434924,
+      "sha256": "0b42397ab42adfa3d6e2fcfaa10d7c9df344a635388445e751d7c67c33993714"
+    },
+    "grammar-core-type-import278/files/rust/tcl-lsp-core/src/source_structure.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596643.1110446,
+      "size": 31438,
+      "sha256": "9764597ae3ac9eff6a3defcdef2d23ac45cc8b12bef7f5a814cda0fee74b54b1"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

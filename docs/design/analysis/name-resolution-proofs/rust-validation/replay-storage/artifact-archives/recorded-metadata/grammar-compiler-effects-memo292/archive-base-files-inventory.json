@@ -1,0 +1,159 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-compiler-effects-memo292.base-files.tar.gz",
+  "archive_sha256": "0d22d32bf2c2b3a3f34aad3ba322c4b39a783b50a3482aa2cd090c004539f582",
+  "archive_bytes": 397255,
+  "uncompressed_bytes": 2078893,
+  "source_manifest_sha256": "9ea5325369f5f5786353d77af0b55ab8777cfe46f4d1a1fb461024e58c68298e",
+  "source_patch_sha256": "2c985c37374de542dc498c3914ddd5af340ebb6b13b6bd8124eb794dad4ef038",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/2c985c37374de542dc498c3914ddd5af340ebb6b13b6bd8124eb794dad4ef038.patch",
+  "original_application_journal_sha256": "2c985c37374de542dc498c3914ddd5af340ebb6b13b6bd8124eb794dad4ef038",
+  "member_count": 16,
+  "members": {
+    "grammar-compiler-effects-memo292/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.3363457,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-compiler-effects-memo292/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.3363457,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-compiler-effects-memo292/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.3363457,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-compiler-effects-memo292/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.3395846,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-compiler-effects-memo292/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.340332,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-compiler-effects-memo292/base/rust/tcl-compiler/src/command_binding/compiled_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.3401227,
+      "size": 143340,
+      "sha256": "b3074791b84a9f01ac3f1ce8cc2164f29956aa4143fbf7da034d18ac2e247087"
+    },
+    "grammar-compiler-effects-memo292/base/rust/tcl-compiler/src/command_binding/original_compiler_effects.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.340529,
+      "size": 16795,
+      "sha256": "556c89c807ba32e7f4ba932831c6240eb1bd45fb0fb42e939b87b68d8d520609"
+    },
+    "grammar-compiler-effects-memo292/base/rust/tcl-compiler/src/command_binding.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601886.8434029,
+      "size": 870951,
+      "sha256": "e7682c1d7540d820435b0fd8b64933c9f5907c0d8e23be8a944bb9ba6daf1b67"
+    },
+    "grammar-compiler-effects-memo292/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.3389144,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-compiler-effects-memo292/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.3389144,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-compiler-effects-memo292/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.3389144,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-compiler-effects-memo292/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.3401227,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-compiler-effects-memo292/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601593.340529,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-compiler-effects-memo292/files/rust/tcl-compiler/src/command_binding/compiled_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601607.2457578,
+      "size": 143368,
+      "sha256": "94fe25e4fcf3e95a718876a5960a6464fda3c58b6191d0ed04dbcbac70de4f6d"
+    },
+    "grammar-compiler-effects-memo292/files/rust/tcl-compiler/src/command_binding/original_compiler_effects.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601941.7936354,
+      "size": 33150,
+      "sha256": "52f6f5966d6798cc32a3e7537930be8cd0dbad6d5f2f9eba5ec0097dab8ac65e"
+    },
+    "grammar-compiler-effects-memo292/files/rust/tcl-compiler/src/command_binding.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601886.8414354,
+      "size": 871289,
+      "sha256": "755b7f4f2c3737eb45197aecd3829ae561b08e813564f57fe1b972fc3d226d04"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

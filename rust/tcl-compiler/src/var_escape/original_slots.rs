@@ -155,6 +155,46 @@ impl OriginalDeclaredProcedureArgumentSlots {
         })
     }
 
+    /// Join one genuine reached substitution to this declaration's argument.
+    /// Each physical activation retains its own incoming cell. The declaration
+    /// compiler protocol does not supply an existing local-cache index.
+    pub(crate) fn incoming_source_read(
+        &self,
+        access: &crate::command_binding::SourceVariableAccess,
+        ordinal: usize,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::ssa::SsaIncomingSlotRead> {
+        let name = self.arguments.names().get(ordinal)?.try_utf8().ok()?;
+        if access.source.span.start() < self.declaration.start()
+            || access.source.span.end() > self.declaration.end()
+            || access.context_alternatives().is_empty()
+            || access.context_residual()
+                != crate::command_binding::SourceVariableReadResidual::Closed
+        {
+            return None;
+        }
+        let mut cells = Vec::new();
+        for context in access.context_alternatives() {
+            if context.original_formal_topology.as_deref() != Some(self.topology.as_ref())
+                || !context.activation_observers_closed()
+                || context.dynamic_bindings
+                || context.dynamic_traces
+            {
+                return None;
+            }
+            let cell =
+                context.incoming_activation_slot(&access.original_spelling, name, registry)?;
+            if !cells.contains(&cell) {
+                cells.push(cell);
+            }
+        }
+        Some(crate::ssa::SsaIncomingSlotRead {
+            source: access.source.clone(),
+            slot: name.to_owned(),
+            cells,
+        })
+    }
+
     /// Original fixed counted argument keys and calling-convention ordinals.
     #[must_use]
     pub const fn arguments(&self) -> &OriginalScalarArgumentSlots {

@@ -1,0 +1,195 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/native-runtime-regressions208.base-files.tar.gz",
+  "archive_sha256": "5af37c9613dec20b46056f95203c01dd257ab3bf56bdb8aee11cff2dfd8e473c",
+  "archive_bytes": 419625,
+  "uncompressed_bytes": 1822019,
+  "source_manifest_sha256": "1c3291ea725b14f4bf3bf04767d6b3e82a3f8a98ed8e1f8cfecf4566fe56a1c5",
+  "source_patch_sha256": "f47811f00ed0b66cc837a60ba92090cb51cc51d020551bbe63ea6014624ec22b",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/f47811f00ed0b66cc837a60ba92090cb51cc51d020551bbe63ea6014624ec22b.patch",
+  "original_application_journal_sha256": "f47811f00ed0b66cc837a60ba92090cb51cc51d020551bbe63ea6014624ec22b",
+  "member_count": 20,
+  "members": {
+    "native-runtime-regressions208/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3104036,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-regressions208/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3104036,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-regressions208/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3104036,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-regressions208/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.319404,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-regressions208/base/runtime/rust/src/expr.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.318105,
+      "size": 87063,
+      "sha256": "bcea776e1e73baab21b65ca693f78731e36a546aa01c9c59df42b36ce85e70d1"
+    },
+    "native-runtime-regressions208/base/runtime/rust/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3322651,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-regressions208/base/runtime/rust/src/interp/native_jim_increment.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3191772,
+      "size": 16681,
+      "sha256": "f429d54a6bbae0a8980ac8323f4604a42cd812e4b59a281f6c936db6b5ac3161"
+    },
+    "native-runtime-regressions208/base/runtime/rust/src/interp/native_script.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3328938,
+      "size": 7644,
+      "sha256": "c835ad663a62515606c34dc9195e0ee0735e807bfc7f8312ef8adab64f74566c"
+    },
+    "native-runtime-regressions208/base/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3195925,
+      "size": 736230,
+      "sha256": "3b7504fd535348395eee417b64090e45b65365c9f913b16d67df5697fa8f6c10"
+    },
+    "native-runtime-regressions208/base/runtime/rust/src/typed_value.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3169703,
+      "size": 61899,
+      "sha256": "72eee807f3426afda6ae8bdb0508d0560837287ef52a5088767b93a40d6a0bf2"
+    },
+    "native-runtime-regressions208/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3104036,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-regressions208/files/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3104036,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-regressions208/files/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3104036,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-regressions208/files/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3195925,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-regressions208/files/runtime/rust/src/expr.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3186042,
+      "size": 87179,
+      "sha256": "70eab6252035078f9479445f7f68d561d8fb24646b962e8e44958271ee68523a"
+    },
+    "native-runtime-regressions208/files/runtime/rust/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561874.3328938,
+      "size": 0,
+      "sha256": null
+    },
+    "native-runtime-regressions208/files/runtime/rust/src/interp/native_jim_increment.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561889.9182806,
+      "size": 17131,
+      "sha256": "d2c043951861570dc3a84424cbec627462ccbaccd95b62437996ed4e5e77a5ba"
+    },
+    "native-runtime-regressions208/files/runtime/rust/src/interp/native_script.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561889.9262805,
+      "size": 7766,
+      "sha256": "f237105bbcad1bbda719783b013afae393a3f5c89770bc34a3e9130595505270"
+    },
+    "native-runtime-regressions208/files/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561889.8982806,
+      "size": 737613,
+      "sha256": "b73ae7893c3a3372224ea13b11a2ae56d8e545ba17b5bd5551d60949895eff11"
+    },
+    "native-runtime-regressions208/files/runtime/rust/src/typed_value.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791561888.978288,
+      "size": 62813,
+      "sha256": "a077b65473fe3bf72c38e7358c162cc8978e0fbcaf8e1b01cb593e002764cd8a"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

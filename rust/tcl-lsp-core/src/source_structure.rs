@@ -779,9 +779,8 @@ mod tests {
 
     fn cursor_analysis(source: &str, style: tcl_dialect::BracedVarStyle) -> AnalysisResult {
         let profile = tcl_dialect::DialectProfile::plain_tcl();
-        let context = Arc::new(
-            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
-        );
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
         let config = LexerConfig {
             braced_var: style,
             ..LexerConfig::for_profile(Some(profile))
@@ -835,7 +834,7 @@ mod tests {
                 assert_eq!(reference.element_label, element, "{needle}");
                 let original = &source[reference.whole_span.as_range()];
                 assert!(
-                    tcl_lexer::whole_var_ref(
+                    tcl_lexer::word_parts::whole_var_ref(
                         original.as_bytes(),
                         analysis.body_lexer_config.unwrap()
                     )

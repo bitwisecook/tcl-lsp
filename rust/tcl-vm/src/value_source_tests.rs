@@ -405,3 +405,73 @@ fn original_source_length_and_concat_channels_match_all_native_providers() {
     }
     assert_eq!(compared, 18);
 }
+
+#[test]
+fn native_jim_public_source_uses_original_script_without_c_compiler_or_library_grants() {
+    // This is an authentic backend entry/availability control. Original110,
+    // Native236/245 and other public source comparators retain their own evidence.
+    let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+    let mut vm = crate::native_fixture::core(profile);
+    let completion = vm
+        .try_eval_source("namespace eval N {}; proc N::p {} {return VALUE}; N::p")
+        .unwrap();
+    assert_eq!(completion.code, crate::Code::Ok);
+    assert_eq!(completion.result.string_bytes().as_ref(), b"VALUE");
+
+    let counted = vm
+        .try_eval_source_bytes(b"set {raw\xff} COUNTED; set {raw\xff}")
+        .unwrap();
+    assert_eq!(counted.code, crate::Code::Ok);
+    assert_eq!(counted.result.string_bytes().as_ref(), b"COUNTED");
+    assert_eq!(
+        vm.get_var_bytes(b"raw\xff")
+            .unwrap()
+            .string_bytes()
+            .as_ref(),
+        b"COUNTED"
+    );
+
+    let completion = vm
+        .try_eval_source_at(
+            "info script",
+            tcl_runtime_api::script_source_location::ScriptSourceLocation {
+                file: "actual-source.tcl".into(),
+                line: 17,
+            },
+        )
+        .unwrap();
+    assert_eq!(completion.code, crate::Code::Ok);
+    assert_eq!(
+        completion.result.string_bytes().as_ref(),
+        b"actual-source.tcl"
+    );
+
+    let unavailable = vm
+        .try_eval_source("catch {{dict update} d k v {}} result; set result")
+        .unwrap();
+    assert_eq!(unavailable.code, crate::Code::Ok);
+    assert_eq!(
+        unavailable.result.string_bytes().as_ref(),
+        b"invalid command name \"dict update\""
+    );
+    assert!(vm.lookup_command("dict update").is_none());
+
+    // Jim parses a whole original Script before executing its first command.
+    let malformed = vm
+        .try_eval_source("set must_not_run YES; set missing {")
+        .unwrap();
+    assert_eq!(malformed.code, crate::Code::Error);
+    assert!(vm.get_var_bytes(b"must_not_run").is_none());
+}
+
+#[test]
+fn original_c_source_still_requires_its_independent_compile_service() {
+    for version in tcl_dialect::TclVersion::ALL {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+                .unit_profile();
+        let mut vm = crate::native_fixture::core(profile);
+        assert!(vm.try_eval_source("set must_not_run YES").is_err());
+        assert!(vm.get_var_bytes(b"must_not_run").is_none());
+    }
+}

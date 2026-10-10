@@ -11,7 +11,6 @@ use super::{
 };
 use crate::analyser::ResolvedAnalysisInput;
 use tcl_lexer::{NativeWord, SourceChannel};
-use tcl_registry::{ArgRole, SemanticOperationId, Traits, hooks::LoweringHookId};
 
 struct LogicalProcedureDefinition {
     input: ResolvedAnalysisInput,
@@ -89,7 +88,16 @@ impl LogicalProcedureDefinition {
             return None;
         }
         let actual_context = input.context_registry();
-        let arguments = values
+        let mut effective_values = vec![target.command.clone()];
+        effective_values.extend(
+            target
+                .prepended
+                .iter()
+                .map(|word| word.as_registry_word().literal().map(str::to_owned))
+                .collect::<Option<Vec<_>>>()?,
+        );
+        effective_values.extend(values.into_iter().skip(1));
+        let arguments = effective_values
             .iter()
             .skip(1)
             .map(|value| tcl_registry::InvocationWord::Literal(value))
@@ -106,37 +114,12 @@ impl LogicalProcedureDefinition {
                 context.realm,
             );
         let schema = resolution.resolved()?;
-        if schema.facts().operation != SemanticOperationId::StructuredLowering(LoweringHookId::Proc)
-            || schema.facts().arity_accepts_frozen_arguments() != Some(true)
-            || !schema
-                .semantics
-                .traits
-                .contains(Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY)
-            || schema.semantics.frame_effect.is_some()
-            || schema.semantics.argument_offset != 0
-            || schema.authored_source_argument_roles()
-                != (
-                    vec![
-                        (0, ArgRole::Name),
-                        (1, ArgRole::ParamList),
-                        (2, ArgRole::Body),
-                    ],
-                    true,
-                )
-            || values.len() != 4
-        {
-            return None;
-        }
-        static_formals(&values[2], context.config.list_parse)?;
-        let SourceNamespaceKey::Authored(current) = &namespace else {
-            return None;
-        };
-        let name = &values[1];
-        let key = SourceCommandKey::authored(tcl_syntax::naming::qualify(current, name));
-        let (_, tail) = tcl_syntax::naming::key_holder_and_tail(key.authored_spelling()?);
-        if tail.is_empty() || !state.namespaces.contains(key.holder().as_ref()) {
-            return None;
-        }
+        let shape = schema.authored_source_procedure_arguments()?;
+        static_formals(
+            effective_values.get(shape.parameters + 1)?,
+            context.config.list_parse,
+        )?;
+        let key = source_procedure_key(state, &namespace, effective_values.get(shape.name + 1)?)?;
         Some(Self {
             input: input.clone(),
             site: CommandAllocationSite {
@@ -177,7 +160,7 @@ impl LogicalProcedureDefinition {
         let label = self.key.authored_spelling()?.to_owned();
         state.extend_procedure_bodies([label.clone()]);
         state.record_proc_rebound_candidates(
-            &static_value(self.words.get(1)?)?,
+            &label,
             &crate::ir_helpers::ExecutionNamespace::SourceContext(self.namespace),
         );
         state.install(
@@ -238,9 +221,7 @@ fn selected_target(
     namespace: &SourceNamespaceKey,
     target: &SourceCommandTarget,
 ) -> bool {
-    if target.kind != BindingKind::Builtin
-        || !target.registry_backed
-        || !target.prepended.is_empty()
+    if !matches!(target.kind, BindingKind::Builtin | BindingKind::Alias) || !target.registry_backed
     {
         return false;
     }
@@ -288,17 +269,36 @@ pub(super) fn static_value(word: &NativeWord) -> Option<String> {
     String::from_utf8(bytes).ok()
 }
 
-fn static_formals(text: &str, syntax: tcl_dialect::ListParse) -> Option<()> {
+pub(super) fn static_formals(
+    text: &str,
+    syntax: tcl_dialect::ListParse,
+) -> Option<Vec<tcl_syntax::formal_params::FormalParameter>> {
     // Proof: naming.source.logical-procedure-definition-model
     // docs/design/analysis/name-resolution-proofs/logical-procedure-definition-model.md
     // The source model uses shared strict formal validity. The selected list
     // parser must agree at both levels; this is no Native parameter recipe.
-    tcl_syntax::formal_params::parse_formal_parameters(text).ok()?;
+    let parameters = tcl_syntax::formal_params::parse_formal_parameters(text).ok()?;
     matching_list_elements(text, syntax)?;
     for specifier in tcl_syntax::list::split_list(text).ok()? {
         matching_list_elements(&specifier, syntax)?;
     }
-    Some(())
+    Some(parameters)
+}
+
+/// Construct a conditional authored declaration slot in its retained namespace.
+/// This does not invoke the native publication recipe or allocate a command.
+pub(super) fn source_procedure_key(
+    state: &ModuleCommandBindings,
+    namespace: &SourceNamespaceKey,
+    name: &str,
+) -> Option<SourceCommandKey> {
+    state.logical_source_name_advice_input()?;
+    let SourceNamespaceKey::Authored(current) = namespace else {
+        return None;
+    };
+    let key = SourceCommandKey::authored(tcl_syntax::naming::qualify(current, name));
+    let (_, tail) = tcl_syntax::naming::key_holder_and_tail(key.authored_spelling()?);
+    (!tail.is_empty() && state.namespaces.contains(key.holder().as_ref())).then_some(key)
 }
 
 fn matching_list_elements(text: &str, syntax: tcl_dialect::ListParse) -> Option<()> {

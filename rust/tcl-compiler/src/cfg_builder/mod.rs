@@ -1513,6 +1513,7 @@ impl<'a> CfgBuilder<'a> {
         // so the frozen interner's ids match the ones the builder stamped into
         // every terminator / loop node / exception edge.
         let mut func = Function::new(name, &entry);
+        func.metadata_context = self.command_classes.metadata.clone();
         func.namespace_context =
             script
                 .namespace_context
@@ -3214,12 +3215,49 @@ fn dedup_preserve_order(v: &mut Vec<String>) {
 // passes them through the recursive flow-fact helpers below.
 
 /// The actual source metadata owner, separate from explicit compatibility.
-#[derive(Clone)]
-enum CfgMetadataContext {
+#[derive(Debug, Clone)]
+pub(crate) enum CfgMetadataContext {
     Standalone,
     Supplied(Arc<tcl_registry::model::ContextRegistry>),
     SuppliedSource(Box<crate::analyser::ResolvedAnalysisInput>),
     Unavailable,
+}
+
+impl PartialEq for CfgMetadataContext {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Standalone, Self::Standalone) | (Self::Unavailable, Self::Unavailable) => true,
+            (Self::Supplied(left), Self::Supplied(right)) => Arc::ptr_eq(left, right),
+            (Self::SuppliedSource(left), Self::SuppliedSource(right)) => left == right,
+            _ => false,
+        }
+    }
+}
+
+impl CfgMetadataContext {
+    /// Reborrow the same actual owner; no profile fallback follows a supplied
+    /// refusal. Only the explicit standalone variant selects a static context.
+    pub(crate) fn metadata_context<'a>(
+        &'a self,
+        registry: &CommandRegistry,
+    ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>> {
+        let context = match self {
+            Self::Supplied(context) => Some(context.as_ref().into()),
+            Self::SuppliedSource(input) => Some(
+                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                    registry, input,
+                )?,
+            ),
+            Self::Standalone => registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(crate::registry_invocation::InvocationMetadataContext::from),
+            Self::Unavailable => return None,
+        };
+        context
+            .is_none_or(|context| context.matches_registry(registry))
+            .then_some(context)
+    }
 }
 
 /// Shared command surface and availability for every CFG in one module.
@@ -3292,26 +3330,26 @@ impl CfgCommandClasses {
     fn metadata_context(
         &self,
     ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
-        let context: Option<crate::registry_invocation::InvocationMetadataContext<'_>> =
-            match &self.metadata {
-                CfgMetadataContext::Supplied(context) => Some(context.as_ref().into()),
-                CfgMetadataContext::SuppliedSource(input) => Some(
-                    crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
-                        self.registry.registry(),
-                        input,
-                    )?,
-                ),
-                CfgMetadataContext::Standalone => self
-                    .registry
-                    .registry()
-                    .profile()
-                    .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-                    .map(crate::registry_invocation::InvocationMetadataContext::from),
-                CfgMetadataContext::Unavailable => return None,
-            };
-        context
-            .is_none_or(|context| context.matches_registry(self.registry.registry()))
-            .then_some(context)
+        self.metadata.metadata_context(self.registry.registry())
+    }
+
+    /// Source numeral grammar is independent of catalogue availability.
+    fn source_numbers(&self, config: tcl_lexer::LexerConfig) -> tcl_syntax::number::Numbers {
+        use tcl_syntax::number::Numbers;
+        match &self.metadata {
+            CfgMetadataContext::SuppliedSource(input)
+                if input.lexer_config().normalized() == config.normalized()
+                    && self.metadata_context().is_some() =>
+            {
+                Numbers::Target(input.unit_profile().grammar.numbers)
+            }
+            CfgMetadataContext::Standalone => {
+                Numbers::of_profile(self.registry.registry().profile())
+            }
+            CfgMetadataContext::Supplied(_)
+            | CfgMetadataContext::SuppliedSource(_)
+            | CfgMetadataContext::Unavailable => Numbers::Unknown,
+        }
     }
 
     fn resolved_tokens(
@@ -3756,6 +3794,24 @@ pub(crate) fn switch_must_defines(
     let command_classes = registry.map_or_else(CfgCommandClasses::default, |registry| {
         CfgCommandClasses::from_registry(registry)
     });
+    flow_facts_stmt_with_classes(stmt, &command_classes).0
+}
+
+/// Must-defined source names under the supplied complete availability owner.
+/// Missing input keeps completion metadata unavailable; it does not select the
+/// standalone catalogue. Original structural writes retain their IR ownership.
+pub(crate) fn switch_must_defines_with_source_input(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
+) -> BTreeSet<String> {
+    if input.is_none() {
+        return BTreeSet::new();
+    }
+    let command_classes = CfgCommandClasses::from_source_input(registry, input);
+    if command_classes.metadata_context().is_none() {
+        return BTreeSet::new();
+    }
     flow_facts_stmt_with_classes(stmt, &command_classes).0
 }
 

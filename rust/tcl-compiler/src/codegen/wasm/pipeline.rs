@@ -689,31 +689,14 @@ fn select_native_i64_add_plan(
         let NativeAddDecision::Proven(native) = decisions.as_slice().first()? else {
             return None;
         };
-        let (
-            crate::native_integer_proof::NativeOperandIdentity::Ssa(left_value),
-            crate::native_integer_proof::NativeOperandIdentity::Ssa(right_value),
-        ) = (&native.left.identity, &native.right.identity)
-        else {
-            // A bounded incoming-slot projection is not a materialised object
-            // or frame slot. Keep boxed execution until those plans are proved.
-            return None;
-        };
         if decisions.len() != 1
             || native.site.result != NativeAddResult::FunctionReturn
             || native.execution != NativeAddExecution::OverflowImpossible
             || native.composition.direct_calls.as_slice() != [site.clone()]
             || !native.composition.requires_frame_plan
             || !native.composition.requires_internal_operation_guard_or_sealed_policy
-            || !selected_materialisable_int(
-                &common,
-                &direct.callee.qualified_name,
-                *left_value,
-            )
-            || !selected_materialisable_int(
-                &common,
-                &direct.callee.qualified_name,
-                *right_value,
-            )
+            || !selected_native_operand_argument(&common, direct, &native.left.identity)
+            || !selected_native_operand_argument(&common, direct, &native.right.identity)
         {
             return None;
         }
@@ -731,6 +714,29 @@ fn select_native_i64_add_plan(
             closed_program_statements,
         })
     })
+}
+
+fn selected_native_operand_argument(
+    common: &CommonAotProofPlan,
+    direct: &crate::common_aot_plan::DirectProcEvidence,
+    operand: &crate::native_integer_proof::NativeOperandIdentity,
+) -> bool {
+    use crate::native_integer_proof::NativeOperandIdentity;
+    match operand {
+        NativeOperandIdentity::Ssa(value) => {
+            selected_materialisable_int(common, &direct.callee.qualified_name, *value)
+        }
+        NativeOperandIdentity::IncomingSlot(read) => common
+            .declared_argument_for_incoming_read(&direct.callee, read)
+            .is_some_and(|(identity, evidence)| {
+                evidence.shape() == &TypeShape::Int
+                    && direct.original_formals.as_deref() == Some(evidence.declaration().arguments())
+                    && usize::try_from(identity.ordinal)
+                        .ok()
+                        .and_then(|ordinal| direct.original_formals.as_ref()?.names().get(ordinal))
+                        .is_some_and(|original| original.as_bytes() == read.slot.as_bytes())
+            }),
+    }
 }
 
 fn selected_materialisable_int(
@@ -1297,6 +1303,94 @@ mod tests {
 
     const SEALED_NATIVE_ADD: &str =
         "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";
+
+    #[test]
+    fn incoming_native_operands_use_declared_arguments_without_inventing_ssa() {
+        // naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_profile(Some(profile)),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let config = native_i64_options().semantic_optimisations();
+        let common = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            config,
+            CommonAotEnvironment::Hosted,
+        );
+        let direct = common
+            .direct_calls()
+            .find_map(|(_, decision)| {
+                if let DirectProcDecision::Selected(evidence) = decision {
+                    Some(evidence)
+                } else {
+                    None
+                }
+            })
+            .expect("actual calling site retains its original declaration");
+        let NativeIntegerProof::Analysed(decisions) = prove_native_integer_adds(
+            &unit,
+            "::add",
+            context.commands(),
+            config,
+            NativeIntegerPolicy::default(),
+            &common,
+        ) else {
+            panic!("actual original body has arithmetic proof context");
+        };
+        let [NativeAddDecision::Proven(evidence)] = decisions.as_slice() else {
+            panic!("{decisions:#?}");
+        };
+        for operand in [&evidence.left.identity, &evidence.right.identity] {
+            let crate::native_integer_proof::NativeOperandIdentity::IncomingSlot(read) = operand
+            else {
+                panic!("separate activations cannot become one SSA value: {operand:?}");
+            };
+            assert!(read.cells.len() >= 2);
+            assert!(selected_native_operand_argument(&common, direct, operand));
+            let mut invalid = read.clone();
+            invalid.cells.clear();
+            assert!(!selected_native_operand_argument(
+                &common,
+                direct,
+                &crate::native_integer_proof::NativeOperandIdentity::IncomingSlot(invalid)
+            ));
+            let mut other_declaration = direct.clone();
+            other_declaration.callee.definition_start += 1;
+            assert!(!selected_native_operand_argument(
+                &common,
+                &other_declaration,
+                operand
+            ));
+        }
+        assert!(
+            common
+                .materialisable_slots()
+                .all(|(identity, decision)| identity.function != "::add"
+                    || !matches!(decision, MaterialisableSlotDecision::Selected(_)))
+        );
+    }
 
     #[test]
     fn sealed_common_proofs_emit_native_i64_add_at_a_boxed_boundary() {

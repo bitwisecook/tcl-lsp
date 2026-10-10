@@ -392,6 +392,45 @@ fn original_declared_structured_invocation<'a>(
     resolve_original_declared_layout(registry, context, tokens, &advice)
 }
 
+/// Conditional option topology of the retained original invocation. Captured
+/// operands keep their effective ordinals, with no handler or Normal grant.
+pub(crate) fn conditional_option_arguments_with_metadata_context(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<(
+    ResolvedStatementInvocation,
+    tcl_registry::AuthoredSourceOptionArguments,
+)> {
+    if !context.matches_registry(registry) || tokens.synthetic.is_some() {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    if let Some(input) = context.source_analysis_input()
+        && binding
+            .original_lexer_config_for_tokens(tokens)?
+            .normalized()
+            != input.lexer_config().normalized()
+    {
+        return None;
+    }
+    let invocation =
+        resolved_tokens_invocation_with_metadata_context(registry, Some(context), tokens)
+            .or_else(|| {
+                resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
+            })
+            .or_else(|| original_declared_structured_invocation(registry, context, tokens))?;
+    let realm = binding.invocation_realm().or_else(|| {
+        binding
+            .declaration_operand_layout_advice(tokens)
+            .map(|advice| advice.realm())
+    })?;
+    let options = invocation.with_metadata_schema(registry, context, realm, |schema| {
+        schema.authored_source_possible_option_arguments()
+    })?;
+    Some((invocation, options))
+}
+
 /// Conditional operation recipe for the exact supplied Logical source model.
 /// Original alias captures and source words remain composed by the shared
 /// declaration owner. This grants no Native handler, Normal completion,
@@ -419,6 +458,53 @@ pub(crate) fn original_logical_operation_invocation_with_metadata_context(
     }
     resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
         .or_else(|| original_declared_structured_invocation(registry, context, tokens))
+}
+
+/// Purity of the selected original substitution implementation. Native
+/// dispatch requires a normal handler and closed execution alternatives;
+/// the separate Logical branch retains its exact source operation recipe.
+/// Neither branch proves operand evaluation, no-raise, observers or erasure.
+pub(crate) fn original_substitution_purity_with_metadata_context(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<bool> {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    if !context.matches_registry(registry) || tokens.synthetic.is_some() {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let input = context.source_analysis_input()?;
+    if config.normalized() != input.lexer_config().normalized() {
+        return None;
+    }
+    let invocation = if context.permits_logical_source_names() {
+        original_logical_operation_invocation_with_metadata_context(registry, context, tokens)?
+    } else {
+        if binding.execution_is_unknown() || binding.execution_may_be_absent() {
+            return None;
+        }
+        resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)?
+    };
+    if invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+        || matches!(
+            invocation.facts.subcommand,
+            tcl_registry::OwnedSubcommandResolution::Unknown { .. }
+                | tcl_registry::OwnedSubcommandResolution::Ambiguous { .. }
+                | tcl_registry::OwnedSubcommandResolution::Indeterminate { .. }
+        )
+    {
+        return None;
+    }
+    Some(
+        !invocation.facts.mutator
+            && invocation
+                .facts
+                .traits
+                .intersects(tcl_registry::Traits::PURE | tcl_registry::Traits::PURE_EVALUATION),
+    )
 }
 
 /// The source-role consumer chooses its purpose-specific closure before this
@@ -1408,7 +1494,10 @@ pub fn normal_transfer_invocation_in_context(
     )
 }
 
-pub(crate) fn normal_transfer_invocation_with_metadata_context(
+/// Select successful transfer metadata with the complete supplied source owner.
+/// Missing or foreign input cannot reconstruct a standalone catalogue context.
+#[must_use]
+pub fn normal_transfer_invocation_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
@@ -1479,7 +1568,29 @@ pub fn namespace_directive_footprint(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<NamespaceDirectiveFootprint> {
-    let invocation = resolved_handler_invocation(registry, context, tokens)?;
+    namespace_directive_footprint_for_invocation(resolved_handler_invocation(
+        registry, context, tokens,
+    )?)
+}
+
+/// Namespace directive candidates under the actual supplied metadata owner.
+/// Missing or foreign availability refuses; this grants no namespace effect.
+pub(crate) fn namespace_directive_footprint_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<NamespaceDirectiveFootprint> {
+    let context = context.filter(|context| context.matches_registry(registry))?;
+    namespace_directive_footprint_for_invocation(resolved_handler_invocation_with_metadata_context(
+        registry,
+        Some(context),
+        tokens,
+    )?)
+}
+
+fn namespace_directive_footprint_for_invocation(
+    invocation: ResolvedStatementInvocation,
+) -> Option<NamespaceDirectiveFootprint> {
     if invocation.facts.arity_accepts_frozen_arguments() != Some(true) {
         return None;
     }
@@ -3109,6 +3220,22 @@ pub fn normal_taint_invocation(
     tokens: &CommandTokens,
 ) -> Option<NormalTaintInvocation> {
     let normal = normal_representation_invocation(registry, context, tokens)?;
+    let NormalRepresentationProof::Handler(invocation) = normal.proof else {
+        return None;
+    };
+    Some(NormalTaintInvocation { invocation })
+}
+
+/// Select normal result metadata through the supplied generation and original
+/// handler proof. Missing or foreign availability never reconstructs a label.
+pub(crate) fn normal_taint_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<NormalTaintInvocation> {
+    let context = context.filter(|context| context.matches_registry(registry))?;
+    let normal =
+        normal_representation_invocation_with_metadata_context(registry, Some(context), tokens)?;
     let NormalRepresentationProof::Handler(invocation) = normal.proof else {
         return None;
     };
@@ -6653,7 +6780,23 @@ pub fn possible_body_invocation(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<PossibleBodyInvocation> {
-    if tokens.synthetic.is_some() {
+    possible_body_invocation_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+/// Candidate handler-body topology under the supplied complete availability.
+/// The original handler and frame owner remain independently required.
+pub(crate) fn possible_body_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<PossibleBodyInvocation> {
+    if context.is_some_and(|context| !context.matches_registry(registry))
+        || tokens.synthetic.is_some()
+    {
         return None;
     }
     let binding = tokens.source_binding.as_ref()?;
@@ -6663,7 +6806,10 @@ pub fn possible_body_invocation(
     let effective = effective_words_for_target(tokens, target)?;
     let dialect = binding.variable_context.invocation_dialect;
     let RegistryInvocationResolution::Resolved(facts) =
-        resolve_effective_tokens(registry, context, tokens, &effective, dialect).ok()?
+        resolve_effective_tokens_with_metadata_context(
+            registry, context, tokens, &effective, dialect,
+        )
+        .ok()?
     else {
         return None;
     };
@@ -6704,13 +6850,16 @@ pub fn possible_body_invocation(
 /// Conditional topology from an original declaration's owned invocation
 /// layout. This is lexical diagnostic advice only; it grants neither entered
 /// phases nor successful dispatch and retains every runtime residual.
-pub(crate) fn conditional_body_topology_advice(
+pub(crate) fn conditional_body_topology_advice_with_metadata_context(
     registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
     bindings: &crate::command_binding::SourceCommandBindings,
 ) -> Option<PossibleBodyInvocation> {
-    conditional_runtime_body_topology_advice(registry, tokens, bindings).or_else(|| {
-        let context = body_assistance_context(registry, tokens)?;
+    if !context.matches_registry(registry) {
+        return None;
+    }
+    conditional_runtime_body_topology_advice(registry, context, tokens, bindings).or_else(|| {
         original_compilation_body_topology_advice(registry, context, tokens).or_else(|| {
             original_layout_body_topology_advice(
                 registry,
@@ -6724,10 +6873,10 @@ pub(crate) fn conditional_body_topology_advice(
 
 fn conditional_runtime_body_topology_advice(
     registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
     bindings: &crate::command_binding::SourceCommandBindings,
 ) -> Option<PossibleBodyInvocation> {
-    let context = body_assistance_context(registry, tokens)?;
     let binding = tokens.source_binding.as_ref()?;
     let invocation = if let Some(owned) =
         owned_body_layout_invocation(registry, context, tokens, bindings)
@@ -6992,11 +7141,16 @@ fn original_expression_operand_advice_selected_word(
 /// Original compilation-table candidates select lexical topology only. Values
 /// are decoded from unchanged source words under the captured logical grammar;
 /// this never supplies runtime argument values or selected normal facts.
-fn original_compilation_body_topology_advice(
+fn original_compilation_body_topology_advice<'a>(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: impl Into<InvocationMetadataContext<'a>>,
     tokens: &CommandTokens,
 ) -> Option<PossibleBodyInvocation> {
+    let context = context.into();
+    if !context.matches_registry(registry) {
+        return None;
+    }
+
     let advice = tokens
         .source_binding
         .as_ref()?
@@ -7004,12 +7158,17 @@ fn original_compilation_body_topology_advice(
     original_layout_body_topology_advice(registry, context, tokens, &advice)
 }
 
-fn original_layout_body_topology_advice(
+fn original_layout_body_topology_advice<'a>(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: impl Into<InvocationMetadataContext<'a>>,
     tokens: &CommandTokens,
     advice: &crate::command_binding::OriginalCompilationLookupAdvice,
 ) -> Option<PossibleBodyInvocation> {
+    let context = context.into();
+    if !context.matches_registry(registry) {
+        return None;
+    }
+
     let dialect = advice.dialect();
     let mut unanimous = None;
     for target in advice.targets() {
@@ -7026,14 +7185,15 @@ fn original_layout_body_topology_advice(
             .iter()
             .map(EffectiveInvocationWord::as_registry_word)
             .collect();
-        let RegistryInvocationResolution::Resolved(facts) = resolve_registry_words_in_realm(
-            registry,
-            Some(context),
-            &registry_words,
-            Some(dialect),
-            advice.realm(),
-        )
-        .ok()?
+        let RegistryInvocationResolution::Resolved(facts) =
+            resolve_registry_words_in_realm_with_metadata_context(
+                registry,
+                Some(context),
+                &registry_words,
+                Some(dialect),
+                advice.realm(),
+            )
+            .ok()?
         else {
             return None;
         };

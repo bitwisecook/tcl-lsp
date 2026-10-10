@@ -86,7 +86,9 @@ impl LogicalOriginalInvocation {
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<Self> {
-        if !target.registry_backed || target.kind != BindingKind::Builtin {
+        if !target.registry_backed
+            || !matches!(target.kind, BindingKind::Builtin | BindingKind::Alias)
+        {
             return None;
         }
         let original = super::logical_definition::original_static_invocation_words(
@@ -252,9 +254,9 @@ fn command_transfer(
         crate::ir_helpers::ExecutionNamespace::SourceContext(original.namespace.clone());
     let mut candidate = state.clone();
     for fact in transitions.facts() {
-        if fact.commit != tcl_registry::StateTransitionCommit::OnOkOnly {
-            return None;
-        }
+        // A quiet authored continuation interprets the selected transition
+        // conditionally. Native abrupt-edge commit classification remains on
+        // the descriptor; it is neither changed nor a Normal certificate.
         match &fact.transition {
             StateTransition::Namespace(
                 transition @ tcl_registry::NamespaceTransition::Ensure { .. },
@@ -406,6 +408,28 @@ mod tests {
         assert_eq!(binding.logical_source_name_advice_input(), Some(input));
         assert!(binding.original_recorded_head_name_input().is_none());
         binding
+    }
+
+    #[test]
+    fn logical_original_transfers_preserve_unicode_registry_moves_and_aliases() {
+        // naming.source.logical-original-operation-transfer
+        // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
+        // These are conditional authored continuations, not Native rename or
+        // alias execution, abrupt-edge exclusion or successful allocation.
+        let input = input();
+        for source in [
+            "rename proc ::α; ::α subject {} {}; subject",
+            "interp alias {} ::α {} proc; ::α subject {} {}; subject",
+            "rename proc ::α; interp alias {} ::β {} ::α; ::β subject {} {}; subject",
+        ] {
+            let binding = final_binding(source, &input);
+            assert_eq!(
+                binding.selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Present,
+                "{source}"
+            );
+            assert!(binding.variable_context.execution_name_policy.is_none());
+        }
     }
 
     #[test]

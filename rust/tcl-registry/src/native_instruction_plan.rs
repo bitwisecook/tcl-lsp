@@ -731,6 +731,7 @@ fn native_instruction_plan_for_purpose(
         NativeCompilationGrammar::Tailcall
             | NativeCompilationGrammar::CoroutineYield
             | NativeCompilationGrammar::CoroutineRelay
+            | NativeCompilationGrammar::InfoCoroutine
     ) {
         return crate::native_coroutine_compilation::compile_native_coroutine(
             words,

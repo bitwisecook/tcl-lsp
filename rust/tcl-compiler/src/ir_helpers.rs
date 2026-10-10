@@ -26,7 +26,9 @@
 
 mod materialized_footprint;
 pub(crate) use materialized_footprint::{
-    expression_possible_writes_with_metadata_context, immediate_same_frame_script_values,
+    command_possible_reads_with_metadata_context, expression_possible_writes_with_metadata_context,
+    footprint_command_words, immediate_same_frame_script_values,
+    script_value_name_ownership_with_metadata_context,
     script_value_possible_writes_with_metadata_context,
 };
 

@@ -1,0 +1,193 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/consumer-passive-source-metadata271.source-trees.tar.gz",
+  "archive_sha256": "d11f0e025de276d1083698f948745ea87a10a7ac8865015b1ba51ef4c15d2ed7",
+  "archive_bytes": 330791,
+  "uncompressed_bytes": 1554137,
+  "source_manifest_sha256": "c2c0a5c70c920b36e100ac198a45b9fbb7c1a1fca2992fa5f34ba60abbc1b475",
+  "source_patch_sha256": "9e719d55111da14b92fffd6352845ba2837c625e52d47abf3a0bdc2d141193c5",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 15,
+  "members": {
+    "consumer-passive-source-metadata271/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611712.0697298,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-passive-source-metadata271/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611712.0697298,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-passive-source-metadata271/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611712.0697298,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-passive-source-metadata271/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611712.0734072,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-passive-source-metadata271/base/rust/tcl-compiler/src/lowering": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611712.0697298,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-passive-source-metadata271/base/rust/tcl-compiler/src/lowering/mod.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611712.072025,
+      "size": 413411,
+      "sha256": "2f45eca9ce08c337023785135cedaf84c4dc5f765b228ab3d6c8c20b46d4e929"
+    },
+    "consumer-passive-source-metadata271/base/rust/tcl-compiler/src/registry_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611882.0755167,
+      "size": 359775,
+      "sha256": "79e00898b45aa2395c21e17ed4b09eb8cada1a2978758ea082df1b386930ed8e"
+    },
+    "consumer-passive-source-metadata271/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611712.072025,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-passive-source-metadata271/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611712.072025,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-passive-source-metadata271/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611712.072025,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-passive-source-metadata271/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611712.0737555,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-passive-source-metadata271/candidate/rust/tcl-compiler/src/lowering": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611831.5867074,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-passive-source-metadata271/candidate/rust/tcl-compiler/src/lowering/mod.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611933.6944573,
+      "size": 413626,
+      "sha256": "072c4ea8a3f7a4ca7973f2a86dcee01d7e17e419e9e9b6232da3b3b15f8d717d"
+    },
+    "consumer-passive-source-metadata271/candidate/rust/tcl-compiler/src/lowering/passive_metadata_tests.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611831.8367956,
+      "size": 5257,
+      "sha256": "22abe2ff361f56ce3405d784793e1ef3f3180d76faa1af71ecfc3b4568fa9c0a"
+    },
+    "consumer-passive-source-metadata271/candidate/rust/tcl-compiler/src/registry_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791611882.075115,
+      "size": 362068,
+      "sha256": "740fe9542394b2c02bb352e6875cd250144aaa526b32f2a6bf22b38b02450625"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "072c4ea8a3f7a4ca7973f2a86dcee01d7e17e419e9e9b6232da3b3b15f8d717d",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "hash_key": "base_sha256",
+      "sha256": "2f45eca9ce08c337023785135cedaf84c4dc5f765b228ab3d6c8c20b46d4e929",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/passive_metadata_tests.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "22abe2ff361f56ce3405d784793e1ef3f3180d76faa1af71ecfc3b4568fa9c0a",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "740fe9542394b2c02bb352e6875cd250144aaa526b32f2a6bf22b38b02450625",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "hash_key": "base_sha256",
+      "sha256": "79e00898b45aa2395c21e17ed4b09eb8cada1a2978758ea082df1b386930ed8e",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

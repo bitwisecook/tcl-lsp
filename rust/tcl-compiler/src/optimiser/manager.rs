@@ -454,6 +454,7 @@ fn couple_propagated_const_dead_stores(
         }
         couple_const_dead_stores_in_function(
             fu,
+            &cu.ir_module,
             registry,
             source,
             selected,
@@ -491,6 +492,7 @@ fn couple_propagated_const_dead_stores(
 /// borrowed across each def-use chain.
 struct CoupleCtx<'a> {
     fu: &'a crate::compilation_unit::FunctionUnit,
+    module: &'a crate::ir::Module,
     registry: &'a CommandRegistry,
     source: &'a str,
     selected: &'a [Optimisation],
@@ -504,6 +506,7 @@ struct CoupleCtx<'a> {
 
 fn couple_const_dead_stores_in_function(
     fu: &crate::compilation_unit::FunctionUnit,
+    module: &crate::ir::Module,
     registry: &CommandRegistry,
     source: &str,
     selected: &[Optimisation],
@@ -512,7 +515,7 @@ fn couple_const_dead_stores_in_function(
 ) {
     use crate::def_use::DefKind;
 
-    let Some(metadata) = fu.invocation_metadata_context(registry) else {
+    let Some(metadata) = fu.invocation_metadata_context_for_module(registry, module) else {
         return;
     };
     // Per-variable def count — only single-def scalars qualify.
@@ -527,6 +530,7 @@ fn couple_const_dead_stores_in_function(
 
     let ctx = CoupleCtx {
         fu,
+        module,
         registry,
         source,
         selected,
@@ -560,6 +564,7 @@ fn couple_const_dead_store_chain(
 
     let CoupleCtx {
         fu,
+        module,
         registry,
         source,
         selected,
@@ -645,11 +650,14 @@ fn couple_const_dead_store_chain(
     let purity = super::elimination::PurityCtx {
         registry: Some(registry),
         interproc_pure: &empty,
-        pure_methods: &empty,
         enclosing_class: None,
-        config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        config: fu.source_lexer_config(),
+        metadata: fu.invocation_metadata_context_for_module(registry, module),
+        module: Some(module),
     };
-    if !super::elimination::assignment_safe_to_delete(def_stmt, purity) {
+    let block = fu.cfg.block_id(&chain.definition.block)?;
+    let index = usize::try_from(chain.definition.statement_index).ok()?;
+    if !super::elimination::assignment_safe_to_delete_at(fu, block, index, purity) {
         return None;
     }
 

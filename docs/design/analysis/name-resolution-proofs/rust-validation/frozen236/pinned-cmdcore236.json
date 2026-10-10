@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-cmdcore236.elf",
+  "sha256": "54efa3f39bfe01ba2454e51d579f2f08dd0542639c063cadb93a2d6fe02fc162",
+  "build_receipt": "/workspace/.proofs/recovery-cmdcore-build236.json",
+  "build_receipt_sha256": "b0496a9508e27d597f8eb05bfa98550c03ffaa2b18a11c7fa17583d5c98bd195",
+  "source_snapshot_sha256": "7511b9a279f0d7bcff72111bd2e7e19ed21328a239b17e68fe0006d7d1a9d882"
+}

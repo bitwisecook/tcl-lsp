@@ -1,0 +1,251 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/recovered-naming-refactor-original81.source-trees.tar.gz",
+  "archive_sha256": "204c1a9990dcc4c112e76a3513a35027d5a4f6d5cbdc95bf487cc33648ce9f22",
+  "archive_bytes": 220407,
+  "uncompressed_bytes": 1000590,
+  "source_manifest_sha256": "fe0c7b0ccd97efbbc32f57bdae84266891d2b585a878d7f683c960beeec8b952",
+  "source_patch_sha256": "a2447179fdb6440b24b57ad127ff73334ffb9d3b62d08632620f0a3c99d2591a",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": false,
+  "member_count": 26,
+  "members": {
+    "recovered-naming-refactor-original81/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9186423,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.924165,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9186423,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9237409,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-compiler/src/registry_invocation": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9237409,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.924038,
+      "size": 17097,
+      "sha256": "2d77397098eaabc5bf9c02fb233c238ab8bc7b5238f0879b95634c7b8d726ace"
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-compiler/src/registry_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.923328,
+      "size": 313029,
+      "sha256": "4c73ef2a64f011c6313b945d153e36ea5ee9fb920f16ffbf6bd3033c97c16b2d"
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.924165,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.924165,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-lsp-core/src/refactor": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9249225,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-lsp-core/src/refactor/extract_proc.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9251974,
+      "size": 73114,
+      "sha256": "48767e4b2fcce061842407a16c7d5fb9b2dc8d1dd39185eac1431b97f8718dd1"
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-lsp-core/src/refactor/inline_proc.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9247494,
+      "size": 45034,
+      "sha256": "ecba7ffee29d4fc72cd07c77e3a05e074e02df90229817c5bbd3713c84dbd42f"
+    },
+    "recovered-naming-refactor-original81/base/rust/tcl-lsp-core/src/refactor/mod.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9243295,
+      "size": 38806,
+      "sha256": "5b61d9bb8da8c59acf3727cbcfbb7fee4a2f7a08314ec2b8c8c9fdcce22a862c"
+    },
+    "recovered-naming-refactor-original81/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.923328,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9243295,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.923328,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.924038,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-compiler/src/registry_invocation": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.924038,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504589.1802227,
+      "size": 17256,
+      "sha256": "a5590ff2ee02b548f5ca10f2b01cbd34a0d300830d90fa65c2d2cc989dea73d9"
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-compiler/src/registry_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9287643,
+      "size": 313667,
+      "sha256": "0efa08e10a26ad28447bc155a536b4c7b35414e7aae81e35024c32364ee8972e"
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9243295,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9243295,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-lsp-core/src/refactor": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504365.9251974,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-lsp-core/src/refactor/extract_proc.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504589.1804628,
+      "size": 73370,
+      "sha256": "51e8b0fc5702cb664facc5f61625b08f6a6c6b439ff4ce5c122b3d07151de907"
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-lsp-core/src/refactor/inline_proc.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504531.70135,
+      "size": 59732,
+      "sha256": "a04cf9e31db77977b14dbeff86ae971bb66049b11f1536c872f4a063c9b26574"
+    },
+    "recovered-naming-refactor-original81/files/rust/tcl-lsp-core/src/refactor/mod.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791504531.6533504,
+      "size": 49485,
+      "sha256": "9b6d7e224917280d370782c380806b9eb83d0439959dc10234d8cf972c5d3e09"
+    }
+  },
+  "leaf_tree_mapping": [],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

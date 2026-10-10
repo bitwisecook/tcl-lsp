@@ -10,11 +10,18 @@ use crate::registry_invocation::InvocationMetadataContext;
 use tcl_lexer::{LexerConfig, SourceMap};
 use tcl_registry::{ArgRole, BodyInterpreter, BodyKind, CommandRegistry, ScriptTiming, Traits};
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReadPurpose {
+    InterpolationAndNames,
+    NamesOnly,
+}
+
 struct FootprintContext<'a> {
     registry: &'a CommandRegistry,
     metadata: InvocationMetadataContext<'a>,
     namespace: &'a ExecutionNamespace,
     config: LexerConfig,
+    reads: ReadPurpose,
 }
 
 impl VariableWriteEffects {
@@ -55,10 +62,80 @@ pub(crate) fn script_value_possible_writes_with_metadata_context(
         metadata,
         namespace,
         config,
+        reads: ReadPurpose::InterpolationAndNames,
     };
     let mut state = bindings.clone();
     let mut out = VariableWriteEffects::default();
     script_writes(text, &context, &mut state, &mut out, 0);
+    out
+}
+
+/// Possible output and by-name input operands of a materialized value.
+/// Interpolation reads stay separate: a body cannot own a missing name merely
+/// because that same body contains `$name`. No child command receipt is issued.
+pub(crate) fn script_value_name_ownership_with_metadata_context(
+    text: &str,
+    registry: &CommandRegistry,
+    bindings: &ModuleCommandBindings,
+    namespace: &ExecutionNamespace,
+    metadata: InvocationMetadataContext<'_>,
+    config: LexerConfig,
+) -> VariableWriteEffects {
+    if !metadata.matches_registry(registry) {
+        return VariableWriteEffects {
+            opaque: true,
+            ..Default::default()
+        };
+    }
+    let context = FootprintContext {
+        registry,
+        metadata,
+        namespace,
+        config,
+        reads: ReadPurpose::NamesOnly,
+    };
+    let mut state = bindings.clone();
+    let mut out = VariableWriteEffects::default();
+    script_writes(text, &context, &mut state, &mut out, 0);
+    out
+}
+
+/// Possible named reads at one independently retained original dispatch.
+/// Read/write metadata and re-evaluated values remain conditional source facts.
+pub(crate) fn command_possible_reads_with_metadata_context(
+    words: &[CommandWord],
+    registry: &CommandRegistry,
+    bindings: &ModuleCommandBindings,
+    namespace: &ExecutionNamespace,
+    metadata: InvocationMetadataContext<'_>,
+    config: LexerConfig,
+    include_invocation: bool,
+) -> VariableWriteEffects {
+    let context = FootprintContext {
+        registry,
+        metadata,
+        namespace,
+        config,
+        reads: ReadPurpose::InterpolationAndNames,
+    };
+    let mut state = bindings.clone();
+    let mut out = VariableWriteEffects::default();
+    if include_invocation {
+        command_writes(words, &context, &mut state, &mut out, 0);
+    } else {
+        let Some(holder) = words
+            .first()
+            .and_then(CommandWord::literal)
+            .and_then(|head| namespace.for_head_context(head))
+        else {
+            return VariableWriteEffects {
+                opaque: true,
+                ..Default::default()
+            };
+        };
+        reevaluated_reads(words, &context, &mut state, holder.as_ref(), &mut out, 0);
+    }
+    out.names.clear();
     out
 }
 
@@ -83,6 +160,7 @@ pub(crate) fn expression_possible_writes_with_metadata_context(
         metadata,
         namespace,
         config,
+        reads: ReadPurpose::InterpolationAndNames,
     };
     let mut texts = Vec::new();
     let mut unknown = false;
@@ -116,31 +194,37 @@ pub(crate) fn expression_possible_writes_with_metadata_context(
     out
 }
 
+pub(crate) fn footprint_command_words(
+    source: &SourceMap<'_>,
+    config: LexerConfig,
+    command: &crate::segmenter::SegmentedCommand,
+) -> Vec<CommandWord> {
+    let tokens = crate::ir::CommandTokens::from_segmented(source, config, command);
+    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+    super::command_words(source, config, command)
+        .into_iter()
+        .zip(tokens.words())
+        .map(|(mut word, original)| {
+            word.raw = source.text(original.source().span).to_owned();
+            let value = crate::registry_invocation::effective_invocation_word(
+                original,
+                config.escapes,
+                rules,
+            );
+            if let Some(value) = value.as_registry_word().literal() {
+                word.text = value.to_owned();
+                word.substituted = false;
+            }
+            word
+        })
+        .collect()
+}
+
 fn value_commands(text: &str, config: LexerConfig) -> Vec<Vec<CommandWord>> {
     let source = SourceMap::new(text);
     crate::segmenter::segment_commands_with_offset_and_config(text, 0, config)
         .iter()
-        .map(|command| {
-            let tokens = crate::ir::CommandTokens::from_segmented(&source, config, command);
-            let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
-            super::command_words(&source, config, command)
-                .into_iter()
-                .zip(tokens.words())
-                .map(|(mut word, original)| {
-                    word.raw = source.text(original.source().span).to_owned();
-                    let value = crate::registry_invocation::effective_invocation_word(
-                        original,
-                        config.escapes,
-                        rules,
-                    );
-                    if let Some(value) = value.as_registry_word().literal() {
-                        word.text = value.to_owned();
-                        word.substituted = false;
-                    }
-                    word
-                })
-                .collect()
-        })
+        .map(|command| footprint_command_words(&source, config, command))
         .collect()
 }
 
@@ -154,6 +238,14 @@ fn script_writes(
     if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
         out.opaque = true;
         return;
+    }
+    if context.reads == ReadPurpose::InterpolationAndNames {
+        let mut scanner = crate::var_refs::VarReferenceScanner::with_config(
+            crate::var_refs::VarScanOptions::default(),
+            context.config,
+        );
+        out.read_names
+            .extend(scanner.scan_script(text, context.registry));
     }
     for words in value_commands(text, context.config) {
         for word in words.iter().filter(|word| !word.braced_literal) {
@@ -210,12 +302,7 @@ fn command_writes(
         opaque: reads.opaque_variable_frame,
         ..VariableWriteEffects::default()
     });
-    let bodies = immediate_bodies(words, context, state, holder.as_ref());
-    for body in bodies {
-        let mut branch = state.clone();
-        script_writes(&body, context, &mut branch, out, depth + 1);
-        state.join_possible_source_effects(&branch);
-    }
+    reevaluated_reads(words, context, state, holder.as_ref(), out, depth);
     state.source_order_registry_barrier_for_command_with_metadata_context(
         words,
         false,
@@ -226,15 +313,57 @@ fn command_writes(
     );
 }
 
-fn immediate_bodies(
+fn reevaluated_reads(
+    words: &[CommandWord],
+    context: &FootprintContext<'_>,
+    state: &mut ModuleCommandBindings,
+    holder: &crate::command_binding::SourceNamespaceKey,
+    out: &mut VariableWriteEffects,
+    depth: u32,
+) {
+    let (bodies, expressions, opaque) = immediate_values(words, context, state, holder);
+    out.opaque |= opaque;
+    let mut scanner = crate::var_refs::VarReferenceScanner::with_config(
+        crate::var_refs::VarScanOptions::default(),
+        context.config,
+    );
+    for expression in expressions {
+        if context.reads == ReadPurpose::InterpolationAndNames {
+            out.read_names
+                .extend(scanner.scan_word(&expression, context.registry));
+        }
+        let map = SourceMap::new(&expression);
+        for token in tcl_lexer::Lexer::with_config(&expression, context.config).as_quoted_body() {
+            let Ok(token) = token else {
+                out.opaque = true;
+                continue;
+            };
+            if token.kind == tcl_lexer::TokenType::Cmd {
+                let mut branch = state.clone();
+                script_writes(map.token_text(token), context, &mut branch, out, depth + 1);
+                state.join_possible_source_effects(&branch);
+            }
+        }
+    }
+    for body in bodies {
+        let mut branch = state.clone();
+        script_writes(&body, context, &mut branch, out, depth + 1);
+        state.join_possible_source_effects(&branch);
+    }
+}
+
+fn immediate_values(
     words: &[CommandWord],
     context: &FootprintContext<'_>,
     state: &ModuleCommandBindings,
     holder: &crate::command_binding::SourceNamespaceKey,
-) -> Vec<String> {
+) -> (Vec<String>, Vec<String>, bool) {
     let mut bodies = Vec::new();
+    let mut expressions = Vec::new();
+    let mut opaque = false;
     state.for_each_resolved_command_words(words, holder, |target, invocation| {
         if !target.registry_backed {
+            opaque = true;
             return;
         }
         let resolution =
@@ -245,11 +374,37 @@ fn immediate_bodies(
                 state.invocation_realm(),
             );
         let Some(schema) = resolution.resolved() else {
+            opaque = true;
             return;
         };
         bodies.extend(immediate_same_frame_script_values(&schema));
+        let Some(layout) = schema.authored_source_expression_arguments() else {
+            opaque = true;
+            return;
+        };
+        let arguments = schema.words.arguments();
+        if layout.concatenates {
+            if let Some(values) = layout
+                .arguments
+                .iter()
+                .map(|ordinal| arguments.literal_at(*ordinal))
+                .collect::<Option<Vec<_>>>()
+            {
+                expressions.push(values.join(" "));
+            } else {
+                opaque = true;
+            }
+        } else {
+            for ordinal in layout.arguments {
+                if let Some(value) = arguments.literal_at(ordinal) {
+                    expressions.push(value.to_owned());
+                } else {
+                    opaque = true;
+                }
+            }
+        }
     });
-    bodies
+    (bodies, expressions, opaque)
 }
 
 /// Static values in immediate current-frame bodies of an already selected

@@ -838,6 +838,8 @@ pub enum NativeCompilationGrammar {
     CoroutineRelay,
     /// C8.6+ zero- or one-value coroutine suspension compiler.
     CoroutineYield,
+    /// C8.6+ original zero-operand coroutine-name instruction.
+    InfoCoroutine,
     /// A release-gated hook accepts every retained word within an authored
     /// argc range; rejected shapes invoke the original handler generically.
     ArityFrom {
@@ -1901,6 +1903,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::ArgumentConcatFrom(_)
             | NativeCompilationGrammar::CoroutineRelay
             | NativeCompilationGrammar::CoroutineYield
+            | NativeCompilationGrammar::InfoCoroutine
             | NativeCompilationGrammar::Regexp
             | NativeCompilationGrammar::Increment
             | NativeCompilationGrammar::LoopControl
@@ -1983,6 +1986,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::ListLength
             | NativeCompilationGrammar::Tailcall
             | NativeCompilationGrammar::CoroutineYield
+            | NativeCompilationGrammar::InfoCoroutine
             | NativeCompilationGrammar::CoroutineRelay
             | NativeCompilationGrammar::Error => true,
             _ => false,
@@ -2239,6 +2243,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::TclOoHelper(_)
             | NativeCompilationGrammar::CoroutineRelay
             | NativeCompilationGrammar::CoroutineYield
+            | NativeCompilationGrammar::InfoCoroutine
             | NativeCompilationGrammar::LiteralUnset
             | NativeCompilationGrammar::InfoCommands
             | NativeCompilationGrammar::InfoLevel
@@ -2347,6 +2352,10 @@ impl NativeCompilationSpec {
         match self.grammar {
             NativeCompilationGrammar::InfoExists => Some(INFO_EXISTS_IMPLEMENTATION),
             NativeCompilationGrammar::InfoLevel => Some(INFO_LEVEL_IMPLEMENTATION),
+            NativeCompilationGrammar::InfoCoroutine => {
+                implementation_version_matches(dialect, TclVersion::V8_6)
+                    .then_some(INFO_COROUTINE_IMPLEMENTATION)
+            }
             _ => None,
         }
     }
@@ -3215,6 +3224,7 @@ impl NativeCompilationSpec {
             self.grammar,
             NativeCompilationGrammar::InfoExists
                 | NativeCompilationGrammar::InfoLevel
+                | NativeCompilationGrammar::InfoCoroutine
                 | NativeCompilationGrammar::NamespaceCurrent
                 | NativeCompilationGrammar::NamespaceOrigin
                 | NativeCompilationGrammar::NamespaceCode
@@ -3830,6 +3840,13 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::ArityFrom { first, arity } => {
                 gated_arity_grammar(first, arity, shapes, version, self.operation)
             }
+            NativeCompilationGrammar::InfoCoroutine => gated_arity_grammar(
+                TclVersion::V8_6,
+                crate::Arity::exact(0),
+                shapes,
+                version,
+                self.operation,
+            ),
             NativeCompilationGrammar::CoroutineYield => gated_arity_grammar(
                 TclVersion::V8_6,
                 crate::Arity::new(0, 1),
@@ -4216,6 +4233,14 @@ const INFO_EXISTS_IMPLEMENTATION: NativeCompilerImplementationLookup =
         slot: "::tcl::info::exists",
         command: "info",
         prepended: &["exists"],
+    };
+const INFO_COROUTINE_IMPLEMENTATION: NativeCompilerImplementationLookup =
+    NativeCompilerImplementationLookup {
+        ensemble: "::info",
+        member: "coroutine",
+        slot: "::tcl::info::coroutine",
+        command: "info",
+        prepended: &["coroutine"],
     };
 const INFO_LEVEL_IMPLEMENTATION: NativeCompilerImplementationLookup =
     NativeCompilerImplementationLookup {

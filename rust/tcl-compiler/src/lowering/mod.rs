@@ -2446,11 +2446,24 @@ impl<'r> Lowerer<'r> {
         if self.dead_code_depth != 0 {
             return;
         }
-        let Some(footprint) =
-            crate::registry_invocation::namespace_directive_footprint(self.registry, None, tokens)
-        else {
-            return;
+        let footprint = match self.invocation_metadata_context() {
+            Some(context) => {
+                crate::registry_invocation::namespace_directive_footprint_with_metadata_context(
+                    self.registry,
+                    Some(context),
+                    tokens,
+                )
+            }
+            None if self.allows_standalone_registry_metadata() => {
+                crate::registry_invocation::namespace_directive_footprint(
+                    self.registry,
+                    None,
+                    tokens,
+                )
+            }
+            None => None,
         };
+        let Some(footprint) = footprint else { return };
         let namespace = tokens
             .source_binding
             .as_ref()
@@ -2958,6 +2971,63 @@ impl<'r> Lowerer<'r> {
         Some(lowered)
     }
 
+    /// Retain a conditional Logical procedure directly from its sealed source
+    /// recipe. Native parameter/publication/entry receipts remain unavailable.
+    fn try_lower_logical_procedure_declaration(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        tokens: &CommandTokens,
+    ) -> Option<Statement> {
+        if self.compilation_scope == tcl_runtime_api::SourceCompilationScope::EnteredSource {
+            return None;
+        }
+        let input = self
+            .invocation_metadata_context()?
+            .source_analysis_input()?;
+        let declaration = self
+            .source_bindings
+            .as_ref()?
+            .original_logical_procedure_declaration(tokens, self.registry, input)?;
+        let qualified = declaration.qualified_name()?.to_owned();
+        let name = declaration.name()?.to_owned();
+        let params_raw = declaration.parameters_text()?.to_owned();
+        let params = declaration
+            .parameters()
+            .iter()
+            .map(|parameter| parameter.name.clone())
+            .collect();
+        let source = declaration.source().clone();
+        let body_offset = source.base();
+        let body_source = source.try_text().ok()?.to_owned();
+        let body = self
+            .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
+                lowerer.lower_original_body(source, Some(declaration.namespace()))
+            });
+        if !self.suppress_proc_register {
+            match self.module.procedures.entry(qualified.clone()) {
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(Procedure {
+                        name,
+                        qualified_name: qualified,
+                        params,
+                        span: seg.span,
+                        body,
+                        params_raw,
+                        body_source: Some(body_source),
+                        body_offset,
+                        namespace_scoped: self.in_namespace_eval,
+                        base_priority: 500,
+                    });
+                }
+                std::collections::hash_map::Entry::Occupied(_) => {
+                    self.module.redefined_procedures.insert(qualified);
+                }
+            }
+        }
+        Some(self.lower_default(seg, namespace))
+    }
+
     fn try_lower_proc_declaration(
         &mut self,
         seg: &SegmentedCommand,
@@ -3194,6 +3264,13 @@ impl<'r> Lowerer<'r> {
                 .is_none()
         {
             self.retain_entered_namespace_body(seg, namespace, &tokens);
+        }
+        if !self.target.is_bytecode()
+            && !self.target.is_trace_visible()
+            && let Some(statement) =
+                self.try_lower_logical_procedure_declaration(seg, namespace, &tokens)
+        {
+            return Some(Box::new(statement));
         }
         let resolved_name = if self.target.is_bytecode() {
             let target = tokens
@@ -4238,46 +4315,45 @@ impl<'r> Lowerer<'r> {
         let arg_tokens = seg.arg_tokens();
 
         let tokens = self.cmd_tokens(seg);
-        let selected =
-            crate::registry_invocation::resolved_tokens_invocation(self.registry, None, &tokens)
-                .and_then(|invocation| {
-                    let dialect = invocation.dialect?;
-                    let values = (0..invocation.arguments.len())
-                        .map(|index| invocation.argument_literal(index))
-                        .collect::<Vec<_>>();
-                    let words = values
-                        .iter()
-                        .map(|value| {
-                            value.as_deref().map_or(
-                                tcl_registry::InvocationWord::Dynamic,
-                                tcl_registry::InvocationWord::Literal,
-                            )
-                        })
-                        .collect::<Vec<_>>();
-                    let arguments =
-                        tcl_registry::InvocationArguments::structured(&words).with_dialect(dialect);
-                    let tcl_registry::lambda_invocation::LambdaInvocationSelection::Selected(
-                        lambda,
-                    ) = tcl_registry::lambda_invocation::select_lambda_invocation(arguments, 0)
-                    else {
-                        return None;
-                    };
-                    let parameters = tcl_syntax::formal_params::parse_formal_parameters_in(
-                        &lambda.parameters,
-                        dialect.parameter_grammar()?,
-                    )
-                    .ok()?
-                    .into_iter()
-                    .map(|parameter| parameter.name)
-                    .collect();
-                    let source = self
-                        .source_bindings
-                        .as_ref()?
-                        .executed_script_for_list_element(arg_tokens.first()?.span, 1)?
-                        .clone();
-                    let namespace = self.original_body_namespace_context(&tokens, 0, &source);
-                    Some((lambda, parameters, source, namespace))
-                });
+        let selected = self
+            .resolved_metadata_invocation(&tokens)
+            .and_then(|invocation| {
+                let dialect = invocation.dialect?;
+                let values = (0..invocation.arguments.len())
+                    .map(|index| invocation.argument_literal(index))
+                    .collect::<Vec<_>>();
+                let words = values
+                    .iter()
+                    .map(|value| {
+                        value.as_deref().map_or(
+                            tcl_registry::InvocationWord::Dynamic,
+                            tcl_registry::InvocationWord::Literal,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let arguments =
+                    tcl_registry::InvocationArguments::structured(&words).with_dialect(dialect);
+                let tcl_registry::lambda_invocation::LambdaInvocationSelection::Selected(lambda) =
+                    tcl_registry::lambda_invocation::select_lambda_invocation(arguments, 0)
+                else {
+                    return None;
+                };
+                let parameters = tcl_syntax::formal_params::parse_formal_parameters_in(
+                    &lambda.parameters,
+                    dialect.parameter_grammar()?,
+                )
+                .ok()?
+                .into_iter()
+                .map(|parameter| parameter.name)
+                .collect();
+                let source = self
+                    .source_bindings
+                    .as_ref()?
+                    .executed_script_for_list_element(arg_tokens.first()?.span, 1)?
+                    .clone();
+                let namespace = self.original_body_namespace_context(&tokens, 0, &source);
+                Some((lambda, parameters, source, namespace))
+            });
 
         if let Some((lambda, params, source, namespace)) = selected {
             let body_offset = source.base();
@@ -4419,9 +4495,7 @@ impl<'r> Lowerer<'r> {
         if self.compilation_scope == tcl_runtime_api::SourceCompilationScope::EnteredSource {
             return;
         }
-        let Some(invocation) =
-            crate::registry_invocation::resolved_tokens_invocation(self.registry, None, tokens)
-        else {
+        let Some(invocation) = self.resolved_metadata_invocation(tokens) else {
             return;
         };
         if invocation.facts.operation
@@ -4581,6 +4655,36 @@ impl<'r> Lowerer<'r> {
             .collect()
     }
 
+    fn resolved_metadata_invocation(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::ResolvedStatementInvocation> {
+        // Explicit standalone authoring has its own metadata context. An
+        // unavailable supplied owner cannot enter the scalar compatibility API.
+        match self.invocation_metadata_context() {
+            Some(context) => {
+                crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                    self.registry,
+                    Some(context),
+                    tokens,
+                )
+            }
+            None if self.allows_standalone_registry_metadata() => {
+                crate::registry_invocation::resolved_tokens_invocation(self.registry, None, tokens)
+            }
+            None => None,
+        }
+    }
+
+    fn allows_standalone_registry_metadata(&self) -> bool {
+        self.source_entry_origin == SourceEntryOrigin::Authoring
+            && self.metadata_origin == LoweringMetadataOrigin::Standalone
+            && self.metadata_input.is_none()
+            && self.logical_source_input.is_none()
+            && self.vendor_source_input.is_none()
+            && self.dialect_context.is_none()
+    }
+
     fn invocation_metadata_context(
         &self,
     ) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
@@ -4599,7 +4703,7 @@ impl<'r> Lowerer<'r> {
         }
         match self.dialect_context.as_deref() {
             Some(context) => Some(context.into()),
-            None if self.source_entry_origin == SourceEntryOrigin::Authoring => self
+            None if self.allows_standalone_registry_metadata() => self
                 .dialect
                 .or_else(|| self.registry.profile())
                 .map(tcl_registry::model::semantic::SemanticContext::for_profile)
@@ -8756,6 +8860,87 @@ mod tests {
     }
 
     #[test]
+    fn namespace_directive_metadata_keeps_actual_availability_and_source_config() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut registry = baseline.commands().project_for_profile(profile);
+        let mut descriptor = registry.get("namespace").unwrap().clone();
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(descriptor);
+        let current =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(registry)));
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(current.commands())),
+        );
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(native)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let make = |context: std::sync::Arc<tcl_registry::model::ContextRegistry>| {
+            let input =
+                crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+            let mut lowerer =
+                Lowerer::with_config(current.commands(), config).with_dialect(Some(profile));
+            lowerer.set_source_analysis_options(entry.options());
+            lowerer.with_resolved_analysis_input(input)
+        };
+        let source = "namespace export exposed";
+        let mut selected = make(std::sync::Arc::clone(&current));
+        selected.lower(source);
+        assert_eq!(
+            selected.namespace_exports,
+            [("::".to_owned(), "exposed".to_owned())]
+        );
+        let mut unavailable = make(older);
+        unavailable.lower(source);
+        assert!(unavailable.namespace_exports.is_empty());
+        let mut missing = make(std::sync::Arc::clone(&current));
+        missing.metadata_input = None;
+        missing.dialect_context = None;
+        missing.lower(source);
+        assert!(missing.namespace_exports.is_empty());
+        let logical_profile = tcl_dialect::DialectProfile::plain_tcl();
+        let logical_input = crate::analyser::ResolvedAnalysisInput::new(
+            logical_profile,
+            logical_profile,
+            std::sync::Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(logical_profile.grammar),
+        );
+        let mut missing_authoring =
+            Lowerer::with_config(current.commands(), logical_input.lexer_config())
+                .with_resolved_analysis_input(logical_input);
+        assert!(missing_authoring.invocation_metadata_context().is_some());
+        assert_eq!(
+            missing_authoring.source_entry_origin,
+            SourceEntryOrigin::Authoring
+        );
+        missing_authoring.metadata_input = None;
+        missing_authoring.logical_source_input = None;
+        missing_authoring.dialect_context = None;
+        assert!(!missing_authoring.allows_standalone_registry_metadata());
+        assert!(missing_authoring.invocation_metadata_context().is_none());
+        missing_authoring.lower(source);
+        assert!(missing_authoring.namespace_exports.is_empty());
+        let mut stale = make(std::sync::Arc::clone(&current));
+        stale.config.strict_quoting = !config.strict_quoting;
+        stale.lower(source);
+        assert!(stale.namespace_exports.is_empty());
+        let mut foreign = make(
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+        );
+        foreign.lower(source);
+        assert!(foreign.namespace_exports.is_empty());
+    }
+
+    #[test]
     fn namespace_directive_metadata_uses_frozen_handler_operands() {
         for source in [
             "set pattern {-c}; namespace export OLD; namespace export -clear $pattern -- x",
@@ -9539,6 +9724,21 @@ mod tests {
                 module.source_entry.logical_source_input.as_ref(),
                 Some(&input)
             );
+        }
+        for source in [
+            "interp alias {} ::α {} proc subject; ::α {} {return VALUE}",
+            "interp alias {} ::α {} proc subject {}; ::α {return VALUE}",
+        ] {
+            let mut lowerer = Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input.clone());
+            let module = lowerer.lower(source);
+            let procedure = module
+                .procedures
+                .get("::subject")
+                .expect("captured source declaration");
+            assert!(procedure.params.is_empty());
+            assert_eq!(procedure.params_raw, "");
+            assert!(module.source_entry.native_entry.is_none());
         }
         let source = "rename proc ::α; ::α ::α args {return PAYLOAD}; ::α subject {} {}";
         let mut replaced = Lowerer::with_config(context.commands(), input.lexer_config())

@@ -35,6 +35,7 @@ enum CoroutineStep {
     TailcallList,
     Yield,
     YieldTo,
+    Name,
 }
 
 impl CoroutineOperation {
@@ -82,6 +83,7 @@ impl Builder<'_> {
                 NativeCoroutineStep::TailcallList => CoroutineStep::TailcallList,
                 NativeCoroutineStep::Yield => CoroutineStep::Yield,
                 NativeCoroutineStep::YieldTo => CoroutineStep::YieldTo,
+                NativeCoroutineStep::Name => CoroutineStep::Name,
             });
         }
         Ok(CoroutineOperation {
@@ -173,6 +175,10 @@ impl Interp {
                         self,
                         stack.pop().expect("native yielded value"),
                     ));
+                }
+                CoroutineStep::Name => {
+                    self.set_result_bytes(&crate::cmd_coro::current_coroutine());
+                    return Ok(Code::Ok);
                 }
                 CoroutineStep::YieldTo => {
                     return Ok(crate::cmd_coro::yieldto_original(

@@ -165,7 +165,7 @@ struct OriginalInlineContext<'a> {
     image: tcl_lexer::SourceImage,
     config: LexerConfig,
     registry: &'a CommandRegistry,
-    profile: &'static tcl_dialect::DialectProfile,
+    metadata: Option<tcl_compiler::registry_invocation::InvocationMetadataContext<'a>>,
     original: tcl_compiler::ir::CommandTokens,
     offset: u32,
 }
@@ -180,11 +180,12 @@ fn original_inline_binding(
     command: &SegmentedCommand,
 ) -> Option<OriginalInlineBinding> {
     use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
-    let context = OriginalInlineContext {
+    let input = analysis.resolved_input.as_ref()?;
+    let mut context = OriginalInlineContext {
         image: tcl_lexer::SourceImage::document(source),
         config: analysis.body_lexer_config?,
         registry: analysis.resolved_registry()?,
-        profile: analysis.resolved_profile()?,
+        metadata: None,
         original: tcl_compiler::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             analysis.body_lexer_config?,
@@ -192,19 +193,23 @@ fn original_inline_binding(
         ),
         offset: command.span.start(),
     };
-    let unit = CompilationUnit::build_with_options(
+    let unit = CompilationUnit::build_with_analysis_input(
         source,
         UnitBuildOptions {
             registry: context.registry,
             config: context.config,
-            dialect: Some(context.profile),
+            dialect: Some(input.unit_profile()),
             defer_top_level: false,
             external_call_sites: None,
             declared_commands: None,
         },
+        None,
+        input,
     );
     let mut selected = None;
     for function in unit.analysable_body_function_units() {
+        context.metadata =
+            function.invocation_metadata_context_for_module(context.registry, &unit.ir_module);
         let opaque = function.cfg.has_opaque_native_accesses();
         let barrier = function.dynamic_barrier_blocks_value_motion();
         #[cfg(debug_assertions)]
@@ -249,13 +254,12 @@ fn point_inline_binding(
     {
         return None;
     }
-    let normal = tcl_compiler::registry_invocation::normal_transfer_invocation(
-        context.registry,
-        Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-            context.profile,
-        )),
-        tokens,
-    );
+    let normal =
+        tcl_compiler::registry_invocation::normal_transfer_invocation_with_metadata_context(
+            context.registry,
+            Some(context.metadata?),
+            tokens,
+        );
     #[cfg(debug_assertions)]
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
         eprintln!(
@@ -315,7 +319,11 @@ fn value_read_binding(
 ) -> Option<(String, tcl_lexer::Span)> {
     use tcl_compiler::def_use::{DefKind, UseKind};
     use tcl_compiler::ssa::SsaSourceView;
-    let definition = view.original_definition_name(symbol, context.registry)?;
+    let definition = view.original_definition_name_with_metadata_context(
+        symbol,
+        context.registry,
+        context.metadata,
+    )?;
     let input = definition.original_name_input();
     let key = input.original_word_key()?;
     if key.source_image() != &context.image
@@ -534,6 +542,9 @@ mod tests {
             let change = inline_variable(source, 0, &analysis, registry, &index).expect(dialect);
             assert_eq!(change.apply(source), "puts 7", "{dialect}");
             assert!(inline_variable("# stale source", 0, &analysis, registry, &index).is_none());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(inline_variable(source, 0, &missing, registry, &index).is_none());
         }
     }
 

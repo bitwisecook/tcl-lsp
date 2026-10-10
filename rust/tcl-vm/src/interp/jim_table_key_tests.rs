@@ -69,8 +69,8 @@ fn original_jim_table_key_public_results_match_replacement_rename_and_namespace_
                 vm.refused_completion()
             );
             assert_eq!(
-                completion.result.string_bytes(),
-                expected_result,
+                completion.result.string_bytes().as_ref(),
+                expected_result.as_slice(),
                 "{engine}/{case}"
             );
             assert!(vm.refused_completion().is_none(), "{engine}/{case}");

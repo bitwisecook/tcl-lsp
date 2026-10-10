@@ -1,0 +1,246 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/recovered-naming-procedure-arguments162b.source-trees.tar.gz",
+  "archive_sha256": "4bd29f467cb0cb7edb2898ffeeb7c46afcd5ea8dd987b4751f7000a2b9976045",
+  "archive_bytes": 301368,
+  "uncompressed_bytes": 1268936,
+  "source_manifest_sha256": "6013d9b6929d1fda8cf04ce1022234d22d7af06643c1a3359a04f12894f38f90",
+  "source_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": false,
+  "member_count": 20,
+  "members": {
+    "recovered-naming-procedure-arguments162b/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5781393,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.585808,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5781393,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5781393,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/base/rust/tcl-compiler/src/registry_invocation": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5781393,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/base/rust/tcl-compiler/src/registry_invocation/source_structure.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.585745,
+      "size": 39534,
+      "sha256": "f1d43d4f727cf946cfca4c269fe892b426f26236654ddca9e2a296a5923f50d0"
+    },
+    "recovered-naming-procedure-arguments162b/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.585808,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5879335,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/base/rust/tcl-lsp-core/src/inlay_hints.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5898674,
+      "size": 98289,
+      "sha256": "c678cb2af9898c406446ac4166484db054dcf840ff7caf7b8c65c932698ada59"
+    },
+    "recovered-naming-procedure-arguments162b/base/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5866241,
+      "size": 496645,
+      "sha256": "c48cd2f4b7a3e73a09dd6732c9022be09eaf1a3e8ecd8227300a0238f65ea435"
+    },
+    "recovered-naming-procedure-arguments162b/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5781393,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.585808,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5781393,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5781393,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/files/rust/tcl-compiler/src/registry_invocation": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.585745,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/files/rust/tcl-compiler/src/registry_invocation/source_structure.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.585808,
+      "size": 39534,
+      "sha256": "f1d43d4f727cf946cfca4c269fe892b426f26236654ddca9e2a296a5923f50d0"
+    },
+    "recovered-naming-procedure-arguments162b/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.585808,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5898674,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-procedure-arguments162b/files/rust/tcl-lsp-core/src/inlay_hints.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5900142,
+      "size": 98289,
+      "sha256": "c678cb2af9898c406446ac4166484db054dcf840ff7caf7b8c65c932698ada59"
+    },
+    "recovered-naming-procedure-arguments162b/files/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791534754.5943813,
+      "size": 496645,
+      "sha256": "c48cd2f4b7a3e73a09dd6732c9022be09eaf1a3e8ecd8227300a0238f65ea435"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "f1d43d4f727cf946cfca4c269fe892b426f26236654ddca9e2a296a5923f50d0",
+      "trees": [
+        "files"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "hash_key": "base_sha256",
+      "sha256": "f1d43d4f727cf946cfca4c269fe892b426f26236654ddca9e2a296a5923f50d0",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "c678cb2af9898c406446ac4166484db054dcf840ff7caf7b8c65c932698ada59",
+      "trees": [
+        "files"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "hash_key": "base_sha256",
+      "sha256": "c678cb2af9898c406446ac4166484db054dcf840ff7caf7b8c65c932698ada59",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "c48cd2f4b7a3e73a09dd6732c9022be09eaf1a3e8ecd8227300a0238f65ea435",
+      "trees": [
+        "files"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "hash_key": "base_sha256",
+      "sha256": "c48cd2f4b7a3e73a09dd6732c9022be09eaf1a3e8ecd8227300a0238f65ea435",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

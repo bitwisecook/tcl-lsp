@@ -1,0 +1,160 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/diagnostic-finish-constructor-proof-domain280.source-trees.tar.gz",
+  "archive_sha256": "736928a7f53c87ac3ae75a2b63cb0a01e02e47c694753a255790ebc304e38913",
+  "archive_bytes": 288263,
+  "uncompressed_bytes": 1267716,
+  "source_manifest_sha256": "ff13c51a7f20412866a329f52ca4f25e6858c2b0fd8e8bfa1ebd87c70fb2d868",
+  "source_patch_sha256": "0c311bd8312d5ee985e2341ce8ba38fe38fd0bcf12fe069495adc3e2b950d854",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 14,
+  "members": {
+    "diagnostic-finish-constructor-proof-domain280/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0150821,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0150821,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0150821,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0150821,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0150821,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/base/rust/tcl-compiler/src/analyser/diagnostics": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0150821,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/base/rust/tcl-compiler/src/analyser/diagnostics/tests.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0202544,
+      "size": 633034,
+      "sha256": "350608097d6e673f4b4cb51d378c270ff51a70d1c8273fea1ce1c6fb22917b1c"
+    },
+    "diagnostic-finish-constructor-proof-domain280/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0202544,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0202544,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0202544,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0202544,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/candidate/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0202544,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/candidate/rust/tcl-compiler/src/analyser/diagnostics": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0202544,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-constructor-proof-domain280/candidate/rust/tcl-compiler/src/analyser/diagnostics/tests.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791600218.0249114,
+      "size": 634682,
+      "sha256": "9f92930f5f1cf343ed2e5c0cf9d80ba4a041e170de6c673dbfb32951c3888303"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/tests.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "9f92930f5f1cf343ed2e5c0cf9d80ba4a041e170de6c673dbfb32951c3888303",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/tests.rs",
+      "hash_key": "base_sha256",
+      "sha256": "350608097d6e673f4b4cb51d378c270ff51a70d1c8273fea1ce1c6fb22917b1c",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

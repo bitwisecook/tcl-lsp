@@ -405,8 +405,8 @@ fn original_alias_diagnostic_extents_match_all_12_native_public_windows() {
             );
             assert!(vm.refused_completion().is_none(), "{engine}/{case}");
             assert_eq!(
-                completion.result.string_bytes(),
-                expected_result,
+                completion.result.string_bytes().as_ref(),
+                expected_result.as_slice(),
                 "{engine}/{case}"
             );
             comparisons += 1;
@@ -482,8 +482,8 @@ fn original_procedure_usage_extents_match_all_24_native_public_windows() {
             );
             assert!(vm.refused_completion().is_none(), "{engine}/{case}");
             assert_eq!(
-                completion.result.string_bytes(),
-                expected_result,
+                completion.result.string_bytes().as_ref(),
+                expected_result.as_slice(),
                 "{engine}/{case}"
             );
             comparisons += 1;
@@ -538,8 +538,8 @@ fn original_info_dispatch_matches_all_12_native_public_windows() {
             );
             assert!(vm.refused_completion().is_none(), "{engine}/{case}");
             assert_eq!(
-                completion.result.string_bytes(),
-                expected_result,
+                completion.result.string_bytes().as_ref(),
+                expected_result.as_slice(),
                 "{engine}/{case}"
             );
             comparisons += 1;

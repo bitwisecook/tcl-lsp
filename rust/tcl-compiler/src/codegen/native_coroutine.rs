@@ -43,6 +43,7 @@ impl CodegenCtx<'_> {
             NativeCoroutineStep::TailcallList => Task::Operation(Op::TAILCALL_LIST, vec![]),
             NativeCoroutineStep::Yield => Task::Operation(Op::YIELD, vec![]),
             NativeCoroutineStep::YieldTo => Task::Operation(Op::YIELD_TO_INVOKE, vec![]),
+            NativeCoroutineStep::Name => Task::Operation(Op::CORO_NAME, vec![]),
         })).collect()
     }
 }

@@ -1,0 +1,132 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-native-body-fallback296.base-files.tar.gz",
+  "archive_sha256": "046c7e62199e76d820959fe4d82b90e380082ecebabe959dc4c12ee06fdd0342",
+  "archive_bytes": 611059,
+  "uncompressed_bytes": 2622147,
+  "source_manifest_sha256": "72ed72a9cfb955e1e29b53a8a1e22cf455219c3920eb1d4e57e3183064064edf",
+  "source_patch_sha256": "68b8e67c721fa0346df56674082adf5d4b1f79154ddb27ec0dc9b5e9f8dccec5",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/68b8e67c721fa0346df56674082adf5d4b1f79154ddb27ec0dc9b5e9f8dccec5.patch",
+  "original_application_journal_sha256": "68b8e67c721fa0346df56674082adf5d4b1f79154ddb27ec0dc9b5e9f8dccec5",
+  "member_count": 13,
+  "members": {
+    "grammar-native-body-fallback296/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0169747,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback296/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0169747,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback296/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0169747,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback296/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0237322,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback296/base/runtime/rust/src/codegen_abi.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.024339,
+      "size": 198466,
+      "sha256": "6f174f4c711f35346a76eb28d93e57f964e8536e30827f5d8a9b2d90bfaf1234"
+    },
+    "grammar-native-body-fallback296/base/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0218205,
+      "size": 741225,
+      "sha256": "61e85c738472285b9d7c2477497512fe17beb0fbd017b0e9b7da92f9116e5f8b"
+    },
+    "grammar-native-body-fallback296/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0218205,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback296/files/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0218205,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback296/files/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0218205,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback296/files/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0323465,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback296/files/runtime/rust/src/codegen_abi.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0320644,
+      "size": 199491,
+      "sha256": "933d4bb63f70e7984a7049bd07e1e46eba82fe4885c601408303828ff1586d9d"
+    },
+    "grammar-native-body-fallback296/files/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.2444327,
+      "size": 741740,
+      "sha256": "c068052ef1740e5e3eb16b40e886788c6420bad9f9158bce47319073cf0f6be3"
+    },
+    "grammar-native-body-fallback296/files/runtime/rust/src/interp.rs.orig": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603572.0237322,
+      "size": 741225,
+      "sha256": "61e85c738472285b9d7c2477497512fe17beb0fbd017b0e9b7da92f9116e5f8b"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

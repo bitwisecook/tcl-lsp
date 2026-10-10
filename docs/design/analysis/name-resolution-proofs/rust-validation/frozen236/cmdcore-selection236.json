@@ -1,0 +1,10 @@
+{
+  "source_image": 236,
+  "executable_sha256": "54efa3f39bfe01ba2454e51d579f2f08dd0542639c063cadb93a2d6fe02fc162",
+  "inventory_log_sha256": "73492c241c1a90844258e0a6f9fa07f7d44312b6b61f3c0a28c3a57bec6ee53f",
+  "inventory_count": 177,
+  "zero_matches": [],
+  "selected": [
+    "encoding::native_controls::selected_utf8_units_match_all_55_original_c_conversion_windows"
+  ]
+}

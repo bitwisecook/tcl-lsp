@@ -1,0 +1,411 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-grammar-option-tail137.base-files.tar.gz",
+  "archive_sha256": "5c9c4cc3f84402e77219237d39fcfb22272eac5530e6891e105f8d47f057dd3f",
+  "archive_bytes": 683215,
+  "uncompressed_bytes": 2951719,
+  "source_manifest_sha256": "9bfaff0b6f633d7a9adb688f1dfc3cc392fb80f595552d07d9f75c153cbfb85c",
+  "source_patch_sha256": "09e0e6090108f7b1ea294302838ed62b3ed8c4abf9ada4c34a09e187275d5802",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/09e0e6090108f7b1ea294302838ed62b3ed8c4abf9ada4c34a09e187275d5802.patch",
+  "original_application_journal_sha256": "09e0e6090108f7b1ea294302838ed62b3ed8c4abf9ada4c34a09e187275d5802",
+  "member_count": 44,
+  "members": {
+    "recovered-grammar-option-tail137/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3541353,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3541353,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/docs/references": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3541353,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/docs/references/command-spec": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3541353,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/docs/references/command-spec/fields.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.354717,
+      "size": 103651,
+      "sha256": "33ef79f5941691a481868df8f4cbe362adb690eea028393c07cf911bbd919b5f"
+    },
+    "recovered-grammar-option-tail137/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3515882,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3404834,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3484724,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-registry/src/commands": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3484724,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-registry/src/commands/tcl": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3484724,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-registry/src/commands/tcl/string_.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3491597,
+      "size": 119684,
+      "sha256": "e1ebdf419a18ced6f2ad044d5dcf8e5c539ffc0d51ac0d62f39d06d3c8539aee"
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-registry/src/resolved_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.348194,
+      "size": 220839,
+      "sha256": "b9477902414dfb4d06cd9ae39956ecd26c75a5154da60d233f94ab8269eec684"
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-registry/src/spec.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3465424,
+      "size": 215040,
+      "sha256": "cb31dcac29bafb89240fd52f484480f39b5f0adb0a12e202d9e0ad59ca5d3737"
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-spec-studio": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3515882,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-spec-studio/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3535745,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-spec-studio/src/coverage.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3530433,
+      "size": 68452,
+      "sha256": "444c6bf80b35cf47a0d5432c9f532e3e2fa60e9ab75e2fd122dc842fa3be66ad"
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-spec-studio/src/draft.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3533757,
+      "size": 88098,
+      "sha256": "6d77e4f5bd9199245de71caca98d547e0432af87b23b28316bf384dab2fbb45f"
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-spec-studio/src/render_spectcl.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3538675,
+      "size": 179252,
+      "sha256": "1a28bc9ef987b6b28a936616977778a593983e878535eaf61fce09000ff3da14"
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-spec-studio/src/schema.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3525357,
+      "size": 81738,
+      "sha256": "69715b12d9c8dcdcc640edd3e1eccaa4b68bf80fc2b9f73d93ef4a539190462e"
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-spectcl": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3494923,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-spectcl/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3494923,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/base/rust/tcl-spectcl/src/loader.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3510177,
+      "size": 397628,
+      "sha256": "f803871a1defa8bc0e6a69b82f72d3f4ff47597cb1d5b86a823142b017528350"
+    },
+    "recovered-grammar-option-tail137/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.354717,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.354717,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/docs/references": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.354717,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/docs/references/command-spec": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.354717,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/docs/references/command-spec/fields.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3550465,
+      "size": 103730,
+      "sha256": "a1179731b4581595f247b42cae8d25dd9867d0a7f82d381a3d360c6c472790cf"
+    },
+    "recovered-grammar-option-tail137/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3525357,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3465424,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3491597,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-registry/src/commands": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3491597,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-registry/src/commands/tcl": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3491597,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-registry/src/commands/tcl/string_.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3494923,
+      "size": 119756,
+      "sha256": "cbb8d1c54a8497f2fee4d4f1db24796c6115853fc4d1dc416e49adef195c6fb8"
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-registry/src/resolved_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559080.852267,
+      "size": 222512,
+      "sha256": "d08b327bde1c4f12cc2b74849fd4257fc015fb987843ce12ef3fc64293817d25"
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-registry/src/spec.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559080.7962675,
+      "size": 215364,
+      "sha256": "0b5bf3a129bb1a4b3bc1a6e36ecd3a6dd8b7eafbc88f45a550b9e550f9e4dd01"
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-spec-studio": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3525357,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-spec-studio/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3538675,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-spec-studio/src/coverage.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559081.0482657,
+      "size": 68586,
+      "sha256": "c0313b2b620c820e5e3cc9616e3cded07457975b8bf2b9c5ffd1f39fa931f880"
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-spec-studio/src/draft.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559081.0762653,
+      "size": 88205,
+      "sha256": "2e36b120006dedb91a2412407f5ef0f2e2760460fb530df388343cb38a88a24d"
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-spec-studio/src/render_spectcl.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3541353,
+      "size": 179493,
+      "sha256": "ff13f6cd7a9c7bc6e1149d5559e0270ceba60f02b3c006d36a3986ea4e39d54d"
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-spec-studio/src/schema.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3528416,
+      "size": 81944,
+      "sha256": "b50ff6fb5760896dddb03551591713c9ace99ed9d5f946efed022d66525d3278"
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-spectcl": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3510177,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-spectcl/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3510177,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-option-tail137/files/rust/tcl-spectcl/src/loader.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559052.3515882,
+      "size": 397747,
+      "sha256": "d8c10865a7d645dec860deb2d9082a8dcdb4edad9d6d21382f23ff006c418b67"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

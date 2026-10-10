@@ -2839,6 +2839,55 @@ mod tests {
         )
     }
 
+    fn original_assignment_diagnostics(
+        function: &FunctionUnit,
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+    ) -> String {
+        let metadata = function.invocation_metadata_context_for_module(registry, &unit.ir_module);
+        let initial = initial_procedure_bindings(&unit.ir_module, true);
+        let bindings = analyse_command_binding(&function.cfg, registry, &initial);
+        let mut rows = vec![format!("metadata available: {}", metadata.is_some())];
+        for (&block, body) in &function.cfg.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                if !matches!(statement, Statement::AssignConst { .. }) {
+                    continue;
+                }
+                let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                    &function.cfg.command_binding_sites,
+                    statement,
+                );
+                rows.push(format!(
+                    "{block:?}/{index} original carrier: {}",
+                    tokens.is_some()
+                ));
+                if let Some(tokens) = tokens {
+                    let target = tokens.source_binding.as_ref().and_then(|binding| {
+                        binding
+                            .proved_execution_target()
+                            .map(|target| (&target.command, target.kind, target.registry_backed))
+                    });
+                    let resolution =
+                        resolve_command_tokens_with_metadata_context(registry, metadata, tokens)
+                            .map(|resolved| match resolved {
+                                RegistryInvocationResolution::Resolved(facts) => {
+                                    format!("{:?}: {}", facts.operation, facts.canonical_command)
+                                }
+                                other => format!("{other:?}"),
+                            });
+                    rows.push(format!(
+                        "words={:?}, aligned={}, target={target:?}, resolution={resolution:?}, flow={:?}, effective={:?}",
+                        tokens.argv_texts,
+                        tokens.words_align_with_argv_text(),
+                        bindings.binding_at(block, index, tokens.argv_texts.first().map_or("", String::as_str)),
+                        crate::registry_invocation::effective_command_words(tokens),
+                    ));
+                }
+            }
+        }
+        rows.join("\n")
+    }
+
     #[test]
     fn structural_assignments_require_actual_availability_and_grammar() {
         // naming.compiler.original-analysis-metadata-context
@@ -2865,7 +2914,9 @@ mod tests {
             assignment_facts(selected, &unit, registry)
                 .direct_assignments
                 .len(),
-            1
+            1,
+            "{}",
+            original_assignment_diagnostics(selected, &unit, registry),
         );
         let input = selected.source_metadata_input().unwrap();
         let replace_input = |context| {
@@ -2950,7 +3001,9 @@ mod tests {
             assignment_facts(selected, &unit, registry)
                 .direct_assignments
                 .len(),
-            1
+            1,
+            "{}",
+            original_assignment_diagnostics(selected, &unit, registry),
         );
         let mut missing = selected.clone();
         missing.cfg.command_binding_sites.clear();

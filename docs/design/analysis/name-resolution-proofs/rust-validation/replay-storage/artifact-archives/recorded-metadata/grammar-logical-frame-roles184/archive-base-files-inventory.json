@@ -1,0 +1,249 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-logical-frame-roles184.base-files.tar.gz",
+  "archive_sha256": "8f23352447f9e3eb723829e9e56c3709b33b1c690821d5280a51d5cd12047d0d",
+  "archive_bytes": 188136,
+  "uncompressed_bytes": 995760,
+  "source_manifest_sha256": "882ad2a0ad190424d9473306e1c87d6ed5f55e4246074ba8ce4fac5252c98c9a",
+  "source_patch_sha256": "a132013fb96e58187f403735e04a21f07b2a38b344b58d4393b5714ee6a6903a",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/a132013fb96e58187f403735e04a21f07b2a38b344b58d4393b5714ee6a6903a.patch",
+  "original_application_journal_sha256": "a132013fb96e58187f403735e04a21f07b2a38b344b58d4393b5714ee6a6903a",
+  "member_count": 26,
+  "members": {
+    "grammar-logical-frame-roles184/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1820636,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1904333,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1904333,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1904333,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1921268,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-compiler/src/command_binding/source_transition_advice": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1921268,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588737.0960677,
+      "size": 23092,
+      "sha256": "819984a744e31cc0093cf8958ea661bb1bf711027fc5331d2af599e5d33cbd90"
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-compiler/src/command_binding/source_transition_advice.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588737.0949152,
+      "size": 87191,
+      "sha256": "b73b83ceeb883a4e72e17c4197372e21f413e3c62cc3799fa7f8dc7df1cd4edf"
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1820636,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588736.7685537,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-registry/src/frame_effect.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588737.0964148,
+      "size": 60417,
+      "sha256": "74965885471b2ec7256dc4e0bc3fc0387c6071a4aa63bbf0ad3280d8feb72e03"
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-registry/src/resolved_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588737.096974,
+      "size": 301061,
+      "sha256": "0cc2472ed487f4166d770a946d308c40bcb120b59351fea201177329d346ac62"
+    },
+    "grammar-logical-frame-roles184/base/rust/tcl-registry/src/selected_script_timing.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588737.0990436,
+      "size": 20802,
+      "sha256": "95772911dc5e1d0ae7bba1f48987f03461ca4539e1a2627ba1269432991e8bfa"
+    },
+    "grammar-logical-frame-roles184/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1887364,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1915858,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1915858,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1915858,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588737.1080954,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-compiler/src/command_binding/source_transition_advice": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588737.1302874,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588737.1302202,
+      "size": 25026,
+      "sha256": "dc4dac3976c43f8b7ea5218217775465cc374c7b1cd94365418697240d1557cd"
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-compiler/src/command_binding/source_transition_advice.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588737.1079412,
+      "size": 87554,
+      "sha256": "9e44fc73d57e2bbb80ad9d6a2483c7745fe2c3f3fe17cbac28e10aa24106d854"
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588545.1887364,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588766.2424574,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-registry/src/frame_effect.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588737.1307545,
+      "size": 61308,
+      "sha256": "243cf8c4fdb68358df4547ea023054286d76f75448d525a703b63f87b689a642"
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-registry/src/resolved_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588766.364321,
+      "size": 308119,
+      "sha256": "1fbb965da3bcf653b53d15724b1ecaa1952f073946db042d9b93c705632a6c9a"
+    },
+    "grammar-logical-frame-roles184/files/rust/tcl-registry/src/selected_script_timing.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588766.3803208,
+      "size": 21190,
+      "sha256": "721a91940fbb96c870ba127429a98f77d9c99c5812ece87af4df841a1f23a757"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

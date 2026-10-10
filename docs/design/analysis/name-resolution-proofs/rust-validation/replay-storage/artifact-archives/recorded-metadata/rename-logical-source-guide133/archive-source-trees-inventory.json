@@ -1,0 +1,124 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/rename-logical-source-guide133.source-trees.tar.gz",
+  "archive_sha256": "9e0632d71f15d5458ca7a64e8cd2b32cdddf76151f68e4b605eb145bf9406ba8",
+  "archive_bytes": 370352,
+  "uncompressed_bytes": 1140842,
+  "source_manifest_sha256": "839bdf9ecc685f8b984ba9bd8aa26128ebe3a4a30a066dc89ced9206463c8a57",
+  "source_patch_sha256": "a83521dc12502b69cde4c15bea2235a2bf3f12f2ad900a8a8b1b1eb8e728e665",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 10,
+  "members": {
+    "rename-logical-source-guide133/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557490.1166806,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-logical-source-guide133/base/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557490.1166806,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-logical-source-guide133/base/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557490.1166806,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-logical-source-guide133/base/docs/design/compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557490.1166806,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-logical-source-guide133/base/docs/design/compiler/name-resolution-implementer-guide.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557383.1735153,
+      "size": 569912,
+      "sha256": "108795c5b5f6db35510d9ec8b05ff80352efbe16ac06a8f726c6f33f549b8733"
+    },
+    "rename-logical-source-guide133/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557490.1189272,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-logical-source-guide133/candidate/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557490.1189272,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-logical-source-guide133/candidate/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557490.1189272,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-logical-source-guide133/candidate/docs/design/compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557490.1189272,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-logical-source-guide133/candidate/docs/design/compiler/name-resolution-implementer-guide.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557490.128551,
+      "size": 570930,
+      "sha256": "e1f01627b56313cd2990640cc32de34fcde4b049857b00369a025b1975ccdc7c"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "hash_key": "candidate_sha256",
+      "sha256": "e1f01627b56313cd2990640cc32de34fcde4b049857b00369a025b1975ccdc7c",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "hash_key": "base_sha256",
+      "sha256": "108795c5b5f6db35510d9ec8b05ff80352efbe16ac06a8f726c6f33f549b8733",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

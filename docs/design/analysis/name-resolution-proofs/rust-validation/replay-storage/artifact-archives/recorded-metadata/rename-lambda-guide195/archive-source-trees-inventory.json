@@ -1,0 +1,124 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/rename-lambda-guide195.source-trees.tar.gz",
+  "archive_sha256": "a174f2cc9370f70e19ebb427c395968c70716a5059380d226ca0f9a0a23c368e",
+  "archive_bytes": 399080,
+  "uncompressed_bytes": 1237061,
+  "source_manifest_sha256": "54d7bb3e8177d7a6230eda6d280a38eb91a6d8edea310899664abee2f200f7ac",
+  "source_patch_sha256": "8c0c5ef9c638946a3aa3c0e4bcbb9473390100077b082d53babdac223c83c0cc",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 10,
+  "members": {
+    "rename-lambda-guide195/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587856.930872,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-lambda-guide195/base/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587856.930872,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-lambda-guide195/base/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587856.930872,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-lambda-guide195/base/docs/design/compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587856.930872,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-lambda-guide195/base/docs/design/compiler/name-resolution-implementer-guide.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588533.880484,
+      "size": 618063,
+      "sha256": "9da34a07da67e2f4d873166be03462066743f95b2a193f1a11c3587011738ae7"
+    },
+    "rename-lambda-guide195/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587856.9315197,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-lambda-guide195/candidate/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587856.9355197,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-lambda-guide195/candidate/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587856.9355197,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-lambda-guide195/candidate/docs/design/compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587856.9355197,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-lambda-guide195/candidate/docs/design/compiler/name-resolution-implementer-guide.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791588533.8841903,
+      "size": 618998,
+      "sha256": "c3081982b5f1b551463f308847109486587af4f3ea70976db647335c5a37f7ea"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "hash_key": "candidate_sha256",
+      "sha256": "c3081982b5f1b551463f308847109486587af4f3ea70976db647335c5a37f7ea",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "hash_key": "base_sha256",
+      "sha256": "9da34a07da67e2f4d873166be03462066743f95b2a193f1a11c3587011738ae7",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

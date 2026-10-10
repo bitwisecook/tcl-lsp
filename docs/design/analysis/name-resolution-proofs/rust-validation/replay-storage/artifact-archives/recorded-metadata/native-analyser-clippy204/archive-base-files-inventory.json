@@ -1,0 +1,357 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/native-analyser-clippy204.base-files.tar.gz",
+  "archive_sha256": "589680237649e428b6d9488557520b9c25ce8c87c500eb34fce8d27bed29129e",
+  "archive_bytes": 1743183,
+  "uncompressed_bytes": 7244562,
+  "source_manifest_sha256": "538e9427c4b28a244e5fdb60951ae271e219831a1d3b9526575e9c0bbe75af4a",
+  "source_patch_sha256": "3416e846a8a8138c71f9b959fa315df69579bc41e52f662c29a0a8cab5218a51",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/3416e846a8a8138c71f9b959fa315df69579bc41e52f662c29a0a8cab5218a51.patch",
+  "original_application_journal_sha256": "3416e846a8a8138c71f9b959fa315df69579bc41e52f662c29a0a8cab5218a51",
+  "member_count": 38,
+  "members": {
+    "native-analyser-clippy204/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7279215,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.1119182,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7279215,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7279215,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.0679188,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src/analyser/class_hierarchy.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7510312,
+      "size": 68329,
+      "sha256": "1977a8553084a9ce037e463c09be9dd8e27b2a6e1fa0b9f3719e9e097123e3c3"
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src/analyser/commands.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7312002,
+      "size": 351432,
+      "sha256": "34f2f1a8cde1d765c7c03923c59a7d3ad8f829a205b45b69d96b0cd9d1dd16ee"
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src/analyser/handlers.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560185.2106276,
+      "size": 793657,
+      "sha256": "f1886286488e209cb30f3ffb7a125d25755fcb88fe0e74a81ab417fff6683dfb"
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src/analyser/input.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7611544,
+      "size": 10441,
+      "sha256": "eb1cd17b5b231173c29ea845d89caef6441f0ec63fd800cc999b7491b54c9f9a"
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src/analyser/item_tree.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.0202231,
+      "size": 25830,
+      "sha256": "b42b733e702dd32e274b8455e7613017cb300176d07506785bc864669168f506"
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src/analyser/oo.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.07004,
+      "size": 295540,
+      "sha256": "f42bf60043cb4dc61dfd50f66e22ee4fd112b572fec72656b3769a0d7776b135"
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src/analyser/per_item.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7843313,
+      "size": 150038,
+      "sha256": "32d98903b1e9cddf22c12e35d7e116c35d14ddd78631096d9832328272e5b539"
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src/analyser/state.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560185.2071254,
+      "size": 331030,
+      "sha256": "69a7f3f790e9073e28d6e8ca08babd492515b055f18dd882af6b576a690b8cdd"
+    },
+    "native-analyser-clippy204/base/rust/tcl-compiler/src/analyser/types.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.0030906,
+      "size": 236863,
+      "sha256": "fe8ae4f542b224c9e9d98a7f5e14acb10fe9a7a2eb383cb56c7e204561c37683"
+    },
+    "native-analyser-clippy204/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.1119182,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.1119182,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/base/rust/tcl-lsp-core/src/workspace_index.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.1151245,
+      "size": 612810,
+      "sha256": "b40bf208e808a12258123542852fc921872933d29ef016a775772dd724e2dfa1"
+    },
+    "native-analyser-clippy204/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7319214,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.1151245,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7319214,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7319214,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.0734177,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/class_hierarchy.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7596972,
+      "size": 68467,
+      "sha256": "2f694d74e23ea2f10a6b0d541a9549252723ed1c2894634d75b05c20917d4e97"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/commands.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.7359214,
+      "size": 355889,
+      "sha256": "49a05c1697ba45af16a7faf420b151b1a84b192dd9e7ee21678579c9420c46ee"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/commands.rs.orig": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.735112,
+      "size": 351432,
+      "sha256": "34f2f1a8cde1d765c7c03923c59a7d3ad8f829a205b45b69d96b0cd9d1dd16ee"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/handlers.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560185.211403,
+      "size": 793657,
+      "sha256": "f1886286488e209cb30f3ffb7a125d25755fcb88fe0e74a81ab417fff6683dfb"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/handlers.rs.orig": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.9717746,
+      "size": 793657,
+      "sha256": "f1886286488e209cb30f3ffb7a125d25755fcb88fe0e74a81ab417fff6683dfb"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/input.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.763463,
+      "size": 10489,
+      "sha256": "73f7e91aca11b098c5a21b3563decf23b788b9cbed62d6306d3e5f863d843c9c"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/item_tree.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560257.4351249,
+      "size": 26935,
+      "sha256": "1c1e418f8352c921c158490b50deff51d26a192ad8f1654cfb3714d05517b634"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/oo.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.0729725,
+      "size": 295808,
+      "sha256": "bff6cc5e442b8a5ba6cabdddb2c3b75040d3c121e1664cc898c7f9c6b9f36044"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/per_item.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560257.1599433,
+      "size": 151816,
+      "sha256": "4505c66aed22189f4dd0a9262c866c98c9bed3d6de1b650b28e968f9f27aad58"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/state.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560257.5911236,
+      "size": 331266,
+      "sha256": "fcbd4a8431aba976c9ba500b9ec17c60da5e1f5122e8f93d7eb920f2a973fd26"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/state.rs.orig": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.8482895,
+      "size": 331030,
+      "sha256": "69a7f3f790e9073e28d6e8ca08babd492515b055f18dd882af6b576a690b8cdd"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/state.rs.rej": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560154.8558445,
+      "size": 5738,
+      "sha256": "e19a24897e9d58f3f2b6cbb25466d0310cecea85e6bc11b5a5ca8317f7b2f196"
+    },
+    "native-analyser-clippy204/files/rust/tcl-compiler/src/analyser/types.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.0168583,
+      "size": 239492,
+      "sha256": "92bcbb115fde496ca8fad26ab6c0a1d7bc7775277477749a5955fb850f449434"
+    },
+    "native-analyser-clippy204/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.1151245,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.2061675,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-clippy204/files/rust/tcl-lsp-core/src/workspace_index.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560155.2039175,
+      "size": 612916,
+      "sha256": "2af13809495c651745c96c0855cea7c001422f2cca5bd66400c8904e71d58523"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

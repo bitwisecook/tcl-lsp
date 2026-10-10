@@ -1,0 +1,141 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-grammar-registry-clippy133.base-files.tar.gz",
+  "archive_sha256": "9239e0e4f3e4ae44e03fb8d7ada19780c33219c0629ece40977dcb9bea92bb3e",
+  "archive_bytes": 498532,
+  "uncompressed_bytes": 2252753,
+  "source_manifest_sha256": "1137d70c477fd915976bfc49fc18ffc2c27aead0e901c1e7bd4bae0cd64deafd",
+  "source_patch_sha256": "0d7499cdd08a510734a8b633272faa3b0f954a9d5cdfcf8417aecd683f3d96ea",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/0d7499cdd08a510734a8b633272faa3b0f954a9d5cdfcf8417aecd683f3d96ea.patch",
+  "original_application_journal_sha256": "0d7499cdd08a510734a8b633272faa3b0f954a9d5cdfcf8417aecd683f3d96ea",
+  "member_count": 14,
+  "members": {
+    "recovered-grammar-registry-clippy133/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6567044,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-registry-clippy133/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6567044,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-registry-clippy133/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6567044,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-registry-clippy133/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6632242,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-registry-clippy133/base/rust/tcl-registry/src/registry.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6647043,
+      "size": 695820,
+      "sha256": "6df398c645e6dc5b2f4ef9ca43271fd6c6f18e5773c5a035be6aeb63e278dc4a"
+    },
+    "recovered-grammar-registry-clippy133/base/rust/tcl-registry/src/resolved_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6628976,
+      "size": 214946,
+      "sha256": "fc9f112a8f9155112b78ed294f76014c365ae30aef29d94dd8cf2bd925444efe"
+    },
+    "recovered-grammar-registry-clippy133/base/rust/tcl-registry/src/spec.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6616123,
+      "size": 215946,
+      "sha256": "8540e1fbc13402198bdebe27fcc0dda1f82708af1721d32dababf598331dc9ed"
+    },
+    "recovered-grammar-registry-clippy133/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6616123,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-registry-clippy133/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6616123,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-registry-clippy133/files/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6616123,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-registry-clippy133/files/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791556457.6647043,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-grammar-registry-clippy133/files/rust/tcl-registry/src/registry.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557050.6655197,
+      "size": 696086,
+      "sha256": "36add502e25d336874c59a4f5fedc5990074c6996c594ba61fb3857853e14879"
+    },
+    "recovered-grammar-registry-clippy133/files/rust/tcl-registry/src/resolved_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557050.7243178,
+      "size": 214917,
+      "sha256": "af6b4eb62ded8dc650f12e054621441a0e4f307024d3b7191655a4d79268166d"
+    },
+    "recovered-grammar-registry-clippy133/files/rust/tcl-registry/src/spec.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791557050.753793,
+      "size": 215038,
+      "sha256": "353a09f6c17831b8687bbc8260fd95456278619a462cc2c4ed65e49b96133c52"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

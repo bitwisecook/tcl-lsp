@@ -61,6 +61,8 @@ pub enum NativeCoroutineStep {
     Yield,
     /// Suspend and invoke from the same original namespace-prefixed List.
     YieldTo,
+    /// Push the current original coroutine command name without argument work.
+    Name,
 }
 
 /// Actual original coroutine compiler recipe, without provider or header grants.
@@ -98,17 +100,23 @@ pub fn compile_native_coroutine(
     if dialect.family() != Some(tcl_dialect::model::Family::Tcl) || version < TclVersion::V8_6 {
         return Err(Unavailable::Generic);
     }
-    if operand_from != 1 {
+    if operand_from != 1 && grammar != NativeCompilationGrammar::InfoCoroutine {
         return Err(Unavailable::Geometry);
     }
     let projected =
         project_native_compiler_words(words, version).map_err(|_| Unavailable::Geometry)?;
-    let operands = projected.get(1..).ok_or(Unavailable::Geometry)?;
+    let operands = projected.get(operand_from..).ok_or(Unavailable::Geometry)?;
     let expanded = operands
         .iter()
         .any(|word| word.shape == NativeCompilationWordShape::Expanded);
     let mut steps = Vec::new();
     match grammar {
+        NativeCompilationGrammar::InfoCoroutine => {
+            if !operands.is_empty() {
+                return Err(Unavailable::Generic);
+            }
+            steps.push(Step::Name);
+        }
         NativeCompilationGrammar::CoroutineYield => {
             if expanded || operands.len() > 1 {
                 return Err(Unavailable::Generic);
@@ -508,5 +516,79 @@ mod injection_tests {
             Some(tcl_syntax::naming::NativeNameProtocol::Jim084),
         );
         assert!(NativeCoroutineInjectionProtocol::select(jim).is_none());
+    }
+}
+
+#[cfg(test)]
+mod coroutine_name_tests {
+    use super::*;
+    use tcl_lexer::{LexerConfig, SourceImage, Span, native_script_words_in};
+
+    #[test]
+    fn original_coroutine_name_compiler_keeps_zero_operand_recipe_and_native_decline() {
+        // Source proof: naming.info.original-coroutine-name-compiler
+        // docs/design/analysis/name-resolution-proofs/info-original-coroutine-name-compiler.md
+        // The original hook/zero-worker-operand/opcode source is independent
+        // from Native250 public coroutine holder/resumption observations.
+        for version in TclVersion::ALL {
+            let dialect = crate::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::for_tcl_version(version),
+            );
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            for (source, operand_from, empty) in [
+                (b"info coroutine".as_slice(), 2, true),
+                (b"::tcl::info::coroutine".as_slice(), 1, true),
+                (b"info coroutine extra".as_slice(), 2, false),
+                (b"info coroutine {*}$extra".as_slice(), 2, false),
+            ] {
+                let parsed = native_script_words_in(
+                    SourceImage::native(source),
+                    Span::new(0, u32::try_from(source.len()).unwrap()),
+                    LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let words = NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    dialect.native_source_string_protocol().unwrap(),
+                )
+                .unwrap();
+                let spec = crate::native_compilation::NativeCompilationSpec {
+                    grammar: NativeCompilationGrammar::InfoCoroutine,
+                    operation: crate::SemanticOperationId::Invoke,
+                    body: crate::native_compilation::NativeBodyCompilation::Inherit,
+                };
+                let selected = spec.select_registered_worker_native_words(
+                    &words,
+                    operand_from,
+                    Some(dialect),
+                    NativeCompilationContext::default(),
+                );
+                assert_eq!(
+                    selected,
+                    if version >= TclVersion::V8_6 && empty {
+                        crate::native_compilation::NativeCompilationSelection::Inline {
+                            operation: spec.operation,
+                            guard:
+                                crate::native_compilation::NativeCompilationGuard::BeforeArguments,
+                        }
+                    } else {
+                        crate::native_compilation::NativeCompilationSelection::Generic
+                    }
+                );
+                let result = compile_native_coroutine(
+                    &words,
+                    operand_from,
+                    NativeCompilationGrammar::InfoCoroutine,
+                    dialect,
+                    NativeCompilationContext::default(),
+                );
+                if version >= TclVersion::V8_6 && empty {
+                    assert_eq!(result.unwrap().steps, [NativeCoroutineStep::Name]);
+                } else {
+                    assert_eq!(result, Err(NativeCoroutineCompilationUnavailable::Generic));
+                }
+            }
+        }
     }
 }

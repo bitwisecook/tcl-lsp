@@ -30406,6 +30406,1401 @@
       "reason": "Independent exact pinned source/header/snippet association. No native run or private token value is observed by this source inspection."
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20-original-compile.receipt.json",
+      "sha256": "452a5b3105d74a21fa8a19b63c576a8b9776acb138dc40046f08a2d7fe5bd0cc",
+      "bytes": 2121,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/compile.receipt.json",
+      "sha256": "9dc4f0471aae2f87d3a217c81582b95c7be60d9a9defbc4a76655f384e74f816",
+      "bytes": 2955,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/configure-relative-raw-nul/receipt.json",
+      "sha256": "453242fe56cebdc35c77c9e80328407060cd8c46e1c90ebae9a4e63d9bed151b",
+      "bytes": 4623,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/configure-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/configure-relative-raw-nul/stdout",
+      "sha256": "cc487b0ac306385d2f28db6b0db2c19a2926c39c2398b8db99b21e1d1c8b2bb5",
+      "bytes": 1088,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/configure-rooted-raw-nul/receipt.json",
+      "sha256": "d2908cf3553998397901593f23483cbad963663bcb17e4e2cb61f71105fd9109",
+      "bytes": 4651,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/configure-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/configure-rooted-raw-nul/stdout",
+      "sha256": "ed94bef4d1c478583da6e82083ecc1ed71bc36c7d587dd9f74ffd09eb56c8aa0",
+      "bytes": 1119,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/create-global-relative-raw-nul/receipt.json",
+      "sha256": "aa9af1a410071d938a3b1fe2d654eb3c26fc8c262c4041d3e0386fafc43f966b",
+      "bytes": 4302,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/create-global-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/create-global-relative-raw-nul/stdout",
+      "sha256": "d468ce7f8aabcd664d5b36fb2bf47f7809dd164d3406c23588b1f55967c6c5fa",
+      "bytes": 771,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/create-relative-raw-nul/receipt.json",
+      "sha256": "d46855492688ce17da18315cc51c4837c6f582088f51f71d23de16f49c482af9",
+      "bytes": 4295,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/create-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/create-relative-raw-nul/stdout",
+      "sha256": "d468ce7f8aabcd664d5b36fb2bf47f7809dd164d3406c23588b1f55967c6c5fa",
+      "bytes": 771,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/create-rooted-raw-nul/receipt.json",
+      "sha256": "df5cf9da4e24c0faf113e093fed0917c5dee77940d78d36dbac142860b706890",
+      "bytes": 4325,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/create-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/create-rooted-raw-nul/stdout",
+      "sha256": "5d67bc0f5f4d30881377854cff95e43a173b90073a735d35c1ab8689b5293e2a",
+      "bytes": 802,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/probe.elf",
+      "sha256": "39d0cf6e64e915177613975d18ee30fe07d9e902156cf907565b0bbe49f27f13",
+      "bytes": 858992,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/tclCmdAH.c",
+      "sha256": "4119b635cc3677728baa21df8ee8c683c3f37aa87bf9ca80fcab74eec948fd75",
+      "bytes": 64970,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/tclEncoding.c",
+      "sha256": "b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6",
+      "bytes": 94170,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/tclUtf.c",
+      "sha256": "ddef5409a1278d84f479f8b0c9c11dd8d348bfbdcc4db15941d4d7e2e1a2bbcb",
+      "bytes": 46004,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19-original-compile.receipt.json",
+      "sha256": "92b36c7426600ed77ff8d022f07173b8bafc164203032ff4f4437f242269b5eb",
+      "bytes": 2121,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/compile.receipt.json",
+      "sha256": "3a8dda10bc9545f9a4127c80de1c0314bcaf79b5ddb8490323c68347b40d4fb8",
+      "bytes": 2955,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-relative-raw-nul/receipt.json",
+      "sha256": "4b727f04d151b3fee406fd13a8bbb451f93775d9092d2fc07ed579879b495e4f",
+      "bytes": 3802,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-relative-raw-nul/stdout",
+      "sha256": "eac17edbcc3f3f8804b829ee92e137d75b6289af4cb877ad9ad5bdf1d2c522e0",
+      "bytes": 260,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-rooted-raw-nul/receipt.json",
+      "sha256": "c57aee501bf146c3cced2046cc9a760d079c357f532a83fa474b2210a63e4aa9",
+      "bytes": 3831,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-rooted-raw-nul/stdout",
+      "sha256": "f042575419d46c9e510e86c90787308e1c3c86dc45fceccb46235240bf07b06c",
+      "bytes": 291,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-global-relative-raw-nul/receipt.json",
+      "sha256": "45acb2663ae8cfa5a7f9e0b9dd7de95bed5103aafaa784fc9ed92c0d3ce4daf5",
+      "bytes": 3745,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-global-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-global-relative-raw-nul/stdout",
+      "sha256": "602e8d34e43fe4d58bec368043fc3d02141eb0463989f2ce2d4ae881f72eb63d",
+      "bytes": 206,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-relative-raw-nul/receipt.json",
+      "sha256": "8ca61115caec170f06175f245139d742fd0da6edc106b0839d4d827f8caf837a",
+      "bytes": 3780,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-relative-raw-nul/stdout",
+      "sha256": "0043679e95dcc50d39987c95b0e1bc5a8843d51094f2fd0570c2b3c8e33ed43c",
+      "bytes": 249,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-rooted-raw-nul/receipt.json",
+      "sha256": "5508f6e12735d713725065448e6b5c7a716c4e99ddb437f3b2485fc55a97361d",
+      "bytes": 3810,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-rooted-raw-nul/stdout",
+      "sha256": "68b4617b917717c365eeba4fc7955f5988bdddbc039cf606a20d830cbac7d1e9",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/probe.elf",
+      "sha256": "df606914bd70df117cb1b056f157d7b4f24f93d9e5e9e514f2c02fcf33893564",
+      "bytes": 1254080,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/tclCmdAH.c",
+      "sha256": "cdd328ee0a0d0c3ec7b67da50c90ae22b40591cc52e9492f19d7b257355fcf43",
+      "bytes": 48259,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/tclEncoding.c",
+      "sha256": "b100161e6fbcdc9b4055b28308071fa123000526abcb51dc1a65eeb83e94b292",
+      "bytes": 103326,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/tclUtf.c",
+      "sha256": "3352c62e891cff1d131260183af69bd2c2334e1014bfe2874c25722be871b580",
+      "bytes": 46902,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18-original-compile.receipt.json",
+      "sha256": "6e9433414d044125e139dfa184aa375aad7f62d1f91c687c918889c221bc50f2",
+      "bytes": 2249,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/compile.receipt.json",
+      "sha256": "ae1c3e6e028d5b1a4aba80554897a8edf779b0c0d8f795e74c05dc07bb0683c4",
+      "bytes": 3212,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-relative-raw-nul/receipt.json",
+      "sha256": "3c1a40cabbebe1b23797de56567a6d023571a6220c35ce798497b2aff0513ef8",
+      "bytes": 4059,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-relative-raw-nul/stdout",
+      "sha256": "ce4a5c975e57fabc4b3d286e3ee77a075a0173f48f4815ad6a98c580f433a372",
+      "bytes": 260,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-rooted-raw-nul/receipt.json",
+      "sha256": "f3ba05166c8d681c8339510644f8f769c4b28fee1303825785c57c5f81020141",
+      "bytes": 4087,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-rooted-raw-nul/stdout",
+      "sha256": "baaed3deb8fa8deb3b78ff71eee1eb586da0e8fd5424bd0eb8981412f2cf2fcf",
+      "bytes": 291,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-global-relative-raw-nul/receipt.json",
+      "sha256": "7c3244915f9b16128d26149bad1e2dd1f40468153bb9252bc3d1522eeacd6f60",
+      "bytes": 4003,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-global-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-global-relative-raw-nul/stdout",
+      "sha256": "49654352b32be51158edee912cffee7eb03095188060d03579025272ddafd4a1",
+      "bytes": 206,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-relative-raw-nul/receipt.json",
+      "sha256": "f77b7062ce5d424ee162a3373bc9f19bac79479870a7debf47c57a44dc395742",
+      "bytes": 4039,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-relative-raw-nul/stdout",
+      "sha256": "f2f50bf3a7d16f5bc9d31af94bcfc27db32d1c929b754488d5cbf49521069133",
+      "bytes": 249,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-rooted-raw-nul/receipt.json",
+      "sha256": "480f7ec35d087a02f21173497fe5c4e8a2b9c07472171ab5985f9801e3cbfc25",
+      "bytes": 4068,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-rooted-raw-nul/stdout",
+      "sha256": "42e389e37d63b6de44d714c7d0ed79c62d9db4c1a444e0bc01450d3e433619e0",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/probe.elf",
+      "sha256": "671278548e1b6986971f89bae72cf07f852c9836a4918cda6a183ea87b2c1d35",
+      "bytes": 1870888,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/tclCmdAH.c",
+      "sha256": "752473fb5c05d166602ed00b2afff8e123dafd34f4c585628e941b8c5691ae88",
+      "bytes": 80806,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/tclEncoding.c",
+      "sha256": "359bfa493e7aba998e524978aca4345422e2e265dde93e73f76cb5fc8784e4c6",
+      "bytes": 108401,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/tclUtf.c",
+      "sha256": "95d8a272d4c96a4462c5e406d4fef3073b3bd7489691d839615bfaef394ac7f5",
+      "bytes": 64804,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4-original-compile.receipt.json",
+      "sha256": "592f0da1fe061ceb61facfee8eb8a40ba7fe0cd86103f185cc54de51d5cdfff7",
+      "bytes": 2235,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/compile.receipt.json",
+      "sha256": "e831765948167c339c7ed5901fe3a68b67c61ac705b7076d1107d67ffa0b37c5",
+      "bytes": 3194,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-relative-raw-nul/receipt.json",
+      "sha256": "57c43850272e990a033f5859dbfeaf31b64ea77dcd55d8d783e1a1187165be75",
+      "bytes": 4038,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-relative-raw-nul/stdout",
+      "sha256": "beba7b1838b241a4377467bce570a31e5bdb86b22ac15b6521f975f4f1d82676",
+      "bytes": 258,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-rooted-raw-nul/receipt.json",
+      "sha256": "ca40ff0b4b88cf38b1c161b3745ac46c13049f567a79b35cd394d708500181a7",
+      "bytes": 4067,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-rooted-raw-nul/stdout",
+      "sha256": "01fa86f6465651a0a34dca5923d5c0640efb116067666b2fffa4a725a98a420e",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-global-relative-raw-nul/receipt.json",
+      "sha256": "c1ae6ecd8f1564f0da98ab45770c2b0a618e86d16a8d526ea4c95adfad6adaeb",
+      "bytes": 3981,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-global-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-global-relative-raw-nul/stdout",
+      "sha256": "9601a8c622e7b4bf74a55bd31a5b06b30aa03d36eaa728ca81e7af24225d4c6f",
+      "bytes": 204,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-relative-raw-nul/receipt.json",
+      "sha256": "de58460725fcd8bffb58833368f78d0e3023d9778b0efb972b149c9f0c4354bb",
+      "bytes": 4016,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-relative-raw-nul/stdout",
+      "sha256": "3f4bc7ad158afb2652b164c518d6d11971e8803571d17b446771b337aff9ca27",
+      "bytes": 247,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-rooted-raw-nul/receipt.json",
+      "sha256": "132388de880e2ec477f084993da7e55696c2d17812e2d9c7212c184affda41b5",
+      "bytes": 4046,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-rooted-raw-nul/stdout",
+      "sha256": "15f3c289112683d734e35a3b40b639503dde426b7506df26278cd9f952e08c23",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/probe.elf",
+      "sha256": "7abf20df85ba5dfa75bcb8dca8e264c2c17e53d98044a87f40cecbc8d8c96a37",
+      "bytes": 2270288,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/tclCmdAH.c",
+      "sha256": "b1fd4aec514b23bbca0a43d99e25a613ec570752e50fadf1caf5c499b1a54ec1",
+      "bytes": 82016,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/tclEncoding.c",
+      "sha256": "b2d923ff94e392ddbfcb6daf474e58cff1b880d574d6b70ee3153a196f9f7531",
+      "bytes": 135445,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/tclUtf.c",
+      "sha256": "1574311b441c745dac0c1cc4f0e4ca0e7cbc09b86261d463a62d9ee3e317027c",
+      "bytes": 67784,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0-original-compile.receipt.json",
+      "sha256": "914e2aae7f2e087f41d42d956c4e1e5ae0305e2ae638a81c4d828f5c16814a5b",
+      "bytes": 2234,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/compile.receipt.json",
+      "sha256": "36dd19e65468e9f6f5a5d78da3f73cd4f0531a5b38e6ab102f0f9a59843428d4",
+      "bytes": 3194,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-relative-raw-nul/receipt.json",
+      "sha256": "581e8075a0872a42ab09f8031d487bd8608103f9a22a67f35fe9a7d52cf7eeaf",
+      "bytes": 4038,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-relative-raw-nul/stdout",
+      "sha256": "b244c424e943b95a41acf7257d3a1e86b5b6f866e64e46ab86c81bb36415c09e",
+      "bytes": 258,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-rooted-raw-nul/receipt.json",
+      "sha256": "34c9ae4c0c811de74def44ef44d3cd86451f8c0b4d62b15223b37a1495562043",
+      "bytes": 4067,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-rooted-raw-nul/stdout",
+      "sha256": "60fff7c279f52d7c75a69e334c913f28e2664466a0102cc89faee27dd2adb769",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-global-relative-raw-nul/receipt.json",
+      "sha256": "14824e48fade9232efd5ee3c1345053200dde97923656fd26911829c41f606e4",
+      "bytes": 3980,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-global-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-global-relative-raw-nul/stdout",
+      "sha256": "85260d904806d57bc559cf871b02b0b0468f0f7deb2812e843bd69871419e523",
+      "bytes": 204,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-relative-raw-nul/receipt.json",
+      "sha256": "8f8bf12b87ab23ed6993142232244063faf2eae15508204acee676161f1a0d6a",
+      "bytes": 4017,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-relative-raw-nul/stdout",
+      "sha256": "579125fe85f5c9ab999ce05cace4ee768ba628824e93ad1e0e4e206b9dd90cc8",
+      "bytes": 247,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-rooted-raw-nul/receipt.json",
+      "sha256": "054c2186ab3d9956aebf81f4f8741b1a01d9237e75f8a32ced0a1b44c2d6db04",
+      "bytes": 4045,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-rooted-raw-nul/stdout",
+      "sha256": "db76bde12317277489a738c3f520507841da44ca20ecda8ffe5be031e9644179",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/probe.elf",
+      "sha256": "b77a5241a76119038ddd0d905a8ba4d62bacd1a6f5aed8f2284e90e76546e711",
+      "bytes": 2511856,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/tclCmdAH.c",
+      "sha256": "56db5fdd8c4bd688cb0beda3b91ad60111adb802fd63c28821055140b582fe04",
+      "bytes": 82708,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/tclEncoding.c",
+      "sha256": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+      "bytes": 168781,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/tclUtf.c",
+      "sha256": "f388adf112e56d3d07bd86b6878e73a1f8c56a2d751f2bb5d860d3464f4db265",
+      "bytes": 67433,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/capture.py",
+      "sha256": "0b4317cd5266138e0cef702975205cf8a5017124565bdf22f49a23fc7a6250ba",
+      "bytes": 3361,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim-original-compile.receipt.json",
+      "sha256": "0e6488a3572aa9b5f197343a7024b79f39dde8082887700faca5b6526e9c07ff",
+      "bytes": 2642,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/compile.receipt.json",
+      "sha256": "70b64eb2d50f48b47e97a699fafd808a01aa77a461fc2baa7df8bbfe1334baf9",
+      "bytes": 2969,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/configure-relative-raw-nul/receipt.json",
+      "sha256": "79cb33e72f04e4280e60677984d9748572071e4d847d91fa53566d2df28fec11",
+      "bytes": 4000,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/configure-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/configure-relative-raw-nul/stdout",
+      "sha256": "3fe22e8108c368f043a2c2fc13909023b3794516e2a27f58c829d4629aa32f29",
+      "bytes": 490,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/configure-rooted-raw-nul/receipt.json",
+      "sha256": "19b51f1cf809f70cb848a50fce39029cdefb5bc8fadbb143e8de40540797ceb9",
+      "bytes": 4029,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/configure-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/configure-rooted-raw-nul/stdout",
+      "sha256": "0108a09fd60d22fab4b378603753c557a7c9a77a0e67b347662ef3840c03b13b",
+      "bytes": 521,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/create-global-relative-raw-nul/receipt.json",
+      "sha256": "1fa2f0fec08804928f71ccdea301a08023f338a399855fb21fd214a6517e4432",
+      "bytes": 3896,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/create-global-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/create-global-relative-raw-nul/stdout",
+      "sha256": "899dd8d84179d2448a1957108d404e6b3f2452e0e71424312adae9bd96e7571a",
+      "bytes": 389,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/create-relative-raw-nul/receipt.json",
+      "sha256": "eebfbaa459e955d4a2a48f999beb4229c491953cc5e7903fdd651fc1ded10892",
+      "bytes": 3888,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/create-relative-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/create-relative-raw-nul/stdout",
+      "sha256": "6b5477bb345d4026ae15f50d0eec05688b56945bbc073dffa0645085f38bf339",
+      "bytes": 389,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/create-rooted-raw-nul/receipt.json",
+      "sha256": "d42136bf6b5b02613041a156c5c39e548f38e6e8d7a0195a22d1cf9ba13795bb",
+      "bytes": 3918,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/create-rooted-raw-nul/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/create-rooted-raw-nul/stdout",
+      "sha256": "0c14dde8ef9483dc99fc84756127cbaae5c97bb12271e62d8a559b602b9cb5aa",
+      "bytes": 420,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/probe.elf",
+      "sha256": "45551a43640092a394f99b41425ae2ee585775a1739b9c0e104933876cfb5a71",
+      "bytes": 426664,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.4.20/tclNamesp.c",
+      "sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "bytes": 128490,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.4.20/tclObj.c",
+      "sha256": "6e20f047f13e19527f746934b7a9472405d1871e0936687004506f966bb8bd9c",
+      "bytes": 106249,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.5.19/tclNamesp.c",
+      "sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "bytes": 210509,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.5.19/tclObj.c",
+      "sha256": "25136b8ad5a833dfecd5e45a2f8f54e52d78e10ff516a5abc61fbdfb7e6ee014",
+      "bytes": 125347,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.6.18/tclEnsemble.c",
+      "sha256": "2c86e298e6beaad843ca15885ba454367117cdcbed43c509c69110521159a642",
+      "bytes": 107115,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.6.18/tclObj.c",
+      "sha256": "7a7ef8ec85c74581129e8f3bef939e3191a432dcb021e0a16f1cf9971049f90d",
+      "bytes": 131144,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/9.0.4/tclEnsemble.c",
+      "sha256": "6d0c49c5a53f2c7f89eafb3dc9113b4f2f418e48d6b9256f3c99150be9dd12e7",
+      "bytes": 109564,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/9.0.4/tclObj.c",
+      "sha256": "91a390bd24fbe71108108eeccf9955df0389f0f81dff24f303c32344469e8d4a",
+      "bytes": 134339,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/9.1.0/tclEnsemble.c",
+      "sha256": "3ad1e9efbb692a831d5d4b7545e3030868621532bb62ba94c551c0ce42983664",
+      "bytes": 109269,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/9.1.0/tclObj.c",
+      "sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+      "bytes": 132032,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/_stdlib.c",
+      "sha256": "593b57426539e77ab00efb961a77c1f8a3845ce0c82f29943516f30db4142751",
+      "bytes": 3815,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "bytes": 11686,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "bytes": 546686,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/stdlib.tcl",
+      "sha256": "3597b76b785f697242a5354816792ad5fa538dd0a41b3973bdcbcb5edbb8893a",
+      "bytes": 3925,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/probe.c",
+      "sha256": "a54fbcb61246d7ab55944af90578043c8a42f9af0e85c5b700fdc30b42aadd76",
+      "bytes": 5384,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request.json",
+      "sha256": "5c262bd83996939cdb172c66ad744d0401f88682ba0cc7e6b2014e74b9721fc2",
+      "bytes": 18978,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Exact original finite input request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.4.20-original-compile.receipt.json",
+      "sha256": "452a5b3105d74a21fa8a19b63c576a8b9776acb138dc40046f08a2d7fe5bd0cc",
+      "bytes": 2121,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Exact original finite input request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.4.20/tclCmdAH.c",
+      "sha256": "4119b635cc3677728baa21df8ee8c683c3f37aa87bf9ca80fcab74eec948fd75",
+      "bytes": 64970,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.4.20/tclEncoding.c",
+      "sha256": "b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6",
+      "bytes": 94170,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.4.20/tclUtf.c",
+      "sha256": "ddef5409a1278d84f479f8b0c9c11dd8d348bfbdcc4db15941d4d7e2e1a2bbcb",
+      "bytes": 46004,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.5.19-original-compile.receipt.json",
+      "sha256": "92b36c7426600ed77ff8d022f07173b8bafc164203032ff4f4437f242269b5eb",
+      "bytes": 2121,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Exact original finite input request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.5.19/tclCmdAH.c",
+      "sha256": "cdd328ee0a0d0c3ec7b67da50c90ae22b40591cc52e9492f19d7b257355fcf43",
+      "bytes": 48259,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.5.19/tclEncoding.c",
+      "sha256": "b100161e6fbcdc9b4055b28308071fa123000526abcb51dc1a65eeb83e94b292",
+      "bytes": 103326,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.5.19/tclUtf.c",
+      "sha256": "3352c62e891cff1d131260183af69bd2c2334e1014bfe2874c25722be871b580",
+      "bytes": 46902,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.6.18-original-compile.receipt.json",
+      "sha256": "6e9433414d044125e139dfa184aa375aad7f62d1f91c687c918889c221bc50f2",
+      "bytes": 2249,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Exact original finite input request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.6.18/tclCmdAH.c",
+      "sha256": "752473fb5c05d166602ed00b2afff8e123dafd34f4c585628e941b8c5691ae88",
+      "bytes": 80806,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.6.18/tclEncoding.c",
+      "sha256": "359bfa493e7aba998e524978aca4345422e2e265dde93e73f76cb5fc8784e4c6",
+      "bytes": 108401,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/8.6.18/tclUtf.c",
+      "sha256": "95d8a272d4c96a4462c5e406d4fef3073b3bd7489691d839615bfaef394ac7f5",
+      "bytes": 64804,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/9.0.4-original-compile.receipt.json",
+      "sha256": "592f0da1fe061ceb61facfee8eb8a40ba7fe0cd86103f185cc54de51d5cdfff7",
+      "bytes": 2235,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Exact original finite input request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/9.0.4/tclCmdAH.c",
+      "sha256": "b1fd4aec514b23bbca0a43d99e25a613ec570752e50fadf1caf5c499b1a54ec1",
+      "bytes": 82016,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/9.0.4/tclEncoding.c",
+      "sha256": "b2d923ff94e392ddbfcb6daf474e58cff1b880d574d6b70ee3153a196f9f7531",
+      "bytes": 135445,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/9.0.4/tclUtf.c",
+      "sha256": "1574311b441c745dac0c1cc4f0e4ca0e7cbc09b86261d463a62d9ee3e317027c",
+      "bytes": 67784,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/9.1.0-original-compile.receipt.json",
+      "sha256": "914e2aae7f2e087f41d42d956c4e1e5ae0305e2ae638a81c4d828f5c16814a5b",
+      "bytes": 2234,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Exact original finite input request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/9.1.0/tclCmdAH.c",
+      "sha256": "56db5fdd8c4bd688cb0beda3b91ad60111adb802fd63c28821055140b582fe04",
+      "bytes": 82708,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/9.1.0/tclEncoding.c",
+      "sha256": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+      "bytes": 168781,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/9.1.0/tclUtf.c",
+      "sha256": "f388adf112e56d3d07bd86b6878e73a1f8c56a2d751f2bb5d860d3464f4db265",
+      "bytes": 67433,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/jim-original-compile.receipt.json",
+      "sha256": "0e6488a3572aa9b5f197343a7024b79f39dde8082887700faca5b6526e9c07ff",
+      "bytes": 2642,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Exact original finite input request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/8.4.20/tclNamesp.c",
+      "sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "bytes": 128490,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/8.4.20/tclObj.c",
+      "sha256": "6e20f047f13e19527f746934b7a9472405d1871e0936687004506f966bb8bd9c",
+      "bytes": 106249,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/8.5.19/tclNamesp.c",
+      "sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "bytes": 210509,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/8.5.19/tclObj.c",
+      "sha256": "25136b8ad5a833dfecd5e45a2f8f54e52d78e10ff516a5abc61fbdfb7e6ee014",
+      "bytes": 125347,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/8.6.18/tclEnsemble.c",
+      "sha256": "2c86e298e6beaad843ca15885ba454367117cdcbed43c509c69110521159a642",
+      "bytes": 107115,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/8.6.18/tclObj.c",
+      "sha256": "7a7ef8ec85c74581129e8f3bef939e3191a432dcb021e0a16f1cf9971049f90d",
+      "bytes": 131144,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/9.0.4/tclEnsemble.c",
+      "sha256": "6d0c49c5a53f2c7f89eafb3dc9113b4f2f418e48d6b9256f3c99150be9dd12e7",
+      "bytes": 109564,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/9.0.4/tclObj.c",
+      "sha256": "91a390bd24fbe71108108eeccf9955df0389f0f81dff24f303c32344469e8d4a",
+      "bytes": 134339,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/9.1.0/tclEnsemble.c",
+      "sha256": "3ad1e9efbb692a831d5d4b7545e3030868621532bb62ba94c551c0ce42983664",
+      "bytes": 109269,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/9.1.0/tclObj.c",
+      "sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+      "bytes": 132032,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/jim/_stdlib.c",
+      "sha256": "593b57426539e77ab00efb961a77c1f8a3845ce0c82f29943516f30db4142751",
+      "bytes": 3815,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/jim/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "bytes": 11686,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/jim/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "bytes": 546686,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/map-source/jim/stdlib.tcl",
+      "sha256": "3597b76b785f697242a5354816792ad5fa538dd0a41b3973bdcbcb5edbb8893a",
+      "bytes": 3925,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/probe.c",
+      "sha256": "a54fbcb61246d7ab55944af90578043c8a42f9af0e85c5b700fdc30b42aadd76",
+      "bytes": 5384,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/request/request.json",
+      "sha256": "5c262bd83996939cdb172c66ad744d0401f88682ba0cc7e6b2014e74b9721fc2",
+      "bytes": 18978,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Exact original finite input request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/summary.json",
+      "sha256": "ea82ec5a12607022034c40b906238cd6ab32f9e43ecb94571f0813ca5b10be81",
+      "bytes": 17754,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.ensemble.original-counted-map-prefix-construction"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.5.19-independent-info292-compile.receipt.json",
       "sha256": "92b36c7426600ed77ff8d022f07173b8bafc164203032ff4f4437f242269b5eb",
       "bytes": 2121,

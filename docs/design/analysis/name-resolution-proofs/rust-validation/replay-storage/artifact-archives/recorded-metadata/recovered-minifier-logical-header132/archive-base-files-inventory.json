@@ -1,0 +1,312 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-minifier-logical-header132.base-files.tar.gz",
+  "archive_sha256": "7c6342de8b87c7eb753ccfdd54fc2d3ca519aa370582609eb90c04e2ba081091",
+  "archive_bytes": 353090,
+  "uncompressed_bytes": 1464467,
+  "source_manifest_sha256": "9bb0670a5c95e6e2513de837bba93a4e9c51350f8904550028d76bf53939ec4b",
+  "source_patch_sha256": "83d066f0e218d5324ea34f85a41ea297528e3c8f5aad2d70e77ec93cc48e17f1",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/83d066f0e218d5324ea34f85a41ea297528e3c8f5aad2d70e77ec93cc48e17f1.patch",
+  "original_application_journal_sha256": "83d066f0e218d5324ea34f85a41ea297528e3c8f5aad2d70e77ec93cc48e17f1",
+  "member_count": 33,
+  "members": {
+    "recovered-minifier-logical-header132/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1083937,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1133337,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1083937,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553764.1058464,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553764.1098464,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-compiler/src/analyser/state.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553764.1110604,
+      "size": 328939,
+      "sha256": "b6080f9f484aebddec46c05cb80790df71d573ded3dcfc9117ff11f601a9f914"
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1119874,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-compiler/src/command_binding/declaration_layout.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1126091,
+      "size": 98483,
+      "sha256": "c37b8ee6a5bf5fae361822b8d5369eaf1aec9f45dca14ac55061fa02321e7938"
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-compiler/src/realm.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1114233,
+      "size": 49115,
+      "sha256": "cf32d395682c8f27ec6e32ff4b2a4cc36b6f82f99c55ae1ff6fdabb959cb8999"
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1133337,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1169636,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-lsp-core/src/minify": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1169636,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-lsp-core/src/minify/original.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.118063,
+      "size": 55478,
+      "sha256": "15b950b53f586995a6dac50574df0a7b062d6ae62c1cea5a6f721d12be129f07"
+    },
+    "recovered-minifier-logical-header132/base/rust/tcl-lsp-core/src/minify.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1163921,
+      "size": 193637,
+      "sha256": "a7dc1e0f8a5e4504638e3f3c15dfece8e2c8adbdfc5db3518fcbddef5626137b"
+    },
+    "recovered-minifier-logical-header132/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553987.5382845,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553987.5382845,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553987.5382845,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/docs/design/analysis": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553987.5382845,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/docs/design/analysis/name-resolution-proofs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553987.5382845,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553987.5385265,
+      "size": 1669,
+      "sha256": "9a8edd39acd1d68446ad2a7d5d455a0196166d7c49dfe41050facac4b8438056"
+    },
+    "recovered-minifier-logical-header132/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1163921,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1114233,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553764.1110604,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553764.1110604,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-compiler/src/analyser/state.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553987.540235,
+      "size": 329417,
+      "sha256": "964922c833ae24e863d18c9afed787986116c8a82fd9e6f3ff3090be533eb19e"
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1126091,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-compiler/src/command_binding/declaration_layout.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553587.403225,
+      "size": 101283,
+      "sha256": "cc4df5d518a345351b929773f418d941789dd52a6c0f8ae066586c26bdf88b51"
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-compiler/src/realm.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553851.6630363,
+      "size": 51855,
+      "sha256": "3f42712482634df5c44128c425aff778f13e97c3e1ac21f7a977e57856c0f4aa"
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.1163921,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.118063,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-lsp-core/src/minify": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553434.118063,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-lsp-core/src/minify/original.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553851.6600296,
+      "size": 60161,
+      "sha256": "532228c4884c309fd8d8b3dd3d0e84582724d39e5885de38cf1e854dc74a228e"
+    },
+    "recovered-minifier-logical-header132/files/rust/tcl-lsp-core/src/minify.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791553794.9336057,
+      "size": 194430,
+      "sha256": "aca7dd782f208473dba10f91cd25d029bac8505ffb6cc4d57e168329f333d9a0"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

@@ -1583,7 +1583,6 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ns = interp.current_ns();
     // Mapping targets use the implementation namespace; publication retains
     // the original -command operand and its independent token routing.
-    let ns_fqn = interp.namespaces().qualified_name(ns);
     let mut command = None;
     let mut cfg = EnsembleConfig {
         originals: Default::default(),
@@ -1621,7 +1620,7 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             });
             continue;
         };
-        if let Err(e) = apply_ensemble_option(&mut cfg, shared, pair[1], &ns_fqn, interp, true) {
+        if let Err(e) = apply_ensemble_option(&mut cfg, shared, pair[1], ns, interp, true) {
             return interp.report_cmd_error(e);
         }
     }
@@ -1643,6 +1642,25 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+fn native_ensemble_map_prefix_input<'a>(
+    interp: &Interp,
+    namespace: NsId,
+    original: &'a [u8],
+) -> Result<std::borrow::Cow<'a, [u8]>, tcl_syntax::value::ValueError> {
+    let unavailable = tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+        "ensemble map-prefix construction",
+    );
+    let protocol = interp
+        .native_invocation_dialect()
+        .native_name_protocol()
+        .ok_or_else(|| unavailable.clone())?;
+    let report = interp.namespaces().qualified_name(namespace);
+    let has_parent = interp.namespaces().parent(namespace).is_some();
+    protocol
+        .ensemble_map_prefix_input(&report, has_parent, original)
+        .map_err(|_| unavailable)
+}
+
 /// Apply one already-resolved shared `-option value` to an
 /// [`EnsembleConfig`] (`namespace ensemble create` and `configure` both land
 /// here; the option word itself is resolved by the caller's own table).
@@ -1656,7 +1674,7 @@ fn apply_ensemble_option(
     cfg: &mut EnsembleConfig,
     opt: tcl_cmd_core::ensemble::SharedOption,
     value: *mut TclObj,
-    map_ns: &[u8],
+    map_ns: NsId,
     interp: &Interp,
     creating: bool,
 ) -> Result<(), tcl_cmd_core::CmdError> {
@@ -1686,9 +1704,9 @@ fn apply_ensemble_option(
                 ));
             }
             let target = crate::dict::native_object_bytes(members[0], protocol)?;
-            if !target.starts_with(b"::") {
-                let qualified =
-                    obj::Owned::fresh(obj::new_string_bytes(&qualify_in_ns(map_ns, &target)));
+            let selected = native_ensemble_map_prefix_input(interp, map_ns, &target)?;
+            if let std::borrow::Cow::Owned(qualified) = selected {
+                let qualified = obj::Owned::fresh(obj::new_string_bytes(&qualified));
                 let copy = obj::Owned::fresh(if creating {
                     list::new_list_obj_native(&members, protocol)
                 } else {
@@ -1830,7 +1848,7 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // common `namespace eval M {namespace ensemble configure …}` shape, but
     // configuring an ensemble from outside its namespace resolves relative
     // targets against the caller.
-    let map_ns = interp.namespaces().qualified_name(interp.current_ns());
+    let map_ns = interp.current_ns();
     for pair in rest.chunks_exact(2) {
         let resolved = match interp.native_static_string_option_index(
             pair[0],
@@ -1845,7 +1863,7 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp
                 .error_with_code(b"option -namespace is read-only", b"TCL ENSEMBLE READ_ONLY");
         };
-        if let Err(e) = apply_ensemble_option(&mut cfg, shared, pair[1], &map_ns, interp, false) {
+        if let Err(e) = apply_ensemble_option(&mut cfg, shared, pair[1], map_ns, interp, false) {
             return interp.report_cmd_error(e);
         }
     }
@@ -1968,27 +1986,6 @@ fn ens_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let exists = interp.is_ensemble(&obj_bytes(argv[3]));
     interp.set_result_bytes(if exists { b"1" } else { b"0" });
     Code::Ok
-}
-
-/// Namespace-qualify one `-map` target the way C does (`tclEnsemble.c` CRT_MAP
-/// / CONF_MAP): a target already starting with `::` is left alone, anything
-/// else is prefixed with `ns` (plus a `::` separator unless `ns` is the global
-/// namespace, whose name already ends in the separator).
-///
-/// This runs at *parse* time, so the qualified form is what the ensemble
-/// stores, what dispatch calls, and what `-map` reads back — a relative target
-/// left raw would be looked up in whatever namespace happened to be current at
-/// call time, and so would usually be uncallable.
-fn qualify_in_ns(ns: &[u8], target: &[u8]) -> Vec<u8> {
-    if target.starts_with(b"::") {
-        return target.to_vec();
-    }
-    let mut out = ns.to_vec();
-    if ns != b"::" {
-        out.extend_from_slice(b"::");
-    }
-    out.extend_from_slice(target);
-    out
 }
 
 #[cfg(test)]
@@ -6077,3 +6074,6 @@ mod native_upvar_tests;
 
 #[cfg(test)]
 mod native_holder_routing;
+
+#[cfg(test)]
+mod native_map_prefix_tests;

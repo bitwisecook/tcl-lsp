@@ -1001,7 +1001,7 @@ mod tests {
         assert_eq!(links[0].target, "file:///usr/lib/tcl/init.tcl");
     }
 
-    fn path_analysis(
+    pub(super) fn path_analysis(
         source: &str,
         profile: &'static tcl_dialect::DialectProfile,
         config: tcl_lexer::LexerConfig,
@@ -1784,6 +1784,7 @@ mod original_document_link_tests {
 #[cfg(test)]
 mod original_hosted_document_link_tests {
     use super::*;
+    use super::tests::path_analysis;
     use tcl_compiler::analyser::Analyser;
 
     #[test]

@@ -1,0 +1,195 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-workspace-source-procedure-candidates287.base-files.tar.gz",
+  "archive_sha256": "a20f118bb3bf4ad4375872f6efb0ecebd1956d88fa8131384d6e13187a12c7f1",
+  "archive_bytes": 1439055,
+  "uncompressed_bytes": 6350007,
+  "source_manifest_sha256": "40c56837159745271fa4484b8bc1b4e2138c1b1d55e32cecf59a33ee0903c1de",
+  "source_patch_sha256": "8718f06c0e3448577a07e3decf36326c9ab6b828a05443da7c70e56cf8af9268",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/8718f06c0e3448577a07e3decf36326c9ab6b828a05443da7c70e56cf8af9268.patch",
+  "original_application_journal_sha256": "8718f06c0e3448577a07e3decf36326c9ab6b828a05443da7c70e56cf8af9268",
+  "member_count": 20,
+  "members": {
+    "recovered-workspace-source-procedure-candidates287/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2495787,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2553937,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2495787,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.254833,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/base/rust/tcl-lsp-core/src/completion": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.254833,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/base/rust/tcl-lsp-core/src/completion/original_workspace.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2551818,
+      "size": 14659,
+      "sha256": "663ad58ada9c045cc39de4adbaaf794aa6203cc771556ce85ab1bad996cc1131"
+    },
+    "recovered-workspace-source-procedure-candidates287/base/rust/tcl-lsp-core/src/workspace_index.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2538393,
+      "size": 613483,
+      "sha256": "eb118f33494496b755ea1dd6559cd94db6cb493d2659385459e1c93ade3d49a5"
+    },
+    "recovered-workspace-source-procedure-candidates287/base/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2553937,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/base/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2575786,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/base/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2582462,
+      "size": 2541573,
+      "sha256": "99de748287641dea6ec61b70ae238fa5c1aeddca19920dbb3401781725d901d4"
+    },
+    "recovered-workspace-source-procedure-candidates287/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2538393,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2582462,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2538393,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2551818,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/files/rust/tcl-lsp-core/src/completion": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2551818,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/files/rust/tcl-lsp-core/src/completion/original_workspace.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601573.3565013,
+      "size": 16328,
+      "sha256": "bbfd1b47d2bbb1feb5eef2e74514da176ea6322ae28ad466702ca9f3d3b9803e"
+    },
+    "recovered-workspace-source-procedure-candidates287/files/rust/tcl-lsp-core/src/workspace_index.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601573.3205018,
+      "size": 620715,
+      "sha256": "a1f177f4448addbb5d1f44b36f75b18cc951fa7e173c711a13e98bfd41020ade"
+    },
+    "recovered-workspace-source-procedure-candidates287/files/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2582462,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/files/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601436.2582462,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-workspace-source-procedure-candidates287/files/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601574.5924916,
+      "size": 2543249,
+      "sha256": "43357ee715aa84a1ef71339ec0086ca00f3688b32f8839f0c3aa992e2408c14e"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

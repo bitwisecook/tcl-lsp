@@ -2838,12 +2838,17 @@ fn summary_deps_key<'db>(
         callee_set.extend(tcl_compiler::taint_interproc::resolved_callees(
             fu,
             known,
-            tcl_lexer::LexerConfig::for_profile(tcl_lsp_core::stated_profile_for_dialect(dialect)),
+            fu.source_lexer_config(),
         ));
         if let Some(src) = body_source {
-            callee_set.extend(tcl_compiler::taint_interproc::command_subst_callees(
-                src, qname, known,
-            ));
+            callee_set.extend(
+                tcl_compiler::taint_interproc::command_subst_callees_with_config(
+                    src,
+                    qname,
+                    known,
+                    fu.source_lexer_config(),
+                ),
+            );
         }
         callee_set.sort();
         callee_set.dedup();
@@ -7198,6 +7203,150 @@ p\uD801 ordinary";
             1,
             "unrelated body edit -> exactly ONE summary inference recomputes"
         );
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct SummaryDependencyProbe {
+        caller_name: String,
+        caller_body: String,
+        provider: ReturnTaintSummary,
+        dependencies: Vec<ReturnTaintSummary>,
+        caller: ReturnTaintSummary,
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn summary_dependency_probe<'db>(
+        db: &'db dyn TclDb,
+        file: SourceFile,
+        cfg: LexerCfgKey<'db>,
+        caller: String,
+    ) -> SummaryDependencyProbe {
+        let dialect = file.dialect(db);
+        let registry = db.registry(dialect);
+        let declared = declared_command_surface(db, file);
+        let (cu, keys) = build_unit_with_keys(
+            db,
+            file.text(db),
+            unit_build_options(db, file, cfg, registry, None, &declared),
+        );
+        let known: HashSet<_> = cu.ir_module.procedures.keys().cloned().collect();
+        let mut summaries: HashMap<_, _> = known
+            .iter()
+            .map(|name| (name.clone(), ReturnTaintSummary::untainted(name, &[])))
+            .collect();
+        let provider = tcl_compiler::taint_interproc::infer_proc_summary(
+            "::producer",
+            &[],
+            cu.function("::producer")
+                .expect("actual provider source unit"),
+            registry,
+            cu.interproc.as_ref(),
+            tcl_lsp_core::stated_profile_for_dialect(dialect),
+            &known,
+            &summaries,
+        );
+        summaries.insert("::producer".to_owned(), provider.clone());
+        let body = cu.ir_module.procedures[&caller]
+            .body_source
+            .as_deref()
+            .expect("actual caller source body");
+        let dependencies = summary_deps_key(
+            db,
+            &caller,
+            cu.function(&caller).expect("actual caller source unit"),
+            Some(body),
+            cu.interproc.as_ref(),
+            &summaries,
+            &known,
+            dialect,
+        );
+        let summary = proc_summary_cascade(db, keys[&caller], dependencies);
+        SummaryDependencyProbe {
+            caller_name: caller,
+            caller_body: body.to_owned(),
+            provider,
+            dependencies: dependencies.callee_summaries(db).clone(),
+            caller: (*summary).clone(),
+        }
+    }
+
+    #[test]
+    fn summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads() {
+        // naming.compiler.original-summary-dependency-source-heads
+        // docs/design/analysis/name-resolution-proofs/compiler-original-summary-dependency-source-heads.md
+        // Actual document units feed the tracked summary query. This proves
+        // dependency currency, not that a procedure or substitution executes.
+        use salsa::Setter as _;
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let log = Arc::clone(&log);
+            move |event: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = event.kind {
+                    log.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+        };
+        let source = |provider: &str| {
+            format!(
+                "proc producer {{}} {{{provider}}}\n\
+             proc quoted {{}} {{return [\"producer\"]}}\n\
+             proc braced {{}} {{return [{{producer}}]}}\n"
+            )
+        };
+        let initial = source("return CLEAN");
+        let changed = source("return [gets stdin]");
+        let file = SourceFile::new(&db, initial, "tcl".to_owned(), None);
+        let config = lexer_cfg_key(&db, "tcl");
+        let before: Vec<_> = ["::quoted", "::braced"]
+            .into_iter()
+            .map(|caller| summary_dependency_probe(&db, file, config, caller.to_owned()))
+            .collect();
+        let runs = || {
+            std::mem::take(&mut *log.lock().unwrap())
+                .into_iter()
+                .filter(|query| query.contains("proc_summary_cascade"))
+                .count()
+        };
+        assert_eq!(runs(), 2, "two actual caller summary queries");
+        for caller in ["::quoted", "::braced"] {
+            let _ = summary_dependency_probe(&db, file, config, caller.to_owned());
+        }
+        assert_eq!(runs(), 0, "unchanged document retains the summary memos");
+        file.set_text(&mut db).to(changed.clone());
+        let after: Vec<_> = ["::quoted", "::braced"]
+            .into_iter()
+            .map(|caller| summary_dependency_probe(&db, file, config, caller.to_owned()))
+            .collect();
+        assert_eq!(
+            runs(),
+            2,
+            "callee summary edit invalidates both caller queries"
+        );
+        for (old, new) in before.iter().zip(&after) {
+            assert_eq!(
+                old.caller_body, new.caller_body,
+                "caller source did not change"
+            );
+            assert_ne!(
+                old.provider, new.provider,
+                "the actual callee summary changed"
+            );
+            assert!(old.dependencies.contains(&old.provider));
+            assert!(new.dependencies.contains(&new.provider));
+            assert_ne!(old.dependencies, new.dependencies);
+        }
+        let fresh = TclDatabase::default();
+        let fresh_file = SourceFile::new(&fresh, changed, "tcl".to_owned(), None);
+        let fresh_config = lexer_cfg_key(&fresh, "tcl");
+        for (caller, expected) in ["::quoted", "::braced"].into_iter().zip(after) {
+            assert_eq!(
+                summary_dependency_probe(&fresh, fresh_file, fresh_config, caller.to_owned()),
+                expected
+            );
+        }
     }
 
     /// The project proc-name set lifted into salsa

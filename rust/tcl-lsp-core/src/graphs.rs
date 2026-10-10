@@ -40,7 +40,7 @@ use tcl_compiler::path_concat::find_path_concat_warnings;
 use tcl_compiler::side_effects::EffectRegion;
 use tcl_compiler::taint::{
     find_destructive_file_warnings, find_setter_constraint_warnings,
-    find_taint_warnings_for_function, is_irules_dialect,
+    find_taint_warnings_for_module_function, is_irules_dialect,
 };
 use tcl_compiler::uri_split::find_uri_split_suggestions;
 use tcl_lexer::{LineIndex, Span};
@@ -764,6 +764,8 @@ fn call_graph_for_input(
 struct TaintWarnCtx<'a> {
     /// The analysis dialect's command registry.
     registry: &'a CommandRegistry,
+    /// Original module source owner for conditional sink metadata.
+    module: &'a IrModule,
     /// The dialect string (drives iRules-only warning families + octal reads).
     dialect: &'static tcl_dialect::DialectProfile,
     /// Namespace-scoped proc names that shadow builtins for their namespace.
@@ -794,6 +796,7 @@ fn collect_taint_warnings(
 ) {
     let TaintWarnCtx {
         registry,
+        module,
         dialect,
         shadow_proc_qnames,
         module_traces,
@@ -828,12 +831,12 @@ fn collect_taint_warnings(
     let taints = &taints;
 
     // 1. Sink injection (T100 / T101 / T102 families).
-    for w in find_taint_warnings_for_function(
+    for w in find_taint_warnings_for_module_function(
         fu,
         taints,
         &fu.sccp.executable_blocks,
         registry,
-        Some(profile),
+        module,
         &shadowed,
         module_traces,
     ) {
@@ -1024,6 +1027,7 @@ fn dataflow_graph_for_input(
     };
     let taint_ctx = TaintWarnCtx {
         registry,
+        module: &cu.ir_module,
         dialect,
         shadow_proc_qnames: &shadow_proc_qnames,
         module_traces,

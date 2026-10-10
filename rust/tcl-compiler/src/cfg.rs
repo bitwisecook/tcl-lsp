@@ -227,6 +227,9 @@ pub struct InlineBodyErrorSite {
 /// A complete control-flow graph for a single procedure or top-level script.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
+    /// Actual availability owner from this CFG construction request. Missing
+    /// supplied input remains unavailable, independently of source names.
+    pub(crate) metadata_context: crate::cfg_builder::CfgMetadataContext,
     /// Actual namespace owner retained from the executable body.
     pub namespace_context: Option<Box<crate::command_binding::SourceNamespaceKey>>,
     /// Exact source instance retained independently of native admission.
@@ -416,6 +419,7 @@ impl Function {
             native_compilation_failure: None,
             native_compilation_admission: None,
             namespace_context: None,
+            metadata_context: crate::cfg_builder::CfgMetadataContext::Standalone,
             executed_source: None,
             implicit_math_invocations: Vec::new(),
             expression_preparations: Vec::new(),

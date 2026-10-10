@@ -1,0 +1,2569 @@
+{
+  "approved_candidate_inventory": "/workspace/.proofs/archive-additional-source-packet-candidates.json",
+  "completed": [
+    {
+      "directory": "/workspace/.proofs/rename-interpreter-source-load172",
+      "archive": "/workspace/.proofs/rename-interpreter-source-load172.source-trees.tar.gz",
+      "archive_sha256": "2886d71d39011f682076d3133d9b83633810653af8cc3619cf92f1e69e26a955",
+      "original_bytes": 8590554,
+      "archive_bytes": 1977202,
+      "member_count": 48,
+      "patch_sha256": "6371558a90ee1c8ac24b450619f7c9d9e0f5e8e1b212260101dff38d3261ad27",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/native-math-diagnostic197",
+      "archive": "/workspace/.proofs/native-math-diagnostic197.source-trees.tar.gz",
+      "archive_sha256": "d74ae5a09eb1dd4ec924bc49c551f08431ccf175133aaa43a4e2a0b8c532d105",
+      "original_bytes": 7197888,
+      "archive_bytes": 1686128,
+      "member_count": 45,
+      "patch_sha256": "9d0c19cab52b48948e948b5d4a1a4bcdde0e8bf28d93f72e3779227fc1f4f9cf",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/current-spec-notice81",
+      "archive": "/workspace/.proofs/current-spec-notice81.source-trees.tar.gz",
+      "archive_sha256": "63c437d6227a19f6bccfc94baccfc666cbc2376536d17431f193e74327e8cc54",
+      "original_bytes": 6478974,
+      "archive_bytes": 1495639,
+      "member_count": 34,
+      "patch_sha256": "757b8699adf26d756a8d197dc18dcf27c63446f6c163b78b9320a1ef9c510ea1",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/child-alias-publication-owner299b",
+      "archive": "/workspace/.proofs/child-alias-publication-owner299b.source-trees.tar.gz",
+      "archive_sha256": "11c029d525d9da3c64048360616e941d73cbf12710e0b3de66c1939bd02d9ccf",
+      "original_bytes": 6126900,
+      "archive_bytes": 1311500,
+      "member_count": 48,
+      "patch_sha256": "bedfc226641e6d468bfe105287a80eeea7223b4eac55270bba24e1273a04f25c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/child-alias-publication-owner299c",
+      "archive": "/workspace/.proofs/child-alias-publication-owner299c.source-trees.tar.gz",
+      "archive_sha256": "f8335ea298321c828614312b05118d49b292ea14b9449861461504a251fb3d8d",
+      "original_bytes": 6126882,
+      "archive_bytes": 1311498,
+      "member_count": 48,
+      "patch_sha256": "d6d45b1a1ed73ac4da36a3543d4e4a1e0f505766392889e2f870f7a8e8d6429a",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/original-jim-alias-introspection277b",
+      "archive": "/workspace/.proofs/original-jim-alias-introspection277b.source-trees.tar.gz",
+      "archive_sha256": "24608495ba44db5a2db6c87526fc2d756d034d3ef2f733cf400c1cc95c439618",
+      "original_bytes": 6096634,
+      "archive_bytes": 1331392,
+      "member_count": 66,
+      "patch_sha256": "3fdb32f99e2961acc5dd470e04b38bf7ac5b7940b3fb445141a86b78a0d4cf9b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/original-jim-alias-introspection277",
+      "archive": "/workspace/.proofs/original-jim-alias-introspection277.source-trees.tar.gz",
+      "archive_sha256": "303228dfad40e6d41fdef653075bf88ba7634120a9531c4917268cbae4d66e0e",
+      "original_bytes": 6096604,
+      "archive_bytes": 1331322,
+      "member_count": 66,
+      "patch_sha256": "512d9799af2c65d5ab68f8f5b317500d6170eb463170fa3ca6e6f901928ebea7",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-command-unavailability172",
+      "archive": "/workspace/.proofs/consumer-command-unavailability172.source-trees.tar.gz",
+      "archive_sha256": "3edcbbaf43e78ceff6f2392ee452ad799cb710b94f538aa8e8d2c0b4d9a565ca",
+      "original_bytes": 6061600,
+      "archive_bytes": 1321534,
+      "member_count": 52,
+      "patch_sha256": "4a856569fa76ba4937c452ec6d0677d897e2cc9c1ca7eaa6c31abf5f29a4ee93",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/child-alias-publication-owner299",
+      "archive": "/workspace/.proofs/child-alias-publication-owner299.source-trees.tar.gz",
+      "archive_sha256": "a8e1611fabb85d517e773f48391672d0af91316f6347bccdc5a507e6ad3754fa",
+      "original_bytes": 5840414,
+      "archive_bytes": 1252322,
+      "member_count": 42,
+      "patch_sha256": "b4db345c744c95231f339496d2b91880fcaf56aa58817fefa22c7b2395e49ede",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-source-advice176",
+      "archive": "/workspace/.proofs/diagnostic-consumer-source-advice176.source-trees.tar.gz",
+      "archive_sha256": "f7266acb292c7d62b31c64aad16b32de09f41c4cec44bba2efc69e30ad10f5ea",
+      "original_bytes": 5686302,
+      "archive_bytes": 1369945,
+      "member_count": 78,
+      "patch_sha256": "89df002c7cabe6f37c27e055cc01b4ec1c1d859b126a52575d8006be8d7871c5",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/runtime-ensemble-routing209",
+      "archive": "/workspace/.proofs/runtime-ensemble-routing209.source-trees.tar.gz",
+      "archive_sha256": "f5c95dc59020e395d45a3be9c4f0af167f41d4f5a9064917910b56e7c54e0bbc",
+      "original_bytes": 5486583,
+      "archive_bytes": 1155290,
+      "member_count": 64,
+      "patch_sha256": "f8d572f82811d097f21514ff1e7b0a949c28077323e4e2ce1de819bcb6fd2512",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/root-consumer-imports241",
+      "archive": "/workspace/.proofs/root-consumer-imports241.source-trees.tar.gz",
+      "archive_sha256": "a5fc758d814ed1a4295435da59f5ed67a012ed51731342bd5fdf47ec1b643ed0",
+      "original_bytes": 5153551,
+      "archive_bytes": 1178226,
+      "member_count": 16,
+      "patch_sha256": "b898be587217ce20e7bda3e7f5ea7a90ef21c27ef968dedeee16d6bb5a34bc11",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/server-original-input270b",
+      "archive": "/workspace/.proofs/server-original-input270b.source-trees.tar.gz",
+      "archive_sha256": "3c1bd24a65d854d4ddbba2a9f4c8fc03a8870ce8a0e865050898d062322caf9b",
+      "original_bytes": 5091800,
+      "archive_bytes": 1162667,
+      "member_count": 10,
+      "patch_sha256": "a3251d2e9376862cf85c611872b4ec939f1456e7c41e320affe93a044d953bcc",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/server-original-input270",
+      "archive": "/workspace/.proofs/server-original-input270.source-trees.tar.gz",
+      "archive_sha256": "4c44941cb1d5f8ea21e27a4d1b16454765b3d21dcd5382b5d8a139e96e235f15",
+      "original_bytes": 5091373,
+      "archive_bytes": 1162554,
+      "member_count": 10,
+      "patch_sha256": "c7a570463a9c912fbad96430ce5159425eb8bf28e9f7e871543d69696b40058f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-server-fixtures117",
+      "archive": "/workspace/.proofs/consumer-server-fixtures117.source-trees.tar.gz",
+      "archive_sha256": "18a810becc868bf2ef3adbd51f12c3be5b9762a40dc47cd112b4019cd75ad457",
+      "original_bytes": 5067550,
+      "archive_bytes": 1159536,
+      "member_count": 12,
+      "patch_sha256": "07dce46445a588d41d022ec3150579bb788d81585bb7b4d4b23e12f0148e8a95",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-server-style233",
+      "archive": "/workspace/.proofs/consumer-server-style233.source-trees.tar.gz",
+      "archive_sha256": "7cfa592bc95e607f9153931dcc67c7182401b80837687dbbe60d1bbcaa6cfc19",
+      "original_bytes": 5057342,
+      "archive_bytes": 1156632,
+      "member_count": 10,
+      "patch_sha256": "b6df0f56edfc6a25d51aa5bec6e5ead6fc33b87b32d959536b4f2ae38c31733d",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-server-logical-trace130",
+      "archive": "/workspace/.proofs/consumer-server-logical-trace130.source-trees.tar.gz",
+      "archive_sha256": "4db15f7f3ffd6b2a08f608de5e7a2f8392ae6c92a7c20911445dd5677ac50d5e",
+      "original_bytes": 5052772,
+      "archive_bytes": 1155789,
+      "member_count": 10,
+      "patch_sha256": "38d08ff69c7ab0b32cc7705f4cec8fa80844dc58a949882bce8f718d092fcd98",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/original-alias-prefix-cache275b",
+      "archive": "/workspace/.proofs/original-alias-prefix-cache275b.source-trees.tar.gz",
+      "archive_sha256": "0e0b10501121b9805c910bd07e09db7aa40690444391c703357483d7c123dcbf",
+      "original_bytes": 5036763,
+      "archive_bytes": 1081585,
+      "member_count": 36,
+      "patch_sha256": "585b0c7f1dea215b8962bd7285e308860821b7ff9b1510e4442b4c9cd192fe7f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/original-alias-prefix-cache275",
+      "archive": "/workspace/.proofs/original-alias-prefix-cache275.source-trees.tar.gz",
+      "archive_sha256": "08bb2e2114796e190a1c846e8aae0b3440f79c730e278d63174f835dbc5dfa74",
+      "original_bytes": 5036108,
+      "archive_bytes": 1081377,
+      "member_count": 36,
+      "patch_sha256": "ff3c5ec0651d1ff733f69ae8ec9b7af58b031594ff7213e274e049c754d33ea1",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-formal-records194",
+      "archive": "/workspace/.proofs/diagnostic-consumer-formal-records194.source-trees.tar.gz",
+      "archive_sha256": "5bb990cfa95646fc6c8ef635c347a88936b48e48e8dc7b30a009bd58f371f1b4",
+      "original_bytes": 5009784,
+      "archive_bytes": 1192034,
+      "member_count": 48,
+      "patch_sha256": "5d581d56b5ff08c3b8e9aca17b7f482092c12e8f49e7e8c9da5a7478b3355416",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-safe-source160",
+      "archive": "/workspace/.proofs/rename-safe-source160.source-trees.tar.gz",
+      "archive_sha256": "f8a99ecd42aa68a56dd0b0264978fae82260bdf22571f3732dee741e946d474a",
+      "original_bytes": 4730431,
+      "archive_bytes": 1173795,
+      "member_count": 46,
+      "patch_sha256": "bdd27a5080d02ec82fe8211cfb570bcdb1c11e96d3e24ff971c5505daace2ea7",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-structured-timing196",
+      "archive": "/workspace/.proofs/rename-structured-timing196.source-trees.tar.gz",
+      "archive_sha256": "32f5aa747ce0fa5245e621cb07db8456fc516d69ee30fdcb2f089793e5adb821",
+      "original_bytes": 4694611,
+      "archive_bytes": 1021033,
+      "member_count": 78,
+      "patch_sha256": "f4abf6170abf5f99980bc62a187a670abd4111261827886af1003a71afa3ea36",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/runtime-command-routing203",
+      "archive": "/workspace/.proofs/runtime-command-routing203.source-trees.tar.gz",
+      "archive_sha256": "b322e72c8b205d18cec2e3c622298694b2e3278c31fbe44a9c3222c934b78de6",
+      "original_bytes": 4693172,
+      "archive_bytes": 1053751,
+      "member_count": 58,
+      "patch_sha256": "95775b510e325d978fb9c191c0201df596b4932afc42448ed46cdf5962dd455d",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-callback-registration236",
+      "archive": "/workspace/.proofs/consumer-callback-registration236.source-trees.tar.gz",
+      "archive_sha256": "e0fc2f38594575a131e68f2fce3a151fd9eb77d1d38f7def1594278857f9e027",
+      "original_bytes": 4632764,
+      "archive_bytes": 993035,
+      "member_count": 42,
+      "patch_sha256": "a0a6fb2cc6df044ecf699f57bb637044a35a0d366285f1ade54cebea85d36ce0",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-lifecycle167",
+      "archive": "/workspace/.proofs/diagnostic-consumer-lifecycle167.source-trees.tar.gz",
+      "archive_sha256": "e281d3eaf5a6393a074717d7c0c3b33bc356dfbd72eced1dd79bf9b6cc283df3",
+      "original_bytes": 4617920,
+      "archive_bytes": 1120655,
+      "member_count": 64,
+      "patch_sha256": "19a6627223f13dd6eb7cea5e865986e30b89e23059b2b3f4524c5b0490d55cb8",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/namespace-command-teardown227",
+      "archive": "/workspace/.proofs/namespace-command-teardown227.source-trees.tar.gz",
+      "archive_sha256": "75ab57a5aae6e8aed48b399a7b45bc22954f8f253e2c8102ae6e2b61fc15004e",
+      "original_bytes": 4469137,
+      "archive_bytes": 959662,
+      "member_count": 30,
+      "patch_sha256": "c058f2cb89f3a750ea4abcb5077b1a721141c09ba503fc14c3bd0ff87b2be2a9",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/child-path202",
+      "archive": "/workspace/.proofs/child-path202.source-trees.tar.gz",
+      "archive_sha256": "690f9709baba61fe4e4663b3f6ea75ba283749927ca9ef77e2be6247e015288f",
+      "original_bytes": 4459131,
+      "archive_bytes": 955408,
+      "member_count": 31,
+      "patch_sha256": "a84a8fea7b0199de6cb1b03e1064245b17f582c375858d5a59eb820418ed8b95",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-clause-issue204",
+      "archive": "/workspace/.proofs/grammar-clause-issue204.source-trees.tar.gz",
+      "archive_sha256": "1e62acdb94d68f53482e846d92b0a099dd8162a93c16aa404865008c5733032d",
+      "original_bytes": 4027856,
+      "archive_bytes": 1040944,
+      "member_count": 64,
+      "patch_sha256": "3b44b113fb630f7523f1884db6f604d539b7896311947a85b4868ad04bbcf708",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/ensemble-original-selected-usage296",
+      "archive": "/workspace/.proofs/ensemble-original-selected-usage296.source-trees.tar.gz",
+      "archive_sha256": "775978507cc9647fbe1ba7fc004d902a36949d0082a24e13ff5c764d4e7969d0",
+      "original_bytes": 4001972,
+      "archive_bytes": 867638,
+      "member_count": 26,
+      "patch_sha256": "670fce02837f361726b2a52ac1e5109528e4c9510cae4d305e04348114d598fd",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/ensemble-original-selected-usage296e",
+      "archive": "/workspace/.proofs/ensemble-original-selected-usage296e.source-trees.tar.gz",
+      "archive_sha256": "6dd16d15196ceef7f1584c5506c3e103c496556b4a80a7a7bee42a4ddf6c6fb2",
+      "original_bytes": 4001955,
+      "archive_bytes": 867706,
+      "member_count": 26,
+      "patch_sha256": "8cd54527a53c8807264e97e98ca81dba5440eba6135e625a691918dbc382f9fe",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/ensemble-original-selected-usage296d",
+      "archive": "/workspace/.proofs/ensemble-original-selected-usage296d.source-trees.tar.gz",
+      "archive_sha256": "70b6a9a48b810840de260e997651e4aaa89f4c7ba9fc0aeac01dd34bfc8bd88d",
+      "original_bytes": 4001946,
+      "archive_bytes": 867681,
+      "member_count": 26,
+      "patch_sha256": "ae2079f0a4d5569b6b5ae2feb0998eb8450df7913ab0c3ea56519c247b95f68b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/ensemble-original-selected-usage296c",
+      "archive": "/workspace/.proofs/ensemble-original-selected-usage296c.source-trees.tar.gz",
+      "archive_sha256": "6486f115feea80ade8c0727ab7738f253685b527205481a980665a42bb4a5e8c",
+      "original_bytes": 4001941,
+      "archive_bytes": 867697,
+      "member_count": 26,
+      "patch_sha256": "34a3e1e6a9ba568c03f0afa4a5130a41700285b54317918f80e1fadb980369c5",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/ensemble-original-selected-usage296b",
+      "archive": "/workspace/.proofs/ensemble-original-selected-usage296b.source-trees.tar.gz",
+      "archive_sha256": "e00e374c8ae1fdcb642d7a27c6961ebffb3db7fed813acbec18e3d0c2d87eece",
+      "original_bytes": 4001941,
+      "archive_bytes": 867685,
+      "member_count": 26,
+      "patch_sha256": "b3612eb52abed575901ef58c7d0192581f9dbf8f58ba28624335c698a6f643a1",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/child-alias-original-controls301",
+      "archive": "/workspace/.proofs/child-alias-original-controls301.source-trees.tar.gz",
+      "archive_sha256": "3255ad64cdc3c31059cab9449cf4c8ed52fc678d54f034b5acb4356bd0653325",
+      "original_bytes": 3946160,
+      "archive_bytes": 853278,
+      "member_count": 26,
+      "patch_sha256": "beb78c2103328521acd7ea61542c0abd896d8076176c10d3bd36cc7d2ba60752",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/current-package-original79",
+      "archive": "/workspace/.proofs/current-package-original79.source-trees.tar.gz",
+      "archive_sha256": "801655f44aabc3acb99a7ecfe03817150e08595d0f65a1e689c168d4f7899e8a",
+      "original_bytes": 3876395,
+      "archive_bytes": 921330,
+      "member_count": 44,
+      "patch_sha256": "e3e5c48b54a66e92ac7c73378b31f9df8cacf337c8b5a93d0d1bab279f67d62e",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/current-hosted-taint80b",
+      "archive": "/workspace/.proofs/current-hosted-taint80b.source-trees.tar.gz",
+      "archive_sha256": "8f857cd1690f26f5ac412624ac0f208cb3fe2b2aae02c90eab2cd3ae8ee03848",
+      "original_bytes": 3755368,
+      "archive_bytes": 847857,
+      "member_count": 32,
+      "patch_sha256": "9268cd3e6f524d40a147c4be28532e1eb1ca843c6100640d188c2b363e00d9ef",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-lowered-selected-metadata268",
+      "archive": "/workspace/.proofs/consumer-lowered-selected-metadata268.source-trees.tar.gz",
+      "archive_sha256": "59960fc9dba41f91f2d12a07258b009e5f91835135bcc4e07cc7aa4dad47a82c",
+      "original_bytes": 3588003,
+      "archive_bytes": 745249,
+      "member_count": 22,
+      "patch_sha256": "432dbe5ea9467649688e4abf7224824efcdcd0b530eda070cbd211988bc1a138",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-source-arity183",
+      "archive": "/workspace/.proofs/diagnostic-consumer-source-arity183.source-trees.tar.gz",
+      "archive_sha256": "d69f2405ec7752affc6ec472823c144bf06082918cec1fdc05a086aee8e70d5c",
+      "original_bytes": 3364251,
+      "archive_bytes": 775459,
+      "member_count": 38,
+      "patch_sha256": "ec38ba796acd0cbbbd8e9622122fe2b88a0c83652f8b2aac22f58f206fbd6461",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-definition-abort-admission277",
+      "archive": "/workspace/.proofs/diagnostic-finish-definition-abort-admission277.source-trees.tar.gz",
+      "archive_sha256": "31c43a53d5587cba77b5a4c819f97b90e7c3affc5e48c34a25074af3fc81bb89",
+      "original_bytes": 3287400,
+      "archive_bytes": 775988,
+      "member_count": 26,
+      "patch_sha256": "4733e4abe9648e30df0dd6846a9f7b0d323d2f89025ca3bbb6c291743dfd0d53",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/runtime-oo-slot-publication252",
+      "archive": "/workspace/.proofs/runtime-oo-slot-publication252.source-trees.tar.gz",
+      "archive_sha256": "8458b741b41b34f52dae603a540bcdd70c7fbdc939cc56dff5da7ecd09866f78",
+      "original_bytes": 3238972,
+      "archive_bytes": 722021,
+      "member_count": 34,
+      "patch_sha256": "a79e177ca8f3f8f302b66b8d8df8490f2bc885169ea302ee60c7495aafa93ede",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-source-body-context266",
+      "archive": "/workspace/.proofs/consumer-source-body-context266.source-trees.tar.gz",
+      "archive_sha256": "9c766f977a65a049babafe6a1847eac22fafda5821842fc6c6c7758e3004c9c4",
+      "original_bytes": 3216915,
+      "archive_bytes": 735493,
+      "member_count": 30,
+      "patch_sha256": "af439f9e094170a47cfdba6068643a3c2172b7c6823d135ff5af11a84ae752bc",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-callback-alias260",
+      "archive": "/workspace/.proofs/diagnostic-finish-callback-alias260.source-trees.tar.gz",
+      "archive_sha256": "efc17c5e267ed42d1008cfc3cc553b6c03e647040038ecc3b66cb092a78a32fa",
+      "original_bytes": 3215826,
+      "archive_bytes": 774727,
+      "member_count": 34,
+      "patch_sha256": "b0dff1c35f3ad4b726f7e852a71a4e32e974b05cbd36ecb345101c099a0a0d5d",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-callback-alias264",
+      "archive": "/workspace/.proofs/diagnostic-finish-callback-alias264.source-trees.tar.gz",
+      "archive_sha256": "739e4e91cf442e186299fbd055f11a761d129502fd7842710f9aa969c56485e0",
+      "original_bytes": 3215012,
+      "archive_bytes": 774747,
+      "member_count": 34,
+      "patch_sha256": "cf3e679c7846c089e3a3da2c50bf73b52323c3a6a00d24d6f83e0b587cb3ce70",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-callback-alias258",
+      "archive": "/workspace/.proofs/diagnostic-finish-callback-alias258.source-trees.tar.gz",
+      "archive_sha256": "643fcb42632f60db6fc8121df2f602b24959c8e3ac878f663358da65e4913f78",
+      "original_bytes": 3207907,
+      "archive_bytes": 773721,
+      "member_count": 34,
+      "patch_sha256": "c2e6c0c7c2212124c969b4adddc713675425e3839addaf2d299fb64e5d0619a3",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-callback-alias259",
+      "archive": "/workspace/.proofs/diagnostic-finish-callback-alias259.source-trees.tar.gz",
+      "archive_sha256": "8a16eff037f2d50f87fa2bcefe3fce022a3be8d9fab737716a9d1fbd99bd2b47",
+      "original_bytes": 3207907,
+      "archive_bytes": 773769,
+      "member_count": 34,
+      "patch_sha256": "c2e6c0c7c2212124c969b4adddc713675425e3839addaf2d299fb64e5d0619a3",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-callback-alias256",
+      "archive": "/workspace/.proofs/diagnostic-finish-callback-alias256.source-trees.tar.gz",
+      "archive_sha256": "ee31648f4cafbd71904b2a59e2c1403f341f018a5b7ad9ebfbc86f940bee097a",
+      "original_bytes": 3206724,
+      "archive_bytes": 773556,
+      "member_count": 34,
+      "patch_sha256": "423400a9a537b75b4136e4c6616c8956c18b95360cd2be4100c69737803c2652",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/current-hosted-taint80",
+      "archive": "/workspace/.proofs/current-hosted-taint80.source-trees.tar.gz",
+      "archive_sha256": "4679b10aeeb97a1d92b9022c1836dd46f8e2dbde5a75b16e08f10a0ff9ec52ce",
+      "original_bytes": 3206691,
+      "archive_bytes": 710943,
+      "member_count": 26,
+      "patch_sha256": "6d795b9305d22101ce0a76415dd63c1d713c5ff3ecf07eb38c98939d19821a93",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-original-class-configuration292",
+      "archive": "/workspace/.proofs/consumer-original-class-configuration292.source-trees.tar.gz",
+      "archive_sha256": "e3e5af8bb7d8afc45d4e6dbf4261c6361ff23adbd9400c49520fe22c201f1d0e",
+      "original_bytes": 3192363,
+      "archive_bytes": 719862,
+      "member_count": 20,
+      "patch_sha256": "adbbabba35e74fdc84e2ec93e0ef817c0317b91848d09be1e189028df26f3199",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-declared184",
+      "archive": "/workspace/.proofs/diagnostic-consumer-declared184.source-trees.tar.gz",
+      "archive_sha256": "8ba33899e66b92c176bca595c7a32d082645c3d5c1e5670d75cac87d92e3fa8a",
+      "original_bytes": 3060426,
+      "archive_bytes": 750864,
+      "member_count": 34,
+      "patch_sha256": "60ecff58a7ee2d04cb3ee204a7ba0ba4bd766faa83b0772662e40384090f3000",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-options168",
+      "archive": "/workspace/.proofs/diagnostic-consumer-options168.source-trees.tar.gz",
+      "archive_sha256": "9e3c0654b61e98a02e43e646fe43eea9ff1388f2e858b6df6d9d8b75a7752261",
+      "original_bytes": 3009046,
+      "archive_bytes": 694902,
+      "member_count": 38,
+      "patch_sha256": "c8c8b7b73a02aa4ff75edd286433f8b7d435113984196f4087c5516bf10113f3",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-regressions202",
+      "archive": "/workspace/.proofs/diagnostic-consumer-regressions202.source-trees.tar.gz",
+      "archive_sha256": "52ce8f394a2e3820d9bfd847b2f362ea56a65bf2429f86683038587510fa5623",
+      "original_bytes": 2985908,
+      "archive_bytes": 683972,
+      "member_count": 28,
+      "patch_sha256": "08299345013ac319b099b5f4be459d55dedca2b661f8940a2910770831f1b06f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-variable-style133",
+      "archive": "/workspace/.proofs/consumer-variable-style133.source-trees.tar.gz",
+      "archive_sha256": "170910c51835817e3ac3874943c5d2aa263ecd60c3936d1e533335d4d70d9827",
+      "original_bytes": 2983372,
+      "archive_bytes": 556381,
+      "member_count": 28,
+      "patch_sha256": "86f048eb4fa99dc5ebca231df037c58819f95944a3a1ff61b5102fad65af14a7",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-definers212",
+      "archive": "/workspace/.proofs/consumer-definers212.source-trees.tar.gz",
+      "archive_sha256": "4b0b497067e79197b47a82b9077ec83ad4e5e0ad3b0977dbe5bdc1511f533bc8",
+      "original_bytes": 2973736,
+      "archive_bytes": 694342,
+      "member_count": 23,
+      "patch_sha256": "2301574c9a9e055b5e454335e5b4cb027a9388165e7c24fd8b1a1d41c58a51fe",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-class-joins218",
+      "archive": "/workspace/.proofs/consumer-class-joins218.source-trees.tar.gz",
+      "archive_sha256": "b780ea44423f900baa586360000ab32d3eae81c8e15d7697da9dac5e1939ed8e",
+      "original_bytes": 2968572,
+      "archive_bytes": 692506,
+      "member_count": 25,
+      "patch_sha256": "03b0d7ff27a6b8615ce076d1950af1372f1329bb54a56d31e311d9963832262b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-subcommands172",
+      "archive": "/workspace/.proofs/diagnostic-consumer-subcommands172.source-trees.tar.gz",
+      "archive_sha256": "07db275c4991aadb670dacb5c4e1c1d849912d56de790345ff54d1796399772b",
+      "original_bytes": 2925605,
+      "archive_bytes": 674166,
+      "member_count": 34,
+      "patch_sha256": "fa6bb85b1955a967d2d72e2712b6cb9fa07905eea908c255ab0e3f2b5d7cf9e4",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-source-procedure-publications286",
+      "archive": "/workspace/.proofs/recovered-source-procedure-publications286.source-trees.tar.gz",
+      "archive_sha256": "b8767040505fd5891c1ef0fbac0d73bebb6fc35770ce49d4598fc20e1b613c93",
+      "original_bytes": 2902018,
+      "archive_bytes": 561949,
+      "member_count": 37,
+      "patch_sha256": "bea5f9d262d314b2152a111cce7c37c47abbbd058326d3a961133a8e1bad7c6a",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-regressions219",
+      "archive": "/workspace/.proofs/diagnostic-finish-regressions219.source-trees.tar.gz",
+      "archive_sha256": "e5e5e7fa498a28c0430348675c01f99d4cc0ec4109c3a8e73861df2d834636e8",
+      "original_bytes": 2875632,
+      "archive_bytes": 661484,
+      "member_count": 20,
+      "patch_sha256": "b9331a142fc7c82102853597b20dffcfae72d8cd163fb18c05867b0b75af5014",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-alias-source167",
+      "archive": "/workspace/.proofs/rename-alias-source167.source-trees.tar.gz",
+      "archive_sha256": "3362ef0fba7e546f75c21fa0ebae4cacdeda827793c9e671499b4a843acef110",
+      "original_bytes": 2808117,
+      "archive_bytes": 654980,
+      "member_count": 26,
+      "patch_sha256": "af38caa79a2ff12fbc8c1279943f4dc20192c758c8f881006951080ee754032d",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-variable-source188",
+      "archive": "/workspace/.proofs/diagnostic-consumer-variable-source188.source-trees.tar.gz",
+      "archive_sha256": "9155c74d05aa4d31e96d32999ffbc930956e1bb98ec7d5019518811cb0664e5b",
+      "original_bytes": 2801034,
+      "archive_bytes": 628004,
+      "member_count": 32,
+      "patch_sha256": "34342099817c15b8addcd230cc0dbe2bc41685f19853948d672c9cb674ae4c83",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-lambda-namespace187",
+      "archive": "/workspace/.proofs/rename-lambda-namespace187.source-trees.tar.gz",
+      "archive_sha256": "9629e60cb972077c58c478ec478fc069edd7448d5f5836587c7141124ec6e163",
+      "original_bytes": 2781699,
+      "archive_bytes": 550692,
+      "member_count": 48,
+      "patch_sha256": "8d6266957355ad2c980deb3796fb1e7009032e505771381c5d97a85e9ed71ad2",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-inert-analysis232",
+      "archive": "/workspace/.proofs/grammar-inert-analysis232.source-trees.tar.gz",
+      "archive_sha256": "19f405d1facae2a245ef38a653cd7d20b5a84a5bd009d4c7e6b3a32fad07fcab",
+      "original_bytes": 2779595,
+      "archive_bytes": 631851,
+      "member_count": 24,
+      "patch_sha256": "59dfaff27847d8e712c197842d017a5db76660c7f4d0f2b57cffae7fc7ad7ed6",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-current-context248",
+      "archive": "/workspace/.proofs/consumer-current-context248.source-trees.tar.gz",
+      "archive_sha256": "a2d18cc23f08191d258ff36816cc3729f71ae3d33fc9b34ea83151bb9c3ab059",
+      "original_bytes": 2774452,
+      "archive_bytes": 617526,
+      "member_count": 20,
+      "patch_sha256": "bab3846061a8f0307318f0807a192f38bce33e341b90bb7f709d55edefbe386c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-logical-presence126",
+      "archive": "/workspace/.proofs/consumer-logical-presence126.source-trees.tar.gz",
+      "archive_sha256": "43e4c76c8ad0f7a48124ed526bf5871d0372a153d28ebee3c85348c592cba33b",
+      "original_bytes": 2728968,
+      "archive_bytes": 566212,
+      "member_count": 24,
+      "patch_sha256": "fcb8bd7da729a602ebeb6450d98362482c01fbc4a82a92c67a014f2ccd107b68",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-expression180",
+      "archive": "/workspace/.proofs/diagnostic-consumer-expression180.source-trees.tar.gz",
+      "archive_sha256": "4cac01ebfcb8a00d42ad0d0055ae76314a800dd9d1cd89c84b771234fc711226",
+      "original_bytes": 2707619,
+      "archive_bytes": 616326,
+      "member_count": 34,
+      "patch_sha256": "1817b2d65afeae280e58bfb0c55162828d23b6620fa14089ac26e08c44f399aa",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-class-style217",
+      "archive": "/workspace/.proofs/consumer-class-style217.source-trees.tar.gz",
+      "archive_sha256": "ec5805e6842497c4c78ca620872db0e3212b9836a15927774a9d37f782a166da",
+      "original_bytes": 2706241,
+      "archive_bytes": 627603,
+      "member_count": 26,
+      "patch_sha256": "41b287bebcda275896e8cb8fbcb0c241711aca5da87119b639ff245a77906731",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/embedded-script-publication295",
+      "archive": "/workspace/.proofs/embedded-script-publication295.source-trees.tar.gz",
+      "archive_sha256": "d0ebb96bef3b53e266c013d358d380743f7f6153fcca164f890b4c48f9d2738b",
+      "original_bytes": 2691388,
+      "archive_bytes": 555341,
+      "member_count": 26,
+      "patch_sha256": "e21e0a9105e5446bd038c4f9a00648781c7e03bd9d6871489c21c1366668319a",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-lambda-arity185",
+      "archive": "/workspace/.proofs/diagnostic-consumer-lambda-arity185.source-trees.tar.gz",
+      "archive_sha256": "b74561fe5eb6ef6951c73fdc7b2d58aafdd7d1f350c20b27facd2be3f39b5d54",
+      "original_bytes": 2663210,
+      "archive_bytes": 589858,
+      "member_count": 48,
+      "patch_sha256": "ac0140bfffe38023875f288163ec886a733f0aaf9588c8a636da3e4fa5998dc2",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-child-report-domain170b",
+      "archive": "/workspace/.proofs/rename-child-report-domain170b.source-trees.tar.gz",
+      "archive_sha256": "4a4a0cb69f826d6eb805ee97997857664fb019f92d9e71664c967e99ca820328",
+      "original_bytes": 2639568,
+      "archive_bytes": 628191,
+      "member_count": 20,
+      "patch_sha256": "342d2dbb99191cd10116d9f0dcd8cd4519ba2b273dd86a86a22dc30a3c95972a",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-child-report-domain170",
+      "archive": "/workspace/.proofs/rename-child-report-domain170.source-trees.tar.gz",
+      "archive_sha256": "d1914a6cac6d43fdaea6e66500a6bc8c944927c39637daad787768b36c883547",
+      "original_bytes": 2636468,
+      "archive_bytes": 627450,
+      "member_count": 20,
+      "patch_sha256": "342d2dbb99191cd10116d9f0dcd8cd4519ba2b273dd86a86a22dc30a3c95972a",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-callback-reachability253",
+      "archive": "/workspace/.proofs/consumer-callback-reachability253.source-trees.tar.gz",
+      "archive_sha256": "823b51a0cc25f95d521218fab26e58a02530aaa43eb43a15d87f4568889faa8f",
+      "original_bytes": 2591492,
+      "archive_bytes": 615728,
+      "member_count": 36,
+      "patch_sha256": "13c28b803b2dba52effe905dc27b5ea4d676391b24b19ad9c67340b341a367f2",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-shape-consumers196",
+      "archive": "/workspace/.proofs/diagnostic-consumer-shape-consumers196.source-trees.tar.gz",
+      "archive_sha256": "e0d36e999bd810fb7735fc9386abb29d15a06dece3e26777d5358e737b45155f",
+      "original_bytes": 2575528,
+      "archive_bytes": 612804,
+      "member_count": 28,
+      "patch_sha256": "68d3de4068941a3fbfc60dca658e8e98db3fc1c6f15e48ca70ba8dffd1496672",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/vm-scripted-dictionary-bootstrap211",
+      "archive": "/workspace/.proofs/vm-scripted-dictionary-bootstrap211.source-trees.tar.gz",
+      "archive_sha256": "b05a12bc8340323853c906d9e4369395c38ae59756ae77eebe77e4788364cc7b",
+      "original_bytes": 2518448,
+      "archive_bytes": 517803,
+      "member_count": 18,
+      "patch_sha256": "8ba9e2bd213158dd6620e95e9f0c0c06f5c00b972d142d0153572c2f1957a9ff",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-logical-class-family288",
+      "archive": "/workspace/.proofs/diagnostic-finish-logical-class-family288.source-trees.tar.gz",
+      "archive_sha256": "e11462a311c09bf682068890b4581f0dcac5dc793fd300a48ee15c9a1aac5227",
+      "original_bytes": 2496296,
+      "archive_bytes": 590584,
+      "member_count": 20,
+      "patch_sha256": "b8cd9553d9642571ad8e02e4fbea6cfbfea3f07165e759f7ff76a2086c2b905a",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-source-style168",
+      "archive": "/workspace/.proofs/rename-source-style168.source-trees.tar.gz",
+      "archive_sha256": "919828e1d5b534cd2e2fb5a4e9b966fc2f237143ab41824043f5640a67951b46",
+      "original_bytes": 2488795,
+      "archive_bytes": 603048,
+      "member_count": 20,
+      "patch_sha256": "8cc5ea6b60e9f2171d53b9e823b49b3abeda1e1996c23a1dd94c4a8b6173fb2c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-callback-prefix243",
+      "archive": "/workspace/.proofs/diagnostic-finish-callback-prefix243.source-trees.tar.gz",
+      "archive_sha256": "78a6a60f80f5ca887868651911903cf7d9ac42ed36ffc03bc0d6cd98682b102b",
+      "original_bytes": 2474371,
+      "archive_bytes": 591142,
+      "member_count": 24,
+      "patch_sha256": "02374ef41034ec61ead1db229ab5614b59ab4385396b3bb96d99c5786bcc8d4c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-upvar-retained-context295",
+      "archive": "/workspace/.proofs/consumer-upvar-retained-context295.source-trees.tar.gz",
+      "archive_sha256": "ad6f9305ca0ecf7a01e2850ec3b27c6724e42fe5358d8ceb7298bfcef5cbad5e",
+      "original_bytes": 2468146,
+      "archive_bytes": 503308,
+      "member_count": 16,
+      "patch_sha256": "7ec05865221a399c64da9aad527ef96299a82e59191a4322980fbc288a698f8d",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-upvar-retained-context290",
+      "archive": "/workspace/.proofs/consumer-upvar-retained-context290.source-trees.tar.gz",
+      "archive_sha256": "a35c52148bdcf157222bbb2cec812fd670b4cafd9fdc424da3aca395efad2374",
+      "original_bytes": 2457616,
+      "archive_bytes": 501899,
+      "member_count": 16,
+      "patch_sha256": "06ce0c390b4c124afe43fd52476267cbfbf2b56af7a044bc946fb642b24123a8",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-original-callback-procedure-target252",
+      "archive": "/workspace/.proofs/recovered-original-callback-procedure-target252.source-trees.tar.gz",
+      "archive_sha256": "a6cb2dd1e5dd4d59343287362f134d71c0b2ab2ad91129e6b1e4d6ba63e92ddd",
+      "original_bytes": 2425014,
+      "archive_bytes": 457310,
+      "member_count": 31,
+      "patch_sha256": "eb43c245c01c4382b05450d335c950e1e6f1e3ac5ac3568060941c55549292bf",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/vm-original-formal-list223",
+      "archive": "/workspace/.proofs/vm-original-formal-list223.source-trees.tar.gz",
+      "archive_sha256": "f22608d454c0c37c40f99f3b958a62c562d28f485f29b00aecfcacede1aa67cf",
+      "original_bytes": 2397726,
+      "archive_bytes": 493599,
+      "member_count": 14,
+      "patch_sha256": "b09714e51579a454ac6966ee500aa89a5a7c3b47cddbf5dd5d670885a33f2a3d",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/procedure-usage-original-format281",
+      "archive": "/workspace/.proofs/procedure-usage-original-format281.source-trees.tar.gz",
+      "archive_sha256": "36b4703ba30250ca5e49666514f1f202dd68e252a393a0515f1560b66910abb9",
+      "original_bytes": 2391811,
+      "archive_bytes": 542829,
+      "member_count": 24,
+      "patch_sha256": "59788db67443f098339545c733e01d8fab497d8703e2c1a5ca6df39e1cbf51ad",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/procedure-usage-original-format281b",
+      "archive": "/workspace/.proofs/procedure-usage-original-format281b.source-trees.tar.gz",
+      "archive_sha256": "7b73cf35a2daf57bf2ef8c674f9478246c7efe3bcb113122aaf4426980c4ff33",
+      "original_bytes": 2391811,
+      "archive_bytes": 542887,
+      "member_count": 24,
+      "patch_sha256": "2a8618662d672b6dd281cc3088de1ce1aa7a6e82e0d6d539aabde011fb67d5e7",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-vm-jim-root152",
+      "archive": "/workspace/.proofs/rename-vm-jim-root152.source-trees.tar.gz",
+      "archive_sha256": "b02af01776561e4af7f24ca07cf8899867d94392401787df2bb01f19e421f634",
+      "original_bytes": 2387222,
+      "archive_bytes": 491397,
+      "member_count": 14,
+      "patch_sha256": "64aa5863c65d98eb1c190d3d9faf9771ec3ca5dbb75b6009d2bacabf0816de89",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-interpreter-lambda-source171",
+      "archive": "/workspace/.proofs/rename-interpreter-lambda-source171.source-trees.tar.gz",
+      "archive_sha256": "4bfe79ba6830cc9f61715ddb50c0ac7b502ca03a154b938e1254c5a5b82912e3",
+      "original_bytes": 2386879,
+      "archive_bytes": 558867,
+      "member_count": 16,
+      "patch_sha256": "9649c27267b1598b956ea5d4bb87e28f9b340a227eb7b488ef0cbae0666bcb11",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-interpreter-lambda-source171b",
+      "archive": "/workspace/.proofs/rename-interpreter-lambda-source171b.source-trees.tar.gz",
+      "archive_sha256": "cf265343089da256507548aac7c884caa4baf5ed59684f72da2062f2fd684129",
+      "original_bytes": 2386863,
+      "archive_bytes": 558910,
+      "member_count": 16,
+      "patch_sha256": "9649c27267b1598b956ea5d4bb87e28f9b340a227eb7b488ef0cbae0666bcb11",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-publications207",
+      "archive": "/workspace/.proofs/consumer-publications207.source-trees.tar.gz",
+      "archive_sha256": "332582a382177e1778c25cbee736c1eedfd70d00c24475a78acb8f427451f0be",
+      "original_bytes": 2292822,
+      "archive_bytes": 465575,
+      "member_count": 38,
+      "patch_sha256": "5a374e474da089859929b82e04c10b388826deb837cdb117f45bfd5306bb9ea8",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-structured-roles187",
+      "archive": "/workspace/.proofs/diagnostic-consumer-structured-roles187.source-trees.tar.gz",
+      "archive_sha256": "5361a67aa72f6cdc4f298c4be87c2ca6498c9ca74f210a86bffc60300422b428",
+      "original_bytes": 2284709,
+      "archive_bytes": 509557,
+      "member_count": 32,
+      "patch_sha256": "9c9d03c0b1aeec6b99cdd6991837b661140fee56cf28ded3c60b4912b1ebf2af",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-completion-context222",
+      "archive": "/workspace/.proofs/consumer-completion-context222.source-trees.tar.gz",
+      "archive_sha256": "2f108af88780ea4206971058a7cfef297e208eefa5453d1f9dc95fa3b74514d0",
+      "original_bytes": 2277942,
+      "archive_bytes": 499808,
+      "member_count": 14,
+      "patch_sha256": "eb3c7dfd7757e9458a0e35b7df1696d6a6cb98f96ba04390e3022a445c4387db",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-pattern197",
+      "archive": "/workspace/.proofs/diagnostic-consumer-pattern197.source-trees.tar.gz",
+      "archive_sha256": "0d892f2d9c9b32992c3c03341b168ef30f1be3889e24781e4d698988edbbc352",
+      "original_bytes": 2262275,
+      "archive_bytes": 526016,
+      "member_count": 26,
+      "patch_sha256": "d146a2ad4762409f30eef260dbcc4f7611b9e415fac10782cd117bf3271083bc",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/runtime-coroutine-generation255",
+      "archive": "/workspace/.proofs/runtime-coroutine-generation255.source-trees.tar.gz",
+      "archive_sha256": "3c413917812a5b3c7aa89c6c9dbde87cf8fb83dfdbb04f980a722ce53426b0e1",
+      "original_bytes": 2227644,
+      "archive_bytes": 512226,
+      "member_count": 34,
+      "patch_sha256": "38a8d6e7e2b8cb0da081d520383f4d1f754b4676d176c7d57f95fb95565a8d14",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-logical-source-advice132",
+      "archive": "/workspace/.proofs/rename-logical-source-advice132.source-trees.tar.gz",
+      "archive_sha256": "2e75b77ca7449f91895d9fb5c3c2770137c2b3b35eb61545dbf662f95caa6d81",
+      "original_bytes": 2194359,
+      "archive_bytes": 441043,
+      "member_count": 26,
+      "patch_sha256": "feda2665325a15931536ac3b77b4141321ee675ab0eec3df2244ac640aefa0b0",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-constructor225",
+      "archive": "/workspace/.proofs/diagnostic-finish-constructor225.source-trees.tar.gz",
+      "archive_sha256": "58ece4c3cbd827df2cb57a477a0a94d9729f426b22122d8c7e07d9b6e6ac6d62",
+      "original_bytes": 2150821,
+      "archive_bytes": 501724,
+      "member_count": 40,
+      "patch_sha256": "2ec7b3a7d33bf182fa6e99a7ae98b3882a90be6ec66ab694af2f2750c0e91714",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-caller-navigation139",
+      "archive": "/workspace/.proofs/rename-caller-navigation139.source-trees.tar.gz",
+      "archive_sha256": "2785a7bca135215364a1772ca6190ed07edf41c071d5e64a1703d2a532558624",
+      "original_bytes": 2115799,
+      "archive_bytes": 489304,
+      "member_count": 18,
+      "patch_sha256": "8097ab4a7a7ee6f284775a198ad9bb8f4894eb35b8790abd31720974ebd3665a",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/runtime-vm-alias-holders198",
+      "archive": "/workspace/.proofs/runtime-vm-alias-holders198.source-trees.tar.gz",
+      "archive_sha256": "7a371e9f5e47c15711386cfb0822b4cf7ecff4a8000dedd6f1064ecb1bb4f990",
+      "original_bytes": 2111040,
+      "archive_bytes": 478870,
+      "member_count": 22,
+      "patch_sha256": "7db2ce244bbc0078e5b433673d1c2ca5fa7f7f101f731518fd8a08dec1d5d783",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-scope-style154",
+      "archive": "/workspace/.proofs/rename-scope-style154.source-trees.tar.gz",
+      "archive_sha256": "b16d0dc10630fc054778ed96fae8e2430a6293ac044eadaf4eda974e2b6f30d9",
+      "original_bytes": 2060101,
+      "archive_bytes": 483969,
+      "member_count": 14,
+      "patch_sha256": "7ea5175235940c146500336c830e8a4aaace82e7213d68d1f3cb01e3f442c56f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-alias-qualified-root159",
+      "archive": "/workspace/.proofs/rename-alias-qualified-root159.source-trees.tar.gz",
+      "archive_sha256": "b9d1a0c37ad112ffb9997c1193967a28eafe27349882aceeb74f996e016c230e",
+      "original_bytes": 2059746,
+      "archive_bytes": 483847,
+      "member_count": 14,
+      "patch_sha256": "694198315b31653800261a5c7884c75d27d58128e6a8e5df71f005b7d3be1bb3",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-moved-handle184",
+      "archive": "/workspace/.proofs/rename-moved-handle184.source-trees.tar.gz",
+      "archive_sha256": "28ddafd5681910800cd5caa00e3a3f1522e141b60e046b4a2a9c3bd8f57e6995",
+      "original_bytes": 1933371,
+      "archive_bytes": 433323,
+      "member_count": 22,
+      "patch_sha256": "5d1a5f3ed54f888021c4905d3e09637acb79ec0ab7716401c568df2691f87c14",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-trusted-package152",
+      "archive": "/workspace/.proofs/consumer-trusted-package152.source-trees.tar.gz",
+      "archive_sha256": "0ac9bb15a244b419f0446bb72349b54cd142272a3d20a48e14a5b9f3e2777844",
+      "original_bytes": 1917783,
+      "archive_bytes": 370901,
+      "member_count": 15,
+      "patch_sha256": "d1113fefe067cbe3d29063db11d630cd1b9a14c9ba9ae6187db9e2c3c3d9fe22",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-source-disposition156",
+      "archive": "/workspace/.proofs/rename-source-disposition156.source-trees.tar.gz",
+      "archive_sha256": "040804b3c2374862f265be6b4d15f4d2c4c745283101354fb82e72a33e98ece9",
+      "original_bytes": 1907114,
+      "archive_bytes": 370684,
+      "member_count": 22,
+      "patch_sha256": "a931649cc629c8f17af582fabd47ae8530b8b1a5d2e1502d036a05609cab0e06",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-runtime-admission-trace140",
+      "archive": "/workspace/.proofs/consumer-runtime-admission-trace140.source-trees.tar.gz",
+      "archive_sha256": "21fe73bd0f176c66a10a5c6683c863afe46dd256b6a83f4fee3cec1bb4f513ef",
+      "original_bytes": 1904231,
+      "archive_bytes": 427950,
+      "member_count": 16,
+      "patch_sha256": "c45658b7a2235447f1f335750cc157d38fb83af1ce5faedf03ede6173e6260a4",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-scoped-source178",
+      "archive": "/workspace/.proofs/diagnostic-consumer-scoped-source178.source-trees.tar.gz",
+      "archive_sha256": "4f8dfa51064e83587ddadebfe719df818ed504a571c06c712b06e8a6897d61a5",
+      "original_bytes": 1896634,
+      "archive_bytes": 398216,
+      "member_count": 36,
+      "patch_sha256": "96fb3f5eff5bee854029a69312033831ec94649a27ce30270c108a469cf01172",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-native-body-fallback295",
+      "archive": "/workspace/.proofs/grammar-native-body-fallback295.source-trees.tar.gz",
+      "archive_sha256": "ef6615503d465c60807b0f3af9b5ea7dbc06ddc352ef386be46587079997ea12",
+      "original_bytes": 1881136,
+      "archive_bytes": 436970,
+      "member_count": 12,
+      "patch_sha256": "2d57f0281ba73d24486b73d9d82dd6139128cd5dd44e2ab54f1b8271e69eb499",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/alias-call-scope276",
+      "archive": "/workspace/.proofs/alias-call-scope276.source-trees.tar.gz",
+      "archive_sha256": "052e59bae72f4fb0905965009bdae8f719b60468e85d68a5e33d3a06d415a44f",
+      "original_bytes": 1872323,
+      "archive_bytes": 428392,
+      "member_count": 16,
+      "patch_sha256": "f4e011da5bfeb7ec2c679b851548f221db137717f445d2215cb36e4a6b7b4bbc",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-logical-original-substitution286",
+      "archive": "/workspace/.proofs/diagnostic-finish-logical-original-substitution286.source-trees.tar.gz",
+      "archive_sha256": "162e24236af8f9856e82a91d91b5edc2ffd1e9271c1dab3e08f99a5a1c9eba34",
+      "original_bytes": 1845184,
+      "archive_bytes": 358416,
+      "member_count": 16,
+      "patch_sha256": "efc9356ff284eb071ea588ea7c4d919ec4452e9832a4ce209d8338423cda7df8",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-original-math-function067",
+      "archive": "/workspace/.proofs/recovered-original-math-function067.source-trees.tar.gz",
+      "archive_sha256": "dbdff71e66b462b3f03538b95d807d43c879c28678d627d0471210c86c62c6c2",
+      "original_bytes": 1838273,
+      "archive_bytes": 393731,
+      "member_count": 13,
+      "patch_sha256": "4a66a755eb5d64c55900b6b7d64d7f45e6c07094e652ea712127a92c30840b35",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/runtime-generic-invocation215",
+      "archive": "/workspace/.proofs/runtime-generic-invocation215.source-trees.tar.gz",
+      "archive_sha256": "4fbba63fba781b8030aacc946fccd7a334ca012be38bc7f54aefa3ed4c5b95fb",
+      "original_bytes": 1837480,
+      "archive_bytes": 411971,
+      "member_count": 14,
+      "patch_sha256": "029a9b17c165d096b8f6256d7443a6a83d79f0ae1e5ce8576329e22ad3eff7f8",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-logical-operation294",
+      "archive": "/workspace/.proofs/diagnostic-finish-logical-operation294.source-trees.tar.gz",
+      "archive_sha256": "1d70a4e6baf6b3b8046a479b92d1ccaf7feb81f04de0277ca8716f29e6c00ff1",
+      "original_bytes": 1814536,
+      "archive_bytes": 351704,
+      "member_count": 16,
+      "patch_sha256": "acab565b8f1463d25e037ede18e85d2b554bf68fa943870cf4fc28763bcb2ff4",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-lambda-input193",
+      "archive": "/workspace/.proofs/rename-lambda-input193.source-trees.tar.gz",
+      "archive_sha256": "16b5c854fc4541dbf9bee255eb86d6c7826ab3cc9757f173128d8ca5ed5e5d32",
+      "original_bytes": 1808913,
+      "archive_bytes": 349795,
+      "member_count": 14,
+      "patch_sha256": "80da2efd7b3b6e03b1dc99d6e7a48eb3d8466cce81ac8656600a95bf805c7fc7",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-logical-dispatch131",
+      "archive": "/workspace/.proofs/consumer-logical-dispatch131.source-trees.tar.gz",
+      "archive_sha256": "0df507f1b10cb17b8f3578b8a82975d1910be7cba170ad3ba2973028f3519be5",
+      "original_bytes": 1792707,
+      "archive_bytes": 346139,
+      "member_count": 14,
+      "patch_sha256": "91f3e94f3c487e7eb688f7ac22caa61f4326c4138376dc7c1f65ccaaf60b71dd",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-constructed-builder-overlay296",
+      "archive": "/workspace/.proofs/consumer-constructed-builder-overlay296.source-trees.tar.gz",
+      "archive_sha256": "2c15d19028550480a1a036decbc878d1bbb9001279e7795d3ee5c4d00f8191ea",
+      "original_bytes": 1771477,
+      "archive_bytes": 342129,
+      "member_count": 10,
+      "patch_sha256": "daef41fd7c40ea1d7ce4cd073d3cd282464e1a57b8422d8ea3b1bb5774b6b29c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-authored-alias-namespace177",
+      "archive": "/workspace/.proofs/rename-authored-alias-namespace177.source-trees.tar.gz",
+      "archive_sha256": "6e1053bde66ee71d4709acbdd25f913146932b129fe6c087a43dbc9b2504b292",
+      "original_bytes": 1743434,
+      "archive_bytes": 403345,
+      "member_count": 18,
+      "patch_sha256": "f8b8f71444887905be6c100b5871a15cdf365e22a1dfa860d75487d330849110",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-native-replay-formals229",
+      "archive": "/workspace/.proofs/diagnostic-finish-native-replay-formals229.source-trees.tar.gz",
+      "archive_sha256": "bbf0e0c1f3bd83c64a41e810ab71f0265937ffbddbe2616df5acd0f99b9a67f9",
+      "original_bytes": 1736999,
+      "archive_bytes": 337188,
+      "member_count": 10,
+      "patch_sha256": "f8574ef71dc8c9988fad44bdc099119cf864b2d1281bebf510d20861eed18990",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/script-purpose220",
+      "archive": "/workspace/.proofs/script-purpose220.source-trees.tar.gz",
+      "archive_sha256": "9984f874f1f3a3280d457b737e8f112fa1eaa6d16d39566543802c3fb99d90b6",
+      "original_bytes": 1727629,
+      "archive_bytes": 321292,
+      "member_count": 30,
+      "patch_sha256": "b5c72d92b98a7a22e6d9e87e47a3f912ec2bca4240a933476e8dc0af814e71ea",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-child-namespace-geometry178",
+      "archive": "/workspace/.proofs/rename-child-namespace-geometry178.source-trees.tar.gz",
+      "archive_sha256": "f41cdf666edadb4db57463266c4c99af314f30b71309a703ce3f75df888e77ae",
+      "original_bytes": 1716152,
+      "archive_bytes": 392934,
+      "member_count": 14,
+      "patch_sha256": "2b2e0297c7351d96fa072b0e2ac804b08ff2f695039f3712168666356ba950e6",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/runtime-core-alias265",
+      "archive": "/workspace/.proofs/runtime-core-alias265.source-trees.tar.gz",
+      "archive_sha256": "41f01129c9d98aa28b4bf42a060a56d3d089033e79457190bd0c098d39b52dad",
+      "original_bytes": 1716075,
+      "archive_bytes": 398202,
+      "member_count": 12,
+      "patch_sha256": "278b5e4e91f8d4e3f45294b8ee2eeecc26fb1b6434417111a08557cb2706780b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/runtime-core-alias265b",
+      "archive": "/workspace/.proofs/runtime-core-alias265b.source-trees.tar.gz",
+      "archive_sha256": "029dc064bb70459b24eda31efd27cdc6cf53ffe66c6a70747e83da3fb4dd3f56",
+      "original_bytes": 1716075,
+      "archive_bytes": 398205,
+      "member_count": 12,
+      "patch_sha256": "1e84f947b64f611b20333b40b138f31cdd0662c3d1fd8ad99dd666faf867f4ba",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-child-procedure-geometry175",
+      "archive": "/workspace/.proofs/rename-child-procedure-geometry175.source-trees.tar.gz",
+      "archive_sha256": "3e97c6260423897db9df86867129867194587d30495b6ec7e74482dac68cf1ac",
+      "original_bytes": 1711766,
+      "archive_bytes": 392169,
+      "member_count": 14,
+      "patch_sha256": "d85155f14f48bf7e8455512f8aee289e7c632324ad0d9d068e578e570d40a49e",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/stable-alias-and-usage-current286",
+      "archive": "/workspace/.proofs/stable-alias-and-usage-current286.source-trees.tar.gz",
+      "archive_sha256": "f83c312a105e516d91ce898a878195ca3bf998b9d336d3f404c931ce0f5d0fec",
+      "original_bytes": 1709009,
+      "archive_bytes": 394359,
+      "member_count": 12,
+      "patch_sha256": "4c9e351a6e02c2769350ff52a409412283a8a7e4046cf7f9f7f903cb31cf9094",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-child-bootstrap308",
+      "archive": "/workspace/.proofs/diagnostic-finish-child-bootstrap308.source-trees.tar.gz",
+      "archive_sha256": "71ed98e1a294a57f37f48389d860e38f968d4fdb8324ba3024a76d8cb01a53d2",
+      "original_bytes": 1702957,
+      "archive_bytes": 398157,
+      "member_count": 22,
+      "patch_sha256": "2f1e791620eec430fd91ce2e312f6998757fb6c776df5ec7547ad061a5901d78",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-compiler-operand-coordinates265",
+      "archive": "/workspace/.proofs/consumer-compiler-operand-coordinates265.source-trees.tar.gz",
+      "archive_sha256": "d4a0a43a5ec9136b32454771ff495bc5e31e93fcf838526bb50780503b701b02",
+      "original_bytes": 1699020,
+      "archive_bytes": 296704,
+      "member_count": 22,
+      "patch_sha256": "402d6622071695c61a50afcca22360902ade5f6d5c7b07cf57e25faf1c2e3402",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-receivers214",
+      "archive": "/workspace/.proofs/consumer-receivers214.source-trees.tar.gz",
+      "archive_sha256": "bab1970be2238c77a13eb4e4c4802966c505a81774d27b13548ab3332ce23166",
+      "original_bytes": 1662184,
+      "archive_bytes": 416338,
+      "member_count": 16,
+      "patch_sha256": "c93debf26494095524b572a74f6f2ae2e823d5adb3d964e4ab2aabafa483430d",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-constructors210",
+      "archive": "/workspace/.proofs/consumer-constructors210.source-trees.tar.gz",
+      "archive_sha256": "7c50f9633d3a3d1beef0d9e5c0eb13fb790899d59b1f4b6d62cd10a0176e4adc",
+      "original_bytes": 1644810,
+      "archive_bytes": 345125,
+      "member_count": 20,
+      "patch_sha256": "62db04dc2d0cbb218bb95d53fa9c82c1e6882b2741773789964cdb7ab80ffc88",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-callback-scope238",
+      "archive": "/workspace/.proofs/consumer-callback-scope238.source-trees.tar.gz",
+      "archive_sha256": "3ae9e7040648993399d5d8517b7afe115a017886b21d988a287ef2a906c815ed",
+      "original_bytes": 1631752,
+      "archive_bytes": 356690,
+      "member_count": 50,
+      "patch_sha256": "d65e9c4c0d990b56d7c8f308fb11d6201acb54e8c139eede790bd47dc57f8114",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-object-abort220",
+      "archive": "/workspace/.proofs/consumer-object-abort220.source-trees.tar.gz",
+      "archive_sha256": "bdcec27e75effb556ab3ade4db137b78b60f07a1b0a5b9a45ec5327b808f99f2",
+      "original_bytes": 1605077,
+      "archive_bytes": 371538,
+      "member_count": 12,
+      "patch_sha256": "4d959d791c4f70ba7aaa63dedb41d37e67bdb89054143caeafb916318b802fa4",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-object-abort-proof-comment272",
+      "archive": "/workspace/.proofs/diagnostic-finish-object-abort-proof-comment272.source-trees.tar.gz",
+      "archive_sha256": "55ba67893ac9d2f850b5d10ae5e3ea67a05a3464224a13d8998d79d5070c0d50",
+      "original_bytes": 1603991,
+      "archive_bytes": 371318,
+      "member_count": 12,
+      "patch_sha256": "301f6d6f2b4032dfa4a91d416b923989e76ea6545bd1d9ac47948f9aa8b503da",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-object-abort-proof-comment271",
+      "archive": "/workspace/.proofs/diagnostic-finish-object-abort-proof-comment271.source-trees.tar.gz",
+      "archive_sha256": "a484ea256fc015a81f892491c2ffa1c1d05f26653a1c1d9a7c62b6ed5e21dd8b",
+      "original_bytes": 1603991,
+      "archive_bytes": 371301,
+      "member_count": 12,
+      "patch_sha256": "301f6d6f2b4032dfa4a91d416b923989e76ea6545bd1d9ac47948f9aa8b503da",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-static-proc-selection137",
+      "archive": "/workspace/.proofs/rename-static-proc-selection137.source-trees.tar.gz",
+      "archive_sha256": "0e51406c88ff071638eb2b82620a79fff3a1db240651ccbae3b8fbb41e7e352f",
+      "original_bytes": 1580398,
+      "archive_bytes": 371439,
+      "member_count": 12,
+      "patch_sha256": "ca07e4b1f5a86616dbff018794f44cfdffa0e52bdd6bc5900c60aacc8fe9c518",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-dispatch-context293",
+      "archive": "/workspace/.proofs/diagnostic-finish-dispatch-context293.source-trees.tar.gz",
+      "archive_sha256": "437361747c2217680914ec7f4daf835034d0ec842aad8074fb9ef7f00cc5ccf3",
+      "original_bytes": 1568226,
+      "archive_bytes": 342252,
+      "member_count": 20,
+      "patch_sha256": "a28986122365742ea611b0f71d285e17cd8b7617db62f731bdc32c4ceb867b1d",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-dispatch-context291",
+      "archive": "/workspace/.proofs/diagnostic-finish-dispatch-context291.source-trees.tar.gz",
+      "archive_sha256": "661b046260284384f4a6470957a4c03b71594bcc97e40a0bc1bf9b6000fce710",
+      "original_bytes": 1566212,
+      "archive_bytes": 342108,
+      "member_count": 20,
+      "patch_sha256": "0b4c8ec91f696644b4720428dcccb566b68699f1d78875ebf9dedd2cfea251ca",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-passive-source-metadata271",
+      "archive": "/workspace/.proofs/consumer-passive-source-metadata271.source-trees.tar.gz",
+      "archive_sha256": "d11f0e025de276d1083698f948745ea87a10a7ac8865015b1ba51ef4c15d2ed7",
+      "original_bytes": 1554137,
+      "archive_bytes": 330791,
+      "member_count": 15,
+      "patch_sha256": "9e719d55111da14b92fffd6352845ba2837c625e52d47abf3a0bdc2d141193c5",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-jim-crossing309",
+      "archive": "/workspace/.proofs/diagnostic-finish-jim-crossing309.source-trees.tar.gz",
+      "archive_sha256": "0ad51ba01e678a2d45c3430ad8897392219afcc632447cd177761ff7017d432c",
+      "original_bytes": 1548778,
+      "archive_bytes": 363817,
+      "member_count": 14,
+      "patch_sha256": "13e511bf279373d1bf6d099b1c2d732ebcfcca03c0dde48f0c645e25f82ab491",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-jim-crossing305",
+      "archive": "/workspace/.proofs/diagnostic-finish-jim-crossing305.source-trees.tar.gz",
+      "archive_sha256": "8410a567a5fa2b8d2b2718ed894201c704c5aad289b8e7e6374aa518559e5b36",
+      "original_bytes": 1548700,
+      "archive_bytes": 363817,
+      "member_count": 14,
+      "patch_sha256": "36cf7351a6212f05c4c3e1b6b212dbfc1145074383aaf59d388fefeba598466f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-jim-crossing304",
+      "archive": "/workspace/.proofs/diagnostic-finish-jim-crossing304.source-trees.tar.gz",
+      "archive_sha256": "c8684c4ba37fab4d83e1df158ef5a73720c2dacf2a2651400c1b1190a2b12aa5",
+      "original_bytes": 1545058,
+      "archive_bytes": 362928,
+      "member_count": 14,
+      "patch_sha256": "140065bf1e93869f1d8c10a322f6e7de0e9382b859559dd2963f3524aff78983",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-runtime-child145",
+      "archive": "/workspace/.proofs/rename-runtime-child145.source-trees.tar.gz",
+      "archive_sha256": "95dd4d78b6341547b3e6fa835110e40f1a5900e78c9825bdd45e317799e0fa45",
+      "original_bytes": 1535275,
+      "archive_bytes": 360965,
+      "member_count": 16,
+      "patch_sha256": "a537ef3dbc0b40ebfa614f65f545d05e1317c22cbd09aed61290f34f574d22cc",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-observed-substitution171",
+      "archive": "/workspace/.proofs/consumer-observed-substitution171.source-trees.tar.gz",
+      "archive_sha256": "a236101b39a564b8c5d397a21caa60c6ac812c31702d8216a531210c44cb2137",
+      "original_bytes": 1534516,
+      "archive_bytes": 360314,
+      "member_count": 14,
+      "patch_sha256": "699131f9bece7f9e6f3dd6c13a8b6169f97fa5656983f666fcdd8d85bff943f0",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-unit-supplied-context269",
+      "archive": "/workspace/.proofs/consumer-unit-supplied-context269.source-trees.tar.gz",
+      "archive_sha256": "f6967fe3f4e6fc73cfeecd25c7b21cfcd93fce476c27440c2679cca407a8a107",
+      "original_bytes": 1507012,
+      "archive_bytes": 330219,
+      "member_count": 14,
+      "patch_sha256": "d99883045687bd85ff67d676315df47fd63db683a0b16031285eb5b8bb8735e4",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/procedure-usage-type-scope284",
+      "archive": "/workspace/.proofs/procedure-usage-type-scope284.source-trees.tar.gz",
+      "archive_sha256": "4d5402a4cf3ddc97b137daf39f84f79457685ff6a7839db842c600b848aecef6",
+      "original_bytes": 1506942,
+      "archive_bytes": 353851,
+      "member_count": 10,
+      "patch_sha256": "32565d00838f0c519bf193924258d356aafcb301acc9e816203fa92e27cdcfda",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-runtime-policy-fixtures263",
+      "archive": "/workspace/.proofs/consumer-runtime-policy-fixtures263.source-trees.tar.gz",
+      "archive_sha256": "af04d5d3465ee5a58e8abf43c8c86de060ee435fa679472dce9feaf9fcfcd3ba",
+      "original_bytes": 1496042,
+      "archive_bytes": 352526,
+      "member_count": 10,
+      "patch_sha256": "921d15e2fca5e50a63bafdd28d8e3b9adc0f7903150a47289db2146093dd85d8",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/core-instance-completion247",
+      "archive": "/workspace/.proofs/core-instance-completion247.source-trees.tar.gz",
+      "archive_sha256": "2965982aacfa8e3fe63a32261a22046d5f41b809834684b193ddfe03d7bcff7b",
+      "original_bytes": 1479292,
+      "archive_bytes": 337736,
+      "member_count": 24,
+      "patch_sha256": "cc5de4a5c69c475c59e3d14702ef01e84ab749cae370cda195d5289549a6da1a",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/core-instance-completion246",
+      "archive": "/workspace/.proofs/core-instance-completion246.source-trees.tar.gz",
+      "archive_sha256": "23d3d4d8e26d72b8d556858e4e67200d7486bc0178e595300648e4b3b3cd1f61",
+      "original_bytes": 1476184,
+      "archive_bytes": 337047,
+      "member_count": 24,
+      "patch_sha256": "feaec98685f0c392d1ea5632bf17d312187d3df1702374f3dc845ddaab607b91",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-fixture-metadata271a",
+      "archive": "/workspace/.proofs/consumer-fixture-metadata271a.source-trees.tar.gz",
+      "archive_sha256": "c145c00ef018dd76306219398c386f603b64c0969adb52cd0bdd30d494c2bcfd",
+      "original_bytes": 1455612,
+      "archive_bytes": 317385,
+      "member_count": 18,
+      "patch_sha256": "21cf93b3dff6a18fc3b4d8dbe81136eb507a4ff00044e96e440c98fa4c76e97e",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-factory-supplied-metadata270",
+      "archive": "/workspace/.proofs/consumer-factory-supplied-metadata270.source-trees.tar.gz",
+      "archive_sha256": "4bd02f5e1e8873ea3c2fd5859347b10d8531dfd6ebc7d0371194cd279cf99670",
+      "original_bytes": 1452534,
+      "archive_bytes": 317376,
+      "member_count": 22,
+      "patch_sha256": "69378217e5a2b052fb974644a6cd43656706449418ff734cb66273304fa4233f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-factory-supplied-metadata270b",
+      "archive": "/workspace/.proofs/consumer-factory-supplied-metadata270b.source-trees.tar.gz",
+      "archive_sha256": "b667cc587aa0df8f6ac0a03bae4e337f9d3fb7f3de757a154dbb2d57d4e1f280",
+      "original_bytes": 1452469,
+      "archive_bytes": 317333,
+      "member_count": 22,
+      "patch_sha256": "bd34a844ee98d5b29990066ec0a8569712383ecfa86db93bdcad9e026a6901ee",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-supplied-entry-correspondence309",
+      "archive": "/workspace/.proofs/consumer-supplied-entry-correspondence309.source-trees.tar.gz",
+      "archive_sha256": "d7c5c4888641e7ae3417ef9bcb7af07b86d27f0f24c6b9c2e96766ea897558f2",
+      "original_bytes": 1431430,
+      "archive_bytes": 329168,
+      "member_count": 22,
+      "patch_sha256": "a49da4be40bf2fab22dcd02257ba5b25bfa6ffb802cef403259feff511486b8c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-cfg-source-context267",
+      "archive": "/workspace/.proofs/consumer-cfg-source-context267.source-trees.tar.gz",
+      "archive_sha256": "00378249eedd125b7d5d797a9f29ff29393a21b0ceccb9e4aabe0460ee4614bb",
+      "original_bytes": 1423570,
+      "archive_bytes": 338061,
+      "member_count": 26,
+      "patch_sha256": "96c71ef0f5ec488f1a5ca2399293fa43dd92de2f9588ca87b6cbfea1df0a5c24",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-context209",
+      "archive": "/workspace/.proofs/consumer-context209.source-trees.tar.gz",
+      "archive_sha256": "2560d8ffc8a9c53efd49a38c26b081bf11efe6809da83375971936fc430f292f",
+      "original_bytes": 1378672,
+      "archive_bytes": 300943,
+      "member_count": 32,
+      "patch_sha256": "4167e50ff782d68732ba542be811965d21a6b210d70a42f583afd51f25a00497",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-complete-source-ingress305",
+      "archive": "/workspace/.proofs/consumer-complete-source-ingress305.source-trees.tar.gz",
+      "archive_sha256": "28ed181aec81b69c73557655d307464018e014ab5f38e777a950612972ba35ee",
+      "original_bytes": 1354742,
+      "archive_bytes": 315320,
+      "member_count": 14,
+      "patch_sha256": "ead591d2543043d27856811281ed38b45ca196668e667f2394fbc28bc2caf7ef",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-original-event-operand285",
+      "archive": "/workspace/.proofs/diagnostic-finish-original-event-operand285.source-trees.tar.gz",
+      "archive_sha256": "a73fc778879e6a73e8558a0b6830b203672b94c39825128040f9f57a4194d9d2",
+      "original_bytes": 1354242,
+      "archive_bytes": 323220,
+      "member_count": 16,
+      "patch_sha256": "0303f8745e04e03b5827d758410083ed8ed24cb38d2e3086c3582b2a24fa04ec",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-retained-semantic-unit297",
+      "archive": "/workspace/.proofs/consumer-retained-semantic-unit297.source-trees.tar.gz",
+      "archive_sha256": "5cea66c86c1131fe2432eb69786cbdf2427120a38ffa429d979a2ffa2a82750a",
+      "original_bytes": 1352130,
+      "archive_bytes": 316017,
+      "member_count": 20,
+      "patch_sha256": "2e429f9cc6da4a210f6813434c2c7b8e2c342176fcf5ed85dbeb25a1c2280a2f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-declared-fixtures191",
+      "archive": "/workspace/.proofs/diagnostic-consumer-declared-fixtures191.source-trees.tar.gz",
+      "archive_sha256": "26b6556de107bd0a98484a327039fde0e29cf073d112401ccb82d97b1703ba30",
+      "original_bytes": 1328709,
+      "archive_bytes": 300148,
+      "member_count": 20,
+      "patch_sha256": "e04b7893a61da815bfae83d20e4702e65353d38304dc53d6af1e5c0ccf122080",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-native-baseline204",
+      "archive": "/workspace/.proofs/consumer-native-baseline204.source-trees.tar.gz",
+      "archive_sha256": "ae107059a98a64717b9ab4f41c1dbe0328343f64c463f15832dbf9404eddd432",
+      "original_bytes": 1316766,
+      "archive_bytes": 288567,
+      "member_count": 44,
+      "patch_sha256": "8617b7694c9d6e3e11c1b0ae9cfb5288c2bd3c690f2865e0995430b68bdaf944",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-next-source200",
+      "archive": "/workspace/.proofs/diagnostic-consumer-next-source200.source-trees.tar.gz",
+      "archive_sha256": "237213d50a910cb09ee29c6553991998d187b50c1e0ec68debabb3eca8714b8f",
+      "original_bytes": 1315841,
+      "archive_bytes": 336310,
+      "member_count": 32,
+      "patch_sha256": "207707adc9a3202ce0798e5650ef6dd779b1831ff0b4155ca1033bd97e262354",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-selected-formals227",
+      "archive": "/workspace/.proofs/diagnostic-finish-selected-formals227.source-trees.tar.gz",
+      "archive_sha256": "38c86063964b071116f43771bb54d992e6f9bce41270140e123f9f0eb6fc5930",
+      "original_bytes": 1307268,
+      "archive_bytes": 320519,
+      "member_count": 30,
+      "patch_sha256": "f5f1e2c2a1f4904e6f88fea4da82e93887f6d6fde06a4f2fc17473853dd670e3",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-member-reference-source295",
+      "archive": "/workspace/.proofs/diagnostic-finish-member-reference-source295.source-trees.tar.gz",
+      "archive_sha256": "c87333b069c1e43928dec96f88344bc8be340258bbf1083489aa3a7907489a3f",
+      "original_bytes": 1305169,
+      "archive_bytes": 265871,
+      "member_count": 20,
+      "patch_sha256": "e3b91338bbc823363641f1d7d051a678e2bab22c6ae5b88295f59366bf83a7b1",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-inlay-context128",
+      "archive": "/workspace/.proofs/consumer-inlay-context128.source-trees.tar.gz",
+      "archive_sha256": "d31738f98eb6a630dc0e8f62f0f542d85f01b27a23a9713e27a46a99e7980642",
+      "original_bytes": 1287646,
+      "archive_bytes": 275537,
+      "member_count": 22,
+      "patch_sha256": "8f1e1e8d937cfd41193531dda5650ee208cde4875ca59233b2e98b2fb70633da",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-hosted-coordinates179",
+      "archive": "/workspace/.proofs/diagnostic-consumer-hosted-coordinates179.source-trees.tar.gz",
+      "archive_sha256": "173f0bdacf3bdaf5c88854a897705212bd547045afa4bea70c499208114e063d",
+      "original_bytes": 1284336,
+      "archive_bytes": 296116,
+      "member_count": 22,
+      "patch_sha256": "e9183221e35b8f4bb86c22ab6d07f5f20ed6bc74e6a6a5da25a19850b19b8eb6",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-procedure-arguments162b",
+      "archive": "/workspace/.proofs/recovered-naming-procedure-arguments162b.source-trees.tar.gz",
+      "archive_sha256": "4bd29f467cb0cb7edb2898ffeeb7c46afcd5ea8dd987b4751f7000a2b9976045",
+      "original_bytes": 1268936,
+      "archive_bytes": 301368,
+      "member_count": 20,
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-constructor-proof-domain280",
+      "archive": "/workspace/.proofs/diagnostic-finish-constructor-proof-domain280.source-trees.tar.gz",
+      "archive_sha256": "736928a7f53c87ac3ae75a2b63cb0a01e02e47c694753a255790ebc304e38913",
+      "original_bytes": 1267716,
+      "archive_bytes": 288263,
+      "member_count": 14,
+      "patch_sha256": "0c311bd8312d5ee985e2341ce8ba38fe38fd0bcf12fe069495adc3e2b950d854",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-w123-comment268",
+      "archive": "/workspace/.proofs/diagnostic-finish-w123-comment268.source-trees.tar.gz",
+      "archive_sha256": "6c10ce32556b44dfd6bc51092192962978dfdf392efff807c69ed992a107fb24",
+      "original_bytes": 1266051,
+      "archive_bytes": 287747,
+      "member_count": 14,
+      "patch_sha256": "cc43652e1b582b5c896c9b86ed44405c20c11efbec22c6bd0ff1843839a565d4",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-lambda-guide195",
+      "archive": "/workspace/.proofs/rename-lambda-guide195.source-trees.tar.gz",
+      "archive_sha256": "a174f2cc9370f70e19ebb427c395968c70716a5059380d226ca0f9a0a23c368e",
+      "original_bytes": 1237061,
+      "archive_bytes": 399080,
+      "member_count": 10,
+      "patch_sha256": "8c0c5ef9c638946a3aa3c0e4bcbb9473390100077b082d53babdac223c83c0cc",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/current-indexed-location73",
+      "archive": "/workspace/.proofs/current-indexed-location73.source-trees.tar.gz",
+      "archive_sha256": "7a086dc6aea1c94b1eda0053961cc50f5797e43bf6094380cea7221f9d1c3990",
+      "original_bytes": 1221246,
+      "archive_bytes": 273537,
+      "member_count": 18,
+      "patch_sha256": "38c463324f53605c5f3d92934af49e161e16ba498963901e436bbff0494cd659",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-format164",
+      "archive": "/workspace/.proofs/diagnostic-consumer-format164.source-trees.tar.gz",
+      "archive_sha256": "2d520d7a84138f02a1386c84966dba159d237411bd8cbc5a778e8dc9efa63557",
+      "original_bytes": 1201126,
+      "archive_bytes": 299478,
+      "member_count": 18,
+      "patch_sha256": "885a3bbfbe1d01587d4278636241f0073e4225462cce57ee0b43d46ac86e7a9c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/script-purpose-consumers228",
+      "archive": "/workspace/.proofs/script-purpose-consumers228.source-trees.tar.gz",
+      "archive_sha256": "3527d69470d30a05be7361603d4300b821bcfd16facef65d3193bf4d8883611f",
+      "original_bytes": 1161945,
+      "archive_bytes": 252688,
+      "member_count": 26,
+      "patch_sha256": "ac8144d9f01e8a097113b8f9997f6938c2c1a2ed81fe9ee400846ed037b5854c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-logical-source-guide133",
+      "archive": "/workspace/.proofs/rename-logical-source-guide133.source-trees.tar.gz",
+      "archive_sha256": "9e0632d71f15d5458ca7a64e8cd2b32cdddf76151f68e4b605eb145bf9406ba8",
+      "original_bytes": 1140842,
+      "archive_bytes": 370352,
+      "member_count": 10,
+      "patch_sha256": "a83521dc12502b69cde4c15bea2235a2bf3f12f2ad900a8a8b1b1eb8e728e665",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/jim-source-length-class243",
+      "archive": "/workspace/.proofs/jim-source-length-class243.source-trees.tar.gz",
+      "archive_sha256": "4126fab38df494fa05d98ffc4be968076000cdbfd3c46965b0c708903e29e2a0",
+      "original_bytes": 1113139,
+      "archive_bytes": 227942,
+      "member_count": 36,
+      "patch_sha256": "e3d90da20b8d9270d873be09529e940d77807fd843ad6a31ef33295ae1f2e2db",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-positioned-body-context262",
+      "archive": "/workspace/.proofs/consumer-positioned-body-context262.source-trees.tar.gz",
+      "archive_sha256": "26cc234796c4eca2e7ed1251473db9bf661a33e0b9765fae6434d72bc781be7f",
+      "original_bytes": 1103817,
+      "archive_bytes": 233037,
+      "member_count": 12,
+      "patch_sha256": "8a1a1118c409c5f49a1ceea368071b168315a1b27a842d9678c6b4889e3a2485",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-style189",
+      "archive": "/workspace/.proofs/diagnostic-consumer-style189.source-trees.tar.gz",
+      "archive_sha256": "175d7000f6cac3d8361b32b313bccc76668751a09f613d2777450bb144dc914a",
+      "original_bytes": 1073734,
+      "archive_bytes": 266304,
+      "member_count": 18,
+      "patch_sha256": "0be2267ba13037d2910bf6085af156d6a8e246eb14a706f7d178fa9571fe0823",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-source-shapes195",
+      "archive": "/workspace/.proofs/diagnostic-consumer-source-shapes195.source-trees.tar.gz",
+      "archive_sha256": "24a814c33c6bc6bca2f136963cd6f7408a9a767bd86a6956177e9f1a7d70acb5",
+      "original_bytes": 1069485,
+      "archive_bytes": 236871,
+      "member_count": 14,
+      "patch_sha256": "700dbfbb2919a0410e5ce5cb54e0ca6363dc06a4bf8d9492cdacc749fbd527f7",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-command-epoch-requirement273",
+      "archive": "/workspace/.proofs/consumer-command-epoch-requirement273.source-trees.tar.gz",
+      "archive_sha256": "33499c2b294bfc7924646f50213d847caff1e8a8a584d20eaec059bf7d6509e5",
+      "original_bytes": 1045953,
+      "archive_bytes": 173501,
+      "member_count": 20,
+      "patch_sha256": "beecb3d0d7232a7db0715a9cd6c6d68b8d460e83be541e5b4fe59b9662a68c48",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-native-command-currency254",
+      "archive": "/workspace/.proofs/consumer-native-command-currency254.source-trees.tar.gz",
+      "archive_sha256": "339a6a2a771868f0ff512530f22325ab1fcbe6b3eb22a7693f8514a2bc580466",
+      "original_bytes": 1037387,
+      "archive_bytes": 171502,
+      "member_count": 20,
+      "patch_sha256": "6f36110e4a4cbd3a455876743bdfc3744bf858e5b3ae87f25afd7f7dc8e5a972",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-lifecycle-formals240",
+      "archive": "/workspace/.proofs/grammar-lifecycle-formals240.source-trees.tar.gz",
+      "archive_sha256": "87fb5b059a9ee10a825cbd3ea01eac6702d0f9e47c8a28ae2cd20d72de84f8a2",
+      "original_bytes": 1029530,
+      "archive_bytes": 240607,
+      "member_count": 18,
+      "patch_sha256": "d27fabc8acb35b6d01cc152c2553942120617bd9f80fbad97cbb15369aea9fb1",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-refactor-original81",
+      "archive": "/workspace/.proofs/recovered-naming-refactor-original81.source-trees.tar.gz",
+      "archive_sha256": "204c1a9990dcc4c112e76a3513a35027d5a4f6d5cbdc95bf487cc33648ce9f22",
+      "original_bytes": 1000590,
+      "archive_bytes": 220407,
+      "member_count": 26,
+      "patch_sha256": "a2447179fdb6440b24b57ad127ff73334ffb9d3b62d08632620f0a3c99d2591a",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-list-source246",
+      "archive": "/workspace/.proofs/consumer-list-source246.source-trees.tar.gz",
+      "archive_sha256": "d9e2b0be1852d726c1fd512bc9f94520e5c51d10edc8bb4f51370f1994bc1cd0",
+      "original_bytes": 991086,
+      "archive_bytes": 217831,
+      "member_count": 18,
+      "patch_sha256": "c1c8d4117da2d5ee9f93eb6c9cd773d4cd0a791722a40caa6a17f56cffea3d3e",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-package-source175",
+      "archive": "/workspace/.proofs/consumer-package-source175.source-trees.tar.gz",
+      "archive_sha256": "11abeabd86832efff6ea1d60fb89014ad3f264e2c2ff0385eb754ad514bcf4f4",
+      "original_bytes": 988179,
+      "archive_bytes": 226471,
+      "member_count": 40,
+      "patch_sha256": "da7e4456effe969e3363b4c6c96c6e7dc7c6e5b05e2714faa1cda88ff9460743",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/current-naming-owner-gate83",
+      "archive": "/workspace/.proofs/current-naming-owner-gate83.source-trees.tar.gz",
+      "archive_sha256": "e8974364f28aac5695386c8b6775ac7f0e61156dec4745a463cd3b65f528a942",
+      "original_bytes": 983677,
+      "archive_bytes": 290684,
+      "member_count": 18,
+      "patch_sha256": "fc4e8022c8b215f4e51d0707b4609f056d53192189859bb479f6feffbc86ea55",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-incremental-callback-owner279",
+      "archive": "/workspace/.proofs/consumer-incremental-callback-owner279.source-trees.tar.gz",
+      "archive_sha256": "97af8203804cc66fc6ad4771cc2f338681f2654cf4f9e6369d4439b204cd018d",
+      "original_bytes": 970712,
+      "archive_bytes": 253229,
+      "member_count": 14,
+      "patch_sha256": "9c2a6e69179c82cc9eb317cf08ead30fedce9b232b3b5d55bdead663af21ce5f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/info-native-geometry269",
+      "archive": "/workspace/.proofs/info-native-geometry269.source-trees.tar.gz",
+      "archive_sha256": "2b38e849ed3465f01801818f614223e2d7a96d072a46459b843b72493632129e",
+      "original_bytes": 961160,
+      "archive_bytes": 167140,
+      "member_count": 22,
+      "patch_sha256": "229f67fc8aa308b6c240730d272d50382edc13c307e082eea12826712550b177",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/naming-producers206",
+      "archive": "/workspace/.proofs/naming-producers206.source-trees.tar.gz",
+      "archive_sha256": "c07f2d67f260bceff166d97b7f4668701ed119454ddaaa29fd4e3c31563d59ff",
+      "original_bytes": 951586,
+      "archive_bytes": 220286,
+      "member_count": 19,
+      "patch_sha256": "a6266bfd31ca8ebe4c3fcf973215e5a0ecb4a5d70362363bcfce11c4fe8cb516",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-logical-geometry244",
+      "archive": "/workspace/.proofs/consumer-logical-geometry244.source-trees.tar.gz",
+      "archive_sha256": "125f04c148fdfc70c4909daf8b67349dd34eea2a5cd091d43ae906635e6b2159",
+      "original_bytes": 940520,
+      "archive_bytes": 228145,
+      "member_count": 20,
+      "patch_sha256": "9474fde73374bec62ec278c73456e6dc6999f66ce3c141626770a5f2590085c0",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-scan216",
+      "archive": "/workspace/.proofs/consumer-scan216.source-trees.tar.gz",
+      "archive_sha256": "c86546af3de176296fe3a662a6aa608e43706aba1ee44cb8aa760a75d97b2839",
+      "original_bytes": 933002,
+      "archive_bytes": 218504,
+      "member_count": 24,
+      "patch_sha256": "864a0bdd99cdb4b72e7c4c016eeeb46255b2315602d08feb9e1261a326ef1d18",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-alias-ingress173",
+      "archive": "/workspace/.proofs/rename-alias-ingress173.source-trees.tar.gz",
+      "archive_sha256": "1431a88ef9725bd2f25a63cbfa1fd584bbb8b5b4b665f995c95cbef1f764df16",
+      "original_bytes": 915292,
+      "archive_bytes": 211108,
+      "member_count": 18,
+      "patch_sha256": "112955505fa6e77b49f93d43ad865fb7c1afcfcaceb4d29db6816ca89e4c2e4c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-retained-fold-propagation288",
+      "archive": "/workspace/.proofs/consumer-retained-fold-propagation288.source-trees.tar.gz",
+      "archive_sha256": "ef47a77f77a75bc4748d475c7aa89a0bbb420d6aac392063c7a54c003c407d6a",
+      "original_bytes": 886153,
+      "archive_bytes": 208067,
+      "member_count": 16,
+      "patch_sha256": "1cc7cc06b6eda31b72b98eddc91ab22350846773cece05b7cfdef882835fe1f8",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-retained-context-build298",
+      "archive": "/workspace/.proofs/diagnostic-finish-retained-context-build298.source-trees.tar.gz",
+      "archive_sha256": "96d5e2be44d6a7a52e5c40c35376ae27cf4e59aa38612444b48371e3e1cbce65",
+      "original_bytes": 879655,
+      "archive_bytes": 195722,
+      "member_count": 24,
+      "patch_sha256": "b3a86a98947789ee7c85af1cf5367a892b3a7d46cc3be9d7a372f60d43903b48",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/fullinit-fixtures267",
+      "archive": "/workspace/.proofs/fullinit-fixtures267.source-trees.tar.gz",
+      "archive_sha256": "3421e0b66c1e7ef278f56dd75b57db4177f2ecea5a8007b1405b105db7142886",
+      "original_bytes": 875096,
+      "archive_bytes": 188800,
+      "member_count": 20,
+      "patch_sha256": "7d0105eaba4f7e4333963223618395c40b4cb92302a5ae814bbcb7076a0606be",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/vm-missing-command-result218",
+      "archive": "/workspace/.proofs/vm-missing-command-result218.source-trees.tar.gz",
+      "archive_sha256": "ab9e2b19aa443128f806175480966f1c7f9673bbb5b7ad3afa9fb726fc019984",
+      "original_bytes": 863814,
+      "archive_bytes": 184704,
+      "member_count": 12,
+      "patch_sha256": "f04ca213f3555b7f2ca2c4d831c6c56500f77f9e2563cd069e14b2bab1420812",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-callback-subject245",
+      "archive": "/workspace/.proofs/diagnostic-finish-callback-subject245.source-trees.tar.gz",
+      "archive_sha256": "1162300bbb25a544fd0aeda06a8848c53565ca59b5cb556311548dc6cd889666",
+      "original_bytes": 858812,
+      "archive_bytes": 229043,
+      "member_count": 22,
+      "patch_sha256": "206d5cfbccd1fc87386fca9a2fd0f5906e03c72e353a932b02d0a9ef527872bf",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-bound-context252",
+      "archive": "/workspace/.proofs/consumer-bound-context252.source-trees.tar.gz",
+      "archive_sha256": "b96e6e9bae138bff775ff7305052e759646e466254f9e8b37b2fe04ff720a430",
+      "original_bytes": 854852,
+      "archive_bytes": 203083,
+      "member_count": 14,
+      "patch_sha256": "d82af3b007f73d87b132f8c4d6ee59604f95c1c5bd8aa1fe6c675242ef999cea",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/core-semantic-realm250",
+      "archive": "/workspace/.proofs/core-semantic-realm250.source-trees.tar.gz",
+      "archive_sha256": "f241fc0655efe882035534068cc36ea7924d19b66c940841d0b8a5c7a900b459",
+      "original_bytes": 849696,
+      "archive_bytes": 203631,
+      "member_count": 10,
+      "patch_sha256": "e2a7fb2ca536804c35fbc112bd34e05157c6eb40acbb6d5451e97b8150b129c1",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-passive-member-metadata272",
+      "archive": "/workspace/.proofs/consumer-passive-member-metadata272.source-trees.tar.gz",
+      "archive_sha256": "505b5794d1d9543e555442d81289955cec378b9eda4fdccef014237b51626fcb",
+      "original_bytes": 842850,
+      "archive_bytes": 198569,
+      "member_count": 14,
+      "patch_sha256": "07bfc7a7ac89be888ff7683b2105266cf8beef0248dda3eaf103cb6e4e08a220",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/external-utf8-owner308",
+      "archive": "/workspace/.proofs/external-utf8-owner308.source-trees.tar.gz",
+      "archive_sha256": "8b9b501545b7519151f876aa111868b75f936ed365ac6a6433b513175e4e6003",
+      "original_bytes": 840500,
+      "archive_bytes": 190557,
+      "member_count": 36,
+      "patch_sha256": "92128a38f1ad2ab0711cdb73a81c7b53ae392ff3f9b6b682ef31c3645b9b1d3f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-member-surface-compile281",
+      "archive": "/workspace/.proofs/consumer-member-surface-compile281.source-trees.tar.gz",
+      "archive_sha256": "2f5f70ffb009bfafac815bbf65b9117927c51b67b74f38c825d17e06262fdf6c",
+      "original_bytes": 833006,
+      "archive_bytes": 196506,
+      "member_count": 12,
+      "patch_sha256": "b055cedac13c0a8ba1b5618032c70997ff9571898746b3cf240a70c81cea1193",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-db-callback-source-fixtures277",
+      "archive": "/workspace/.proofs/consumer-db-callback-source-fixtures277.source-trees.tar.gz",
+      "archive_sha256": "c8c8c8137e3aa278893ab63bac8c1a6ccf1ba3d799d719f1028d9c3c311f0e74",
+      "original_bytes": 830695,
+      "archive_bytes": 194023,
+      "member_count": 10,
+      "patch_sha256": "1d2eabd4bdaa4f28971f1d5dd9921f1ff28267dc1603d673d064c519167913eb",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-formal-headers179",
+      "archive": "/workspace/.proofs/consumer-formal-headers179.source-trees.tar.gz",
+      "archive_sha256": "ac55be0ed3f77e2e3dbb3508a7251939cd1bbbfdc388dccb55c6557b4d889abe",
+      "original_bytes": 824325,
+      "archive_bytes": 196836,
+      "member_count": 18,
+      "patch_sha256": "5b2e2462aa531d01bf8aab0c2139db657b70bd83e569f9e1662f832714918b82",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-project-callback234",
+      "archive": "/workspace/.proofs/consumer-project-callback234.source-trees.tar.gz",
+      "archive_sha256": "5f4bc94694812e9111a1f4462fef08f4ece60002a361c0ec50ea7e40425f5a8b",
+      "original_bytes": 818754,
+      "archive_bytes": 191946,
+      "member_count": 11,
+      "patch_sha256": "c9c4edf9695fc38bfeb6092ac533a78ad956cbad7e6841b007fefec05d54d47e",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-db-module-input261",
+      "archive": "/workspace/.proofs/consumer-db-module-input261.source-trees.tar.gz",
+      "archive_sha256": "e40b01da785076726ab525382395417a009aa789f4190d796aef1d36ffb0b6db",
+      "original_bytes": 816432,
+      "archive_bytes": 191331,
+      "member_count": 10,
+      "patch_sha256": "4f7aee0ba6f36d7ecc1aca3f43b0541f94b82a8cc7bb2e01be753ba8bbafce64",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-callback-transport242",
+      "archive": "/workspace/.proofs/consumer-callback-transport242.source-trees.tar.gz",
+      "archive_sha256": "5bf996e1e74115dd782c6c180baed7428108fe286cc5ff2bf929e3d15d7aed74",
+      "original_bytes": 813672,
+      "archive_bytes": 175494,
+      "member_count": 18,
+      "patch_sha256": "ae42211610722d652305a35f31b8c91c30f1bfb5afebc11aaf42c80437d7f2e6",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-fixture-scope167",
+      "archive": "/workspace/.proofs/consumer-fixture-scope167.source-trees.tar.gz",
+      "archive_sha256": "743b1ecc772d739a8f923aa7d9c70fe3f6a03034aeafee02d49438c5f44cfd36",
+      "original_bytes": 808819,
+      "archive_bytes": 179699,
+      "member_count": 14,
+      "patch_sha256": "271e5f75156898ec7aaa35d44a247661ce5c4420edfb0fa74224672791e950ad",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-foreign-context-fixtures298",
+      "archive": "/workspace/.proofs/consumer-foreign-context-fixtures298.source-trees.tar.gz",
+      "archive_sha256": "3aaa63eecb5b2fbaa90c44ef18d8dc1b866332e1480e9d6e9c880d6280a4b20f",
+      "original_bytes": 808732,
+      "archive_bytes": 195691,
+      "member_count": 20,
+      "patch_sha256": "4ed4a5aada48e5cd34ca8a8052d9511dc48341a401a99fd2823a623dcf17ce70",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-array-root143",
+      "archive": "/workspace/.proofs/rename-array-root143.source-trees.tar.gz",
+      "archive_sha256": "2ff1afc186033cb7e2ed990f4d1e01d3918c07a64aa8f6bf30033e80c2f657a5",
+      "original_bytes": 804997,
+      "archive_bytes": 178825,
+      "member_count": 22,
+      "patch_sha256": "ba1d64a808e00f302e72bb6a2df9f26c74bf1e7f3990b00e46a75482b931d8ca",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-lowering-formals226",
+      "archive": "/workspace/.proofs/diagnostic-finish-lowering-formals226.source-trees.tar.gz",
+      "archive_sha256": "6bc6475c6ceea191f41964f4da639782818be3feb9b990f5446276b62a5e2953",
+      "original_bytes": 802828,
+      "archive_bytes": 190445,
+      "member_count": 12,
+      "patch_sha256": "11be9e3801beb3909f4a33a141249b973af8b619cc8d5a8fddbf1cfe452c2790",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-reference-members296",
+      "archive": "/workspace/.proofs/diagnostic-finish-reference-members296.source-trees.tar.gz",
+      "archive_sha256": "652e487be9e4a15011c953f7717aada153ddb1396453e2b72eb1ed8e76f3ac29",
+      "original_bytes": 800747,
+      "archive_bytes": 173341,
+      "member_count": 16,
+      "patch_sha256": "87ac0fd534aa676821b5502996984147472ea4bfd59460111a6f1093beba25c8",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-callback-alias-database262",
+      "archive": "/workspace/.proofs/diagnostic-finish-callback-alias-database262.source-trees.tar.gz",
+      "archive_sha256": "2add02a7a6437e88af5e3545fce073236ca2d530541793ea279fb05cdfe250e0",
+      "original_bytes": 797943,
+      "archive_bytes": 187807,
+      "member_count": 10,
+      "patch_sha256": "aac580d641114abea3935c31d40aac55072f8a920888f72b331d77134e596d75",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-callback-trace250",
+      "archive": "/workspace/.proofs/diagnostic-finish-callback-trace250.source-trees.tar.gz",
+      "archive_sha256": "171410d2330b7908109238c8a28ad8112dbba5279aaaa4da15f90e1b14b9c137",
+      "original_bytes": 787516,
+      "archive_bytes": 186056,
+      "member_count": 10,
+      "patch_sha256": "c17c5fcc6752335b24681014f74b08a65c3fb6123683455d30280e6879412e00",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-schema-adapters171",
+      "archive": "/workspace/.proofs/diagnostic-schema-adapters171.source-trees.tar.gz",
+      "archive_sha256": "4eb28384eb8e84dd67e228f297c7f1d26527927caea97360e51bc0f484a58374",
+      "original_bytes": 785987,
+      "archive_bytes": 202091,
+      "member_count": 18,
+      "patch_sha256": "6b1f1942ccb7cee1133ffb6ca6881755c568951594fcb954ae8f49cbb98ac1a5",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-callback-database247",
+      "archive": "/workspace/.proofs/diagnostic-finish-callback-database247.source-trees.tar.gz",
+      "archive_sha256": "1561db46186eda6fbb9be2b4ec8f2a39c5b8d9b86ee1e487320c6c0dc48c8982",
+      "original_bytes": 775900,
+      "archive_bytes": 183987,
+      "member_count": 10,
+      "patch_sha256": "a537e2335096e52e7cd2bccf6934cff19a1613592d5d8cca1af70eddc7765002",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-roles211",
+      "archive": "/workspace/.proofs/consumer-roles211.source-trees.tar.gz",
+      "archive_sha256": "9a6ea4d55419aa63f1516682eab59516d9ab9797ec196fa9026f7966701f4df4",
+      "original_bytes": 758689,
+      "archive_bytes": 180288,
+      "member_count": 28,
+      "patch_sha256": "5a7c9ecd7d4580b76a78cb3d29f62068c9889222683dd1354082b0b1248ab1a6",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-purpose208",
+      "archive": "/workspace/.proofs/consumer-purpose208.source-trees.tar.gz",
+      "archive_sha256": "d19b68b4c59933b1f155d195905b0b33355edfe8affd4c81991dc38059ebbd4d",
+      "original_bytes": 733587,
+      "archive_bytes": 175957,
+      "member_count": 22,
+      "patch_sha256": "5ec67a158a6acd21bdbd8fabc868f978bb646d7ef8f9456d281226566e1816c5",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-nested205b",
+      "archive": "/workspace/.proofs/consumer-nested205b.source-trees.tar.gz",
+      "archive_sha256": "844c6c6d6c8e390bc42a09136937b9360017874e3a303215dcd723e0747ed489",
+      "original_bytes": 702308,
+      "archive_bytes": 170973,
+      "member_count": 12,
+      "patch_sha256": "041e891da29786ae4f07880b03c4c50f2951ffd54c5842c24e4546c88a61e815",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-nested205",
+      "archive": "/workspace/.proofs/consumer-nested205.source-trees.tar.gz",
+      "archive_sha256": "82c7e49e80385b82384ac2825d2296da6b5e590833dcef21a930cf7f01a56481",
+      "original_bytes": 702308,
+      "archive_bytes": 170978,
+      "member_count": 12,
+      "patch_sha256": "041e891da29786ae4f07880b03c4c50f2951ffd54c5842c24e4546c88a61e815",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-dispatch-style190",
+      "archive": "/workspace/.proofs/diagnostic-consumer-dispatch-style190.source-trees.tar.gz",
+      "archive_sha256": "b6c9ace2a847bac3f5713324f62ffe947c0faff577da3cb83544e93a2ec42d3f",
+      "original_bytes": 699004,
+      "archive_bytes": 171024,
+      "member_count": 12,
+      "patch_sha256": "208e2b30f641791f4c7fa1eaf746d317340a1911a2a2537fc315b4e4688c6033",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-retained-report221",
+      "archive": "/workspace/.proofs/consumer-retained-report221.source-trees.tar.gz",
+      "archive_sha256": "e39c33578d72b94db0a9dd61223c539552261ef7242925a88f68d35612b0514e",
+      "original_bytes": 698080,
+      "archive_bytes": 165543,
+      "member_count": 12,
+      "patch_sha256": "78a0461527398929d447fc2ebea3934769bd74d1e9b9642b5a752e049120ab0b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-creation-comment225",
+      "archive": "/workspace/.proofs/consumer-creation-comment225.source-trees.tar.gz",
+      "archive_sha256": "28f95bc32270e11cd5b719f4e7b52159ddde44c54efd9a4ce692f8f17a51a0ba",
+      "original_bytes": 697776,
+      "archive_bytes": 165342,
+      "member_count": 12,
+      "patch_sha256": "36af5e07f9b449eae3935e6400ec6692d46a08e858beadc61eb54e6fec5ee05a",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-pending-class219",
+      "archive": "/workspace/.proofs/consumer-pending-class219.source-trees.tar.gz",
+      "archive_sha256": "1b02a7d232473646bfa8f8741111e993e0df57cad24c67e584b7216402342d37",
+      "original_bytes": 696424,
+      "archive_bytes": 165337,
+      "member_count": 12,
+      "patch_sha256": "ed725b104ff353ea7be5a8fefb93e0b5727c8064ae1e115608c75abc4487bde3",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-list-source-doc251",
+      "archive": "/workspace/.proofs/consumer-list-source-doc251.source-trees.tar.gz",
+      "archive_sha256": "b0e21c400e8e7f87b66a13f86e205e39a92a4e30f87078dbab04e5ce2a6ac4bb",
+      "original_bytes": 695701,
+      "archive_bytes": 162442,
+      "member_count": 12,
+      "patch_sha256": "5ff5a3b483aca30da2fa1e49aed71d2b39e7978de84e1a91a19c19ebd337968b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-callbacks213",
+      "archive": "/workspace/.proofs/consumer-callbacks213.source-trees.tar.gz",
+      "archive_sha256": "825f1d2ae432d2dc1881693e4ca04277a14c9826e8d3697b88f16189f2073399",
+      "original_bytes": 694477,
+      "archive_bytes": 165659,
+      "member_count": 12,
+      "patch_sha256": "25b771631dd67dafdb3c98ee596129136440d6c63262e9f269c0b305e6534599",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-logical-scope211b",
+      "archive": "/workspace/.proofs/consumer-logical-scope211b.source-trees.tar.gz",
+      "archive_sha256": "43609a556c4b190fd0b0971fb4d45bf53a8269a8269738108c4808e0424f8c96",
+      "original_bytes": 694226,
+      "archive_bytes": 166125,
+      "member_count": 12,
+      "patch_sha256": "32a0616621daffb21e9c6794bc43f643bc4042edbfb3797677dd9b242058063c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-receiver-doc231",
+      "archive": "/workspace/.proofs/consumer-receiver-doc231.source-trees.tar.gz",
+      "archive_sha256": "967d46b932aaed6fdb44470b10bae394e5129a187a0dba348e3c0951b19d0b02",
+      "original_bytes": 693604,
+      "archive_bytes": 163831,
+      "member_count": 12,
+      "patch_sha256": "84d2dbf51a7cd1ce427d28d121bc0cc0c4c1271e550c160e3f3721183e8def4e",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-logical-unknown-input283",
+      "archive": "/workspace/.proofs/consumer-logical-unknown-input283.source-trees.tar.gz",
+      "archive_sha256": "49a84c42625cdbd84e753df225bead92b58560bd2f007f3f82a85d7d60cc9d48",
+      "original_bytes": 689624,
+      "archive_bytes": 157046,
+      "member_count": 16,
+      "patch_sha256": "12e53f761cb0b9eb8e746ea63ba5ce908b6c8f940ca260b924422c9d8af1a873",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-transfer-context258",
+      "archive": "/workspace/.proofs/consumer-transfer-context258.source-trees.tar.gz",
+      "archive_sha256": "27dc676f96bf2f429c28f35d70e0a37e729b6bc4d59f0df27f04b5b16027bd3b",
+      "original_bytes": 685841,
+      "archive_bytes": 130654,
+      "member_count": 10,
+      "patch_sha256": "b8f50200c88acabc245e40f7fa3c72fce83bdef28b8f698e31be814dce724444",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-statement-context227",
+      "archive": "/workspace/.proofs/consumer-statement-context227.source-trees.tar.gz",
+      "archive_sha256": "8d644e8ebb7b5b4f450ccc69fb13eba6a3252ed7b21aaba38f39f95a3cd19ff5",
+      "original_bytes": 680999,
+      "archive_bytes": 130147,
+      "member_count": 10,
+      "patch_sha256": "389e636adfa973236b42f53ba5dc4b3b8eefab38e0dbd7c12da722a6875ef086",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-assistance-context226",
+      "archive": "/workspace/.proofs/consumer-assistance-context226.source-trees.tar.gz",
+      "archive_sha256": "a46af887630ed4b170ffce49f7368cdfb8342b0272811a90d745e48c1a516903",
+      "original_bytes": 679302,
+      "archive_bytes": 129844,
+      "member_count": 10,
+      "patch_sha256": "fbf59551921c796e451af94c0df3663a0af5fadf84fbd24f97b27aff61b501d0",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-package-actions177",
+      "archive": "/workspace/.proofs/consumer-package-actions177.source-trees.tar.gz",
+      "archive_sha256": "05bb45ba32834db1666f724df4113295b96ed8aca93826d70b987b46ccea70dc",
+      "original_bytes": 668576,
+      "archive_bytes": 142237,
+      "member_count": 24,
+      "patch_sha256": "b777790689a06cbff137a674ac032a13783fcfb00a0de69909a310c873c87aa8",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-compiler-context141",
+      "archive": "/workspace/.proofs/consumer-compiler-context141.source-trees.tar.gz",
+      "archive_sha256": "34658fd8ec92f72cab9ba64087943de1e00901f97d9e62d26f1a1c1d6a2b8838",
+      "original_bytes": 662689,
+      "archive_bytes": 119743,
+      "member_count": 18,
+      "patch_sha256": "031dc8de79e7ea2b8ab332ef6e268349272e416e6cdf69d96f62beea3c9fc60b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-style199",
+      "archive": "/workspace/.proofs/diagnostic-consumer-style199.source-trees.tar.gz",
+      "archive_sha256": "a306900747020387f5021414389282a22a0c20e91a309cc263f8113f18432a4d",
+      "original_bytes": 649882,
+      "archive_bytes": 172645,
+      "member_count": 18,
+      "patch_sha256": "ce5f8caf7550829963c640a041c2aee36f00386ff412b90be3e18b9bd88fcb11",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-unknown-context239",
+      "archive": "/workspace/.proofs/consumer-unknown-context239.source-trees.tar.gz",
+      "archive_sha256": "5e9fbcc57dc739ab43fb5a8306a49f3ba409693e911877d3673e283e36752e82",
+      "original_bytes": 647986,
+      "archive_bytes": 147890,
+      "member_count": 12,
+      "patch_sha256": "e9241fc8145512ca8b3d275e79e6179a5b0d31f3fa8d88f65402ede9c5b30a08",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-semantic-source-availability302b",
+      "archive": "/workspace/.proofs/consumer-semantic-source-availability302b.source-trees.tar.gz",
+      "archive_sha256": "84749cece46c6d4780a9a0b846f9ce5fdedd698e1dcccc4709c63108202f7c22",
+      "original_bytes": 647856,
+      "archive_bytes": 148748,
+      "member_count": 20,
+      "patch_sha256": "2dec06ef474a65e1cb51683ee2df9d66b736f84acbfa6da5012f5a5fa7ff3c1b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-semantic-source-availability302",
+      "archive": "/workspace/.proofs/consumer-semantic-source-availability302.source-trees.tar.gz",
+      "archive_sha256": "8fdda2b9aa04dacbcb63d2c31a1256ef440a5d0ff6efd9df405c924b8eac0316",
+      "original_bytes": 647856,
+      "archive_bytes": 148743,
+      "member_count": 20,
+      "patch_sha256": "2dec06ef474a65e1cb51683ee2df9d66b736f84acbfa6da5012f5a5fa7ff3c1b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-final-retained-context289",
+      "archive": "/workspace/.proofs/diagnostic-finish-final-retained-context289.source-trees.tar.gz",
+      "archive_sha256": "14e385422418d2e72549bb9ddd150e6195c3e9ec4c1f4e34544d4f1d44aac8a6",
+      "original_bytes": 647821,
+      "archive_bytes": 156371,
+      "member_count": 24,
+      "patch_sha256": "73d984ed2ad3f21c44977df98d5bbb7c41a3fbeccae1b874d4aaedc4139a0cbf",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/runtime-fixture-consumers221",
+      "archive": "/workspace/.proofs/runtime-fixture-consumers221.source-trees.tar.gz",
+      "archive_sha256": "d51d09e413f4bb57cc2b7f41b53355cca517dd2060b427f27d184f596d577416",
+      "original_bytes": 645774,
+      "archive_bytes": 144611,
+      "member_count": 16,
+      "patch_sha256": "80ba39735b63db3a1c63d624f495f29d671a806bc5a6eb4de17c58137f93cf73",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-metadata-test-surface269a",
+      "archive": "/workspace/.proofs/consumer-metadata-test-surface269a.source-trees.tar.gz",
+      "archive_sha256": "8f8fb6c1f5722b2e245043edee39b5bdda97c82b5626f97ce38b120c1399945b",
+      "original_bytes": 638948,
+      "archive_bytes": 113284,
+      "member_count": 10,
+      "patch_sha256": "d71f99af02f59bf2a90a05a89f04bac4aa4568c93cd9a2d5c08f88f51a78d37e",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-dictionary-style223",
+      "archive": "/workspace/.proofs/consumer-dictionary-style223.source-trees.tar.gz",
+      "archive_sha256": "002f0c88f6d6137c0d89b729e4f2cca214177cb693028406b3d8f328d89c839f",
+      "original_bytes": 637937,
+      "archive_bytes": 148549,
+      "member_count": 12,
+      "patch_sha256": "5c4b0e35cc84f208fa2f9f622615518329ad1515740f7bcc588e973eb1df0dcb",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-object-abort-controls270",
+      "archive": "/workspace/.proofs/diagnostic-finish-object-abort-controls270.source-trees.tar.gz",
+      "archive_sha256": "fe0336c427410c7d14f1e074778358a07def4f1cc1a6461c4eae0139e6ce1b79",
+      "original_bytes": 634232,
+      "archive_bytes": 147669,
+      "member_count": 12,
+      "patch_sha256": "d94cd6e12ec2175926d30569fcee6b9370e2c892615f72880fd54e315927f501",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/runtime-view-refusal-consumers230",
+      "archive": "/workspace/.proofs/runtime-view-refusal-consumers230.source-trees.tar.gz",
+      "archive_sha256": "8c13cab9c36a05ed4b774d858645a030ad895ca67400b379897219060a8fc787",
+      "original_bytes": 633103,
+      "archive_bytes": 120341,
+      "member_count": 12,
+      "patch_sha256": "2181946b46bd3f8d4235744953beffaa3d59b7683406631d11fdb2ab69211bf7",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/jim-scripted-ensemble-metadata242",
+      "archive": "/workspace/.proofs/jim-scripted-ensemble-metadata242.source-trees.tar.gz",
+      "archive_sha256": "40d74f2702725c2ff1f2652dfeb9ac342d888e32d7afb5808427b65e5bbfaa65",
+      "original_bytes": 631007,
+      "archive_bytes": 167642,
+      "member_count": 20,
+      "patch_sha256": "f5b1ff5ccacb71ba9ba2342f631d4f2e2b94ba83e6dbd34a1ec0daeb1f9c42b1",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-jim-inline-lifetime269",
+      "archive": "/workspace/.proofs/diagnostic-finish-jim-inline-lifetime269.source-trees.tar.gz",
+      "archive_sha256": "81e96b5ef4843d25e1033e663eb52ffa387bb568647da809024a63af7762cc12",
+      "original_bytes": 630528,
+      "archive_bytes": 146879,
+      "member_count": 12,
+      "patch_sha256": "f9e7ec07b2464167187e5a42ad04a99272f413956080bff5a9b1b68b4cb8a6ac",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/rename-command-style153",
+      "archive": "/workspace/.proofs/rename-command-style153.source-trees.tar.gz",
+      "archive_sha256": "aaec3e2debf477d5aa6b172334d4ae98a2ee06a7c80813724dd416ab8bde0688",
+      "original_bytes": 618470,
+      "archive_bytes": 112402,
+      "member_count": 24,
+      "patch_sha256": "b76248e3af1bed3cf37eae26a771d88527bde820fbd6113cd1eeb8333337219f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-retained-memory-module300",
+      "archive": "/workspace/.proofs/consumer-retained-memory-module300.source-trees.tar.gz",
+      "archive_sha256": "1ce8080e558bf9f4af614297ec64e5bde2a1ec8cd72de36321333537c35829ac",
+      "original_bytes": 615565,
+      "archive_bytes": 147893,
+      "member_count": 22,
+      "patch_sha256": "185ded5819f3f324d80e9a76ca28b3fee9ebb139ec4a15ac7a46bc7f055cbdbf",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/vm-native-retirement206",
+      "archive": "/workspace/.proofs/vm-native-retirement206.source-trees.tar.gz",
+      "archive_sha256": "dd1b07018965cf168f65128b040638eb47963007983229d4110acf5fce318cfa",
+      "original_bytes": 611099,
+      "archive_bytes": 117706,
+      "member_count": 15,
+      "patch_sha256": "d7101e11011c51ca6e53ff5bdac28a08d71bb34d3918dbbc86aa5c7b1ccce8df",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/contracts-test-style175",
+      "archive": "/workspace/.proofs/contracts-test-style175.source-trees.tar.gz",
+      "archive_sha256": "5484e3be2fa6f025e7655a9d8d067aba080907788fcf058d887290ba492751d3",
+      "original_bytes": 609463,
+      "archive_bytes": 111156,
+      "member_count": 26,
+      "patch_sha256": "c1c31bb65c1f3102924da5d74c6e3d09c7e33a50ddbb8620bd6d718b0de73d35",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-native-frame-error-producer280",
+      "archive": "/workspace/.proofs/consumer-native-frame-error-producer280.source-trees.tar.gz",
+      "archive_sha256": "14d78f6375f544b04fb4a4a5371dc98b3ef9d73afaf4490dfd16005b35109693",
+      "original_bytes": 608937,
+      "archive_bytes": 143137,
+      "member_count": 39,
+      "patch_sha256": "0cbef92918fc261d8908576ff0ca8a04a338c7891f7cc599aba8576f0d5c8cae",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-memory-ssa-context284",
+      "archive": "/workspace/.proofs/consumer-memory-ssa-context284.source-trees.tar.gz",
+      "archive_sha256": "882e776a362f6c3f5ef1ecdbadeaaffa6bc0bbabda4afc80465f4c987bd95341",
+      "original_bytes": 598210,
+      "archive_bytes": 141215,
+      "member_count": 12,
+      "patch_sha256": "73be920935754fcf0399c5c7cfc5bb9a440b9a9e91bd8f25c07747babd724ef0",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-variable-completion51",
+      "archive": "/workspace/.proofs/recovered-naming-variable-completion51.source-trees.tar.gz",
+      "archive_sha256": "983d195781c1c665a8bb6c2d3f8c09febdb11a110ad7f22eaede488983d33487",
+      "original_bytes": 595037,
+      "archive_bytes": 134446,
+      "member_count": 20,
+      "patch_sha256": "34ab104ad4246e2a4dda00ef5e1e572e1435abfd1b132de93e557087b774c2fc",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-arity-schema181",
+      "archive": "/workspace/.proofs/diagnostic-consumer-arity-schema181.source-trees.tar.gz",
+      "archive_sha256": "43eb920490df1b77b5f1c32d3461a5c067e49f517986fb3986252c01a962a418",
+      "original_bytes": 581069,
+      "archive_bytes": 108782,
+      "member_count": 20,
+      "patch_sha256": "730fb523e6fa3203ea00b2506cba92636e07ef5b184a717bae7b66aa8562dbdd",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-own-completion84",
+      "archive": "/workspace/.proofs/recovered-naming-own-completion84.source-trees.tar.gz",
+      "archive_sha256": "0c12122e9a7b4d5aa48b93e030020069d8d7541e943b19cd4238f2f69c7180dc",
+      "original_bytes": 577734,
+      "archive_bytes": 120428,
+      "member_count": 14,
+      "patch_sha256": "b84c2ee39b9039e8749641cc5c3ce0467f560901b086d7256cea39039b22c8de",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/external-utf8-original-controls309",
+      "archive": "/workspace/.proofs/external-utf8-original-controls309.source-trees.tar.gz",
+      "archive_sha256": "1a4b8603a794938ec68214775769c637715add66aca9f97221a776db0766dc07",
+      "original_bytes": 551716,
+      "archive_bytes": 130148,
+      "member_count": 46,
+      "patch_sha256": "d40fa1195c8f1cbd5232128bd5bdea3c64587ec5dd071038e816328fafcac38e",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-dataflow-context300",
+      "archive": "/workspace/.proofs/diagnostic-finish-dataflow-context300.source-trees.tar.gz",
+      "archive_sha256": "c12eaace6035a02551b81d05159f1dc11a63e9f9fa686bbc50bb38e0d0aacc31",
+      "original_bytes": 540481,
+      "archive_bytes": 134387,
+      "member_count": 20,
+      "patch_sha256": "fc0f78b959f0bf85ab4f3fe235290990739de9be6ebcc3285b7152caab692199",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-finish-dataflow-context299",
+      "archive": "/workspace/.proofs/diagnostic-finish-dataflow-context299.source-trees.tar.gz",
+      "archive_sha256": "8f489509d91d2d0bc6ec1ab06a7357826524d2250c17f441787db17c7f3833a4",
+      "original_bytes": 539758,
+      "archive_bytes": 134232,
+      "member_count": 20,
+      "patch_sha256": "dd2095b5dd2c948095da2d746d46d90ef2d0d8c008d8770898f1604d43a7e85f",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/diagnostic-consumer-arity-synopsis182",
+      "archive": "/workspace/.proofs/diagnostic-consumer-arity-synopsis182.source-trees.tar.gz",
+      "archive_sha256": "41b82150ff21f90b9e0c424b12563906e7780f304e5478e98127d133e90785dd",
+      "original_bytes": 529027,
+      "archive_bytes": 95595,
+      "member_count": 10,
+      "patch_sha256": "bb3978c268e18f4e3e2dcca6a33dbc2b75c3ec050c9c0b1d98463c8ff84b1b7b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-extract-variable86",
+      "archive": "/workspace/.proofs/recovered-naming-extract-variable86.source-trees.tar.gz",
+      "archive_sha256": "7bfe40039d7eb629cccd0b1b052731f59ce052a385cba9d6d53bd60f201a98fb",
+      "original_bytes": 518292,
+      "archive_bytes": 126824,
+      "member_count": 20,
+      "patch_sha256": "2eba8c7cb34c7fa046182c7f8d8bba5ec8e78ffa30936506b361716dbeb0128b",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/core-instance-fuzzy249",
+      "archive": "/workspace/.proofs/core-instance-fuzzy249.source-trees.tar.gz",
+      "archive_sha256": "1cb1aeb49a2156f5835d21ed197ddf38f398d283da129c3dd33db6eadd349055",
+      "original_bytes": 517774,
+      "archive_bytes": 108956,
+      "member_count": 10,
+      "patch_sha256": "4e1f49b3193b2694c41c90756b1f59aa8b3894c9bc7528e1f42e47cd09acd4c4",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/core-instance-own-proof246b",
+      "archive": "/workspace/.proofs/core-instance-own-proof246b.source-trees.tar.gz",
+      "archive_sha256": "66b6b2ac1423ae9e230cc7c3f130353be550d79588fd30b1c388237bd28eccae",
+      "original_bytes": 516006,
+      "archive_bytes": 108570,
+      "member_count": 10,
+      "patch_sha256": "60bf67ba31a039956399dd73522b314f4ada34040d2c31f35ac02fa8b35c6580",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-positioned-unit215",
+      "archive": "/workspace/.proofs/consumer-positioned-unit215.source-trees.tar.gz",
+      "archive_sha256": "7f63204a88ce68ec9dc25dbbce38a91a660db82212cfef9cb7faec0f36f4f702",
+      "original_bytes": 514243,
+      "archive_bytes": 132164,
+      "member_count": 16,
+      "patch_sha256": "7c570b6436bd023d2f746a2b9114b5035863e9f4ff3fa09678bbf295b9b04413",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-retained-deep-module301",
+      "archive": "/workspace/.proofs/consumer-retained-deep-module301.source-trees.tar.gz",
+      "archive_sha256": "11aac2a16e3570b7b6785a96cf35458ef6824c7eefcac5e31353448ffb030423",
+      "original_bytes": 511473,
+      "archive_bytes": 118272,
+      "member_count": 10,
+      "patch_sha256": "454d0c91d004d10934dc81ced4fad1c4afb15588211d5b37363f7c2a2ce976c0",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-explorer-retained-deep299",
+      "archive": "/workspace/.proofs/consumer-explorer-retained-deep299.source-trees.tar.gz",
+      "archive_sha256": "3f6b547936ca6406e980a10b90a212fa8ba6ab2de269d413803b382fa68cea4b",
+      "original_bytes": 510943,
+      "archive_bytes": 122787,
+      "member_count": 16,
+      "patch_sha256": "e3cd423362e51ef27e17cd8b4a93d4fbf998919302eb7e9eabea67b6cdd6e672",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-native-future117",
+      "archive": "/workspace/.proofs/consumer-native-future117.source-trees.tar.gz",
+      "archive_sha256": "77fbab3e507bbb03235b048fad8b8f450c8bbe4665a9e058a59dce6d6b085aee",
+      "original_bytes": 510429,
+      "archive_bytes": 107007,
+      "member_count": 44,
+      "patch_sha256": "ef28a30c0693f0add920dd7ef7b40452e1bfc7b0d31cb89643464a0e937cb7c0",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-runtime-command-surface137",
+      "archive": "/workspace/.proofs/consumer-runtime-command-surface137.source-trees.tar.gz",
+      "archive_sha256": "c877401712c03e0347509339a6999406ef3719f8701d4bdf4462050c3339fa0f",
+      "original_bytes": 503297,
+      "archive_bytes": 90669,
+      "member_count": 14,
+      "patch_sha256": "0a0656812e4c14da18e6066f10f2f46e1fd1bc126e171809df5147c6094d8f5c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/consumer-original-command-list-range282",
+      "archive": "/workspace/.proofs/consumer-original-command-list-range282.source-trees.tar.gz",
+      "archive_sha256": "e518935f113cbd0ce0056d546c66ffeceadbe260fa27bde6ab8cbf7be859e63b",
+      "original_bytes": 501012,
+      "archive_bytes": 111779,
+      "member_count": 44,
+      "patch_sha256": "6ca79ef085f5f4a702f2a7ddbae05a43e473b91ed98b2a6ee5fd49671be5dbe8",
+      "verified": true
+    }
+  ],
+  "original_bytes": 518066723,
+  "archive_bytes": 116457836,
+  "logical_saved_bytes": 401608887,
+  "complete": true
+}

@@ -1,0 +1,105 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-semantic-obsolete-roles282.base-files.tar.gz",
+  "archive_sha256": "e580766c80e935be9a00b0ff88bd719964f2a05359e30b5cc872392418c81ec0",
+  "archive_bytes": 205181,
+  "uncompressed_bytes": 862500,
+  "source_manifest_sha256": "fa8faa13380bc45f939e191e55ea1afc11d34c1aa9c7e582acee1a6a23640efa",
+  "source_patch_sha256": "ad6b4ac200dc09f1468336b93e8b8de7974222c11eeb8c0a67ae63716f485ff1",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/ad6b4ac200dc09f1468336b93e8b8de7974222c11eeb8c0a67ae63716f485ff1.patch",
+  "original_application_journal_sha256": "ad6b4ac200dc09f1468336b93e8b8de7974222c11eeb8c0a67ae63716f485ff1",
+  "member_count": 10,
+  "members": {
+    "grammar-semantic-obsolete-roles282/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791597377.4573789,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-obsolete-roles282/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791597377.4573789,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-obsolete-roles282/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791597377.4573789,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-obsolete-roles282/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791597377.4573789,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-obsolete-roles282/base/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791597377.4596853,
+      "size": 434924,
+      "sha256": "0b42397ab42adfa3d6e2fcfaa10d7c9df344a635388445e751d7c67c33993714"
+    },
+    "grammar-semantic-obsolete-roles282/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791597377.4596853,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-obsolete-roles282/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791597377.4596853,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-obsolete-roles282/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791597377.4596853,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-obsolete-roles282/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791597377.4596853,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-obsolete-roles282/files/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791597377.8733757,
+      "size": 427576,
+      "sha256": "693ffee9ca4664ba089d146f07636c2ca4c91426d05c83990b358ebd7f18ef7a"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

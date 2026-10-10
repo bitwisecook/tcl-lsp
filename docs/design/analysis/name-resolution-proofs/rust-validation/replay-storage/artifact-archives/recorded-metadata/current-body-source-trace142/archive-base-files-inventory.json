@@ -1,0 +1,123 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/current-body-source-trace142.base-files.tar.gz",
+  "archive_sha256": "fa1b655e7b881aa123fd8e0580e5a9f9c4adeff224559fd0e2d7cc4fbb258f59",
+  "archive_bytes": 175336,
+  "uncompressed_bytes": 704158,
+  "source_manifest_sha256": "47692ce5cd04f511157ef85da638fd095acd281c85e0983ffbab3e37f44be2b7",
+  "source_patch_sha256": "19f6f17eed740a33b02f36d56158908bcf94c74a018d51d5629e5df38d3c0563",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/19f6f17eed740a33b02f36d56158908bcf94c74a018d51d5629e5df38d3c0563.patch",
+  "original_application_journal_sha256": "19f6f17eed740a33b02f36d56158908bcf94c74a018d51d5629e5df38d3c0563",
+  "member_count": 12,
+  "members": {
+    "current-body-source-trace142/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3137639,
+      "size": 0,
+      "sha256": null
+    },
+    "current-body-source-trace142/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3137639,
+      "size": 0,
+      "sha256": null
+    },
+    "current-body-source-trace142/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3137639,
+      "size": 0,
+      "sha256": null
+    },
+    "current-body-source-trace142/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3137639,
+      "size": 0,
+      "sha256": null
+    },
+    "current-body-source-trace142/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3137639,
+      "size": 0,
+      "sha256": null
+    },
+    "current-body-source-trace142/base/rust/tcl-compiler/src/analyser/commands.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3160987,
+      "size": 351393,
+      "sha256": "7fd6c4d27b34a32a8dc8d05463437459140be9203a4dbb495a77db397b547430"
+    },
+    "current-body-source-trace142/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3088746,
+      "size": 0,
+      "sha256": null
+    },
+    "current-body-source-trace142/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3088746,
+      "size": 0,
+      "sha256": null
+    },
+    "current-body-source-trace142/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3088746,
+      "size": 0,
+      "sha256": null
+    },
+    "current-body-source-trace142/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3088746,
+      "size": 0,
+      "sha256": null
+    },
+    "current-body-source-trace142/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3088746,
+      "size": 0,
+      "sha256": null
+    },
+    "current-body-source-trace142/files/rust/tcl-compiler/src/analyser/commands.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791555408.3137639,
+      "size": 352765,
+      "sha256": "433641b346eefe40a9a512ac9789c05a1491062e06c7e9f2d809d0c018e1a853"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

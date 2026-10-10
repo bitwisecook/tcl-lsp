@@ -1,0 +1,105 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-server-original-callback-projection283.base-files.tar.gz",
+  "archive_sha256": "7a1a4b9bb40326d2595b6c3e7695d3d1c85fafc3eb63516c426b6761d443eea8",
+  "archive_bytes": 1158861,
+  "uncompressed_bytes": 5069897,
+  "source_manifest_sha256": "b1a22bc3d2cd50e8b46533d6e86f74c61d3de00326e8d99d054ecee97023d6a8",
+  "source_patch_sha256": "a4fe486fa2471093b88b78d277654ba355faa46d54de63cd5cf28458c6839600",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/a4fe486fa2471093b88b78d277654ba355faa46d54de63cd5cf28458c6839600.patch",
+  "original_application_journal_sha256": "a4fe486fa2471093b88b78d277654ba355faa46d54de63cd5cf28458c6839600",
+  "member_count": 10,
+  "members": {
+    "recovered-server-original-callback-projection283/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791599320.770077,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-server-original-callback-projection283/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791599320.770077,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-server-original-callback-projection283/base/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791599320.770077,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-server-original-callback-projection283/base/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791599320.7780771,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-server-original-callback-projection283/base/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791599320.7812066,
+      "size": 2528654,
+      "sha256": "0534aaa4f363b9e2deefe185bb093e84c8ad6b4b89c76ffbd469dc866382943d"
+    },
+    "recovered-server-original-callback-projection283/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791599320.770077,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-server-original-callback-projection283/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791599320.770077,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-server-original-callback-projection283/files/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791599320.7780771,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-server-original-callback-projection283/files/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791599320.782077,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-server-original-callback-projection283/files/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791599499.844677,
+      "size": 2541243,
+      "sha256": "3e2e1244a5030ca951d3672b0a0b41b693ad78f88c825cde0355fb6cd7cc2304"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

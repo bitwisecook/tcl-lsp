@@ -1657,6 +1657,10 @@ All ten lossless original gzip receipts, whole logs, two executable pins and thr
 
 The [closed storage225 journals](replay-storage/storage225/README.md) preserve three pinned Rust executables, 591 inactive command receipts/logs and 85 archived artifact directories. Independent streaming checks verify compressed and original SHA-256 digests, byte lengths, every tar leaf and permission mode. Restore an exact pinned artifact before attempting its recorded command; storage verification or restoration executes no assertion and supplies no new result. Disposable Cargo cache removal is separate from replay artifact storage.
 
+The [closed storage239 executable journal](replay-storage/storage239/README.md) preserves nine inactive pinned Rust executables. Independent streaming checks verify all compressed/decompressed digests and lengths against unchanged published pins. The complete original bytes remain restorable; verification or restoration supplies no assertion or new measured outcome.
+
+The [closed duplicate artifact archive journal](replay-storage/artifact-archives/README.md) preserves363 approved archives and all8,805 original member inventories. Independent checks verify every archive/file digest and exact path/type/mode/uid/gid/mtime/size. These restoration records supply no new applied-state, Native behavior or assertion result.
+
 ## Independent aggregate226 and runtime227 commands
 
 The actual Main226 command requests fourteen packages with --lib --no-run and exits101 after95.72 seconds. Its complete Cargo log retains E0603 for the private authored_policy helper and an uncoded FnOnce lifetime error, both in Compiler auto_path_eval/source_expression.rs. No assertion executes and this failed requested build supplies no successful aggregate executable pin. Its complete immutable source inventory remains separate from Runtime227.
@@ -1775,3 +1779,107 @@ All six complete logs, exact original gzip receipts, separate selections and suc
 | [compiler-deep-phase-trace232](frozen232/compiler-deep-phase-trace232/receipt.json.gz) · [log](frozen232/compiler-deep-phase-trace232/tests.log) | Exact1-name command1P/0F/8542filtered after497.52s; complete final summary |
 
 [Exact Compiler-only executable pin](frozen232/pinned-compiler232.json) reports artifact fresh: `false`.
+
+## Compiler235 nonuniform build
+
+The exact Compiler235 build fails101 after119.01 seconds with uniform_source: false and no assertions or successful requested executable. Its whole log records three unavailable InvocationDialect paths and two lexer Result handling errors. Cargo also reconciled one test-support dependency in Cargo.lock during this command. The recorded pre-command source inventory, byte-exact original lockfile, Cargo-updated lockfile and source-owner receipt remain independent retained artifacts; this build supplies no uniform verification claim.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [compiler-build235](frozen235/compiler-build235/receipt.json.gz) · [log](frozen235/compiler-build235/tests.log) | Failed101, nonuniform source, five compile errors; no assertions or successful pin |
+
+[Lockfile source receipt](frozen235/lockfile-source235/receipt.json) retains the exact one-line dependency difference and both payload hashes: [original](frozen235/lockfile-source235/original-Cargo.lock) and [Cargo-updated](frozen235/lockfile-source235/cargo-updated-Cargo.lock).
+
+## Additional Runtime234 command
+
+Six exact additional tests pass after15.13 seconds with uniform_source: true under the same successful Runtime234 executable and complete unchanged source inventory. Every name occurs in the original1308-test inventory and differs from the107-name selection, covering113 unique selected names through two separate completed runs. The original receipt retains the exact six-name command and full6P/0F/1302filtered summary. This adds neither a full-suite result nor external native execution, another backend result or a pass for current edited source.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [runtime-additional234](frozen234/runtime-additional234/receipt.json.gz) · [log](frozen234/runtime-additional234/tests.log) | Exact6P/0F; same unchanged Runtime234 pin; six names disjoint from107-name run |
+
+## Main236 commands
+
+The locked Compiler/VM/CmdCore236 build fails101 after188.57 seconds with five VM test type errors. It executes no assertions and supplies no successful combined pin. The independently requested Compiler-only build passes after0.47 seconds and pins executable SHAb7f66200012b401c2c3fbf638a1d9974275c4a72ab78febef752a0c42b040f97. Its listing records8557 tests without assertions. The exact102-name command completes42P/60F after81.21 seconds; an independent one-name original-command-table trace completes0P/1F after1.82 seconds. Both retain every actual event and their complete failing summaries.
+
+The independently requested CmdCore236 build passes after7.52 seconds and pins executable SHA54efa3f39bfe01ba2454e51d579f2f08dd0542639c063cadb93a2d6fe02fc162. Its listing records177 tests without assertions. The exact selected encoding comparator passes1P/0F after0.004 seconds and checks all55 retained C byte/message/errorCode windows as a software API control. Runtime object-storage comparisons, VM execution and original external provider runs retain their separate receipts and scopes.
+
+All eight commands record uniform_source: true under the same complete immutable source snapshot. Successful separate builds and inventories do not convert the combined build failure or compiler assertion failures into an aggregate pass. Whole logs, exact gzip receipts, zero-missing selections and both successful independent pins remain retained. Current edited definitions, other images, native outcomes, Clippy, Python and full suites remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [main-build236](frozen236/main-build236/receipt.json.gz) · [log](frozen236/main-build236/tests.log) | Compiler/VM/CmdCore buildFAIL101 after188.57s; five VM test type errors; no assertions or successful combined pin |
+| [compiler-only-build236](frozen236/compiler-only-build236/receipt.json.gz) · [log](frozen236/compiler-only-build236/tests.log) | Independently requested tcl-compiler buildPASS0 after0.47s; no assertions |
+| [compiler-list236](frozen236/compiler-list236/receipt.json.gz) · [log](frozen236/compiler-list236/tests.log) | 8557 tests listed; no assertions |
+| [compiler-finite236](frozen236/compiler-finite236/receipt.json.gz) · [log](frozen236/compiler-finite236/tests.log) | Exact102-name command 42P/60F/8455filtered after81.21s; complete final summary |
+| [backend-original-trace236](frozen236/backend-original-trace236/receipt.json.gz) · [log](frozen236/backend-original-trace236/tests.log) | Exact1-name command 0P/1F/8556filtered after1.82s; complete final summary |
+| [cmdcore-build236](frozen236/cmdcore-build236/receipt.json.gz) · [log](frozen236/cmdcore-build236/tests.log) | Independently requested tcl-cmd-core buildPASS0 after7.52s; no assertions |
+| [cmdcore-list236](frozen236/cmdcore-list236/receipt.json.gz) · [log](frozen236/cmdcore-list236/tests.log) | 177 tests listed; no assertions |
+| [cmdcore-finite236](frozen236/cmdcore-finite236/receipt.json.gz) · [log](frozen236/cmdcore-finite236/tests.log) | Exact1-name command 1P/0F/176filtered after0.00s; complete final summary |
+
+[Compiler-only pin](frozen236/pinned-compiler236.json) reports artifact fresh: `true`; [CmdCore pin](frozen236/pinned-cmdcore236.json) reports artifact fresh: `false`.
+
+## Compiler237 build
+
+The exact locked Compiler-only237 build fails101 after108.63 seconds with uniform_source: true. Its whole log records two unavailable source names and three private TaintSourceContext field accesses in the taint consumers. No assertions execute and no successful requested test image or pin is supplied. The exact gzip receipt preserves the complete unchanged source inventory and command; current edited definitions, other images and native outcomes remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [compiler-build237](frozen237/compiler-build237/receipt.json.gz) · [log](frozen237/compiler-build237/tests.log) | Failed101; five taint integration errors; no assertions or successful pin |
+
+## Runtime238 commands
+
+The independently requested locked Runtime238 build passes after61.14 seconds with uniform_source: true. Its successful build receipt and complete immutable source inventory pin executable SHA711af5177269eec3631228d4219d29bda22e8e6bfd2d31e271180004a2c16cfa. The listing records1309 tests without executing assertions.
+
+The exact114-name command completes114P/0F/0ignored/1195filtered after39.25 seconds with its complete final libtest summary. The selection has zero missing names and contains all107 names from the Runtime234 primary command, its six independently selected additional names, and the counted map-prefix comparator. Every selected name passes in this precise executable. The map comparator agrees with all20 unchanged original C8.5–9.1 public object-vector windows, including each stored counted head, whole map query and independent call result. The original whole36 child-alias comparison and Runtime55-window encoding constructor/storage/output/error comparison also pass. The CmdCore55-window codec has its independent Main236 receipt. VM map/storage comparisons require their own executable and actual receipts; this Runtime command supplies no VM result.
+
+All three whole logs, exact original gzip receipts, original selection and executable pin retain their separate commands and one immutable source image. These software comparisons add no new native process, private provider identity, current edited-definition result or full-suite outcome. Other binaries/images, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [runtime-build238](frozen238/runtime-build238/receipt.json.gz) · [log](frozen238/runtime-build238/tests.log) | Requested Runtime buildPASS0 after61.14s; no assertions |
+| [runtime-list238](frozen238/runtime-list238/receipt.json.gz) · [log](frozen238/runtime-list238/tests.log) | 1309 tests listed; no assertions |
+| [runtime-finite238](frozen238/runtime-finite238/receipt.json.gz) · [log](frozen238/runtime-finite238/tests.log) | Exact114-name command114P/0F/1195filtered after39.25s; complete final summary |
+
+[Exact executable pin](frozen238/pinned-runtime238.json) reports artifact fresh: `false`.
+
+## Compiler239 build
+
+The exact locked Compiler-only239 build fails101 after73.70 seconds with uniform_source: true. Its whole log records four unavailable CfgCommandClasses type names in the try-handler fixture and one incoming-argument fixture type mismatch. No assertions execute and no successful requested test image or pin is supplied. The exact gzip receipt preserves the complete unchanged source inventory and command; current edited definitions, other images and native outcomes remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [compiler-build239](frozen239/compiler-build239/receipt.json.gz) · [log](frozen239/compiler-build239/tests.log) | Failed101; five integration errors; no assertions or successful pin |
+
+## Consumer240 check
+
+The exact locked14-package all-targets check fails101 after187.53 seconds with uniform_source: true. Its whole log records one E0603 private source_structure import in the MCP datagroup consumer. The command executes no assertions and supplies no successful check or executable pin. Its exact gzip receipt preserves the complete unchanged source inventory and requested package list; current edited definitions, other images and native outcomes remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [consumer-check240](frozen240/consumer-check240/receipt.json.gz) · [log](frozen240/consumer-check240/tests.log) | Failed101; one MCP private import error; no assertions or successful check |
+
+## Main241 commands
+
+The locked Compiler/VM/Core build fails101 after379.68 seconds with five Core test compile errors. It executes no assertions and supplies no successful combined pin. The independently requested Compiler/VM build passes after151.30 seconds, with separate Compiler and VM executable/build/source associations. Their inventories list8571 and706 tests without assertions.
+
+The exact28-name Compiler quick batch completes12P/16F after159.22 seconds. The independent234-name Compiler batch completes116P/118F after1066.62 seconds. The exact339-name VM batch completes273P/66F after1287.42 seconds. Each retains every actual event, the original zero-missing selection and a complete failing summary. Repeated selectors across commands remain repeated events; the archive supplies no aggregate pass or unique coverage count.
+
+Five independent diagnostic commands also complete with failures: the two-name Logical declaration trace records0P/2F, while the VM coroutine, info-codegen, dictionary writeback and dictionary publication commands each record0P/1F. All twelve operations record uniform_source: true under the same complete immutable source snapshot. Successful separate builds and inventories do not convert assertion failures into a pass. Whole logs, exact gzip receipts, source inventories and original independent pins remain retained. Current edited definitions, other images, native provider outcomes, Clippy, Python and full suites retain their separate scopes.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [compiler-vm-core-build241](frozen241/compiler-vm-core-build241/receipt.json.gz) · [log](frozen241/compiler-vm-core-build241/tests.log) | Compiler/VM/Core buildFAIL101 after379.68s; five Core test compile errors; no assertions or successful combined pin |
+| [compiler-vm-build241](frozen241/compiler-vm-build241/receipt.json.gz) · [log](frozen241/compiler-vm-build241/tests.log) | Independent Compiler/VM buildPASS0 after151.30s; no assertions |
+| [compiler-list241](frozen241/compiler-list241/receipt.json.gz) · [log](frozen241/compiler-list241/tests.log) | 8571 tests listed; no assertions |
+| [vm-list241](frozen241/vm-list241/receipt.json.gz) · [log](frozen241/vm-list241/tests.log) | 706 tests listed; no assertions |
+| [compiler-quick241](frozen241/compiler-quick241/receipt.json.gz) · [log](frozen241/compiler-quick241/tests.log) | Exact28-name command 12P/16F/8543filtered after159.22s; complete failing summary |
+| [logical-source-trace241](frozen241/logical-source-trace241/receipt.json.gz) · [log](frozen241/logical-source-trace241/tests.log) | Exact2-name command 0P/2F/8569filtered after0.38s; complete failing summary |
+| [compiler-finite241](frozen241/compiler-finite241/receipt.json.gz) · [log](frozen241/compiler-finite241/tests.log) | Exact234-name command 116P/118F/8337filtered after1066.62s; complete failing summary |
+| [vm-finite241](frozen241/vm-finite241/receipt.json.gz) · [log](frozen241/vm-finite241/tests.log) | Exact339-name command 273P/66F/367filtered after1287.42s; complete failing summary |
+| [vm-native-codegen-trace241](frozen241/vm-native-codegen-trace241/receipt.json.gz) · [log](frozen241/vm-native-codegen-trace241/tests.log) | Exact1-name command 0P/1F/705filtered after4.54s; complete failing summary |
+| [vm-info-commands-codegen241](frozen241/vm-info-commands-codegen241/receipt.json.gz) · [log](frozen241/vm-info-commands-codegen241/tests.log) | Exact1-name command 0P/1F/705filtered after9.21s; complete failing summary |
+| [vm-dict-writeback-progress241](frozen241/vm-dict-writeback-progress241/receipt.json.gz) · [log](frozen241/vm-dict-writeback-progress241/tests.log) | Exact1-name command 0P/1F/705filtered after22.42s; complete failing summary |
+| [vm-dict-publication-progress241](frozen241/vm-dict-publication-progress241/receipt.json.gz) · [log](frozen241/vm-dict-publication-progress241/tests.log) | Exact1-name command 0P/1F/705filtered after64.96s; complete failing summary |
+
+[Compiler pin](frozen241/pinned-compiler241.json): SHA `4d5e04b249537c4b59fba2cd7f59b3b5d811582bdd7e4a9ffbb4171a5ab2f136`, artifact fresh: `false`. [VM pin](frozen241/pinned-vm241.json): SHA `d566a8e3ce05c2ec6834f1585470488df83f002530eb3e0d384f4f9aeb258c7b`, artifact fresh: `false`. Both belong to the independent successful Compiler/VM build.
