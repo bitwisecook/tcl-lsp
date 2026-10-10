@@ -39,6 +39,143 @@ pub struct NativeOoVariableError {
     pub error_code: Vec<Vec<u8>>,
 }
 
+/// Independently selected input to the native method variable resolver.
+/// Neither purpose supplies a compiled-local table or an entered receiver.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeOoVariableResolverPurpose {
+    /// Actual installed compiler local primary, with its full counted extent.
+    CompiledPrimary,
+    /// Actual runtime variable root delivered to the `CString` resolver.
+    RuntimeRoot,
+}
+
+/// Compare one retained declaration with an independently selected resolver
+/// input. The declaration remains counted in both cases; runtime strlen does
+/// not shorten a declaration to make it match.
+///
+/// # Errors
+/// Refuses engines without an audited `TclOO` variable resolver.
+pub fn native_oo_variable_resolver_matches(
+    protocol: NativeNameProtocol,
+    purpose: NativeOoVariableResolverPurpose,
+    declaration: &[u8],
+    supplied: &[u8],
+) -> Result<bool, NameProjectionUnavailable> {
+    version(protocol)?;
+    let selected = match purpose {
+        NativeOoVariableResolverPurpose::CompiledPrimary => supplied,
+        NativeOoVariableResolverPurpose::RuntimeRoot => {
+            let root = c_string_extent(supplied);
+            if root.windows(2).any(|bytes| bytes == b"::") {
+                return Ok(false);
+            }
+            root
+        }
+    };
+    Ok(declaration == selected)
+}
+
+/// Explicit stock `my variable` local name, distinct from its counted target.
+/// The caller still performs original namespace-only lookup and alias binding.
+///
+/// # Errors
+/// An unavailable `TclOO` recipe or the `CString` namespace-separator diagnostic.
+pub fn native_oo_explicit_variable_local_name(
+    protocol: NativeNameProtocol,
+    original: &[u8],
+) -> Result<Result<&[u8], NativeOoVariableError>, NameProjectionUnavailable> {
+    version(protocol)?;
+    let local = c_string_extent(original);
+    if local.windows(2).any(|pair| pair == b"::") {
+        let mut message = b"variable name \"".to_vec();
+        message.extend_from_slice(local);
+        message.extend_from_slice(b"\" illegal: must not contain namespace separator");
+        return Ok(Err(NativeOoVariableError {
+            message,
+            error_code: vec![b"TCL".to_vec(), b"UPVAR".to_vec(), b"INVERTED".to_vec()],
+        }));
+    }
+    Ok(Ok(local))
+}
+
+/// Construct the stock varname lookup operand from an actual object's
+/// namespace and selected private storage name. It grants no namespace or cell.
+/// Absolute original names retain their original counted bytes. Relative C9.0
+/// interpolation is `CString`; C8.6/C9.1 append the selected original object bytes.
+///
+/// # Errors
+/// Refuses an unavailable `TclOO` recipe.
+pub fn native_oo_varname_lookup_bytes(
+    protocol: NativeNameProtocol,
+    namespace: &[u8],
+    original: &[u8],
+    storage: &[u8],
+) -> Result<Vec<u8>, NameProjectionUnavailable> {
+    let version = version(protocol)?;
+    if original.starts_with(b"::") {
+        return Ok(original.to_vec());
+    }
+    let mut lookup = namespace.to_vec();
+    lookup.extend_from_slice(b"::");
+    lookup.extend_from_slice(if version == TclVersion::V9_0 {
+        c_string_extent(storage)
+    } else {
+        storage
+    });
+    Ok(lookup)
+}
+
+/// Selected namespace variable-key presentation after a successful lookup.
+/// The supplied bytes are the actual followed key, not a lookup proposal.
+///
+/// # Errors
+/// Refuses an unavailable `TclOO` recipe.
+pub fn native_oo_variable_key_report(
+    protocol: NativeNameProtocol,
+    actual_key: &[u8],
+) -> Result<&[u8], NameProjectionUnavailable> {
+    version(protocol)?;
+    Ok(c_string_extent(actual_key))
+}
+
+/// Actual operand purpose for private variable correspondence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeOoPrivateVariablePurpose {
+    /// Namespace resolver receives a `CString` root from explicit `LinkVar` lookup.
+    ExplicitLink,
+    /// Varname compares the original object using `TclStringCmp` before construction.
+    Varname,
+}
+
+/// Match an actual provider's retained private declaration for one selected
+/// method operation. This supplies no provider, receiver or alias authority.
+///
+/// # Errors
+/// Refuses an unavailable `TclOO` recipe.
+pub fn native_oo_private_variable_matches(
+    protocol: NativeNameProtocol,
+    purpose: NativeOoPrivateVariablePurpose,
+    declaration: &[u8],
+    supplied: &[u8],
+) -> Result<bool, NameProjectionUnavailable> {
+    let version = version(protocol)?;
+    if version < TclVersion::V9_0 {
+        return Ok(false);
+    }
+    match purpose {
+        NativeOoPrivateVariablePurpose::ExplicitLink => native_oo_variable_resolver_matches(
+            protocol,
+            NativeOoVariableResolverPurpose::RuntimeRoot,
+            declaration,
+            supplied,
+        ),
+        NativeOoPrivateVariablePurpose::Varname => {
+            let units = crate::native_tcl_utf::NativeTclUtf::for_version(version);
+            Ok(units.decode_units(declaration) == units.decode_units(supplied))
+        }
+    }
+}
+
 /// Apply a native slot list operation while retaining each original record.
 /// Append/prepend preserve duplicates; remove and append-if-new use counted
 /// `ObjHash` membership. Field setters separately validate and unique their list.
@@ -192,6 +329,68 @@ mod tests {
     use super::*;
 
     #[test]
+    // Native proof: naming.tcloo.declared-variable-compiled-and-runtime-resolver
+    // docs/design/analysis/name-resolution-proofs/declared-variable-compiled-and-runtime-resolver.md
+    fn declared_variable_resolver_selects_counted_primary_and_runtime_cstring_independently() {
+        use NativeOoVariableResolverPurpose::{CompiledPrimary, RuntimeRoot};
+        for release in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let protocol = NativeNameProtocol::C(release);
+            for name in [b"plain".as_slice(), b"k\xed\xa0\x80", b"k\xff"] {
+                assert!(
+                    native_oo_variable_resolver_matches(protocol, CompiledPrimary, name, name)
+                        .unwrap()
+                );
+                assert!(
+                    native_oo_variable_resolver_matches(protocol, RuntimeRoot, name, name).unwrap()
+                );
+            }
+            assert!(
+                native_oo_variable_resolver_matches(
+                    protocol,
+                    CompiledPrimary,
+                    b"k\0tail",
+                    b"k\0tail"
+                )
+                .unwrap()
+            );
+            assert!(
+                !native_oo_variable_resolver_matches(protocol, RuntimeRoot, b"k\0tail", b"k\0tail")
+                    .unwrap()
+            );
+            assert!(
+                !native_oo_variable_resolver_matches(protocol, CompiledPrimary, b"k", b"k\0tail")
+                    .unwrap()
+            );
+            assert!(
+                native_oo_variable_resolver_matches(protocol, RuntimeRoot, b"k", b"k\0tail")
+                    .unwrap()
+            );
+            assert!(
+                !native_oo_variable_resolver_matches(
+                    protocol,
+                    RuntimeRoot,
+                    b"k\0::tail",
+                    b"k\0::tail"
+                )
+                .unwrap()
+            );
+            assert!(
+                !native_oo_variable_resolver_matches(protocol, RuntimeRoot, b"::k", b"::k")
+                    .unwrap()
+            );
+        }
+        for protocol in [
+            NativeNameProtocol::C(TclVersion::V8_4),
+            NativeNameProtocol::C(TclVersion::V8_5),
+            NativeNameProtocol::Jim084,
+        ] {
+            assert!(
+                native_oo_variable_resolver_matches(protocol, CompiledPrimary, b"k", b"k").is_err()
+            );
+        }
+    }
+
+    #[test]
     fn validation_and_counted_declaration_identity_remain_independent() {
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             let protocol = NativeNameProtocol::C(version);
@@ -329,5 +528,87 @@ mod tests {
                 .is_err()
         );
         assert!(native_oo_variable_slot(NativeNameProtocol::C(TclVersion::V8_4), None).is_err());
+    }
+}
+
+#[cfg(test)]
+mod explicit_variable_tests {
+    use super::*;
+
+    #[test]
+    fn explicit_local_and_varname_lookup_keep_their_independent_byte_extents() {
+        // Source proof: naming.tcloo.explicit-variable-object-lookup-source
+        // docs/design/analysis/name-resolution-proofs/explicit-variable-object-lookup-source.md
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let protocol = NativeNameProtocol::C(version);
+            assert_eq!(
+                native_oo_explicit_variable_local_name(protocol, b"k\0::Q")
+                    .unwrap()
+                    .unwrap(),
+                b"k"
+            );
+            assert!(
+                native_oo_explicit_variable_local_name(protocol, b"N::k")
+                    .unwrap()
+                    .is_err()
+            );
+            assert_eq!(
+                native_oo_explicit_variable_local_name(protocol, b"k\xc0\x80")
+                    .unwrap()
+                    .unwrap(),
+                b"k\xc0\x80"
+            );
+            let input =
+                native_oo_varname_lookup_bytes(protocol, b"::object", b"k\0tail", b"k\0tail")
+                    .unwrap();
+            assert_eq!(
+                input,
+                if version == TclVersion::V9_0 {
+                    b"::object::k".as_slice()
+                } else {
+                    b"::object::k\0tail".as_slice()
+                }
+            );
+            assert_eq!(
+                native_oo_varname_lookup_bytes(
+                    protocol,
+                    b"::object",
+                    b"::global\0tail",
+                    b"ignored"
+                )
+                .unwrap(),
+                b"::global\0tail"
+            );
+            assert_eq!(
+                native_oo_variable_key_report(protocol, b"k\0tail").unwrap(),
+                b"k"
+            );
+            assert!(
+                !native_oo_private_variable_matches(
+                    protocol,
+                    NativeOoPrivateVariablePurpose::ExplicitLink,
+                    b"k\0tail",
+                    b"k\0tail"
+                )
+                .unwrap()
+            );
+            assert_eq!(
+                native_oo_private_variable_matches(
+                    protocol,
+                    NativeOoPrivateVariablePurpose::Varname,
+                    b"k\0tail",
+                    b"k\0tail"
+                )
+                .unwrap(),
+                version >= TclVersion::V9_0
+            );
+        }
+        assert!(
+            native_oo_explicit_variable_local_name(NativeNameProtocol::C(TclVersion::V8_5), b"k")
+                .is_err()
+        );
+        assert!(
+            native_oo_varname_lookup_bytes(NativeNameProtocol::Jim084, b"N", b"k", b"k").is_err()
+        );
     }
 }

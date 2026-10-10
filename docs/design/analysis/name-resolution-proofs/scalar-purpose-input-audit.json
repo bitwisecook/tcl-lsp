@@ -1,0 +1,549 @@
+[
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/jim0.84.txt",
+    "sha256": "13ea60dc1dc2aca746dfd5a86b22f061928fcfe2c3027deb52fb9ee7f6ff82a2",
+    "source_sha256": "40d46d5a6becb34ef483c8d29a49abe0e74408880d72532b7bf5ebe6b7db2393",
+    "retained_rows": 32,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt",
+    "sha256": "b2a76489fbc21d1928a2bcc6712aad4a48f7260db9731ff96ae5b276ef7423c4",
+    "source_sha256": "07998ce7fd101f2b8faad99ae82dc664518c07917a1791e8c3fb57e49c167bcb",
+    "retained_rows": 14,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {}
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt",
+    "sha256": "d7925477646a3b55cc39183531741b817a2bec418262f7d2bee95e1c43bb1f53",
+    "source_sha256": "07998ce7fd101f2b8faad99ae82dc664518c07917a1791e8c3fb57e49c167bcb",
+    "retained_rows": 14,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {}
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt",
+    "sha256": "e2897daca308717db608ec26584bd5f88cc37aa51a90e0b9b49c0d39bf97dee1",
+    "source_sha256": "07998ce7fd101f2b8faad99ae82dc664518c07917a1791e8c3fb57e49c167bcb",
+    "retained_rows": 14,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {}
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt",
+    "sha256": "b740babf3a8ba0c945ad09c29952c0ad8d2a36e54e838f3b523ec59266c967d0",
+    "source_sha256": "07998ce7fd101f2b8faad99ae82dc664518c07917a1791e8c3fb57e49c167bcb",
+    "retained_rows": 14,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {}
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt",
+    "sha256": "b740babf3a8ba0c945ad09c29952c0ad8d2a36e54e838f3b523ec59266c967d0",
+    "source_sha256": "07998ce7fd101f2b8faad99ae82dc664518c07917a1791e8c3fb57e49c167bcb",
+    "retained_rows": 14,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {}
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/long84/8.4.20.tsv",
+    "sha256": "b8b4fda4caffa67734ee9d362536c94d49085c01eeba07eb04c3db416bc6d3f8",
+    "source_sha256": "dbfa61509809d5d20c0b89e9334f7b95c828bb89d888440bfa110ab49992ef87",
+    "retained_rows": 40,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0,
+      "compile_exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/number/8.4.20.jsonl",
+    "sha256": "b29bfa32c30dc91868cd1b83b85acc153131aff498a85ef9410db3c495f9dbf6",
+    "source_sha256": "3d53e8fc665cfdd5ed0477896cb6638d9bd23ed9412157cd9bdbf7923b6838e7",
+    "retained_rows": 1,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0,
+      "compile_exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/number/8.5.19.jsonl",
+    "sha256": "96d980edda071e074e8e3a856462289cba99ce08a45038743aac9eea94979a05",
+    "source_sha256": "3d53e8fc665cfdd5ed0477896cb6638d9bd23ed9412157cd9bdbf7923b6838e7",
+    "retained_rows": 48,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0,
+      "compile_exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/number/8.6.18.jsonl",
+    "sha256": "7630b437a6bfd8515541e6f4341dc072dfa370f3cf7012ea2d531140d71a951d",
+    "source_sha256": "3d53e8fc665cfdd5ed0477896cb6638d9bd23ed9412157cd9bdbf7923b6838e7",
+    "retained_rows": 48,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0,
+      "compile_exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/number/9.0.4.jsonl",
+    "sha256": "7f4cba841f265f98560384518977f52a119af833fdd60d7fce301dd0ab059043",
+    "source_sha256": "3d53e8fc665cfdd5ed0477896cb6638d9bd23ed9412157cd9bdbf7923b6838e7",
+    "retained_rows": 48,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0,
+      "compile_exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/number/9.1.0.jsonl",
+    "sha256": "7f4cba841f265f98560384518977f52a119af833fdd60d7fce301dd0ab059043",
+    "source_sha256": "3d53e8fc665cfdd5ed0477896cb6638d9bd23ed9412157cd9bdbf7923b6838e7",
+    "retained_rows": 48,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0,
+      "compile_exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/number/Jim.jsonl",
+    "sha256": "b29bfa32c30dc91868cd1b83b85acc153131aff498a85ef9410db3c495f9dbf6",
+    "source_sha256": "3d53e8fc665cfdd5ed0477896cb6638d9bd23ed9412157cd9bdbf7923b6838e7",
+    "retained_rows": 1,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0,
+      "compile_exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/character-units-8.4.20.txt",
+    "sha256": "6a83ceeff99204e5605dc0967f54d04993c1be4681155f0609bb63aa813d79b0",
+    "source_sha256": "c6ac9da843f7f584a9f324879eba8c5070c1546ff9b10956bdfa7cbeb4a414cd",
+    "retained_rows": 14,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/character-units-8.5.19.txt",
+    "sha256": "6a83ceeff99204e5605dc0967f54d04993c1be4681155f0609bb63aa813d79b0",
+    "source_sha256": "c6ac9da843f7f584a9f324879eba8c5070c1546ff9b10956bdfa7cbeb4a414cd",
+    "retained_rows": 14,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/character-units-8.6.18.txt",
+    "sha256": "6bc4c59684366dfe6aa32bc792d1804c445cb277c7f9679ba8e615fd3cd7cbdd",
+    "source_sha256": "c6ac9da843f7f584a9f324879eba8c5070c1546ff9b10956bdfa7cbeb4a414cd",
+    "retained_rows": 14,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/character-units-9.0.4.txt",
+    "sha256": "2294bb7ac85826ef3c0d81720847c8d5545a2b54750249e97209492d26ddf307",
+    "source_sha256": "c6ac9da843f7f584a9f324879eba8c5070c1546ff9b10956bdfa7cbeb4a414cd",
+    "retained_rows": 14,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/character-units-9.1.0.txt",
+    "sha256": "2294bb7ac85826ef3c0d81720847c8d5545a2b54750249e97209492d26ddf307",
+    "source_sha256": "c6ac9da843f7f584a9f324879eba8c5070c1546ff9b10956bdfa7cbeb4a414cd",
+    "retained_rows": 14,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.4.20.txt",
+    "sha256": "6ab2fbd7707e36c44a2ffddaf7fd478a3f586543567a60551b652e6f90018fe6",
+    "source_sha256": "4b91169c83461427ccd866387fe6d3b86a493024efb3734355370571c9f13381",
+    "retained_rows": 42,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.5.19.txt",
+    "sha256": "e373ed7c508b08276f6cc5bc6d3a36e23de941c82bb4ef7b1a0c34dc08ade2b6",
+    "source_sha256": "4b91169c83461427ccd866387fe6d3b86a493024efb3734355370571c9f13381",
+    "retained_rows": 42,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.6.18.txt",
+    "sha256": "df673c7adf2c11b929839046b10f80fcfd76111e95e39ef35d91402c9e45dc2f",
+    "source_sha256": "4b91169c83461427ccd866387fe6d3b86a493024efb3734355370571c9f13381",
+    "retained_rows": 42,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-9.0.4.txt",
+    "sha256": "a8e723c838038a06c57b7135cceb7ff55f1b1ffc1d5d0967c62d11363916a55c",
+    "source_sha256": "4b91169c83461427ccd866387fe6d3b86a493024efb3734355370571c9f13381",
+    "retained_rows": 42,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-9.1.0.txt",
+    "sha256": "a8e723c838038a06c57b7135cceb7ff55f1b1ffc1d5d0967c62d11363916a55c",
+    "source_sha256": "4b91169c83461427ccd866387fe6d3b86a493024efb3734355370571c9f13381",
+    "retained_rows": 42,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/octal-8.4.20.txt",
+    "sha256": "3bfdc1822860f80b7187db6926a30b27f8150f5b00fc48d43f557a0346c516aa",
+    "source_sha256": "a56ade349a9bdf1ae4ed4003a107529c81a6df114f13badefc78db89d24b2c6d",
+    "retained_rows": 36,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/octal-8.5.19.txt",
+    "sha256": "bf5a0c422954995b28a506e5600236ad64cf3d94b11d677f87f1f347920c9b2d",
+    "source_sha256": "a56ade349a9bdf1ae4ed4003a107529c81a6df114f13badefc78db89d24b2c6d",
+    "retained_rows": 36,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/octal-8.6.18.txt",
+    "sha256": "bf5a0c422954995b28a506e5600236ad64cf3d94b11d677f87f1f347920c9b2d",
+    "source_sha256": "a56ade349a9bdf1ae4ed4003a107529c81a6df114f13badefc78db89d24b2c6d",
+    "retained_rows": 36,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/octal-9.0.4.txt",
+    "sha256": "fa5c2e88796e58ee5b80e96dc1fc0f5c325af4842ef461bce7aff179825f699f",
+    "source_sha256": "a56ade349a9bdf1ae4ed4003a107529c81a6df114f13badefc78db89d24b2c6d",
+    "retained_rows": 36,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/octal-9.1.0.txt",
+    "sha256": "fa5c2e88796e58ee5b80e96dc1fc0f5c325af4842ef461bce7aff179825f699f",
+    "source_sha256": "a56ade349a9bdf1ae4ed4003a107529c81a6df114f13badefc78db89d24b2c6d",
+    "retained_rows": 36,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-8.4.20.txt",
+    "sha256": "31aa8e9bea39aea49c29dfdc7e7087823695515e35e16ccceb818ac4c0143276",
+    "source_sha256": "0e4bb7e61ec796750313b8348ebe029992912f73d5cdc8238462a08331489d9c",
+    "retained_rows": 216,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-8.5.19.txt",
+    "sha256": "aa193024e3865180e14975e184e06001ef8906b7fa3166cff94898685e7dc1ec",
+    "source_sha256": "0e4bb7e61ec796750313b8348ebe029992912f73d5cdc8238462a08331489d9c",
+    "retained_rows": 216,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-8.6.18.txt",
+    "sha256": "313377afd2d717d66cedb8c4667435b51b362fec8808e9fdffa884351823570f",
+    "source_sha256": "0e4bb7e61ec796750313b8348ebe029992912f73d5cdc8238462a08331489d9c",
+    "retained_rows": 216,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-9.0.4.txt",
+    "sha256": "fc1db391f7a4be41efdbd162bed3d3d9ffbdffa865e9af954d650796c63f7365",
+    "source_sha256": "0e4bb7e61ec796750313b8348ebe029992912f73d5cdc8238462a08331489d9c",
+    "retained_rows": 216,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-9.1.0.txt",
+    "sha256": "fc1db391f7a4be41efdbd162bed3d3d9ffbdffa865e9af954d650796c63f7365",
+    "source_sha256": "0e4bb7e61ec796750313b8348ebe029992912f73d5cdc8238462a08331489d9c",
+    "retained_rows": 216,
+    "original_output_digest_or_embedded_projection_match": false,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/jim-error-state.txt",
+    "sha256": "582df48b9f8982ab85c1cfad0d0df62b26a6d61e275c658f28b0bc5da0a34131",
+    "source_sha256": "dd69a9e2891203f84bb71d2e655f9ccaca1f538412507fc45bd4307cae4ca55a",
+    "retained_rows": 33,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.4.20.txt",
+    "sha256": "b5b7a67079a66678e952dc4f31facbb2e1c45bc1c9f6bee014075ff934467835",
+    "source_sha256": "4d5a47a092dbfec1a2b810bad562757885de86f36510c839ed7b3500b416b4f4",
+    "retained_rows": 18,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {}
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.5.19.txt",
+    "sha256": "d8d193480f3c3763898958cafc80d4d3d208a0a4d872e7f4ef5bb2c837188b8b",
+    "source_sha256": "4d5a47a092dbfec1a2b810bad562757885de86f36510c839ed7b3500b416b4f4",
+    "retained_rows": 18,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {}
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.6.18.txt",
+    "sha256": "ec1be4791eb560e0f7a5c9267b8f4191ce8bf5f61929645d9d01dfb9d1c6cb36",
+    "source_sha256": "4d5a47a092dbfec1a2b810bad562757885de86f36510c839ed7b3500b416b4f4",
+    "retained_rows": 18,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {}
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.0.4.txt",
+    "sha256": "afef4104c313d2d67a680d0eef5dacbdd8ff26b38617f3f5062d95986eecc229",
+    "source_sha256": "4d5a47a092dbfec1a2b810bad562757885de86f36510c839ed7b3500b416b4f4",
+    "retained_rows": 18,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {}
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.1.0.txt",
+    "sha256": "afef4104c313d2d67a680d0eef5dacbdd8ff26b38617f3f5062d95986eecc229",
+    "source_sha256": "4d5a47a092dbfec1a2b810bad562757885de86f36510c839ed7b3500b416b4f4",
+    "retained_rows": 18,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {}
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/8.4.20.txt",
+    "sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+    "source_sha256": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/8.5.19.txt",
+    "sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+    "source_sha256": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/8.6.18.txt",
+    "sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+    "source_sha256": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/9.0.4.txt",
+    "sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+    "source_sha256": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/9.1.0.txt",
+    "sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+    "source_sha256": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim.txt",
+    "sha256": "8ccd214792b0b576bb9fdc8f4e3095a5ad7f2b99eb97a5aa3ec626470b1c7988",
+    "source_sha256": "2fceee0127a18505c754ab255b89bb33d14abcce0485adb1885d07152d81428d",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-8.4.20.txt",
+    "sha256": "95dee75b304d18c1d8dcade994240a6967038eb475987c3f08134ef0d2d495a8",
+    "source_sha256": "4c25d07c8527043cfa982c2b0452d19aa9d144091a5e222a7033e1a274c5fa64",
+    "retained_rows": 16,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-8.5.19.txt",
+    "sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+    "source_sha256": "4c25d07c8527043cfa982c2b0452d19aa9d144091a5e222a7033e1a274c5fa64",
+    "retained_rows": 16,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-8.6.18.txt",
+    "sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+    "source_sha256": "4c25d07c8527043cfa982c2b0452d19aa9d144091a5e222a7033e1a274c5fa64",
+    "retained_rows": 16,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-9.0.4.txt",
+    "sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+    "source_sha256": "4c25d07c8527043cfa982c2b0452d19aa9d144091a5e222a7033e1a274c5fa64",
+    "retained_rows": 16,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-9.1.0.txt",
+    "sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+    "source_sha256": "4c25d07c8527043cfa982c2b0452d19aa9d144091a5e222a7033e1a274c5fa64",
+    "retained_rows": 16,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-math-hooks.txt",
+    "sha256": "f90f2e106c90f9db8ae2fe642fc71c2c67b64293b5c805c3ce1d362757607ea2",
+    "source_sha256": "62015c23986f1b04726599a367a4988817f821a87936da6228c1878cc0d57d73",
+    "retained_rows": 16,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-timing-8.4.20.txt",
+    "sha256": "53d9eae361301f97342daf050a779bf87131c7889ad27d652a894019fe5926b9",
+    "source_sha256": "51836eea19f0e4a025a169f06c368cbf7da6fff39c8e1471c7269e0682ba2a90",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-timing-8.5.19.txt",
+    "sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+    "source_sha256": "51836eea19f0e4a025a169f06c368cbf7da6fff39c8e1471c7269e0682ba2a90",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-timing-8.6.18.txt",
+    "sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+    "source_sha256": "51836eea19f0e4a025a169f06c368cbf7da6fff39c8e1471c7269e0682ba2a90",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-timing-9.0.4.txt",
+    "sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+    "source_sha256": "51836eea19f0e4a025a169f06c368cbf7da6fff39c8e1471c7269e0682ba2a90",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-timing-9.1.0.txt",
+    "sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+    "source_sha256": "51836eea19f0e4a025a169f06c368cbf7da6fff39c8e1471c7269e0682ba2a90",
+    "retained_rows": 4,
+    "original_output_digest_or_embedded_projection_match": true,
+    "original_status_fields": {
+      "exit": 0
+    }
+  }
+]

@@ -77,6 +77,7 @@ pub mod native_bytecode;
 pub mod native_compiled_index;
 pub mod native_end_offset;
 pub mod native_equality;
+pub mod native_frame_error;
 pub mod native_glob;
 pub mod native_instruction_name;
 pub mod native_jim_index;

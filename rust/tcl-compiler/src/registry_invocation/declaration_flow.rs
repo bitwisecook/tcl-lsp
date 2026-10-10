@@ -34,9 +34,19 @@ pub(crate) struct DeclarationInvocationFlow {
     pub list_loop: bool,
     pub accumulator_writes: Vec<String>,
     pub removes: Vec<String>,
+    /// Genuine written post-head operands of conditional destructions.
+    /// Diagnostic spellings cannot reconstruct their native cell addresses.
+    pub removal_arguments: Vec<usize>,
     pub aliases: Vec<String>,
+    pub caller_frame_aliases: Vec<String>,
     pub caller_alias_operands: Vec<crate::ir::WordExpr>,
     pub effects: DeclarationEffectKnowledge,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DeclarationFrameReach {
+    Local,
+    OtherFrame,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,6 +56,15 @@ pub(crate) struct DeclarationEffectKnowledge {
     /// Original metadata leaves the command lookup table unchanged. This
     /// permits retaining a later declaration layout, never entered dispatch.
     pub lookup_stable: bool,
+    /// Selected intrinsic can observe or select a different call frame.
+    /// Nested body effects retain their independently parsed ownership.
+    frame_reach: DeclarationFrameReach,
+}
+
+impl DeclarationEffectKnowledge {
+    pub(crate) fn frame_reachable(&self) -> bool {
+        self.frame_reach == DeclarationFrameReach::OtherFrame
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -168,32 +187,8 @@ pub(crate) fn declaration_invocation_flow(
                 )
             })?;
         let quoted_operands = declared_quoted_operands(&facts, arguments, &flow)?;
-        let mut selected = DeclarationInvocationFlow {
-            flow,
-            completion,
-            effective,
-            quoted_operands,
-            writes: Vec::new(),
-            possible_output_writes: Vec::new(),
-            reads: Vec::new(),
-            name_queries: Vec::new(),
-            loop_bindings: Vec::new(),
-            literal_stores: Vec::new(),
-            literal_store_operand: None,
-            increments: Vec::new(),
-            first_list_iteration: None,
-            list_loop: false,
-            accumulator_writes: Vec::new(),
-            removes: Vec::new(),
-            aliases: Vec::new(),
-            caller_alias_operands: Vec::new(),
-            effects: DeclarationEffectKnowledge {
-                unknown_writes: false,
-                unknown_reads: facts.traits.contains(Traits::PERFORMS_SUBSTITUTION)
-                    || facts.effects.callback().kinds.is_unknown(),
-                lookup_stable: declared_lookup_stable(&facts),
-            },
-        };
+        let mut selected =
+            declaration_flow_projection(flow, completion, effective, quoted_operands, &facts);
         retain_declared_local_values(&mut selected, &facts, arguments, dialect);
         retain_declared_aliases_and_case(&mut selected, registry, &facts, arguments, dialect);
         retain_declared_variable_roles(&mut selected, &facts, arguments, &values, dialect)?;
@@ -221,6 +216,52 @@ pub(crate) fn declaration_invocation_flow(
         agreed = Some(selected);
     }
     agreed
+}
+
+fn declaration_flow_projection(
+    flow: ScriptBodyFlow,
+    completion: tcl_registry::completion_route::InvocationCompletionRoute,
+    effective: EffectiveCommandWords,
+    quoted_operands: Vec<tcl_registry::body_execution::BodyOperand>,
+    facts: &tcl_registry::InvocationFacts,
+) -> DeclarationInvocationFlow {
+    DeclarationInvocationFlow {
+        flow,
+        completion,
+        effective,
+        quoted_operands,
+        writes: Vec::new(),
+        possible_output_writes: Vec::new(),
+        reads: Vec::new(),
+        name_queries: Vec::new(),
+        loop_bindings: Vec::new(),
+        literal_stores: Vec::new(),
+        literal_store_operand: None,
+        increments: Vec::new(),
+        first_list_iteration: None,
+        list_loop: false,
+        accumulator_writes: Vec::new(),
+        removes: Vec::new(),
+        removal_arguments: Vec::new(),
+        aliases: Vec::new(),
+        caller_frame_aliases: Vec::new(),
+        caller_alias_operands: Vec::new(),
+        effects: DeclarationEffectKnowledge {
+            unknown_writes: false,
+            unknown_reads: facts.traits.contains(Traits::PERFORMS_SUBSTITUTION)
+                || facts.effects.callback().kinds.is_unknown(),
+            lookup_stable: declared_lookup_stable(facts),
+            frame_reach: if facts
+                .traits
+                .intersects(tcl_registry::traits::FRAME_REACH_TRAITS)
+                || facts.frame_effect.is_some()
+            {
+                DeclarationFrameReach::OtherFrame
+            } else {
+                DeclarationFrameReach::Local
+            },
+        },
+    }
 }
 
 /// Original dictionary mapping under the declaration's selected handler.
@@ -487,6 +528,9 @@ fn retain_declared_aliases_and_case(
             if let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition {
                 if let Some(local) = alias.local.literal() {
                     selected.aliases.push(local.to_owned());
+                    if declared_alias_targets_caller(alias, dialect) {
+                        selected.caller_frame_aliases.push(local.to_owned());
+                    }
                 } else {
                     selected.effects.unknown_writes = true;
                 }
@@ -501,6 +545,30 @@ fn retain_declared_aliases_and_case(
         // Missing or dynamic alias destinations do not close the declared
         // local frame. Written operands cannot reconstruct a local tail.
         selected.effects.unknown_writes = true;
+    }
+}
+
+fn declared_alias_targets_caller(
+    alias: &tcl_registry::VariableCellAliasTransition,
+    dialect: tcl_registry::InvocationDialect,
+) -> bool {
+    // naming.tcloo.original-declared-receiver-caller-traits
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
+    use tcl_registry::state_transition::{CallerFrameSelection, VariableAliasTarget};
+    let VariableAliasTarget::CallerSelectedFrame { frame, variable } = &alias.target else {
+        return false;
+    };
+    // A computed target keeps the conditional alias operation unresolved,
+    // even when its destination and default caller frame are authored.
+    if variable.literal().is_none() {
+        return false;
+    }
+    match frame {
+        CallerFrameSelection::DefaultCaller => true,
+        CallerFrameSelection::Explicit(subject) => subject
+            .literal()
+            .and_then(|value| tcl_registry::FrameLevel::parse_for_dialect(value, dialect))
+            .is_some_and(tcl_registry::FrameLevel::is_caller_frame),
     }
 }
 
@@ -568,6 +636,9 @@ fn retain_declared_variable_roles(
         } else if facts.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Unset)
         {
             selected.removes.push(name.clone());
+            if let Some(written) = selected.effective.written_argument(argument) {
+                selected.removal_arguments.push(written);
+            }
         } else if role == ArgRole::VarWrite
             && conditional_output
             && output.as_ref().is_none_or(|outputs| {

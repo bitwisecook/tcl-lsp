@@ -69,13 +69,21 @@
 //! * Cross-document refactors (move to file, split namespace)
 //!   are not supported.
 
+mod diagnostic_currency;
+pub use diagnostic_currency::DiagnosticEditSource;
+
+mod spec_notice;
+pub use spec_notice::{SpecPackNoticeKind, SpecPackNoticeSubject};
+
+mod diagnostic_context;
+pub use diagnostic_context::ContextDiagnosticData;
+
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, line_suppressed};
 use tcl_compiler::compiler_checks::DiagCode;
-use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_lexer::{LineIndex, Utf16Col};
 use tcl_registry::events::{DataCollectionAction, EventRegistry};
 
@@ -225,10 +233,14 @@ fn lift_fixes(
     actions: &mut Vec<CodeAction>,
     fixes: &[tcl_compiler::analyser::CodeFix],
     diag_message: &str,
-    source: &str,
+    current: &DiagnosticEditSource<'_>,
     line_index: &LineIndex,
 ) {
+    let source = current.source();
     for fix in fixes {
+        if !current.contains_span(fix.span) {
+            continue;
+        }
         let fix_start = line_index.position_at_utf16(fix.span.start(), source);
         let fix_end = line_index.position_at_utf16(fix.span.end(), source);
         let title = if fix.description.is_empty() {
@@ -271,15 +283,22 @@ fn push_brace_expr_refactors(
     source: &str,
     range: LspRange,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
+    current: &DiagnosticEditSource<'_>,
     line_index: &LineIndex,
 ) {
     for diag in diagnostics {
+        if !current.matches_analyser_diagnostic(diag) {
+            continue;
+        }
         if diag.code != DiagCode::W100 {
             continue;
         }
         let Some(fix) = diag.fixes.first() else {
             continue;
         };
+        if !current.contains_span(fix.span) {
+            continue;
+        }
         let fix_start = line_index.position_at_utf16(fix.span.start(), source);
         let fix_end = line_index.position_at_utf16(fix.span.end(), source);
         if range.start_line > fix_end.line || range.end_line < fix_start.line {
@@ -373,12 +392,27 @@ pub fn code_actions_in_program(
     let Some(analysis) = analysis else {
         return Vec::new();
     };
+    // Implementation contract: naming.editor.original-diagnostic-edit-currency
+    // docs/design/analysis/name-resolution-proofs/original-diagnostic-edit-currency.md
+    let Some(current) = DiagnosticEditSource::for_analysis(source, analysis) else {
+        return Vec::new();
+    };
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
 
-    push_brace_expr_refactors(&mut actions, source, range, diagnostics, &line_index);
+    push_brace_expr_refactors(
+        &mut actions,
+        source,
+        range,
+        diagnostics,
+        &current,
+        &line_index,
+    );
 
     for diag in diagnostics {
+        if !current.matches_analyser_diagnostic(diag) {
+            continue;
+        }
         let diag_start = line_index.position_at_utf16(diag.span.start(), source);
         let diag_end = line_index.position_at_utf16(diag.span.end(), source);
         let diag_range = LspRange {
@@ -410,19 +444,15 @@ pub fn code_actions_in_program(
             &mut actions,
             &diag.fixes,
             &diag.message,
-            source,
+            &current,
             &line_index,
         );
     }
 
     // Range-based refactors / source actions that don't depend on a diagnostic.
-    actions.extend(continuation_comment_actions(
-        source,
-        range,
-        crate::profile_for_analysis(analysis),
-    ));
+    actions.extend(continuation_comment_actions(source, range, analysis));
     actions.extend(ip_conversion_actions(source, range, &line_index));
-    actions.extend(expr_rewrite_actions(source, range, &line_index));
+    actions.extend(expr_rewrite_actions(source, range, analysis, &line_index));
     actions.extend(docstring_actions(
         source,
         range,
@@ -536,8 +566,10 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
 /// join — this lift is generic over whatever the checks carry, never a
 /// per-constructor special case.
 ///
-/// The caller passes the `run_all_checks` output
-/// (e.g. `CompilerDiagnostics::checks`).
+/// The caller captures [`DiagnosticEditSource`] from its actual current analysis
+/// and passes the `run_all_checks` output (e.g. `CompilerDiagnostics::checks`).
+/// Each check must independently retain matching issuer source/config/Registry;
+/// absent provenance supplies no quick-fix or suppression edit.
 ///
 /// `disabled` is the resolved per-check toggle set
 /// (`tclLsp.diagnostics.<CODE> = false`) and `suppressed` the analyser's
@@ -550,15 +582,21 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
 /// `run_all_checks` output, so it applies both filters here.
 #[must_use]
 pub fn check_diagnostic_actions<S: std::hash::BuildHasher, H: BuildHasher, I: BuildHasher>(
-    source: &str,
+    current: &DiagnosticEditSource<'_>,
     range: LspRange,
     checks: &[tcl_compiler::compiler_checks::Diagnostic],
     disabled: &std::collections::HashSet<String, S>,
     suppressed: &HashMap<i32, HashSet<String, I>, H>,
 ) -> Vec<CodeAction> {
+    // Implementation contract: naming.editor.original-diagnostic-edit-currency
+    // docs/design/analysis/name-resolution-proofs/original-diagnostic-edit-currency.md
+    let source = current.source();
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
     for diag in checks {
+        if !current.matches_compiler_diagnostic(diag) {
+            continue;
+        }
         if disabled.contains(diag.code.as_str()) {
             continue;
         }
@@ -584,7 +622,7 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher, H: BuildHasher, I: Bu
             &mut actions,
             &diag.fixes,
             &diag.message,
-            source,
+            &current,
             &line_index,
         );
         if is_shimmer_family(diag.code)
@@ -668,79 +706,19 @@ fn ranges_overlap(a: LspRange, b: LspRange) -> bool {
     a_start <= b_end && b_start <= a_end
 }
 
-/// `package require` suggestions for an **unresolved, namespace-qualified
-/// command head** the request range touches: when the head's leading
-/// namespace names a package the registry knows, offer
-/// `Add 'package require <pkg>'`.
+/// Reviewed package-loading suggestions for an original unresolved,
+/// namespace-qualified command head touched by the request. The actual full
+/// context owns the catalogue, and matching a namespace to package metadata
+/// supplies a suggestion only: it establishes neither installation nor which
+/// commands that package will provide.
 ///
-/// # Why this needs evidence
-///
-/// Adding a `package require` is not a harmless suggestion.  Applying it
-/// changes what the interpreter loads and runs the package's initialisation
-/// code, so it must be offered only where there is real evidence a package is
-/// missing.  Taking whichever identifier-like word sits under the cursor and
-/// fuzzy-matching its prefix, with no notion of context, would offer
-/// `package require http` for a cursor anywhere on `http::geturl` in *any* of
-/// these:
-///
-/// ```tcl
-/// # Documentation: http::geturl
-/// set example "http::geturl"
-/// dict set docs command http::geturl
-/// proc http::geturl {} {}
-/// http::geturl
-/// ```
-///
-/// The first four are data or a definition.  Only the last is a call — and
-/// even it may be satisfied locally.
-///
-/// # The gates
-///
-/// All must hold, and each reads a fact the analyser or the registry already
-/// computed rather than scanning text:
-///
-/// 1. **A proven command head.**  The request range must touch the head-token
-///    span of a recorded command invocation
-///    (`AnalysisResult::command_invocations`).  A comment, a quoted or braced
-///    datum, an argument word, and a `proc` definition's *name* word are none
-///    of them command heads, so none of them reach this.
-/// 2. **A statically-written name.**  A computed head (`$cmd`, `[pick]`, an
-///    `{*}`-expanded word) is recorded as an invocation, but its written text
-///    is not the command that will run, so there is nothing to match a
-///    package against.
-/// 3. **The namespace names a package.**  The head's leading namespace
-///    component must *exactly* match a package in the registry catalogue.
-///    This replaces the containment ranking, which was the mechanism that
-///    turned a passing textual resemblance into a suggestion to load code.
-///    `json::write` in a file with no `package require json` is evidence;
-///    `jsonify` is not.
-/// 4. **Resolution finds nothing.**  The name must resolve to no registry
-///    command and to no definition reachable from the call —
-///    [`crate::definition::resolve_called_proc`] is the shared resolver
-///    go-to-definition and find-references use, so it already accounts for
-///    namespace visibility, `namespace import` (including `-force` shadows),
-///    static `rename`, and `interp alias`.  A file carrying a dynamic package
-///    provider (`AnalysisResult::has_dynamic_providers`) is skipped whole: a
-///    computed `package require` / `load` may register the command at run
-///    time, which is the same reason W123 stands down there.
-/// 5. **The package is not already required.**
-///
-/// A command the registry *does* know but whose package is missing is W120's
-/// business, not this provider's: W120 carries a precise registry-derived
-/// insertion fix that the generic `diag.fixes` lift already surfaces.  This is
-/// the recovery path for names the registry has never heard of.
-///
-/// `context_diagnostics` are the diagnostics the editor sent with the request.
-/// An unknown-command diagnostic among them corroborates gate 4 when the
-/// editor's view is fresher than the analysis in hand; it never substitutes
-/// for gate 1.
-///
-/// # Limits
-///
-/// The catalogue comes from the registry's `required_package` /
-/// `tcllib_package` fields, so a locally-installed but unregistered package is
-/// never suggested.  A namespace matching a package name is strong evidence,
-/// not proof that the package provides this particular command.
+/// Native advice requires the genuine emitting W123 subject and its original
+/// static lookup. Explicit Logical advice requires its positively sealed whole
+/// source vector, shared positioned absence and whole-program declarations.
+/// Dynamic providers, unsupported original names and existing selected source
+/// requirements/provisions withdraw advice. External diagnostic prose supplies
+/// no substitute for the original owner. Insertion geometry comes from the same
+/// root-source owner as W120, preserving split commands and input grammar.
 #[must_use]
 pub fn package_require_actions(
     source: &str,
@@ -758,17 +736,9 @@ pub fn package_require_actions(
     )
 }
 
-/// [`package_require_actions`] with the caller's whole-program export view
-/// attached — the entry point a host with a workspace index should call.
-///
-/// Gate 4 ("nothing answers to this head") runs the shared call resolver, so
-/// it must run it with the same context go-to-definition uses or the two can
-/// disagree about whether a call is satisfied.
-///
-/// In practice the `-force` shadow cannot change this provider's answer: gate
-/// 3 only lets a *package-qualified* head through, and a `-force` import
-/// rewrites the meaning of a **bare** name in the importing namespace. The
-/// context is threaded anyway so the resolver call is not the odd one out.
+/// Package suggestions under the caller's whole-program declaration view.
+/// Workspace declarations may withdraw source advice; they cannot establish a
+/// Native slot, original source producer or package installation.
 #[must_use]
 pub fn package_require_actions_in_program(
     source: &str,
@@ -781,7 +751,12 @@ pub fn package_require_actions_in_program(
     let Some(analysis) = analysis else {
         return Vec::new();
     };
-    if analysis.has_dynamic_providers {
+    if analysis.has_dynamic_providers
+        || analysis.body_lexer_config.is_none_or(|config| {
+            !analysis
+                .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        })
+    {
         return Vec::new();
     }
     let line_index = LineIndex::new(source);
@@ -795,17 +770,32 @@ pub fn package_require_actions_in_program(
     ) else {
         return Vec::new();
     };
-    let insert_line = package_insert_line(source);
+    let Some(insert_offset) =
+        tcl_compiler::registry_invocation::source_structure::original_package_require_insert_offset(
+            source, analysis,
+        )
+    else {
+        return Vec::new();
+    };
+    let insertion = line_index.position_at_utf16(insert_offset, source);
+    let separator = if usize::try_from(insert_offset).ok() == Some(source.len())
+        && !source.is_empty()
+        && !source.ends_with('\n')
+    {
+        "\n"
+    } else {
+        ""
+    };
     vec![CodeAction {
         title: format!("Add 'package require {package}'"),
         edits: vec![crate::rename::TextEdit {
             range: LspRange {
-                start_line: insert_line,
-                start_character: 0,
-                end_line: insert_line,
-                end_character: 0,
+                start_line: insertion.line,
+                start_character: insertion.character.get(),
+                end_line: insertion.line,
+                end_character: insertion.character.get(),
             },
-            new_text: format!("package require {package}\n"),
+            new_text: format!("{separator}package require {package}\n"),
         }],
         kind: ActionKind::QuickFix,
         command: None,
@@ -821,11 +811,12 @@ fn missing_package_for_head_at(
     range: LspRange,
     resolution: crate::definition::CallResolution<'_>,
     analysis: &AnalysisResult,
-    context_diagnostics: &[ContextDiagnostic],
+    _context_diagnostics: &[ContextDiagnostic],
     line_index: &LineIndex,
 ) -> Option<String> {
-    let registry = resolution.registry?;
-    let catalogue = package_catalogue(registry);
+    resolution.registry?;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let catalogue = package_catalogue(&context);
     for invocation in &analysis.command_invocations {
         let start = line_index.position_at_utf16(invocation.range.start(), source);
         let end = line_index.position_at_utf16(invocation.range.end(), source);
@@ -839,37 +830,182 @@ fn missing_package_for_head_at(
         if !ranges_overlap(head_range, range) {
             continue;
         }
-        // Gate 2: a statically-written name.
-        if !is_static_command_name(&invocation.name) {
-            continue;
+        if let Some(input) = invocation.original_name_input.as_ref() {
+            let Some(key) = input.original_word_key() else {
+                continue;
+            };
+            let Some(lookup) = invocation.original_lookup.as_ref().filter(|lookup| {
+                lookup.name_input() == input
+                    && lookup.site().source.source_image() == key.source_image()
+                    && lookup.site().offset == invocation.range.start()
+            }) else {
+                continue;
+            };
+            if !crate::original_name_edit::original_input_matches_source(
+                source,
+                analysis,
+                input,
+                invocation.range,
+            ) || invocation.resolved_command_reference.is_some()
+                || !analysis.diagnostics.iter().any(|diagnostic| {
+                    diagnostic.code == DiagCode::W123
+                        && diagnostic.span == invocation.range
+                        && diagnostic.unresolved_command().is_some_and(|subject| {
+                            subject.name_input() == key
+                                && subject
+                                    .invocation()
+                                    .original_static_command_lookup(key)
+                                    .as_ref()
+                                    == Some(lookup)
+                        })
+                })
+            {
+                continue;
+            }
+            let Some(package) = package_named_by_original_input(input, &catalogue) else {
+                continue;
+            };
+            let selected = tcl_registry::native_package::NativePackageNameKey::from_native_units(
+                package.as_bytes(),
+                input.policy(),
+            );
+            if original_package_already_required(source, analysis, &selected) != Some(false)
+                || selected.manifest_atom(analysis.body_lexer_config?) != Some(package.clone())
+            {
+                continue;
+            }
+            return Some(package);
         }
-        // Gate 3 (cheap, so tried before the resolver): the leading namespace
-        // component must name a catalogue package exactly.
-        let Some(package) = package_named_by_namespace(&invocation.name, &catalogue) else {
+        // A missing Native producer cannot enter explicit Logical advice.
+        let Some(offset) = invocation.lookup.offset(invocation.range) else {
             continue;
         };
-        // Gate 4: nothing the registry or the workspace defines answers to
-        // this name.  A corroborating unknown-command diagnostic from the
-        // editor is accepted in place of the local resolver run, for the case
-        // where the editor's view is fresher than the analysis in hand.
-        if !head_is_unresolved(source, analysis, resolution, invocation)
-            && !unresolved_diagnostic_covers(
-                head_range,
-                analysis,
-                context_diagnostics,
-                source,
-                line_index,
+        let Some(words) =
+            tcl_compiler::registry_invocation::source_structure::original_logical_source_words_at(
+                source, analysis, offset,
             )
-        {
+        else {
+            continue;
+        };
+        let Some(head) = words.first().and_then(diagnostic_context::source_literal) else {
+            continue;
+        };
+        if !is_static_command_name(head) {
             continue;
         }
-        // Gate 5: the package is not already loaded.
-        if already_required(source, &package) {
+        let Some(package) = package_named_by_namespace(head, &catalogue) else {
+            continue;
+        };
+        if !head_is_unresolved(source, analysis, resolution, invocation, head)
+            || original_source_package_already_named(source, analysis, &package) != Some(false)
+            || !package_source_atom(&package)
+        {
             continue;
         }
         return Some(package);
     }
     None
+}
+
+// Catalogue names are authored metadata. Comparing their bytes supplies a
+// package hint only; it does not establish a package loader or callable head.
+fn package_named_by_original_input(
+    input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
+    catalogue: &[String],
+) -> Option<String> {
+    use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol};
+    match input.policy().recipe() {
+        protocol @ NativeNameProtocol::C(_) => {
+            let slot = protocol
+                .command_lookup_slot(NativeNameContext::root(), input.bytes())
+                .ok()?;
+            let namespace = slot.namespace.as_segments().first()?.as_bytes();
+            catalogue
+                .iter()
+                .find(|package| package.is_ascii() && package.as_bytes() == namespace)
+                .cloned()
+        }
+        protocol @ NativeNameProtocol::Jim084 => {
+            // Jim's flat command key does not become a C namespace path.
+            let keys = protocol
+                .jim_command_lookup_keys(NativeNameContext::root(), input.bytes())
+                .ok()?;
+            let key = keys.first()?.as_bytes();
+            catalogue
+                .iter()
+                .find(|package| {
+                    package.is_ascii()
+                        && key
+                            .strip_prefix(package.as_bytes())
+                            .is_some_and(|tail| tail.starts_with(b"::"))
+                })
+                .cloned()
+        }
+    }
+}
+
+fn original_package_already_required(
+    source: &str,
+    analysis: &AnalysisResult,
+    selected: &tcl_registry::native_package::NativePackageNameKey,
+) -> Option<bool> {
+    let metadata = std::str::from_utf8(selected.bytes()).ok()?;
+    metadata.is_ascii().then_some(())?;
+    original_source_package_already_named(source, analysis, metadata)
+}
+
+/// Authentic selected package syntax, not line prefixes or signature labels.
+fn original_source_package_already_named(
+    source: &str,
+    analysis: &AnalysisResult,
+    package: &str,
+) -> Option<bool> {
+    // naming.core.original-package-source-action-context
+    // docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let config = analysis.body_lexer_config?;
+    analysis
+        .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        .then_some(())?;
+    for invocation in &analysis.command_invocations {
+        if invocation.is_mathfunc_call
+            || invocation.existence_probe
+            || invocation.lookup
+                != tcl_compiler::signature_scan::types::SignatureCommandLookup::InvocationHead
+        {
+            continue;
+        }
+        let Some(offset) = invocation.lookup.offset(invocation.range) else {
+            continue;
+        };
+        let Some(words) =
+            tcl_compiler::registry_invocation::source_structure::source_registry_words_at(
+                source, analysis, offset,
+            )
+        else {
+            continue;
+        };
+        if words
+            .package_reference(&context)
+            .is_some_and(|reference| reference.matches_ascii(package))
+        {
+            return Some(true);
+        }
+    }
+    Some(false)
+}
+
+fn package_source_atom(package: &str) -> bool {
+    package.is_ascii()
+        && !package.is_empty()
+        && !package.bytes().any(|byte| {
+            byte.is_ascii_control()
+                || byte.is_ascii_whitespace()
+                || matches!(
+                    byte,
+                    b';' | b'$' | b'[' | b']' | b'{' | b'}' | b'"' | b'\\' | b'#'
+                )
+        })
 }
 
 /// `true` when `name` is a command name written literally in the source —
@@ -907,131 +1043,53 @@ fn package_named_by_namespace(head: &str, catalogue: &[String]) -> Option<String
         .cloned()
 }
 
-/// `true` when nothing the registry or the workspace defines answers to this
-/// invocation's head.
-///
-/// Delegates the definition half to [`crate::definition::resolve_called_proc`]
-/// — the resolver go-to-definition, find-references, and the inline-proc
-/// refactor share — so this provider cannot disagree with them about whether
-/// a call is satisfied.  That resolver already understands namespace
-/// visibility, `namespace import` (including `-force` shadowing), static
-/// `rename`, and `interp alias`.
+/// Positioned absence from the shared source owner, followed by the same
+/// whole-program declaration resolver used by definition navigation. Registry
+/// descriptor names and external diagnostic prose cannot establish absence.
 fn head_is_unresolved(
     source: &str,
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
     invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    head: &str,
 ) -> bool {
-    let Some(registry) = resolution.registry else {
+    let Some(offset) = invocation.lookup.offset(invocation.range) else {
         return false;
     };
-    if registry.get(&invocation.name).is_some() {
+    let Some(realm) = analysis.retained_command_realm() else {
+        return false;
+    };
+    if realm.diagnostic_slot_presence_at(offset)
+        != tcl_compiler::command_binding::SourceCommandSlotPresence::Absent
+    {
         return false;
     }
-    let head_off = invocation.range.start();
     let namespace = crate::definition::namespace_context_at(
         &analysis.global_scope,
-        head_off,
+        offset,
         &analysis.namespace_overrides,
     );
-    crate::definition::resolve_called_proc(
-        analysis,
-        source,
-        &namespace,
-        &invocation.name,
-        head_off,
-        resolution,
-    )
-    .is_none()
+    crate::definition::resolve_called_proc(analysis, source, &namespace, head, offset, resolution)
+        .is_none()
 }
 
-/// `true` when an unknown-command (W123) diagnostic covers `head_range`,
-/// from either the analyser's own diagnostics or the ones the editor sent
-/// with the request.
-///
-/// W123's emitter is the single place "does this command resolve?" is decided
-/// for a bare name, and it already accounts for same-file and scoped
-/// definitions, `namespace import`, static `rename` / `interp alias`, dynamic
-/// providers, and a user-supplied `unknown` handler.  Accepting it as
-/// corroboration keeps this provider from contradicting that answer.
-fn unresolved_diagnostic_covers(
-    head_range: LspRange,
-    analysis: &AnalysisResult,
-    context_diagnostics: &[ContextDiagnostic],
-    source: &str,
-    line_index: &LineIndex,
-) -> bool {
-    let from_analysis = analysis.diagnostics.iter().any(|diag| {
-        if diag.code != DiagCode::W123 {
-            return false;
-        }
-        let start = line_index.position_at_utf16(diag.span.start(), source);
-        let end = line_index.position_at_utf16(diag.span.end(), source);
-        ranges_overlap(
-            LspRange {
-                start_line: start.line,
-                start_character: start.character.get(),
-                end_line: end.line,
-                end_character: end.character.get(),
-            },
-            head_range,
-        )
-    });
-    from_analysis
-        || context_diagnostics.iter().any(|diag| {
-            diag.code == DiagCode::W123.as_str() && ranges_overlap(diag.range, head_range)
-        })
-}
-
-/// Distinct package names known to the registry (`required_package` +
-/// `tcllib_package` across all command specs).
-fn package_catalogue(registry: &tcl_registry::CommandRegistry) -> Vec<String> {
-    let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for name in registry.command_names() {
-        if let Some(spec) = registry.get(name) {
-            if let Some(pkg) = spec.required_package {
-                set.insert(pkg.to_owned());
-            }
-            if let Some(pkg) = spec.tcllib_package {
-                set.insert(pkg.to_owned());
-            }
+/// Authored package suggestions from the actual full current context/store.
+fn package_catalogue(context: &tcl_registry::model::ContextRegistry) -> Vec<String> {
+    // naming.core.original-package-source-action-context
+    // docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md
+    let registry = context.commands();
+    let mut names = std::collections::BTreeSet::new();
+    for name in registry.command_names_in_any_dialect() {
+        if let Some(spec) = context.context().resolve_spec(registry, name) {
+            names.extend(
+                spec.required_package
+                    .into_iter()
+                    .chain(spec.tcllib_package)
+                    .map(str::to_owned),
+            );
         }
     }
-    set.into_iter().collect()
-}
-
-/// Line at which to insert a new `package require` — after a leading
-/// shebang and any contiguous top-of-file `package require` lines.
-fn package_insert_line(source: &str) -> u32 {
-    let lines: Vec<&str> = source.split('\n').collect();
-    let mut line = 0usize;
-    if lines.first().is_some_and(|l| l.starts_with("#!")) {
-        line = 1;
-    }
-    while line < lines.len() && {
-        let t = lines[line].trim_start();
-        t.starts_with("package require") || t.starts_with("package\trequire")
-    } {
-        line += 1;
-    }
-    u32::try_from(line).unwrap_or(0)
-}
-
-/// `true` when `source` already `package require`s `pkg`.
-fn already_required(source: &str, pkg: &str) -> bool {
-    source.split('\n').any(|line| {
-        let t = line.trim_start();
-        if let Some(rest) = t
-            .strip_prefix("package require")
-            .or_else(|| t.strip_prefix("package\trequire"))
-        {
-            let rest = rest.trim_start();
-            rest.strip_prefix(pkg)
-                .is_some_and(|after| after.is_empty() || after.starts_with(char::is_whitespace))
-        } else {
-            false
-        }
-    })
+    names.into_iter().collect()
 }
 
 // W115 — convert a backslash-continued comment to per-line comments.
@@ -1039,7 +1097,7 @@ fn already_required(source: &str, pkg: &str) -> bool {
 fn continuation_comment_actions(
     source: &str,
     range: LspRange,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
 ) -> Vec<CodeAction> {
     // The shared W115 detector is also enough for clients that request source
     // actions without forwarding server diagnostics.
@@ -1048,12 +1106,9 @@ fn continuation_comment_actions(
     if start_line >= lines.len() {
         return Vec::new();
     }
-    let profile = dialect;
-    let comments = tcl_compiler::analyser::utils::script_comment_facts(
-        source,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        crate::registry_for_dialect_profile(profile),
-    );
+    let Some(comments) = crate::source_style::comment_facts_from_analysis(source, analysis) else {
+        return Vec::new();
+    };
     let Some(block_end) =
         crate::source_style::comment_continuation_run_with_facts(&lines, &comments, start_line)
     else {
@@ -1195,9 +1250,32 @@ fn char_col_to_utf16_local(line_text: &str, char_col: usize) -> u32 {
 
 // Expression rewrites: De Morgan + invert comparison.
 
-fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) -> Vec<CodeAction> {
+fn expr_rewrite_actions(
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Vec<CodeAction> {
     // Single-line, non-empty selection only.
     if range.start_line != range.end_line || range.start_character >= range.end_character {
+        return Vec::new();
+    }
+    let start = crate::definition::byte_offset_at(
+        line_index,
+        source,
+        range.start_line,
+        range.start_character,
+    );
+    let finish =
+        crate::definition::byte_offset_at(line_index, source, range.end_line, range.end_character);
+    let Some(operand) = crate::expr_context::source_expression_operand_at(source, analysis, start)
+    else {
+        return Vec::new();
+    };
+    let Some(extent) = operand.content_span() else {
+        return Vec::new();
+    };
+    if start < extent.start() || finish > extent.end() {
         return Vec::new();
     }
     let Some(line_text) = source.split('\n').nth(range.start_line as usize) else {
@@ -1242,6 +1320,12 @@ fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) 
             data_group_definition: None,
             disabled: None,
         });
+    }
+    if !analysis.allows_retained_logical_declaration_advice() {
+        for action in &mut out {
+            action.edits.clear();
+            action.disabled = Some("missing-expression-operator-rewrite-permission: Original expression roles provide source geometry; Native or hosted operator rewrites require an independent selected evaluation and replacement contract".to_owned());
+        }
     }
     out
 }
@@ -1493,7 +1577,10 @@ fn docstring_actions(
         return Vec::new();
     }
     let mut out = Vec::new();
-    for proc_def in analysis.all_procs.values() {
+    let Some(declarations) = crate::procedure_symbol::declarations(source, analysis) else {
+        return out;
+    };
+    for proc_def in declarations {
         let decl = line_index.position_at_utf16(proc_def.name_span.start(), source);
         if decl.line != range.start_line {
             continue;
@@ -1504,6 +1591,9 @@ fn docstring_actions(
         }
         let edit = match docstring_style {
             crate::formatting::DocstringStyle::Body => {
+                if !original_literal_procedure_body(source, analysis, proc_def) {
+                    continue;
+                }
                 body_docstring_edit(source, line_index, proc_def)
             }
             // `Preceding` (and unreachable `None`, filtered above).
@@ -1533,6 +1623,38 @@ fn docstring_actions(
         });
     }
     out
+}
+
+// Editing inside a body needs its actual grouped word. The declaration
+// inventory supplies the selected ProcDef; body text/ranges alone cannot turn
+// a computed script into writable original source.
+fn original_literal_procedure_body(
+    source: &str,
+    analysis: &AnalysisResult,
+    proc_def: &tcl_compiler::analyser::ProcDef,
+) -> bool {
+    let Some(config) = analysis.body_lexer_config else {
+        return false;
+    };
+    let image = tcl_lexer::SourceImage::document(source);
+    let Some(input) = analysis.retained_command_realm().and_then(|realm| {
+        realm.original_written_name_input_at_span_in_source(&image, proc_def.body_span, config)
+    }) else {
+        return false;
+    };
+    let Some(key) = input.original_word_key() else {
+        return false;
+    };
+    let word = key.original_word();
+    word.image() == &image
+        && word.config() == config
+        && word.group().kind == tcl_lexer::WordKind::Braced
+        && !word.group().expand
+        && word
+            .tokens()
+            .first()
+            .is_some_and(|token| token.span == proc_def.body_span)
+        && word.content_span().is_ok()
 }
 
 /// Where + how to insert a generated docstring stub, and the indent its
@@ -1622,14 +1744,9 @@ fn extract_inline_actions(
     line_index: &LineIndex,
     program: Option<crate::definition::ProgramExports<'_>>,
 ) -> Vec<CodeAction> {
-    // Load the iRules dialect so `when`-body descent and the
-    // `class match` / `class lookup` data-group form resolve.  Loading is
-    // additive — vanilla command resolution is unchanged — so we do it
-    // unconditionally rather than threading the document dialect through
-    // the code-action signature (the data-group transform self-gates on
-    // the registry resolving a `class` form).
-    let mut registry = tcl_registry::CommandRegistry::build_default();
-    registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
+    let Some(registry) = analysis.resolved_registry() else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
     out.extend(refactor_engine_actions(
         source,
@@ -1637,7 +1754,7 @@ fn extract_inline_actions(
         analysis,
         line_index,
         crate::definition::CallResolution {
-            registry: Some(&registry),
+            registry: Some(registry),
             program,
         },
     ));
@@ -1648,10 +1765,9 @@ fn extract_inline_actions(
 /// if↔switch, switch→dict, extract-to-datagroup) as `CodeAction`s.
 ///
 /// The cursor is `range`'s start; extract-variable additionally needs a
-/// non-empty selection.  The data-group transform is iRules-only — it is
-/// gated by [`crate::refactor::extract_to_datagroup`]'s registry
-/// resolution (a non-iRules registry resolves no `class match` /
-/// `class lookup` form), so offering it unconditionally here is safe.
+/// non-empty selection. Data-group extraction remains explicit lexical
+/// authoring advice and requires the selected Registry's output forms.
+/// Native source geometry supplies no insertion or movement permission.
 fn refactor_engine_actions(
     source: &str,
     range: LspRange,
@@ -1665,11 +1781,12 @@ fn refactor_engine_actions(
     };
     let mut out = Vec::new();
 
-    // The document's own lexing grammar — `analysis.dialect` carries the
-    // name the host analysed this document under (issue: dialect-drift).
-    let config = tcl_lexer::LexerConfig::from_grammar(
-        crate::environment_for_dialect(&analysis.dialect).grammar(),
-    );
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+        return Vec::new();
+    }
 
     let cursor = line_index.offset_at_utf16(
         range.start_line,
@@ -1684,7 +1801,7 @@ fn refactor_engine_actions(
         let end =
             line_index.offset_at_utf16(range.end_line, Utf16Col::new(range.end_character), source);
         if let Some(r) =
-            refactor::extract_variable(source, cursor, end, "result", line_index, config)
+            refactor::extract_variable(source, (cursor, end), "result", analysis, line_index)
         {
             out.push(refactoring_to_action(&r, source, line_index));
         }
@@ -1704,14 +1821,15 @@ fn refactor_engine_actions(
     if let Some(r) = refactor::inline_proc_in_program(source, cursor, analysis, resolution) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::if_to_switch(source, cursor, registry, line_index, config) {
+    if let Some(r) = refactor::if_to_switch(source, cursor, analysis, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::switch_to_dict(source, cursor, registry, line_index, config) {
+    if let Some(r) = refactor::switch_to_dict(source, cursor, analysis, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) =
-        refactor::extract_to_datagroup(source, cursor, "", registry, line_index, config)
+    if analysis.allows_retained_logical_declaration_advice()
+        && let Some(r) =
+            refactor::extract_to_datagroup(source, cursor, "", registry, line_index, config)
     {
         out.push(refactoring_to_action(&r, source, line_index));
     }
@@ -1752,22 +1870,29 @@ fn compute_required_profiles(
 ) -> Vec<String> {
     use std::collections::BTreeSet;
     let mut profiles: BTreeSet<String> = BTreeSet::new();
+    let Some(commands) = diagnostic_context::current_commands(source, analysis, registry) else {
+        return Vec::new();
+    };
     let events = tcl_registry::events::EventRegistry::build();
-    for ev in
-        crate::irules_context::scan_file_events(source, crate::profile_for_dialect("f5-irules"))
-    {
-        if let Some(props) = events.get_props(&ev) {
-            for p in props.implied_profiles {
-                profiles.insert((*p).to_string());
+    for (_, event) in selected_event_handlers(source, analysis, registry, &commands) {
+        if let Some(props) = events.get_props(event) {
+            for profile in props.implied_profiles {
+                profiles.insert((*profile).to_owned());
             }
         }
     }
-    for inv in &analysis.command_invocations {
-        if let Some(spec) = registry.get(&inv.name)
-            && let Some(req) = spec.event_requires.as_ref()
+    let Some(profile) = analysis.resolved_profile() else {
+        return Vec::new();
+    };
+    if !profile.is_irules() {
+        return Vec::new();
+    }
+    for command in commands {
+        if let Some(spec) = source_action_spec(analysis, registry, &command.canonical)
+            && let Some(requirement) = spec.event_requires.as_ref()
         {
-            for p in req.profiles {
-                profiles.insert((*p).to_string());
+            for profile in requirement.profiles {
+                profiles.insert((*profile).to_owned());
             }
         }
     }
@@ -1884,8 +2009,10 @@ pub fn profiles_action(
 pub struct ContextDiagnostic {
     /// Diagnostic code (e.g. `IRULE3001`).
     pub code: String,
-    /// Human-readable message (carries the tainted `$var`).
+    /// Human-readable message, with no identity or edit authority.
     pub message: String,
+    /// Actual compiler-issued source subject, when preserved by the publisher.
+    pub data: Option<ContextDiagnosticData>,
     /// The diagnostic's range.
     pub range: LspRange,
 }
@@ -1929,71 +2056,56 @@ pub const SPEC_PACK_DIAGNOSTIC_CODE: &str = "SPECTCL";
 /// the same line, not a ranking of guesses.
 const SPEC_PACK_SUGGESTIONS: usize = 1;
 
-/// Did-you-mean quick-fixes for a spec pack's load notices.
-///
-/// A `SpecTcl` vocabulary is **closed**: a property word is a member of the
-/// grammar in force where it was written, and a flag is an entry in the option
-/// table of the row it was written on. So a notice naming a word the loader
-/// dropped is a typo with a computable correction, and the fix is the one edit
-/// that turns the pack the author meant to write into the pack that loads.
-///
-/// The notice says *which* word (it quotes it); the source says *what kind* of
-/// word it is, from its position in the row — which is why nothing here reads
-/// the notice's prose beyond the quoted word itself. A word the source does
-/// not confirm at the position the notice points to, or one with no candidate
-/// inside the edit-distance budget, yields no action rather than a guess.
-///
-/// Only the two positionally-determined kinds are offered — a row's own
-/// keyword and a flag on a row — because those are the two whose candidate
-/// vocabulary is a fact of this registry. A misspelled trait, dialect or taint
-/// colour is a *value* inside a row whose vocabulary the pack loader owns, and
-/// no consumer here can enumerate it.
+/// Did-you-mean source edits require an actual typed loader notice and
+/// independently current complete source/configuration/Registry. Prose is
+/// presentation and cannot select a word, row, vocabulary or edit extent.
 #[must_use]
 pub fn spec_pack_quick_fixes(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     diags: &[ContextDiagnostic],
 ) -> Vec<CodeAction> {
-    let registry = crate::registry_for_dialect_profile(dialect);
-    // A dialect with no document grammar has no pack vocabulary to correct
-    // against; every notice below is by construction on a declaration file.
+    let Some(registry) = analysis.resolved_registry() else {
+        return Vec::new();
+    };
     if registry.document_grammar().is_none() {
         return Vec::new();
     }
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
     for d in diags.iter().filter(|d| d.code == SPEC_PACK_DIAGNOSTIC_CODE) {
-        let Some(word) = quoted_word(&d.message) else {
+        let Some(data) = d.data.as_ref().and_then(ContextDiagnosticData::notice) else {
             continue;
         };
-        let Some((line_text, word_start)) = word_site(source, d.range.start_line, word) else {
+        if !data.matches(source, analysis, registry, d) {
             continue;
-        };
-        let offset = line_index.line_start(d.range.start_line)
-            + u32::try_from(word_start).unwrap_or(u32::MAX);
-        let config = tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar);
+        }
+        let subject = &data.subject;
+        let word = subject.word();
+        let offset = subject.span().start();
         let Some(head) = statement_head_at(source, offset, config) else {
             continue;
         };
-        let head = head.as_str();
         let grammar = crate::oo_body::definition_grammar_at(
             source,
             offset,
             registry,
             config,
-            Some(dialect.surface_query()),
+            analysis
+                .resolved_profile()
+                .map(tcl_dialect::DialectProfile::surface_query),
         );
-        let candidates: Vec<&str> = if head == word {
-            // The row's own keyword: the member vocabulary of the grammar this
-            // row sits in, which is exactly what completion offers here.
-            grammar.map(|g| g.members.iter().map(|m| m.keyword).collect())
-        } else if word.starts_with('-') {
-            // A flag on a row: the option table of the row's own spec.
-            registry
-                .get(head)
-                .map(|spec| spec.options.iter().map(|opt| opt.name).collect())
-        } else {
-            None
+        let candidates: Vec<&str> = match subject.kind() {
+            SpecPackNoticeKind::Property if head == word => {
+                grammar.map(|g| g.members.iter().map(|m| m.keyword).collect())
+            }
+            SpecPackNoticeKind::Flag { row } if head == *row => registry
+                .get(&head)
+                .map(|spec| spec.options.iter().map(|opt| opt.name).collect()),
+            _ => None,
         }
         .unwrap_or_default();
         let Some(&suggestion) = tcl_compiler::text::suggest_similar(
@@ -2005,39 +2117,17 @@ pub fn spec_pack_quick_fixes(
         .first() else {
             continue;
         };
-        let start = char_col_to_utf16_local(line_text, line_text[..word_start].chars().count());
-        let end = char_col_to_utf16_local(
-            line_text,
-            line_text[..word_start + word.len()].chars().count(),
-        );
         out.push(CodeAction::new(
             format!("Change `{word}` to `{suggestion}`"),
             vec![crate::rename::TextEdit {
-                range: LspRange {
-                    start_line: d.range.start_line,
-                    start_character: start,
-                    end_line: d.range.start_line,
-                    end_character: end,
-                },
-                new_text: suggestion.to_owned(),
+                range: crate::definition::span_to_range(source, &line_index, subject.span()),
+                new_text: suggestion.into(),
             }],
             ActionKind::QuickFix,
             None,
         ));
     }
     out
-}
-
-/// The first `` `word` `` a notice quotes.
-///
-/// Every "unknown X dropped" notice quotes the word it dropped, and that
-/// quoting is the notice's only machine-readable part — the word is not
-/// recoverable from the whole-line range alone, which is all the diagnostic
-/// otherwise carries.
-fn quoted_word(message: &str) -> Option<&str> {
-    let rest = message.split_once('`')?.1;
-    let (word, _) = rest.split_once('`')?;
-    (!word.is_empty() && !word.contains(char::is_whitespace)).then_some(word)
 }
 
 /// The keyword of the statement `offset` falls inside.
@@ -2103,143 +2193,192 @@ fn statement_head_at(source: &str, offset: u32, config: tcl_lexer::LexerConfig) 
     walk(source, source, 0, offset, 0, config)
 }
 
-/// `line`'s text and the byte offset of `word` within it, when the word really
-/// is a whole word there.
-///
-/// The confirmation matters: a notice quotes a word the *loader* read, and the
-/// buffer may have moved on since the pack was loaded. An edit that no longer
-/// matches the text yields no action instead of rewriting whatever now sits at
-/// that offset.
-fn word_site<'a>(source: &'a str, line: u32, word: &str) -> Option<(&'a str, usize)> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let mut from = 0;
-    while let Some(rel) = line_text[from..].find(word) {
-        let at = from + rel;
-        let before_ok = line_text[..at]
-            .chars()
-            .next_back()
-            .is_none_or(|c| c.is_whitespace() || c == '{');
-        let after_ok = line_text[at + word.len()..]
-            .chars()
-            .next()
-            .is_none_or(|c| c.is_whitespace() || c == '}');
-        if before_ok && after_ok {
-            return Some((line_text, at));
-        }
-        from = at + word.len();
-    }
-    None
+/// Compatibility entry point without an independent current analysis. It
+/// cannot authenticate a diagnostic-driven edit. Use the current-analysis
+/// entry point for compiler-issued context diagnostics.
+#[must_use]
+pub fn context_diagnostic_actions(_source: &str, _diags: &[ContextDiagnostic]) -> Vec<CodeAction> {
+    Vec::new()
 }
 
-/// Quick-fixes for context-supplied diagnostics (iRules taint encode-wrap +
-/// double-encode removal).
+/// Source actions from an actual retained diagnostic, independently checked
+/// against the request's complete image, configuration and command store.
 #[must_use]
-pub fn context_diagnostic_actions(source: &str, diags: &[ContextDiagnostic]) -> Vec<CodeAction> {
+pub fn context_diagnostic_actions_in_analysis(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    diags: &[ContextDiagnostic],
+) -> Vec<CodeAction> {
+    let Some(commands) = diagnostic_context::current_commands(source, analysis, registry) else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
-    for d in diags {
-        out.extend(taint_quickfix(source, d));
-        out.extend(collect_bootstrap_actions(source, d));
+    for diagnostic in diags {
+        let Some(data) = diagnostic.data.as_ref() else {
+            continue;
+        };
+        if !data.matches(source, analysis, registry, diagnostic) {
+            continue;
+        }
+        out.extend(taint_subject_actions(
+            source, analysis, registry, &commands, data,
+        ));
+        out.extend(collect_bootstrap_actions_current(
+            source, analysis, registry, &commands, data,
+        ));
     }
-    // De-duplicate (two IRULE1006 diags for the same buffer command yield the
-    // same bootstrap action).  Key on the title + edit replacement texts.
     let mut seen = FxHashSet::default();
-    out.retain(|a| {
-        let key = (
-            a.title.clone(),
-            a.edits
+    out.retain(|action| {
+        seen.insert((
+            action.title.clone(),
+            action
+                .edits
                 .iter()
-                .map(|e| e.new_text.clone())
+                .map(|edit| edit.new_text.clone())
                 .collect::<Vec<_>>(),
-        );
-        seen.insert(key)
+        ))
     });
     out
 }
 
-/// Source text covered by a single-line diagnostic range.
-///
-/// Collection diagnostics point at one command or one `when` event token. A
-/// range crossing lines is not a useful command selector, so return `None`
-/// and deliberately offer no speculative quick fix in that case.
-fn diagnostic_text_on_line(source: &str, range: &LspRange) -> Option<String> {
-    if range.start_line != range.end_line {
+fn source_edit(source: &str, span: tcl_lexer::Span, new_text: String) -> crate::rename::TextEdit {
+    crate::rename::TextEdit {
+        range: crate::definition::span_to_range(source, &LineIndex::new(source), span),
+        new_text,
+    }
+}
+
+fn context_action(title: String, edits: Vec<crate::rename::TextEdit>) -> CodeAction {
+    CodeAction {
+        title,
+        edits,
+        kind: ActionKind::QuickFix,
+        command: None,
+        data_group_definition: None,
+        disabled: None,
+    }
+}
+
+/// Availability of a current source descriptor or an inserted source helper.
+/// The exact retained generation supplies authoring metadata only; it establishes
+/// no live command slot, entered handler, evaluation permission or normal effect.
+fn source_action_spec(
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    name: &str,
+) -> Option<&'static tcl_registry::CommandSpec> {
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    if context.commands().snapshot().semantic_key() != registry.snapshot().semantic_key() {
         return None;
     }
-    let line = source.split('\n').nth(range.start_line as usize)?;
-    let chars: Vec<char> = line.chars().collect();
-    let start = utf16_col_to_char_col(line, range.start_character).min(chars.len());
-    let end = utf16_col_to_char_col(line, range.end_character).min(chars.len());
-    (start < end).then(|| chars[start..end].iter().collect())
+    input.availability_context().resolve_spec(registry, name)
 }
 
-/// Registry-declared payload operation mentioned by a diagnostic range.
-///
-/// Most diagnostics cover the command head exactly. If a producer supplies a
-/// wider statement span, scan its Tcl-shaped words and accept exactly one
-/// registered payload command. This stays data-driven and avoids deriving
-/// command behaviour from the diagnostic prose.
-fn payload_operation_at_diagnostic(
+fn selected_event_handlers<'a>(
     source: &str,
-    range: &LspRange,
-) -> Option<tcl_registry::DataCollectionOperation> {
-    let text = diagnostic_text_on_line(source, range)?;
-    let registry = crate::registry_for_dialect("f5-irules");
-    text.split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == ':' || ch == '_'))
-        .filter(|word| !word.is_empty())
-        .filter_map(|word| registry.data_collection_operation(word))
-        .find(|operation| operation.action == DataCollectionAction::Payload)
-}
-
-/// Line index of the `when` block enclosing `line` (scanning upward), or 0.
-fn enclosing_when_line(source: &str, line: u32) -> u32 {
-    let index = tcl_lexer::LineIndex::new(source);
-    tcl_irules::when_blocks(source)
-        .into_iter()
-        .filter(|block| {
-            index.line_at(block.span.start()) <= line && line <= index.line_at(block.span.end())
-        })
-        .min_by_key(|block| block.span.end() - block.span.start())
-        .map_or(0, |block| index.line_at(block.span.start()))
-}
-
-/// IRULE1005 / IRULE1006 "missing collect" quick-fixes: insert a bootstrap
-/// handler using the registry-declared handler command and priority grammar.
-///
-/// The command name, whether collection is actually required, and the setup
-/// event are all registry facts. The diagnostic message is presentation only;
-/// it is never parsed to construct code.
-fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
-    if d.code != "IRULE1005" && d.code != "IRULE1006" {
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    commands: &'a [diagnostic_context::SourceCommand],
+) -> Vec<(&'a diagnostic_context::SourceCommand, &'a str)> {
+    let Some(profile) = analysis.resolved_profile() else {
+        return Vec::new();
+    };
+    if !profile.is_irules() {
         return Vec::new();
     }
-    let anchor = enclosing_when_line(source, d.range.start_line);
-    let event = crate::irules_context::find_enclosing_when_event(
-        source,
-        d.range.start_line,
-        crate::profile_for_dialect("f5-irules"),
-    )
-    .unwrap_or_default();
-
-    let registry = crate::registry_for_dialect("f5-irules");
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    let Ok(plan) = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(source),
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap_or(u32::MAX)),
+        config,
+    ) else {
+        return Vec::new();
+    };
+    if plan.fatal_tail.is_some() {
+        return Vec::new();
+    }
     let events = EventRegistry::build();
-    let Some(handler) = registry.event_handler_spec() else {
+    commands
+        .iter()
+        .filter_map(|command| {
+            // Handler insertion anchors come only from authentic top-level
+            // command geometry. A nested command cannot declare that boundary.
+            if !plan.commands.iter().any(|root| root.span == command.span) {
+                return None;
+            }
+            let spec = source_action_spec(analysis, registry, &command.canonical)?;
+            if !spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
+                || command.words.last()?.group().kind != tcl_lexer::WordKind::Braced
+            {
+                return None;
+            }
+            let event = diagnostic_context::source_literal(command.words.get(1)?)?;
+            events.is_known(event).then_some((command, event))
+        })
+        .collect()
+}
+
+fn collect_bootstrap_actions_current(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    commands: &[diagnostic_context::SourceCommand],
+    data: &ContextDiagnosticData,
+) -> Vec<CodeAction> {
+    let Some(diagnostic) = data.diagnostic() else {
+        return Vec::new();
+    };
+    if !matches!(diagnostic.code.as_str(), "IRULE1005" | "IRULE1006") {
+        return Vec::new();
+    }
+    let Some(profile) = analysis.resolved_profile() else {
+        return Vec::new();
+    };
+    if !profile.is_irules() {
+        return Vec::new();
+    }
+    let handlers = selected_event_handlers(source, analysis, registry, commands);
+    let mut enclosing = handlers
+        .iter()
+        .filter(|(command, _)| {
+            command.span.start() <= diagnostic.span.start()
+                && diagnostic.span.end() <= command.span.end()
+        })
+        .collect::<Vec<_>>();
+    enclosing.sort_by_key(|(command, _)| command.span.end() - command.span.start());
+    let Some((enclosing, event)) = enclosing.first().copied() else {
+        return Vec::new();
+    };
+    let events = EventRegistry::build();
+    let Some(handler) = source_action_spec(analysis, registry, &enclosing.canonical) else {
         return Vec::new();
     };
     let Some(priority) = handler.event_handler_priority else {
         return Vec::new();
     };
-    let choices: Vec<(&str, &str)> = if d.code == "IRULE1005" {
-        let Some(data_event) = diagnostic_text_on_line(source, &d.range) else {
+    if source_action_spec(analysis, registry, handler.name).is_none() {
+        return Vec::new();
+    }
+    let choices: Vec<(&str, &str)> = if diagnostic.code.as_str() == "IRULE1005" {
+        // The issuer's exact event operand must belong to the selected header.
+        if enclosing
+            .words
+            .get(1)
+            .is_none_or(|word| word.span() != diagnostic.span)
+        {
             return Vec::new();
-        };
-        let data_event = data_event.to_ascii_uppercase();
-        let Some(setup_event) = events
-            .get_props(&data_event)
-            .and_then(|props| props.setup_event)
+        }
+        let Some(setup) = events
+            .get_props(event)
+            .and_then(|properties| properties.setup_event)
         else {
             return Vec::new();
         };
-        let Some((protocols, _)) = events.data_collect_requirement(&data_event) else {
+        let Some((protocols, _)) = events.data_collect_requirement(event) else {
             return Vec::new();
         };
         protocols
@@ -2247,274 +2386,198 @@ fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAct
             .filter_map(|protocol| {
                 registry
                     .data_collection_collect_command(protocol)
-                    .map(|spec| (spec.name, setup_event))
+                    .filter(|spec| source_action_spec(analysis, registry, spec.name).is_some())
+                    .map(|spec| (spec.name, setup))
             })
             .collect()
     } else {
-        let Some(operation) = payload_operation_at_diagnostic(source, &d.range) else {
+        let mut operations = commands
+            .iter()
+            .filter(|command| {
+                command.span.start() <= diagnostic.span.start()
+                    && diagnostic.span.end() <= command.span.end()
+            })
+            .filter_map(|command| registry.data_collection_operation(&command.canonical))
+            .filter(|operation| operation.action == DataCollectionAction::Payload);
+        let Some(operation) = operations.next() else {
             return Vec::new();
         };
-        let Some(setup_event) = operation.protocol.bootstrap_event_for(&event) else {
+        if operations.next().is_some() {
+            return Vec::new();
+        }
+        let Some(setup) = operation.protocol.bootstrap_event_for(event) else {
             return Vec::new();
         };
         registry
             .data_collection_collect_command(operation.protocol.name)
-            .map(|spec| vec![(spec.name, setup_event)])
+            .filter(|spec| source_action_spec(analysis, registry, spec.name).is_some())
+            .map(|spec| vec![(spec.name, setup)])
             .unwrap_or_default()
     };
-
-    let mut unique: Vec<(&str, &str)> = Vec::new();
-    for choice in choices {
-        if !unique.contains(&choice) {
-            unique.push(choice);
-        }
-    }
-    unique
+    let index = LineIndex::new(source);
+    let anchor = index.line_at(enclosing.span.start());
+    choices
         .into_iter()
-        .map(|(collect_command, setup)| CodeAction {
-            title: format!("Add '{collect_command}' bootstrap in '{setup}'"),
-            edits: vec![crate::rename::TextEdit {
-                range: LspRange {
-                    start_line: anchor,
-                    start_character: 0,
-                    end_line: anchor,
-                    end_character: 0,
-                },
-                new_text: format!(
-                    "{} {setup} {} {} {{\n    {collect_command}\n}}\n\n",
-                    handler.name, priority.keyword, priority.default_priority,
-                ),
-            }],
-            kind: ActionKind::QuickFix,
-            command: None,
-            data_group_definition: None,
-            disabled: None,
+        .map(|(collect, setup)| {
+            context_action(
+                format!("Add '{collect}' bootstrap in '{setup}'"),
+                vec![crate::rename::TextEdit {
+                    range: LspRange {
+                        start_line: anchor,
+                        start_character: 0,
+                        end_line: anchor,
+                        end_character: 0,
+                    },
+                    new_text: format!(
+                        "{} {setup} {} {} {{\n    {collect}\n}}\n\n",
+                        handler.name, priority.keyword, priority.default_priority
+                    ),
+                }],
+            )
         })
         .collect()
 }
 
-/// Extract the variable name (no `$`/braces) named in a taint message.
-fn taint_var_name(message: &str) -> Option<String> {
-    let bytes = message.as_bytes();
-    let dollar = message.find('$')?;
-    let mut i = dollar + 1;
-    let braced = bytes.get(i) == Some(&b'{');
-    if braced {
-        i += 1;
-    }
-    let start = i;
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c.is_ascii_alphanumeric() || c == b'_' || c == b':' {
-            i += 1;
-        } else {
-            break;
+fn taint_subject_actions(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    commands: &[diagnostic_context::SourceCommand],
+    data: &ContextDiagnosticData,
+) -> Vec<CodeAction> {
+    let Some(diagnostic) = data.diagnostic() else {
+        return Vec::new();
+    };
+    let Some(subject) = diagnostic.taint_subject.as_ref() else {
+        return Vec::new();
+    };
+    let Some(command) = diagnostic_context::selected_sink(commands, diagnostic) else {
+        return Vec::new();
+    };
+    // This hardening changes subst's accepted input, independently of a
+    // semantics-preserving refactoring. The selected source head, option
+    // grammar and written insertion extent must all be current.
+    if diagnostic.code.as_str() == "T100" && subject.sink_command() == "subst" {
+        let Some(spec) = source_action_spec(analysis, registry, &command.canonical) else {
+            return Vec::new();
+        };
+        if !spec
+            .options
+            .iter()
+            .any(|option| option.name == "-nocommands")
+            || command
+                .words
+                .iter()
+                .skip(1)
+                .any(|word| diagnostic_context::source_literal(word) == Some("-nocommands"))
+        {
+            return Vec::new();
         }
+        let Some(head) = command.words.first() else {
+            return Vec::new();
+        };
+        return vec![context_action(
+            "Add -nocommands to disable command substitution".to_owned(),
+            vec![source_edit(
+                source,
+                tcl_lexer::Span::new(head.span().end(), head.span().end()),
+                " -nocommands".to_owned(),
+            )],
+        )];
     }
-    if i == start {
-        return None;
+    // Other rewrites introduce or remove evaluations. Authored vendor and
+    // explicit lexical source advice may offer reviewed hardening; selected
+    // Native inputs require independent insertion/evaluation permissions.
+    if !analysis.has_original_vendor_source_names()
+        && !analysis.allows_retained_logical_declaration_advice()
+    {
+        return Vec::new();
     }
-    Some(message[start..i].to_string())
-}
-
-/// Find the `$name` / `${name}` reference for `var` on the diagnostic's start
-/// line, returning `(char_start, char_end, matched_text)`.
-fn find_var_ref(line: &str, var: &str) -> Option<(usize, usize, String)> {
-    let braced = format!("${{{var}}}");
-    let bare = format!("${var}");
-    if let Some(b) = line.find(&braced) {
-        let cstart = line[..b].chars().count();
-        return Some((cstart, cstart + braced.chars().count(), braced));
-    }
-    // Bare form — require the next char not to be a var-continuation so `$ab`
-    // doesn't match for `$a`.
-    let mut search_from = 0;
-    while let Some(rel) = line[search_from..].find(&bare) {
-        let b = search_from + rel;
-        let after = line[b + bare.len()..].chars().next();
-        if after.is_none_or(|c| !(c.is_alphanumeric() || c == '_' || c == ':')) {
-            let cstart = line[..b].chars().count();
-            return Some((cstart, cstart + bare.chars().count(), bare));
+    let Some(read) = diagnostic_context::selected_read(source, analysis, command, diagnostic)
+    else {
+        return Vec::new();
+    };
+    let Some(matched) = source.get(read.as_range()) else {
+        return Vec::new();
+    };
+    let variable = subject.variable();
+    match diagnostic.code.as_str() {
+        "T101" | "IRULE3003" => {
+            if source_action_spec(analysis, registry, "string").is_none() {
+                return Vec::new();
+            }
+            vec![context_action(
+                format!("Sanitise ${variable} (strip CR/LF) before output"),
+                vec![source_edit(
+                    source,
+                    read,
+                    format!("[{CRLF_STRIP_MAP} {matched}]"),
+                )],
+            )]
         }
-        search_from = b + bare.len();
-    }
-    None
-}
-
-/// T106: remove a redundant `[ENCODER $var]` wrapper → `$var`.
-fn t106_remove_redundant_encoder(line: &str, d: &ContextDiagnostic, var: &str) -> Vec<CodeAction> {
-    let Some((vstart, vend, matched)) = find_var_ref(line, var) else {
-        return Vec::new();
-    };
-    let chars: Vec<char> = line.chars().collect();
-    // Scan left for the enclosing `[`, right for `]`.
-    let mut lb = vstart;
-    while lb > 0 && chars[lb - 1] != '[' {
-        lb -= 1;
-    }
-    let mut rb = vend;
-    while rb < chars.len() && chars[rb] != ']' {
-        rb += 1;
-    }
-    if lb == 0 || rb >= chars.len() {
-        return Vec::new();
-    }
-    let start = char_col_to_utf16_local(line, lb - 1);
-    let end = char_col_to_utf16_local(line, rb + 1);
-    vec![CodeAction {
-        title: "Remove redundant encoder".to_string(),
-        edits: vec![crate::rename::TextEdit {
-            range: LspRange {
-                start_line: d.range.start_line,
-                start_character: start,
-                end_line: d.range.start_line,
-                end_character: end,
-            },
-            new_text: matched,
-        }],
-        kind: ActionKind::QuickFix,
-        command: None,
-        data_group_definition: None,
-        disabled: None,
-    }]
-}
-
-/// T101 (`puts`) / IRULE3003 (`log`): wrap with a CR/LF-stripping `string
-/// map` — the fix the KCS docs for both codes recommend, since neither sink
-/// is HTML/URI-context-specific (unlike IRULE3001's response body or
-/// IRULE3002's header value) so an HTML/URL encoder would be the wrong
-/// mitigation to suggest here.
-fn strip_crlf_before_output(line: &str, d: &ContextDiagnostic, var: &str) -> Vec<CodeAction> {
-    let Some((vstart, vend, matched)) = find_var_ref(line, var) else {
-        return Vec::new();
-    };
-    let start = char_col_to_utf16_local(line, vstart);
-    let end = char_col_to_utf16_local(line, vend);
-    vec![CodeAction {
-        title: format!("Sanitise ${var} (strip CR/LF) before output"),
-        edits: vec![crate::rename::TextEdit {
-            range: LspRange {
-                start_line: d.range.start_line,
-                start_character: start,
-                end_line: d.range.start_line,
-                end_character: end,
-            },
-            new_text: format!("[{CRLF_STRIP_MAP} {matched}]"),
-        }],
-        kind: ActionKind::QuickFix,
-        command: None,
-        data_group_definition: None,
-        disabled: None,
-    }]
-}
-
-/// Build the "add `-nocommands`" T100 quick-fix for a `subst` sink:
-/// inserts `-nocommands` right after the standalone `subst` word on
-/// `line`, or no action when the line doesn't contain one (defensive —
-/// the caller already matched the diagnostic message, so this should
-/// always find it).
-fn subst_nocommands_fix(line: &str, line_no: u32) -> Vec<CodeAction> {
-    let bytes = line.as_bytes();
-    let Some(start) = line.find("subst") else {
-        return Vec::new();
-    };
-    let word_start_ok = start == 0 || !bytes[start - 1].is_ascii_alphanumeric();
-    let after = start + "subst".len();
-    let word_end_ok = bytes.get(after).is_none_or(|c| !c.is_ascii_alphanumeric());
-    if !word_start_ok || !word_end_ok {
-        return Vec::new();
-    }
-    let insert_char_col = line[..after].chars().count();
-    let insert_col = char_col_to_utf16_local(line, insert_char_col);
-    vec![CodeAction {
-        title: "Add -nocommands to disable command substitution".to_string(),
-        edits: vec![crate::rename::TextEdit {
-            range: LspRange {
-                start_line: line_no,
-                start_character: insert_col,
-                end_line: line_no,
-                end_character: insert_col,
-            },
-            new_text: " -nocommands".to_string(),
-        }],
-        kind: ActionKind::QuickFix,
-        command: None,
-        data_group_definition: None,
-        disabled: None,
-    }]
-}
-
-fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
-    let line_no = d.range.start_line as usize;
-    let Some(line) = source.split('\n').nth(line_no) else {
-        return Vec::new();
-    };
-    let Some(var) = taint_var_name(&d.message) else {
-        return Vec::new();
-    };
-
-    if d.code == "T106" {
-        return t106_remove_redundant_encoder(line, d, &var);
-    }
-    if d.code == "T101" || d.code == "IRULE3003" {
-        return strip_crlf_before_output(line, d, &var);
-    }
-
-    // T100 on a `subst` sink: `-nocommands` disables the only hazard the
-    // diagnostic names (command substitution) without changing the call's
-    // variable/backslash substitution behaviour — exactly the mitigation
-    // `subst`'s own hover snippet recommends. Other T100 sinks (`eval`,
-    // `uplevel`, `exec`, a braced `expr` operand) have no equivalent
-    // single-flag fix, so this only fires for the `subst` sink label.
-    if d.code == "T100" && d.message.contains(" into subst;") {
-        return subst_nocommands_fix(line, d.range.start_line);
-    }
-
-    let (encoder, proc_template): (&str, Option<&str>) = match d.code.as_str() {
-        "IRULE3001" => ("html_encode", Some(HTML_ENCODE_PROC)),
-        "IRULE3002" => ("URI::encode", None),
-        "T103" => ("regex::quote", Some(REGEX_QUOTE_PROC)),
-        _ => return Vec::new(),
-    };
-    let Some((vstart, vend, matched)) = find_var_ref(line, &var) else {
-        return Vec::new();
-    };
-    let start = char_col_to_utf16_local(line, vstart);
-    let end = char_col_to_utf16_local(line, vend);
-    let mut edits = vec![crate::rename::TextEdit {
-        range: LspRange {
-            start_line: d.range.start_line,
-            start_character: start,
-            end_line: d.range.start_line,
-            end_character: end,
-        },
-        new_text: format!("[{encoder} {matched}]"),
-    }];
-    // Insert the helper proc at the top of the file when it isn't defined and
-    // the encoder is a user proc (html_encode / regex::quote; URI::encode is
-    // a built-in F5 command).
-    if let Some(template) = proc_template {
-        let proc_name = encoder;
-        if !source.contains(&format!("proc {proc_name}")) {
-            edits.push(crate::rename::TextEdit {
-                range: LspRange {
-                    start_line: 0,
-                    start_character: 0,
-                    end_line: 0,
-                    end_character: 0,
-                },
-                new_text: format!("{template}\n"),
-            });
+        "T106" => {
+            // Only the exact selected encoder substitution can be removed.
+            // A nearby bracket or a different variable is never an anchor.
+            if command.words.len() != 2
+                || command.words[1].span() != read
+                || command.span.start() == 0
+                || source.as_bytes().get(command.span.start() as usize - 1) != Some(&b'[')
+                || source.as_bytes().get(command.span.end() as usize) != Some(&b']')
+            {
+                return Vec::new();
+            }
+            vec![context_action(
+                "Remove redundant encoder".to_owned(),
+                vec![source_edit(
+                    source,
+                    tcl_lexer::Span::new(command.span.start() - 1, command.span.end() + 1),
+                    matched.to_owned(),
+                )],
+            )]
         }
+        "IRULE3001" | "IRULE3002" | "T103" => {
+            let (encoder, template) = match diagnostic.code.as_str() {
+                "IRULE3001" => ("html_encode", Some(HTML_ENCODE_PROC)),
+                "IRULE3002" => ("URI::encode", None),
+                _ => ("regex::quote", Some(REGEX_QUOTE_PROC)),
+            };
+            let mut edits = Vec::new();
+            if let Some(template) = template {
+                if !diagnostic_context::helper_name_is_free(analysis, encoder)
+                    || source_action_spec(analysis, registry, "proc").is_none()
+                    || source_action_spec(
+                        analysis,
+                        registry,
+                        if encoder == "html_encode" {
+                            "string"
+                        } else {
+                            "regsub"
+                        },
+                    )
+                    .is_none()
+                {
+                    return Vec::new();
+                }
+                edits.push(source_edit(
+                    source,
+                    tcl_lexer::Span::new(0, 0),
+                    format!("{template}\n"),
+                ));
+            } else if source_action_spec(analysis, registry, encoder).is_none() {
+                return Vec::new();
+            }
+            edits.push(source_edit(
+                source,
+                read,
+                format!("[::{encoder} {matched}]"),
+            ));
+            vec![context_action(
+                format!("Wrap ${variable} with [{encoder}]"),
+                edits,
+            )]
+        }
+        _ => Vec::new(),
     }
-    vec![CodeAction {
-        title: format!("Wrap ${var} with [{encoder}]"),
-        edits,
-        kind: ActionKind::QuickFix,
-        command: None,
-        data_group_definition: None,
-        disabled: None,
-    }]
 }
 
 #[cfg(test)]
@@ -2522,6 +2585,42 @@ mod tests {
     use super::*;
     use tcl_compiler::analyser::{Analyser, AnalysisResult, CodeFix, Diagnostic};
     use tcl_lexer::Span;
+
+    #[test]
+    fn original_source_action_metadata_uses_retained_availability_over_report_profile() {
+        // naming.consumer.original-diagnostic-source-actions
+        // docs/design/analysis/name-resolution-proofs/original-diagnostic-source-actions.md
+        // Exact metadata admission, without a Native slot/handler/effect claim.
+        let catalogue = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        for (environment, available) in [("tcl8.6", true), ("tcl8.4", false)] {
+            let context = std::sync::Arc::new(
+                tcl_registry::model::ingress::static_context_for(environment)
+                    .with_command_store(std::sync::Arc::clone(catalogue.commands())),
+            );
+            assert!(std::sync::Arc::ptr_eq(
+                context.commands(),
+                catalogue.commands()
+            ));
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context,
+                tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            );
+            let mut analysis = Analyser::new()
+                .with_resolved_input(input)
+                .analyse("", profile.name);
+            analysis.dialect = "tcl9.1".to_owned();
+            assert_eq!(
+                source_action_spec(&analysis, catalogue.commands(), "dict").is_some(),
+                available,
+                "same store and profile, retained {environment} availability",
+            );
+            analysis.resolved_input = None;
+            assert!(source_action_spec(&analysis, catalogue.commands(), "dict").is_none());
+        }
+    }
 
     fn whole_document_range(source: &str) -> LspRange {
         let line_count = source.lines().count().max(1);
@@ -2540,11 +2639,12 @@ mod tests {
 
     #[test]
     fn fix_attached_to_diagnostic_surfaces_as_action() {
-        // Build a synthetic AnalysisResult with one diagnostic
-        // and one fix.  Verifies the lift logic in isolation
-        // from the analyser's diagnostic emitters.
-        let mut r = AnalysisResult::default();
+        // A current source analysis carries the isolated fix-lifting fixture.
+        // This checks transport; semantic fix permission remains its issuer's.
+        let mut r = Analyser::new().analyse("set x 1\n", "tcl8.6");
+        r.diagnostics.clear();
         r.diagnostics.push(Diagnostic {
+            subject: None,
             code: DiagCode::W210,
             message: "Variable read before set".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
@@ -2574,8 +2674,10 @@ mod tests {
 
     #[test]
     fn no_action_when_range_outside_diagnostic() {
-        let mut r = AnalysisResult::default();
+        let mut r = Analyser::new().analyse("set x 1\n", "tcl8.6");
+        r.diagnostics.clear();
         r.diagnostics.push(Diagnostic {
+            subject: None,
             code: DiagCode::W210,
             message: "msg".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
@@ -2600,8 +2702,10 @@ mod tests {
 
     #[test]
     fn empty_description_falls_back_to_diagnostic_message() {
-        let mut r = AnalysisResult::default();
+        let mut r = Analyser::new().analyse("set x 1\n", "tcl8.6");
+        r.diagnostics.clear();
         r.diagnostics.push(Diagnostic {
+            subject: None,
             code: DiagCode::W210,
             message: "Variable read before set".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
@@ -2649,8 +2753,10 @@ mod tests {
 
     #[test]
     fn multiple_fixes_on_one_diagnostic_each_become_an_action() {
-        let mut r = AnalysisResult::default();
+        let mut r = Analyser::new().analyse("set x 1\n", "tcl8.6");
+        r.diagnostics.clear();
         r.diagnostics.push(Diagnostic {
+            subject: None,
             code: DiagCode::W210,
             message: "msg".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
@@ -3137,17 +3243,15 @@ mod tests {
 
     #[test]
     fn package_require_offered_from_an_editor_supplied_diagnostic() {
-        // The editor sends the diagnostics it is currently showing; a W123
-        // among them is evidence even when the analysis in hand did not
-        // re-emit it.  The head gate still applies, so this only works over
-        // a real invocation.
+        // A textual editor diagnostic carries no original issuer. The
+        // genuine analysis subject, when present, independently supports
+        // the suggestion; removing it must leave no native fallback.
         let src = "http::foo $x\n";
         let registry = tcl_registry::CommandRegistry::build_default();
         let mut analyser = Analyser::new();
-        // Analyse a *different* document so the analysis carries no W123 for
-        // this source, leaving the context diagnostic as the only evidence.
         let analysis = analyser.analyse(src, "tcl9.0").clone();
         let context = vec![ContextDiagnostic {
+            data: None,
             code: "W123".to_string(),
             message: "Unknown command 'http::foo'".to_string(),
             range: at(0, 0),
@@ -3185,6 +3289,24 @@ mod tests {
         HashMap::new()
     }
 
+    fn check_analysis(
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+        profile: &'static tcl_dialect::DialectProfile,
+        config: tcl_lexer::LexerConfig,
+    ) -> AnalysisResult {
+        let context = crate::context_for_dialect_profile(profile)
+            .with_command_store(registry.snapshot().shared_registry());
+        Analyser::new()
+            .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(context),
+                config,
+            ))
+            .analyse(source, profile.name)
+    }
+
     // check_diagnostic_actions: IRULE5002/5004 flow-warning fixes
 
     #[test]
@@ -3208,6 +3330,13 @@ mod tests {
         )
         .with_interprocedural(&registry, Some(profile));
         let checks = run_all_checks(&cu, &registry, Some(profile));
+        let analysis = check_analysis(
+            src,
+            &registry,
+            profile,
+            LexerConfig::for_dialect("f5-irules"),
+        );
+        let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
         assert!(
             checks
                 .iter()
@@ -3217,7 +3346,7 @@ mod tests {
 
         let none_disabled = std::collections::HashSet::new();
         let actions = check_diagnostic_actions(
-            src,
+            &current,
             whole_document_range(src),
             &checks,
             &none_disabled,
@@ -3243,10 +3372,12 @@ mod tests {
     fn check_actions_empty_without_fixes() {
         // Checks with no fixes (or an out-of-range diagnostic) yield nothing.
         let src = "set x 1\n";
+        let analysis = Analyser::new().analyse(src, "tcl8.6");
+        let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
         let none_disabled = std::collections::HashSet::new();
         assert!(
             check_diagnostic_actions(
-                src,
+                &current,
                 whole_document_range(src),
                 &[],
                 &none_disabled,
@@ -3277,11 +3408,18 @@ mod tests {
         )
         .with_interprocedural(&registry, Some(profile));
         let checks = run_all_checks(&cu, &registry, Some(profile));
+        let analysis = check_analysis(
+            src,
+            &registry,
+            profile,
+            LexerConfig::for_dialect("f5-irules"),
+        );
+        let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
 
         let mut disabled = std::collections::HashSet::new();
         disabled.insert("IRULE5002".to_string());
         let actions = check_diagnostic_actions(
-            src,
+            &current,
             whole_document_range(src),
             &checks,
             &disabled,
@@ -3309,6 +3447,13 @@ mod tests {
         let src = "set x hello\n# noqa: S100\nincr x\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let checks = run_all_checks(&cu, &registry, None);
+        let analysis = check_analysis(
+            src,
+            &registry,
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+            tcl_lexer::LexerConfig::default(),
+        );
+        let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
         assert!(
             checks.iter().any(|d| d.code == DiagCode::S100),
             "the check itself still fires; only its actions are withheld: {checks:?}"
@@ -3319,7 +3464,7 @@ mod tests {
             .clone();
 
         let actions = check_diagnostic_actions(
-            src,
+            &current,
             whole_document_range(src),
             &checks,
             &std::collections::HashSet::new(),
@@ -3345,6 +3490,13 @@ mod tests {
         let src = "set x hello\nincr x\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let checks = run_all_checks(&cu, &registry, None);
+        let analysis = check_analysis(
+            src,
+            &registry,
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+            tcl_lexer::LexerConfig::default(),
+        );
+        let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
         let s100 = checks
             .iter()
             .find(|d| d.code == DiagCode::S100)
@@ -3356,7 +3508,7 @@ mod tests {
 
         let none_disabled = std::collections::HashSet::new();
         let actions = check_diagnostic_actions(
-            src,
+            &current,
             whole_document_range(src),
             &checks,
             &none_disabled,
@@ -3398,11 +3550,18 @@ mod tests {
         let src = "proc f {} {\n    set x hello\n    incr x\n}\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let checks = run_all_checks(&cu, &registry, None);
+        let analysis = check_analysis(
+            src,
+            &registry,
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+            tcl_lexer::LexerConfig::default(),
+        );
+        let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
         assert!(checks.iter().any(|d| d.code == DiagCode::S100));
 
         let none_disabled = std::collections::HashSet::new();
         let actions = check_diagnostic_actions(
-            src,
+            &current,
             whole_document_range(src),
             &checks,
             &none_disabled,
@@ -3426,11 +3585,18 @@ mod tests {
         let src = "set x hello\nincr x\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let checks = run_all_checks(&cu, &registry, None);
+        let analysis = check_analysis(
+            src,
+            &registry,
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+            tcl_lexer::LexerConfig::default(),
+        );
+        let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
 
         let mut disabled = std::collections::HashSet::new();
         disabled.insert("S100".to_string());
         let actions = check_diagnostic_actions(
-            src,
+            &current,
             whole_document_range(src),
             &checks,
             &disabled,
@@ -3486,10 +3652,70 @@ mod tests {
             assert!(
                 !actions
                     .iter()
-                    .any(|action| action.title.contains("continued comment")),
+                    .any(|action| action.title == "Convert to per-line comments"),
                 "pseudo-comment offered W115 action: {actions:?}"
             );
         }
+    }
+
+    #[test]
+    fn w115_action_uses_actual_schema_and_complete_original_unicode_lines() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "hold-script {\n    # café 😀 \\\n    puts 😀\n}\n";
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "hold-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, tcl_registry::ArgRole::Body)],
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let config = tcl_lexer::LexerConfig {
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let analysis = check_analysis(source, &registry, profile, config);
+        let range = LspRange {
+            start_line: 1,
+            start_character: 4,
+            end_line: 1,
+            end_character: 4,
+        };
+        let actions = code_actions(source, range, Some(&analysis), &[]);
+        let action = actions
+            .iter()
+            .find(|action| action.title == "Convert to per-line comments")
+            .unwrap();
+        assert_eq!(action.edits.len(), 1);
+        assert_eq!(
+            action.edits[0].range,
+            LspRange {
+                start_line: 1,
+                start_character: 0,
+                end_line: 2,
+                end_character: 11
+            }
+        );
+        assert_eq!(action.edits[0].new_text, "    # café 😀\n    # puts 😀");
+        assert!(
+            !code_actions(&format!("{source} "), range, Some(&analysis), &[])
+                .iter()
+                .any(|action| action.title == "Convert to per-line comments")
+        );
+    }
+
+    #[test]
+    fn w115_action_never_replaces_a_command_prefix_beside_a_body_comment() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "if 1 {# inline \\\nputs hidden\n}\n";
+        let analysis = analyse(source);
+        assert!(
+            !code_actions(source, whole_document_range(source), Some(&analysis), &[])
+                .iter()
+                .any(|action| action.title == "Convert to per-line comments")
+        );
     }
 
     #[test]
@@ -3602,7 +3828,7 @@ mod tests {
     #[test]
     fn extract_datagroup_surfaces_and_carries_definition() {
         let src = "if {$host eq \"a.com\"} {\n    pool web_pool\n} elseif {$host eq \"b.com\"} {\n    pool web_pool\n} elseif {$host eq \"c.com\"} {\n    pool web_pool\n}";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "f5-irules");
         let cursor = LspRange {
             start_line: 0,
             start_character: 0,
@@ -3628,6 +3854,21 @@ mod tests {
     fn a_dropped_property_offers_the_nearest_real_word() {
         let src = "speclib mylib 1 {\n    command mylib::x {\n        arty 1\n    }\n}\n";
         let diags = vec![ContextDiagnostic {
+            data: SpecPackNoticeSubject::from_loader(
+                src,
+                tcl_lexer::LexerConfig::for_file_grammar(
+                    crate::profile_for_dialect("spectcl").grammar,
+                ),
+                3,
+                "arty",
+                SpecPackNoticeKind::Property,
+            )
+            .and_then(|subject| {
+                ContextDiagnosticData::from_spec_pack_notice(
+                    &subject,
+                    &Analyser::new().analyse(src, "spectcl"),
+                )
+            }),
             code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
             message: "mylib::x: unknown property `arty` dropped".to_owned(),
             range: LspRange {
@@ -3637,7 +3878,7 @@ mod tests {
                 end_character: 14,
             },
         }];
-        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        let actions = spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "spectcl"), &diags);
         assert_eq!(actions.len(), 1, "{actions:?}");
         assert_eq!(actions[0].title, "Change `arty` to `arity`");
         assert_eq!(actions[0].edits.len(), 1);
@@ -3654,6 +3895,21 @@ mod tests {
     fn the_candidate_vocabulary_is_the_grammar_in_force() {
         let src = "speclib mylib 1 {\n    command mylib::x {\n        hover {\n            sumary {x}\n        }\n    }\n}\n";
         let diags = vec![ContextDiagnostic {
+            data: SpecPackNoticeSubject::from_loader(
+                src,
+                tcl_lexer::LexerConfig::for_file_grammar(
+                    crate::profile_for_dialect("spectcl").grammar,
+                ),
+                4,
+                "sumary",
+                SpecPackNoticeKind::Property,
+            )
+            .and_then(|subject| {
+                ContextDiagnosticData::from_spec_pack_notice(
+                    &subject,
+                    &Analyser::new().analyse(src, "spectcl"),
+                )
+            }),
             code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
             message: "unknown property `sumary` dropped".to_owned(),
             range: LspRange {
@@ -3663,13 +3919,28 @@ mod tests {
                 end_character: 22,
             },
         }];
-        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        let actions = spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "spectcl"), &diags);
         assert_eq!(actions.len(), 1, "{actions:?}");
         assert_eq!(actions[0].edits[0].new_text, "summary");
 
         // The same misspelling one level out has no `summary` to reach.
         let outer = "speclib mylib 1 {\n    command mylib::x {\n        sumary {x}\n    }\n}\n";
         let outer_diags = vec![ContextDiagnostic {
+            data: SpecPackNoticeSubject::from_loader(
+                outer,
+                tcl_lexer::LexerConfig::for_file_grammar(
+                    crate::profile_for_dialect("spectcl").grammar,
+                ),
+                3,
+                "sumary",
+                SpecPackNoticeKind::Property,
+            )
+            .and_then(|subject| {
+                ContextDiagnosticData::from_spec_pack_notice(
+                    &subject,
+                    &Analyser::new().analyse(outer, "spectcl"),
+                )
+            }),
             code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
             message: "unknown property `sumary` dropped".to_owned(),
             range: LspRange {
@@ -3680,9 +3951,13 @@ mod tests {
             },
         }];
         assert!(
-            !spec_pack_quick_fixes(outer, crate::profile_for_dialect("spectcl"), &outer_diags)
-                .iter()
-                .any(|a| a.edits[0].new_text == "summary")
+            !spec_pack_quick_fixes(
+                outer,
+                &Analyser::new().analyse(outer, "spectcl"),
+                &outer_diags
+            )
+            .iter()
+            .any(|a| a.edits[0].new_text == "summary")
         );
     }
 
@@ -3692,6 +3967,21 @@ mod tests {
     fn a_dropped_flag_offers_the_nearest_option() {
         let src = "speclib mylib 1 {\n    command mylib::x {\n        arg 0 -rle Body\n    }\n}\n";
         let diags = vec![ContextDiagnostic {
+            data: SpecPackNoticeSubject::from_loader(
+                src,
+                tcl_lexer::LexerConfig::for_file_grammar(
+                    crate::profile_for_dialect("spectcl").grammar,
+                ),
+                3,
+                "-rle",
+                SpecPackNoticeKind::Flag { row: "arg".into() },
+            )
+            .and_then(|subject| {
+                ContextDiagnosticData::from_spec_pack_notice(
+                    &subject,
+                    &Analyser::new().analyse(src, "spectcl"),
+                )
+            }),
             code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
             message: "unknown flag `-rle` on `arg` dropped".to_owned(),
             range: LspRange {
@@ -3701,7 +3991,7 @@ mod tests {
                 end_character: 23,
             },
         }];
-        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        let actions = spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "spectcl"), &diags);
         assert_eq!(actions.len(), 1, "{actions:?}");
         assert_eq!(actions[0].edits[0].new_text, "-role");
     }
@@ -3713,6 +4003,21 @@ mod tests {
     fn a_row_sharing_its_line_is_corrected_against_its_own_head() {
         let src = "speclib mylib 1 {\n    command mylib::x {\n        arity 1; arty 2\n    }\n}\n";
         let diags = vec![ContextDiagnostic {
+            data: SpecPackNoticeSubject::from_loader(
+                src,
+                tcl_lexer::LexerConfig::for_file_grammar(
+                    crate::profile_for_dialect("spectcl").grammar,
+                ),
+                3,
+                "arty",
+                SpecPackNoticeKind::Property,
+            )
+            .and_then(|subject| {
+                ContextDiagnosticData::from_spec_pack_notice(
+                    &subject,
+                    &Analyser::new().analyse(src, "spectcl"),
+                )
+            }),
             code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
             message: "mylib::x: unknown property `arty` dropped".to_owned(),
             range: LspRange {
@@ -3722,7 +4027,7 @@ mod tests {
                 end_character: 23,
             },
         }];
-        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        let actions = spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "spectcl"), &diags);
         assert_eq!(actions.len(), 1, "{actions:?}");
         assert_eq!(actions[0].edits[0].new_text, "arity");
         assert_eq!(actions[0].edits[0].range.start_character, 17);
@@ -3731,6 +4036,21 @@ mod tests {
         // row the flag was written on (`arg`), not the line's (`arity`).
         let src = "speclib mylib 1 {\n    command mylib::x {\n        arity 1; arg 0 -rle Body\n    }\n}\n";
         let diags = vec![ContextDiagnostic {
+            data: SpecPackNoticeSubject::from_loader(
+                src,
+                tcl_lexer::LexerConfig::for_file_grammar(
+                    crate::profile_for_dialect("spectcl").grammar,
+                ),
+                3,
+                "-rle",
+                SpecPackNoticeKind::Flag { row: "arg".into() },
+            )
+            .and_then(|subject| {
+                ContextDiagnosticData::from_spec_pack_notice(
+                    &subject,
+                    &Analyser::new().analyse(src, "spectcl"),
+                )
+            }),
             code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
             message: "unknown flag `-rle` on `arg` dropped".to_owned(),
             range: LspRange {
@@ -3740,7 +4060,7 @@ mod tests {
                 end_character: 32,
             },
         }];
-        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        let actions = spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "spectcl"), &diags);
         assert_eq!(actions.len(), 1, "{actions:?}");
         assert_eq!(actions[0].edits[0].new_text, "-role");
     }
@@ -3751,6 +4071,21 @@ mod tests {
     fn a_notice_the_buffer_has_moved_past_offers_nothing() {
         let src = "speclib mylib 1 {\n    command mylib::x {\n        arity 1\n    }\n}\n";
         let diags = vec![ContextDiagnostic {
+            data: SpecPackNoticeSubject::from_loader(
+                src,
+                tcl_lexer::LexerConfig::for_file_grammar(
+                    crate::profile_for_dialect("spectcl").grammar,
+                ),
+                3,
+                "arty",
+                SpecPackNoticeKind::Property,
+            )
+            .and_then(|subject| {
+                ContextDiagnosticData::from_spec_pack_notice(
+                    &subject,
+                    &Analyser::new().analyse(src, "spectcl"),
+                )
+            }),
             code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
             message: "unknown property `arty` dropped".to_owned(),
             range: LspRange {
@@ -3761,7 +4096,7 @@ mod tests {
             },
         }];
         assert!(
-            spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags).is_empty()
+            spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "spectcl"), &diags).is_empty()
         );
     }
 
@@ -3771,6 +4106,21 @@ mod tests {
     fn an_ordinary_tcl_document_gets_no_pack_quick_fix() {
         let src = "proc arty {} {}\n";
         let diags = vec![ContextDiagnostic {
+            data: SpecPackNoticeSubject::from_loader(
+                src,
+                tcl_lexer::LexerConfig::for_file_grammar(
+                    crate::profile_for_dialect("spectcl").grammar,
+                ),
+                1,
+                "arty",
+                SpecPackNoticeKind::Property,
+            )
+            .and_then(|subject| {
+                ContextDiagnosticData::from_spec_pack_notice(
+                    &subject,
+                    &Analyser::new().analyse(src, "spectcl"),
+                )
+            }),
             code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
             message: "unknown property `arty` dropped".to_owned(),
             range: LspRange {
@@ -3781,12 +4131,430 @@ mod tests {
             },
         }];
         assert!(
-            spec_pack_quick_fixes(
-                src,
-                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
-                &diags,
+            spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "tcl"), &diags,).is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_docstring_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn actions(
+        source: &str,
+        analysis: &AnalysisResult,
+        line: u32,
+        style: crate::formatting::DocstringStyle,
+    ) -> Vec<CodeAction> {
+        let index = LineIndex::new(source);
+        docstring_actions(
+            source,
+            LspRange {
+                start_line: line,
+                start_character: 0,
+                end_line: line,
+                end_character: 0,
+            },
+            analysis,
+            &index,
+            style,
+        )
+    }
+
+    #[test]
+    // Implementation contract: naming.core.original-docstring-declaration-actions
+    // docs/design/analysis/name-resolution-proofs/original-docstring-declaration-actions.md
+    fn original_docstrings_keep_opaque_redefinitions_without_reporting_maps() {
+        let source = "proc p\\uD800 {first} {return $first}\nproc p\\uD801 {second} {return $second}\nproc p\\uD800 {third} {return $third}\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        for (line, formal) in [(0, "first"), (1, "second"), (2, "third")] {
+            let found = actions(
+                source,
+                &analysis,
+                line,
+                crate::formatting::DocstringStyle::Preceding,
+            );
+            assert_eq!(found.len(), 1);
+            assert!(found[0].edits[0].new_text.contains(formal));
+            assert_eq!(found[0].edits[0].range.start_line, line);
+        }
+        assert!(
+            actions(
+                &format!("# displaced\n{source}"),
+                &analysis,
+                1,
+                crate::formatting::DocstringStyle::Preceding
             )
             .is_empty()
         );
+        analysis.body_lexer_config = None;
+        assert!(
+            actions(
+                source,
+                &analysis,
+                0,
+                crate::formatting::DocstringStyle::Preceding
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    // Implementation contract: naming.core.original-docstring-declaration-actions
+    // docs/design/analysis/name-resolution-proofs/original-docstring-declaration-actions.md
+    fn original_body_docstring_requires_its_braced_word_and_rejects_computed_body() {
+        let source = "proc p {value} {return $value}\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let found = actions(
+            source,
+            &analysis,
+            0,
+            crate::formatting::DocstringStyle::Body,
+        );
+        assert_eq!(found.len(), 1);
+        assert!(found[0].edits[0].new_text.contains("value"));
+        let computed = "set script {return value}\nproc computed {} $script\n";
+        let analysis = Analyser::new().analyse(computed, "tcl8.6");
+        assert_eq!(
+            actions(
+                computed,
+                &analysis,
+                1,
+                crate::formatting::DocstringStyle::Preceding
+            )
+            .len(),
+            1
+        );
+        assert!(
+            actions(
+                computed,
+                &analysis,
+                1,
+                crate::formatting::DocstringStyle::Body
+            )
+            .is_empty()
+        );
+        assert!(
+            actions(
+                computed,
+                &analysis,
+                1,
+                crate::formatting::DocstringStyle::None
+            )
+            .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_package_suggestion_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn at(line: u32) -> LspRange {
+        LspRange {
+            start_line: line,
+            start_character: 2,
+            end_line: line,
+            end_character: 2,
+        }
+    }
+
+    #[test]
+    // Implementation contract: naming.core.original-package-suggestion-subjects
+    // docs/design/analysis/name-resolution-proofs/original-package-suggestion-subjects.md
+    fn original_package_hint_uses_written_units_and_issuer_after_reporting_clear() {
+        let source = "http::f\\uD800\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let registry = tcl_registry::CommandRegistry::build_default();
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "other::display".into();
+        }
+        for diagnostic in &mut analysis.diagnostics {
+            diagnostic.message = "counterfactual display".into();
+        }
+        let actions = package_require_actions(source, at(0), &registry, Some(&analysis), &[]);
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].edits[0].new_text, "package require http\n");
+        assert!(
+            package_require_actions(
+                &format!("# displaced\n{source}"),
+                at(1),
+                &registry,
+                Some(&analysis),
+                &[]
+            )
+            .is_empty()
+        );
+        let context = [ContextDiagnostic {
+            data: None,
+            code: "W123".into(),
+            message: "Unknown http::name".into(),
+            range: at(0),
+        }];
+        for diagnostic in &mut analysis.diagnostics {
+            diagnostic.subject = None;
+        }
+        assert!(
+            package_require_actions(source, at(0), &registry, Some(&analysis), &context).is_empty()
+        );
+    }
+
+    #[test]
+    // Implementation contract: naming.core.original-package-suggestion-subjects
+    // docs/design/analysis/name-resolution-proofs/original-package-suggestion-subjects.md
+    fn original_package_hint_requires_own_lookup_and_canonical_package_key() {
+        let source = "http::missing\n";
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert_eq!(
+            package_require_actions(source, at(0), &registry, Some(&analysis), &[]).len(),
+            1
+        );
+        let invocation = analysis
+            .command_invocations
+            .iter_mut()
+            .find(|invocation| {
+                invocation
+                    .original_name_input
+                    .as_ref()
+                    .is_some_and(|input| input.bytes() == b"http::missing")
+            })
+            .unwrap();
+        invocation.original_lookup = None;
+        assert!(package_require_actions(source, at(0), &registry, Some(&analysis), &[]).is_empty());
+        let source = "package require h\\u0074tp\nhttp::missing\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let requirement = analysis.package_requires.first_mut().unwrap();
+        assert!(
+            requirement
+                .original_name
+                .as_ref()
+                .unwrap()
+                .key()
+                .matches_ascii("http")
+        );
+        requirement.name = "unrelated-report".into();
+        assert!(package_require_actions(source, at(1), &registry, Some(&analysis), &[]).is_empty());
+    }
+    #[test]
+    fn original_package_action_uses_genuine_provision_and_requirement_operands() {
+        // naming.core.original-package-source-action-context
+        // docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md
+        for (source, available) in [
+            ("package provide http\n", false),
+            ("package provide http 1\n", true),
+            ("package require -exact h\\u0074tp 1\n", true),
+            ("set text {package require http}\n", false),
+        ] {
+            let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+            for requirement in &mut analysis.package_requires {
+                requirement.name = "wrong".to_owned();
+            }
+            for provision in &mut analysis.package_provides {
+                provision.name = "wrong".to_owned();
+            }
+            assert_eq!(
+                super::original_source_package_already_named(source, &analysis, "http"),
+                Some(available),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_logical_package_action_requires_its_positive_vector_and_current_input() {
+        // naming.core.original-package-source-action-context
+        // docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "logical-package-source-action",
+            &[],
+            "Logical package advice",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )
+        .intern();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context.clone(),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let source = "http::missing\n";
+        let mut analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, profile.name);
+        assert!(
+            tcl_compiler::registry_invocation::source_structure::original_logical_source_words_at(
+                source, &analysis, 0
+            )
+            .is_some()
+        );
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "wrong::report".to_owned();
+        }
+        let actions =
+            package_require_actions(source, at(0), context.commands(), Some(&analysis), &[]);
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].edits[0].new_text, "package require http\n");
+        let mut config = input.lexer_config();
+        config.leading_bom = match config.leading_bom {
+            tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+            tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+        };
+        analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context.clone(),
+            config,
+        ));
+        assert!(
+            package_require_actions(source, at(0), context.commands(), Some(&analysis), &[])
+                .is_empty()
+        );
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            tcl_compiler::registry_invocation::source_structure::original_logical_source_words_at(
+                source, &native, 0
+            )
+            .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_refactor_context_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_refactor_actions_keep_document_registry_and_full_source() {
+        // Implementation contract: naming.refactor.original-document-context
+        // docs/design/analysis/name-resolution-proofs/refactor-original-document-context.md
+        let source = "if {$host eq \"a.com\"} {pool web_pool} elseif {$host eq \"b.com\"} {pool web_pool} elseif {$host eq \"c.com\"} {pool web_pool}";
+        let range = LspRange {
+            start_line: 0,
+            start_character: 0,
+            end_line: 0,
+            end_character: 0,
+        };
+        let index = LineIndex::new(source);
+        let mut plain = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            !extract_inline_actions(source, range, &plain, &index, None)
+                .iter()
+                .any(|action| action.data_group_definition.is_some())
+        );
+        plain.dialect = "f5-irules".to_owned();
+        assert!(
+            !extract_inline_actions(source, range, &plain, &index, None)
+                .iter()
+                .any(|action| action.data_group_definition.is_some())
+        );
+        let mut vendor = Analyser::new().analyse(source, "f5-irules");
+        let actions = extract_inline_actions(source, range, &vendor, &index, None);
+        assert!(
+            actions
+                .iter()
+                .any(|action| action.data_group_definition.is_some()),
+            "{actions:?}"
+        );
+        vendor.dialect = "tcl8.6".to_owned();
+        assert!(
+            extract_inline_actions(source, range, &vendor, &index, None)
+                .iter()
+                .any(|action| action.data_group_definition.is_some())
+        );
+        let displaced = format!("#{source}");
+        assert!(
+            extract_inline_actions(
+                &displaced,
+                range,
+                &vendor,
+                &LineIndex::new(&displaced),
+                None
+            )
+            .is_empty()
+        );
+        vendor.body_lexer_config = None;
+        assert!(extract_inline_actions(source, range, &vendor, &index, None).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_event_action_boundary_tests {
+    use super::*;
+
+    // Implementation contract: naming.consumer.original-diagnostic-source-actions
+    // docs/design/analysis/name-resolution-proofs/original-diagnostic-source-actions.md
+    #[test]
+    fn original_bootstrap_boundaries_exclude_nested_handler_lookalikes() {
+        let source = "when HTTP_REQUEST {if {1} {when CLIENT_DATA {TCP::payload}}}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
+        let registry = analysis.resolved_registry().unwrap();
+        let commands = diagnostic_context::current_commands(source, &analysis, registry).unwrap();
+        let handlers = selected_event_handlers(source, &analysis, registry, &commands);
+        assert_eq!(
+            handlers.iter().map(|(_, event)| *event).collect::<Vec<_>>(),
+            vec!["HTTP_REQUEST"]
+        );
+        assert_eq!(handlers[0].0.span.start(), 0);
+    }
+}
+
+#[cfg(test)]
+mod original_expression_action_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn actions(source: &str, analysis: &AnalysisResult) -> Vec<CodeAction> {
+        let selected = "!(1 && 0)";
+        let start = u32::try_from(source.find(selected).unwrap()).unwrap();
+        expr_rewrite_actions(
+            source,
+            LspRange {
+                start_line: 0,
+                start_character: start,
+                end_line: 0,
+                end_character: start + u32::try_from(selected.len()).unwrap(),
+            },
+            analysis,
+            &LineIndex::new(source),
+        )
+    }
+
+    #[test]
+    // Implementation contract: naming.core.original-expression-source-selection
+    // docs/design/analysis/name-resolution-proofs/original-expression-source-selection.md
+    fn original_expression_actions_separate_position_from_rewrite_equivalence() {
+        let source = "expr {!(1 && 0)}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let proposed = actions(source, &analysis);
+        assert_eq!(proposed.len(), 1);
+        assert!(proposed[0].edits.is_empty());
+        assert!(
+            proposed[0]
+                .disabled
+                .as_ref()
+                .unwrap()
+                .starts_with("missing-expression-operator-rewrite-permission:")
+        );
+        analysis.command_invocations.clear();
+        assert_eq!(actions(source, &analysis).len(), 1);
+        assert!(actions(&format!("#{source}"), &analysis).is_empty());
+        for source in [
+            "set data {!(1 && 0)}",
+            "# expr {!(1 && 0)}",
+            "proc expr args {}; expr {!(1 && 0)}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            assert!(actions(source, &analysis).is_empty(), "{source}");
+        }
     }
 }

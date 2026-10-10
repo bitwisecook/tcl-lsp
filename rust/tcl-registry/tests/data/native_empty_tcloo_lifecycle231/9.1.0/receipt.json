@@ -1,0 +1,59 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-empty-tcloo-lifecycle231/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.011202301000594161,
+  "reported_version_row": "META patchlevel 9.1.0 tcloo_command 1",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "34a28b9cdc4d5501378a76bbdbbe0db1d7886ed62e4a146ff37e3e756fb92139",
+  "stdout_sha256": "c8d83a2775addfe0df770ec98d756b6676eab3b038d17a33a0ac95e0599520a2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "rows": [
+    "META patchlevel 9.1.0 tcloo_command 1",
+    "DECL label empty code 0 result ::original_lifecycle_empty",
+    "OWN label empty code 0 constructor {}",
+    "CALL label empty argc 0 code 0 result ::oo::Obj22 errorCode {}",
+    "CALL label empty argc 1 code 0 result ::oo::Obj23 errorCode {}",
+    "CALL label empty argc 2 code 0 result ::oo::Obj24 errorCode {}",
+    "CALL label empty argc 3 code 0 result ::oo::Obj25 errorCode {}",
+    "DECL label space code 0 result ::original_lifecycle_space",
+    "OWN label space code 0 constructor {{a b} { }}",
+    "CALL label space argc 0 code 1 result {wrong # args: should be \"::original_lifecycle_space new a b\"} errorCode {TCL WRONGARGS}",
+    "CALL label space argc 1 code 1 result {wrong # args: should be \"::original_lifecycle_space new a b\"} errorCode {TCL WRONGARGS}",
+    "CALL label space argc 2 code 0 result ::oo::Obj30 errorCode {}",
+    "CALL label space argc 3 code 1 result {wrong # args: should be \"::original_lifecycle_space new a b\"} errorCode {TCL WRONGARGS}",
+    "DECL label comment code 0 result ::original_lifecycle_comment",
+    "OWN label comment code 0 constructor {{a b} {# body}}",
+    "CALL label comment argc 0 code 1 result {wrong # args: should be \"::original_lifecycle_comment new a b\"} errorCode {TCL WRONGARGS}",
+    "CALL label comment argc 1 code 1 result {wrong # args: should be \"::original_lifecycle_comment new a b\"} errorCode {TCL WRONGARGS}",
+    "CALL label comment argc 2 code 0 result ::oo::Obj36 errorCode {}",
+    "CALL label comment argc 3 code 1 result {wrong # args: should be \"::original_lifecycle_comment new a b\"} errorCode {TCL WRONGARGS}",
+    "DECL label empty_malformed code 0 result ::original_lifecycle_empty_malformed",
+    "OWN label empty_malformed code 0 constructor {}",
+    "CALL label empty_malformed argc 0 code 0 result ::oo::Obj40 errorCode {}",
+    "CALL label empty_malformed argc 1 code 0 result ::oo::Obj41 errorCode {}",
+    "CALL label empty_malformed argc 2 code 0 result ::oo::Obj42 errorCode {}",
+    "CALL label empty_malformed argc 3 code 0 result ::oo::Obj43 errorCode {}",
+    "DECL label space_malformed code 1 result {too many fields in argument specifier \"a b c\"}",
+    "OWN label inherited_after_empty_removal code 0 constructor {}",
+    "CALL label inherited_after_empty_removal argc 0 code 1 result {wrong # args: should be \"::original_lifecycle_child new a b\"} errorCode {TCL WRONGARGS}",
+    "CALL label inherited_after_empty_removal argc 1 code 1 result {wrong # args: should be \"::original_lifecycle_child new a b\"} errorCode {TCL WRONGARGS}",
+    "CALL label inherited_after_empty_removal argc 2 code 0 result ::oo::Obj52 errorCode {}",
+    "CALL label inherited_after_empty_removal argc 3 code 1 result {wrong # args: should be \"::original_lifecycle_child new a b\"} errorCode {TCL WRONGARGS}"
+  ],
+  "input_channel": "Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.",
+  "question": "naming.tcloo.empty-lifecycle-definition"
+}

@@ -172,8 +172,11 @@ fn return_layout_roles(
     }
 }
 
-fn return_context_gate(args: &[&str], in_event_body: bool) -> Option<&'static str> {
-    (in_event_body && !args.is_empty()).then_some(
+fn return_context_gate(
+    args: crate::InvocationArguments<'_>,
+    in_event_body: bool,
+) -> Option<&'static str> {
+    (in_event_body && args.exact_argv_len()? != 0).then_some(
         "`return` takes no arguments directly inside an iRules event body; \
          wrap the call in a proc to use -code/-level/-errorcode/etc.",
     )
@@ -215,6 +218,25 @@ fn return_state_effects(
         }
     }
 }
+
+fn return_state_transitions(arguments: crate::InvocationArguments<'_>) -> crate::StateTransitions {
+    match crate::registry::native_return_state_effect(arguments) {
+        crate::completion_route::ReturnStateEffect::ResultAndCompletion => {
+            crate::StateTransitions::default()
+        }
+        crate::completion_route::ReturnStateEffect::MayMaterialiseError => {
+            crate::StateTransitions::unknown_invocation()
+        }
+    }
+}
+
+const RETURN_STATE_TRANSITIONS: crate::StateTransitionDescriptor =
+    crate::StateTransitionDescriptor {
+        resolver: Some(return_state_transitions),
+        // Error-option publication may invoke observers before an abrupt return.
+        commit: crate::StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+        ..crate::StateTransitionDescriptor::EMPTY
+    };
 
 const RETURN_WORLD_EFFECTS: crate::WorldEffectDescriptor = crate::WorldEffectDescriptor {
     static_footprint: crate::world_effect::StaticEffectFootprint {
@@ -275,6 +297,7 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         world_effects: Some(RETURN_WORLD_EFFECTS),
+        state_transitions: Some(RETURN_STATE_TRANSITIONS),
         hover: Some(HoverSnippet {
             summary: "Return from the current procedure/script with optional control-code metadata.",
             synopsis: &[

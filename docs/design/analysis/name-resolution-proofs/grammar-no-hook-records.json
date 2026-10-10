@@ -1,0 +1,454 @@
+[
+  {
+    "id": "naming.compiler.stock-procedure-null-compile-hook",
+    "kind": "source-anchor",
+    "document": "docs/design/analysis/name-resolution-proofs/stock-procedure-null-compile-hook.md",
+    "problem_statement": "An unknown caller compilation mode can mean either direct argv evaluation or bytecode compilation. If the selected stock proc registration has a NULL compileProc, treating that uncertainty as an arbitrary compiler can withdraw command state before proc arguments run. The absence of a compiler must be established from the selected registration; a renamed label, caller words, or handler effects do not establish it.",
+    "question": "Do the pinned C8.4 through C9.1 stock proc registrations have a compiler hook, and does their compiler callsite invoke a NULL hook?",
+    "conclusion": "All five inspected stock proc registrations have a NULL compileProc, while return has a non-null compiler. The retained compiler callsites check for a non-null hook before invocation. This supports generic argv transport for an independently selected NoHook descriptor under unknown compilation mode; it supplies no handler success, procedure body entry, replacement-registration or native object authority.",
+    "scope": "Pinned C sources for Tcl8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; exact full-file and excerpt hashes. Source inspection only, no newly executed native control. Jim and BIG-IP are not inspected for this C registration question.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "No guest build or execution for this source inspection; exact release source hashes are retained.",
+        "input_channel": "Pinned C source registration and compiler callsite; no guest source input.",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Stock proc has NULL compileProc; stock return has a compiler; the compiler invokes only a non-null hook.",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "No guest build or execution for this source inspection; exact release source hashes are retained.",
+        "input_channel": "Pinned C source registration and compiler callsite; no guest source input.",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Stock proc has NULL compileProc; stock return has a compiler; the compiler invokes only a non-null hook.",
+        "evidence": [
+          "e2",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "No guest build or execution for this source inspection; exact release source hashes are retained.",
+        "input_channel": "Pinned C source registration and compiler callsite; no guest source input.",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Stock proc has NULL compileProc; stock return has a compiler; the compiler invokes only a non-null hook.",
+        "evidence": [
+          "e4",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "No guest build or execution for this source inspection; exact release source hashes are retained.",
+        "input_channel": "Pinned C source registration and compiler callsite; no guest source input.",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Stock proc has NULL compileProc; stock return has a compiler; the compiler invokes only a non-null hook.",
+        "evidence": [
+          "e6",
+          "e7"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "No guest build or execution for this source inspection; exact release source hashes are retained.",
+        "input_channel": "Pinned C source registration and compiler callsite; no guest source input.",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Stock proc has NULL compileProc; stock return has a compiler; the compiler invokes only a non-null hook.",
+        "evidence": [
+          "e8",
+          "e9"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_no_hook_source/8.4.20-registrations.txt",
+        "sha256": "651d31494953853c211fe2e9ec9333018710c0d3dc4079820f82a189947a35dd",
+        "description": "Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately."
+      },
+      {
+        "id": "e1",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_no_hook_source/8.4.20-compiler-call.txt",
+        "sha256": "54023432b224c8f21db9cc676d3d9c01a9ede1b5856e49c92bf24a7cd5869178",
+        "description": "Exact TclCompileScript source excerpt; original full-file SHA and lines are retained separately."
+      },
+      {
+        "id": "e2",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_no_hook_source/8.5.19-registrations.txt",
+        "sha256": "5d566598fa4e60e7a5740882bbce809813869994a21e06a317257459a1ce1c60",
+        "description": "Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately."
+      },
+      {
+        "id": "e3",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_no_hook_source/8.5.19-compiler-call.txt",
+        "sha256": "971d284c64dbb2a417a5e44d6100ac57b58820fe915e61885238e9e1b916c73b",
+        "description": "Exact TclCompileScript source excerpt; original full-file SHA and lines are retained separately."
+      },
+      {
+        "id": "e4",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_no_hook_source/8.6.18-registrations.txt",
+        "sha256": "1c95fcd7477dc5193bc8cc9189cbb25647b912c67bc5ce6c3b1f4fc883b2de62",
+        "description": "Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately."
+      },
+      {
+        "id": "e5",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_no_hook_source/8.6.18-compiler-call.txt",
+        "sha256": "11d13a1e2b8c109bea5b3d87750adc9579516628b1ae79cae9b49f6ad741e67f",
+        "description": "Exact CompileCommandTokens source excerpt; original full-file SHA and lines are retained separately."
+      },
+      {
+        "id": "e6",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_no_hook_source/9.0.4-registrations.txt",
+        "sha256": "280338db7b87258e9475c5e6b37d8537479044d0ced867c0c9ba9510b0eb4fa5",
+        "description": "Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately."
+      },
+      {
+        "id": "e7",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_no_hook_source/9.0.4-compiler-call.txt",
+        "sha256": "1803863626befe725c472ff52c33e0a3d9919044d3920e17af30aa5e096dabef",
+        "description": "Exact CompileCommandTokens source excerpt; original full-file SHA and lines are retained separately."
+      },
+      {
+        "id": "e8",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_no_hook_source/9.1.0-registrations.txt",
+        "sha256": "932ce572de6b1c38032a93a1f673baee4339cbd25e2c6588c0e7c9a512fed4e8",
+        "description": "Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately."
+      },
+      {
+        "id": "e9",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_no_hook_source/9.1.0-compiler-call.txt",
+        "sha256": "c1d6c7e554b93ce3728a1e0b7799be86c0be49d0514047c9d729937cf7cef099",
+        "description": "Exact CompileCommandTokens source excerpt; original full-file SHA and lines are retained separately."
+      }
+    ],
+    "source_anchors": [
+      {
+        "provider": "tcl8.4",
+        "version": "8.4.20",
+        "revision": "pinned Tcl release 8.4.20",
+        "original_path": "generic/tclBasic.c",
+        "function": "builtInCmds",
+        "lines": [
+          168,
+          177
+        ],
+        "source_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+        "snippet": "    {\"proc\",\t\t(Tcl_CmdProc *) NULL,\tTcl_ProcObjCmd,\t\n        (CompileProc *) NULL,\t\t1},\n    {\"regexp\",\t\t(Tcl_CmdProc *) NULL,\tTcl_RegexpObjCmd,\n        TclCompileRegexpCmd,\t\t1},\n    {\"regsub\",\t\t(Tcl_CmdProc *) NULL,\tTcl_RegsubObjCmd,\n        (CompileProc *) NULL,\t\t1},\n    {\"rename\",\t\t(Tcl_CmdProc *) NULL,\tTcl_RenameObjCmd,\n        (CompileProc *) NULL,\t\t1},\n    {\"return\",\t\t(Tcl_CmdProc *) NULL,\tTcl_ReturnObjCmd,\t\n        TclCompileReturnCmd,\t\t1},\n",
+        "snippet_sha256": "651d31494953853c211fe2e9ec9333018710c0d3dc4079820f82a189947a35dd",
+        "evidence": "e0"
+      },
+      {
+        "provider": "tcl8.4",
+        "version": "8.4.20",
+        "revision": "pinned Tcl release 8.4.20",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclCompileScript",
+        "lines": [
+          1277,
+          1292
+        ],
+        "source_sha256": "0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8",
+        "snippet": "\t\t\t\tTcl_DStringValue(&ds),\n\t\t\t        (Tcl_Namespace *) cmdNsPtr, /*flags*/ 0);\n\n\t\t\tif ((cmdPtr != NULL)\n\t\t\t        && (cmdPtr->compileProc != NULL)\n\t\t\t        && !(cmdPtr->flags & CMD_HAS_EXEC_TRACES)\n\t\t\t        && !(iPtr->flags & DONT_COMPILE_CMDS_INLINE)) {\n\t\t\t    int savedNumCmds = envPtr->numCommands;\n\t\t\t    unsigned int savedCodeNext =\n\t\t\t\t    envPtr->codeNext - envPtr->codeStart;\n\n\t\t\t    code = (*(cmdPtr->compileProc))(interp, &parse,\n\t\t\t            envPtr);\n\t\t\t    if (code == TCL_OK) {\n\t\t\t\tgoto finishCommand;\n\t\t\t    } else if (code == TCL_OUT_LINE_COMPILE) {\n",
+        "snippet_sha256": "54023432b224c8f21db9cc676d3d9c01a9ede1b5856e49c92bf24a7cd5869178",
+        "evidence": "e1"
+      },
+      {
+        "provider": "tcl8.5",
+        "version": "8.5.19",
+        "revision": "pinned Tcl release 8.5.19",
+        "original_path": "generic/tclBasic.c",
+        "function": "builtInCmds",
+        "lines": [
+          159,
+          163
+        ],
+        "source_sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+        "snippet": "    {\"proc\",\t\tTcl_ProcObjCmd,\t\tNULL,\t\t\t1},\n    {\"regexp\",\t\tTcl_RegexpObjCmd,\tTclCompileRegexpCmd,\t1},\n    {\"regsub\",\t\tTcl_RegsubObjCmd,\tNULL,\t\t\t1},\n    {\"rename\",\t\tTcl_RenameObjCmd,\tNULL,\t\t\t1},\n    {\"return\",\t\tTcl_ReturnObjCmd,\tTclCompileReturnCmd,\t1},\n",
+        "snippet_sha256": "5d566598fa4e60e7a5740882bbce809813869994a21e06a317257459a1ce1c60",
+        "evidence": "e2"
+      },
+      {
+        "provider": "tcl8.5",
+        "version": "8.5.19",
+        "revision": "pinned Tcl release 8.5.19",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclCompileScript",
+        "lines": [
+          1402,
+          1415
+        ],
+        "source_sha256": "8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988",
+        "snippet": "\t\t    cmdPtr = (Command *) Tcl_FindCommand(interp,\n\t\t\t    Tcl_DStringValue(&ds),\n\t\t\t    (Tcl_Namespace *) cmdNsPtr, /*flags*/ 0);\n\n\t\t    if ((cmdPtr != NULL)\n\t\t\t    && (cmdPtr->compileProc != NULL)\n\t\t\t    && !(cmdPtr->flags & CMD_HAS_EXEC_TRACES)\n\t\t\t    && !(iPtr->flags & DONT_COMPILE_CMDS_INLINE)) {\n\t\t\tint savedNumCmds = envPtr->numCommands;\n\t\t\tunsigned savedCodeNext =\n\t\t\t\tenvPtr->codeNext - envPtr->codeStart;\n\t\t\tint update = 0, code;\n\n\t\t\t/*\n",
+        "snippet_sha256": "971d284c64dbb2a417a5e44d6100ac57b58820fe915e61885238e9e1b916c73b",
+        "evidence": "e3"
+      },
+      {
+        "provider": "tcl8.6",
+        "version": "8.6.18",
+        "revision": "pinned Tcl release 8.6.18",
+        "original_path": "generic/tclBasic.c",
+        "function": "builtInCmds",
+        "lines": [
+          274,
+          278
+        ],
+        "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+        "snippet": "    {\"proc\",\t\tTcl_ProcObjCmd,\t\tNULL,\t\t\tNULL,\tCMD_IS_SAFE},\n    {\"regexp\",\t\tTcl_RegexpObjCmd,\tTclCompileRegexpCmd,\tNULL,\tCMD_IS_SAFE},\n    {\"regsub\",\t\tTcl_RegsubObjCmd,\tTclCompileRegsubCmd,\tNULL,\tCMD_IS_SAFE},\n    {\"rename\",\t\tTcl_RenameObjCmd,\tNULL,\t\t\tNULL,\tCMD_IS_SAFE},\n    {\"return\",\t\tTcl_ReturnObjCmd,\tTclCompileReturnCmd,\tNULL,\tCMD_IS_SAFE},\n",
+        "snippet_sha256": "1c95fcd7477dc5193bc8cc9189cbb25647b912c67bc5ce6c3b1f4fc883b2de62",
+        "evidence": "e4"
+      },
+      {
+        "provider": "tcl8.6",
+        "version": "8.6.18",
+        "revision": "pinned Tcl release 8.6.18",
+        "original_path": "generic/tclCompile.c",
+        "function": "CompileCommandTokens",
+        "lines": [
+          2030,
+          2060
+        ],
+        "source_sha256": "d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8",
+        "snippet": "    tokenPtr = parsePtr->tokenPtr;\n    cmdKnown = TclWordKnownAtCompileTime(tokenPtr, cmdObj);\n\n    /* Is this a command we should (try to) compile with a compileProc ? */\n    if (cmdKnown && !(iPtr->flags & DONT_COMPILE_CMDS_INLINE)) {\n\tcmdPtr = (Command *) Tcl_GetCommandFromObj(interp, cmdObj);\n\tif (cmdPtr) {\n\t    /*\n\t     * Found a command.  Test the ways we can be told not to attempt\n\t     * to compile it.\n\t     */\n\t    if ((cmdPtr->compileProc == NULL)\n\t\t    || (cmdPtr->nsPtr->flags & NS_SUPPRESS_COMPILATION)\n\t\t    || (cmdPtr->flags & CMD_HAS_EXEC_TRACES)) {\n\t\tcmdPtr = NULL;\n\t    }\n\t}\n\tif (cmdPtr && !(cmdPtr->flags & CMD_COMPILES_EXPANDED)) {\n\t    expand = ExpandRequested(parsePtr->tokenPtr, parsePtr->numWords);\n\t    if (expand) {\n\t\t/* We need to expand, but compileProc cannot. */\n\t\tcmdPtr = NULL;\n\t    }\n\t}\n    }\n\n    /* If cmdPtr != NULL, try to call cmdPtr->compileProc */\n    if (cmdPtr) {\n\tcode = CompileCmdCompileProc(interp, parsePtr, cmdPtr, envPtr);\n    }\n\n",
+        "snippet_sha256": "11d13a1e2b8c109bea5b3d87750adc9579516628b1ae79cae9b49f6ad741e67f",
+        "evidence": "e5"
+      },
+      {
+        "provider": "tcl9.0",
+        "version": "9.0.4",
+        "revision": "pinned Tcl release 9.0.4",
+        "original_path": "generic/tclBasic.c",
+        "function": "builtInCmds",
+        "lines": [
+          386,
+          390
+        ],
+        "source_sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+        "snippet": "    {\"proc\",\t\tProcObjCmd,\t\tNULL,\t\t\tNULL,\tCMD_IS_SAFE},\n    {\"regexp\",\t\tTcl_RegexpObjCmd,\tTclCompileRegexpCmd,\tNULL,\tCMD_IS_SAFE},\n    {\"regsub\",\t\tTcl_RegsubObjCmd,\tTclCompileRegsubCmd,\tNULL,\tCMD_IS_SAFE},\n    {\"rename\",\t\tTcl_RenameObjCmd,\tNULL,\t\t\tNULL,\tCMD_IS_SAFE},\n    {\"return\",\t\tTcl_ReturnObjCmd,\tTclCompileReturnCmd,\tNULL,\tCMD_IS_SAFE},\n",
+        "snippet_sha256": "280338db7b87258e9475c5e6b37d8537479044d0ced867c0c9ba9510b0eb4fa5",
+        "evidence": "e6"
+      },
+      {
+        "provider": "tcl9.0",
+        "version": "9.0.4",
+        "revision": "pinned Tcl release 9.0.4",
+        "original_path": "generic/tclCompile.c",
+        "function": "CompileCommandTokens",
+        "lines": [
+          2073,
+          2103
+        ],
+        "source_sha256": "51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3",
+        "snippet": "    tokenPtr = parsePtr->tokenPtr;\n    cmdKnown = TclWordKnownAtCompileTime(tokenPtr, cmdObj);\n\n    /* Is this a command we should (try to) compile with a compileProc ? */\n    if (cmdKnown && !(iPtr->flags & DONT_COMPILE_CMDS_INLINE)) {\n\tcmdPtr = (Command *) Tcl_GetCommandFromObj(interp, cmdObj);\n\tif (cmdPtr) {\n\t    /*\n\t     * Found a command.  Test the ways we can be told not to attempt\n\t     * to compile it.\n\t     */\n\t    if ((cmdPtr->compileProc == NULL)\n\t\t    || (cmdPtr->nsPtr->flags & NS_SUPPRESS_COMPILATION)\n\t\t    || (cmdPtr->flags & CMD_HAS_EXEC_TRACES)) {\n\t\tcmdPtr = NULL;\n\t    }\n\t}\n\tif (cmdPtr && !(cmdPtr->flags & CMD_COMPILES_EXPANDED)) {\n\t    expand = ExpandRequested(parsePtr->tokenPtr, (int)parsePtr->numWords);\n\t    if (expand) {\n\t\t/* We need to expand, but compileProc cannot. */\n\t\tcmdPtr = NULL;\n\t    }\n\t}\n    }\n\n    /* If cmdPtr != NULL, try to call cmdPtr->compileProc */\n    if (cmdPtr) {\n\tcode = CompileCmdCompileProc(interp, parsePtr, cmdPtr, envPtr);\n    }\n\n",
+        "snippet_sha256": "1803863626befe725c472ff52c33e0a3d9919044d3920e17af30aa5e096dabef",
+        "evidence": "e7"
+      },
+      {
+        "provider": "tcl9.1",
+        "version": "9.1.0",
+        "revision": "pinned Tcl release 9.1.0",
+        "original_path": "generic/tclBasic.c",
+        "function": "builtInCmds",
+        "lines": [
+          355,
+          360
+        ],
+        "source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+        "snippet": "    {\"proc\",\t\tTcl_ProcObjCmd,\t\tNULL,\t\t\tNULL,\tCMD_IS_SAFE},\n    {\"regexp\",\t\tTcl_RegexpObjCmd,\tTclCompileRegexpCmd,\tNULL,\tCMD_IS_SAFE},\n    {\"regsub\",\t\tTcl_RegsubObjCmd,\tTclCompileRegsubCmd,\tNULL,\tCMD_IS_SAFE},\n    {\"remquo\",\t\tRemQuoObjCmd,\t\tNULL,\t\t\tNULL,\tCMD_IS_SAFE},\n    {\"rename\",\t\tTcl_RenameObjCmd,\tNULL,\t\t\tNULL,\tCMD_IS_SAFE},\n    {\"return\",\t\tTcl_ReturnObjCmd,\tTclCompileReturnCmd,\tNULL,\tCMD_IS_SAFE},\n",
+        "snippet_sha256": "932ce572de6b1c38032a93a1f673baee4339cbd25e2c6588c0e7c9a512fed4e8",
+        "evidence": "e8"
+      },
+      {
+        "provider": "tcl9.1",
+        "version": "9.1.0",
+        "revision": "pinned Tcl release 9.1.0",
+        "original_path": "generic/tclCompile.c",
+        "function": "CompileCommandTokens",
+        "lines": [
+          2391,
+          2421
+        ],
+        "source_sha256": "941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f",
+        "snippet": "    tokenPtr = parsePtr->tokenPtr;\n    cmdKnown = TclWordKnownAtCompileTime(tokenPtr, cmdObj);\n\n    /* Is this a command we should (try to) compile with a compileProc ? */\n    if (cmdKnown && !(iPtr->flags & DONT_COMPILE_CMDS_INLINE)) {\n\tcmdPtr = (Command *) Tcl_GetCommandFromObj(interp, cmdObj);\n\tif (cmdPtr) {\n\t    /*\n\t     * Found a command.  Test the ways we can be told not to attempt\n\t     * to compile it.\n\t     */\n\t    if ((cmdPtr->compileProc == NULL)\n\t\t    || (cmdPtr->nsPtr->flags & NS_SUPPRESS_COMPILATION)\n\t\t    || (cmdPtr->flags & CMD_HAS_EXEC_TRACES)) {\n\t\tcmdPtr = NULL;\n\t    }\n\t}\n\tif (cmdPtr && !(cmdPtr->flags & CMD_COMPILES_EXPANDED)) {\n\t    expand = ExpandRequested(parsePtr->tokenPtr, numWords);\n\t    if (expand) {\n\t\t/* We need to expand, but compileProc cannot. */\n\t\tcmdPtr = NULL;\n\t    }\n\t}\n    }\n\n    /* If cmdPtr != NULL, try to call cmdPtr->compileProc */\n    if (cmdPtr) {\n\tcode = CompileCmdCompileProc(interp, parsePtr, cmdPtr, envPtr);\n    }\n\n",
+        "snippet_sha256": "c1d6c7e554b93ce3728a1e0b7799be86c0be49d0514047c9d729937cf7cef099",
+        "evidence": "e9"
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "selector": "native_compilation::tests::selected_no_hook_registration_keeps_generic_argv_under_unknown_mode",
+        "assertion": "The current model separates selected stock proc NoHook from stock return hook and retains full original native argv; this assertion is not native execution.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "symbol": "NativeCompilationSpec::select_native_words",
+        "purpose": "Project selected hook absence independently of caller compilation mode; preserve original vector and dialect guards."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Inspect the exact released source files and hashes against the retained excerpts. Rust contract assertions require the parent build and are not claimed executed here."
+    }
+  },
+  {
+    "id": "naming.compiler.no-hook-unknown-mode",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/no-hook-unknown-mode.md",
+    "problem_statement": "An unknown caller compilation mode can mean either direct argv evaluation or bytecode compilation. If the selected stock proc registration has a NULL compileProc, treating that uncertainty as an arbitrary compiler can withdraw command state before proc arguments run. The absence of a compiler must be established from the selected registration; a renamed label, caller words, or handler effects do not establish it.",
+    "question": "How does the shared compiler selection distinguish a selected NoHook registration from a hook-bearing unknown mode while retaining original full argv?",
+    "conclusion": "Only an independently selected NoHook descriptor is Generic under Direct, BytecodeObject and Unknown modes. Original native word ownership, dialect selection and a valid nonzero operand ordinal remain required. A renamed authored label cannot select the stock registration, and a selected hook-bearing return remains Unknown when compilation mode is unknown. No generic transport result certifies handler success or body entry.",
+    "scope": "Registry pure selection contract tested against the current C5 descriptor roster and a complete NativeValue original word vector containing an opaque byte. These Rust assertions are independent of source inspection and of actual native execution.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "selector": "native_compilation::tests::selected_no_hook_registration_keeps_generic_argv_under_unknown_mode",
+        "assertion": "Only an independently selected NoHook descriptor is Generic under Direct, BytecodeObject and Unknown modes. Original native word ownership, dialect selection and a valid nonzero operand ordinal remain required. A renamed authored label cannot select the stock registration, and a selected hook-bearing return remains Unknown when compilation mode is unknown. No generic transport result certifies handler success or body entry.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "symbol": "NativeCompilationSpec::select",
+        "purpose": "Project selected NoHook under unknown mode without a native entry or successful invocation grant."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "symbol": "NativeCompilationSpec::select_native_words",
+        "purpose": "Preserve authentic original full-vector, native source protocol and selected registration isolation."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-registry",
+        "selected_no_hook_registration_keeps_generic_argv_under_unknown_mode"
+      ],
+      "limitations": "Run only against the intended parent build. A linked selector records coverage, not a claim of test execution."
+    }
+  }
+]

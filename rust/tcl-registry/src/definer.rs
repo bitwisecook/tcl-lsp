@@ -61,6 +61,122 @@ pub enum MemberKind {
     FlagKeyed,
 }
 
+/// Source-advisory layout of the configurable property accessor. Selection
+/// of an actually entered method, receiver and property table is independent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourcePropertyAccessorMode {
+    /// No arguments enumerate readable properties.
+    ListReadable,
+    /// One argument reads a readable property.
+    Read,
+    /// Name/value pairs set writable properties.
+    WritePairs,
+}
+
+/// Candidate property kind for a genuine existing or immediately next
+/// argument position. This is completion advice, not a valid invocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourcePropertyCompletionRole {
+    /// Existing one-name query proposes readable properties.
+    Readable,
+    /// An existing or prospective write pair proposes writable properties.
+    Writable,
+    /// A fresh first property can become a read or a write pair.
+    ReadOrWrite,
+}
+
+/// Property-name argument ordinals under one selected accessor layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourcePropertyAccessorLayout {
+    mode: SourcePropertyAccessorMode,
+    arguments: usize,
+}
+
+impl SourcePropertyAccessorLayout {
+    /// Read/list versus write naming axis, independent of execution.
+    #[must_use]
+    pub const fn mode(self) -> SourcePropertyAccessorMode {
+        self.mode
+    }
+    /// Zero-based ordinals after the selected method word. Values never
+    /// become property names solely because their bytes resemble an option.
+    pub fn property_ordinals(self) -> impl Iterator<Item = usize> {
+        (0..self.arguments).step_by(2)
+    }
+}
+
+/// Immutable source accessor advice issued by the selected grammar and name
+/// recipe. Its role is separate from an installed or actually entered method.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourcePropertyAccessorAdvice {
+    methods: &'static [&'static str],
+    recipe: tcl_syntax::naming::NativeNameProtocol,
+    configurable: bool,
+}
+
+impl SourcePropertyAccessorAdvice {
+    /// Authored generated method candidates, without installation authority.
+    #[must_use]
+    pub const fn methods(self) -> &'static [&'static str] {
+        self.methods
+    }
+    /// Exact argument layout for the retained source accessor protocol.
+    #[must_use]
+    pub fn layout(self, selector: &[u8], arguments: usize) -> Option<SourcePropertyAccessorLayout> {
+        if !self.configurable
+            || !self
+                .methods
+                .iter()
+                .any(|name| *name == "configure" && name.as_bytes() == selector)
+        {
+            return None;
+        }
+        let mode = match arguments {
+            0 => SourcePropertyAccessorMode::ListReadable,
+            1 => SourcePropertyAccessorMode::Read,
+            count if count % 2 == 0 => SourcePropertyAccessorMode::WritePairs,
+            _ => return None,
+        };
+        Some(SourcePropertyAccessorLayout { mode, arguments })
+    }
+    /// Source candidate role at a real argument or the immediate trailing
+    /// gap. Value positions and skipped future operands supply no name role.
+    #[must_use]
+    pub fn completion_name_role(
+        self,
+        selector: &[u8],
+        ordinal: usize,
+        arguments: usize,
+    ) -> Option<SourcePropertyCompletionRole> {
+        self.layout(selector, 0)?;
+        if ordinal > arguments || !ordinal.is_multiple_of(2) {
+            return None;
+        }
+        Some(if ordinal == 0 && arguments == 0 {
+            SourcePropertyCompletionRole::ReadOrWrite
+        } else if ordinal == 0 && arguments == 1 {
+            SourcePropertyCompletionRole::Readable
+        } else {
+            SourcePropertyCompletionRole::Writable
+        })
+    }
+    /// Independently selected recipe, without physical engine attestation.
+    #[must_use]
+    pub const fn recipe(self) -> tcl_syntax::naming::NativeNameProtocol {
+        self.recipe
+    }
+}
+
+/// Registry-selected nameless lifecycle declaration in a definition grammar.
+/// Its keyword is source syntax, never a user-supplied method name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DefinitionSpecialMemberKind {
+    /// Constructor declaration; execution and allocation remain independent.
+    Constructor,
+    /// Destructor declaration; teardown dispatch remains independent.
+    Destructor,
+}
+
 /// What a member's arguments *refer* to, when they are an unbounded list of
 /// references rather than declarations (`superclass A B`, `export m n`).
 ///
@@ -123,15 +239,20 @@ impl MemberRetraction {
     /// there is no arrival to model.
     #[must_use]
     pub fn split(self, args: &[String]) -> RetractionWords<'_> {
+        let (retracted, arrives_at) = self.argument_indices(args.len());
+        RetractionWords {
+            retracted: &args[retracted],
+            arrives_at,
+        }
+    }
+
+    /// Original argv positions affected by this operation. Counted byte and
+    /// authored text consumers share the same Registry-owned argument shape.
+    #[must_use]
+    pub fn argument_indices(self, count: usize) -> (std::ops::Range<usize>, Option<usize>) {
         match self {
-            Self::EveryArgument => RetractionWords {
-                retracted: args,
-                arrives_at: None,
-            },
-            Self::FirstArgument => RetractionWords {
-                retracted: &args[..args.len().min(1)],
-                arrives_at: (args.len() > 1).then_some(1),
-            },
+            Self::EveryArgument => (0..count, None),
+            Self::FirstArgument => (0..count.min(1), (count > 1).then_some(1)),
         }
     }
 }
@@ -289,6 +410,33 @@ pub struct SlotSpec {
 }
 
 impl SlotSpec {
+    /// Select a non-query slot call from original counted method words.
+    /// Method availability and byte selection share the runtime slot owner;
+    /// this describes grammar and supplies no successful effect or class join.
+    #[must_use]
+    pub fn split_original_call<'a, S: AsRef<[u8]>>(
+        &self,
+        args: &'a [S],
+        protocol: tcl_syntax::naming::NativeNameProtocol,
+    ) -> Option<(SlotOp, &'a [S])> {
+        let first = args.first()?.as_ref();
+        let tcl_syntax::naming::NativeNameProtocol::C(version) = protocol else {
+            return None;
+        };
+        if version < TclVersion::V8_6 {
+            return None;
+        }
+        if !first.starts_with(b"-") {
+            return Some((self.default_op, args));
+        }
+        let selected = protocol.oo_method_input(first).ok()?;
+        let operation = SlotOp::resolve_runtime(selected.selected(), version).ok()?;
+        if operation == SlotOp::Clear && args.len() != 1 {
+            return None;
+        }
+        Some((operation, &args[1..]))
+    }
+
     /// Split one slot call's arguments into its effective operation and
     /// value words: an explicit leading operation word wins, a bare list
     /// takes the slot default.  Returns `None` for an unrecognised leading
@@ -315,6 +463,17 @@ impl SlotSpec {
         let Some((op, values)) = self.split_call(args) else {
             return;
         };
+        self.apply_values(current, op, values);
+    }
+
+    /// Fold independently resolved values through the same slot operation.
+    /// Name parsing and provider identity remain the caller's separate owners.
+    pub fn apply_values<T: Clone + PartialEq>(
+        &self,
+        current: &mut Vec<T>,
+        op: SlotOp,
+        values: &[T],
+    ) {
         match op {
             SlotOp::Set => {
                 current.clear();
@@ -329,7 +488,7 @@ impl SlotSpec {
                 }
             }
             SlotOp::Prepend => {
-                let mut fresh: Vec<String> = Vec::with_capacity(values.len() + current.len());
+                let mut fresh = Vec::with_capacity(values.len() + current.len());
                 self.extend(&mut fresh, values);
                 fresh.append(current);
                 *current = fresh;
@@ -340,7 +499,7 @@ impl SlotSpec {
     }
 
     /// Append `values` honouring the slot's dedup rule.
-    fn extend(self, current: &mut Vec<String>, values: &[String]) {
+    fn extend<T: Clone + PartialEq>(self, current: &mut Vec<T>, values: &[T]) {
         for v in values {
             if !self.dedup || !current.iter().any(|c| c == v) {
                 current.push(v.clone());
@@ -447,9 +606,17 @@ impl OptionalMemberArgument {
         args: &[S],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<MemberOptionValue> {
-        let word = args.get(usize::from(self.position))?.as_ref();
+        let word = args.get(usize::from(self.position))?.as_ref().as_bytes();
+        self.value_for_word_in(word, dialect)
+    }
+
+    fn value_for_word_in(
+        self,
+        word: &[u8],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<MemberOptionValue> {
         self.values.iter().copied().find(|candidate| {
-            candidate.value == word
+            candidate.value.as_bytes() == word
                 && candidate
                     .surface
                     .is_none_or(|available| surface_admits(available, dialect.as_ref()))
@@ -751,6 +918,31 @@ impl MemberSpec {
         let option = self
             .optional_argument
             .and_then(|optional| optional.value_for(args));
+        self.indices_for_selected_option(option, role)
+    }
+
+    fn selected_indices_where(
+        &self,
+        option: Option<MemberOptionValue>,
+        count: usize,
+        admit: &dyn Fn(ArgRole) -> bool,
+    ) -> Vec<usize> {
+        let mut indices: Vec<_> = ArgRole::ALL
+            .iter()
+            .filter(|role| admit(**role))
+            .flat_map(|&role| self.indices_for_selected_option(option, role))
+            .filter(|&index| index < count)
+            .collect();
+        indices.sort_unstable();
+        indices.dedup();
+        indices
+    }
+
+    fn indices_for_selected_option(
+        &self,
+        option: Option<MemberOptionValue>,
+        role: ArgRole,
+    ) -> impl Iterator<Item = usize> + '_ {
         let option_position = self
             .optional_argument
             .map(|optional| usize::from(optional.position));
@@ -789,26 +981,7 @@ impl MemberSpec {
         let option = self
             .optional_argument
             .and_then(|optional| optional.value_for_in(args, dialect));
-        let option_position = self
-            .optional_argument
-            .map(|optional| usize::from(optional.position));
-        let option_index = option
-            .filter(|value| value.role == role)
-            .zip(option_position)
-            .map(|(_, position)| position);
-        self.arg_roles
-            .iter()
-            .filter(move |(_, declared)| *declared == role)
-            .map(move |(index, _)| {
-                let index = usize::from(*index);
-                index
-                    + usize::from(
-                        option.is_some_and(|_| {
-                            option_position.is_some_and(|position| index >= position)
-                        }),
-                    )
-            })
-            .chain(option_index)
+        self.indices_for_selected_option(option, role)
     }
 
     /// The option value present in this concrete member call, if any.
@@ -962,6 +1135,28 @@ pub enum DefinitionReceiver {
     Class,
 }
 
+/// Naming axis retained by source definition metadata. Generic provider
+/// values do not borrow `TclOO` method registration or lookup authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DefinitionMemberNamePurpose {
+    /// Counted native `TclOO` method-name input, on its supported engines.
+    TclOoMethod,
+    /// Original produced value used only as a source metadata key. Runtime
+    /// storage, dispatch and provider-specific transformations remain unknown.
+    SourceValue,
+}
+
+impl DefinitionMemberNamePurpose {
+    /// Admit this source naming axis under its independently selected recipe.
+    #[must_use]
+    pub fn admits(self, protocol: tcl_syntax::naming::NativeNameProtocol, bytes: &[u8]) -> bool {
+        match self {
+            Self::TclOoMethod => protocol.oo_method_input(bytes).is_ok(),
+            Self::SourceValue => true,
+        }
+    }
+}
+
 /// Audited deferred method layout in original definition words.
 #[derive(Debug, Clone, Copy)]
 pub struct ReceiverMethodLayout {
@@ -998,6 +1193,58 @@ pub enum NativeLifecycleBodyDisposition {
     Removed,
     /// A nonempty body installs the original native method source.
     Retained,
+}
+
+/// Applicability of a selected definition member's source formal grammar.
+/// This grants no handler, installed callable, entered frame or completion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceFormalValidationApplicability {
+    /// The authored declaration requires formal-list validation.
+    Required,
+    /// A removed lifecycle declaration does not select its formal parser.
+    SkippedRemovedLifecycle,
+}
+
+/// Selected intrinsic deferred-method setter. The caller must independently
+/// retain a live definition target and unchanged worker, validate the complete
+/// formal list under `recipe`, and retain the evaluated body value. The setter
+/// stores that value without entering it. Replacing a known source procedure
+/// releases only that procedure record; unknown method implementations cannot
+/// borrow this closed transfer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NativeDeferredMethodSetter {
+    recipe: tcl_syntax::naming::NativeNameProtocol,
+    name: usize,
+    parameters: usize,
+    body: usize,
+}
+
+impl NativeDeferredMethodSetter {
+    /// Independently selected native name/formal protocol.
+    #[must_use]
+    pub const fn recipe(self) -> tcl_syntax::naming::NativeNameProtocol {
+        self.recipe
+    }
+    /// Complete post-worker name operand ordinal.
+    #[must_use]
+    pub const fn name_argument(self) -> usize {
+        self.name
+    }
+    /// Complete post-worker formal-list operand ordinal.
+    #[must_use]
+    pub const fn parameters_argument(self) -> usize {
+        self.parameters
+    }
+    /// Complete post-worker body value ordinal; its contents do not execute.
+    #[must_use]
+    pub const fn body_argument(self) -> usize {
+        self.body
+    }
+    /// Exact argc required by this unwrapped setter form.
+    #[must_use]
+    pub const fn argument_count(self) -> usize {
+        3
+    }
 }
 
 /// Native allocation boundary around an original constructor activation.
@@ -1237,6 +1484,40 @@ pub struct DefinitionBodyGrammar {
     pub property_accessor_methods: &'static [&'static str],
 }
 
+/// One two-word command slot installed by the selected source class factory.
+/// Its descriptor withdraws older source declarations; it supplies neither
+/// the installed implementation nor an actual receiver or execution result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceTwoWordFactoryInitialiser {
+    /// Member units appended to the original class-name value by the provider.
+    pub name: &'static str,
+    /// Provider-selected publication protocol; Jim aliases do not inherit
+    /// procedure namespace qualification. Shared table comparison is separate.
+    pub publication: tcl_syntax::naming::NativeNamePurpose,
+    /// Whether the original factory base list controls this installation.
+    pub presence: SourceFactoryInitialiserPresence,
+}
+
+/// Original source operand condition for a factory-generated command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceFactoryInitialiserPresence {
+    /// Installed by every successful selected factory recipe.
+    Always,
+    /// Installed only when the original base list contains at least one name.
+    NonemptyBaseList,
+}
+impl SourceFactoryInitialiserPresence {
+    /// Conditional source replacement, independently of successful execution.
+    /// An unavailable base count remains unavailable.
+    #[must_use]
+    pub fn replaces_source_slot(self, base_count: Option<usize>) -> Option<bool> {
+        match self {
+            Self::Always => Some(true),
+            Self::NonemptyBaseList => base_count.map(|count| count != 0),
+        }
+    }
+}
+
 /// Conditional command installation described by an actual definer recipe.
 /// This does not prove callback closure, a live receiver, class methods,
 /// native compiler hooks or executable specialization.
@@ -1420,7 +1701,301 @@ pub struct MemberBodyCommand {
     pub binds_handle: Option<crate::handle_binding::HandleBindingSpec>,
 }
 
+/// One selected source script operand within a definition-member call.
+/// The ordinal owns no runtime member, installation or entered body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceDefinitionMemberScriptArgument {
+    argument: usize,
+    definition_body: bool,
+}
+impl SourceDefinitionMemberScriptArgument {
+    /// Effective post-keyword operand ordinal after real wrapper/option words.
+    #[must_use]
+    pub const fn argument(self) -> usize {
+        self.argument
+    }
+    /// This wrapper block retains the selected parent definition vocabulary.
+    /// Ordinary method/lifecycle/accessor scripts do not retain that vocabulary.
+    #[must_use]
+    pub const fn retains_definition_grammar(self) -> bool {
+        self.definition_body
+    }
+}
+
+/// One property declaration's selected original argument layout. Indices
+/// address the complete argument vector after the member keyword; each name
+/// retains its own option values. This is grammar advice, not target admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourcePropertyDeclaration {
+    name: usize,
+    getter: Option<usize>,
+    setter: Option<usize>,
+    kind: crate::commands::tcl::TclOoPropertyKind,
+}
+
+impl SourcePropertyDeclaration {
+    /// Original property-name argument ordinal.
+    #[must_use]
+    pub const fn name_index(self) -> usize {
+        self.name
+    }
+    /// Original custom getter body ordinal, when supplied.
+    #[must_use]
+    pub const fn getter_index(self) -> Option<usize> {
+        self.getter
+    }
+    /// Original custom setter body ordinal, when supplied.
+    #[must_use]
+    pub const fn setter_index(self) -> Option<usize> {
+        self.setter
+    }
+    /// Independently selected kind for this property only.
+    #[must_use]
+    pub const fn kind(self) -> crate::commands::tcl::TclOoPropertyKind {
+        self.kind
+    }
+
+    fn selected_indices_where(self, admit: &dyn Fn(ArgRole) -> bool) -> Vec<usize> {
+        let mut indices = Vec::new();
+        if admit(ArgRole::Name) {
+            indices.push(self.name);
+        }
+        if admit(ArgRole::Body) {
+            indices.extend(self.getter);
+            indices.extend(self.setter);
+        }
+        indices.sort_unstable();
+        indices.dedup();
+        indices
+    }
+}
+
 impl DefinitionBodyGrammar {
+    /// Selected root-definer operand containing a list of base-class names.
+    /// The Jim three-operand form has a base list between name and dictionary;
+    /// other families express relations through their member declarations.
+    /// This source layout grants no class existence, dispatch or inheritance.
+    #[must_use]
+    pub const fn source_base_class_list_argument(&self, argument_count: usize) -> Option<usize> {
+        match (self.family, argument_count) {
+            (DefinerFamily::JimClass, 3) => Some(1),
+            _ => None,
+        }
+    }
+
+    /// Original two-word slots overwritten by the selected Jim class recipe.
+    /// Common names come from the selected family descriptors. Constructor
+    /// support follows its independently pinned provider window; an unknown
+    /// release cannot select it. No native installation is certified here.
+    #[must_use]
+    pub fn source_two_word_factory_initialisers(
+        &self,
+        dialect: crate::InvocationDialect,
+    ) -> Option<Vec<SourceTwoWordFactoryInitialiser>> {
+        use tcl_dialect::model::Family;
+        let query = dialect.authoring_query()?;
+        let (Family::Jim, Some(_)) = query.core.nearest()? else {
+            return None;
+        };
+        if self.family != DefinerFamily::JimClass
+            || !SpecSurface::core_in(Family::Jim, &[("0.76", None)]).admits(&query)
+        {
+            return None;
+        }
+        let mut names: Vec<_> = self
+            .builtin_object_methods
+            .iter()
+            .map(|method| method.name)
+            .chain(self.manufacturers.iter().map(|method| method.keyword))
+            .collect();
+        if SpecSurface::core_in(Family::Jim, &[("0.82", None)]).admits(&query) {
+            names.extend(["constructor", "defaultconstructor"]);
+        }
+        names.sort_unstable();
+        names.dedup();
+        let mut initialisers: Vec<_> = names
+            .into_iter()
+            .map(|name| SourceTwoWordFactoryInitialiser {
+                name,
+                publication: if name == "constructor" {
+                    tcl_syntax::naming::NativeNamePurpose::AliasPublication
+                } else {
+                    tcl_syntax::naming::NativeNamePurpose::CommandPublication
+                },
+                presence: SourceFactoryInitialiserPresence::Always,
+            })
+            .collect();
+        initialisers.push(SourceTwoWordFactoryInitialiser {
+            name: "baseclass",
+            publication: tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+            presence: SourceFactoryInitialiserPresence::NonemptyBaseList,
+        });
+        Some(initialisers)
+    }
+
+    /// Readonly member-name purpose for genuine two-word procedure declarations.
+    /// The selected family stores these procedures as source members directly;
+    /// this is separate from an entered member-definition worker or method table.
+    #[must_use]
+    pub const fn two_word_procedure_member_name_purpose(
+        &self,
+    ) -> Option<DefinitionMemberNamePurpose> {
+        if self.family.members_are_two_word_commands() {
+            Some(DefinitionMemberNamePurpose::SourceValue)
+        } else {
+            None
+        }
+    }
+
+    /// Per-property layout selected from original counted argument values.
+    /// Option and kind matching use their C Index string purposes, separately
+    /// from the original property token. No body is evaluated by this query.
+    #[must_use]
+    pub fn source_property_declarations_bytes<S: AsRef<[u8]>>(
+        &self,
+        args: &[S],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<Vec<SourcePropertyDeclaration>> {
+        self.source_property_declarations_where(
+            args.len(),
+            &|index| args.get(index).map(AsRef::as_ref),
+            dialect,
+        )
+    }
+
+    fn source_property_declarations_where<'w>(
+        &self,
+        count: usize,
+        word_at: &dyn Fn(usize) -> Option<&'w [u8]>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<Vec<SourcePropertyDeclaration>> {
+        use crate::commands::tcl::{
+            TclOoPropertyKind, TclOoPropertyOption, resolve_tcloo_property_kind,
+            resolve_tcloo_property_option,
+        };
+        let dialect = Some(dialect?);
+        let member = self.member("property")?;
+        if self.family != DefinerFamily::TclOo
+            || member.kind != MemberKind::FlagKeyed
+            || member
+                .surface
+                .is_some_and(|surface| !surface_admits(surface, dialect.as_ref()))
+        {
+            return None;
+        }
+        let mut declarations = Vec::new();
+        let mut next = 0;
+        while next < count {
+            let mut declaration = SourcePropertyDeclaration {
+                name: next,
+                getter: None,
+                setter: None,
+                kind: TclOoPropertyKind::ReadWrite,
+            };
+            next += 1;
+            while next < count {
+                let option = word_at(next)?;
+                if option.first() != Some(&b'-') {
+                    break;
+                }
+                let option = resolve_tcloo_property_option(option).ok()?;
+                if next + 1 >= count {
+                    return None;
+                }
+                match option {
+                    TclOoPropertyOption::Get => declaration.getter = Some(next + 1),
+                    TclOoPropertyOption::Set => declaration.setter = Some(next + 1),
+                    TclOoPropertyOption::Kind => {
+                        declaration.kind = resolve_tcloo_property_kind(word_at(next + 1)?).ok()?;
+                    }
+                }
+                next += 2;
+            }
+            declarations.push(declaration);
+        }
+        Some(declarations)
+    }
+
+    /// Retain authored accessor candidates and the independently selected
+    /// configurable accessor protocol as immutable structural source advice.
+    #[must_use]
+    pub fn source_property_accessor_advice(
+        &self,
+        recipe: tcl_syntax::naming::NativeNameProtocol,
+    ) -> SourcePropertyAccessorAdvice {
+        SourcePropertyAccessorAdvice {
+            methods: self.property_accessor_methods,
+            recipe,
+            configurable: self.family == DefinerFamily::TclOo
+                && recipe.oo_property_option_name(b"").is_ok(),
+        }
+    }
+
+    /// Source-only argument layout for a property accessor declared by this
+    /// selected grammar, without installed or entered method authority.
+    #[must_use]
+    pub fn source_property_accessor_layout(
+        &self,
+        selector: &[u8],
+        recipe: tcl_syntax::naming::NativeNameProtocol,
+        arguments: usize,
+    ) -> Option<SourcePropertyAccessorLayout> {
+        self.source_property_accessor_advice(recipe)
+            .layout(selector, arguments)
+    }
+
+    /// Source declaration role of a selected nameless body member. This
+    /// metadata does not prove installation, absence or lifecycle dispatch.
+    #[must_use]
+    pub fn source_special_member_kind(
+        &self,
+        member: &MemberSpec,
+    ) -> Option<DefinitionSpecialMemberKind> {
+        if !self
+            .member(member.keyword)
+            .is_some_and(|known| std::ptr::eq(known, member))
+            || !member
+                .arg_roles
+                .iter()
+                .any(|(_, role)| *role == ArgRole::Body)
+            || member
+                .arg_roles
+                .iter()
+                .any(|(_, role)| *role == ArgRole::Name)
+        {
+            return None;
+        }
+        match member.keyword {
+            "constructor" => Some(DefinitionSpecialMemberKind::Constructor),
+            "destructor" => Some(DefinitionSpecialMemberKind::Destructor),
+            _ => None,
+        }
+    }
+
+    /// Naming purpose of one independently selected declaration or name
+    /// effect. Membership in another grammar cannot supply this selection.
+    #[must_use]
+    pub fn member_name_purpose(&self, member: &MemberSpec) -> Option<DefinitionMemberNamePurpose> {
+        if !self
+            .member(member.keyword)
+            .is_some_and(|known| std::ptr::eq(known, member))
+            || !(member
+                .arg_roles
+                .iter()
+                .any(|(_, role)| *role == crate::ArgRole::Name)
+                || member.all_args_ref == Some(MemberRefKind::Method)
+                || member.retraction.is_some()
+                || member.visibility_effect.is_some())
+        {
+            return None;
+        }
+        Some(if self.family == DefinerFamily::TclOo {
+            DefinitionMemberNamePurpose::TclOoMethod
+        } else {
+            DefinitionMemberNamePurpose::SourceValue
+        })
+    }
+
     /// Provider-authored dispatcher installation and returned-name protocol.
     /// Snit 2.3.4 and Itcl 4.3.2 evaluate their definitions before installing
     /// provider dispatchers. Immediate definition members can retire that
@@ -1591,6 +2166,31 @@ impl DefinitionBodyGrammar {
                 .is_some_and(|known| std::ptr::eq(known, member))
     }
 
+    /// Declaration visibility selected by an admitted access wrapper. The
+    /// receiver wrapper carries no visibility effect; consumers retain its
+    /// independent receiver axis instead of interpreting its spelling.
+    #[must_use]
+    pub fn wrapper_declared_visibility(
+        &self,
+        member: &MemberSpec,
+    ) -> Option<DeclaredMemberVisibility> {
+        if member.kind != MemberKind::Wrapper
+            || !self
+                .member(member.keyword)
+                .is_some_and(|known| std::ptr::eq(known, member))
+        {
+            return None;
+        }
+        match (self.family, member.keyword) {
+            (DefinerFamily::TclOo | DefinerFamily::Itcl, "private") => {
+                Some(DeclaredMemberVisibility::Private)
+            }
+            (DefinerFamily::Itcl, "protected") => Some(DeclaredMemberVisibility::Unexported),
+            (DefinerFamily::Itcl, "public") => Some(DeclaredMemberVisibility::Public),
+            _ => None,
+        }
+    }
+
     /// Direct or prefix-wrapper method declaration in original written words.
     /// Block wrappers retain a separate body carrier and do not use this query.
     #[must_use]
@@ -1600,6 +2200,23 @@ impl DefinitionBodyGrammar {
         args: &[&str],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<ReceiverMethodLayout> {
+        self.receiver_method_layout_bytes(
+            keyword.as_bytes(),
+            &args.iter().map(|arg| arg.as_bytes()).collect::<Vec<_>>(),
+            dialect,
+        )
+    }
+
+    /// Original counted receiver method arguments. Only the selected worker
+    /// keyword is text; a method name need not have a Unicode presentation.
+    #[must_use]
+    pub fn receiver_method_layout_bytes(
+        &self,
+        keyword: &[u8],
+        args: &[&[u8]],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<ReceiverMethodLayout> {
+        let keyword = std::str::from_utf8(keyword).ok()?;
         let outer = self.member(keyword)?;
         if self.native_classmethod_declaration(outer, dialect) {
             return Some(ReceiverMethodLayout {
@@ -1611,7 +2228,11 @@ impl DefinitionBodyGrammar {
             });
         }
         let (receiver, member_word, member) = if self.is_class_receiver_wrapper(outer) {
-            (DefinitionReceiver::Class, 1, self.member(args.first()?)?)
+            (
+                DefinitionReceiver::Class,
+                1,
+                self.member(std::str::from_utf8(args.first()?).ok()?)?,
+            )
         } else {
             (DefinitionReceiver::Instance, 0, outer)
         };
@@ -1699,6 +2320,83 @@ impl DefinitionBodyGrammar {
         }
     }
 
+    /// Intrinsic ordinary deferred method setter under an exact supported
+    /// engine. This receipt supplies the worker's closed storage transfer,
+    /// separately from construction effects, source metadata and body flow.
+    /// Option-prefixed, wrapped and generic provider declarations stay outside
+    /// this initial exact three-operand form.
+    #[must_use]
+    pub fn native_deferred_method_setter(
+        &self,
+        member: &MemberSpec,
+        receiver: DefinitionReceiver,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<NativeDeferredMethodSetter> {
+        let query = dialect?;
+        let (family, version) = query.core.nearest()?;
+        if family != tcl_dialect::model::Family::Tcl {
+            return None;
+        }
+        let version = TclVersion::from_version_string(version?)?;
+        let layout =
+            crate::native_tcloo_method_definition::NativeTclooMethodDefinitionProtocol::select(
+                crate::InvocationDialect::for_version(version),
+            )?
+            .layout(3)?;
+        if self.construction_member_effect(member)
+            != MemberConstructionEffect::DeferredInstanceMethod
+        {
+            return None;
+        }
+        self.definition_member_lookup_for_receiver(member, receiver, Some(query))?;
+        if member.kind != MemberKind::Flat
+            || member.arg_roles
+                != [
+                    (0, ArgRole::Name),
+                    (1, ArgRole::ParamList),
+                    (2, ArgRole::Body),
+                ]
+        {
+            return None;
+        }
+        Some(NativeDeferredMethodSetter {
+            recipe: tcl_syntax::naming::NativeNameProtocol::C(version),
+            name: layout.name,
+            parameters: layout.parameters,
+            body: layout.body,
+        })
+    }
+
+    /// Pure instance-forward registration layout under an exact C release.
+    /// The prefix is stored as original values and is not invoked here. Current
+    /// worker, target table and release effects remain caller obligations.
+    #[must_use]
+    pub fn native_deferred_forward_setter(
+        &self,
+        member: &MemberSpec,
+        dialect: crate::InvocationDialect,
+        argument_count: usize,
+    ) -> Option<tcl_syntax::naming::NativeNameProtocol> {
+        // naming.tcloo.original-forward-registration-prefix
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-forward-registration-prefix.md
+        let protocol = dialect.native_name_protocol()?;
+        if self.family != DefinerFamily::TclOo
+            || !matches!(protocol, tcl_syntax::naming::NativeNameProtocol::C(version)
+                if version >= TclVersion::V8_6)
+            || !self
+                .member(member.keyword)
+                .is_some_and(|known| std::ptr::eq(known, member))
+            || member.keyword != "forward"
+            || member.kind != MemberKind::Flat
+            || member.arg_roles != [(0, ArgRole::Name), (1, ArgRole::CommandName)]
+            || argument_count < 2
+        {
+            return None;
+        }
+        self.definition_member_lookup(member, dialect.authoring_query())?;
+        Some(protocol)
+    }
+
     /// The bare, single-base native superclass assignment. This selects only
     /// the original declaration shape; callers must prove the slot command,
     /// base allocation, inherited constructor and dispatch dependencies.
@@ -1782,6 +2480,59 @@ impl DefinitionBodyGrammar {
         })
     }
 
+    /// Formal grammar applicability for one actual selected source member.
+    /// Foreign member descriptors cannot borrow this grammar. A lifecycle's
+    /// missing body value remains unknown; other members retain their parser.
+    #[must_use]
+    pub fn source_member_formal_validation_applicability(
+        &self,
+        member: &MemberSpec,
+        body: Option<&[u8]>,
+    ) -> Option<SourceFormalValidationApplicability> {
+        if !self
+            .member(member.keyword)
+            .is_some_and(|known| std::ptr::eq(known, member))
+        {
+            return None;
+        }
+        if let Some(kind) = self.source_special_member_kind(member) {
+            self.source_special_member_formal_validation_applicability(kind, body)
+        } else {
+            Some(SourceFormalValidationApplicability::Required)
+        }
+    }
+
+    /// Source formal grammar for an independently retained special-member kind
+    /// and its selected factory grammar. The caller supplies an authentic
+    /// original static body value; dynamic or unavailable bodies stay unknown.
+    #[must_use]
+    pub fn source_special_member_formal_validation_applicability(
+        &self,
+        kind: DefinitionSpecialMemberKind,
+        body: Option<&[u8]>,
+    ) -> Option<SourceFormalValidationApplicability> {
+        // naming.tcloo.empty-lifecycle-definition
+        // docs/design/analysis/name-resolution-proofs/tcloo-empty-lifecycle-definition.md
+        let keyword = match kind {
+            DefinitionSpecialMemberKind::Constructor => "constructor",
+            DefinitionSpecialMemberKind::Destructor => "destructor",
+        };
+        let member = self.member(keyword)?;
+        (self.source_special_member_kind(member) == Some(kind)).then_some(())?;
+        if !self.is_instance_constructor(member) && !self.is_instance_destructor(member) {
+            return Some(SourceFormalValidationApplicability::Required);
+        }
+        self.native_lifecycle_body_disposition(member, body?)
+            .map(|disposition| match disposition {
+                NativeLifecycleBodyDisposition::Removed => {
+                    SourceFormalValidationApplicability::SkippedRemovedLifecycle
+                }
+                NativeLifecycleBodyDisposition::Retained => {
+                    SourceFormalValidationApplicability::Required
+                }
+            })
+    }
+
     /// Actual `TclOO` constructor allocation and failure-cleanup protocol.
     /// Original handler, class and method-chain selection remain caller obligations.
     #[must_use]
@@ -1805,7 +2556,7 @@ impl DefinitionBodyGrammar {
                 .is_some_and(|known| std::ptr::eq(known, member))
             && (matches!(
                 member.keyword,
-                "constructor" | "method" | "destructor" | "variable"
+                "constructor" | "method" | "forward" | "destructor" | "variable" | "property"
             ) || member.visibility_effect.is_some())
     }
 
@@ -1854,6 +2605,21 @@ impl DefinitionBodyGrammar {
         Some(&self.members[idx])
     }
 
+    /// Member keyword admitted by this selected definition vocabulary and the
+    /// actual source availability query. This grants no ordinary command lookup.
+    #[must_use]
+    pub fn source_member_in(
+        &self,
+        keyword: &[u8],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<&'static MemberSpec> {
+        let member = self.member(std::str::from_utf8(keyword).ok()?)?;
+        member
+            .surface
+            .is_none_or(|available| surface_admits(available, dialect.as_ref()))
+            .then_some(member)
+    }
+
     /// Body argument indices for a concrete definition-member invocation —
     /// the words a consumer walking **executable code** must descend into.
     ///
@@ -1870,7 +2636,7 @@ impl DefinitionBodyGrammar {
         args: &[&str],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<usize> {
-        self.member_indices_where(keyword, args, dialect, ArgRole::carries_script)
+        self.member_indices_where(keyword, args, dialect, &ArgRole::carries_script)
     }
 
     /// Braced-block argument indices for a concrete definition-member
@@ -1887,7 +2653,91 @@ impl DefinitionBodyGrammar {
         args: &[&str],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<usize> {
-        self.member_indices_where(keyword, args, dialect, ArgRole::folds_as_block)
+        self.member_indices_where(keyword, args, dialect, &ArgRole::folds_as_block)
+    }
+
+    /// Arguments carrying one role in the selected member grammar. Nested
+    /// wrappers, optional words and unbounded variable declarations share the
+    /// same layout as executable and presentation body projections.
+    #[must_use]
+    pub fn member_arg_indices_for_role_in(
+        &self,
+        keyword: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+        role: ArgRole,
+    ) -> Vec<usize> {
+        self.member_indices_where(keyword, args, dialect, &|candidate| candidate == role)
+    }
+
+    /// Reference-list arguments and their entity kind, with wrapper operands
+    /// and the leading slot operation mapped by this grammar.
+    #[must_use]
+    pub fn member_ref_indices_in(
+        &self,
+        keyword: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<(MemberRefKind, Vec<usize>)> {
+        self.source_member_ref_indices_in(
+            keyword.as_bytes(),
+            crate::InvocationArguments::literals(args),
+            dialect,
+        )
+    }
+
+    /// Reference operands from the selected source vocabulary and exact argv.
+    /// Only selector and leading slot words need static bytes. Other values
+    /// retain their own dynamic/byte states and supply no installed member.
+    #[must_use]
+    pub fn source_member_ref_indices_in(
+        &self,
+        keyword: &[u8],
+        args: crate::InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<(MemberRefKind, Vec<usize>)> {
+        // naming.core.original-member-reference-hazard
+        // docs/design/analysis/name-resolution-proofs/core-original-member-reference-hazard.md
+        let count = args.exact_argv_len()?;
+        let member = self.source_member_in(keyword, dialect)?;
+        let value = |index| {
+            args.get(index).and_then(|word| {
+                word.literal()
+                    .map(str::as_bytes)
+                    .or_else(|| word.native_bytes())
+            })
+        };
+        if let Some(optional) = member.optional_argument
+            && usize::from(optional.position) < count
+        {
+            let word = value(usize::from(optional.position))?;
+            if optional.value_for_word_in(word, None).is_some()
+                && optional.value_for_word_in(word, dialect).is_none()
+            {
+                return None;
+            }
+        }
+        match member.kind {
+            MemberKind::Flat => {
+                let start = if member.slot.is_some() && count != 0 {
+                    let first = value(0)?;
+                    usize::from(
+                        TCLOO_SLOT_OPERATIONS
+                            .iter()
+                            .any(|entry| entry.name.as_bytes() == first),
+                    )
+                } else {
+                    0
+                };
+                Some((member.all_args_ref?, (start..count).collect()))
+            }
+            MemberKind::Wrapper => {
+                let (kind, indices) =
+                    self.source_member_ref_indices_in(value(0)?, args.slice_from(1), dialect)?;
+                Some((kind, indices.into_iter().map(|index| index + 1).collect()))
+            }
+            MemberKind::FlagKeyed => None,
+        }
     }
 
     /// The shared walk behind [`Self::member_body_indices_in`] and
@@ -1897,52 +2747,147 @@ impl DefinitionBodyGrammar {
         keyword: &str,
         args: &[&str],
         dialect: Option<SurfaceQuery<'_>>,
-        admit: fn(ArgRole) -> bool,
+        admit: &dyn Fn(ArgRole) -> bool,
     ) -> Vec<usize> {
-        let Some(member) = self.member(keyword) else {
-            return Vec::new();
+        self.source_member_indices_where(
+            keyword,
+            crate::InvocationArguments::literals(args),
+            dialect,
+            admit,
+        )
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(index, _)| index)
+        .collect()
+    }
+
+    /// Source body ordinals under this independently selected definition grammar.
+    /// Real byte/literal selectors share the static layout kernel. Dynamic
+    /// options, wrapper selectors or argv shape remain unavailable; unrelated
+    /// names, formals and body values do not have to become logical strings.
+    #[must_use]
+    pub fn source_member_body_indices_in(
+        &self,
+        keyword: &[u8],
+        args: crate::InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<Vec<usize>> {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        Some(
+            self.source_member_script_arguments_in(keyword, args, dialect)?
+                .into_iter()
+                .map(SourceDefinitionMemberScriptArgument::argument)
+                .collect(),
+        )
+    }
+
+    /// Original body operands and wrapper vocabulary from the shared layout.
+    /// Unknown selector/value shape cannot supply a guessed nested grammar.
+    #[must_use]
+    pub fn source_member_script_arguments_in(
+        &self,
+        keyword: &[u8],
+        args: crate::InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<Vec<SourceDefinitionMemberScriptArgument>> {
+        Some(
+            self.source_member_indices_where(
+                std::str::from_utf8(keyword).ok()?,
+                args,
+                dialect,
+                &ArgRole::carries_script,
+            )?
+            .into_iter()
+            .map(
+                |(argument, definition_body)| SourceDefinitionMemberScriptArgument {
+                    argument,
+                    definition_body,
+                },
+            )
+            .collect(),
+        )
+    }
+
+    fn source_member_indices_where(
+        &self,
+        keyword: &str,
+        args: crate::InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+        admit: &dyn Fn(ArgRole) -> bool,
+    ) -> Option<Vec<(usize, bool)>> {
+        let count = args.exact_argv_len()?;
+        let Some(member) = self.source_member_in(keyword.as_bytes(), dialect) else {
+            return Some(Vec::new());
         };
-        if member.unavailable_option_for(args, dialect).is_some() {
-            return Vec::new();
-        }
-        let selected = |member: &'static MemberSpec| -> Vec<usize> {
-            let mut out: Vec<usize> = ArgRole::ALL
-                .iter()
-                .filter(|role| admit(**role))
-                .flat_map(|&role| {
-                    member
-                        .indices_for_call_in(args, dialect, role)
-                        .filter(|&index| index < args.len())
-                })
-                .collect();
-            out.sort_unstable();
-            out.dedup();
-            out
+        let word_at = |index| {
+            args.get(index).and_then(|word| {
+                word.literal()
+                    .map(str::as_bytes)
+                    .or_else(|| word.native_bytes())
+            })
         };
-        match member.kind {
-            MemberKind::Flat => selected(member),
-            MemberKind::Wrapper => {
-                let Some((inner, rest)) = args.split_first() else {
-                    return Vec::new();
+        let option = if let Some(optional) = member.optional_argument {
+            if usize::from(optional.position) < count {
+                let word = word_at(usize::from(optional.position))?;
+                let known = optional.value_for_word_in(word, None);
+                let admitted = optional.value_for_word_in(word, dialect);
+                if known.is_some() && admitted.is_none() {
+                    return Some(Vec::new());
+                }
+                admitted
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let selected = || member.selected_indices_where(option, count, admit);
+        let indices = match member.kind {
+            MemberKind::Flat if member.all_args_var && admit(ArgRole::VarWrite) => {
+                let start = if member.slot.is_some() && count != 0 {
+                    let first = word_at(0)?;
+                    usize::from(
+                        TCLOO_SLOT_OPERATIONS
+                            .iter()
+                            .any(|entry| entry.name.as_bytes() == first),
+                    )
+                } else {
+                    0
                 };
-                if self.member(inner).is_some() {
-                    self.member_indices_where(inner, rest, dialect, admit)
+                let mut indices = selected();
+                indices.extend(start..count);
+                indices.sort_unstable();
+                indices.dedup();
+                indices.into_iter().map(|index| (index, false)).collect()
+            }
+            MemberKind::Flat => selected().into_iter().map(|index| (index, false)).collect(),
+            MemberKind::Wrapper => {
+                if count == 0 {
+                    return Some(Vec::new());
+                }
+                let inner = word_at(0)?;
+                if let Ok(inner) = std::str::from_utf8(inner)
+                    && self.member(inner).is_some()
+                {
+                    self.source_member_indices_where(inner, args.slice_from(1), dialect, admit)?
                         .into_iter()
-                        .map(|index| index + 1)
+                        .map(|(index, definition)| (index + 1, definition))
                         .collect()
                 } else if member.wrapper_block_body {
-                    selected(member)
+                    selected().into_iter().map(|index| (index, true)).collect()
                 } else {
                     Vec::new()
                 }
             }
-            MemberKind::FlagKeyed => args
-                .iter()
-                .enumerate()
-                .take(args.len().saturating_sub(1))
-                .filter_map(|(index, word)| matches!(*word, "-get" | "-set").then_some(index + 1))
+            MemberKind::FlagKeyed => self
+                .source_property_declarations_where(count, &word_at, dialect)?
+                .into_iter()
+                .flat_map(|declaration| declaration.selected_indices_where(admit))
+                .map(|index| (index, false))
                 .collect(),
-        }
+        };
+        Some(indices)
     }
 
     /// Whether `name` is a type-level member this family provides without
@@ -2052,8 +2997,17 @@ impl DefinitionBodyGrammar {
     /// visibility explicitly), so they default to exported here.
     #[must_use]
     pub fn member_default_exported(&self, name: &str) -> bool {
+        self.member_default_exported_bytes(name.as_bytes())
+    }
+
+    /// Name-based declaration visibility from the original counted name.
+    /// `TclOO`'s native `[a-z]*` `CString` matcher accepts precisely an initial
+    /// ASCII lowercase byte; subsequent opaque units do not alter that test.
+    /// This is a visibility rule, separate from member publication/lookup.
+    #[must_use]
+    pub fn member_default_exported_bytes(&self, name: &[u8]) -> bool {
         match self.family {
-            DefinerFamily::TclOo => name.starts_with(|c: char| c.is_ascii_lowercase()),
+            DefinerFamily::TclOo => name.first().is_some_and(u8::is_ascii_lowercase),
             // SpecTcl and SslicTcl declare no members that are ever
             // *dispatched*, so the question is vacuous for them; answering
             // `true` keeps the visible
@@ -2921,6 +3875,7 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("xc_translatable"),
     MemberSpec::keyword_only("deprecated_replacement"),
     MemberSpec::keyword_only("deprecated_replacement_drop_in"),
+    MemberSpec::keyword_only("source_deprecation_advice"),
     MemberSpec::keyword_only("byte_array_effect"),
     MemberSpec::keyword_only("self_receiver_words"),
     MemberSpec::keyword_only("creates_instance_at"),
@@ -3378,9 +4333,495 @@ mod tests {
     use super::{
         BuiltinObjectMethodOperation, DeclaredMemberVisibility, DefinerFamily,
         MemberConstructionEffect, MemberRetraction, MemberVisibility, MethodReach,
-        NativeConstructorBoundary, NativeLifecycleBodyDisposition, SlotOp, SlotSpec, TCLOO_GRAMMAR,
+        NativeConstructorBoundary, NativeLifecycleBodyDisposition, SNIT_GRAMMAR, SlotOp, SlotSpec,
+        SourceFormalValidationApplicability, TCLOO_GRAMMAR,
     };
     use crate::arg_role::ArgRole;
+
+    #[test]
+    fn source_member_reference_indices_keep_byte_values_and_control_words_separate() {
+        // naming.core.original-member-reference-hazard
+        // docs/design/analysis/name-resolution-proofs/core-original-member-reference-hazard.md
+        let values = [
+            crate::InvocationWord::KnownBytes(b"m space"),
+            crate::InvocationWord::KnownBytes(b"m n"),
+        ];
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_ref_indices_in(
+                b"export",
+                crate::InvocationArguments::structured(&values),
+                None
+            ),
+            Some((super::MemberRefKind::Method, vec![0, 1]))
+        );
+        let wrapped = [
+            crate::InvocationWord::KnownBytes(b"export"),
+            crate::InvocationWord::KnownBytes(b"m"),
+        ];
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_ref_indices_in(
+                b"self",
+                crate::InvocationArguments::structured(&wrapped),
+                None
+            ),
+            Some((super::MemberRefKind::Method, vec![1]))
+        );
+        let dynamic = [
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::KnownBytes(b"m"),
+        ];
+        assert!(
+            TCLOO_GRAMMAR
+                .source_member_ref_indices_in(
+                    b"self",
+                    crate::InvocationArguments::structured(&dynamic),
+                    None
+                )
+                .is_none()
+        );
+        assert!(
+            TCLOO_GRAMMAR
+                .source_member_ref_indices_in(
+                    b"filter",
+                    crate::InvocationArguments::structured(&dynamic),
+                    None
+                )
+                .is_none()
+        );
+        let expanded = [crate::InvocationWord::Expanded];
+        assert!(
+            TCLOO_GRAMMAR
+                .source_member_ref_indices_in(
+                    b"export",
+                    crate::InvocationArguments::structured(&expanded),
+                    None
+                )
+                .is_none()
+        );
+    }
+    #[test]
+    fn original_property_layout_keeps_per_name_options_and_index_purposes() {
+        use crate::commands::tcl::TclOoPropertyKind;
+        let args: &[&[u8]] = &[
+            b"p\xed\xa0\x80",
+            b"-k",
+            b"writable",
+            b"p\xed\xa0\x81",
+            b"-g",
+            b"getter",
+            b"r",
+            b"-s",
+            b"setter",
+            b"-kind\0ignored",
+            b"readable\0ignored",
+        ];
+        for release in ["9.0", "9.1"] {
+            let declarations = TCLOO_GRAMMAR
+                .source_property_declarations_bytes(
+                    args,
+                    Some(SurfaceQuery::core(Family::Tcl, release)),
+                )
+                .unwrap();
+            assert_eq!(declarations.len(), 3);
+            assert_eq!(declarations[0].name_index(), 0);
+            assert_eq!(declarations[0].kind(), TclOoPropertyKind::Writable);
+            assert_eq!(declarations[0].getter_index(), None);
+            assert_eq!(declarations[1].name_index(), 3);
+            assert_eq!(declarations[1].kind(), TclOoPropertyKind::ReadWrite);
+            assert_eq!(declarations[1].getter_index(), Some(5));
+            assert_eq!(declarations[2].name_index(), 6);
+            assert_eq!(declarations[2].kind(), TclOoPropertyKind::Readable);
+            assert_eq!(declarations[2].setter_index(), Some(8));
+            for invalid in [
+                &[b"p".as_slice(), b"-get".as_slice()][..],
+                &[b"p".as_slice(), b"-".as_slice(), b"body".as_slice()][..],
+                &[b"p".as_slice(), b"-kind".as_slice(), b"r".as_slice()][..],
+                &[
+                    b"p".as_slice(),
+                    b"-kind\xc0\x80tail".as_slice(),
+                    b"readable".as_slice(),
+                ][..],
+            ] {
+                assert!(
+                    TCLOO_GRAMMAR
+                        .source_property_declarations_bytes(
+                            invalid,
+                            Some(SurfaceQuery::core(Family::Tcl, release))
+                        )
+                        .is_none()
+                );
+            }
+        }
+        assert!(
+            TCLOO_GRAMMAR
+                .source_property_declarations_bytes(
+                    args,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6"))
+                )
+                .is_none()
+        );
+        assert!(
+            TCLOO_GRAMMAR
+                .source_property_declarations_bytes(args, None)
+                .is_none()
+        );
+        assert!(
+            super::SNIT_GRAMMAR
+                .source_property_declarations_bytes(
+                    args,
+                    Some(SurfaceQuery::core(Family::Tcl, "9.1"))
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn member_role_projection_shares_nested_wrapper_layout() {
+        let grammar = &TCLOO_GRAMMAR;
+        let query = Some(SurfaceQuery::core(Family::Tcl, "9.1"));
+        let args = ["private", "method", "pick", "{x}", "body"];
+        assert_eq!(
+            grammar.member_arg_indices_for_role_in("self", &args, query, ArgRole::Name),
+            vec![2]
+        );
+        assert_eq!(
+            grammar.member_arg_indices_for_role_in("self", &args, query, ArgRole::ParamList),
+            vec![3]
+        );
+        assert_eq!(
+            grammar.member_body_indices_in("self", &args, query),
+            vec![4]
+        );
+        assert_eq!(
+            grammar.member_arg_indices_for_role_in(
+                "self",
+                &["private", "variable", "-set", "x", "y"],
+                query,
+                ArgRole::VarWrite,
+            ),
+            vec![3, 4]
+        );
+    }
+
+    #[test]
+    fn source_member_script_layout_keeps_values_unknown_and_wrapper_vocabulary_typed() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        use crate::{InvocationArguments, InvocationWord};
+        let query = Some(SurfaceQuery::core(Family::Tcl, "8.6"));
+        let method = [
+            InvocationWord::KnownBytes(b"caf\xff"),
+            InvocationWord::KnownBytes(b""),
+            InvocationWord::Dynamic,
+        ];
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_body_indices_in(
+                b"method",
+                InvocationArguments::structured(&method),
+                query
+            ),
+            Some(vec![2])
+        );
+        let nested = [
+            InvocationWord::Literal("self"),
+            InvocationWord::KnownBytes(b"method m {} {puts hi}"),
+        ];
+        let layout = TCLOO_GRAMMAR
+            .source_member_script_arguments_in(
+                b"self",
+                InvocationArguments::structured(&nested),
+                query,
+            )
+            .unwrap();
+        assert_eq!(layout.len(), 1);
+        assert_eq!(layout[0].argument(), 1);
+        assert!(layout[0].retains_definition_grammar());
+        let ordinary = [
+            InvocationWord::Literal("method"),
+            InvocationWord::Literal("m"),
+            InvocationWord::Literal(""),
+            InvocationWord::Dynamic,
+        ];
+        let layout = TCLOO_GRAMMAR
+            .source_member_script_arguments_in(
+                b"self",
+                InvocationArguments::structured(&ordinary),
+                query,
+            )
+            .unwrap();
+        assert_eq!(layout[0].argument(), 3);
+        assert!(!layout[0].retains_definition_grammar());
+        let unresolved = [InvocationWord::Dynamic, InvocationWord::Dynamic];
+        assert!(
+            TCLOO_GRAMMAR
+                .source_member_body_indices_in(
+                    b"self",
+                    InvocationArguments::structured(&unresolved),
+                    query
+                )
+                .is_none()
+        );
+        let expansion = [InvocationWord::Expanded];
+        assert!(
+            TCLOO_GRAMMAR
+                .source_member_body_indices_in(
+                    b"method",
+                    InvocationArguments::structured(&expansion),
+                    query
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn source_member_keyword_uses_actual_availability_and_exact_bytes() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let old = Some(SurfaceQuery::core(Family::Tcl, "8.6"));
+        let current = Some(SurfaceQuery::core(Family::Tcl, "9.1"));
+        assert!(TCLOO_GRAMMAR.source_member_in(b"property", old).is_none());
+        assert_eq!(
+            TCLOO_GRAMMAR
+                .source_member_in(b"property", current)
+                .unwrap()
+                .keyword,
+            "property"
+        );
+        assert_eq!(
+            TCLOO_GRAMMAR
+                .source_member_in(b"method", old)
+                .unwrap()
+                .keyword,
+            "method"
+        );
+        for unknown in [b"Method".as_slice(), b"method\0", b"method\xff"] {
+            assert!(TCLOO_GRAMMAR.source_member_in(unknown, current).is_none());
+        }
+    }
+
+    #[test]
+    fn source_member_script_layout_uses_actual_release_and_optional_word_facts() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        use crate::{InvocationArguments, InvocationWord};
+        let private = [
+            InvocationWord::Literal("m"),
+            InvocationWord::Literal("-private"),
+            InvocationWord::Dynamic,
+            InvocationWord::Dynamic,
+        ];
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_body_indices_in(
+                b"method",
+                InvocationArguments::structured(&private),
+                Some(SurfaceQuery::core(Family::Tcl, "8.6"))
+            ),
+            Some(vec![])
+        );
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_body_indices_in(
+                b"method",
+                InvocationArguments::structured(&private),
+                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
+            ),
+            Some(vec![3])
+        );
+        let property = [
+            InvocationWord::Literal("p"),
+            InvocationWord::Literal("-get"),
+            InvocationWord::KnownBytes(b"puts caf\xff"),
+        ];
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_body_indices_in(
+                b"property",
+                InvocationArguments::structured(&property),
+                Some(SurfaceQuery::core(Family::Tcl, "8.6"))
+            ),
+            Some(vec![])
+        );
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_body_indices_in(
+                b"property",
+                InvocationArguments::structured(&property),
+                Some(SurfaceQuery::core(Family::Tcl, "9.1"))
+            ),
+            Some(vec![2])
+        );
+        let unknown_option = [
+            InvocationWord::Dynamic,
+            InvocationWord::Dynamic,
+            InvocationWord::Dynamic,
+        ];
+        assert!(
+            TCLOO_GRAMMAR
+                .source_member_body_indices_in(
+                    b"method",
+                    InvocationArguments::structured(&unknown_option),
+                    Some(SurfaceQuery::core(Family::Tcl, "9.0"))
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_property_role_layout_consumes_option_values_once() {
+        // naming.tcloo.property-option-value-boundary
+        // docs/design/analysis/name-resolution-proofs/tcloo-property-option-value-boundary.md
+        let grammar = &TCLOO_GRAMMAR;
+        for release in ["9.0", "9.1"] {
+            let query = Some(SurfaceQuery::core(Family::Tcl, release));
+            let args = ["p", "-get", "-set", "-set", "setter"];
+            assert_eq!(
+                grammar.member_body_indices_in("property", &args, query),
+                vec![2, 4]
+            );
+            assert_eq!(
+                grammar.member_block_indices_in("property", &args, query),
+                vec![2, 4]
+            );
+            assert_eq!(
+                grammar.member_arg_indices_for_role_in("property", &args, query, ArgRole::Name),
+                vec![0]
+            );
+            let declarations = grammar
+                .source_property_declarations_bytes(&args, query)
+                .unwrap();
+            assert_eq!(declarations[0].getter_index(), Some(2));
+            assert_eq!(declarations[0].setter_index(), Some(4));
+
+            let args = ["p", "-g", "-set", "q", "-s", "setter"];
+            assert_eq!(
+                grammar.member_body_indices_in("property", &args, query),
+                vec![2, 5]
+            );
+            assert_eq!(
+                grammar.member_arg_indices_for_role_in("property", &args, query, ArgRole::Name),
+                vec![0, 3]
+            );
+            let args = ["p", "-get", "superseded", "-get", "-set", "-set", "setter"];
+            assert_eq!(
+                grammar.member_body_indices_in("property", &args, query),
+                vec![4, 6]
+            );
+            let declarations = grammar
+                .source_property_declarations_bytes(&args, query)
+                .unwrap();
+            assert_eq!(declarations[0].getter_index(), Some(4));
+            assert_eq!(declarations[0].setter_index(), Some(6));
+        }
+    }
+
+    #[test]
+    fn original_property_role_layout_keeps_unknown_bodies_separate_from_selectors() {
+        // naming.tcloo.property-option-value-boundary
+        // docs/design/analysis/name-resolution-proofs/tcloo-property-option-value-boundary.md
+        use crate::{InvocationArguments, InvocationWord};
+        let query = Some(SurfaceQuery::core(Family::Tcl, "9.1"));
+        let arguments = [
+            InvocationWord::Dynamic,
+            InvocationWord::KnownBytes(b"-g\0ignored"),
+            InvocationWord::Dynamic,
+            InvocationWord::KnownBytes(b"-s"),
+            InvocationWord::Dynamic,
+        ];
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_body_indices_in(
+                b"property",
+                InvocationArguments::structured(&arguments),
+                query
+            ),
+            Some(vec![2, 4])
+        );
+        for words in [
+            vec![
+                InvocationWord::Literal("p"),
+                InvocationWord::Dynamic,
+                InvocationWord::Dynamic,
+            ],
+            vec![
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("-get"),
+            ],
+            vec![
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("-unknown"),
+                InvocationWord::Dynamic,
+            ],
+            vec![
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("-"),
+                InvocationWord::Dynamic,
+            ],
+            vec![
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("-kind"),
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("-get"),
+                InvocationWord::Dynamic,
+            ],
+            vec![
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("-kind"),
+                InvocationWord::Literal("r"),
+                InvocationWord::Literal("-get"),
+                InvocationWord::Dynamic,
+            ],
+            vec![
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("-get"),
+                InvocationWord::Expanded,
+            ],
+            vec![
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("-get"),
+                InvocationWord::Opaque,
+            ],
+        ] {
+            assert!(
+                TCLOO_GRAMMAR
+                    .source_member_body_indices_in(
+                        b"property",
+                        InvocationArguments::structured(&words),
+                        query
+                    )
+                    .is_none(),
+                "{words:?}"
+            );
+        }
+        for unavailable in [
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            Some(SurfaceQuery::core(Family::Jim, "0.83")),
+        ] {
+            assert_eq!(
+                TCLOO_GRAMMAR.source_member_body_indices_in(
+                    b"property",
+                    InvocationArguments::structured(&arguments),
+                    unavailable
+                ),
+                Some(vec![])
+            );
+        }
+    }
+
+    #[test]
+    fn flag_keyed_member_projects_only_the_requested_role() {
+        let grammar = &TCLOO_GRAMMAR;
+        let args = ["p", "q", "-get", "read", "-set", "write"];
+        let query = Some(SurfaceQuery::core(Family::Tcl, "9.1"));
+        assert_eq!(
+            grammar.member_arg_indices_for_role_in("property", &args, query, ArgRole::Name),
+            vec![0, 1]
+        );
+        assert_eq!(
+            grammar.member_body_indices_in("property", &args, query),
+            vec![3, 5]
+        );
+        assert!(
+            grammar
+                .member_arg_indices_for_role_in("property", &args, query, ArgRole::ParamList)
+                .is_empty()
+        );
+    }
 
     #[test]
     fn case_list_block_grammar_names_every_loader_row() {
@@ -3510,8 +4951,95 @@ mod tests {
         );
     }
 
+    #[test]
+    fn lifecycle_formal_applicability_keeps_empty_unknown_and_foreign_members_separate() {
+        // naming.tcloo.empty-lifecycle-definition
+        // docs/design/analysis/name-resolution-proofs/tcloo-empty-lifecycle-definition.md
+        use SourceFormalValidationApplicability::{Required, SkippedRemovedLifecycle};
+        let member = TCLOO_GRAMMAR.member("constructor").unwrap();
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_formal_validation_applicability(member, Some(b"")),
+            Some(SkippedRemovedLifecycle)
+        );
+        for body in [b" ".as_slice(), b"# body", b"\0"] {
+            assert_eq!(
+                TCLOO_GRAMMAR.source_member_formal_validation_applicability(member, Some(body)),
+                Some(Required)
+            );
+        }
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_formal_validation_applicability(member, None),
+            None
+        );
+        let foreign = *member;
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_formal_validation_applicability(&foreign, Some(b"")),
+            None
+        );
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_formal_validation_applicability(
+                TCLOO_GRAMMAR.member("method").unwrap(),
+                Some(b"")
+            ),
+            Some(Required)
+        );
+        let snit = SNIT_GRAMMAR.member("constructor").unwrap();
+        assert_eq!(
+            SNIT_GRAMMAR.source_member_formal_validation_applicability(snit, None),
+            Some(Required)
+        );
+    }
+
     fn strs(words: &[&str]) -> Vec<String> {
         words.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn original_deferred_method_setter_keeps_native_storage_and_body_execution_separate() {
+        // Implementation contract: naming.tcloo.original-own-object-method-transfer
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-own-object-method-transfer.md
+        let member = TCLOO_GRAMMAR.member("method").unwrap();
+        for release in ["8.6", "9.0", "9.1"] {
+            let recipe = TCLOO_GRAMMAR
+                .native_deferred_method_setter(
+                    member,
+                    super::DefinitionReceiver::Class,
+                    Some(SurfaceQuery::core(Family::Tcl, release)),
+                )
+                .unwrap();
+            assert_eq!(
+                (
+                    recipe.name_argument(),
+                    recipe.parameters_argument(),
+                    recipe.body_argument()
+                ),
+                (0, 1, 2)
+            );
+            assert_eq!(recipe.argument_count(), 3);
+        }
+        for query in [
+            None,
+            Some(SurfaceQuery::core(Family::Tcl, "8.4")),
+            Some(SurfaceQuery::core(Family::Tcl, "8.5")),
+            Some(SurfaceQuery::core(Family::Jim, "0.84")),
+        ] {
+            assert!(
+                TCLOO_GRAMMAR
+                    .native_deferred_method_setter(member, super::DefinitionReceiver::Class, query)
+                    .is_none()
+            );
+        }
+        for name in ["forward", "constructor", "filter", "private", "self"] {
+            assert!(
+                TCLOO_GRAMMAR
+                    .native_deferred_method_setter(
+                        TCLOO_GRAMMAR.member(name).unwrap(),
+                        super::DefinitionReceiver::Class,
+                        Some(SurfaceQuery::core(Family::Tcl, "9.1"))
+                    )
+                    .is_none()
+            );
+        }
     }
 
     #[test]
@@ -3698,6 +5226,71 @@ mod tests {
             let slot = m.slot.unwrap_or_else(|| panic!("`{keyword}` is a slot"));
             assert_eq!(slot.default_op, default_op, "{keyword} default op");
             assert_eq!(slot.dedup, dedup, "{keyword} dedup");
+        }
+    }
+
+    #[test]
+    fn original_tcloo_slot_calls_distinguish_queries_empty_updates_and_materialised_zero() {
+        use tcl_dialect::TclVersion;
+        // Native proof: naming.tcloo.source-superclass-slot-forms
+        // docs/design/analysis/name-resolution-proofs/tcloo-source-superclass-slot-forms.md
+        // Native proof: naming.tcloo.source-mixin-slot-forms
+        // docs/design/analysis/name-resolution-proofs/tcloo-source-mixin-slot-forms.md
+        // Native proof: naming.tcloo.source-generated-zero-option-classification
+        // docs/design/analysis/name-resolution-proofs/tcloo-source-generated-zero-option-classification.md
+        // The generated-zero control materialises C080 from a ByteArray;
+        // it does not establish a raw native-string 00 comparison purpose.
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let protocol = tcl_syntax::naming::NativeNameProtocol::C(version);
+            for keyword in ["superclass", "mixin"] {
+                let slot = TCLOO_GRAMMAR.member(keyword).unwrap().slot.unwrap();
+                let empty: [&[u8]; 0] = [];
+                assert!(
+                    slot.split_original_call(&empty, protocol).is_none(),
+                    "a getter cannot erase {keyword} relations"
+                );
+                let bare = [b"Base".as_slice()];
+                assert_eq!(
+                    slot.split_original_call(&bare, protocol),
+                    Some((SlotOp::Set, bare.as_slice()))
+                );
+                let set = [b"-set".as_slice(), b"Base".as_slice()];
+                assert_eq!(
+                    slot.split_original_call(&set, protocol),
+                    Some((SlotOp::Set, &set[1..]))
+                );
+                let zero_set = [b"-set".as_slice()];
+                assert_eq!(
+                    slot.split_original_call(&zero_set, protocol),
+                    Some((SlotOp::Set, &zero_set[1..]))
+                );
+                let clear = [b"-clear".as_slice()];
+                assert_eq!(
+                    slot.split_original_call(&clear, protocol),
+                    Some((SlotOp::Clear, &clear[1..]))
+                );
+                for flag in [
+                    b"-s".as_slice(),
+                    b"-\xc0\x80set".as_slice(),
+                    b"-s\xc0\x80et".as_slice(),
+                ] {
+                    assert!(
+                        slot.split_original_call(&[flag], protocol).is_none(),
+                        "{version:?}: {keyword}: {flag:?}"
+                    );
+                }
+            }
+        }
+        let slot = TCLOO_GRAMMAR.member("mixin").unwrap().slot.unwrap();
+        for protocol in [
+            tcl_syntax::naming::NativeNameProtocol::C(TclVersion::V8_4),
+            tcl_syntax::naming::NativeNameProtocol::C(TclVersion::V8_5),
+            tcl_syntax::naming::NativeNameProtocol::Jim084,
+        ] {
+            assert!(
+                slot.split_original_call(&[b"Base".as_slice()], protocol)
+                    .is_none()
+            );
         }
     }
 
@@ -3931,5 +5524,209 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![1]
         );
+    }
+}
+
+#[cfg(test)]
+mod original_property_accessor_tests {
+    use super::*;
+    #[test]
+    fn original_property_accessor_layout_keeps_selector_names_and_values_separate() {
+        // Implementation contract: naming.tcloo.original-property-accessor-source-advice
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-property-accessor-source-advice.md
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            let recipe = tcl_syntax::naming::NativeNameProtocol::C(version);
+            let layout = |count| {
+                TCLOO_CONFIGURABLE_GRAMMAR
+                    .source_property_accessor_layout(b"configure", recipe, count)
+                    .unwrap()
+            };
+            assert_eq!(layout(0).mode(), SourcePropertyAccessorMode::ListReadable);
+            assert_eq!(layout(0).property_ordinals().count(), 0);
+            assert_eq!(layout(1).mode(), SourcePropertyAccessorMode::Read);
+            assert_eq!(layout(1).property_ordinals().collect::<Vec<_>>(), vec![0]);
+            assert_eq!(layout(4).mode(), SourcePropertyAccessorMode::WritePairs);
+            assert_eq!(
+                layout(4).property_ordinals().collect::<Vec<_>>(),
+                vec![0, 2]
+            );
+            let advice = TCLOO_CONFIGURABLE_GRAMMAR.source_property_accessor_advice(recipe);
+            assert_eq!(
+                advice.completion_name_role(b"configure", 0, 0),
+                Some(SourcePropertyCompletionRole::ReadOrWrite)
+            );
+            assert_eq!(
+                advice.completion_name_role(b"configure", 0, 1),
+                Some(SourcePropertyCompletionRole::Readable)
+            );
+            assert_eq!(
+                advice.completion_name_role(b"configure", 2, 2),
+                Some(SourcePropertyCompletionRole::Writable)
+            );
+            assert_eq!(
+                advice.completion_name_role(b"configure", 2, 3),
+                Some(SourcePropertyCompletionRole::Writable)
+            );
+            assert!(advice.completion_name_role(b"configure", 1, 2).is_none());
+            assert!(advice.completion_name_role(b"configure", 4, 2).is_none());
+            assert!(
+                TCLOO_CONFIGURABLE_GRAMMAR
+                    .source_property_accessor_layout(b"configure", recipe, 3)
+                    .is_none()
+            );
+            for selector in [b"cget".as_slice(), b"config", b"configure\0ignored"] {
+                assert!(
+                    TCLOO_CONFIGURABLE_GRAMMAR
+                        .source_property_accessor_layout(selector, recipe, 1)
+                        .is_none()
+                );
+            }
+            assert!(
+                TCLOO_GRAMMAR
+                    .source_property_accessor_layout(b"configure", recipe, 1)
+                    .is_none()
+            );
+            assert!(
+                SNIT_GRAMMAR
+                    .source_property_accessor_layout(b"configure", recipe, 1)
+                    .is_none()
+            );
+        }
+        for recipe in [
+            tcl_syntax::naming::NativeNameProtocol::C(TclVersion::V8_6),
+            tcl_syntax::naming::NativeNameProtocol::Jim084,
+        ] {
+            assert!(
+                TCLOO_CONFIGURABLE_GRAMMAR
+                    .source_property_accessor_layout(b"configure", recipe, 1)
+                    .is_none()
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_forward_tests {
+    use super::{TCLOO_GRAMMAR, TclVersion};
+
+    #[test]
+    fn original_forward_layout_requires_selected_oo_and_nonempty_prefix() {
+        // naming.tcloo.original-forward-registration-prefix
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-forward-registration-prefix.md
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let forward = TCLOO_GRAMMAR.member("forward").unwrap();
+            for count in [0, 1, 2, 8] {
+                assert_eq!(
+                    TCLOO_GRAMMAR
+                        .native_deferred_forward_setter(forward, dialect, count)
+                        .is_some(),
+                    version >= TclVersion::V8_6 && count >= 2
+                );
+            }
+            assert!(
+                TCLOO_GRAMMAR
+                    .native_deferred_forward_setter(
+                        TCLOO_GRAMMAR.member("method").unwrap(),
+                        dialect,
+                        3
+                    )
+                    .is_none()
+            );
+        }
+        let jim =
+            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::find("jim").unwrap());
+        assert!(
+            TCLOO_GRAMMAR
+                .native_deferred_forward_setter(TCLOO_GRAMMAR.member("forward").unwrap(), jim, 2)
+                .is_none()
+        );
+    }
+    #[test]
+    fn original_forward_layout_matches_captured_registration_boundaries() {
+        // naming.tcloo.native-forward-registration-prefix-boundaries
+        // docs/design/analysis/name-resolution-proofs/tcloo-native-forward-registration-prefix-boundaries.md
+        let captures = [
+            (
+                "tcl8.4",
+                include_str!("../tests/data/native_tcloo_forward_registration/8.4.20/stdout.tsv"),
+            ),
+            (
+                "tcl8.5",
+                include_str!("../tests/data/native_tcloo_forward_registration/8.5.19/stdout.tsv"),
+            ),
+            (
+                "tcl8.6",
+                include_str!("../tests/data/native_tcloo_forward_registration/8.6.18/stdout.tsv"),
+            ),
+            (
+                "tcl9.0",
+                include_str!("../tests/data/native_tcloo_forward_registration/9.0.4/stdout.tsv"),
+            ),
+            (
+                "tcl9.1",
+                include_str!("../tests/data/native_tcloo_forward_registration/9.1.0/stdout.tsv"),
+            ),
+            (
+                "jim",
+                include_str!("../tests/data/native_tcloo_forward_registration/jim/stdout.tsv"),
+            ),
+        ];
+        for (name, rows) in captures {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            let available = !captured_forward_row(rows, "AVAILABILITY").1.is_empty();
+            let member = TCLOO_GRAMMAR.member("forward").unwrap();
+            assert_eq!(
+                TCLOO_GRAMMAR
+                    .native_deferred_forward_setter(member, dialect, 2)
+                    .is_some(),
+                available,
+                "{name}"
+            );
+            if !available {
+                continue;
+            }
+            for label in [
+                "MISSING_REGISTER",
+                "NO_TARGET_CALL",
+                "SCRIPT_REPLACED",
+                "FORWARD_REPLACED",
+                "EMPTY_TARGET_REGISTER",
+                "SUPER_FORWARD",
+            ] {
+                assert_eq!(captured_forward_row(rows, label).0, "0", "{name}: {label}");
+            }
+            assert_eq!(captured_forward_row(rows, "NO_TARGET_CALL").1, "30");
+            assert_eq!(captured_forward_row(rows, "MISSING_INVOKE").0, "1");
+            assert_eq!(captured_forward_row(rows, "PREFIX_REQUIRED").0, "1");
+            assert!(
+                TCLOO_GRAMMAR
+                    .native_deferred_forward_setter(member, dialect, 1)
+                    .is_none()
+            );
+            // This complete dynamic script observes a definition-scope difference;
+            // the bounded source transfer admits only static prefix words.
+            assert_eq!(
+                captured_forward_row(rows, "PREFIX_CAPTURE").0,
+                if name == "tcl8.6" { "0" } else { "1" }
+            );
+        }
+    }
+
+    fn captured_forward_row<'a>(rows: &'a str, label: &str) -> (&'a str, &'a str) {
+        let line = rows
+            .lines()
+            .find(|line| line.split('|').next() == Some(label))
+            .unwrap();
+        let fields = line.split('|').collect::<Vec<_>>();
+        assert_eq!(fields.len(), 4);
+        (fields[1], fields[3])
     }
 }

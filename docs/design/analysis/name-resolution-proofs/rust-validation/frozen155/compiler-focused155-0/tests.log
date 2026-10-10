@@ -1,0 +1,44 @@
+
+running 1 test
+test analyser::variable_alias_templates::tests::original_alias_source_templates_keep_unknown_elements_and_source_order_separate ... ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: Widen(StateTransitionWidening { domains: [VariableCells, VariableTraces], subject: Unknown { argument_index: 0, word_kind: Dynamic } }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=0 anchors=8
+
+thread 'analyser::variable_alias_templates::tests::original_alias_source_templates_keep_unknown_elements_and_source_order_separate' (607198) panicked at rust/tcl-compiler/src/analyser/variable_alias_templates.rs:265:13:
+assertion `left == right` failed: tcl8.4
+  left: []
+ right: [29, 43, 60]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::variable_alias_templates::tests::original_alias_source_templates_keep_unknown_elements_and_source_order_separate
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8198 filtered out; finished in 3.45s
+

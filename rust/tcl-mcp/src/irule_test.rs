@@ -27,9 +27,10 @@
 //! warnings relevant to its action, and the user-facing questions an agent
 //! should ask before writing assertions.
 //!
-//! Path matching keys on tainted-source substrings and command names — no
-//! regular expressions — so this uses plain string containment rather than
-//! pulling in a regex dependency.
+//! Action source extents and schema come from the original Diagram producer.
+//! Diagnostic attachment matches its independently retained emitting extent.
+//! Labels and priority questions are presentation hints; these paths supply no
+//! entered event, traffic outcome, taint proof or behavioral assertion.
 
 use serde_json::{Map, Value, json};
 
@@ -151,7 +152,7 @@ impl Condition {
 /// A taint warning distilled to the fields the annotation logic reads.
 struct Taint {
     code: String,
-    sink_command: String,
+    source_span: Option<[u32; 2]>,
     /// The full warning dict, re-emitted verbatim in `taint_warnings`.
     raw: Value,
 }
@@ -177,6 +178,8 @@ impl Priority {
 struct Action {
     command: String,
     args: Vec<String>,
+    source_span: Option<[u32; 2]>,
+    source_schema: Option<Value>,
 }
 
 /// A fully annotated path from an event/proc to a terminal action.
@@ -195,7 +198,11 @@ impl PathInfo {
         json!({
             "event": self.event,
             "conditions": self.conditions.iter().map(Condition::to_json).collect::<Vec<_>>(),
-            "action": { "command": self.action.command, "args": self.action.args },
+            "action": { "command": self.action.command, "args": self.action.args,
+                "source_span": self.action.source_span, "source_schema": self.action.source_schema },
+            "analysis_kind": "conditional-source",
+            "priority_kind": "presentation-hint",
+            "outcome_obligations": ["runtime-path-reachability", "observed-terminal-outcome"],
             "path_label": self.path_label,
             "priority": self.priority.as_str(),
             "taint_warnings": self.taint_warnings,
@@ -343,7 +350,15 @@ fn walk_flow(
             Some("action") => {
                 let command = node.get("command").and_then(Value::as_str).unwrap_or("");
                 let args = string_array(node.get("args"));
-                out.push(build_path(event, conditions, command, args, taints));
+                out.push(build_path(
+                    event,
+                    conditions,
+                    command,
+                    args,
+                    taints,
+                    original_span(node.get("source_span")),
+                    node.get("source_schema").cloned(),
+                ));
             }
             Some("if") => {
                 let branches = node.get("branches").and_then(Value::as_array);
@@ -401,6 +416,16 @@ fn string_array(value: Option<&Value>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn original_span(value: Option<&Value>) -> Option<[u32; 2]> {
+    let values = value?.as_array()?;
+    if values.len() != 2 {
+        return None;
+    }
+    let start = u32::try_from(values[0].as_u64()?).ok()?;
+    let end = u32::try_from(values[1].as_u64()?).ok()?;
+    (start <= end).then_some([start, end])
+}
+
 /// Build one path from an action terminal, computing its label, priority,
 /// relevant taint warnings, and questions (`_annotate_path`).
 fn build_path(
@@ -409,13 +434,20 @@ fn build_path(
     command: &str,
     args: Vec<String>,
     taints: &[Taint],
+    source_span: Option<[u32; 2]>,
+    source_schema: Option<Value>,
 ) -> PathInfo {
     let path_label = build_label(event, conditions, command, &args);
 
-    // Base priority from the action command.
-    let mut priority = if SECURITY_ACTIONS.contains(&command) {
+    // Schema families can suggest review priority, without predicting execution.
+    let schema_command = source_schema
+        .as_ref()
+        .and_then(|schema| schema.get("command"))
+        .and_then(Value::as_str);
+    let mut priority = if schema_command.is_some_and(|command| SECURITY_ACTIONS.contains(&command))
+    {
         Priority::High
-    } else if ROUTING_ACTIONS.contains(&command) {
+    } else if schema_command.is_some_and(|command| ROUTING_ACTIONS.contains(&command)) {
         Priority::Normal
     } else {
         Priority::Low
@@ -431,14 +463,17 @@ fn build_path(
         priority = Priority::Normal;
     }
 
-    // Taint warnings relevant to this action's sink, plus a security escalation
-    // if any warning carries a security-critical code.
+    // Match the actual emitting source extent. Display labels cannot join a
+    // diagnostic to an unrelated action with the same spelling.
     let mut relevant_taints: Vec<Value> = Vec::new();
     for t in taints {
-        let sink = t.sink_command.as_str();
-        if sink == command || (command == "pool" && (sink == "pool" || sink == "node")) {
-            relevant_taints.push(t.raw.clone());
+        let matched = source_span
+            .zip(t.source_span)
+            .is_some_and(|(action, warning)| action[0] <= warning[0] && warning[1] <= action[1]);
+        if !matched {
+            continue;
         }
+        relevant_taints.push(t.raw.clone());
         if SECURITY_TAINT_CODES.contains(&t.code.as_str()) {
             priority = Priority::High;
         }
@@ -447,6 +482,8 @@ fn build_path(
     let action = Action {
         command: command.to_owned(),
         args,
+        source_span,
+        source_schema,
     };
     let questions = generate_questions(event, conditions, &action, &relevant_taints);
 
@@ -481,14 +518,20 @@ fn generate_questions(
     action: &Action,
     relevant_taints: &[Value],
 ) -> Vec<Value> {
-    let cmd = action.command.as_str();
+    let cmd = action
+        .source_schema
+        .as_ref()
+        .and_then(|schema| schema.get("command"))
+        .and_then(Value::as_str);
     let cond_summary = build_condition_summary(conditions);
     let mut questions: Vec<Value> = Vec::new();
     // The primary action question, the fallback-branch question, and the taint
     // sanitisation question are independent; each contributes at most one entry.
-    questions.extend(command_question(event, cmd, &action.args, &cond_summary));
+    if let Some(cmd) = cmd {
+        questions.extend(command_question(event, cmd, &action.args, &cond_summary));
+    }
     questions.extend(fallback_question(conditions));
-    questions.extend(taint_question(relevant_taints, cmd));
+    questions.extend(taint_question(relevant_taints, action.command.as_str()));
     questions
 }
 
@@ -633,14 +676,56 @@ fn collect_taints(source: &str) -> Vec<Taint> {
                         .and_then(Value::as_str)
                         .unwrap_or("")
                         .to_owned(),
-                    sink_command: w
-                        .get("sink_command")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_owned(),
+                    source_span: original_span(w.get("source_span")),
                     raw: w.clone(),
                 })
                 .collect()
         })
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn original_irule_path_annotations_join_emitting_extents_instead_of_labels() {
+        // Implementation contract: naming.consumer.original-irules-source-context
+        // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
+        let warning = Taint {
+            code: "IRULE3001".to_owned(),
+            source_span: Some([21, 25]),
+            raw: json!({"sink_command":"a changed presentation label","source_span":[21,25]}),
+        };
+        let schema = Some(json!({"command":"pool","applicability":"conditional-source"}));
+        let matching = build_path(
+            "HTTP_REQUEST",
+            &[],
+            "unrelated display",
+            vec![],
+            &[warning],
+            Some([20, 30]),
+            schema.clone(),
+        );
+        assert_eq!(matching.taint_warnings.len(), 1);
+        assert_eq!(matching.to_json()["analysis_kind"], "conditional-source");
+        let wrong = Taint {
+            code: "IRULE3001".to_owned(),
+            source_span: Some([41, 45]),
+            raw: json!({"sink_command":"pool"}),
+        };
+        let unrelated = build_path(
+            "HTTP_REQUEST",
+            &[],
+            "pool",
+            vec![],
+            &[wrong],
+            Some([20, 30]),
+            schema,
+        );
+        assert!(unrelated.taint_warnings.is_empty());
+        let unknown = build_path("HTTP_REQUEST", &[], "pool", vec![], &[], None, None);
+        assert_eq!(unknown.priority.as_str(), "low");
+        assert!(unknown.questions.is_empty());
+    }
 }

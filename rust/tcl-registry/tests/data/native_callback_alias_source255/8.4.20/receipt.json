@@ -1,0 +1,36 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/native-callback-alias-source255/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.008503883000230417,
+  "reported_version_row": "version 8.4.20 alias_command {}",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "aa5887af2a1f90a6ef9658d0ac679ef72567670eb67df30b08753ee3830454b0",
+  "stdout_sha256": "199b2c0c4a820a30290cc90cb38934b00c3938e563dd5825bd8a0a3dc3f0f6ab",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230"
+  },
+  "rows": [
+    "version 8.4.20 alias_command {}",
+    "single 0 {2 1} {{FIXED 2 1}}",
+    "baked 0 {2 1} {{FIXED BAKED 2 1}}",
+    "nested 0 {2 1} {{INNER OUTER BAKED 2 1}}",
+    "moved_alias 0 {2 1} {{FIXED 2 1}}",
+    "moved_target 1 {invalid command name \"target\"} {}",
+    "replacement_four 1 {wrong # args: should be \"target a b c d\"}",
+    "replacement_baked_four 0 {2 1}"
+  ],
+  "input_channel": "Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim.",
+  "question": "naming.callback.alias-capture-source-control"
+}

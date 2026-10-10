@@ -978,6 +978,7 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
     };
     let ir_mod = IrModule {
+        irules_event_bodies: HashMap::new(),
         retained_source_bindings: None,
         lexer_config: tcl_lexer::LexerConfig::default(),
         source_entry: tcl_compiler::command_binding::SourceAnalysisEntry::default(),

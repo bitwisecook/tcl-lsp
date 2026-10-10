@@ -54,14 +54,43 @@ use tcl_registry::{
     StateTransitionDomain, TransitionSubject,
 };
 
+mod default_manufacture_advice;
 mod executed_expression_source;
 mod executed_script_source;
 mod frozen_arguments;
 mod future_bodies;
+mod incomplete_body_metadata;
+mod logical_definition;
+mod logical_operation;
 mod native_list_assignment;
+mod original_callback_lookup;
+mod original_compiler_effects;
 mod pre_handler_failure;
 mod source_arguments;
+mod source_name_lookup;
+mod source_unavailability_advice;
+pub use default_manufacture_advice::OriginalDefaultManufactureShape;
+pub use original_callback_lookup::OriginalCallbackPrefix;
+mod insertion_template;
+mod original_command_mutation;
+mod original_command_table;
+mod original_namespace_binding;
+mod original_namespace_body;
+pub(crate) mod original_namespace_deletion;
+pub(crate) mod original_namespace_ensure;
+mod original_namespace_path;
+mod own_object_configuration;
+pub use insertion_template::OriginalScalarAssignmentCommand;
+mod original_class_configuration;
+pub use original_class_configuration::OriginalSourceClassConfigurationTarget;
+pub use original_class_configuration::OriginalSourceObjectConfigurationTarget;
+pub use source_name_lookup::OriginalCommandLookup;
+mod source_command_world;
 pub use future_bodies::{SourceFutureBodyInventory, SourceFutureCallSite};
+pub use source_command_world::{
+    OriginalClassInstanceMethodRoster, OriginalCommandPublication, OriginalCommandPublicationKind,
+    OriginalCompletedCommandWorld,
+};
 mod operand_layout;
 mod retained_source;
 pub use retained_source::RetainedSourceModuleBindings;
@@ -73,19 +102,65 @@ pub use operand_layout::SourceNativeOperandLayoutProof;
 use shared_inventory::SharedSourceInventory;
 mod conditional_body;
 mod declaration_flow;
+mod source_declared_command;
+mod source_declared_method_template;
 pub(crate) use declaration_flow::DeclarationFlowReport;
+pub(crate) use source_declared_command::DeclaredSourceSelection;
+pub use source_declared_command::{
+    OriginalDeclaredCommandWords, OriginalDeclaredLogicalBodyContext,
+    OriginalDeclaredSourceBodyFrame, OriginalDeclaredSourceObligation,
+};
 mod declaration_layout;
+pub use declaration_layout::SourceOriginalVariableFrame;
 mod declaration_preview;
+mod scalar_body_alpha;
+pub use scalar_body_alpha::OriginalScalarBodyAlphaRename;
+mod vendor_catalogue_advice;
+pub use vendor_catalogue_advice::{
+    VendorCatalogueSourceCandidate, VendorCatalogueSourceObligation,
+};
+mod source_catalogue_advice;
+mod source_transition_advice;
+pub use source_catalogue_advice::{
+    OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
+};
+pub(crate) use source_transition_advice::original_single_command_substitution_words;
+pub use source_transition_advice::{
+    OriginalLogicalSourceNameInput, OriginalSourceCallbackProcedureLookup,
+    OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
+    OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
+    OriginalSourceClassCandidate, OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding,
+    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
+    OriginalSourceClassPublications, OriginalSourceClassReference, OriginalSourceCommandTransition,
+    OriginalSourceCommandTransitionAdvice, OriginalSourceConfiguredClassReference,
+    OriginalSourceConstructorCall, OriginalSourceConstructorShape,
+    OriginalSourceInterpreterHandleBody, OriginalSourceInterpreterPathBinding,
+    OriginalSourceProcedureCandidate, OriginalSourceProcedurePublication,
+    OriginalSourceProcedurePublications, OriginalSourceProducedCommandPrefix,
+    OriginalSourceRegisteredHandleBinding, OriginalSourceRegisteredInstance,
+    OriginalSourceRegisteredInstanceWords, SourceAdviceNameInput,
+    SourceCommandTransitionObligation,
+};
+pub(crate) use source_transition_advice::{
+    OriginalSourceTransitionAdviceLookup, OriginalSourceTransitionAdviceTape,
+};
+mod original_literal_argv_rewrite;
+pub use original_literal_argv_rewrite::OriginalLiteralExpressionBracing;
 mod expression_operand_advice;
 mod formal_call_advice;
 mod lifecycle_advice;
+mod trusted_package_transfer;
 pub(crate) use expression_preparation::SourceConditionalExpressionEvaluation;
+mod original_math_function;
+pub use original_math_function::OriginalMathFunctionOccurrence;
 mod math_occurrence;
 pub use math_occurrence::{SourceConditionalMathInvocation, SourceMathInvocation};
+pub(crate) mod formal_topology;
 mod formal_value;
 mod origin_inventory;
 pub(crate) use conditional_body::SourceConditionalBodyEntry;
 pub use conditional_body::{SourceCallerFrameInvocationTemplate, SourceDeclaredReceiverBodyEntry};
+pub use source_declared_method_template::OriginalDeclaredSelfMethodTemplate;
 mod source_file;
 mod substitution_template;
 pub use executed_expression_source::ExecutedExpressionSource;
@@ -108,6 +183,7 @@ mod array_iteration;
 mod command_mutations;
 mod command_observers;
 mod command_reference;
+mod declaration_lookup;
 mod linked_definition;
 pub use command_reference::{
     SourceCommandDefinition, SourceCommandDefinitionKind, SourceCommandReference,
@@ -133,13 +209,21 @@ mod case_bodies;
 #[cfg(test)]
 mod conditional_expression_tests;
 mod constructor_execution;
+mod deferred_forward;
 mod deferred_method;
 mod dictionary_scope;
 mod dictionary_store;
 mod evaluated_word;
 mod expression_preparation;
 mod interpreter_manufacture;
+pub(crate) mod named_manufacture;
+mod native_class_factory_roles;
+mod original_alias_creation;
+mod original_class_factory_transfer;
+pub(crate) mod original_receiver_body_context;
 mod receiver_self;
+pub(crate) mod receiver_variable_inventory;
+mod registered_class_factory;
 pub use receiver_self::SourceReceiverBuiltinCandidates;
 mod rule_declaration;
 pub use rule_declaration::SourceRuleDeclarationCandidate;
@@ -150,6 +234,7 @@ mod literal_object_pool;
 pub use literal_object_pool::SourceStockLiteralObject;
 mod normal_result;
 mod normal_variable_continuation;
+mod original_variable_inventory;
 pub use normal_result::SourceNormalResult;
 pub(crate) mod object_callbacks;
 pub use invocation_reads::{
@@ -159,6 +244,13 @@ mod container_coercion;
 mod native_result;
 mod numeric_operand_cache;
 mod object_instance;
+pub(crate) mod original_name_value;
+pub(crate) mod original_variable_compilation;
+mod source_analysis_cache;
+mod source_analysis_entry;
+pub(crate) use source_analysis_entry::SourceDeclaredCommandContracts;
+use source_analysis_entry::native_compilation_dialect;
+pub use source_analysis_entry::{SourceAnalysisEntry, SourceAnalysisOptions};
 mod source_loop;
 mod source_representation;
 pub use deferred_method::{
@@ -636,6 +728,9 @@ fn is_repeated_fresh_binding(binding: &MayBinding) -> bool {
 /// baseline behind one [`Arc`] and let the lattice state stay sparse.
 #[derive(Debug, Clone, Default)]
 struct BindingBaseline {
+    logical_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    vendor_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    hosted_execution_context: Option<tcl_registry::f5::BigIpExecutionContext>,
     execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     compiled_variable_provider:
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
@@ -646,9 +741,12 @@ struct BindingBaseline {
     fingerprint: u64,
     registry_snapshot: Option<tcl_registry::RegistrySemanticKey>,
     declared_commands: BTreeMap<String, String>,
+    declared_surface: Option<Arc<source_analysis_entry::SourceDeclaredCommandContracts>>,
     catalogue_commands: BTreeMap<String, String>,
     /// Registry-owned, generation-specific facts shared with CFG construction.
     semantics: Arc<EffectiveRegistrySemantics>,
+    /// Derived fixed descriptor projection, excluded from equality and hashing.
+    metadata_slots: OnceLock<Option<original_command_table::RegistryMetadataSlotIndex>>,
     import_binding: Option<tcl_dialect::NamespaceImportBinding>,
     trusted_loaders: BTreeMap<String, TrustedPackageLoader>,
     trusted_source_modules: Vec<TrustedSourceModuleLoader>,
@@ -658,7 +756,10 @@ struct BindingBaseline {
 
 impl PartialEq for BindingBaseline {
     fn eq(&self, other: &Self) -> bool {
-        self.invocation_realm == other.invocation_realm
+        self.logical_source_input == other.logical_source_input
+            && self.vendor_source_input == other.vendor_source_input
+            && self.hosted_execution_context == other.hosted_execution_context
+            && self.invocation_realm == other.invocation_realm
             && self.execution_name_policy == other.execution_name_policy
             && self.unknown_entry == other.unknown_entry
             && self.registry_snapshot == other.registry_snapshot
@@ -668,6 +769,7 @@ impl PartialEq for BindingBaseline {
             && self.trusted_loaders == other.trusted_loaders
             && self.trusted_source_modules == other.trusted_source_modules
             && self.declared_commands == other.declared_commands
+            && self.declared_surface == other.declared_surface
             && self.catalogue_commands == other.catalogue_commands
             && self.release == other.release
             && self.dialect == other.dialect
@@ -688,6 +790,9 @@ impl BindingBaseline {
 
     fn for_registry(registry: &CommandRegistry) -> Self {
         let mut baseline = Self {
+            logical_source_input: None,
+            vendor_source_input: None,
+            hosted_execution_context: None,
             execution_name_policy: registry
                 .profile()
                 .and_then(|profile| {
@@ -703,6 +808,7 @@ impl BindingBaseline {
             fingerprint: 0,
             registry_snapshot: Some(registry.snapshot().semantic_key()),
             declared_commands: BTreeMap::new(),
+            declared_surface: None,
             catalogue_commands: registry
                 .command_names()
                 .map(|name| (nqn(name), name.to_owned()))
@@ -716,6 +822,7 @@ impl BindingBaseline {
                     )
                 },
             ),
+            metadata_slots: OnceLock::new(),
             import_binding: registry
                 .profile()
                 .and_then(tcl_dialect::DialectProfile::namespace_import_binding),
@@ -734,12 +841,16 @@ impl BindingBaseline {
         let mut state = std::collections::hash_map::DefaultHasher::new();
         self.registry_snapshot.hash(&mut state);
         self.execution_name_policy.hash(&mut state);
+        self.logical_source_input.hash(&mut state);
+        self.vendor_source_input.hash(&mut state);
+        self.hosted_execution_context.hash(&mut state);
         self.native_entry.hash(&mut state);
         self.native_compilation.hash(&mut state);
         self.compiled_variable_provider.hash(&mut state);
         self.invocation_realm.hash(&mut state);
         self.unknown_entry.hash(&mut state);
         self.declared_commands.hash(&mut state);
+        self.declared_surface.hash(&mut state);
         self.catalogue_commands.hash(&mut state);
         self.semantics.binding_fingerprint().hash(&mut state);
         self.import_binding.hash(&mut state);
@@ -867,191 +978,6 @@ pub struct TrustedCommandLookup {
     pub required: bool,
 }
 
-/// Entry facts supplied to source interpretation rather than inferred from
-/// catalogue availability or a package require spelling.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct SourceAnalysisOptions<'a> {
-    /// Independently selected naming context, separate from producer strings and compiler recipes.
-    pub execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
-    /// Compilation request's body inventory; independent of native admission.
-    pub compilation_scope: tcl_runtime_api::SourceCompilationScope,
-    /// Availability phase selected by the entry owner, independent of source origin.
-    pub invocation_realm: tcl_dialect::model::InvocationRealm,
-    /// Actual live runtime table; supplied rows replace fresh-world assumptions.
-    pub native_entry: Option<&'a tcl_runtime_api::NativeCompilationEntry>,
-    /// Ordinary incoming local slots proved by the activation binding plan.
-    /// Reference aliases and retained static slots must not appear here.
-    pub incoming_formals: &'a [String],
-    /// Untrusted role assistance, independent of runtime entry bindings.
-    pub declared_commands: Option<&'a tcl_registry::model::DeclaredSurface>,
-    /// Selected loaders justified by the driver execution environment.
-    pub trusted_package_loaders: &'a [TrustedPackageLoader],
-    /// Actual file-read contracts selected by the execution driver.
-    pub trusted_source_modules: &'a [TrustedSourceModuleLoader],
-    /// Prior interpreter history is unavailable; no fresh-table proof applies.
-    pub unknown_entry: bool,
-    /// Logical handler, value and frame policies supplied by the entry owner.
-    /// Physical compiler support is queried separately with `native_compiler_dialect`.
-    pub invocation_dialect: Option<tcl_registry::InvocationDialect>,
-    /// Explicit authored compiler-local provider, separate from physical engine evidence.
-    pub compiled_variable_provider:
-        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
-    /// Native script evaluation protocol and compiler frame supplied by the entry owner.
-    pub native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
-}
-
-fn native_compilation_dialect(
-    entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
-    authored: Option<tcl_registry::InvocationDialect>,
-) -> Option<tcl_registry::InvocationDialect> {
-    match entry {
-        Some(entry) => entry.execution_point.map(|point| {
-            let mut dialect = tcl_registry::InvocationDialect::of_point(point);
-            if let Some(grammar) = entry.lexer_grammar {
-                dialect.lexer_grammar = grammar;
-                dialect.word_values =
-                    tcl_syntax::word_rules::WordValueRules::from_grammar(&grammar);
-            }
-            dialect
-        }),
-        None => authored,
-    }
-}
-
-impl SourceAnalysisOptions<'_> {
-    /// A supplied live entry owns naming selection, including unsupported purposes.
-    #[must_use]
-    pub fn execution_name_policy(&self) -> Option<tcl_syntax::naming::ExecutionNamePolicy> {
-        match self.native_entry {
-            Some(entry) => entry.execution_name_policy(),
-            None => self.execution_name_policy.or_else(|| {
-                self.invocation_dialect?
-                    .authored_name_policy()
-                    .map(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe)
-            }),
-        }
-    }
-    /// Selected compiler-local recipe. A supplied live entry is authoritative,
-    /// including missing policy; its physical C host cannot fill that gap.
-    #[must_use]
-    pub fn compiled_variable_protocol(
-        &self,
-    ) -> Option<tcl_syntax::naming::NativeCompiledVariableProtocol> {
-        match self.native_entry {
-            Some(entry) => entry.compiled_variable_protocol,
-            None => match self.compiled_variable_provider {
-                Some(provider) => self
-                    .logical_invocation_dialect()?
-                    .authored_logical_compiled_variable_protocol(provider),
-                None => self
-                    .native_compiler_dialect()?
-                    .native_compiled_variable_protocol(),
-            },
-        }
-    }
-
-    /// Logical handler/value/frame policy. A supplied live entry is
-    /// authoritative, including an unknown policy; authoring policy applies
-    /// only when no live entry was supplied.
-    #[must_use]
-    pub fn logical_invocation_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
-        match self.native_entry {
-            Some(entry) => entry.invocation_policy.as_ref().map(|policy| {
-                let mut dialect = tcl_registry::InvocationDialect::of_profile(policy.profile());
-                if let Some(grammar) = entry.lexer_grammar {
-                    dialect.lexer_grammar = grammar;
-                    dialect.word_values =
-                        tcl_syntax::word_rules::WordValueRules::from_grammar(&grammar);
-                }
-                dialect
-            }),
-            None => self.invocation_dialect,
-        }
-    }
-
-    pub(crate) fn source_invocation_dialect(
-        &self,
-        config: tcl_lexer::LexerConfig,
-    ) -> Option<tcl_registry::InvocationDialect> {
-        self.logical_invocation_dialect().map(|mut dialect| {
-            dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
-            dialect.word_values =
-                tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
-            dialect
-        })
-    }
-
-    /// Select original source grammar without borrowing physical compiler or
-    /// logical handler defaults for a supplied live entry. Missing measured
-    /// grammar keeps the driver's configuration, including mode and coordinates.
-    #[must_use]
-    pub fn native_lexer_config(&self, config: tcl_lexer::LexerConfig) -> tcl_lexer::LexerConfig {
-        let grammar = match self.native_entry {
-            Some(entry) => entry.lexer_grammar,
-            None => self.invocation_dialect.map(|dialect| dialect.lexer_grammar),
-        };
-        grammar.map_or(config, |grammar| config.with_grammar(grammar))
-    }
-
-    /// Physical compiler policy only. A supplied incomplete native entry stays
-    /// unknown; logical value/frame policies cannot substitute for its engine.
-    #[must_use]
-    pub fn native_compiler_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
-        native_compilation_dialect(self.native_entry, self.invocation_dialect)
-    }
-}
-
-/// Owned entry proof carried from source lowering into every later consumer.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub struct SourceAnalysisEntry {
-    /// Naming issuer retained independently of source strings, physical compiler and catalogue.
-    pub execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
-    /// Body inventory retained from the original compilation request.
-    pub compilation_scope: tcl_runtime_api::SourceCompilationScope,
-    /// Availability phase retained from the actual source entry contract.
-    pub invocation_realm: tcl_dialect::model::InvocationRealm,
-    /// Retained actual interpreter command/namespace compilation boundary.
-    pub native_entry: Option<Arc<tcl_runtime_api::NativeCompilationEntry>>,
-    /// Ordinary incoming local slots retained from the activation contract.
-    pub incoming_formals: Vec<String>,
-    /// Retained declaration contracts for assistance adapters.
-    pub declared_commands: Option<tcl_registry::model::DeclaredSurface>,
-    /// Selected package loaders with explicit implementation provenance.
-    pub trusted_package_loaders: Vec<TrustedPackageLoader>,
-    /// Actual file-read contracts retained through every pipeline consumer.
-    pub trusted_source_modules: Vec<TrustedSourceModuleLoader>,
-    /// Whether prior interpreter history is unavailable.
-    pub unknown_entry: bool,
-    /// Explicit runtime policies independent of catalogue metadata.
-    pub invocation_dialect: Option<tcl_registry::InvocationDialect>,
-    /// Explicit authored compiler-local provider, separate from physical engine evidence.
-    pub compiled_variable_provider:
-        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
-    /// Native script evaluation protocol and compiler frame supplied by the entry owner.
-    pub native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
-}
-
-impl SourceAnalysisEntry {
-    /// Borrow the entry contract for a shared binding interpretation.
-    #[must_use]
-    pub fn options(&self) -> SourceAnalysisOptions<'_> {
-        SourceAnalysisOptions {
-            execution_name_policy: self.execution_name_policy,
-            compilation_scope: self.compilation_scope,
-            invocation_realm: self.invocation_realm,
-            native_entry: self.native_entry.as_deref(),
-            incoming_formals: &self.incoming_formals,
-            declared_commands: self.declared_commands.as_ref(),
-            trusted_package_loaders: &self.trusted_package_loaders,
-            trusted_source_modules: &self.trusted_source_modules,
-            unknown_entry: self.unknown_entry,
-            invocation_dialect: self.invocation_dialect,
-            compiled_variable_provider: self.compiled_variable_provider,
-            native_compilation: self.native_compilation,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct PackageProvision {
     present: bool,
@@ -1062,15 +988,19 @@ struct PackageProvision {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct ClassDefinitionReceipt {
     factory: String,
+    original_factory: Option<registered_class_factory::OriginalClassFactoryState>,
     implementation_generation: u32,
     dispatcher: Option<tcl_registry::definer::DefinitionDispatcher>,
     dispatcher_methods: Arc<BTreeSet<String>>,
-    instance_methods: Option<Arc<BTreeSet<String>>>,
-    instance_variables: Option<Arc<BTreeSet<String>>>,
+    instance_methods: Option<Arc<BTreeSet<tcl_core_types::NameBytes>>>,
+    instance_variables: Option<Arc<receiver_variable_inventory::OriginalReceiverVariableInventory>>,
     constructor_entry: Option<Arc<SourceConstructorEntry>>,
+    constructor_provider: Option<SourceCommandTarget>,
     destructor_entry: Option<Arc<SourceConstructorEntry>>,
+    destructor_provider: Option<SourceCommandTarget>,
     lifecycle_entries_closed: bool,
     receiver_method_entries: Arc<SourceReceiverMethodEntries>,
+    forward_method_entries: Arc<deferred_forward::OriginalForwardEntries>,
     inherited_classes: Arc<Vec<SourceCommandTarget>>,
 }
 
@@ -1164,6 +1094,34 @@ impl OriginalArgumentCompletion {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum SourceCompilerNameClosure {
+    Unknown,
+    Preserved,
+}
+
+impl From<bool> for SourceCompilerNameClosure {
+    fn from(preserved: bool) -> Self {
+        if preserved {
+            Self::Preserved
+        } else {
+            Self::Unknown
+        }
+    }
+}
+
+impl SourceCompilerNameClosure {
+    fn is_preserved(self) -> bool {
+        self == Self::Preserved
+    }
+
+    fn join(&mut self, other: Self) {
+        if !other.is_preserved() {
+            *self = Self::Unknown;
+        }
+    }
+}
+
 /// A resolved source invocation without discarding absence or an unknown
 /// residual. Catalogue identity alone does not establish loader provenance.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1181,6 +1139,8 @@ pub struct SourceInvocationBinding {
         Option<tcl_registry::native_compilation::NativeCompilationSelection>,
     pub(crate) native_compiler_admission:
         Option<Arc<compiled_invocation::SourceNativeCompilerAdmission>>,
+    /// Independent name-effect closure of the original compiler traversal.
+    original_compiler_preserves_names: SourceCompilerNameClosure,
     /// Original ordered compiler preparation, including a declined prefix.
     native_structured_preparation: Option<Arc<SourceNativeStructuredPreparation>>,
     native_switch_preparation: Option<Arc<compiled_invocation::SourceNativeSwitchPreparation>>,
@@ -1199,6 +1159,7 @@ pub struct SourceInvocationBinding {
     declaration_flow_inventory: Option<Arc<declaration_flow::DeclarationFlowInventory>>,
     compiler_policy: Option<Arc<compiler_inventory::SourceNativeCompilerPolicy>>,
     original_compiler_words: Option<Arc<compiled_invocation::SourceOriginalCompilerWords>>,
+    original_written_words: Option<Arc<original_name_value::OriginalWrittenSourceWords>>,
     conditional_expression_evaluations:
         Option<Arc<[expression_preparation::SourceConditionalExpressionEvaluation]>>,
     pub(crate) lookup_namespace: String,
@@ -1216,6 +1177,7 @@ pub struct SourceInvocationBinding {
     pub variable_context: Arc<crate::var_resolve::ResolveContext>,
     original_argument_completion: OriginalArgumentCompletion,
     normal_variable_continuation: Option<Arc<crate::var_resolve::ResolveContext>>,
+    original_variable_operands: Option<Arc<crate::variable_bindings::OriginalVariableInvocation>>,
     normal_result_observations: Option<Arc<[normal_result::InvocationResultObservation]>>,
     rhs_read_store_observations: Option<Arc<[SourceReadStoreObservation]>>,
     object_callback_effects: Option<object_callbacks::ObjectCallbackEffects>,
@@ -1234,6 +1196,8 @@ pub struct SourceInvocationBinding {
     /// Argument facts frozen at their own evaluation points, including unknown indices.
     pub evaluated_argument_words: Vec<crate::registry_invocation::EffectiveInvocationWord>,
     frozen_written_words: Option<Arc<[crate::registry_invocation::EffectiveInvocationWord]>>,
+    frozen_written_names:
+        Option<Arc<[Option<Arc<original_name_value::OriginalProducedNameValue>>]>>,
     frozen_head_object: Option<Arc<receiver_self::FrozenSourceObjectHead>>,
     method_prefix_arguments: Vec<(usize, Arc<SourceCapturedMethodPrefix>)>,
     native_operand_layout: Option<Arc<SourceNativeOperandLayoutProof>>,
@@ -1254,6 +1218,7 @@ impl Default for SourceInvocationBinding {
             compiled_execution_residual: CompiledExecutionResidual::Closed,
             native_compilation_admission: None,
             native_compiler_admission: None,
+            original_compiler_preserves_names: SourceCompilerNameClosure::Unknown,
             native_structured_preparation: None,
             native_switch_preparation: None,
             runtime_reachability: SourceRuntimeReachability::Unknown,
@@ -1267,6 +1232,7 @@ impl Default for SourceInvocationBinding {
             declaration_flow_inventory: None,
             compiler_policy: None,
             original_compiler_words: None,
+            original_written_words: None,
             conditional_expression_evaluations: None,
             lookup_namespace: String::new(),
             lookup_namespace_key: SourceNamespaceKey::default(),
@@ -1278,6 +1244,7 @@ impl Default for SourceInvocationBinding {
             variable_context: Arc::default(),
             original_argument_completion: OriginalArgumentCompletion::Unknown,
             normal_variable_continuation: None,
+            original_variable_operands: None,
             normal_result_observations: None,
             rhs_read_store_observations: None,
             object_callback_effects: None,
@@ -1288,6 +1255,7 @@ impl Default for SourceInvocationBinding {
             evaluated_argument_values: Vec::new(),
             evaluated_argument_words: Vec::new(),
             frozen_written_words: None,
+            frozen_written_names: None,
             frozen_head_object: None,
             method_prefix_arguments: Vec::new(),
             native_operand_layout: None,
@@ -1306,6 +1274,7 @@ impl Hash for SourceInvocationBinding {
         self.compiled_execution_residual.hash(state);
         self.native_compilation_admission.hash(state);
         self.native_compiler_admission.hash(state);
+        self.original_compiler_preserves_names.hash(state);
         self.native_structured_preparation.hash(state);
         self.native_switch_preparation.hash(state);
         self.native_operand_layout.hash(state);
@@ -1316,6 +1285,7 @@ impl Hash for SourceInvocationBinding {
         self.invocation_variable_reads.hash(state);
         self.original_argument_completion.hash(state);
         self.normal_variable_continuation.hash(state);
+        self.original_variable_operands.hash(state);
         self.rhs_read_store_observations.hash(state);
         self.object_callback_effects.hash(state);
         self.lookup_state.hash(state);
@@ -1324,6 +1294,7 @@ impl Hash for SourceInvocationBinding {
         self.declaration_flow_inventory.hash(state);
         self.compiler_policy.hash(state);
         self.original_compiler_words.hash(state);
+        self.original_written_words.hash(state);
         self.conditional_expression_evaluations.hash(state);
         self.lookup_namespace.hash(state);
         self.lookup_namespace_key.hash(state);
@@ -1338,6 +1309,7 @@ impl Hash for SourceInvocationBinding {
         self.evaluated_argument_values.hash(state);
         self.evaluated_argument_words.hash(state);
         self.frozen_written_words.hash(state);
+        self.frozen_written_names.hash(state);
         self.frozen_head_object.hash(state);
         self.method_prefix_arguments.hash(state);
         if self.lookup_state.is_none() {
@@ -1373,6 +1345,9 @@ pub struct SourceCommandTarget {
     pub command: String,
     /// Arguments inserted before the written argument sequence.
     pub prepended: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    /// Original producers of captured prefix values, joined at every actual
+    /// alias allocation. They supply no written operand or compiler geometry.
+    original_prepended: Option<Vec<crate::signature_scan::scope::SignatureSourceNameInput>>,
     /// Only registry-backed implementations may select registry semantics.
     pub registry_backed: bool,
     /// Registry, procedure, object, or generic implementation category.
@@ -1386,6 +1361,15 @@ pub struct SourceCommandTarget {
 }
 
 impl SourceCommandTarget {
+    /// Captured prefix inputs from this exact selected implementation chain.
+    /// A missing or conflicting producer never falls back to literal bytes.
+    #[must_use]
+    pub fn original_prepended_name_inputs(
+        &self,
+    ) -> Option<&[crate::signature_scan::scope::SignatureSourceNameInput]> {
+        let inputs = self.original_prepended.as_deref()?;
+        (inputs.len() == self.prepended.len()).then_some(inputs)
+    }
     /// Original registry descriptor identity, independent of the current slot.
     /// Native issuers preserve their exact identifier bytes; authored registry
     /// rows may use a rooted descriptor name. This supplies no lookup spelling.
@@ -1428,6 +1412,31 @@ impl OriginalCompilationLookupAdvice {
                 .variable_frame
                 .namespace_identity()
                 .is_none_or(|namespace| namespace == &self.namespace)
+    }
+
+    /// A declaration's conditional receiver-body traits use its authentic
+    /// source namespace. The future private runtime namespace stays unknown.
+    pub(crate) fn closed_receiver_trait_lookup(
+        &self,
+        entry: &SourceDeclaredReceiverBodyEntry,
+    ) -> bool {
+        // naming.tcloo.original-declared-receiver-caller-traits
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
+        let state = &self.snapshot.state;
+        !self.unknown
+            && !self.may_be_absent
+            && !self.targets.is_empty()
+            && self.frame() == entry.preview_frame()
+            && self.namespace() == entry.declaration_namespace_context()
+            && !self.has_opaque_handler_alternatives()
+            && !state.source_step_observed()
+            && state.command_observers.is_quiet()
+            && self.targets.iter().all(|target| {
+                target.registry_backed
+                    && target.kind == BindingKind::Builtin
+                    && !state.source_execution_observed(target.identity.as_ref())
+                    && !state.runtime_execution_observed(target.identity.as_ref())
+            })
     }
 
     pub(crate) fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
@@ -1484,6 +1493,7 @@ pub(crate) struct SourceLookupSnapshot {
     realm: tcl_dialect::model::InvocationRealm,
     state: ModuleCommandBindings,
     fingerprint: OnceLock<u64>,
+    compiler_name_effects: original_compiler_effects::SourceCompilerNameEffectsCache,
 }
 
 impl SourceLookupSnapshot {
@@ -1496,6 +1506,8 @@ impl SourceLookupSnapshot {
             realm,
             state,
             fingerprint: OnceLock::new(),
+            compiler_name_effects:
+                original_compiler_effects::SourceCompilerNameEffectsCache::default(),
         }
     }
 
@@ -1620,7 +1632,13 @@ impl SourceInvocationBinding {
             source: Arc::clone(snapshot.state.current_source_origin.as_ref()?),
             offset: tokens.words().first()?.source().span.start(),
         };
-        original_site_operand_layout_advice(&site, tokens, snapshot, &self.lookup_namespace_key)
+        original_site_operand_layout_advice(
+            &site,
+            tokens,
+            snapshot,
+            &self.lookup_namespace_key,
+            self.original_lexer_config_for_tokens(tokens)?,
+        )
     }
 
     pub(crate) fn frozen_written_words(
@@ -1644,6 +1662,9 @@ impl SourceInvocationBinding {
     }
 
     fn join_original_operand_receipts(&mut self, other: &Self) {
+        if self.original_variable_operands != other.original_variable_operands {
+            self.original_variable_operands = None;
+        }
         if other.entered_execution_observer.observed() {
             self.entered_execution_observer = SourceObserverExecution::MayObserved;
         }
@@ -1653,6 +1674,9 @@ impl SourceInvocationBinding {
         if self.native_operand_layout != other.native_operand_layout {
             self.native_operand_layout = None;
         }
+        if self.original_written_words != other.original_written_words {
+            self.original_written_words = None;
+        }
         if self.original_compiler_words != other.original_compiler_words {
             self.original_compiler_words = None;
         }
@@ -1661,6 +1685,9 @@ impl SourceInvocationBinding {
         }
         if self.frozen_written_words != other.frozen_written_words {
             self.frozen_written_words = None;
+        }
+        if self.frozen_written_names != other.frozen_written_names {
+            self.frozen_written_names = None;
         }
         if self.frozen_head_object != other.frozen_head_object {
             self.frozen_head_object = None;
@@ -1699,6 +1726,8 @@ impl SourceInvocationBinding {
             // The joined state owns a new immutable semantic point. A cloned
             // snapshot must not retain its predecessor's derived fingerprint.
             snapshot.fingerprint = OnceLock::new();
+            snapshot.compiler_name_effects =
+                original_compiler_effects::SourceCompilerNameEffectsCache::default();
         } else {
             self.lookup_state = None;
         }
@@ -1832,7 +1861,7 @@ impl SourceInvocationBinding {
             .then(|| target.command.clone())
     }
 
-    /// Original constructor entry of the unique current native class factory.
+    /// Original constructor entry and its actual declaring class provider.
     /// The payload offset is in the composed effective post-head argv. Callback
     /// completion and the result's object class remain independent unknowns.
     #[must_use]
@@ -1855,11 +1884,14 @@ impl SourceInvocationBinding {
             None => self.evaluated_argument_values.first()?.as_deref()?,
         };
         let manufacturer = grammar.manufacturer(first)?;
-        let entry = snapshot
-            .class_definitions
-            .get(target.identity.as_ref()?)?
-            .constructor_entry
-            .as_deref()?;
+        let definition = snapshot.class_definitions.get(target.identity.as_ref()?)?;
+        let entry = definition.constructor_entry.as_deref()?;
+        let provider = definition.constructor_provider.as_ref()?;
+        if !snapshot.retained_target_is_current(provider)
+            || !snapshot.class_definition_dependencies_hold(definition)
+        {
+            return None;
+        }
         let payload_from = usize::from(manufacturer.constructor_args_from);
         let payload_count = target
             .prepended
@@ -1882,7 +1914,7 @@ impl SourceInvocationBinding {
             snapshot.baseline.dialect?.parameter_grammar()?,
         )
         .ok()?;
-        Some((target, entry, payload_from))
+        Some((provider, entry, payload_from))
     }
 }
 
@@ -1892,8 +1924,15 @@ fn original_operand_layout_advice(
     tokens: &crate::ir::CommandTokens,
     snapshot: &Arc<SourceLookupSnapshot>,
     namespace: &SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<OriginalCompilationLookupAdvice> {
-    original_site_operand_layout_advice(binding.invocation_site()?, tokens, snapshot, namespace)
+    original_site_operand_layout_advice(
+        binding.invocation_site()?,
+        tokens,
+        snapshot,
+        namespace,
+        config,
+    )
 }
 
 fn original_declaration_call_layout_advice(
@@ -1901,6 +1940,7 @@ fn original_declaration_call_layout_advice(
     tokens: &crate::ir::CommandTokens,
     snapshot: &Arc<SourceLookupSnapshot>,
     namespace: &SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<OriginalCompilationLookupAdvice> {
     original_site_layout_advice(
         binding.invocation_site()?,
@@ -1908,6 +1948,7 @@ fn original_declaration_call_layout_advice(
         snapshot,
         namespace,
         OriginalOperandLayoutPurpose::DeclarationTargets,
+        config,
     )
 }
 
@@ -1916,6 +1957,7 @@ fn original_site_operand_layout_advice(
     tokens: &crate::ir::CommandTokens,
     snapshot: &Arc<SourceLookupSnapshot>,
     namespace: &SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<OriginalCompilationLookupAdvice> {
     original_site_layout_advice(
         site,
@@ -1923,6 +1965,7 @@ fn original_site_operand_layout_advice(
         snapshot,
         namespace,
         OriginalOperandLayoutPurpose::RegistryMetadata,
+        config,
     )
 }
 
@@ -1932,12 +1975,37 @@ enum OriginalOperandLayoutPurpose {
     DeclarationTargets,
 }
 
+fn original_replay_words_match(
+    original: &crate::ir::CommandTokens,
+    retained: &crate::ir::CommandTokens,
+    config: tcl_lexer::LexerConfig,
+    word_values: tcl_syntax::word_rules::WordValueRules,
+) -> bool {
+    original.words().len() == retained.words().len()
+        && original
+            .words()
+            .iter()
+            .zip(retained.words())
+            .all(|(original, retained)| {
+                crate::registry_invocation::effective_invocation_word(
+                    original,
+                    config.escapes,
+                    word_values,
+                ) == crate::registry_invocation::effective_invocation_word(
+                    retained,
+                    config.escapes,
+                    word_values,
+                )
+            })
+}
+
 fn original_site_layout_advice(
     site: &CommandAllocationSite,
     tokens: &crate::ir::CommandTokens,
     snapshot: &Arc<SourceLookupSnapshot>,
     namespace: &SourceNamespaceKey,
     purpose: OriginalOperandLayoutPurpose,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<OriginalCompilationLookupAdvice> {
     if tokens.synthetic.is_some() {
         return None;
@@ -1956,7 +2024,6 @@ fn original_site_layout_advice(
         original.as_bytes(),
         site.source.source_image().channel(),
     );
-    let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
     let segments =
         crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)?;
     let [segment] = segments.as_slice() else {
@@ -1967,40 +2034,63 @@ fn original_site_layout_advice(
     }
     let original_tokens =
         crate::ir::CommandTokens::from_segmented(&image.source_map(), config, segment);
-    if original_tokens.words().len() != tokens.words().len()
-        || !original_tokens
-            .words()
-            .iter()
-            .zip(tokens.words())
-            .all(|(original, retained)| {
-                crate::registry_invocation::effective_invocation_word(
-                    original,
-                    dialect.lexer_grammar.escapes,
-                    dialect.word_values,
-                ) == crate::registry_invocation::effective_invocation_word(
-                    retained,
-                    dialect.lexer_grammar.escapes,
-                    dialect.word_values,
-                )
-            })
-    {
+    if !original_replay_words_match(&original_tokens, tokens, config, dialect.word_values) {
         return None;
     }
-    let crate::registry_invocation::EffectiveInvocationWord::Literal(head) =
-        crate::registry_invocation::effective_invocation_word(
-            tokens.words().first()?,
-            dialect.lexer_grammar.escapes,
-            dialect.word_values,
+    let native = crate::registry_invocation::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        config,
+    )?;
+    let head = native.first()?;
+    let projection = if let Some(policy) = snapshot
+        .state
+        .source_variables
+        .execution_name_policy
+        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+    {
+        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            head,
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            policy,
+        )?;
+        let projection = source_binding_from_original_input_in(
+            &snapshot.state,
+            &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key),
+            namespace,
+            CommandTargetLookup::NamedSlots,
+        );
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+            eprintln!(
+                "ORIGINAL_DECLARATION offset={} stage=lookup available={} targets={} unknown={} absent={} opaque={}",
+                site.offset,
+                projection.is_some(),
+                projection
+                    .as_ref()
+                    .map_or(0, |binding| binding.targets.len()),
+                projection.as_ref().is_none_or(|binding| binding.unknown),
+                projection
+                    .as_ref()
+                    .is_none_or(|binding| binding.may_be_absent),
+                snapshot.state.opaque_binding_mutation,
+            );
+        }
+        projection?
+    } else {
+        // Embedding catalogues without a native name policy retain lexical
+        // ASCII metadata only. Their display cannot issue a native slot.
+        dialect.authored_name_policy().is_none().then_some(())?;
+        let presentation = tcl_syntax::word_rules::original_static_word_ascii_presentation(head)?;
+        let head = std::str::from_utf8(&presentation).ok()?;
+        source_binding_projection_in(
+            &snapshot.state,
+            head,
+            namespace,
+            CommandTargetLookup::NamedSlots,
         )
-    else {
-        return None;
     };
-    let projection = source_binding_projection_in(
-        &snapshot.state,
-        &head,
-        namespace,
-        CommandTargetLookup::NamedSlots,
-    );
     if projection.targets.is_empty()
         || projection.targets.iter().any(|target| {
             !target.registry_backed
@@ -2030,9 +2120,13 @@ struct SourceBindingPoint {
     compilation: tcl_registry::native_compilation::NativeCompilationContext,
     compiled_execution: compiled_invocation::CompiledInvocationSelection,
     head: Option<String>,
+    original_head_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
+    original_written_words: Option<Arc<original_name_value::OriginalWrittenSourceWords>>,
     evaluated_argument_values: Vec<Option<String>>,
     evaluated_argument_words: Vec<crate::registry_invocation::EffectiveInvocationWord>,
     frozen_written_words: Option<Arc<[crate::registry_invocation::EffectiveInvocationWord]>>,
+    frozen_written_names:
+        Option<Arc<[Option<Arc<original_name_value::OriginalProducedNameValue>>]>>,
     frozen_head_object: Option<Arc<receiver_self::FrozenSourceObjectHead>>,
     method_prefix_arguments: Vec<(usize, Arc<SourceCapturedMethodPrefix>)>,
     offset: u32,
@@ -2055,9 +2149,12 @@ impl PartialEq for SourceBindingPoint {
             && self.compilation == other.compilation
             && self.compiled_execution == other.compiled_execution
             && self.head == other.head
+            && self.original_head_input == other.original_head_input
+            && self.original_written_words == other.original_written_words
             && self.evaluated_argument_values == other.evaluated_argument_values
             && self.evaluated_argument_words == other.evaluated_argument_words
             && self.frozen_written_words == other.frozen_written_words
+            && self.frozen_written_names == other.frozen_written_names
             && self.frozen_head_object == other.frozen_head_object
             && self.method_prefix_arguments == other.method_prefix_arguments
             && self.offset == other.offset
@@ -2072,7 +2169,11 @@ impl Eq for SourceBindingPoint {}
 
 impl SourceBindingPoint {
     fn lookup_binding(&self, head: &str) -> SourceInvocationBinding {
-        let mut proof = source_binding_projection(&self.state, head, &self.namespace_key);
+        let mut proof = if self.dispatch && self.head.as_deref() == Some(head) {
+            self.original_lookup_binding()
+        } else {
+            source_binding_projection(&self.state, head, &self.namespace_key)
+        };
         proof.compiled_execution_residual = CompiledExecutionResidual::Unknown;
         proof.lookup_state = Some(Arc::clone(self.lookup_snapshot.get_or_init(|| {
             Arc::new(SourceLookupSnapshot::in_realm(
@@ -2084,7 +2185,52 @@ impl SourceBindingPoint {
     }
 
     fn binding(&self, head: &str) -> SourceInvocationBinding {
-        let mut proof = self.lookup_binding(head);
+        self.binding_projection(head, false)
+    }
+
+    fn original_lookup_binding(&self) -> SourceInvocationBinding {
+        // naming.consumer.original-workspace-diagnostic-refinement
+        // docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md
+        // The immutable Logical entry owns this interpreted head. It does
+        // not supply a Native name input or permit a source-label fallback.
+        if self.state.logical_source_name_advice_input().is_some()
+            && let Some(head) = self.head.as_deref()
+        {
+            return source_binding_projection(&self.state, head, &self.namespace_key);
+        }
+        self.original_head_input
+            .as_ref()
+            .and_then(|input| {
+                source_binding_from_original_input(&self.state, input, &self.namespace_key)
+            })
+            .unwrap_or_else(|| SourceInvocationBinding {
+                unknown: true,
+                lookup_namespace: self.namespace.clone(),
+                lookup_namespace_key: self.namespace_key.clone(),
+                variable_context: Arc::clone(&self.state.source_variables),
+                variable_frame: self.state.variable_frame.clone(),
+                ..Default::default()
+            })
+    }
+
+    fn original_dispatch_binding(&self) -> SourceInvocationBinding {
+        self.binding_projection("", true)
+    }
+
+    fn binding_projection(&self, head: &str, original: bool) -> SourceInvocationBinding {
+        let mut proof = if original {
+            self.original_lookup_binding()
+        } else {
+            self.lookup_binding(head)
+        };
+        if original {
+            proof.lookup_state = Some(Arc::clone(self.lookup_snapshot.get_or_init(|| {
+                Arc::new(SourceLookupSnapshot::in_realm(
+                    self.state.clone(),
+                    self.realm,
+                ))
+            })));
+        }
         if self.dispatch {
             proof.dispatch_site =
                 self.state
@@ -2095,7 +2241,7 @@ impl SourceBindingPoint {
                         offset: self.offset,
                     });
         }
-        if self.dispatch && self.head.as_deref() == Some(head) {
+        if self.dispatch && (original || self.head.as_deref() == Some(head)) {
             proof.original_argument_completion =
                 OriginalArgumentCompletion::from_normal(self.original_arguments_complete_normally);
             proof
@@ -2111,6 +2257,12 @@ impl SourceBindingPoint {
                 .frozen_written_words
                 .clone_from(&self.frozen_written_words);
             proof
+                .frozen_written_names
+                .clone_from(&self.frozen_written_names);
+            proof
+                .original_written_words
+                .clone_from(&self.original_written_words);
+            proof
                 .compiled_candidates
                 .clone_from(&self.compiled_execution.proofs);
             proof.compiled_named_candidates = self
@@ -2122,6 +2274,8 @@ impl SourceBindingPoint {
             proof.may_use_live_dispatch = self.compiled_execution.live;
             proof.compiled_execution_residual = self.compiled_execution.unknown.into();
             proof.native_compilation_admission = self.compiled_execution.admission;
+            proof.original_compiler_preserves_names =
+                self.compiled_execution.compiler_preserves_names().into();
             proof
                 .native_operand_layout
                 .clone_from(&self.compiled_execution.operand_layout);
@@ -2143,8 +2297,8 @@ impl SourceBindingPoint {
             proof.native_inline_rejection = self.compiled_execution.rejection;
             proof.native_handler_envelope = self
                 .compiled_execution
-                .stable_handler_after_arguments(
-                    self.head.as_deref(),
+                .stable_handler_after_original_arguments(
+                    self.original_head_input.as_ref(),
                     &self.state,
                     &self.namespace_key,
                 )
@@ -2171,6 +2325,7 @@ struct DeferredSourceBody {
     receiver_method: bool,
     future_frame: Option<crate::var_resolve::VariableExecutionFrame>,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    original_parameters: Option<formal_topology::OriginalFormalTopology>,
     statics: Option<crate::raw_binding::CapturedStaticBindings>,
 }
 
@@ -2717,9 +2872,11 @@ pub struct SourceCommandBindings {
     compilation_scope: tcl_runtime_api::SourceCompilationScope,
     lexer_config: Option<tcl_lexer::LexerConfig>,
     declaration_layouts: SharedSourceInventory<declaration_layout::DeclarationLayouts>,
+    original_script_activations: Vec<Arc<declaration_layout::OriginalDiagnosticFrameEntry>>,
     pre_handler_failures: SharedSourceInventory<pre_handler_failure::PreHandlerFailures>,
     unrepresented_entries: SharedSourceInventory<pre_handler_failure::UnrepresentedEntries>,
     unpositioned_projections: SourceHeadProjectionCache,
+    declaration_flow_cache: declaration_flow::SourceDeclarationFlowCache,
     root_origin: Option<Arc<SourceOriginId>>,
     origin_points: SharedSourceInventory<BTreeMap<Arc<SourceOriginId>, Vec<SourceBindingPoint>>>,
     implicit_math_invocations: SharedSourceInventory<ImplicitMathInvocations>,
@@ -2727,6 +2884,8 @@ pub struct SourceCommandBindings {
         SharedSourceInventory<BTreeMap<CommandAllocationSite, Arc<SourceInvocationVariableReads>>>,
     normal_variable_continuations:
         SharedSourceInventory<normal_variable_continuation::NormalVariableContinuations>,
+    original_variable_invocations:
+        SharedSourceInventory<original_variable_inventory::OriginalVariableInvocations>,
     invocation_normal_results: SharedSourceInventory<normal_result::InvocationNormalResults>,
     conditional_procedure_results:
         SharedSourceInventory<normal_result::ConditionalProcedureResults>,
@@ -2758,6 +2917,9 @@ pub struct SourceCommandBindings {
     points: SharedSourceInventory<Vec<SourceBindingPoint>>,
     dispatch_points: SharedSourceInventory<BTreeMap<u32, Vec<usize>>>,
     final_state: Arc<ModuleCommandBindings>,
+    /// Closed normal root world, independently of the partial fallback state.
+    /// This source-model fact grants no physical interpreter execution.
+    original_completed_root_state: Option<Arc<ModuleCommandBindings>>,
     deferred: SharedSourceInventory<BTreeMap<DeferredImplementationId, DeferredSourceBody>>,
     rule_declarations:
         SharedSourceInventory<BTreeMap<CommandAllocationSite, Vec<SourceRuleDeclarationCandidate>>>,
@@ -2799,6 +2961,7 @@ impl PartialEq for SourceCommandBindings {
             && self.implicit_math_invocations == other.implicit_math_invocations
             && self.invocation_reads == other.invocation_reads
             && self.normal_variable_continuations == other.normal_variable_continuations
+            && self.original_variable_invocations == other.original_variable_invocations
             && self.invocation_normal_results == other.invocation_normal_results
             && self.conditional_procedure_results == other.conditional_procedure_results
             && self.object_callback_effects == other.object_callback_effects
@@ -2904,7 +3067,9 @@ fn seed_deferred_inputs(
         if let Some(statics) = &root.statics {
             Arc::make_mut(&mut branch.source_variables).install_callable_statics(statics, registry);
         }
-        if let Some(grammar) = branch
+        if let Some(topology) = &root.original_parameters {
+            topology.seed_unknown(Arc::make_mut(&mut branch.source_variables), registry);
+        } else if let Some(grammar) = branch
             .source_variables
             .invocation_dialect
             .and_then(tcl_registry::InvocationDialect::parameter_grammar)
@@ -2952,6 +3117,29 @@ fn publish_source_branch(state: &mut ModuleCommandBindings, branch: Box<ModuleCo
     *state = *branch;
 }
 
+fn original_variable_arena(
+    original: Option<&(&str, crate::ir::SourceSite)>,
+    state: &ModuleCommandBindings,
+    config: tcl_lexer::LexerConfig,
+) -> Option<tcl_lexer::ExecutablePartArena> {
+    original.and_then(|(raw, read_site)| {
+        let image = state.current_source_origin.as_ref()?.source_image();
+        let end = read_site
+            .span
+            .start()
+            .checked_add(u32::try_from(raw.len()).ok()?)?;
+        let span = tcl_lexer::Span::new(read_site.span.start(), end);
+        (image.bytes().get(span.as_range())? == raw.as_bytes()).then_some(())?;
+        tcl_lexer::ExecutablePartArena::decompose(
+            image.clone(),
+            span,
+            tcl_lexer::word_parts::SubstFlags::default(),
+            config,
+        )
+        .ok()
+    })
+}
+
 fn original_variable_source<'s>(
     document: &'s str,
     base: u32,
@@ -2985,8 +3173,10 @@ enum SourceIndexFrame {
     List {
         id: tcl_lexer::word_parts::PartListId,
         next: usize,
-        outcomes: SourceOutcomes,
+        outcomes: Box<SourceOutcomes>,
         value: Option<String>,
+        native_value: Option<original_name_value::OriginalProducedNameValue>,
+        native_complete: bool,
     },
     Variable {
         id: tcl_lexer::word_parts::PartListId,
@@ -2998,7 +3188,17 @@ fn join_index_fragment(
     outcomes: &mut SourceOutcomes,
     value: &mut Option<String>,
     fragment: &SourceOutcomes,
+    native_value: &mut Option<original_name_value::OriginalProducedNameValue>,
+    native_complete: &mut bool,
 ) {
+    if *native_complete {
+        *native_value = match (native_value.take(), fragment.normal_name_value.as_deref()) {
+            (None, Some(component)) => Some(component.clone()),
+            (Some(value), Some(component)) => value.concatenated(component),
+            _ => None,
+        };
+        *native_complete = native_value.is_some();
+    }
     *value = value
         .take()
         .zip(fragment.normal_value.as_ref())
@@ -3028,6 +3228,15 @@ fn index_text_fragment(
     state: &ModuleCommandBindings,
 ) -> SourceOutcomes {
     let mut fragment = SourceOutcomes::normal(state);
+    fragment.normal_name_value = state.source_variables.execution_name_policy
+        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        .and_then(|policy| {
+            let value = crate::signature_scan::scope::SignatureSourceNameValue::from_original_executable_text_fragment(
+                source.arena, source.arena.image(), source.arena.config(), component.span, policy)?;
+            original_name_value::OriginalProducedNameValue::from_source_input(
+                &crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(value), &state.source_variables)
+        }).map(Arc::new);
+    fragment.retain_complete_normal_evaluation();
     fragment.normal_value = source
         .arena
         .text(component)
@@ -3048,6 +3257,8 @@ struct SourceExecutionContext<'a> {
     compilation: tcl_registry::native_compilation::NativeCompilationContext,
     compilation_snapshot: Option<&'a NativeCompilationSnapshot>,
     selected_compilation: Option<&'a tcl_registry::native_compilation::NativeCompilationSelection>,
+    original_variable_compilation:
+        Option<&'a original_name_value::OriginalSourceVariableCompilation<'a>>,
     namespace: &'a str,
     namespace_key: Option<&'a SourceNamespaceKey>,
     config: tcl_lexer::LexerConfig,
@@ -3056,8 +3267,10 @@ struct SourceExecutionContext<'a> {
     frame: &'a crate::var_resolve::VariableExecutionFrame,
     invocation_offset: u32,
     variable_read_owner: Option<&'a SourceVariableEvaluationOwner>,
+    original_written_projection: Option<&'a named_arguments::OriginalNamedWords>,
     written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
     written_values: Option<&'a [Option<Arc<native_result::EvaluatedSourceValue>>]>,
+    written_name_values: Option<&'a [Option<Arc<original_name_value::OriginalProducedNameValue>>]>,
     written_representations:
         Option<&'a [Option<source_representation::FrozenSourceRepresentation>]>,
     written_objects: Option<&'a [Option<Arc<SourceObjectInstanceProof>>]>,
@@ -3070,6 +3283,7 @@ impl SourceExecutionContext<'_> {
     fn withdraw_observed_operand_facts(&mut self, observed: bool) {
         if observed {
             self.written_method_prefixes = None;
+            self.written_name_values = None;
             self.written_representations = None;
             self.written_variable_reads = None;
         }
@@ -3087,6 +3301,7 @@ struct PreparedSourceNativeInvocation<'a> {
     dialect: Option<tcl_registry::InvocationDialect>,
     route: tcl_registry::completion_route::InvocationCompletionRoute,
     facts: Box<InvocationFacts>,
+    original_variable_operands: OnceLock<crate::variable_bindings::OriginalVariableInvocation>,
 }
 
 impl PreparedSourceNativeInvocation<'_> {
@@ -3095,6 +3310,19 @@ impl PreparedSourceNativeInvocation<'_> {
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> tcl_registry::completion_route::InvocationCompletionRoute {
+        // Source-inspection proof: naming.list.constructor-intrinsic-return-code
+        // docs/design/analysis/name-resolution-proofs/list-constructor-intrinsic-return-code.md
+        if self.facts.successful_handler
+            == Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::Leaf)
+            && let Some(code) = self.facts.native_result.and_then(|contract| {
+                contract.list_constructor_completion_code(
+                    self.invocation("").arguments(),
+                    self.facts.argument_offset,
+                )
+            })
+        {
+            return tcl_registry::completion_route::InvocationCompletionRoute::Tcl(code);
+        }
         if state.closed_rename_receiver(&self.facts, context)
             || crate::variable_bindings::alias_registration_is_closed(
                 &state.source_variables,
@@ -3102,11 +3330,11 @@ impl PreparedSourceNativeInvocation<'_> {
                 self.invocation("").arguments(),
                 context.registry,
             )
-            || crate::variable_bindings::variable_trace_registration_is_closed(
-                &state.source_variables,
-                &self.facts,
-                context.registry,
-            )
+            || self.original_variable_operands.get().is_some_and(|operands| {
+                crate::variable_bindings::variable_trace_registration_is_closed_with_original_operands(
+                    &state.source_variables, &self.facts, context.registry, operands,
+                )
+            })
         {
             tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
                 tcl_registry::completion::CompletionCode::Ok,
@@ -3219,6 +3447,7 @@ fn prepare_source_native_invocation<'a>(
         dialect,
         route,
         facts,
+        original_variable_operands: OnceLock::new(),
     }))
 }
 
@@ -3240,9 +3469,352 @@ struct SourceNativeInvocation<'a> {
     written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
     target: &'a SourceCommandTarget,
     invocation: &'a tcl_registry::InvocationWords<'a>,
+    original_variable_operands: &'a crate::variable_bindings::OriginalVariableInvocation,
+}
+
+#[cfg(test)]
+fn trace_original_selection(
+    words: &[crate::ir::WordExpr],
+    site: u32,
+    state: &ModuleCommandBindings,
+    context: &SourceExecutionContext<'_>,
+    compiled: &compiled_invocation::CompiledInvocationSelection,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        let head = original_name_value::original_static_command_head_input(
+            words,
+            site,
+            state,
+            context.config,
+        );
+        eprintln!(
+            "ORIGINAL_SELECTION site={} words={} head={:?} mode={:?} admission={:?} live={} unknown={} error={} namespace={:?} name_policy={:?}",
+            site,
+            words.len(),
+            head.as_ref()
+                .map(super::signature_scan::name_value::SignatureSourceNameInput::bytes),
+            context.compilation.mode,
+            compiled.admission,
+            compiled.live,
+            compiled.unknown,
+            compiled.compile_error,
+            context.namespace_identity(),
+            state.source_variables.execution_name_policy
+        );
+    }
+}
+
+#[cfg(test)]
+fn trace_original_arguments(
+    words: &[crate::ir::WordExpr],
+    site: u32,
+    state: &ModuleCommandBindings,
+    context: &SourceExecutionContext<'_>,
+    arguments: &PreparedSourceArguments,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        let head = original_name_value::original_command_head_input(words, site, state, *context);
+        eprintln!(
+            "ORIGINAL_ARGV site={} complete={} effective={:?} written={} names={} head={:?}",
+            site,
+            arguments.complete_normally,
+            arguments.effective,
+            arguments.written_arguments.len(),
+            arguments
+                .written_name_values
+                .iter()
+                .filter(|value| value.is_some())
+                .count(),
+            head.as_ref()
+                .map(super::signature_scan::name_value::SignatureSourceNameInput::bytes)
+        );
+    }
+}
+
+#[cfg(debug_assertions)]
+fn trace_original_generic_head(site: u32, state: &ModuleCommandBindings, has_head: bool) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        eprintln!(
+            "ORIGINAL_GENERIC_HEAD site={} input={} dynamic={} opaque={}",
+            site, has_head, state.source_variables.dynamic_bindings, state.opaque_binding_mutation
+        );
+    }
+}
+
+#[cfg(debug_assertions)]
+fn trace_original_generic_binding(site: u32, binding: Option<&SourceInvocationBinding>) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        eprintln!(
+            "ORIGINAL_GENERIC_BINDING site={} available={} unknown={} absent={} targets={}",
+            site,
+            binding.is_some(),
+            binding.as_ref().is_some_and(|binding| binding.unknown),
+            binding
+                .as_ref()
+                .is_some_and(|binding| binding.may_be_absent),
+            binding.as_ref().map_or(0, |binding| binding.targets.len())
+        );
+    }
+}
+
+#[cfg(debug_assertions)]
+fn trace_original_generic_result(site: u32, outcomes: &SourceOutcomes) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        eprintln!(
+            "ORIGINAL_GENERIC_RESULT site={} normal={} abrupt={} normal_dynamic={}",
+            site,
+            outcomes.normal.is_some(),
+            outcomes.abrupt.len(),
+            outcomes
+                .normal
+                .as_ref()
+                .is_some_and(|normal| normal.source_variables.dynamic_bindings)
+        );
+    }
+}
+
+fn finish_index_list(
+    mut outcomes: Box<SourceOutcomes>,
+    value: Option<String>,
+    native_value: Option<original_name_value::OriginalProducedNameValue>,
+    state: &mut ModuleCommandBindings,
+) -> SourceOutcomes {
+    outcomes.normal_name_value = native_value
+        .filter(|value| {
+            outcomes
+                .normal
+                .as_ref()
+                .is_some_and(|normal| value.is_current(&normal.source_variables))
+        })
+        .map(Arc::new);
+    outcomes.normal_value = index_normal_result(&outcomes, value);
+    outcomes.publish(state);
+    *outcomes
+}
+
+struct CapturedNativeCompletionReceipts {
+    mutation: Option<Box<original_command_mutation::OriginalCommandMove>>,
+    alias_creation: Option<Box<original_alias_creation::OriginalAliasCreation>>,
+    namespace_binding: Option<Box<original_namespace_binding::OriginalNamespaceBinding>>,
+    namespace_deletion: Option<Box<original_namespace_deletion::OriginalNamespaceDeletion>>,
+}
+
+impl CapturedNativeCompletionReceipts {
+    fn capture(
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Self {
+        let mutation = boxed_source_completion_receipt(|| {
+            original_command_mutation::OriginalCommandMove::capture(native, facts, state, *context)
+        });
+        let alias_creation = boxed_source_completion_receipt(|| {
+            original_alias_creation::OriginalAliasCreation::capture(native, facts, state, *context)
+        });
+        let namespace_binding = boxed_source_completion_receipt(|| {
+            original_namespace_binding::OriginalNamespaceBinding::capture(
+                native, facts, state, *context,
+            )
+        });
+        let namespace_deletion = boxed_source_completion_receipt(|| {
+            original_namespace_deletion::OriginalNamespaceDeletion::capture(
+                native, facts, state, *context,
+            )
+        });
+        Self {
+            mutation,
+            alias_creation,
+            namespace_binding,
+            namespace_deletion,
+        }
+    }
+
+    fn captured(&self) -> bool {
+        self.mutation.is_some()
+            || self.alias_creation.is_some()
+            || self.namespace_binding.is_some()
+            || self.namespace_deletion.is_some()
+    }
+
+    fn completed(
+        &self,
+        outcomes: &SourceOutcomes,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        self.mutation.as_ref().is_some_and(|receipt| {
+            outcomes.abrupt.is_empty()
+                && outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| receipt.completed(native, facts, normal, context))
+        }) || self.alias_creation.as_ref().is_some_and(|receipt| {
+            outcomes.abrupt.is_empty()
+                && outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| receipt.completed(native, facts, normal, context))
+        }) || self.namespace_binding.as_ref().is_some_and(|receipt| {
+            outcomes.abrupt.is_empty()
+                && outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| receipt.completed(native, normal, context))
+        }) || self.namespace_deletion.as_ref().is_some_and(|receipt| {
+            outcomes.abrupt.is_empty()
+                && outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| receipt.completed(native, facts, normal, context))
+        })
+    }
+}
+
+fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) -> &str {
+    use crate::var_resolve::VariableExecutionFrame;
+    match frame.layout() {
+        VariableExecutionFrame::Namespace(namespace)
+        | VariableExecutionFrame::NamespaceActivation { namespace, .. }
+        | VariableExecutionFrame::Procedure { namespace, .. }
+        | VariableExecutionFrame::Selected {
+            namespace: Some(namespace),
+            ..
+        } => namespace,
+        VariableExecutionFrame::Selected {
+            namespace: None, ..
+        }
+        | VariableExecutionFrame::ReceiverMethod { .. }
+        | VariableExecutionFrame::Global
+        | VariableExecutionFrame::Unknown => "::",
+        VariableExecutionFrame::NamespaceIdentity { .. } => {
+            unreachable!("layout excludes identity wrappers")
+        }
+    }
+}
+
+/// Keep formal value representation and object identity from the same call operands.
+fn retain_called_body_value_formals(
+    state: &mut ModuleCommandBindings,
+    called: &mut crate::var_resolve::ResolveContext,
+    body: &DeferredSourceBody,
+    actual_count: usize,
+    target: &SourceCommandTarget,
+    context: SourceExecutionContext<'_>,
+) {
+    source_representation::retain_value_formals(
+        called,
+        &body.parameters,
+        actual_count,
+        1,
+        target,
+        context,
+    );
+    object_instance::retain_value_formals(
+        state,
+        called,
+        &body.parameters,
+        actual_count,
+        1,
+        target,
+        context,
+    );
+}
+
+enum PreparedSourceLambda {
+    Ready {
+        lambda: tcl_registry::lambda_invocation::LambdaInvocation,
+        parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    },
+    Invalid,
+    Unknown,
+}
+
+/// Selection and formal parsing precede entry into a lambda frame.
+fn prepare_source_lambda(
+    selection: tcl_registry::lambda_invocation::LambdaInvocationSelection,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> PreparedSourceLambda {
+    use tcl_registry::lambda_invocation::LambdaInvocationSelection;
+    let lambda = match selection {
+        LambdaInvocationSelection::Selected(lambda) => lambda,
+        LambdaInvocationSelection::Invalid => return PreparedSourceLambda::Invalid,
+        LambdaInvocationSelection::Unknown => return PreparedSourceLambda::Unknown,
+    };
+    let Some(grammar) = dialect.and_then(tcl_registry::InvocationDialect::parameter_grammar) else {
+        return PreparedSourceLambda::Unknown;
+    };
+    let Ok(parameters) =
+        tcl_syntax::formal_params::parse_formal_parameters_in(&lambda.parameters, grammar)
+    else {
+        return PreparedSourceLambda::Invalid;
+    };
+    PreparedSourceLambda::Ready { lambda, parameters }
+}
+
+fn root_source_execution_context<'a>(
+    frame: &'a crate::var_resolve::VariableExecutionFrame,
+    namespace: &'a str,
+    namespace_key: &'a SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
+    registry: &'a CommandRegistry,
+    options: SourceAnalysisOptions<'a>,
+) -> SourceExecutionContext<'a> {
+    SourceExecutionContext {
+        realm: options.invocation_realm,
+        compilation: options.native_compilation,
+        compilation_snapshot: None,
+        selected_compilation: None,
+        original_variable_compilation: None,
+        namespace,
+        config,
+        registry,
+        depth: 0,
+        frame,
+        invocation_offset: 0,
+        variable_read_owner: None,
+        original_written_projection: None,
+        written_arguments: None,
+        written_values: None,
+        written_name_values: None,
+        written_representations: None,
+        written_objects: None,
+        written_method_prefixes: None,
+        written_variable_reads: None,
+        namespace_key: Some(namespace_key),
+        expression_source: None,
+    }
+}
+
+#[derive(Clone, Copy)]
+struct SourceArgumentReceipts<'a> {
+    arguments: &'a [crate::registry_invocation::EffectiveInvocationWord],
+    values: &'a [Option<Arc<native_result::EvaluatedSourceValue>>],
+    name_values: &'a [Option<Arc<original_name_value::OriginalProducedNameValue>>],
+    representations: &'a [Option<source_representation::FrozenSourceRepresentation>],
+    objects: &'a [Option<Arc<SourceObjectInstanceProof>>],
+    prefixes: &'a [Option<Arc<SourceCapturedMethodPrefix>>],
+    reads: &'a [Option<Arc<argument_reads::FrozenSourceArgumentRead>>],
+}
+
+fn is_default_namespace_unknown_handler(
+    state: &ModuleCommandBindings,
+    handler: &TransitionSubject,
+) -> bool {
+    handler.literal().is_some_and(|handler| {
+        state.baseline.dialect.is_some_and(|dialect| {
+            dialect
+                .word_values
+                .split_list(handler)
+                .is_ok_and(|prefix| prefix.is_empty())
+        })
+    })
 }
 
 struct CapturedNativeResultReceipts {
+    normal_read: Option<crate::var_resolve::OriginalNormalValueRead>,
+    normal_write: Option<crate::var_resolve::OriginalNormalValueWrite>,
     range: Option<Box<source_representation::CapturedRangeResult>>,
     coercion: Option<Box<container_coercion::CapturedContainerCoercion>>,
     numeric_operands: Vec<numeric_operand_cache::CapturedNumericOperandCache>,
@@ -3258,6 +3830,24 @@ fn capture_source_native_results_boxed(
 ) -> Box<CapturedNativeResultReceipts> {
     let context = *context;
     Box::new(CapturedNativeResultReceipts {
+        normal_read: native_result::capture_original_read_completion(
+            native,
+            facts,
+            state,
+            context.registry,
+        ),
+        normal_write: native_result::original_store_receiver(
+            facts,
+            native.target,
+            native.invocation.arguments(),
+            context,
+            &state.source_variables,
+        )
+        .and_then(|(receiver, _)| {
+            state
+                .source_variables
+                .original_normal_value_write(&receiver, context.registry)
+        }),
         range: source_representation::capture_range_result(native, facts, state, context),
         coercion: container_coercion::capture(native, facts, state, context).map(Box::new),
         numeric_operands: numeric_operand_cache::capture_indices(native, facts, state, context),
@@ -3401,11 +3991,34 @@ fn retained_script_operand(
     invocation: u32,
     config: tcl_lexer::LexerConfig,
 ) -> Option<ExecutedScriptSource> {
-    let value = operands.arguments.literal_at(argument)?;
     let parent = CommandAllocationSite {
         source: Arc::clone(state.current_source_origin.as_ref()?),
         offset: invocation,
     };
+    if let Some(bytes) = operands.arguments.native_bytes_at(argument) {
+        if let Some(crate::registry_invocation::InvocationWordOrigin::Written(written)) =
+            operands.written_origin(argument)
+            && let Some(protocol) =
+                compiler_inventory::SourceNativeCompilerPolicy::source_protocol_of(state)
+            && let Some(original) = crate::registry_invocation::original_native_compiler_words(
+                parent.source.source_image(),
+                operands.words,
+                invocation,
+                config,
+            )
+            && let Some(word) = original.get(written)
+        {
+            return Some(ExecutedScriptSource::from_original_word_value(
+                parent, argument, word, bytes, protocol,
+            ));
+        }
+        return Some(ExecutedScriptSource::materialised_image(
+            parent,
+            vec![argument],
+            tcl_lexer::SourceImage::native(Arc::<[u8]>::from(bytes)),
+        ));
+    }
+    let value = operands.arguments.literal_at(argument)?;
     let script = operands.written_word(argument).map_or_else(
         || ExecutedScriptSource::materialised(parent.clone(), vec![argument], value),
         |word| ExecutedScriptSource::from_word(parent.clone(), argument, word, value, config),
@@ -3506,6 +4119,7 @@ struct PreparedSourceArguments {
     effective: Vec<crate::registry_invocation::EffectiveInvocationWord>,
     written_arguments: Arc<[crate::registry_invocation::EffectiveInvocationWord]>,
     written_values: Vec<Option<Arc<native_result::EvaluatedSourceValue>>>,
+    written_name_values: Vec<Option<Arc<original_name_value::OriginalProducedNameValue>>>,
     written_representations: Vec<Option<source_representation::FrozenSourceRepresentation>>,
     written_objects: Vec<Option<Arc<SourceObjectInstanceProof>>>,
     written_method_prefixes: Vec<Option<Arc<SourceCapturedMethodPrefix>>>,
@@ -3534,6 +4148,7 @@ impl PreparedSourceArguments {
             effective: Vec::with_capacity(word_count),
             written_arguments: Arc::from([]),
             written_values: Vec::with_capacity(word_count),
+            written_name_values: Vec::with_capacity(word_count),
             written_representations: Vec::with_capacity(word_count),
             written_objects: Vec::with_capacity(word_count),
             written_method_prefixes: Vec::with_capacity(word_count),
@@ -3550,27 +4165,56 @@ impl PreparedSourceArguments {
     }
 }
 
+/// The evaluator owns the updated original facade; transient Copy views
+/// borrow it for no longer than this holder. No view points at a helper local.
+struct SourceArgumentExecutionContext<'a> {
+    context: SourceExecutionContext<'a>,
+    compilation: Option<original_name_value::OriginalSourceVariableCompilation<'a>>,
+}
+
+impl SourceArgumentExecutionContext<'_> {
+    fn context(&self) -> SourceExecutionContext<'_> {
+        SourceExecutionContext {
+            original_variable_compilation: self.compilation.as_ref(),
+            ..self.context
+        }
+    }
+}
+
 /// Capture the original argument receipts without retaining construction
 /// temporaries in the recursive command driver.
 #[inline(never)]
 fn source_argument_context_boxed<'a>(
     context: &SourceExecutionContext<'a>,
-    arguments: &'a [crate::registry_invocation::EffectiveInvocationWord],
-    values: &'a [Option<Arc<native_result::EvaluatedSourceValue>>],
-    representations: &'a [Option<source_representation::FrozenSourceRepresentation>],
-    objects: &'a [Option<Arc<SourceObjectInstanceProof>>],
-    prefixes: &'a [Option<Arc<SourceCapturedMethodPrefix>>],
-    reads: &'a [Option<Arc<argument_reads::FrozenSourceArgumentRead>>],
-) -> Box<SourceExecutionContext<'a>> {
+    receipts: SourceArgumentReceipts<'a>,
+) -> Box<SourceArgumentExecutionContext<'a>> {
+    let SourceArgumentReceipts {
+        arguments,
+        values,
+        name_values,
+        representations,
+        objects,
+        prefixes,
+        reads,
+    } = receipts;
     let context = *context;
-    Box::new(SourceExecutionContext {
-        written_arguments: Some(arguments),
-        written_values: Some(values),
-        written_representations: Some(representations),
-        written_objects: Some(objects),
-        written_method_prefixes: Some(prefixes),
-        written_variable_reads: Some(reads),
-        ..context
+    let compilation = context
+        .original_variable_compilation
+        .and_then(|original| (*original).with_evaluated_words(name_values));
+    Box::new(SourceArgumentExecutionContext {
+        context: SourceExecutionContext {
+            original_written_projection: None,
+            written_arguments: Some(arguments),
+            written_values: Some(values),
+            written_name_values: Some(name_values),
+            original_variable_compilation: None,
+            written_representations: Some(representations),
+            written_objects: Some(objects),
+            written_method_prefixes: Some(prefixes),
+            written_variable_reads: Some(reads),
+            ..context
+        },
+        compilation,
     })
 }
 
@@ -3597,6 +4241,7 @@ fn source_chunk_context_boxed<'a>(
 ) -> Box<SourceExecutionContext<'a>> {
     Box::new(SourceExecutionContext {
         expression_source: None,
+        original_variable_compilation: None,
         compilation_snapshot: context.compilation_snapshot.or(snapshot),
         ..*context
     })
@@ -3609,6 +4254,9 @@ fn source_selected_context_boxed<'a>(
 ) -> Box<SourceExecutionContext<'a>> {
     Box::new(SourceExecutionContext {
         selected_compilation: Some(selected),
+        original_variable_compilation: context
+            .original_variable_compilation
+            .filter(|original| original.selection() == selected),
         ..*context
     })
 }
@@ -3657,33 +4305,17 @@ fn retain_source_native_result(
 }
 
 struct SourceNativeDefinition {
-    procedure: Option<String>,
     statics: Option<crate::raw_binding::CapturedStaticBindings>,
 }
 
 fn original_procedure_publication_key(
+    native: SourceNativeInvocation<'_>,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
     facts: &InvocationFacts,
 ) -> Option<SourceCommandKey> {
-    facts
-        .state_transitions
-        .declared()?
-        .command_bindings()
-        .find_map(|transition| {
-            let CommandBindingTransition::Define {
-                name,
-                kind: CommandBindingDefinitionKind::Procedure,
-            } = transition
-            else {
-                return None;
-            };
-            state.publication_key_at(
-                &context.namespace_identity(),
-                name.literal()?,
-                namespace_slots::PublicationPurpose::Procedure,
-            )
-        })
+    original_command_table::OriginalCommandOperands::capture(native, facts, state, context)
+        .procedure_key(facts, state, &context.namespace_identity())
 }
 
 fn closed_procedure_definition(
@@ -3691,21 +4323,39 @@ fn closed_procedure_definition(
     facts: &InvocationFacts,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
-    procedure: Option<&str>,
 ) -> bool {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
+        || std::env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some()
+    {
+        let key = original_procedure_publication_key(native, state, context, facts);
+        eprintln!(
+            "ORIGINAL_PROCEDURE_CLOSURE offset={} opaque={} definition_valid={} topology={} key={} holder_exists={} installed_count={}",
+            native.segment.span.start(),
+            state.has_opaque_domain(),
+            matches!(
+                facts.procedure_definition,
+                Some(tcl_registry::native_procedure::NativeProcedureDefinitionSelection::Valid(_))
+            ),
+            formal_topology::from_invocation(native, facts, state, context).is_some(),
+            key.is_some(),
+            key.as_ref()
+                .is_some_and(|key| state.namespaces.contains(key.holder().as_ref())),
+            key.as_ref().map_or(0, |key| state
+                .installed_procedure_targets(key, native.segment.span.start())
+                .len()),
+        );
+    }
     if state.has_opaque_domain()
         || !matches!(
             facts.procedure_definition,
             Some(tcl_registry::native_procedure::NativeProcedureDefinitionSelection::Valid(_))
         )
-        || native_procedure_parameters(facts, native.invocation.arguments()).is_none()
+        || formal_topology::from_invocation(native, facts, state, context).is_none()
     {
         return false;
     }
-    if procedure.is_none() {
-        return false;
-    }
-    let Some(key) = original_procedure_publication_key(state, context, facts) else {
+    let Some(key) = original_procedure_publication_key(native, state, context, facts) else {
         return false;
     };
     let holder = key.holder();
@@ -3794,22 +4444,14 @@ fn transfer_native_definition(
     use tcl_registry::native_procedure::NativeProcedureDefinitionSelection as Definition;
     if !matches!(facts.procedure_definition, Some(Definition::Valid(definition)) if definition.statics_at.is_some())
     {
-        return Ok(SourceNativeDefinition {
-            procedure: transfer_native_invocation(native, state, context, facts),
-            statics: None,
-        });
+        transfer_native_invocation(native, state, context, facts);
+        return Ok(SourceNativeDefinition { statics: None });
     }
     let mut candidate = boxed_source_branch(state);
-    let procedure = transfer_native_invocation(native, &mut candidate, context, facts);
-    let statics = prepare_source_callable_statics(
-        native,
-        &mut candidate,
-        context,
-        facts,
-        procedure.as_deref(),
-    )?;
+    transfer_native_invocation(native, &mut candidate, context, facts);
+    let statics = prepare_source_callable_statics(native, &mut candidate, context, facts)?;
     *state = *candidate;
-    Ok(SourceNativeDefinition { procedure, statics })
+    Ok(SourceNativeDefinition { statics })
 }
 
 fn prepare_source_callable_statics(
@@ -3817,7 +4459,6 @@ fn prepare_source_callable_statics(
     state: &mut ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
     facts: &InvocationFacts,
-    procedure: Option<&str>,
 ) -> Result<
     Option<crate::raw_binding::CapturedStaticBindings>,
     crate::raw_binding::StaticCaptureResult,
@@ -3830,15 +4471,21 @@ fn prepare_source_callable_statics(
     let Some(index) = definition.statics_at else {
         return Ok(None);
     };
-    let text = native
-        .invocation
-        .arguments()
-        .literal_at(index)
+    let input = native
+        .original_variable_operands
+        .input(index, &state.source_variables)
         .ok_or(Capture::Unknown)?;
-    let declarations = tcl_registry::native_procedure::parse_static_variables(text)
-        .map_err(|_| Capture::Invalid)?;
-    procedure.ok_or(Capture::Unknown)?;
-    let key = original_procedure_publication_key(state, context, facts).ok_or(Capture::Unknown)?;
+    tcl_registry::native_procedure::parse_static_variables_bytes(
+        input.bytes(),
+        state
+            .source_variables
+            .invocation_dialect
+            .ok_or(Capture::Unknown)?,
+    )
+    .ok_or(Capture::Unknown)?
+    .map_err(|_| Capture::Invalid)?;
+    let key = original_procedure_publication_key(native, state, context, facts)
+        .ok_or(Capture::Unknown)?;
     let targets = state.installed_procedure_targets(&key, native.segment.span.start());
     if targets.len() != 1 {
         return Err(Capture::Unknown);
@@ -3853,12 +4500,18 @@ fn prepare_source_callable_statics(
         incarnation: allocation.incarnation,
         implementation_generation: target.implementation_generation,
     };
-    match Arc::make_mut(&mut state.source_variables).capture_callable_statics(
+    match Arc::make_mut(&mut state.source_variables).capture_original_callable_statics(
         &identity,
-        &declarations,
+        input,
         context.registry,
     ) {
-        Capture::Prepared { bindings, .. } => Ok(Some(bindings)),
+        Capture::Prepared {
+            bindings,
+            may_error: false,
+        } => Ok(Some(bindings)),
+        Capture::Prepared {
+            may_error: true, ..
+        } => Err(Capture::Unknown),
         outcome => Err(outcome),
     }
 }
@@ -3917,9 +4570,11 @@ fn source_target_arguments_invalid(
     invalid_parameters
         || definition
             .statics_at
-            .and_then(|index| arguments.literal_at(index))
-            .is_some_and(|statics| {
-                tcl_registry::native_procedure::parse_static_variables(statics).is_err()
+            .and_then(|index| arguments.native_bytes_at(index))
+            .zip(arguments.dialect())
+            .is_some_and(|(statics, dialect)| {
+                tcl_registry::native_procedure::parse_static_variables_bytes(statics, dialect)
+                    .is_some_and(|result| result.is_err())
             })
 }
 
@@ -3952,58 +4607,45 @@ fn transfer_native_invocation(
     let SourceExecutionContext { registry, .. } = context;
     let execution =
         crate::ir_helpers::ExecutionNamespace::SourceContext(context.namespace_identity());
-    let procedure = facts.state_transitions.declared().and_then(|transitions| {
-        transitions.command_bindings().find_map(|transition| {
-            if let CommandBindingTransition::Define {
-                name,
-                kind: CommandBindingDefinitionKind::Procedure,
-            } = transition
-            {
-                name.literal().and_then(|name| {
-                    state
-                        .publication_key_at(
-                            &context.namespace_identity(),
-                            name,
-                            namespace_slots::PublicationPurpose::Procedure,
-                        )
-                        .and_then(|key| {
-                            crate::command_binding::ModuleCommandBindings::command_key_label(&key)
-                        })
-                })
-            } else {
-                None
-            }
-        })
-    });
+    let original_operands =
+        original_command_table::OriginalCommandOperands::capture(native, facts, state, context);
+    let procedure = original_operands
+        .procedure_key(facts, state, &context.namespace_identity())
+        .map(|key| ModuleCommandBindings::command_key_label(&key).unwrap_or_default());
     if let Some(procedure) = &procedure {
         state.extend_procedure_bodies([procedure.clone()]);
     }
-    let read_projection = registry.variable_read_projection(*invocation);
-    let write_projection = crate::variable_bindings::source_variable_write_places(
-        facts,
-        invocation.arguments(),
-        &state.source_variables,
-        registry,
-    );
-    let traced_read = read_projection.literal_names.iter().any(|name| {
-        crate::var_resolve::resolve_access(
-            name,
+    let read_projection =
+        crate::variable_bindings::source_variable_read_places_with_original_operands(
+            facts,
+            invocation.arguments(),
             &state.source_variables,
-            false,
             registry,
-            tcl_registry::TraceOperation::Read,
-        )
-        .observed
-    });
-    if traced_read
+            native.original_variable_operands,
+        );
+    let write_projection =
+        crate::variable_bindings::source_variable_write_places_with_original_operands(
+            facts,
+            invocation.arguments(),
+            &state.source_variables,
+            registry,
+            native.original_variable_operands,
+        );
+    if read_projection.iter().any(|place| place.observed)
         || write_projection.iter().any(|place| place.observed)
-        || (read_projection.opaque_variable_frame
-            && (state.source_variables.dynamic_traces || !state.source_variables.traced.is_empty()))
     {
         state.mark_opaque_binding_mutation();
     }
     let publication =
         command_publication::PreservingCommandPublication::capture(native, facts, state, context);
+    let original_transfer = source_command_world::capture(native, facts, state, context);
+    let namespace_ensures = original_namespace_ensure::OriginalNamespaceEnsureTransfer::capture(
+        native, facts, state, context,
+    );
+    let namespace_deletions =
+        original_namespace_deletion::OriginalNamespaceDeletionTransfer::capture(
+            native, facts, state, context,
+        );
     apply_declared_binding_transitions(
         facts,
         state,
@@ -4011,17 +4653,38 @@ fn transfer_native_invocation(
         procedure.as_deref(),
         segment.span.start(),
         publication.as_ref(),
+        Some(&original_operands),
     );
-    transfer_native_namespace_writes(native, state, registry, facts);
+    if let Some(transfer) = original_transfer {
+        transfer.finish(state);
+    } else {
+        Arc::make_mut(&mut state.original_command_world).withdraw();
+    }
+    let namespace_deletions =
+        namespace_deletions.and_then(|transfer| transfer.after_command_transfer(state));
+    let namespace_ensures =
+        namespace_ensures.and_then(|transfer| transfer.after_command_transfer(state));
+    transfer_native_namespace_writes(
+        native,
+        state,
+        context,
+        facts,
+        original_namespace_ensure::OriginalNamespaceCellOperations {
+            ensures: namespace_ensures.as_ref(),
+            deletions: namespace_deletions.as_ref(),
+        },
+    );
     procedure
 }
 
 fn transfer_native_namespace_writes(
     native: SourceNativeInvocation<'_>,
     state: &mut ModuleCommandBindings,
-    registry: &CommandRegistry,
+    context: SourceExecutionContext<'_>,
     facts: &InvocationFacts,
+    namespace_operations: original_namespace_ensure::OriginalNamespaceCellOperations<'_>,
 ) {
+    let registry = context.registry;
     let SourceNativeInvocation {
         segment,
         invocation,
@@ -4033,7 +4696,12 @@ fn transfer_native_namespace_writes(
             tcl_registry::script_body_flow::script_body_flow(facts),
             tcl_registry::script_body_flow::ScriptBodyFlow::None
         );
-    state.record_provider_state_writes(facts, *invocation, registry);
+    state.record_provider_state_writes(
+        facts,
+        *invocation,
+        registry,
+        native.original_variable_operands,
+    );
     let variables = Arc::make_mut(&mut state.source_variables);
     variables.namespace_identities = state.namespaces.iter().cloned().collect();
     variables.known_namespaces = state
@@ -4042,19 +4710,24 @@ fn transfer_native_namespace_writes(
         .filter_map(SourceNamespaceKey::advisory_key)
         .collect();
     let order = native_output_order(native, facts);
-    crate::variable_bindings::transfer_source_namespace_cells_with_output_order(
+    crate::variable_bindings::transfer_source_namespace_cells_with_input(
         variables,
         facts,
         invocation.arguments(),
         registry,
-        script_interpreted,
-        segment.span.start(),
-        order.as_deref(),
+        crate::variable_bindings::SourceNamespaceTransfer::new(
+            script_interpreted,
+            segment.span.start(),
+            order.as_deref(),
+        )
+        .with_original_operands(native.original_variable_operands)
+        .with_namespace_operations(namespace_operations),
     );
 }
 
 #[inline(never)]
 fn native_implementation_dependency_holds(
+    native: SourceNativeInvocation<'_>,
     facts: &InvocationFacts,
     effective: &[crate::registry_invocation::EffectiveInvocationWord],
     state: &ModuleCommandBindings,
@@ -4067,10 +4740,15 @@ fn native_implementation_dependency_holds(
     ) {
         return true;
     }
-    let binding = effective
-        .first()
-        .and_then(|word| word.as_registry_word().literal())
-        .map(|head| source_binding(state, head, &context.namespace_identity()));
+    let binding = original_name_value::original_command_head_input(
+        native.words,
+        native.segment.span.start(),
+        state,
+        context,
+    )
+    .and_then(|input| {
+        source_binding_from_original_input(state, &input, &context.namespace_identity())
+    });
     let normal = facts.normal_handler_implementation_lookup(state.baseline.dialect);
     if match normal {
         NormalHandlerImplementationLookup::NoneRequired => false,
@@ -4126,14 +4804,14 @@ fn transfer_native_completion_outputs(
     native: SourceNativeInvocation<'_>,
     facts: &InvocationFacts,
     route: tcl_registry::completion_route::InvocationCompletionRoute,
-    registry: &CommandRegistry,
+    context: SourceExecutionContext<'_>,
 ) {
     if native_output_binding_phase(facts)
         == tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation
         && let Some(normal) = &mut outcomes.normal
     {
         let before_outputs = boxed_source_branch(normal);
-        transfer_native_outputs(native, facts, normal, registry);
+        transfer_native_outputs(native, facts, normal, context);
         if route.abrupt_possible() {
             let after_outputs = boxed_source_branch(normal);
             outcomes.add_abrupt(
@@ -4207,21 +4885,28 @@ fn transfer_native_outputs(
     native: SourceNativeInvocation<'_>,
     facts: &InvocationFacts,
     state: &mut ModuleCommandBindings,
-    registry: &CommandRegistry,
+    context: SourceExecutionContext<'_>,
 ) {
+    let registry = context.registry;
     select_contents_write_source(state);
     let order = native_output_order(native, facts);
-    let places = crate::variable_bindings::source_variable_write_places_with_output_order(
+    let places = crate::variable_bindings::source_variable_write_places_with_output_order_and_original_operands(
         facts,
         native.invocation.arguments(),
         &state.source_variables,
         registry,
         order.as_deref(),
+        native.original_variable_operands,
     );
     if places.iter().any(|place| place.observed) {
         state.mark_opaque_binding_mutation();
     }
-    state.record_provider_state_writes(facts, *native.invocation, registry);
+    state.record_provider_state_writes(
+        facts,
+        *native.invocation,
+        registry,
+        native.original_variable_operands,
+    );
     let variables = Arc::make_mut(&mut state.source_variables);
     variables.namespace_identities = state.namespaces.iter().cloned().collect();
     variables.known_namespaces = state
@@ -4229,14 +4914,17 @@ fn transfer_native_outputs(
         .iter()
         .filter_map(SourceNamespaceKey::advisory_key)
         .collect();
-    crate::variable_bindings::transfer_source_namespace_cells_with_output_order(
+    crate::variable_bindings::transfer_source_namespace_cells_with_input(
         variables,
         facts,
         native.invocation.arguments(),
         registry,
-        true,
-        native.segment.span.start(),
-        order.as_deref(),
+        crate::variable_bindings::SourceNamespaceTransfer::new(
+            true,
+            native.segment.span.start(),
+            order.as_deref(),
+        )
+        .with_original_operands(native.original_variable_operands),
     );
 }
 
@@ -4262,6 +4950,36 @@ struct SourceNativeFrameSelection {
     frame: crate::var_resolve::VariableExecutionFrame,
     variables: Option<Arc<crate::var_resolve::ResolveContext>>,
     namespace_activation: bool,
+}
+
+fn entered_receiver_body_context(
+    body: &DeferredSourceBody,
+    target: &SourceCommandTarget,
+    receiver: Option<receiver_self::CalledBodyReceiver>,
+    frame: &crate::var_resolve::VariableExecutionFrame,
+    called: &crate::var_resolve::ResolveContext,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Arc<original_receiver_body_context::OriginalReceiverBodyContext>> {
+    receiver
+        .and_then(|receiver| {
+            original_receiver_body_context::OriginalReceiverBodyContext::at_entered_call(
+                body, target, receiver, frame, called, config,
+            )
+        })
+        .map(Arc::new)
+}
+
+fn source_lambda_frame(
+    state: &ModuleCommandBindings,
+    namespace: &str,
+    namespace_key: &SourceNamespaceKey,
+    site: u32,
+) -> crate::var_resolve::VariableExecutionFrame {
+    crate::var_resolve::VariableExecutionFrame::Procedure {
+        namespace: namespace.to_owned(),
+        identity: source_activation_name(state.current_source_origin.as_ref(), "lambda", site),
+    }
+    .with_namespace_identity(namespace_key.clone())
 }
 
 fn called_body_frame(
@@ -4404,16 +5122,42 @@ fn select_native_frame(
             tcl_registry::hooks::LoweringHookId::NamespaceEval,
         )
     {
-        let Some(name) = invocation.arguments().literal_at(1) else {
+        let Some(target) = facts.state_transitions.declared().and_then(|transitions| {
+            let mut targets =
+                transitions
+                    .facts()
+                    .iter()
+                    .filter_map(|fact| match &fact.transition {
+                        StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensure {
+                            namespace,
+                        }) => Some(namespace),
+                        _ => None,
+                    });
+            let selected = targets.next()?;
+            targets.all(|target| target == selected).then_some(selected)
+        }) else {
             state.mark_opaque_resolution();
             return Err(route);
         };
-        let target = tcl_registry::NamespaceTransitionTarget::Named(TransitionSubject::Literal(
-            name.to_owned(),
-        ));
-        let Some(selected) =
-            state.ensure_namespace_key_at(&target, &namespace_key, segment.span.start())
-        else {
+        let selected = match target {
+            tcl_registry::NamespaceTransitionTarget::Named(subject)
+                if matches!(
+                    state
+                        .baseline
+                        .execution_name_policy
+                        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                        .map(tcl_syntax::naming::NamePolicyProtocol::recipe),
+                    Some(tcl_syntax::naming::NativeNameProtocol::C(_))
+                ) && (subject.literal().is_none()
+                    || !matches!(namespace_key, SourceNamespaceKey::Authored(_))) =>
+            {
+                original_command_table::original_operand(native, subject, state, context).and_then(
+                    |input| state.original_namespace_key_for_input(&namespace_key, &input),
+                )
+            }
+            _ => state.ensure_namespace_key_at(target, &namespace_key, segment.span.start()),
+        };
+        let Some(selected) = selected else {
             state.mark_opaque_resolution();
             return Err(route);
         };
@@ -4466,11 +5210,17 @@ fn select_native_frame(
 fn install_selected_native_frame(
     state: &mut ModuleCommandBindings,
     frame: &crate::var_resolve::VariableExecutionFrame,
+    namespace_key: &SourceNamespaceKey,
     namespace_activation: bool,
     selected_variables: Option<Arc<crate::var_resolve::ResolveContext>>,
 ) {
     if namespace_activation {
-        state.source_variables = Arc::new(state.source_variables.enter_called_frame(frame));
+        let mut variables = state.source_variables.enter_called_frame(frame);
+        // This exact selected Ensure/frame owns the source namespace identity.
+        // Authored frame presentation deliberately supplies no native token;
+        // retain the independent source key without decoding that presentation.
+        variables.namespace_identity = Some(namespace_key.clone());
+        state.source_variables = Arc::new(variables);
         state.variable_frame = frame.clone();
     } else if let Some(selected) = selected_variables {
         state.source_variables = selected;
@@ -4510,6 +5260,7 @@ fn prepare_selected_native_body(
     install_selected_native_frame(
         state,
         &selection.frame,
+        &selection.namespace_key,
         selection.namespace_activation,
         selection.variables.take(),
     );
@@ -4579,12 +5330,42 @@ fn source_iteration_variable_lists(
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct SourceNormalCompletion;
 
+/// A closed native leaf handler at this exact original invocation. A body's
+/// normal child result cannot supply the enclosing handler's certificate.
+#[derive(Clone)]
+struct SourceNativeNormalCompletion {
+    site: CommandAllocationSite,
+    config: tcl_lexer::LexerConfig,
+    words: Vec<crate::ir::WordExpr>,
+    operation: tcl_registry::SemanticOperationId,
+}
+
+impl SourceNativeNormalCompletion {
+    fn matches(
+        &self,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        self.config == context.config
+            && self.words == native.words
+            && self.operation == facts.operation
+            && self.site.offset == native.segment.span.start()
+            && state.current_source_origin.as_ref() == Some(&self.site.source)
+            && !state.source_step_observed()
+            && !state.source_execution_observed(None)
+    }
+}
+
 #[derive(Clone, Default)]
 struct SourceOutcomes {
     normal_completion: Option<SourceNormalCompletion>,
+    native_normal_completion: Option<SourceNativeNormalCompletion>,
     complete_procedure_return: Option<tcl_registry::completion_route::InvocationCompletionRoute>,
     normal: Option<Box<ModuleCommandBindings>>,
     normal_value: Option<Arc<native_result::EvaluatedSourceValue>>,
+    normal_name_value: Option<Arc<original_name_value::OriginalProducedNameValue>>,
     // Immutable proof storage stays off frames retained by recursive bodies.
     normal_representation: Option<Arc<source_representation::FrozenSourceRepresentation>>,
     normal_object: Option<Arc<SourceObjectInstanceProof>>,
@@ -4593,6 +5374,10 @@ struct SourceOutcomes {
     abrupt_objects: Vec<(
         tcl_registry::completion_route::InvocationCompletionRoute,
         Arc<SourceObjectInstanceProof>,
+    )>,
+    abrupt_name_values: Vec<(
+        tcl_registry::completion_route::InvocationCompletionRoute,
+        Arc<original_name_value::OriginalProducedNameValue>,
     )>,
     abrupt_values: Vec<(
         tcl_registry::completion_route::InvocationCompletionRoute,
@@ -4606,6 +5391,15 @@ struct SourceOutcomes {
 
 /// Allocate the outcome accumulator outside frames retained by live body
 /// recursion. The heap owner preserves all normal/abrupt alternatives.
+/// Preserve complete completion premises on the heap across body descent.
+/// Construction temporaries end in this leaf before recursion begins.
+#[inline(never)]
+fn boxed_source_completion_receipt<T>(capture: impl FnOnce() -> Option<T>) -> Option<Box<T>> {
+    // Implementation contract: naming.source.recursive-driver-state-transport
+    // docs/design/analysis/name-resolution-proofs/recursive-driver-state-transport.md
+    capture().map(Box::new)
+}
+
 #[inline(never)]
 fn boxed_source_outcomes() -> Box<SourceOutcomes> {
     Box::new(SourceOutcomes::default())
@@ -4624,9 +5418,37 @@ fn join_source_procedure_noop(outcomes: &mut SourceOutcomes, incoming: &ModuleCo
 }
 
 impl SourceOutcomes {
+    fn retain_closed_native_handler_completion(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        context: SourceExecutionContext<'_>,
+    ) {
+        let Some(normal) = self.normal.as_ref().filter(|_| self.abrupt.is_empty()) else {
+            return;
+        };
+        let Some(source) = normal.current_source_origin.as_ref() else {
+            return;
+        };
+        if normal.source_step_observed() || normal.source_execution_observed(None) {
+            return;
+        }
+        self.native_normal_completion = Some(SourceNativeNormalCompletion {
+            site: CommandAllocationSite {
+                source: Arc::clone(source),
+                offset: native.segment.span.start(),
+            },
+            config: context.config,
+            words: native.words.to_vec(),
+            operation: facts.operation,
+        });
+        self.retain_complete_normal_evaluation();
+    }
+
     fn discard_normal_handler_entry(&mut self) {
         self.normal = None;
         self.normal_value = None;
+        self.normal_name_value = None;
         self.normal_representation = None;
         self.normal_object = None;
         self.normal_method_prefix = None;
@@ -4679,6 +5501,7 @@ impl SourceOutcomes {
     ) {
         if route.normal_possible() {
             self.normal_value = None;
+            self.normal_name_value = None;
             self.normal_representation = None;
             self.normal_object = None;
             self.normal_method_prefix = None;
@@ -4702,6 +5525,7 @@ impl SourceOutcomes {
         self.normal_completion = None;
         self.complete_procedure_return = None;
         self.abrupt_values.retain(|(known, _)| *known != route);
+        self.abrupt_name_values.retain(|(known, _)| *known != route);
         self.abrupt_objects.retain(|(known, _)| *known != route);
         if matches!(
             route,
@@ -4775,6 +5599,15 @@ impl SourceOutcomes {
             } else {
                 None
             };
+            let name_value = if self.normal.is_none() {
+                other.normal_name_value.clone()
+            } else {
+                self.normal_name_value
+                    .as_ref()
+                    .zip(other.normal_name_value.as_ref())
+                    .and_then(|(left, right)| left.joined(right))
+                    .map(Arc::new)
+            };
             self.add_with_result(
                 tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
                     tcl_registry::completion::CompletionCode::Ok,
@@ -4782,18 +5615,44 @@ impl SourceOutcomes {
                 normal,
                 other.normal_value.as_ref(),
             );
+            self.normal_name_value = name_value;
             self.normal_object = object;
             self.normal_method_prefix = prefix;
             self.normal_rhs_read = rhs_read;
             self.normal_representation = representation;
         }
         for (route, state) in &other.abrupt {
+            let present = self.abrupt.iter().any(|(known, _)| known == route);
+            let name_value = if present {
+                self.abrupt_name_values
+                    .iter()
+                    .find(|(known, _)| known == route)
+                    .map(|(_, value)| value)
+                    .zip(
+                        other
+                            .abrupt_name_values
+                            .iter()
+                            .find(|(known, _)| known == route)
+                            .map(|(_, value)| value),
+                    )
+                    .and_then(|(left, right)| left.joined(right))
+                    .map(Arc::new)
+            } else {
+                other
+                    .abrupt_name_values
+                    .iter()
+                    .find(|(known, _)| known == route)
+                    .map(|(_, value)| Arc::clone(value))
+            };
             self.join_abrupt_result(
                 *route,
                 state,
                 other.result_for(*route),
                 other.object_for(*route),
             );
+            if let Some(value) = name_value {
+                self.abrupt_name_values.push((*route, value));
+            }
         }
         self.normal_completion = complete.filter(|_| self.abrupt.is_empty());
         self.complete_procedure_return = complete_return.filter(|route| {
@@ -4825,12 +5684,18 @@ impl SourceOutcomes {
                 .cloned()
         });
         if let Some(normal) = &self.normal {
+            let name_value = self
+                .normal_name_value
+                .as_ref()
+                .filter(|value| value.is_current(&normal.source_variables))
+                .cloned();
             outcomes.add_with_object_result(
                 Route::Tcl(tcl_registry::completion::CompletionCode::Ok),
                 normal,
                 self.normal_value.as_ref(),
                 self.normal_object.as_ref(),
             );
+            outcomes.normal_name_value = name_value;
         }
         for (route, state) in &self.abrupt {
             let converted = route.through_procedure_boundary_in(dialect);
@@ -4839,12 +5704,40 @@ impl SourceOutcomes {
                 // conversion cannot inherit the fall-through result's object.
                 representation = None;
             }
+            let name_value = self
+                .abrupt_name_values
+                .iter()
+                .find(|(known, _)| known == route)
+                .map(|(_, value)| value)
+                .filter(|value| value.is_current(&state.source_variables));
+            let joined_name = if converted.normal_possible() {
+                if outcomes.normal.is_some() {
+                    outcomes
+                        .normal_name_value
+                        .as_ref()
+                        .zip(name_value)
+                        .and_then(|(left, right)| left.joined(right))
+                        .map(Arc::new)
+                } else {
+                    name_value.cloned()
+                }
+            } else {
+                outcomes.normal_name_value.clone()
+            };
             outcomes.add_with_object_result(
                 converted,
                 state,
                 self.result_for(*route),
                 self.object_for(*route),
             );
+            outcomes.normal_name_value = joined_name;
+            if converted.abrupt_possible()
+                && let Some(value) = name_value
+            {
+                outcomes
+                    .abrupt_name_values
+                    .push((converted, Arc::clone(value)));
+            }
         }
         outcomes.normal_completion = if self.complete_procedure_return.is_some()
             && self.normal.is_none()
@@ -4913,6 +5806,56 @@ impl SourceOutcomes {
         {
             state.current_source_origin = origin.cloned();
         }
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+fn trace_source_deferred(
+    started: Option<std::time::Instant>,
+    stage: &str,
+    bindings: &SourceCommandBindings,
+) {
+    if let Some(started) = started {
+        eprintln!(
+            "SOURCE_DEFERRED_PHASE stage={stage} ms={} roots={} outcomes={} layouts={}",
+            started.elapsed().as_millis(),
+            bindings.deferred.len(),
+            bindings.deferred_outcomes.len(),
+            bindings.declaration_layouts.len()
+        );
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+fn trace_source_analysis(
+    start: Option<std::time::Instant>,
+    stage: &str,
+    source_len: usize,
+    bindings: &SourceCommandBindings,
+) {
+    if let Some(start) = start {
+        eprintln!(
+            "SOURCE_PHASE bytes={} stage={} ms={} points={} layouts={}",
+            source_len,
+            stage,
+            start.elapsed().as_millis(),
+            bindings.points.len(),
+            bindings.declaration_layouts.len()
+        );
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+fn trace_source_lookup(before: Option<(u64, u128)>, stage: &str, source_len: usize) {
+    if let Some((before_calls, before_nanos)) = before {
+        let (calls, nanos) = original_command_table::baseline_lookup_totals();
+        eprintln!(
+            "SOURCE_LOOKUP_PHASE bytes={} stage={} calls={} ms={}",
+            source_len,
+            stage,
+            calls.saturating_sub(before_calls),
+            nanos.saturating_sub(before_nanos) / 1_000_000
+        );
     }
 }
 
@@ -5025,26 +5968,22 @@ impl SourceCommandBindings {
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
     ) -> Self {
-        use crate::var_resolve::VariableExecutionFrame;
+        #[cfg(any(test, debug_assertions))]
+        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        #[cfg(any(test, debug_assertions))]
+        let lookup_start = phase_start.map(|_| original_command_table::baseline_lookup_totals());
         let config = options.native_lexer_config(config);
-        let namespace = match frame.layout() {
-            VariableExecutionFrame::Namespace(namespace)
-            | VariableExecutionFrame::NamespaceActivation { namespace, .. }
-            | VariableExecutionFrame::Procedure { namespace, .. }
-            | VariableExecutionFrame::Selected {
-                namespace: Some(namespace),
-                ..
-            } => namespace,
-            VariableExecutionFrame::Selected {
-                namespace: None, ..
-            }
-            | VariableExecutionFrame::ReceiverMethod { .. }
-            | VariableExecutionFrame::Global
-            | VariableExecutionFrame::Unknown => "::",
-            VariableExecutionFrame::NamespaceIdentity { .. } => {
-                unreachable!("layout excludes identity wrappers")
-            }
-        };
+        let memo_key = source_analysis_cache::SourceAnalysisCacheKey::at_entry(
+            image, frame, config, registry, options,
+        );
+        if let Some(bindings) = memo_key.as_ref().and_then(source_analysis_cache::lookup) {
+            #[cfg(any(test, debug_assertions))]
+            trace_source_analysis(phase_start, "memo", source.len(), &bindings);
+            return bindings;
+        }
+        let namespace = source_frame_namespace(frame);
         let mut bindings = Self {
             compilation_scope: options.compilation_scope,
             lexer_config: Some(config),
@@ -5052,13 +5991,6 @@ impl SourceCommandBindings {
         };
         let mut state =
             ModuleCommandBindings::initial_with_options(registry, options, Some(config));
-        if !options.incoming_formals.is_empty() {
-            state.source_variables = Arc::new(state.source_variables.in_frame(frame));
-            state.variable_frame = frame.clone();
-            for name in options.incoming_formals {
-                Arc::make_mut(&mut state.source_variables).bind_unknown_incoming(name, registry);
-            }
-        }
         state.current_source_origin = Some(Arc::new(SourceOriginId::authored_image(image.clone())));
         state.ordinary_literal_pool =
             literal_object_pool::SourceOrdinaryLiteralPool::at_entry(&state, options);
@@ -5075,40 +6007,57 @@ impl SourceCommandBindings {
             })
             .unwrap_or_else(|| SourceNamespaceKey::authored(namespace));
         let frame = frame.clone().with_namespace_identity(namespace_key.clone());
+        // This API's supplied frame is the entry activation. It is not a
+        // nested call whose final state should restore the initial model frame.
+        if state.variable_frame != frame {
+            state.source_variables = source_variables_in_frame(&state.source_variables, &frame);
+            state.variable_frame = frame.clone();
+        }
+        for name in options.incoming_formals {
+            Arc::make_mut(&mut state.source_variables).bind_unknown_incoming(name, registry);
+        }
+        #[cfg(any(test, debug_assertions))]
+        trace_source_analysis(phase_start, "initial", source.len(), &bindings);
         let root_outcomes = bindings.walk_source(
             source,
             0,
             &mut state,
-            &SourceExecutionContext {
-                realm: options.invocation_realm,
-                compilation: options.native_compilation,
-                compilation_snapshot: None,
-                selected_compilation: None,
+            &root_source_execution_context(
+                &frame,
                 namespace,
+                &namespace_key,
                 config,
                 registry,
-                depth: 0,
-                frame: &frame,
-                invocation_offset: 0,
-                variable_read_owner: None,
-                written_arguments: None,
-                written_values: None,
-                written_representations: None,
-                written_objects: None,
-                written_method_prefixes: None,
-                written_variable_reads: None,
-                namespace_key: Some(&namespace_key),
-                expression_source: None,
-            },
+                options,
+            ),
         );
+        #[cfg(any(test, debug_assertions))]
+        trace_source_analysis(phase_start, "walk", source.len(), &bindings);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_lookup(lookup_start, "walk", source.len());
+        if root_outcomes.normal_completion.is_some() && root_outcomes.abrupt.is_empty() {
+            bindings.original_completed_root_state = root_outcomes
+                .normal
+                .as_ref()
+                .map(|normal| Arc::new((**normal).clone()));
+        }
         if let Some(normal) = root_outcomes.normal {
             state = *normal;
         }
         if options.compilation_scope == tcl_runtime_api::SourceCompilationScope::WholeModule {
             bindings.analyse_deferred_entries(&state, config, registry);
         }
+        #[cfg(any(test, debug_assertions))]
+        trace_source_analysis(phase_start, "deferred", source.len(), &bindings);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_lookup(lookup_start, "deferred", source.len());
         bindings.invalidate_unpositioned_projections();
         bindings.final_state = Arc::new(state);
+        if let Some(key) = memo_key {
+            source_analysis_cache::retain(key, &bindings);
+        }
+        #[cfg(any(test, debug_assertions))]
+        trace_source_analysis(phase_start, "complete", source.len(), &bindings);
         bindings
     }
 
@@ -5118,9 +6067,42 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
     ) {
+        #[cfg(any(test, debug_assertions))]
+        let started = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        #[cfg(any(test, debug_assertions))]
+        let mut last_report = started;
+        #[cfg(any(test, debug_assertions))]
+        let mut iteration = 0_usize;
         loop {
             let root_count = self.deferred.len();
-            for (root, entry) in self.deferred_entry_states(incoming) {
+            #[cfg(any(test, debug_assertions))]
+            if let Some(started) = started {
+                iteration += 1;
+                eprintln!(
+                    "SOURCE_DEFERRED_PROGRESS stage=select iteration={iteration} ms={} roots={root_count}",
+                    started.elapsed().as_millis()
+                );
+            }
+            for (_root_index, (root, entry)) in
+                self.deferred_entry_states(incoming).into_iter().enumerate()
+            {
+                #[cfg(any(test, debug_assertions))]
+                if let Some(started) = started
+                    && (_root_index == 0
+                        || last_report.is_some_and(|last| last.elapsed().as_secs() >= 1))
+                {
+                    eprintln!(
+                        "SOURCE_DEFERRED_PROGRESS stage=entry iteration={iteration} index={_root_index} ms={} roots={root_count} bytes={} offset={} outcomes={} layouts={}",
+                        started.elapsed().as_millis(),
+                        root.source.len(),
+                        root.offset,
+                        self.deferred_outcomes.len(),
+                        self.declaration_layouts.len()
+                    );
+                    last_report = Some(std::time::Instant::now());
+                }
                 if self
                     .called_implementations
                     .contains(&root.implementation_id())
@@ -5133,8 +6115,14 @@ impl SourceCommandBindings {
                 break;
             }
         }
+        #[cfg(any(test, debug_assertions))]
+        trace_source_deferred(started, "entries", self);
         self.analyse_called_declaration_results(incoming, config, registry);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_deferred(started, "called", self);
         self.retain_uninstalled_declaration_body_layouts(registry);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_deferred(started, "layouts", self);
     }
 
     fn analyse_called_declaration_results(
@@ -5317,7 +6305,7 @@ impl SourceCommandBindings {
         };
         seed_deferred_inputs(&mut branch, root, &frame, registry);
         if let Some((parent, argument, script)) = &root.executed_script {
-            self.record_executed_script(parent.clone(), *argument, script.clone(), None);
+            self.record_executed_script(parent.clone(), *argument, script.clone(), None, None);
             if let Some((origin, span)) = &root.executed_word {
                 self.record_executed_word(origin, *span, None, script.clone());
             }
@@ -5339,6 +6327,7 @@ impl SourceCommandBindings {
                 compilation,
                 compilation_snapshot: None,
                 selected_compilation: None,
+                original_variable_compilation: None,
                 namespace: &root.namespace,
                 config,
                 registry,
@@ -5346,8 +6335,10 @@ impl SourceCommandBindings {
                 frame: &frame,
                 invocation_offset: 0,
                 variable_read_owner: None,
+                original_written_projection: None,
                 written_arguments: None,
                 written_values: None,
+                written_name_values: None,
                 written_representations: None,
                 written_objects: None,
                 written_method_prefixes: None,
@@ -5737,7 +6728,10 @@ impl SourceCommandBindings {
             trusted_source_modules: &self.final_state.baseline.trusted_source_modules,
             unknown_entry: false,
             invocation_dialect: self.final_state.baseline.dialect,
+            hosted_execution_context: self.final_state.baseline.hosted_execution_context,
             execution_name_policy: self.final_state.baseline.execution_name_policy,
+            logical_source_input: self.final_state.baseline.logical_source_input.as_ref(),
+            vendor_source_input: self.final_state.baseline.vendor_source_input.as_ref(),
             compiled_variable_provider: self.final_state.baseline.compiled_variable_provider,
         };
         let fallback = crate::var_resolve::VariableExecutionFrame::Namespace(namespace.to_owned());
@@ -5788,27 +6782,40 @@ impl SourceCommandBindings {
                 {
                     return false;
                 }
-                let contracts = isolated.invocation_at_source(head, point.offset).targets;
-                contracts.iter().all(|target| {
-                    registry
-                        .get(&target.command)
-                        .and_then(|spec| spec.body_execution)
-                        .is_none_or(|contract| {
-                            let tcl_registry::body_execution::BodyExecutionSpec::CapturedLifecycle(
-                                contract,
-                            ) = contract
-                            else {
-                                return true;
-                            };
-                            isolated
-                                .loaded_implementation_at(contract.provider.package, point.offset)
-                                == self.loaded_implementation_at(
-                                    contract.provider.package,
-                                    original_offset,
-                                )
-                        })
-                })
+                self.same_isolated_body_dependencies(
+                    &isolated,
+                    head,
+                    point.offset,
+                    original_offset,
+                    registry,
+                )
             })
+    }
+
+    fn same_isolated_body_dependencies(
+        &self,
+        isolated: &Self,
+        head: &str,
+        offset: u32,
+        original_offset: u32,
+        registry: &CommandRegistry,
+    ) -> bool {
+        let contracts = isolated.invocation_at_source(head, offset).targets;
+        contracts.iter().all(|target| {
+            registry
+                .get(&target.command)
+                .and_then(|spec| spec.body_execution)
+                .is_none_or(|contract| {
+                    let tcl_registry::body_execution::BodyExecutionSpec::CapturedLifecycle(
+                        contract,
+                    ) = contract
+                    else {
+                        return true;
+                    };
+                    isolated.loaded_implementation_at(contract.provider.package, offset)
+                        == self.loaded_implementation_at(contract.provider.package, original_offset)
+                })
+        })
     }
 
     /// Restore every rebased cache carrier from its original source instance.
@@ -5891,6 +6898,21 @@ impl SourceCommandBindings {
     /// Attach exact retained source proofs to original command words. Missing
     /// reached sites stay explicitly unknown; this never constructs entry facts.
     pub fn stamp_original_tokens(&self, tokens: &mut crate::ir::CommandTokens) {
+        self.stamp_original_tokens_with_bindings(tokens, |offset| {
+            self.invocation_at_source("", offset)
+        });
+    }
+
+    /// Retain the same original offset inventory and attachments while an
+    /// immutable owner supplies its complete derived point projection.
+    /// Mutable builders use the ordinary query and retain no projection memo.
+    pub(crate) fn stamp_original_tokens_with_bindings(
+        &self,
+        tokens: &mut crate::ir::CommandTokens,
+        mut binding_at: impl FnMut(u32) -> SourceInvocationBinding,
+    ) {
+        // Implementation contract: naming.source.original-invocation-projection-memo
+        // docs/design/analysis/name-resolution-proofs/original-invocation-projection-memo.md
         let Some(head) = tokens.words().first() else {
             return;
         };
@@ -5903,9 +6925,7 @@ impl SourceCommandBindings {
                 && let Some(head) = nested.words().first()
             {
                 let offset = head.source().span.start();
-                tokens
-                    .nested_bindings
-                    .push((offset, self.invocation_at_source(&lifted.command, offset)));
+                tokens.nested_bindings.push((offset, binding_at(offset)));
             }
         }
         let mut retained = tokens
@@ -5939,12 +6959,10 @@ impl SourceCommandBindings {
             .collect::<Vec<_>>();
         for nested in nested_offsets.into_iter().chain(compiled_offsets) {
             if retained.insert(nested) {
-                tokens
-                    .nested_bindings
-                    .push((nested, self.invocation_at_source("", nested)));
+                tokens.nested_bindings.push((nested, binding_at(nested)));
             }
         }
-        tokens.source_binding = Some(self.invocation_at_source("", offset));
+        tokens.source_binding = Some(binding_at(offset));
     }
 
     /// Loader provenance live at an exact invocation site, independently of
@@ -6084,7 +7102,7 @@ impl SourceCommandBindings {
             ..Self::default()
         };
         let compilation = state.baseline.native_compilation;
-        bindings.walk_source(
+        let root_outcomes = bindings.walk_source(
             script,
             source_base,
             &mut state,
@@ -6093,6 +7111,7 @@ impl SourceCommandBindings {
                 compilation,
                 compilation_snapshot: None,
                 selected_compilation: None,
+                original_variable_compilation: None,
                 namespace: &namespace,
                 frame,
                 config,
@@ -6100,8 +7119,10 @@ impl SourceCommandBindings {
                 depth: 0,
                 invocation_offset: 0,
                 variable_read_owner: None,
+                original_written_projection: None,
                 written_arguments: None,
                 written_values: None,
+                written_name_values: None,
                 written_representations: None,
                 written_objects: None,
                 written_method_prefixes: None,
@@ -6110,6 +7131,15 @@ impl SourceCommandBindings {
                 expression_source: None,
             },
         );
+        if root_outcomes.normal_completion.is_some() && root_outcomes.abrupt.is_empty() {
+            bindings.original_completed_root_state = root_outcomes
+                .normal
+                .as_ref()
+                .map(|normal| Arc::new((**normal).clone()));
+        }
+        if let Some(normal) = root_outcomes.normal {
+            state = *normal;
+        }
         bindings.invalidate_unpositioned_projections();
         bindings.final_state = Arc::new(state);
         Some(bindings)
@@ -6147,7 +7177,7 @@ impl SourceCommandBindings {
             };
         };
         let binding = |point: &SourceBindingPoint| {
-            let mut binding = point.binding(point.head.as_deref().unwrap_or_default());
+            let mut binding = point.original_dispatch_binding();
             binding
                 .frozen_head_object
                 .clone_from(&point.frozen_head_object);
@@ -6156,6 +7186,9 @@ impl SourceCommandBindings {
                 binding
                     .frozen_written_words
                     .clone_from(&point.frozen_written_words);
+                binding
+                    .frozen_written_names
+                    .clone_from(&point.frozen_written_names);
             }
             binding
                 .evaluated_argument_values
@@ -6163,7 +7196,7 @@ impl SourceCommandBindings {
             binding
                 .evaluated_argument_words
                 .clone_from(&point.evaluated_argument_words);
-            if point.head.is_none() {
+            if point.original_head_input.is_none() {
                 binding.unknown = true;
                 binding.targets.clear();
                 binding.declared_command = None;
@@ -6274,6 +7307,7 @@ impl SourceCommandBindings {
         let mut prepared = Box::<PreparedSourceChunk>::default();
         self.prepare_source_chunk(image, base, state, context, &mut prepared);
         if let Some(failed) = prepared.failed_outcome.take() {
+            self.record_incomplete_body_header(image, base, state, context);
             self.record_unrepresented_source_entry(state, context);
             self.record_runtime_coverage(
                 state.current_source_origin.as_ref(),
@@ -6333,6 +7367,7 @@ impl SourceCommandBindings {
         if namespace_known {
             retain_source_namespace_world(state, context);
         }
+        self.retain_original_script_activation(image, base, state, context);
         let mut outcomes = self.walk_source_segments(
             image,
             base,
@@ -6390,6 +7425,17 @@ impl SourceCommandBindings {
             };
             let prefix_complete = outcomes.normal_completion;
             let command = self.walk_source_command(image, base, &mut continuing, segment, context);
+            #[cfg(debug_assertions)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+                eprintln!(
+                    "ORIGINAL_COMMAND_COMPLETION site={} prefix_complete={} command_complete={} normal={} abrupt={}",
+                    segment.span.start(),
+                    prefix_complete.is_some(),
+                    command.normal_completion.is_some(),
+                    command.normal.is_some(),
+                    command.abrupt.len(),
+                );
+            }
             outcomes.join(&command);
             outcomes.normal_completion = outcomes
                 .normal_completion
@@ -6492,9 +7538,12 @@ impl SourceCommandBindings {
             compilation: context.compilation,
             compiled_execution: compiled_invocation::CompiledInvocationSelection::default(),
             head: None,
+            original_head_input: None,
+            original_written_words: None,
             evaluated_argument_values: Vec::new(),
             evaluated_argument_words: Vec::new(),
             frozen_written_words: None,
+            frozen_written_names: None,
             frozen_head_object: None,
             method_prefix_arguments: Vec::new(),
             offset: segment.span.end().saturating_add(1),
@@ -6527,6 +7576,23 @@ impl SourceCommandBindings {
             context,
             segment.span.start(),
         );
+        #[cfg(test)]
+        trace_original_selection(
+            words.words(),
+            segment.span.start(),
+            state,
+            context,
+            &compiled,
+        );
+        let original_variable_compilation =
+            original_name_value::OriginalSourceVariableCompilation::from_selected(
+                &compiled, state, *context,
+            );
+        let original_context = Box::new(SourceExecutionContext {
+            original_variable_compilation: original_variable_compilation.as_ref(),
+            ..*context
+        });
+        let context = original_context.as_ref();
         if let Some(outcomes) = self.walk_original_list_assignment(
             SourceCommandInput {
                 image,
@@ -6541,14 +7607,15 @@ impl SourceCommandBindings {
         ) {
             return outcomes;
         }
-        // An unrepresented compiler can store or invoke callbacks before later
-        // written operands. Its possible world cannot borrow argv-first absence.
-        if compiled.unknown && !compiled.compile_error {
+        // Unknown opcode admission alone does not establish name effects.
+        // Unclosed compiler effects can precede the original argv, so their
+        // possible world cannot borrow argv-first absence.
+        if compiled.unknown && !compiled.compile_error && !compiled.compiler_preserves_names() {
             state.mark_opaque_binding_mutation();
         }
         let argument_entry =
             pre_handler_failure::ArgumentEntry::capture(state, context, segment.span.start());
-        let mut arguments =
+        let arguments =
             self.prepare_source_arguments(source, base, state, segment, words.words(), context);
         if !arguments.ready {
             self.record_pre_handler_failure(argument_entry, words.words(), &arguments.outcomes);
@@ -6558,15 +7625,50 @@ impl SourceCommandBindings {
             return empty_source_command_outcomes(state, &arguments.outcomes);
         }
         note_source_command_lookup(state, &compiled, &arguments.effective);
-        let context = source_argument_context_boxed(
+        self.walk_evaluated_source_command(
+            SourceCommandInput {
+                image,
+                segment,
+                words: words.words(),
+                effective: &[],
+            },
+            state,
+            &compiled,
             context,
-            &arguments.written_arguments,
-            &arguments.written_values,
-            &arguments.written_representations,
-            &arguments.written_objects,
-            &arguments.written_method_prefixes,
-            &arguments.written_variable_reads,
+            arguments,
+        )
+    }
+
+    #[inline(never)]
+    fn walk_evaluated_source_command(
+        &mut self,
+        input: SourceCommandInput<'_>,
+        state: &mut ModuleCommandBindings,
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        context: &SourceExecutionContext<'_>,
+        mut arguments: Box<PreparedSourceArguments>,
+    ) -> SourceOutcomes {
+        let SourceCommandInput {
+            image,
+            segment,
+            words,
+            ..
+        } = input;
+        let argument_context = source_argument_context_boxed(
+            context,
+            SourceArgumentReceipts {
+                arguments: &arguments.written_arguments,
+                values: &arguments.written_values,
+                name_values: &arguments.written_name_values,
+                representations: &arguments.written_representations,
+                objects: &arguments.written_objects,
+                prefixes: &arguments.written_method_prefixes,
+                reads: &arguments.written_variable_reads,
+            },
         );
+        let context = Box::new(argument_context.context());
+        #[cfg(test)]
+        trace_original_arguments(words, segment.span.start(), state, &context, &arguments);
 
         let execution_owner = self.begin_invocation_reads(
             state.current_source_origin.as_ref(),
@@ -6592,20 +7694,20 @@ impl SourceCommandBindings {
         let input = SourceCommandInput {
             image,
             segment,
-            words: words.words(),
+            words,
             effective: &arguments.effective,
         };
         let normal_result_basis = self.record_evaluated_source_point(
             input,
             state,
-            &compiled,
+            compiled,
             SourceObserverExecution::from_observed(observer_scope.was_observed),
             arguments.complete_normally && !observer_scope.was_observed,
             &context,
         );
         execution_context.withdraw_observed_operand_facts(observer_scope.was_observed);
         let dispatched =
-            self.walk_selected_source_command(input, state, &compiled, &execution_context);
+            self.walk_selected_source_command(input, state, compiled, &execution_context);
         let dispatched =
             self.finish_command_observer_scope(dispatched, &observer_scope, &execution_context);
         self.complete_normal_variable_continuation(
@@ -6656,7 +7758,7 @@ impl SourceCommandBindings {
         observer_execution: SourceObserverExecution,
         arguments_complete_normally: bool,
         context: &SourceExecutionContext<'_>,
-    ) -> normal_result::InvocationResultBasis {
+    ) -> Box<normal_result::InvocationResultBasis> {
         let SourceCommandInput {
             segment,
             words,
@@ -6676,6 +7778,19 @@ impl SourceCommandBindings {
             compilation: context.compilation,
             compiled_execution: compiled.clone(),
             head: head.map(str::to_owned),
+            original_head_input: original_name_value::original_command_head_input(
+                words,
+                segment.span.start(),
+                state,
+                context,
+            ),
+            original_written_words: original_name_value::OriginalWrittenSourceWords::at_dispatch(
+                words,
+                segment.span.start(),
+                state,
+                context.config,
+            )
+            .map(Arc::new),
             evaluated_argument_values: context
                 .written_arguments
                 .unwrap_or(effective)
@@ -6691,6 +7806,7 @@ impl SourceCommandBindings {
                 .cloned()
                 .collect(),
             frozen_written_words: context.written_arguments.map(Arc::from),
+            frozen_written_names: context.written_name_values.map(Arc::from),
             frozen_head_object: head_word.and_then(|word| {
                 context
                     .written_objects
@@ -6724,7 +7840,7 @@ impl SourceCommandBindings {
             lookup_snapshot: OnceLock::new(),
             dispatch: true,
         };
-        let basis = normal_result::InvocationResultBasis::of(&point, words);
+        let basis = Box::new(normal_result::InvocationResultBasis::of(&point, words));
         self.record_point(point);
         basis
     }
@@ -6745,9 +7861,14 @@ impl SourceCommandBindings {
         } = input;
         let mut outcomes = SourceOutcomes::default();
         self.retain_rule_loader_events(segment, words, effective, state, *context);
+        if let Some(outcomes) =
+            logical_definition::transfer_selected(words, segment.span.start(), state, *context)
+        {
+            return outcomes;
+        }
         if !compiled.compile_error
             && let Some(result) =
-                self.walk_selected_receiver_command(segment, effective, state, context)
+                self.walk_selected_receiver_command(segment, words, effective, state, context)
         {
             return *result;
         }
@@ -6802,6 +7923,7 @@ impl SourceCommandBindings {
     fn walk_selected_receiver_command(
         &mut self,
         segment: &crate::segmenter::SegmentedCommand,
+        words: &[crate::ir::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
@@ -6813,7 +7935,7 @@ impl SourceCommandBindings {
         if let Some(result) = Self::walk_receiver_builtin_links(effective, state, context) {
             return Some(Box::new(result));
         }
-        self.walk_retained_receiver_method(segment.span.start(), effective, state, context)
+        self.walk_retained_receiver_method(segment.span.start(), words, effective, state, context)
             .map(Box::new)
     }
 
@@ -6885,18 +8007,27 @@ impl SourceCommandBindings {
     ) -> SourceOutcomes {
         use tcl_registry::native_compilation::NativeCompilationSelection;
         let mut outcomes = SourceOutcomes::default();
-        let head = effective
-            .first()
-            .and_then(|word| word.as_registry_word().literal());
-        if let Some(target) =
-            compiled.stable_handler_after_arguments(head, incoming, &context.namespace_identity())
-            && let Some(declaration) = self
-                .walk_rule_loader_procedure(segment, words, effective, incoming, target, *context)
+        let head = original_name_value::original_command_head_input(
+            words,
+            segment.span.start(),
+            incoming,
+            *context,
+        );
+        if let Some(target) = compiled.stable_handler_after_original_arguments(
+            head.as_ref(),
+            incoming,
+            &context.namespace_identity(),
+        ) && let Some(declaration) =
+            self.walk_rule_loader_procedure(segment, words, effective, incoming, target, *context)
         {
             return declaration;
         }
         if let Some((target, transfer)) = compiled
-            .stable_handler_after_arguments(head, incoming, &context.namespace_identity())
+            .stable_handler_after_original_arguments(
+                head.as_ref(),
+                incoming,
+                &context.namespace_identity(),
+            )
             .and_then(|target| {
                 compiled_invocation::successful_handler_transfer(
                     target,
@@ -6908,7 +8039,7 @@ impl SourceCommandBindings {
                 .map(|transfer| (target, transfer))
             })
         {
-            let mut stable = incoming.clone();
+            let mut stable = boxed_source_branch(incoming);
             let selected_context =
                 source_selected_context_boxed(context, &NativeCompilationSelection::Unknown);
             let mut result = self.walk_source_target(
@@ -6933,7 +8064,7 @@ impl SourceCommandBindings {
                 incoming,
             );
         } else {
-            let mut residual = incoming.clone();
+            let mut residual = boxed_source_branch(incoming);
             residual.mark_opaque_binding_mutation();
             outcomes.join(&SourceOutcomes::invocation(
                 &residual,
@@ -6957,6 +8088,7 @@ impl SourceCommandBindings {
         let Ok(projected) = named_arguments::ProjectedNamedArguments::capture(
             words,
             effective,
+            incoming,
             context,
             proof.arguments_from,
         ) else {
@@ -6989,6 +8121,7 @@ impl SourceCommandBindings {
             } else {
                 self.walk_document_target(
                     segment.span.start(),
+                    Some(&projected.words),
                     &projected.effective,
                     &mut branch,
                     target,
@@ -7021,9 +8154,14 @@ impl SourceCommandBindings {
             ..
         } = input;
         let namespace = context.namespace_identity();
-        let head = effective
-            .first()
-            .and_then(|word| word.as_registry_word().literal());
+        let head = original_name_value::original_command_head_input(
+            words,
+            segment.span.start(),
+            state,
+            *context,
+        );
+        #[cfg(debug_assertions)]
+        trace_original_generic_head(segment.span.start(), state, head.is_some());
         let Some(head) = head else {
             state.mark_opaque_binding_mutation();
             outcomes.join(&SourceOutcomes::invocation(
@@ -7032,7 +8170,17 @@ impl SourceCommandBindings {
             ));
             return;
         };
-        let binding = source_binding_boxed(state, head, &namespace);
+        let binding = source_binding_from_original_input_boxed(state, &head, &namespace);
+        #[cfg(debug_assertions)]
+        trace_original_generic_binding(segment.span.start(), binding.as_deref());
+        let Some(binding) = binding else {
+            state.mark_opaque_binding_mutation();
+            outcomes.join(&SourceOutcomes::invocation(
+                state,
+                tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+            ));
+            return;
+        };
         let incoming = boxed_source_branch(state);
         if binding.unknown {
             let mut residual = incoming.clone();
@@ -7063,6 +8211,7 @@ impl SourceCommandBindings {
             } else {
                 self.walk_document_target(
                     segment.span.start(),
+                    Some(words),
                     effective,
                     &mut alternative,
                     target,
@@ -7070,6 +8219,8 @@ impl SourceCommandBindings {
                 )
             };
             retain_source_native_result(&mut result, &incoming, target, effective, context);
+            #[cfg(debug_assertions)]
+            trace_original_generic_result(segment.span.start(), &result);
             outcomes.join(&result);
         }
         outcomes.publish(state);
@@ -7078,6 +8229,7 @@ impl SourceCommandBindings {
     fn walk_document_target(
         &mut self,
         site: u32,
+        original_words: Option<&[crate::ir::WordExpr]>,
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         target: &SourceCommandTarget,
@@ -7095,28 +8247,13 @@ impl SourceCommandBindings {
             // the definition receipt. Its nominal result query is separate.
             return opaque_source_invocation(state);
         }
-        if let Some(result) =
-            self.walk_original_constructor(site, effective, state, target, context)
-        {
+        if let Some(result) = original_words.and_then(|words| {
+            self.walk_original_constructor(site, words, effective, state, target, context)
+        }) {
             return result;
         }
         let body = self.deferred.get(&target.implementation_id()).cloned();
         let Some(body) = body else {
-            if state.apply_bounded_constructor(
-                target,
-                &effective[1..],
-                context.registry,
-                context.namespace,
-                context.realm,
-            ) {
-                let mut proof = state.manufacture_object_proof(site, target, context);
-                if let Some(proof) = &mut proof {
-                    state.retain_named_manufacture(proof, &effective[1..], context);
-                }
-                let mut outcomes = SourceOutcomes::normal(state);
-                outcomes.normal_object = proof;
-                return outcomes;
-            }
             state.mark_opaque_binding_mutation();
             return SourceOutcomes::invocation(state, Route::Unknown);
         };
@@ -7129,7 +8266,17 @@ impl SourceCommandBindings {
             state.mark_opaque_binding_mutation();
             return SourceOutcomes::invocation(state, Route::Unknown);
         }
-        let result = self.walk_called_body(site, effective, state, target, &body, context);
+        let result = self.walk_called_body(
+            site,
+            effective,
+            state,
+            receiver_self::CalledBodyTarget {
+                target,
+                receiver: None,
+            },
+            &body,
+            context,
+        );
         self.active_calls.remove(&implementation);
         result
     }
@@ -7139,11 +8286,12 @@ impl SourceCommandBindings {
         site: u32,
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
-        target: &SourceCommandTarget,
+        selected: receiver_self::CalledBodyTarget<'_>,
         body: &DeferredSourceBody,
         context: SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let target = selected.target;
         if effective.iter().skip(1).any(|word| {
             matches!(
                 word,
@@ -7187,25 +8335,23 @@ impl SourceCommandBindings {
                 return opaque_source_invocation(state);
             }
         }
-        state.bind_called_receiver_variables(&mut called, body, context.registry);
-        source_representation::retain_value_formals(
+        state.bind_called_receiver_variables(
             &mut called,
-            &body.parameters,
-            actual.len(),
-            1,
+            body,
             target,
-            context,
+            selected.receiver,
+            context.registry,
         );
-        object_instance::retain_value_formals(
-            state,
+        retain_called_body_value_formals(state, &mut called, body, actual.len(), target, context);
+        let receiver_context = entered_receiver_body_context(
+            body,
+            target,
+            selected.receiver,
+            &frame,
             &called,
-            &body.parameters,
-            actual.len(),
-            1,
-            target,
-            context,
+            context.config,
         );
-        self.record_called_body_source(body, &frame);
+        self.record_called_body_source(body, &frame, Some(&namespace_key), receiver_context);
         state.source_variables = Arc::new(called);
         state.variable_frame = frame.clone();
         let previous_origin = state.current_source_origin.clone();
@@ -7219,6 +8365,7 @@ impl SourceCommandBindings {
                     compilation: procedure_compilation(state.baseline.compilation_dialect()),
                     compilation_snapshot: None,
                     selected_compilation: None,
+                    original_variable_compilation: None,
                     namespace: &holder,
                     namespace_key: Some(&namespace_key),
                     depth: context.depth + 1,
@@ -7237,9 +8384,24 @@ impl SourceCommandBindings {
         &mut self,
         body: &DeferredSourceBody,
         frame: &crate::var_resolve::VariableExecutionFrame,
+        namespace: Option<&SourceNamespaceKey>,
+        receiver_context: Option<Arc<original_receiver_body_context::OriginalReceiverBodyContext>>,
     ) {
         if let Some((parent, argument, script)) = &body.executed_script {
-            self.record_executed_script(parent.clone(), *argument, script.clone(), Some(frame));
+            self.record_executed_script(
+                parent.clone(),
+                *argument,
+                script.clone(),
+                Some(frame),
+                namespace,
+            );
+            self.record_original_receiver_body_context(
+                parent,
+                *argument,
+                script,
+                frame,
+                receiver_context,
+            );
             if let Some((origin, span)) = &body.executed_word {
                 self.record_executed_word(origin, *span, None, script.clone());
             }
@@ -7267,7 +8429,7 @@ impl SourceCommandBindings {
                 self.walk_source(script, source.span.start() + 1, state, &context)
             }
             WordExpr::Template { parts, .. } => {
-                self.walk_template_substitutions(parts, document, base, state, context)
+                self.walk_template_substitutions(word, parts, document, base, state, context)
             }
             WordExpr::Expand { word, .. } => {
                 let mut outcomes = self.walk_substitutions(word, document, base, state, context);
@@ -7294,22 +8456,23 @@ impl SourceCommandBindings {
         context: SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         let original = original_variable_source(document, base, source, context.config);
+        let arena = original_variable_arena(original.as_ref(), state, context.config);
+        let root = arena.as_ref().zip(original.as_ref()).and_then(|(arena, (_, read_site))| {
+            let policy = state.source_variables.execution_name_policy?.native_recipe()?;
+            crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_executable(
+                arena, arena.image(), context.config, read_site.span,
+                tcl_syntax::word_rules::WordValueRules::from_config(&context.config), policy)
+        });
+        let lexical = original_variable_compilation::OriginalSourceLexicalCompilation::at_source(
+            state, context,
+        );
         let mut outcomes = SourceOutcomes::normal(state);
-        let mut evaluated_index = None;
-        if let Some((original, read_site)) = &original {
-            let Ok(length) = u32::try_from(original.len()) else {
-                return opaque_source_invocation(state);
-            };
-            let Ok(arena) = tcl_lexer::word_parts::ExecutablePartArena::decompose(
-                tcl_lexer::SourceImage::native(original.as_bytes()),
-                tcl_lexer::Span::new(0, length),
-                tcl_lexer::word_parts::SubstFlags::default(),
-                context.config,
-            ) else {
-                return opaque_source_invocation(state);
-            };
+        let mut evaluated_index = root.as_ref().and_then(
+            crate::signature_scan::variable_name::SignatureSourceVariableRoot::static_index_input,
+        );
+        if let Some(arena) = &arena {
             for part in arena.list(arena.root()) {
-                if let tcl_lexer::word_parts::ExecutablePart::Variable {
+                if let tcl_lexer::ExecutablePart::Variable {
                     index: Some(index), ..
                 } = part.part
                 {
@@ -7318,18 +8481,16 @@ impl SourceCommandBindings {
                     };
                     publish_source_branch(state, continuing);
                     let index_outcomes = self.walk_variable_index_arena(
-                        SourceIndexView {
-                            arena: &arena,
-                            offset: read_site.span.start(),
-                        },
+                        SourceIndexView { arena, offset: 0 },
                         index,
                         state,
                         context,
                     );
-                    evaluated_index = index_outcomes
-                        .normal_value
-                        .as_ref()
-                        .map(|value| value.text.clone());
+                    if evaluated_index.is_none() {
+                        evaluated_index = index_outcomes.normal_name_value.as_deref().map(|value|
+                            crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(
+                                crate::signature_scan::scope::SignatureSourceNameValue::from_original_produced_value(value)));
+                    }
                     outcomes.join(&index_outcomes);
                 }
             }
@@ -7337,13 +8498,26 @@ impl SourceCommandBindings {
         if let Some(continuing) = outcomes.normal.take() {
             *state = *continuing;
             let spelling = original.as_ref().map_or(spelling, |(original, _)| original);
-            let access = crate::var_resolve::resolve_evaluated_substitution_access(
-                spelling,
-                evaluated_index.as_deref(),
-                &state.source_variables,
-                context.registry,
-                tcl_registry::TraceOperation::Read,
+            let logical = original_variable_compilation::logical_original_substitution_access(
+                original.as_ref(),
+                arena.as_ref(),
+                state,
+                context,
             );
+            let access = logical.unwrap_or_else(|| {
+                root.as_ref().zip(lexical.as_ref()).map_or_else(
+                    crate::place::unknown_top,
+                    |(root, lexical)| {
+                        lexical.resolve_root(
+                            root,
+                            evaluated_index.as_ref(),
+                            &state.source_variables,
+                            context.registry,
+                            tcl_registry::TraceOperation::Read,
+                        )
+                    },
+                )
+            });
             if let Some((original, read_site)) = &original
                 && read_site.provenance == crate::ir::Provenance::Source
             {
@@ -7368,16 +8542,11 @@ impl SourceCommandBindings {
                     context,
                 );
                 outcomes.join(&observed);
-            } else if let Some(proof) = state.object_read_proof(&access, context.registry) {
-                let mut normal = SourceOutcomes::normal(state);
-                normal.normal_object = Some(proof);
-                outcomes.join(&normal);
             } else {
-                outcomes.join(&source_representation::unobserved_read_result(
-                    state,
-                    &access,
-                    context.registry,
-                ));
+                let mut normal =
+                    source_representation::unobserved_read_result(state, &access, context.registry);
+                normal.normal_object = state.object_read_proof(&access, context.registry);
+                outcomes.join(&normal);
             }
         }
         outcomes.publish(state);
@@ -7398,8 +8567,10 @@ impl SourceCommandBindings {
         let new_list = |id, state: &ModuleCommandBindings| Frame::List {
             id,
             next: 0,
-            outcomes: SourceOutcomes::normal(state),
+            outcomes: Box::new(SourceOutcomes::normal(state)),
             value: Some(String::new()),
+            native_value: None,
+            native_complete: true,
         };
         let mut pending = vec![new_list(root, state)];
         let mut completed: Option<SourceOutcomes> = None;
@@ -7420,15 +8591,21 @@ impl SourceCommandBindings {
                     next,
                     mut outcomes,
                     mut value,
+                    mut native_value,
+                    mut native_complete,
                 } => {
                     if let Some(fragment) = completed.take() {
-                        join_index_fragment(&mut outcomes, &mut value, &fragment);
+                        join_index_fragment(
+                            &mut outcomes,
+                            &mut value,
+                            &fragment,
+                            &mut native_value,
+                            &mut native_complete,
+                        );
                     }
                     let component = source.arena.list(id).get(next);
                     if component.is_none() || outcomes.normal.is_none() {
-                        outcomes.normal_value = index_normal_result(&outcomes, value);
-                        outcomes.publish(state);
-                        completed = Some(outcomes);
+                        completed = Some(finish_index_list(outcomes, value, native_value, state));
                         continue;
                     }
                     let component = component.expect("remaining index component");
@@ -7441,6 +8618,8 @@ impl SourceCommandBindings {
                         next: next + 1,
                         outcomes,
                         value,
+                        native_value,
+                        native_complete,
                     });
                     match component.part {
                         ExecutablePart::Variable {
@@ -7529,15 +8708,29 @@ impl SourceCommandBindings {
         let tcl_lexer::word_parts::ExecutablePart::Variable { index, .. } = component.part else {
             unreachable!("selected index variable component")
         };
-        let evaluated_index = index
-            .and(outcomes.normal_value.as_ref())
-            .map(|value| value.text.as_str());
-        let access = crate::var_resolve::resolve_evaluated_substitution_access(
-            spelling,
-            evaluated_index,
-            &state.source_variables,
-            context.registry,
-            tcl_registry::TraceOperation::Read,
+        let root = state.source_variables.execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            .and_then(|policy| crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_executable(
+                source.arena, source.arena.image(), context.config, component.span,
+                tcl_syntax::word_rules::WordValueRules::from_config(&context.config), policy));
+        let evaluated_index = root.as_ref().and_then(crate::signature_scan::variable_name::SignatureSourceVariableRoot::static_index_input)
+            .or_else(|| index.and(outcomes.normal_name_value.as_deref()).map(|value|
+                crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(
+                    crate::signature_scan::scope::SignatureSourceNameValue::from_original_produced_value(value))));
+        let lexical = original_variable_compilation::OriginalSourceLexicalCompilation::at_source(
+            state, context,
+        );
+        let access = root.as_ref().zip(lexical.as_ref()).map_or_else(
+            crate::place::unknown_top,
+            |(root, lexical)| {
+                lexical.resolve_root(
+                    root,
+                    evaluated_index.as_ref(),
+                    &state.source_variables,
+                    context.registry,
+                    tcl_registry::TraceOperation::Read,
+                )
+            },
         );
         if let Some(span) = source.arena.source_span(component)
             && let Some((start, end)) = source
@@ -7596,6 +8789,12 @@ impl SourceCommandBindings {
             if self.points[*index].head != point.head {
                 self.points[*index].head = None;
             }
+            if self.points[*index].original_head_input != point.original_head_input {
+                self.points[*index].original_head_input = None;
+            }
+            if self.points[*index].original_written_words != point.original_written_words {
+                self.points[*index].original_written_words = None;
+            }
             join_evaluated_words(
                 &mut self.points[*index].evaluated_argument_values,
                 &point.evaluated_argument_values,
@@ -7606,6 +8805,9 @@ impl SourceCommandBindings {
                 .join(&point.compiled_execution);
             if self.points[*index].frozen_written_words != point.frozen_written_words {
                 self.points[*index].frozen_written_words = None;
+            }
+            if self.points[*index].frozen_written_names != point.frozen_written_names {
+                self.points[*index].frozen_written_names = None;
             }
             if self.points[*index].frozen_head_object != point.frozen_head_object {
                 self.points[*index].frozen_head_object = None;
@@ -7634,6 +8836,11 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         select_contents_write_source(state);
+        if let Some(outcomes) =
+            logical_definition::transfer(words, target, segment.span.start(), state, *context)
+        {
+            return outcomes;
+        }
         let incoming = boxed_source_branch(state);
         let prepared = match prepare_source_native_invocation(
             target,
@@ -7658,17 +8865,53 @@ impl SourceCommandBindings {
         };
         let invocation = prepared.invocation_boxed(&target.command);
         let facts = prepared.facts.as_ref();
+        let selection = context
+            .selected_compilation
+            .unwrap_or(&tcl_registry::native_compilation::NativeCompilationSelection::Unknown);
+        let operands = SourceScriptOperands {
+            compilation_spec: facts.native_compilation.as_ref(),
+            compilation_selection: selection,
+            words,
+            written_arguments: context.written_arguments,
+            target,
+            arguments: invocation.arguments_ref(),
+        };
+        let original_variable_operands = prepared.original_variable_operands.get_or_init(|| {
+            original_name_value::original_variable_invocation(
+                operands,
+                segment.span.start(),
+                state,
+                *context,
+            )
+        });
+        self.retain_original_variable_operands(
+            state.current_source_origin.as_ref(),
+            segment.span.start(),
+            original_variable_operands,
+        );
         let native = SourceNativeInvocation {
             compilation_spec: facts.native_compilation.as_ref(),
-            compilation_selection: context
-                .selected_compilation
-                .unwrap_or(&tcl_registry::native_compilation::NativeCompilationSelection::Unknown),
+            compilation_selection: selection,
             segment,
             words,
             written_arguments: context.written_arguments,
             target,
             invocation: &invocation,
+            original_variable_operands,
         };
+        self.walk_prepared_source_target(native, &prepared, effective, state, context, &incoming)
+    }
+
+    fn walk_prepared_source_target(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        prepared: &PreparedSourceNativeInvocation<'_>,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        incoming: &ModuleCommandBindings,
+    ) -> SourceOutcomes {
+        let facts = prepared.facts.as_ref();
         // An attested definition recipe owns its installation prerequisites;
         // scripted providers do not borrow a stock normal-handler envelope.
         if let Some(outcomes) = Self::walk_snit_definition(native, state, *context) {
@@ -7679,32 +8922,120 @@ impl SourceCommandBindings {
         {
             return outcomes;
         }
+        let completions = CapturedNativeCompletionReceipts::capture(native, facts, state, context);
         let mut receipts = capture_source_native_results_boxed(native, facts, state, context);
-        let route = match self.prepare_native_handler(&prepared, native, effective, state, context)
-        {
+        let route = match self.prepare_native_handler(prepared, native, effective, state, context) {
             Ok(route) => route,
             Err(outcomes) => return *outcomes,
         };
+        let read_complete = receipts
+            .normal_read
+            .as_ref()
+            .is_some_and(|proof| proof.is_current(&state.source_variables, context.registry));
+        let write_complete = receipts
+            .normal_write
+            .as_ref()
+            .is_some_and(|proof| proof.is_current(&state.source_variables, context.registry));
+        let route = if read_complete || write_complete || completions.captured() {
+            tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                tcl_registry::completion::CompletionCode::Ok,
+            )
+        } else {
+            route
+        };
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+            eprintln!(
+                "ORIGINAL_HANDLER_CLOSED_RECEIVER site={} read_captured={} read_current={} write_current={} route={route:?}",
+                native.segment.span.start(),
+                receipts.normal_read.is_some(),
+                read_complete,
+                write_complete
+            );
+        }
         let mut outcomes =
-            self.walk_prepared_native_target(native, state, context, facts, route, &incoming);
+            self.walk_prepared_native_target(native, state, context, facts, route, incoming);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+            eprintln!(
+                "ORIGINAL_HANDLER_RETURN site={} normal={} abrupt={} normal_dynamic={}",
+                native.segment.span.start(),
+                outcomes.normal.is_some(),
+                outcomes.abrupt.len(),
+                outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| normal.source_variables.dynamic_bindings)
+            );
+        }
+        // Implementation contract: naming.variable.original-set-read-completion
+        // docs/design/analysis/name-resolution-proofs/original-set-read-completion.md
+        if read_complete
+            || write_complete
+            || completions.completed(&outcomes, native, facts, *context)
+        {
+            outcomes.retain_closed_native_handler_completion(native, facts, *context);
+        }
         finish_source_native_results(
             &mut outcomes,
             native,
             facts,
-            &incoming,
+            incoming,
             context,
             &mut receipts,
         );
+        let outcomes = self.finish_native_source_completion(
+            outcomes,
+            native,
+            facts,
+            incoming,
+            context,
+            receipts.normal_write.as_ref().filter(|_| write_complete),
+        );
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn finish_native_source_completion(
+        &mut self,
+        mut outcomes: SourceOutcomes,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        incoming: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        write: Option<&crate::var_resolve::OriginalNormalValueWrite>,
+    ) -> SourceOutcomes {
         // A selected total arithmetic expression owns this certificate.
         // Other native body handlers have independent condition, iteration,
         // restoration and completion obligations, even with a normal child.
+        let handler_complete = outcomes
+            .native_normal_completion
+            .as_ref()
+            .is_some_and(|proof| {
+                outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| proof.matches(native, facts, normal, *context))
+            });
+        if handler_complete && let Some(write) = write {
+            self.retain_quiet_normal_variables(
+                native,
+                facts,
+                incoming,
+                &outcomes,
+                write,
+                context.registry,
+            );
+        }
         if facts.operation
             != tcl_registry::SemanticOperationId::StructuredLowering(
                 tcl_registry::hooks::LoweringHookId::Expr,
             )
+            && !handler_complete
         {
             outcomes.normal_completion = None;
         }
+        outcomes.native_normal_completion = None;
         // The default value-only Return has no code/level conversion. Its
         // exact pending successful route becomes Normal only at the actual
         // procedure boundary; options and configured returns remain separate.
@@ -7731,7 +9062,6 @@ impl SourceCommandBindings {
         {
             outcomes.complete_procedure_return = Some(outcomes.abrupt[0].0);
         }
-        outcomes.publish(state);
         outcomes
     }
 
@@ -7759,11 +9089,37 @@ impl SourceCommandBindings {
         let route =
             container_coercion::ordinary_list_length_completion(native, facts, state, context)
                 .unwrap_or_else(|| prepared.completion_route(state, context));
-        if !native_implementation_dependency_holds(facts, effective, state, context) {
+        let implementation =
+            native_implementation_dependency_holds(native, facts, effective, state, context);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+            eprintln!(
+                "ORIGINAL_HANDLER_ENTRY site={} implementation={} route={route:?} dynamic={}",
+                native.segment.span.start(),
+                implementation,
+                state.source_variables.dynamic_bindings
+            );
+        }
+        if !implementation {
             return Err(Box::new(opaque_source_invocation(state)));
         }
-        self.record_native_invocation_reads(facts, native.invocation.arguments(), state, context);
+        self.record_native_invocation_reads(
+            facts,
+            native.invocation.arguments(),
+            state,
+            context,
+            native.original_variable_operands,
+        );
         let object_protocol = self.prepare_object_callbacks(native, facts, state, context);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+            eprintln!(
+                "ORIGINAL_HANDLER_OBJECTS site={} preserves={} dynamic={}",
+                native.segment.span.start(),
+                object_protocol.preserves_representation(),
+                state.source_variables.dynamic_bindings
+            );
+        }
         if !object_protocol.preserves_representation() {
             object_callbacks::coerce_closed_list_representations(
                 native,
@@ -7774,11 +9130,12 @@ impl SourceCommandBindings {
             );
         }
         self.record_rhs_read_store(native, facts, state, context);
-        let writes = crate::variable_bindings::source_variable_write_places(
+        let writes = crate::variable_bindings::source_variable_write_places_with_original_operands(
             facts,
             native.invocation.arguments(),
             &state.source_variables,
             context.registry,
+            native.original_variable_operands,
         );
         if !writes.is_empty() {
             Arc::make_mut(&mut state.object_instances).invalidate_writes(&writes);
@@ -7819,6 +9176,13 @@ impl SourceCommandBindings {
         route: tcl_registry::completion_route::InvocationCompletionRoute,
         incoming: &ModuleCommandBindings,
     ) -> SourceOutcomes {
+        if let Some(outcomes) = trusted_package_transfer::OriginalTrustedPackageTransfer::capture(
+            native, facts, state, *context,
+        )
+        .map(|transfer| transfer.finish(native, facts, state, *context))
+        {
+            return outcomes;
+        }
         if self.defers_runtime_body(native, facts) {
             return opaque_source_invocation(state);
         }
@@ -7834,7 +9198,7 @@ impl SourceCommandBindings {
         }
         let mut outcomes =
             self.walk_selected_native_body(native, state, context, facts, route, incoming);
-        transfer_native_completion_outputs(&mut outcomes, native, facts, route, context.registry);
+        transfer_native_completion_outputs(&mut outcomes, native, facts, route, *context);
         outcomes.publish(state);
         outcomes
     }
@@ -7948,6 +9312,14 @@ impl SourceCommandBindings {
         incoming: &ModuleCommandBindings,
     ) -> Result<tcl_registry::completion_route::InvocationCompletionRoute, Box<SourceOutcomes>>
     {
+        if let Some(outcomes) =
+            self.walk_closed_own_object_method_configuration(native, facts, state, context)
+        {
+            return Err(Box::new(outcomes));
+        }
+        let class_transfer = original_class_factory_transfer::OriginalClassFactoryTransfer::capture(
+            native, facts, state, context,
+        );
         self.retain_standalone_definition_references(native, facts, state, context);
         let definition = match transfer_native_definition(native, state, context, facts) {
             Ok(definition) => definition,
@@ -7961,13 +9333,8 @@ impl SourceCommandBindings {
             }
             Err(_) => return Err(Box::new(opaque_source_invocation(state))),
         };
-        let route = if closed_procedure_definition(
-            native,
-            facts,
-            state,
-            context,
-            definition.procedure.as_deref(),
-        ) {
+        let procedure_complete = closed_procedure_definition(native, facts, state, context);
+        let route = if procedure_complete {
             tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
                 tcl_registry::completion::CompletionCode::Ok,
             )
@@ -7977,9 +9344,22 @@ impl SourceCommandBindings {
         let deferred_class = self.register_bounded_methods(native, state, context, facts);
         if state.record_bounded_class(facts, native.words, native.target, context) || deferred_class
         {
-            return Err(Box::new(SourceOutcomes::native_invocation(
-                incoming, state, route,
-            )));
+            let complete = deferred_class
+                && class_transfer.as_ref().is_some_and(|transfer| {
+                    transfer.retain_completed_definition(native, facts, state, context)
+                });
+            let route = if complete {
+                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::CompletionCode::Ok,
+                )
+            } else {
+                route
+            };
+            let mut outcomes = SourceOutcomes::native_invocation(incoming, state, route);
+            if complete {
+                outcomes.retain_closed_native_handler_completion(native, facts, context);
+            }
+            return Err(Box::new(outcomes));
         }
         if facts
             .traits
@@ -8003,12 +9383,13 @@ impl SourceCommandBindings {
                 state,
                 context,
                 facts,
-                definition.procedure.as_deref(),
                 definition.statics.as_ref(),
             );
-            return Err(Box::new(SourceOutcomes::native_invocation(
-                incoming, state, route,
-            )));
+            let mut outcomes = SourceOutcomes::native_invocation(incoming, state, route);
+            if procedure_complete {
+                outcomes.retain_closed_native_handler_completion(native, facts, context);
+            }
+            return Err(Box::new(outcomes));
         }
         Ok(route)
     }
@@ -8019,11 +9400,13 @@ impl SourceCommandBindings {
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
         facts: &InvocationFacts,
-        procedure: Option<&str>,
         statics: Option<&crate::raw_binding::CapturedStaticBindings>,
     ) {
-        if let Some(procedure) = procedure {
-            self.register_deferred_procedure(native, state, context, facts, procedure, statics);
+        if matches!(
+            facts.procedure_definition,
+            Some(tcl_registry::native_procedure::NativeProcedureDefinitionSelection::Valid(_))
+        ) {
+            self.register_deferred_procedure(native, state, context, facts, statics);
         } else if facts.operation
             == tcl_registry::SemanticOperationId::StructuredLowering(
                 tcl_registry::hooks::LoweringHookId::When,
@@ -8041,7 +9424,6 @@ impl SourceCommandBindings {
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
         facts: &InvocationFacts,
-        procedure: &str,
         statics: Option<&crate::raw_binding::CapturedStaticBindings>,
     ) {
         let SourceNativeInvocation {
@@ -8049,10 +9431,15 @@ impl SourceCommandBindings {
             invocation,
             ..
         } = native;
-        let Some(parameters) = native_procedure_parameters(facts, invocation.arguments()) else {
+        let original_parameters = formal_topology::from_invocation(native, facts, state, context);
+        let Some(parameters) = original_parameters
+            .as_ref()
+            .map(formal_topology::OriginalFormalTopology::advisory_parameters)
+            .or_else(|| native_procedure_parameters(facts, invocation.arguments()))
+        else {
             return;
         };
-        let Some(key) = original_procedure_publication_key(state, context, facts) else {
+        let Some(key) = original_procedure_publication_key(native, state, context, facts) else {
             return;
         };
         let namespace_key = key.holder().into_owned();
@@ -8085,9 +9472,9 @@ impl SourceCommandBindings {
                     )
                 });
                 for created in state.installed_procedure_targets(&key, segment.span.start()) {
-                    let identity = created
-                        .token
-                        .map_or_else(|| procedure.to_owned(), |identity| identity.origin);
+                    let Some(identity) = created.token.map(|identity| identity.origin) else {
+                        continue;
+                    };
                     self.deferred.insert(
                         DeferredImplementationId {
                             command: identity.clone(),
@@ -8111,6 +9498,7 @@ impl SourceCommandBindings {
                             receiver_method: false,
                             future_frame: None,
                             parameters: parameters.clone(),
+                            original_parameters: original_parameters.clone(),
                             statics: statics.cloned(),
                             implementation_allocation: created.implementation_allocation,
                             source_origin: Some(Arc::clone(&source_origin)),
@@ -8195,6 +9583,7 @@ impl SourceCommandBindings {
                         receiver_method: false,
                         future_frame: None,
                         parameters: Vec::new(),
+                        original_parameters: None,
                         statics: None,
                         implementation_allocation: None,
                         source_origin: Some(source_origin),
@@ -8236,11 +9625,22 @@ impl SourceCommandBindings {
             namespace_key: Some(&prepared.selection.namespace_key),
             ..*body_context
         });
+        let namespace_body = boxed_source_completion_receipt(|| {
+            original_namespace_body::OriginalNamespaceBody::capture(
+                native, facts, state, *context, &prepared,
+            )
+        });
         let mut outcomes = self.walk_body_flow(&prepared.flow, native, state, &body_context);
         if prepared.selection.namespace_activation
             || prepared.parent_frame != prepared.selection.frame
         {
             outcomes.restore_frame(&prepared.parent_variables, &prepared.parent_frame);
+        }
+        if namespace_body
+            .as_ref()
+            .is_some_and(|receipt| receipt.completed(native, &outcomes, *context, &prepared))
+        {
+            outcomes.retain_closed_native_handler_completion(native, facts, *context);
         }
         outcomes.publish(state);
         outcomes
@@ -8276,9 +9676,12 @@ impl SourceCommandBindings {
                     compilation: context.compilation,
                     compiled_execution: compiled_invocation::CompiledInvocationSelection::default(),
                     head: None,
+                    original_head_input: None,
+                    original_written_words: None,
                     evaluated_argument_values: Vec::new(),
                     evaluated_argument_words: Vec::new(),
                     frozen_written_words: None,
+                    frozen_written_names: None,
                     frozen_head_object: None,
                     method_prefix_arguments: Vec::new(),
                     offset: site,
@@ -8623,6 +10026,21 @@ impl SourceCommandBindings {
             ScriptBodyFlow::ConcatenatedScript { argument_offset } => {
                 self.walk_concatenated_script(*argument_offset, native, state, *context)
             }
+            other => self.walk_other_body_flow(other, native, state, context),
+        }
+    }
+
+    /// Other grammar temporaries stay outside source-sequence recursion.
+    #[inline(never)]
+    fn walk_other_body_flow(
+        &mut self,
+        flow: &tcl_registry::script_body_flow::ScriptBodyFlow,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::script_body_flow::ScriptBodyFlow;
+        match flow {
             ScriptBodyFlow::ConcatenatedExpression { argument_offset } => {
                 self.walk_concatenated_expression(*argument_offset, native, state, *context)
             }
@@ -8651,6 +10069,13 @@ impl SourceCommandBindings {
                 unreachable!("conditional flow uses its ordered condition handler")
             }
             ScriptBodyFlow::Loop { .. } => unreachable!("loop flow uses its iteration handler"),
+            ScriptBodyFlow::Deferred
+            | ScriptBodyFlow::None
+            | ScriptBodyFlow::CapturedLifecycle
+            | ScriptBodyFlow::Sequence(_)
+            | ScriptBodyFlow::ConcatenatedScript { .. } => {
+                unreachable!("source sequences use their borrowed context")
+            }
         }
     }
 
@@ -8741,43 +10166,31 @@ impl SourceCommandBindings {
     ) -> SourceOutcomes {
         use tcl_registry::completion::CompletionCode as Code;
         use tcl_registry::completion_route::InvocationCompletionRoute as Route;
-        use tcl_registry::lambda_invocation::LambdaInvocationSelection;
-        let lambda = match selection {
-            LambdaInvocationSelection::Selected(lambda) => lambda,
-            LambdaInvocationSelection::Invalid => {
+        let (lambda, parameters) = match prepare_source_lambda(selection, state.baseline.dialect) {
+            PreparedSourceLambda::Ready { lambda, parameters } => (lambda, parameters),
+            PreparedSourceLambda::Invalid => {
                 return SourceOutcomes::invocation(state, Route::Tcl(Code::Error));
             }
-            LambdaInvocationSelection::Unknown => return opaque_source_invocation(state),
-        };
-        let Some(grammar) = state
-            .baseline
-            .dialect
-            .and_then(tcl_registry::InvocationDialect::parameter_grammar)
-        else {
-            return opaque_source_invocation(state);
-        };
-        let Ok(parameters) =
-            tcl_syntax::formal_params::parse_formal_parameters_in(&lambda.parameters, grammar)
-        else {
-            return SourceOutcomes::invocation(state, Route::Tcl(Code::Error));
+            PreparedSourceLambda::Unknown => return opaque_source_invocation(state),
         };
         let arguments = native.invocation.arguments();
         let actual = (lambda.call_arguments_from..arguments.exact_argv_len().unwrap())
             .map(|index| arguments.literal_at(index))
             .collect::<Vec<_>>();
-        let Some(namespace_key) = state.namespace_for_rooted_operand(&lambda.namespace) else {
+        let Some(namespace_key) = native
+            .original_variable_operands
+            .input(lambda.lambda_argument, &state.source_variables)
+            .and_then(|input| state.namespace_for_lambda_operand(input, context.config))
+        else {
             return opaque_source_invocation(state);
         };
         let namespace = namespace_key.display().unwrap_or_default();
-        let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
-            namespace: namespace.clone(),
-            identity: source_activation_name(
-                state.current_source_origin.as_ref(),
-                "lambda",
-                native.segment.span.start(),
-            ),
-        }
-        .with_namespace_identity(namespace_key.clone());
+        let frame = source_lambda_frame(
+            state,
+            &namespace,
+            &namespace_key,
+            native.segment.span.start(),
+        );
         let parent_variables = Arc::clone(&state.source_variables);
         let parent_frame = state.variable_frame.clone();
         let mut variables = parent_variables.enter_called_frame(&frame);
@@ -8805,7 +10218,14 @@ impl SourceCommandBindings {
         let Some(script) = retained_lambda_body(&lambda, native, state, context.config) else {
             return opaque_source_invocation(state);
         };
-        self.record_lambda_body(&lambda, native, state, &script, &frame);
+        self.record_lambda_body(
+            &lambda,
+            native,
+            state,
+            &script,
+            &frame,
+            Some(&namespace_key),
+        );
         let realm = evaluated_script_realm(
             lambda.lambda_argument..lambda.lambda_argument + 1,
             native.script_operands(),
@@ -8825,6 +10245,7 @@ impl SourceCommandBindings {
                     compilation: procedure_compilation(state.baseline.compilation_dialect()),
                     compilation_snapshot: None,
                     selected_compilation: None,
+                    original_variable_compilation: None,
                     namespace: &namespace,
                     namespace_key: Some(&namespace_key),
                     frame: &frame,
@@ -8846,6 +10267,7 @@ impl SourceCommandBindings {
         state: &ModuleCommandBindings,
         script: &ExecutedScriptSource,
         frame: &crate::var_resolve::VariableExecutionFrame,
+        namespace: Option<&SourceNamespaceKey>,
     ) {
         let parent = CommandAllocationSite {
             source: Arc::clone(state.current_source_origin.as_ref().unwrap()),
@@ -8858,7 +10280,13 @@ impl SourceCommandBindings {
         {
             self.record_executed_word(&parent.source, word.source().span, Some(1), script.clone());
         }
-        self.record_executed_script(parent, lambda.lambda_argument, script.clone(), Some(frame));
+        self.record_executed_script(
+            parent,
+            lambda.lambda_argument,
+            script.clone(),
+            Some(frame),
+            namespace,
+        );
     }
 
     fn walk_body_sequence(
@@ -8886,11 +10314,9 @@ impl SourceCommandBindings {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
-        let Some(values) = frozen_script_operands(native.invocation.arguments(), argument_offset)
-        else {
-            return opaque_source_invocation(state);
-        };
-        if values.len() == 1 {
+        if let Some(count) = native.invocation.arguments().exact_argv_len()
+            && argument_offset.checked_add(1) == Some(count)
+        {
             return self.walk_body_operand(
                 argument_offset,
                 native.script_operands(),
@@ -8898,6 +10324,10 @@ impl SourceCommandBindings {
                 &context,
             );
         }
+        let Some(values) = frozen_script_operands(native.invocation.arguments(), argument_offset)
+        else {
+            return opaque_source_invocation(state);
+        };
         let script = if values.len() == 1 {
             values[0].to_owned()
         } else if native
@@ -8976,6 +10406,7 @@ impl SourceCommandBindings {
                     argument,
                     script.clone(),
                     Some(context.frame),
+                    state.source_variables.namespace_identity.as_ref(),
                 );
             }
         }
@@ -9050,7 +10481,13 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         let context = boxed_body_operand_context(index, operands, state, context);
-        let Some(value) = operands.arguments.literal_at(index) else {
+        let Some(script) = retained_script_operand(
+            index,
+            operands,
+            state,
+            context.invocation_offset,
+            context.config,
+        ) else {
             return opaque_source_invocation(state);
         };
         let Some(origin) = &state.current_source_origin else {
@@ -9060,15 +10497,16 @@ impl SourceCommandBindings {
             source: Arc::clone(origin),
             offset: context.invocation_offset,
         };
-        let script = if let Some(word) = operands.written_word(index) {
-            let script =
-                ExecutedScriptSource::from_word(parent.clone(), index, word, value, context.config);
+        if let Some(word) = operands.written_word(index) {
             self.record_executed_word(&parent.source, word.source().span, None, script.clone());
-            script
-        } else {
-            ExecutedScriptSource::materialised(parent.clone(), vec![index], value)
-        };
-        self.record_executed_script(parent, index, script.clone(), Some(context.frame));
+        }
+        self.record_executed_script(
+            parent,
+            index,
+            script.clone(),
+            Some(context.frame),
+            state.source_variables.namespace_identity.as_ref(),
+        );
         let previous_origin = state
             .current_source_origin
             .replace(Arc::clone(&script.origin));
@@ -9567,7 +11005,7 @@ impl SourceCommandBindings {
         let dispatched = if target.registry_backed {
             Self::walk_registry_math_function(target, input, state, context)
         } else {
-            self.walk_document_target(site, &effective, state, target, context)
+            self.walk_document_target(site, None, &effective, state, target, context)
         };
         outcomes.join(&self.finish_command_observer_scope(dispatched, &scope, &context));
         outcomes.publish(state);
@@ -9738,6 +11176,17 @@ fn bind_called_body_parameters(
     target: &SourceCommandTarget,
     context: SourceExecutionContext<'_>,
 ) -> Option<bool> {
+    if let Some(topology) = &body.original_parameters {
+        if called
+            .invocation_dialect?
+            .parameter_grammar()?
+            .skips_empty_body_activation()
+            && body.source.is_empty()
+        {
+            return Some(true);
+        }
+        return topology.bind(called, actual, context.registry);
+    }
     bind_source_parameters(
         called,
         &body.parameters,
@@ -9861,6 +11310,9 @@ fn source_effective_words(
                     tcl_registry::InvocationWord::Literal(value) => {
                         EffectiveInvocationWord::Literal(value.to_owned())
                     }
+                    tcl_registry::InvocationWord::KnownBytes(value) => {
+                        EffectiveInvocationWord::from_bytes(value)
+                    }
                     tcl_registry::InvocationWord::Dynamic
                     | tcl_registry::InvocationWord::DynamicNonOption => {
                         EffectiveInvocationWord::Dynamic
@@ -9887,12 +11339,101 @@ fn source_effective_words(
 
 /// Materialise the complete dispatch carrier before a recursive target walk.
 #[inline(never)]
-fn source_binding_boxed(
+/// Lookup the authoritative command table from a current original producer.
+/// Unicode metadata is presentation; it never reconstructs the selected slot.
+fn source_binding_from_original_input(
     state: &ModuleCommandBindings,
-    head: &str,
-    namespace: &(impl NamespaceKeyQuery + ?Sized),
-) -> Box<SourceInvocationBinding> {
-    Box::new(source_binding(state, head, namespace))
+    head: &crate::signature_scan::scope::SignatureSourceNameInput,
+    namespace: &SourceNamespaceKey,
+) -> Option<SourceInvocationBinding> {
+    source_binding_from_original_input_in(state, head, namespace, CommandTargetLookup::WithFallback)
+}
+
+/// Keep the complete original binding outside frames retained by nested bodies.
+#[inline(never)]
+fn source_binding_from_original_input_boxed(
+    state: &ModuleCommandBindings,
+    head: &crate::signature_scan::scope::SignatureSourceNameInput,
+    namespace: &SourceNamespaceKey,
+) -> Option<Box<SourceInvocationBinding>> {
+    source_binding_from_original_input(state, head, namespace).map(Box::new)
+}
+
+fn source_binding_from_original_input_in(
+    state: &ModuleCommandBindings,
+    head: &crate::signature_scan::scope::SignatureSourceNameInput,
+    namespace: &SourceNamespaceKey,
+    lookup: CommandTargetLookup,
+) -> Option<SourceInvocationBinding> {
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        eprintln!(
+            "ORIGINAL_COMMAND_BINDING input={:?} current={} namespace={:?} origin={} variable_policy={:?} baseline_policy={:?} opaque={}",
+            head.bytes(),
+            head.is_current(&state.source_variables),
+            namespace,
+            state.current_source_origin.is_some(),
+            state.source_variables.execution_name_policy,
+            state.baseline.execution_name_policy,
+            state.has_opaque_domain()
+        );
+    }
+    head.is_current(&state.source_variables).then_some(())?;
+    let (declared_command, catalogue_command) =
+        state.original_advice_candidates_for_input(namespace, head);
+    let selected = state
+        .original_targets_for_input(head, namespace, lookup)
+        .or_else(|| {
+            (declared_command.is_some() || catalogue_command.is_some()).then(|| {
+                original_command_table::OriginalCommandTargetSelection {
+                    targets: BTreeSet::new(),
+                    original_prefixes: BTreeMap::new(),
+                    may_be_absent: true,
+                    unknown: true,
+                }
+            })
+        })?;
+    Some(SourceInvocationBinding {
+        declared_command,
+        catalogue_command,
+        lookup_state: Some(Arc::new(SourceLookupSnapshot::new(state.clone()))),
+        lookup_namespace: namespace.display().unwrap_or_default(),
+        lookup_namespace_key: namespace.clone(),
+        lookup_word: std::str::from_utf8(head.bytes()).ok().map(str::to_owned),
+        targets: selected
+            .targets
+            .into_iter()
+            .map(|target| {
+                let original_prepended = (!target.prepended.is_empty())
+                    .then(|| selected.original_prefixes.get(&target).cloned().flatten())
+                    .flatten();
+                SourceCommandTarget {
+                    runtime_implementation_generation: state
+                        .runtime_implementation_generation(target.token.as_ref()),
+                    command: target.command,
+                    prepended: target.prepended,
+                    original_prepended,
+                    registry_backed: target.registry_backed,
+                    kind: target.kind,
+                    identity: target.token,
+                    implementation_generation: target.implementation_generation,
+                    implementation_allocation: target.implementation_allocation,
+                }
+            })
+            .collect(),
+        may_be_absent: selected.may_be_absent,
+        unknown: selected.unknown,
+        provider_state_taint: state.tainted_provider_state.iter().cloned().collect(),
+        variable_context: Arc::clone(&state.source_variables),
+        variable_frame: state.variable_frame.clone(),
+        namespace_cell_presence: state.source_variables.namespace_cells.clone(),
+        known_namespaces: state
+            .namespaces
+            .iter()
+            .filter_map(SourceNamespaceKey::advisory_key)
+            .collect(),
+        ..SourceInvocationBinding::default()
+    })
 }
 
 fn source_binding(
@@ -9927,15 +11468,13 @@ fn source_binding_projection_in(
 ) -> SourceInvocationBinding {
     let namespace_key = namespace.namespace_key();
     let namespace_display = namespace_key.display().unwrap_or_default();
+    let (declared_command, catalogue_command) =
+        state.original_advice_candidates_for_metadata(namespace_key.as_ref(), head);
     let keys = state.source_keys(head, namespace);
     let may_be_absent = keys.last().is_none_or(|key| {
-        state.bindings.get(key).map_or_else(
-            || {
-                !key.authored_spelling()
-                    .is_some_and(|key| state.baseline.semantics.binding_names().contains(key))
-            },
-            |bindings| bindings.contains(&MayBinding::Missing),
-        )
+        state
+            .binding_alternatives(key)
+            .contains(&MayBinding::Missing)
     });
     SourceInvocationBinding {
         compiled_candidates: Vec::new(),
@@ -9944,6 +11483,7 @@ fn source_binding_projection_in(
         compiled_execution_residual: CompiledExecutionResidual::Closed,
         native_compilation_admission: None,
         native_compiler_admission: None,
+        original_compiler_preserves_names: SourceCompilerNameClosure::Unknown,
         native_structured_preparation: None,
         native_switch_preparation: None,
         native_operand_layout: None,
@@ -9958,17 +11498,19 @@ fn source_binding_projection_in(
         declaration_flow_inventory: None,
         compiler_policy: None,
         original_compiler_words: None,
+        original_written_words: None,
         conditional_expression_evaluations: None,
         lookup_namespace: namespace_display.clone(),
         lookup_namespace_key: namespace_key.into_owned(),
         lookup_word: Some(head.to_owned()),
         dispatch_site: None,
         provider_state_taint: state.tainted_provider_state.iter().cloned().collect(),
-        declared_command: state.declared_candidate(head, &namespace_display),
-        catalogue_command: state.catalogue_candidate(head, &namespace_display),
+        declared_command,
+        catalogue_command,
         variable_context: Arc::clone(&state.source_variables),
         original_argument_completion: OriginalArgumentCompletion::Unknown,
         normal_variable_continuation: None,
+        original_variable_operands: None,
         normal_result_observations: None,
         rhs_read_store_observations: None,
         object_callback_effects: None,
@@ -9993,6 +11535,7 @@ fn source_binding_projection_in(
         evaluated_argument_values: Vec::new(),
         evaluated_argument_words: Vec::new(),
         frozen_written_words: None,
+        frozen_written_names: None,
         frozen_head_object: None,
         method_prefix_arguments: Vec::new(),
         targets: state
@@ -10003,6 +11546,7 @@ fn source_binding_projection_in(
                     .runtime_implementation_generation(target.token.as_ref()),
                 command: target.command,
                 prepended: target.prepended,
+                original_prepended: None,
                 registry_backed: target.registry_backed,
                 kind: target.kind,
                 identity: target.token,
@@ -10053,6 +11597,7 @@ struct NamespaceResolutionProjection {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(clippy::struct_excessive_bools)] // Mirrors independent monotone observation axes.
 struct NonBindingObservationStamp {
+    original_command_world: Arc<source_command_world::OriginalSourceCommandWorld>,
     ordinary_literal_pool: Option<literal_object_pool::SourceOrdinaryLiteralPool>,
     class_definitions: Arc<BTreeMap<CommandIdentity, ClassDefinitionReceipt>>,
     object_instances: Arc<object_instance::SourceObjectState>,
@@ -10063,7 +11608,7 @@ struct NonBindingObservationStamp {
     source_variables: Arc<crate::var_resolve::ResolveContext>,
     variable_frame: crate::var_resolve::VariableExecutionFrame,
     objects: Arc<BTreeMap<CommandToken, BTreeSet<MayBinding>>>,
-    namespace_exports: Arc<SourceNamespaceMap<BTreeSet<Vec<String>>>>,
+    namespace_exports: Arc<SourceNamespaceMap<BTreeSet<Vec<tcl_core_types::NameBytes>>>>,
     namespace_paths: Arc<SourceNamespaceMap<BTreeSet<Vec<SourceNamespaceKey>>>>,
     namespaces: Arc<SourceNamespaceSet>,
     unknown_lookup_namespaces: Arc<SourceNamespaceSet>,
@@ -10142,6 +11687,8 @@ impl NamespaceResolutionProjection {
 #[derive(Debug, Clone, Default)]
 #[allow(clippy::struct_excessive_bools)] // Independent opacity/trust axes; none implies another.
 pub struct ModuleCommandBindings {
+    /// Canonical original byte publications and modeled namespace geometry.
+    original_command_world: Arc<source_command_world::OriginalSourceCommandWorld>,
     current_source_origin: Option<Arc<SourceOriginId>>,
     /// Original fresh pool provenance, permanently withdrawn by unknown host
     /// or object methods. New result objects cannot restore this history.
@@ -10166,7 +11713,7 @@ pub struct ModuleCommandBindings {
     /// Implementations of command objects followed by namespace imports.
     objects: Arc<BTreeMap<CommandToken, BTreeSet<MayBinding>>>,
     /// Exact export/path alternatives are joined alongside command bindings.
-    namespace_exports: Arc<SourceNamespaceMap<BTreeSet<Vec<String>>>>,
+    namespace_exports: Arc<SourceNamespaceMap<BTreeSet<Vec<tcl_core_types::NameBytes>>>>,
     namespace_paths: Arc<SourceNamespaceMap<BTreeSet<Vec<SourceNamespaceKey>>>>,
     namespaces: Arc<SourceNamespaceSet>,
     unknown_lookup_namespaces: Arc<SourceNamespaceSet>,
@@ -10246,6 +11793,7 @@ impl PartialEq for ModuleCommandBindings {
         // independent analyses of the same registry must therefore compare
         // equal even though each owns a distinct baseline allocation.
         self.baseline == other.baseline
+            && self.original_command_world == other.original_command_world
             && self.current_source_origin == other.current_source_origin
             && self.ordinary_literal_pool == other.ordinary_literal_pool
             && self.allocation_counts == other.allocation_counts
@@ -10387,20 +11935,45 @@ impl ModuleCommandBindings {
         let Some(root) = self.source_root_namespace_key() else {
             return false;
         };
+        let Some(policy) = self
+            .baseline
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        else {
+            return false;
+        };
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_OO_DEPENDENCIES root_known={} geometry_policy={} taint_all={} opaque={} step={} execution={}",
+                self.namespaces.contains(&root),
+                (*self.original_command_world)
+                    .clone()
+                    .select_policy(self)
+                    .is_some(),
+                self.tainted_object_dispatch.contains("*"),
+                self.has_opaque_domain(),
+                self.source_step_observed(),
+                self.source_execution_observed(None)
+            );
+        }
         !self.tainted_object_dispatch.contains("*")
             && grammar
                 .default_construction_lookup_dependencies()
                 .is_some_and(|dependencies| {
                     dependencies.iter().all(|command| {
+                        let selected = self.original_registry_metadata_target(&root, command, policy);
+                        #[cfg(test)]
+                        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+                            eprintln!("ORIGINAL_OO_DEPENDENCY command={command} tainted={} paths={} selected={} generation={:?}",
+                                self.tainted_object_dispatch.contains(*command), self.original_registry_command_paths(&root, command, policy).is_some(),
+                                selected.is_some(), selected.as_ref().map(|target| target.implementation_generation));
+                        }
                         !self.tainted_object_dispatch.contains(*command)
-                            && source_binding(self, command, &root)
-                                .proved_target()
-                                .is_some_and(|target| {
+                            && selected.is_some_and(|target| {
                                     target.registry_backed
                                         && target.prepended.is_empty()
-                                        && target
-                                            .registry_identity()
-                                            .is_some_and(|identity| nqn(identity) == nqn(command))
+                                        && nqn(&target.command) == nqn(command)
                                         && target.implementation_generation == 0
                                 })
                     })
@@ -10575,8 +12148,13 @@ impl ModuleCommandBindings {
                             .get(usize::from(*index) + 1)
                             .and_then(|word| word.as_registry_word().literal())
                             .is_some_and(|parameters| {
-                                tcl_syntax::formal_params::parse_formal_parameters(parameters)
-                                    .is_ok()
+                                self.baseline.dialect
+                                    .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+                                    .is_some_and(|grammar| {
+                                        tcl_syntax::formal_params::parse_formal_parameters_in(
+                                            parameters, grammar,
+                                        ).is_ok()
+                                    })
                             })
                     })
             })
@@ -10691,69 +12269,6 @@ impl ModuleCommandBindings {
         }
         true
     }
-    fn catalogue_candidate(&self, head: &str, namespace: &str) -> Option<DeclaredCommandCandidate> {
-        if self.opaque_domain || self.unknown_lookup_namespaces.contains(namespace) {
-            return None;
-        }
-        for slot in self.source_keys(head, namespace) {
-            // An authored or mutated slot cannot inherit catalogue semantics.
-            if self.bindings.contains_key(&slot)
-                || slot
-                    .authored_spelling()
-                    .is_some_and(|slot| self.baseline.declared_commands.contains_key(slot))
-            {
-                return None;
-            }
-            let Some(slot) = slot.authored_spelling() else {
-                continue;
-            };
-            if let Some(name) = self.baseline.catalogue_commands.get(slot) {
-                return Some(DeclaredCommandCandidate {
-                    name: name.clone(),
-                    lookup_namespace: namespace.to_owned(),
-                    slot: slot.to_owned(),
-                });
-            }
-            if self.baseline.semantics.binding_names().contains(slot) {
-                return None;
-            }
-        }
-        None
-    }
-
-    fn declared_candidate(&self, head: &str, namespace: &str) -> Option<DeclaredCommandCandidate> {
-        self.declared_candidate_from(head, namespace, &self.baseline.declared_commands)
-    }
-
-    fn declared_candidate_from(
-        &self,
-        head: &str,
-        namespace: &str,
-        declarations: &BTreeMap<String, String>,
-    ) -> Option<DeclaredCommandCandidate> {
-        if self.opaque_domain || self.unknown_lookup_namespaces.contains(namespace) {
-            return None;
-        }
-        for slot in self.source_keys(head, namespace) {
-            if self.bindings.contains_key(&slot) {
-                return None;
-            }
-            let Some(slot) = slot.authored_spelling() else {
-                continue;
-            };
-            if let Some(name) = declarations.get(slot) {
-                return Some(DeclaredCommandCandidate {
-                    name: name.clone(),
-                    lookup_namespace: namespace.to_owned(),
-                    slot: slot.to_owned(),
-                });
-            }
-            if self.baseline.semantics.binding_names().contains(slot) {
-                return None;
-            }
-        }
-        None
-    }
     /// Runtime policies supplied by the source execution entry contract.
     #[must_use]
     pub(crate) fn invocation_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
@@ -10783,19 +12298,21 @@ impl ModuleCommandBindings {
             && self.provider_lookups_are_live(loader)
             && loader.optional_command_surface.iter().all(|command| {
                 let slot = nqn(command);
-                self.bindings.get(&slot).is_some_and(|alternatives| {
-                    alternatives.iter().all(|binding| match binding {
-                        MayBinding::Missing => true,
-                        MayBinding::Target(target) => {
-                            target.registry_backed
-                                && target.terminal
-                                && target.prepended.is_empty()
-                                && target.command == slot
-                                && target.implementation_generation == 0
-                        }
-                        MayBinding::Imported(_) | MayBinding::Unknown => false,
+                let keys = self.source_keys(command, &root);
+                keys.len() == 1
+                    && self.bindings.get(&keys[0]).is_some_and(|alternatives| {
+                        alternatives.iter().all(|binding| match binding {
+                            MayBinding::Missing => true,
+                            MayBinding::Target(target) => {
+                                target.registry_backed
+                                    && target.terminal
+                                    && target.prepended.is_empty()
+                                    && target.command == slot
+                                    && target.implementation_generation == 0
+                            }
+                            MayBinding::Imported(_) | MayBinding::Unknown => false,
+                        })
                     })
-                })
             })
     }
 
@@ -10804,13 +12321,16 @@ impl ModuleCommandBindings {
         facts: &tcl_registry::InvocationFacts,
         invocation: tcl_registry::InvocationWords<'_>,
         registry: &CommandRegistry,
+        operands: &crate::variable_bindings::OriginalVariableInvocation,
     ) {
-        let mut places = crate::variable_bindings::source_variable_write_places(
-            facts,
-            invocation.arguments(),
-            &self.source_variables,
-            registry,
-        );
+        let mut places =
+            crate::variable_bindings::source_variable_write_places_with_original_operands(
+                facts,
+                invocation.arguments(),
+                &self.source_variables,
+                registry,
+                operands,
+            );
         let mut observer_places = Vec::new();
         for fact in facts
             .state_transitions
@@ -10823,17 +12343,13 @@ impl ModuleCommandBindings {
                 ..
             }) = &fact.transition
             {
-                observer_places.push(subject.literal().map_or_else(
-                    crate::place::unknown_top,
-                    |name| {
-                        crate::var_resolve::resolve_literal_place(
-                            name,
-                            &self.source_variables,
-                            false,
-                            registry,
-                        )
-                    },
-                ));
+                observer_places.push(
+                    subject
+                        .argument_index()
+                        .map_or_else(crate::place::unknown_top, |index| {
+                            operands.trace_subject_access(index, &self.source_variables, registry)
+                        }),
+                );
             }
         }
         places.extend(observer_places.iter().cloned());
@@ -10983,18 +12499,13 @@ impl ModuleCommandBindings {
     }
 
     fn initial_from_baseline(registry: &CommandRegistry, baseline: Arc<BindingBaseline>) -> Self {
-        let mut exports: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        let mut exports: BTreeMap<String, Vec<tcl_core_types::NameBytes>> = BTreeMap::new();
         let mut namespaces = BTreeSet::from(["::".to_owned()]);
-        if registry
-            .profile()
-            .is_some_and(tcl_dialect::DialectProfile::is_irules)
-        {
+        if let Some(context) = baseline.hosted_execution_context {
             namespaces.extend(
-                tcl_registry::f5::runtime_namespaces(
-                    tcl_registry::f5::BigIpExecutionContext::TmmIRule,
-                )
-                .iter()
-                .map(|namespace| (*namespace).to_owned()),
+                tcl_registry::f5::runtime_namespaces(context)
+                    .iter()
+                    .map(|namespace| (*namespace).to_owned()),
             );
         }
         for command in baseline.semantics.binding_names() {
@@ -11007,14 +12518,16 @@ impl ModuleCommandBindings {
             if registry
                 .get(command)
                 .is_some_and(|spec| spec.is_namespace_exported)
+                && command.is_ascii()
+                && !command.as_bytes().contains(&0)
             {
                 exports
                     .entry(holder.to_owned())
                     .or_default()
-                    .push(tail.to_owned());
+                    .push(tcl_core_types::NameBytes::from(tail.as_bytes()));
             }
         }
-        Self {
+        let mut state = Self {
             baseline,
             namespace_exports: Arc::new(
                 exports
@@ -11024,7 +12537,40 @@ impl ModuleCommandBindings {
             ),
             namespaces: Arc::new(namespaces.into_iter().collect()),
             ..Self::default()
+        };
+        state.original_command_world =
+            Arc::new(source_command_world::OriginalSourceCommandWorld::for_baseline(&state));
+        if state.baseline.native_entry.is_none()
+            && !state.baseline.unknown_entry
+            && let Some(dialect) = state.baseline.dialect
+            && let Some(support) = registry
+                .native_class_factory_recipe(
+                    "oo::configurable",
+                    dialect,
+                    state.baseline.invocation_realm,
+                )
+                .and_then(tcl_registry::native_tcloo_bootstrap::NativeClassFactoryRecipe::support)
+        {
+            for receiver in [
+                tcl_registry::definer::DefinitionReceiver::Instance,
+                tcl_registry::definer::DefinitionReceiver::Class,
+            ] {
+                let namespace =
+                    SourceNamespaceKey::authored(support.definition_namespace(receiver));
+                let path = support
+                    .definition_path(receiver)
+                    .iter()
+                    .map(|name| SourceNamespaceKey::authored(*name))
+                    .collect::<Vec<_>>();
+                if state.namespaces.contains(&namespace)
+                    && path.iter().all(|key| state.namespaces.contains(key))
+                {
+                    Arc::make_mut(&mut state.namespace_paths)
+                        .insert(namespace, BTreeSet::from([path]));
+                }
+            }
         }
+        state
     }
 
     fn initial_with_options(
@@ -11036,20 +12582,24 @@ impl ModuleCommandBindings {
         if options.native_entry.is_some()
             || options.execution_name_policy.is_some()
             || options.invocation_dialect.is_some()
+            || options.vendor_source_input.is_some()
         {
             baseline.execution_name_policy = options.execution_name_policy();
         }
+        baseline.logical_source_input = options.retained_logical_source_input(registry, config);
+        baseline.vendor_source_input = options.retained_vendor_source_input(registry, config);
+        baseline.hosted_execution_context = options.hosted_execution_context;
         baseline.native_compilation = options.native_compilation;
         baseline.compiled_variable_provider = options.compiled_variable_provider;
         baseline.invocation_realm = options.invocation_realm;
         baseline.unknown_entry = options.unknown_entry;
         baseline.native_entry = options.native_entry.cloned().map(Arc::new);
-        baseline.declared_commands = options
-            .declared_commands
-            .into_iter()
-            .flat_map(tcl_registry::model::DeclaredSurface::iter)
-            .map(|(name, _)| (nqn(name), name.to_owned()))
-            .collect();
+        baseline.declared_surface = options.retained_declared_command_contracts();
+        baseline.declared_commands =
+            tcl_registry::model::DocumentCommandSurface::new(registry, options.declared_commands)
+                .declared_names()
+                .map(|name| (nqn(name), name.to_owned()))
+                .collect();
         baseline.trusted_source_modules = options.trusted_source_modules.to_vec();
         baseline.trusted_loaders = options
             .trusted_package_loaders
@@ -11066,10 +12616,16 @@ impl ModuleCommandBindings {
             baseline.import_binding = None;
         }
         if let Some(dialect) = logical {
-            baseline.semantics = registry.effective_semantics_for_dialect_in_realm(
-                dialect,
-                tcl_dialect::model::InvocationRealm::InterpreterRuntime,
-            );
+            baseline.semantics = match baseline.logical_source_input.as_ref() {
+                Some(input) => registry.authored_source_semantics_in_context(
+                    input.context_registry().context(),
+                    baseline.invocation_realm,
+                ),
+                None => registry.effective_semantics_for_dialect_in_realm(
+                    dialect,
+                    tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+                ),
+            };
             baseline.import_binding = dialect.namespace_import_binding;
             baseline.release = dialect.tcl_version;
             baseline.dialect = Some(dialect);
@@ -11089,6 +12645,7 @@ impl ModuleCommandBindings {
         variables.frame_kind = crate::var_resolve::VariableFrameKind::Global;
         variables.invocation_dialect = state.baseline.dialect;
         variables.execution_name_policy = state.baseline.execution_name_policy;
+        variables.hosted_execution_context = state.baseline.hosted_execution_context;
         variables.namespace_identities = state.namespaces.iter().cloned().collect();
         variables.known_namespaces = state
             .namespaces
@@ -11119,6 +12676,8 @@ impl ModuleCommandBindings {
     /// owns one baseline [`Arc`], so its allocation identity is sufficient.
     fn same_state(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.baseline, &other.baseline)
+            && (Arc::ptr_eq(&self.original_command_world, &other.original_command_world)
+                || self.original_command_world == other.original_command_world)
             && self.ordinary_literal_pool == other.ordinary_literal_pool
             && self.class_definitions == other.class_definitions
             && self.object_instances == other.object_instances
@@ -11157,6 +12716,7 @@ impl ModuleCommandBindings {
 
     fn non_binding_observation_stamp(&self) -> NonBindingObservationStamp {
         NonBindingObservationStamp {
+            original_command_world: Arc::clone(&self.original_command_world),
             ordinary_literal_pool: self.ordinary_literal_pool.clone(),
             class_definitions: Arc::clone(&self.class_definitions),
             object_instances: Arc::clone(&self.object_instances),
@@ -11195,6 +12755,7 @@ impl ModuleCommandBindings {
 
 impl std::hash::Hash for ModuleCommandBindings {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.original_command_world.hash(state);
         self.current_source_origin.hash(state);
         self.ordinary_literal_pool.hash(state);
         self.allocation_counts.hash(state);
@@ -11382,12 +12943,14 @@ impl ModuleCommandBindings {
     /// mutation. Namespace lookup changes are relevant to source-safe
     /// resolution but do not by themselves invalidate optimiser trust.
     fn mark_opaque_resolution(&mut self) {
+        Arc::make_mut(&mut self.original_command_world).withdraw();
         self.opaque_domain = true;
     }
 
     /// Widen both command resolution and the optimiser's command-trust
     /// projection because an unbounded command-binding effect may occur.
     fn mark_opaque_binding_mutation(&mut self) {
+        Arc::make_mut(&mut self.original_command_world).withdraw();
         self.ordinary_literal_pool = None;
         Arc::make_mut(&mut self.object_instances).invalidate_dispatch(true);
         self.opaque_domain = true;
@@ -11697,6 +13260,37 @@ impl ModuleCommandBindings {
         registry: &CommandRegistry,
         namespace: &(impl NamespaceKeyQuery + ?Sized),
     ) -> Vec<ResolvedBindingInvocation> {
+        let context = registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        let context = context.map(crate::registry_invocation::InvocationMetadataContext::from);
+        self.resolve_statement_with_optional_metadata(stmt, registry, context, namespace)
+    }
+
+    /// Original may-target metadata under supplied complete availability.
+    /// Missing or foreign metadata refuses; targets and composed original
+    /// operands do not establish a Native frame, completion or physical effect.
+    #[must_use]
+    pub(crate) fn resolve_statement_with_metadata_context(
+        &self,
+        stmt: &Statement,
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> Vec<ResolvedBindingInvocation> {
+        let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+            return Vec::new();
+        };
+        self.resolve_statement_with_optional_metadata(stmt, registry, Some(context), namespace)
+    }
+
+    fn resolve_statement_with_optional_metadata(
+        &self,
+        stmt: &Statement,
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> Vec<ResolvedBindingInvocation> {
         if !stmt.is_executable_invocation() {
             return Vec::new();
         }
@@ -11708,17 +13302,23 @@ impl ModuleCommandBindings {
         if tokens.is_none() {
             return Vec::new();
         }
-        let context = registry
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+
+        let realm = tokens
+            .as_ref()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(SourceInvocationBinding::invocation_realm)
+            .unwrap_or(self.baseline.invocation_realm);
         let mut resolved = Vec::new();
         self.for_each_resolved_invocation(stmt, namespace, |target, words| {
             if !target.registry_backed {
                 return;
             }
             let Some(facts) =
-                tcl_registry::model::semantic::resolve_structured_invocation_in_context(
-                    registry, context, words,
+                tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    registry,
+                    context.map(crate::registry_invocation::InvocationMetadataContext::context),
+                    words,
+                    realm,
                 )
                 .resolved()
                 .map(|resolved| Box::new(resolved.facts()))
@@ -11909,16 +13509,45 @@ impl ModuleCommandBindings {
         let context = registry
             .profile()
             .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        let context = context.map(crate::registry_invocation::InvocationMetadataContext::from);
+        self.resolve_command_words_with_optional_metadata(words, registry, context, namespace)
+    }
+
+    /// Original may-target metadata under supplied complete availability.
+    /// Missing or foreign metadata refuses; targets and composed original
+    /// operands do not establish a Native frame, completion or physical effect.
+    #[must_use]
+    pub(crate) fn resolve_command_words_with_metadata_context(
+        &self,
+        words: &[crate::ir_helpers::CommandWord],
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> Vec<tcl_registry::InvocationFacts> {
+        let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+            return Vec::new();
+        };
+        self.resolve_command_words_with_optional_metadata(words, registry, Some(context), namespace)
+    }
+
+    fn resolve_command_words_with_optional_metadata(
+        &self,
+        words: &[crate::ir_helpers::CommandWord],
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> Vec<tcl_registry::InvocationFacts> {
         let mut resolved = Vec::new();
         self.for_each_resolved_command_words(words, namespace, |target, invocation_words| {
             if !target.registry_backed {
                 return;
             }
             if let Some(facts) =
-                tcl_registry::model::semantic::resolve_structured_invocation_in_context(
+                tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
                     registry,
-                    context,
+                    context.map(crate::registry_invocation::InvocationMetadataContext::context),
                     invocation_words,
+                    self.baseline.invocation_realm,
                 )
                 .resolved()
                 .map(|invocation| invocation.facts())
@@ -11944,6 +13573,33 @@ impl ModuleCommandBindings {
         registry: &CommandRegistry,
         namespace: &(impl NamespaceKeyQuery + ?Sized),
     ) -> tcl_registry::VariableWriteProjection {
+        self.variable_write_projection_with_metadata_context(
+            stmt,
+            registry,
+            namespace,
+            registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(Into::into),
+        )
+    }
+
+    /// Conditional source footprint using the supplied availability generation.
+    /// Missing or foreign metadata widens; original alias prefixes retain their
+    /// values without certifying a variable write or Native frame entry.
+    pub(crate) fn variable_write_projection_with_metadata_context(
+        &self,
+        stmt: &Statement,
+        registry: &CommandRegistry,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    ) -> tcl_registry::VariableWriteProjection {
+        let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+            return tcl_registry::VariableWriteProjection {
+                opaque_variable_frame: true,
+                ..tcl_registry::VariableWriteProjection::default()
+            };
+        };
         let literal_head = match stmt {
             Statement::Call { tokens, .. } | Statement::Barrier { tokens, .. } => {
                 tokens.as_ref().is_none_or(|tokens| {
@@ -11968,7 +13624,15 @@ impl ModuleCommandBindings {
             if !target.registry_backed {
                 return;
             }
-            let candidate = registry.variable_write_projection(words);
+            let candidate = registry.variable_write_projection_in_resolved_context(
+                context.context(),
+                words,
+                stmt.tokens()
+                    .and_then(|tokens| tokens.source_binding.as_ref())
+                    .map_or(self.baseline.invocation_realm, |binding| {
+                        binding.invocation_realm()
+                    }),
+            );
             projection.opaque_variable_frame |= candidate.opaque_variable_frame;
             for name in candidate.literal_names {
                 if !projection.literal_names.contains(&name) {
@@ -12208,6 +13872,32 @@ impl ModuleCommandBindings {
 
     /// Original-word candidates in the exact retained namespace domain. A
     /// later native fallback is validated only after earlier slots permit it.
+    fn original_source_keys_for_paths(
+        &self,
+        paths: Vec<Vec<SourceCommandKey>>,
+    ) -> Result<
+        Vec<SourceCommandKey>,
+        tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable,
+    > {
+        let mut keys = Vec::new();
+        for path in paths {
+            for (index, key) in path.iter().enumerate() {
+                let bindings = self.original_bindings_for_key(key).ok_or(
+                    tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable::Namespace,
+                )?;
+                let absent = bindings.contains(&MayBinding::Missing);
+                if (!absent || bindings.len() > 1 || index + 1 == path.len()) && !keys.contains(key)
+                {
+                    keys.push(key.clone());
+                }
+                if !absent {
+                    break;
+                }
+            }
+        }
+        Ok(keys)
+    }
+
     fn source_keys_checked<Q: NamespaceKeyQuery + ?Sized>(
         &self,
         name: &str,
@@ -12219,6 +13909,20 @@ impl ModuleCommandBindings {
         let namespace = namespace.namespace_key();
         if let Some(paths) = self.receiver_native_lookup_paths(name, namespace.as_ref()) {
             return paths.map(|paths| paths.into_iter().flatten().collect());
+        }
+        if name.is_ascii()
+            && !name.as_bytes().contains(&0)
+            && let Some(policy) = self
+                .baseline
+                .execution_name_policy
+                .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        {
+            let paths = self
+                .original_registry_command_paths(namespace.as_ref(), name, policy)
+                .ok_or(
+                    tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable::Namespace,
+                )?;
+            return self.original_source_keys_for_paths(paths);
         }
         if !name.starts_with("::") && self.unknown_lookup_namespaces.contains(namespace.as_ref()) {
             return Err(
@@ -12301,6 +14005,17 @@ impl ModuleCommandBindings {
         let key = namespace.namespace_key();
         if let Some(paths) = self.receiver_native_lookup_paths(name, key.as_ref()) {
             return paths.unwrap_or_default();
+        }
+        if name.is_ascii()
+            && !name.as_bytes().contains(&0)
+            && let Some(policy) = self
+                .baseline
+                .execution_name_policy
+                .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        {
+            return self
+                .original_registry_command_paths(key.as_ref(), name, policy)
+                .unwrap_or_default();
         }
         if !matches!(key.as_ref(), SourceNamespaceKey::Authored(_)) {
             return self
@@ -12393,9 +14108,7 @@ impl ModuleCommandBindings {
             if !visiting.insert(key.clone()) {
                 return true;
             }
-            let bindings = self.bindings.get(key).cloned().unwrap_or_else(|| {
-                Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
-            });
+            let bindings = self.binding_alternatives(key);
             unknown |= bindings.iter().any(|binding| match binding {
                 MayBinding::Unknown => true,
                 MayBinding::Imported(token) => {
@@ -12519,9 +14232,7 @@ impl ModuleCommandBindings {
             if !visiting.insert(key.clone()) {
                 continue;
             }
-            let bindings = self.bindings.get(key).cloned().unwrap_or_else(|| {
-                Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
-            });
+            let bindings = self.binding_alternatives(key);
             for binding in &bindings {
                 match binding {
                     MayBinding::Imported(token) => {
@@ -12607,12 +14318,8 @@ impl ModuleCommandBindings {
     /// registry transition already identifies its exact key and should not
     /// rescan every unchanged binding merely to publish that one delta.
     fn join_binding_from(&mut self, other: &Self, key: &(impl CommandKeyQuery + ?Sized)) -> bool {
-        let mut joined = self.bindings.get(key).cloned().unwrap_or_else(|| {
-            Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
-        });
-        joined.extend(other.bindings.get(key).cloned().unwrap_or_else(|| {
-            Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
-        }));
+        let mut joined = self.binding_alternatives(key);
+        joined.extend(other.binding_alternatives(key));
         self.replace_bindings([(key.command_key().into_owned(), joined)])
     }
 
@@ -12669,7 +14376,8 @@ impl ModuleCommandBindings {
                 2 => AllocationIncarnation::Second,
                 _ => AllocationIncarnation::RepeatedFresh,
             },
-            command: crate::command_binding::ModuleCommandBindings::command_key_label(command)?,
+            command: crate::command_binding::ModuleCommandBindings::command_key_label(command)
+                .unwrap_or_default(),
             namespace: command.holder().into_owned(),
         })
     }
@@ -12691,9 +14399,7 @@ impl ModuleCommandBindings {
                 allocation: target.implementation_allocation.clone(),
             });
         }
-        let prior = self.bindings.get(&key).cloned().unwrap_or_else(|| {
-            Self::unmodified_bindings(&key, self.baseline.semantics.binding_names())
-        });
+        let prior = self.binding_alternatives(&key);
         let tokens = prior
             .iter()
             .filter_map(|binding| {
@@ -12778,6 +14484,12 @@ impl ModuleCommandBindings {
             "a binding analysis may only join states from one registry baseline"
         );
         let mut changed = self.join_activation_values(other);
+        if !Arc::ptr_eq(&self.original_command_world, &other.original_command_world)
+            && self.original_command_world != other.original_command_world
+        {
+            changed |=
+                Arc::make_mut(&mut self.original_command_world).join(&other.original_command_world);
+        }
         changed |= self.join_lookup_support(other);
         changed |= self.join_binding_history(other);
         if !Arc::ptr_eq(&self.bindings, &other.bindings) && self.bindings != other.bindings {
@@ -13398,6 +15110,7 @@ fn interpret_binding_source(
             },
             compilation_snapshot: None,
             selected_compilation: None,
+            original_variable_compilation: None,
             namespace,
             namespace_key: frame.namespace_identity(),
             config,
@@ -13406,8 +15119,10 @@ fn interpret_binding_source(
             depth: 0,
             invocation_offset: 0,
             variable_read_owner: None,
+            original_written_projection: None,
             written_arguments: None,
             written_values: None,
+            written_name_values: None,
             written_representations: None,
             written_objects: None,
             written_method_prefixes: None,
@@ -13495,6 +15210,7 @@ impl RetainedBindingRoots {
                     receiver_method: false,
                     future_frame: None,
                     parameters: Vec::new(),
+                    original_parameters: None,
                     statics: None,
                     implementation_allocation: None,
                     source_origin: None,
@@ -14043,6 +15759,7 @@ fn apply_may_invocation_transitions(
                 precise_procedure,
                 invocation.source_span.start(),
                 None,
+                None,
             );
         }
         let body_shape_is_selected = invocation_selects_evaluated_body(&invocation.facts);
@@ -14207,7 +15924,15 @@ fn apply_resolved_may_transitions(
         {
             alternative.mark_opaque_binding_mutation();
         }
-        apply_declared_binding_transitions(&facts, &mut alternative, namespace, None, 0, None);
+        apply_declared_binding_transitions(
+            &facts,
+            &mut alternative,
+            namespace,
+            None,
+            0,
+            None,
+            None,
+        );
         if let Some(state) = &mut joined {
             if !state.same_state(&alternative) {
                 state.join(&alternative);
@@ -14268,6 +15993,7 @@ fn apply_declared_binding_transitions(
     precise_procedure: Option<&str>,
     declaration: u32,
     publication: Option<&command_publication::PreservingCommandPublication>,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
 ) {
     let Some(transitions) = facts.state_transitions.declared() else {
         return;
@@ -14280,7 +16006,13 @@ fn apply_declared_binding_transitions(
     for fact in transitions.facts() {
         if let StateTransition::Namespace(transition) = &fact.transition {
             bindings.namespace_resolution.record(transition, namespace);
-            apply_namespace_transition(bindings, transition, namespace, declaration);
+            apply_namespace_transition(
+                bindings,
+                transition,
+                namespace,
+                declaration,
+                original_operands,
+            );
         } else if let StateTransition::Interpreter(transition) = &fact.transition {
             bindings.retain_created_interpreter_command(transition, declaration);
         } else if let StateTransition::Package(transition) = &fact.transition {
@@ -14328,6 +16060,7 @@ fn apply_declared_binding_transitions(
             precise_procedure,
             declaration,
             publication,
+            original_operands,
         );
     }
 }
@@ -14412,7 +16145,10 @@ fn recover_procedure_definition(
     ) else {
         return ProcedureDefinitionReplay::Unavailable;
     };
-    if tcl_syntax::formal_params::parse_formal_parameters(params).is_err() {
+    let Some(grammar) = dialect.and_then(tcl_registry::InvocationDialect::parameter_grammar) else {
+        return ProcedureDefinitionReplay::Unavailable;
+    };
+    if tcl_syntax::formal_params::parse_formal_parameters_in(params, grammar).is_err() {
         return ProcedureDefinitionReplay::KnownError;
     }
 
@@ -14465,32 +16201,38 @@ fn apply_readable_evaluated_body(
             else {
                 return false;
             };
-            let Ok(elements) = tcl_syntax::list::split_list(lambda) else {
+            let Some(dialect) = bindings.baseline.dialect else {
+                return false;
+            };
+            let Some(grammar) = dialect.parameter_grammar() else {
+                return false;
+            };
+            // This body replay models an ordinary C lambda activation. Jim
+            // caller links need their own entered-frame receipt; accepted
+            // formal/count syntax cannot supply that activation.
+            if grammar != tcl_dialect::ParameterGrammar::Tcl {
+                return false;
+            }
+            let Ok(elements) = dialect.word_values.split_list(lambda) else {
                 // Tcl rejects a malformed lambda before entering its body.
                 return true;
             };
             if !(2..=3).contains(&elements.len()) {
                 return true;
             }
-            let Ok(parameters) =
-                tcl_syntax::formal_params::parse_formal_parameters(elements[0].as_ref())
-            else {
+            let Ok(parameters) = tcl_syntax::formal_params::parse_formal_parameters_in(
+                elements[0].as_ref(),
+                grammar,
+            ) else {
                 return true;
             };
-            let variadic = tcl_syntax::formal_params::has_trailing_args(&parameters);
-            let fixed_parameters = if variadic {
-                &parameters[..parameters.len().saturating_sub(1)]
-            } else {
-                parameters.as_slice()
-            };
-            let minimum_arguments = fixed_parameters
-                .iter()
-                .rposition(|parameter| parameter.default.is_none())
-                .map_or(0, |index| index + 1);
-            let supplied_arguments = argument_count.saturating_sub(1);
-            if supplied_arguments < minimum_arguments
-                || (!variadic && supplied_arguments > fixed_parameters.len())
-            {
+            let count = tcl_syntax::formal_params::formal_argument_count_shape(
+                parameters
+                    .iter()
+                    .map(|parameter| (parameter.name == "args", parameter.default.is_some())),
+                grammar,
+            );
+            if !count.accepts(argument_count.saturating_sub(1)) {
                 // Known arity errors occur before any body command executes.
                 return true;
             }
@@ -14860,6 +16602,7 @@ pub(crate) fn constructed_script_words(
                 }
                 | crate::registry_invocation::EffectiveInvocationWord::Expanded
                 | crate::registry_invocation::EffectiveInvocationWord::KnownExpansion(_)
+                | crate::registry_invocation::EffectiveInvocationWord::KnownByteExpansion(_)
                 | crate::registry_invocation::EffectiveInvocationWord::Opaque => None,
             }
         })
@@ -14919,6 +16662,7 @@ fn apply_may_binding_transition(
     precise_procedure: Option<&str>,
     declaration: u32,
     publication: Option<&command_publication::PreservingCommandPublication>,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
 ) {
     let preserves =
         publication.is_some_and(|receipt| receipt.preserves(transition, bindings, declaration));
@@ -14944,6 +16688,24 @@ fn apply_may_binding_transition(
         Arc::make_mut(&mut bindings.object_instances).invalidate_dispatch(false);
     }
     if bindings.apply_captured_command_mutation(transition, declaration) {
+        return;
+    }
+
+    if let Some(original) = original_operands {
+        let current = match namespace {
+            crate::ir_helpers::ExecutionNamespace::SourceContext(current) => Some(current.clone()),
+            crate::ir_helpers::ExecutionNamespace::Exact(namespace) => {
+                Some(SourceNamespaceKey::authored(namespace))
+            }
+            crate::ir_helpers::ExecutionNamespace::RuntimeSelected => None,
+        };
+        if current
+            .as_ref()
+            .and_then(|current| original.apply(bindings, transition, current, declaration))
+            .is_none()
+        {
+            bindings.mark_unnameable_rebinding_subject();
+        }
         return;
     }
 
@@ -15374,7 +17136,7 @@ fn trusted_loader_is_selected(
     if state.loader_handler_unknown || state.revoked_loaders.contains(&loader.package) {
         return false;
     }
-    if !state.provider_lookup_dependencies_are_live(loader.lookup_dependencies.iter()) {
+    if !trusted_package_transfer::preload_dependencies_hold(state, loader) {
         return false;
     }
     if requirements.is_empty() {
@@ -15398,17 +17160,71 @@ fn trusted_loader_is_selected(
             })
 }
 
+fn install_trusted_package_namespace_exports(
+    state: &mut ModuleCommandBindings,
+    loader: &TrustedPackageLoader,
+) {
+    for (namespace, exports) in &loader.namespace_exports {
+        Arc::make_mut(&mut state.namespaces).insert(namespace.clone());
+        if exports
+            .iter()
+            .any(|pattern| !pattern.is_ascii() || pattern.as_bytes().contains(&0))
+        {
+            Arc::make_mut(&mut state.unknown_export_namespaces).insert(namespace.clone());
+        } else {
+            Arc::make_mut(&mut state.namespace_exports).insert(
+                namespace.clone(),
+                BTreeSet::from([exports
+                    .iter()
+                    .map(|pattern| tcl_core_types::NameBytes::from(pattern.as_bytes()))
+                    .collect()]),
+            );
+        }
+    }
+    for (namespace, optional) in &loader.optional_namespace_exports {
+        if optional
+            .iter()
+            .any(|pattern| !pattern.is_ascii() || pattern.as_bytes().contains(&0))
+        {
+            Arc::make_mut(&mut state.unknown_export_namespaces).insert(namespace.clone());
+        }
+        let exports = Arc::make_mut(&mut state.namespace_exports)
+            .entry(namespace.clone())
+            .or_insert_with(|| BTreeSet::from([Vec::new()]));
+        let with_optional = exports
+            .iter()
+            .map(|patterns| {
+                let mut patterns = patterns.clone();
+                patterns.extend(
+                    optional
+                        .iter()
+                        .filter(|pattern| pattern.is_ascii() && !pattern.as_bytes().contains(&0))
+                        .map(|pattern| tcl_core_types::NameBytes::from(pattern.as_bytes())),
+                );
+                patterns
+            })
+            .collect::<Vec<_>>();
+        exports.extend(with_optional);
+    }
+}
+
 fn install_trusted_package_provider(
     state: &mut ModuleCommandBindings,
     package: &str,
     loader: TrustedPackageLoader,
 ) {
+    // Proof: naming.package.attested-source-loader-transfer
+    // docs/design/analysis/name-resolution-proofs/package-attested-source-loader-transfer.md
+    let Some(publication_keys) = trusted_package_transfer::publication_keys(state, &loader) else {
+        state.mark_opaque_binding_mutation();
+        return;
+    };
     for command in &loader.command_surface {
         let slot = nqn(command);
         let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(&slot);
         Arc::make_mut(&mut state.namespaces).insert(namespace.to_owned());
         state.install(
-            slot.clone(),
+            publication_keys[command].clone(),
             MayBinding::Target(ResolvedCommandTarget {
                 command: slot.clone(),
                 prepended: Vec::new(),
@@ -15446,27 +17262,12 @@ fn install_trusted_package_provider(
             }),
             implementation_allocation: None,
         });
-        state.replace(slot, BTreeSet::from([original, MayBinding::Missing]));
+        state.replace(
+            publication_keys[command].clone(),
+            BTreeSet::from([original, MayBinding::Missing]),
+        );
     }
-    for (namespace, exports) in &loader.namespace_exports {
-        Arc::make_mut(&mut state.namespaces).insert(namespace.clone());
-        Arc::make_mut(&mut state.namespace_exports)
-            .insert(namespace.clone(), BTreeSet::from([exports.clone()]));
-    }
-    for (namespace, optional) in &loader.optional_namespace_exports {
-        let exports = Arc::make_mut(&mut state.namespace_exports)
-            .entry(namespace.clone())
-            .or_insert_with(|| BTreeSet::from([Vec::new()]));
-        let with_optional = exports
-            .iter()
-            .map(|patterns| {
-                let mut patterns = patterns.clone();
-                patterns.extend(optional.iter().cloned());
-                patterns
-            })
-            .collect::<Vec<_>>();
-        exports.extend(with_optional);
-    }
+    install_trusted_package_namespace_exports(state, &loader);
     Arc::make_mut(&mut state.packages).insert(
         package.to_owned(),
         BTreeSet::from([PackageProvision {
@@ -15482,7 +17283,28 @@ fn apply_namespace_ensure(
     namespace: &tcl_registry::NamespaceTransitionTarget,
     current: &SourceNamespaceKey,
     offset: u32,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
 ) {
+    if let (Some(operands), tcl_registry::NamespaceTransitionTarget::Named(subject)) =
+        (original_operands, namespace)
+        && matches!(
+            state
+                .baseline
+                .execution_name_policy
+                .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                .map(tcl_syntax::naming::NamePolicyProtocol::recipe),
+            Some(tcl_syntax::naming::NativeNameProtocol::C(_))
+        )
+        && (subject.literal().is_none() || !matches!(current, SourceNamespaceKey::Authored(_)))
+    {
+        let selected = operands
+            .namespace_ensure_input(subject)
+            .and_then(|input| state.ensure_original_namespace_key_at(current, input, offset));
+        if selected.is_none() {
+            state.mark_opaque_resolution();
+        }
+        return;
+    }
     if let SourceNamespaceKey::Authored(_) = current {
         if let Some(SourceNamespaceKey::Authored(mut ancestor)) =
             state.namespace_target_key_at(namespace, current)
@@ -15508,11 +17330,33 @@ fn apply_namespace_path(
     namespace: &tcl_registry::NamespaceTransitionTarget,
     path: &TransitionSubject,
     current: &SourceNamespaceKey,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
 ) {
     let Some(name) = state.namespace_target_key_at(namespace, current) else {
         state.mark_opaque_resolution();
         return;
     };
+    if matches!(
+        state.baseline.execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            .map(tcl_syntax::naming::NamePolicyProtocol::recipe),
+        Some(tcl_syntax::naming::NativeNameProtocol::C(version))
+            if version >= tcl_dialect::TclVersion::V8_5
+    ) {
+        let entries = original_operands
+            .and_then(|operands| operands.namespace_input(path))
+            .and_then(|input| original_namespace_path::select(state, &name, input));
+        match entries {
+            Some(entries) => {
+                Arc::make_mut(&mut state.unknown_namespace_paths).remove(&name);
+                Arc::make_mut(&mut state.namespace_paths).insert(name, BTreeSet::from([entries]));
+            }
+            None => {
+                Arc::make_mut(&mut state.unknown_namespace_paths).insert(name);
+            }
+        }
+        return;
+    }
     let Some(path) = path
         .literal()
         .and_then(|value| tcl_syntax::list::split_list(value).ok())
@@ -15544,6 +17388,7 @@ fn apply_namespace_transition(
     transition: &NamespaceTransition,
     execution: &crate::ir_helpers::ExecutionNamespace,
     offset: u32,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
 ) {
     if matches!(
         transition,
@@ -15560,13 +17405,13 @@ fn apply_namespace_transition(
     let current = current.as_ref();
     match transition {
         NamespaceTransition::Ensure { namespace } => {
-            apply_namespace_ensure(state, namespace, current, offset);
+            apply_namespace_ensure(state, namespace, current, offset, original_operands);
         }
         NamespaceTransition::Export {
             namespace,
             patterns,
         } => {
-            apply_namespace_exports(state, namespace, patterns, current);
+            apply_namespace_exports(state, namespace, patterns, current, original_operands);
         }
         NamespaceTransition::Import {
             namespace,
@@ -15578,7 +17423,11 @@ fn apply_namespace_transition(
                 return;
             };
             for pattern in patterns {
-                let Some(pattern) = pattern.literal() else {
+                let Some(pattern) = namespace_pattern_operand_bytes(
+                    pattern,
+                    original_operands,
+                    state.baseline.native_entry.is_some(),
+                ) else {
                     Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(name.clone());
                     break;
                 };
@@ -15596,7 +17445,11 @@ fn apply_namespace_transition(
                 return;
             };
             for pattern in patterns {
-                let Some(pattern) = pattern.literal() else {
+                let Some(pattern) = namespace_pattern_operand_bytes(
+                    pattern,
+                    original_operands,
+                    state.baseline.native_entry.is_some(),
+                ) else {
                     Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(name.clone());
                     break;
                 };
@@ -15604,23 +17457,16 @@ fn apply_namespace_transition(
             }
         }
         NamespaceTransition::SetPath { namespace, path } => {
-            apply_namespace_path(state, namespace, path, current);
+            apply_namespace_path(state, namespace, path, current, original_operands);
         }
         NamespaceTransition::Delete { namespace } => {
             Arc::make_mut(&mut state.object_instances).invalidate_class_delegates(false);
             Arc::make_mut(&mut state.object_instances).invalidate_dispatch(false);
-            apply_namespace_deletion(state, namespace, current, offset);
+            apply_namespace_deletion(state, namespace, current, offset, original_operands);
         }
         NamespaceTransition::SetUnknown { namespace, handler } => {
             if let Some(name) = state.namespace_target_key_at(namespace, current) {
-                let default = handler.literal().is_some_and(|handler| {
-                    state.baseline.dialect.is_some_and(|dialect| {
-                        dialect
-                            .word_values
-                            .split_list(handler)
-                            .is_ok_and(|prefix| prefix.is_empty())
-                    })
-                });
+                let default = is_default_namespace_unknown_handler(state, handler);
                 if default {
                     Arc::make_mut(&mut state.namespace_unknown_handlers).remove(&name);
                 } else {
@@ -15645,8 +17491,15 @@ fn apply_namespace_deletion(
     namespace: &tcl_registry::NamespaceTransitionTarget,
     current: &SourceNamespaceKey,
     offset: u32,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
 ) {
-    let Some(name) = state.namespace_target_key_at(namespace, current) else {
+    let name = match (namespace, original_operands) {
+        (tcl_registry::NamespaceTransitionTarget::Named(subject), Some(operands)) => operands
+            .namespace_input(subject)
+            .and_then(|input| state.original_namespace_key_for_input(current, input)),
+        _ => state.namespace_target_key_at(namespace, current),
+    };
+    let Some(name) = name else {
         state.mark_opaque_resolution();
         return;
     };
@@ -15678,149 +17531,64 @@ fn apply_namespace_deletion(
         .retain(|ns, _| ns != &name && !ns.is_descendant_of(&name));
 }
 
+/// Exact original values take precedence over logical transition advice.
+/// The legacy authored adapter supports explicit ASCII metadata only; a
+/// supplied native entry never borrows those bytes for an absent original.
+fn namespace_pattern_operand_bytes<'a>(
+    subject: &'a TransitionSubject,
+    original_operands: Option<&'a original_command_table::OriginalCommandOperands>,
+    native_entry: bool,
+) -> Option<&'a [u8]> {
+    match original_operands {
+        Some(operands) => operands
+            .namespace_input(subject)
+            .map(crate::signature_scan::scope::SignatureSourceNameInput::bytes),
+        None => subject.native_bytes().or_else(|| {
+            (!native_entry).then_some(())?;
+            let metadata = subject.literal()?;
+            (metadata.is_ascii() && !metadata.as_bytes().contains(&0))
+                .then_some(metadata.as_bytes())
+        }),
+    }
+}
+
 fn apply_namespace_exports(
     state: &mut ModuleCommandBindings,
     namespace: &tcl_registry::NamespaceTransitionTarget,
     patterns: &[TransitionSubject],
     current: &SourceNamespaceKey,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
 ) {
-    let Some(name) = state.namespace_target_key_at(namespace, current) else {
+    let Some(namespace) = state.namespace_target_key_at(namespace, current) else {
         state.mark_opaque_resolution();
         return;
     };
-    let Some((clear, patterns)) =
-        tcl_registry::NamespaceTransition::export_pattern_operands(patterns)
-    else {
-        Arc::make_mut(&mut state.unknown_export_namespaces).insert(name);
-        return;
-    };
-    let Some(patterns) = patterns
+    let inputs = patterns
         .iter()
-        .map(TransitionSubject::literal)
-        .collect::<Option<Vec<_>>>()
-    else {
-        Arc::make_mut(&mut state.unknown_export_namespaces).insert(name);
-        return;
-    };
-    let prior = state
-        .namespace_exports
-        .get(&name)
-        .cloned()
-        .unwrap_or_else(|| BTreeSet::from([Vec::new()]));
-    let alternatives = prior
-        .into_iter()
-        .map(|mut exports| {
-            if clear {
-                exports.clear();
-            }
-            for pattern in &patterns {
-                if !exports.iter().any(|existing| existing == pattern) {
-                    exports.push((*pattern).to_owned());
-                }
-            }
-            exports
+        .map(|pattern| {
+            namespace_pattern_operand_bytes(
+                pattern,
+                original_operands,
+                state.baseline.native_entry.is_some(),
+            )
         })
-        .collect();
-    Arc::make_mut(&mut state.namespace_exports).insert(name, alternatives);
+        .collect::<Option<Vec<_>>>();
+    if inputs
+        .as_ref()
+        .and_then(|inputs| original_namespace_binding::apply_exports(state, &namespace, inputs))
+        .is_none()
+    {
+        Arc::make_mut(&mut state.unknown_export_namespaces).insert(namespace);
+    }
 }
 
 fn import_pattern(
     state: &mut ModuleCommandBindings,
     destination: &SourceNamespaceKey,
-    pattern: &str,
+    pattern: &[u8],
     force: Option<bool>,
 ) -> bool {
-    let name_binding =
-        state.baseline.import_binding == Some(tcl_dialect::NamespaceImportBinding::SourceName);
-    let force = if name_binding { Some(true) } else { force };
-    let qualifier = tcl_cmd_core::namespace::qualifiers(pattern.as_bytes());
-    if qualifier.is_empty() {
-        return name_binding;
-    }
-    let Ok(qualifier) = std::str::from_utf8(qualifier) else {
-        return false;
-    };
-    let Some(source) = state.namespace_target_key_at(
-        &tcl_registry::NamespaceTransitionTarget::Named(TransitionSubject::Literal(
-            qualifier.to_owned(),
-        )),
-        destination,
-    ) else {
-        return false;
-    };
-    if &source == destination || !state.namespaces.contains(&source) {
-        return name_binding;
-    }
-    if !name_binding && state.unknown_export_namespaces.contains(&source) {
-        Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(destination.clone());
-    }
-    let tail =
-        std::str::from_utf8(tcl_cmd_core::namespace::tail(pattern.as_bytes())).unwrap_or_default();
-    let slots = state.all_command_keys();
-    let exports = if name_binding {
-        BTreeSet::from([vec!["*".to_owned()]])
-    } else {
-        state
-            .namespace_exports
-            .get(&source)
-            .cloned()
-            .unwrap_or_else(|| BTreeSet::from([Vec::new()]))
-    };
-    for slot in slots {
-        let holder = slot.holder();
-        let Some(simple) = slot.simple_utf8() else {
-            state.mark_opaque_resolution();
-            return false;
-        };
-        if holder.as_ref() != &source || !tcl_syntax::glob::string_match(tail, simple) {
-            continue;
-        }
-        let export_count = exports
-            .iter()
-            .filter(|patterns| {
-                patterns
-                    .iter()
-                    .any(|pattern| tcl_syntax::glob::string_match(pattern, simple))
-            })
-            .count();
-        if export_count == 0 {
-            continue;
-        }
-        let Some(imported) = state.publication_key_at(
-            destination,
-            simple,
-            namespace_slots::PublicationPurpose::Command,
-        ) else {
-            state.mark_opaque_resolution();
-            return false;
-        };
-        let prior = state.bindings.get(&imported).cloned().unwrap_or_else(|| {
-            ModuleCommandBindings::unmodified_bindings(
-                &imported,
-                state.baseline.semantics.binding_names(),
-            )
-        });
-        if force == Some(false) && !prior.contains(&MayBinding::Missing) {
-            return false;
-        }
-        let implementations = state.bindings.get(&slot).cloned().unwrap_or_else(|| {
-            ModuleCommandBindings::unmodified_bindings(
-                &slot,
-                state.baseline.semantics.binding_names(),
-            )
-        });
-        let (mut links, source_bindings) =
-            imported_binding_links(state, &slot, implementations, name_binding);
-        state.replace(slot, source_bindings);
-        if export_count != exports.len()
-            || force.is_none()
-            || (force == Some(false) && prior.len() > 1)
-        {
-            links.extend(prior);
-        }
-        state.replace(imported, links);
-    }
-    true
+    original_namespace_binding::apply_import(state, destination, pattern, force).is_some()
 }
 
 fn imported_binding_links(
@@ -15930,48 +17698,11 @@ fn imported_binding_links(
 fn forget_pattern(
     state: &mut ModuleCommandBindings,
     destination: &SourceNamespaceKey,
-    pattern: &str,
+    pattern: &[u8],
 ) {
-    let qualifier = tcl_cmd_core::namespace::qualifiers(pattern.as_bytes());
-    let Ok(qualifier) = std::str::from_utf8(qualifier) else {
-        state.mark_opaque_resolution();
-        return;
-    };
-    let source = if qualifier.is_empty() {
-        None
-    } else {
-        let Some(source) = state.namespace_target_key_at(
-            &tcl_registry::NamespaceTransitionTarget::Named(TransitionSubject::Literal(
-                qualifier.to_owned(),
-            )),
-            destination,
-        ) else {
-            state.mark_opaque_resolution();
-            return;
-        };
-        Some(source)
-    };
-    let Ok(tail) = std::str::from_utf8(tcl_cmd_core::namespace::tail(pattern.as_bytes())) else {
-        state.mark_opaque_resolution();
-        return;
-    };
-    let replacements = state.bindings.iter().filter_map(|(slot, alternatives)| {
-        if slot.holder().as_ref() != destination { return None; }
-        let simple = slot.simple_utf8()?;
-        let mut changed = false;
-        let bindings = alternatives.iter().map(|binding| {
-            if let MayBinding::Imported(token) = binding {
-                let origin = state.bindings.iter().find_map(|(name, implementations)| implementations.iter().any(|implementation| matches!(implementation, MayBinding::Target(target) if target.token.as_ref() == Some(&token.origin))).then_some(name));
-                let matched = if let Some(source) = &source {
-                    origin.is_some_and(|origin| origin.holder().as_ref() == source && origin.simple_utf8().is_some_and(|simple| tcl_syntax::glob::string_match(tail, simple)))
-                } else { tcl_syntax::glob::string_match(tail, simple) };
-                if matched { changed = true; return MayBinding::Missing; }
-            }
-            binding.clone()
-        }).collect();
-        changed.then_some((slot.clone(), bindings))
-    }).collect::<Vec<_>>();
-    state.replace_bindings(replacements);
+    if original_namespace_binding::apply_forget(state, destination, pattern).is_none() {
+        Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(destination.clone());
+    }
 }
 
 fn collect_namespace_resolution(
@@ -16046,10 +17777,7 @@ fn join_ns(ns: &str, tail: &str) -> String {
 }
 
 fn literal_subject(subject: &TransitionSubject) -> Option<&str> {
-    match subject {
-        TransitionSubject::Literal(value) => Some(value),
-        TransitionSubject::Unknown { .. } => None,
-    }
+    subject.literal()
 }
 
 /// CFG queries are projections of the shared command-table state.
@@ -16553,11 +18281,10 @@ impl ModuleCommandMutations {
     /// change what a *builtin* name denotes — [`Self::trusts`] then answers
     /// `true` for every name, exactly as [`Self::default`] does.
     ///
-    /// The per-procedure lattice memo keys on the procedure's own body plus
-    /// the closed binding lattice, and can carry neither this whole-module
-    /// scan nor the namespace-local shadows only it sees. A module this
-    /// answers `true` for agrees with a memoised unit by construction; one it
-    /// answers `false` for must be rebuilt with the fact in hand.
+    /// Consumers that omit the complete mutation snapshot may use this query
+    /// to establish agreement with an untouched-module baseline. The function
+    /// lattice memo retains the full snapshot and therefore keys separately
+    /// for namespace-local shadows and unknown mutation obligations.
     #[must_use]
     pub fn agrees_with_untouched_bindings(&self) -> bool {
         !self.dynamic && self.names.is_empty() && self.opaque_namespaces.is_empty()
@@ -19870,5 +21597,120 @@ mod compiled_variable_policy_tests {
             tcl_dialect::TclVersion::V9_0,
         ));
         assert!(options.compiled_variable_protocol().is_none());
+    }
+}
+
+#[cfg(test)]
+mod hosted_storage_entry_tests {
+    use super::*;
+
+    #[test]
+    // Implementation contract: naming.variable.hosted-storage-context
+    // docs/design/analysis/name-resolution-proofs/variable-hosted-storage-context.md
+    fn hosted_storage_entry_is_independent_of_registry_and_source_name_policy() {
+        use tcl_registry::f5::BigIpExecutionContext;
+        let stock = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let irules = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let entry = SourceAnalysisEntry {
+            hosted_execution_context: Some(BigIpExecutionContext::TmmIRule),
+            ..Default::default()
+        };
+        assert_eq!(
+            entry.options().hosted_execution_context,
+            entry.hosted_execution_context
+        );
+        let selected = ModuleCommandBindings::initial_with_options(stock, entry.options(), None);
+        assert_eq!(
+            selected.source_variables.hosted_execution_context,
+            entry.hosted_execution_context
+        );
+        assert!(
+            selected
+                .namespaces
+                .contains(&SourceNamespaceKey::authored("::static"))
+        );
+        let catalogue = ModuleCommandBindings::initial_with_options(
+            irules,
+            SourceAnalysisOptions::default(),
+            None,
+        );
+        assert_eq!(catalogue.source_variables.hosted_execution_context, None);
+        let different = SourceAnalysisEntry {
+            hosted_execution_context: Some(BigIpExecutionContext::IAppImplementation),
+            ..entry.clone()
+        };
+        let selected =
+            ModuleCommandBindings::initial_with_options(irules, different.options(), None);
+        assert_eq!(
+            selected.source_variables.hosted_execution_context,
+            different.hosted_execution_context
+        );
+        assert_ne!(entry, different);
+        assert_ne!(
+            entry.options().hosted_execution_context,
+            different.options().hosted_execution_context
+        );
+        assert!(selected.source_variables.authored_tmm_static.is_none());
+        assert!(selected.source_variables.execution.is_none());
+    }
+}
+
+#[cfg(test)]
+mod selected_replay_formal_tests {
+    use super::*;
+
+    fn invocation(parameters: &str) -> ResolvedBindingInvocation {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        let arguments = vec!["target".to_owned(), parameters.to_owned(), String::new()];
+        let refs = arguments.iter().map(String::as_str).collect::<Vec<_>>();
+        let facts = registry
+            .commands()
+            .resolve_invocation("proc", &refs, registry.commands().own_surface_query())
+            .unwrap()
+            .facts();
+        ResolvedBindingInvocation {
+            command: "proc".into(),
+            source_span: tcl_lexer::Span::new(0, 1),
+            facts: Box::new(facts),
+            literal_arguments: arguments.iter().cloned().map(Some).collect(),
+            exact_argument_count: Some(arguments.len()),
+            arguments,
+        }
+    }
+
+    #[test]
+    fn original_procedure_replay_validity_requires_the_selected_formal_grammar() {
+        // naming.variable.original-readonly-formal-topology
+        // docs/design/analysis/name-resolution-proofs/original-readonly-formal-topology.md
+        // Registry replay syntax only, without installed procedure or body entry.
+        let namespace = crate::ir::ExecutionNamespace::exact("::");
+        let c = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let jim = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        for parameters in ["a::b", "a(1)"] {
+            let invocation = invocation(parameters);
+            assert!(matches!(
+                recover_procedure_definition(&invocation, &namespace, Some(c)),
+                ProcedureDefinitionReplay::KnownError
+            ));
+            assert!(matches!(
+                recover_procedure_definition(&invocation, &namespace, Some(jim)),
+                ProcedureDefinitionReplay::Recovered { .. }
+            ));
+            assert!(matches!(
+                recover_procedure_definition(&invocation, &namespace, None),
+                ProcedureDefinitionReplay::Unavailable
+            ));
+        }
+        let duplicate = invocation("args args");
+        assert!(matches!(
+            recover_procedure_definition(&duplicate, &namespace, Some(jim)),
+            ProcedureDefinitionReplay::KnownError
+        ));
+        assert!(matches!(
+            recover_procedure_definition(&duplicate, &namespace, Some(c)),
+            ProcedureDefinitionReplay::Recovered { .. }
+        ));
     }
 }

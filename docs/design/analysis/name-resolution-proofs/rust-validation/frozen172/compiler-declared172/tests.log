@@ -1,0 +1,13 @@
+
+running 8 tests
+test command_binding::source_declared_command::tests::original_declared_body_scope_keeps_global_fallback_without_root_stamping ... ok
+test command_binding::source_declared_command::tests::original_declared_body_scope_refuses_unowned_names_and_known_replacements ... ok
+test command_binding::source_declared_command::tests::original_declared_words_keep_roles_provenance_and_direct_ordinals ... ok
+test command_binding::source_declared_command::tests::original_declared_words_refuse_replacements_and_builtin_trait_donation ... ok
+test command_binding::source_declared_command::tests::original_declared_words_require_the_authentic_stub_block ... ok
+test command_binding::source_declared_command::tests::original_declared_words_retain_qualified_and_nested_procedure_scope ... ok
+test command_binding::source_declared_command::tests::original_declared_words_retain_static_namespace_source_ancestry ... ok
+test command_binding::source_declared_command::tests::original_declared_words_use_current_contracts_in_every_document_ingress ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 8248 filtered out; finished in 22.69s
+

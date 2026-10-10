@@ -1,0 +1,58 @@
+   Compiling tcl-irules v0.1.0 (/workspace/.checkpoints/naming103/rust/tcl-irules)
+    Finished `test` profile [unoptimized] target(s) in 2.19s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_irules-ac56161129c2e217)
+
+running 22 tests
+test ilx::tests::a_bare_or_required_constructor_is_recognised ... ok
+test ilx::tests::a_body_that_opens_a_new_frame_does_not_inherit_the_handle ... 
+thread 'ilx::tests::a_body_that_opens_a_new_frame_does_not_inherit_the_handle' (441293) panicked at rust/tcl-irules/src/ilx.rs:751:9:
+assertion `left == right` failed
+  left: []
+ right: [("m", None, Synchronous)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test ilx::tests::a_computed_method_word_is_not_a_site_at_all ... ok
+test ilx::tests::a_literal_removal_takes_the_method_back_out ... ok
+test ilx::tests::a_regex_literal_does_not_derail_the_scan ... ok
+test ilx::tests::a_removal_of_an_unreadable_name_suppresses_the_whole_table ... ok
+test ilx::tests::a_sibling_event_handler_does_not_leak_its_handle ... ok
+test ilx::tests::a_switch_arm_is_walked ... 
+thread 'ilx::tests::a_switch_arm_is_walked' (441299) panicked at rust/tcl-irules/src/ilx.rs:811:9:
+assertion `left == right` failed
+  left: []
+ right: [("api_method", None, Synchronous)]
+FAILED
+test ilx::tests::a_written_handle_does_not_issue_runtime_extension_identity ... ok
+test ilx::tests::addmethod_registrations_are_found_on_an_ilxserver_receiver ... ok
+test ilx::tests::an_inline_construction_keeps_handle_result_authority_independent ... ok
+test ilx::tests::control_body_source_cards_do_not_issue_handle_cell_inheritance ... 
+thread 'ilx::tests::control_body_source_cards_do_not_issue_handle_cell_inheritance' (441303) panicked at rust/tcl-irules/src/ilx.rs:777:13:
+assertion `left == right` failed: when X {
+ set h [ILX::init p e]
+ if {1} { ILX::call $h m }
+}
+
+  left: []
+ right: [("m", None, Synchronous)]
+FAILED
+test ilx::tests::duplicate_registrations_are_both_reported ... ok
+test ilx::tests::dynamic_plugin_extension_or_reassignment_abstains ... ok
+test ilx::tests::escaped_string_values_abstain ... ok
+test ilx::tests::notify_is_a_notification_sharing_the_method_target ... ok
+test ilx::tests::original_ilx_source_cards_do_not_derive_handles_from_cell_or_label_guesses ... ok
+test ilx::tests::original_ilx_source_cards_keep_inline_candidates_and_current_owners ... ok
+test ilx::tests::plain_tcl_has_no_ilx_relation ... ok
+test ilx::tests::the_entry_point_follows_package_main_or_falls_back ... ok
+test ilx::tests::the_timeout_option_and_terminator_are_not_the_method ... ok
+test ilx::tests::unsupported_registration_forms_abstain ... ok
+
+failures:
+
+failures:
+    ilx::tests::a_body_that_opens_a_new_frame_does_not_inherit_the_handle
+    ilx::tests::a_switch_arm_is_walked
+    ilx::tests::control_body_source_cards_do_not_issue_handle_cell_inheritance
+
+test result: FAILED. 19 passed; 3 failed; 0 ignored; 0 measured; 45 filtered out; finished in 2.41s
+
+error: test failed, to rerun pass `-p tcl-irules --lib`

@@ -278,12 +278,10 @@ mod tests {
                     result.as_ptr()
                 );
             }
-            assert!(
-                obj::native_object_snapshot(result.as_ptr())
-                    .unwrap()
-                    .resident
-                    .is_none()
-            );
+            assert!(obj::native_object_snapshot(result.as_ptr())
+                .unwrap()
+                .resident
+                .is_none());
             drop(result);
 
             let pattern = obj::Owned::fresh(new_string(b"*"));

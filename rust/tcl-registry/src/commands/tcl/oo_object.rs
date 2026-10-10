@@ -75,7 +75,7 @@ fn object_create_state_transitions(arguments: InvocationArguments<'_>) -> StateT
     let Some(target) = TransitionSubject::from_argument(arguments, 1) else {
         return transitions;
     };
-    if matches!(&target, TransitionSubject::Literal(name) if !name.is_empty()) {
+    if target.literal().is_some_and(|name| !name.is_empty()) {
         transitions.push(StateTransition::CommandBinding(
             CommandBindingTransition::Define {
                 name: target.clone(),

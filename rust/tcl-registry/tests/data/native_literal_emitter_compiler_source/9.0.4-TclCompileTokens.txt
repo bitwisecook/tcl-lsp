@@ -1,0 +1,195 @@
+TclCompileTokens(
+    Tcl_Interp *interp,		/* Used for error and status reporting. */
+    Tcl_Token *tokenPtr,	/* Pointer to first in an array of tokens to
+				 * compile. */
+    Tcl_Size count,		/* Number of tokens to consider at tokenPtr.
+				 * Must be at least 1. */
+    CompileEnv *envPtr)		/* Holds the resulting instructions. */
+{
+    Tcl_DString textBuffer;	/* Holds concatenated chars from adjacent
+				 * TCL_TOKEN_TEXT, TCL_TOKEN_BS tokens. */
+    char buffer[4] = "";
+    Tcl_Size i, numObjsToConcat, adjust;
+    int length;
+    unsigned char *entryCodeNext = envPtr->codeNext;
+#define NUM_STATIC_POS 20
+    int isLiteral;
+    Tcl_Size maxNumCL, numCL;
+    Tcl_Size *clPosition = NULL;
+    int depth = TclGetStackDepth(envPtr);
+
+    /*
+     * If this is actually a literal, handle continuation lines by
+     * preallocating a small table to store the locations of any continuation
+     * lines found in this literal.  The table is extended if needed.
+     *
+     * Note: In contrast with the analagous code in 'TclSubstTokens()' the
+     * 'adjust' variable seems unneeded here.  The code which merges
+     * continuation line information of multiple words which concat'd at
+     * runtime also seems unneeded. Either that or I have not managed to find a
+     * test case for these two possibilities yet.  It might be a difference
+     * between compile- versus run-time processing.
+     */
+
+    numCL = 0;
+    maxNumCL = 0;
+    isLiteral = 1;
+    for (i=0 ; i < count; i++) {
+	if ((tokenPtr[i].type != TCL_TOKEN_TEXT)
+		&& (tokenPtr[i].type != TCL_TOKEN_BS)) {
+	    isLiteral = 0;
+	    break;
+	}
+    }
+
+    if (isLiteral) {
+	maxNumCL = NUM_STATIC_POS;
+	clPosition = (Tcl_Size *)Tcl_Alloc(maxNumCL * sizeof(Tcl_Size));
+    }
+
+    adjust = 0;
+    Tcl_DStringInit(&textBuffer);
+    numObjsToConcat = 0;
+    for ( ;  count > 0;  count--, tokenPtr++) {
+	switch (tokenPtr->type) {
+	case TCL_TOKEN_TEXT:
+	    TclDStringAppendToken(&textBuffer, tokenPtr);
+	    TclAdvanceLines(&envPtr->line, tokenPtr->start,
+		    tokenPtr->start + tokenPtr->size);
+	    break;
+
+	case TCL_TOKEN_BS:
+	    length = TclParseBackslash(tokenPtr->start, tokenPtr->size,
+		    NULL, buffer);
+	    Tcl_DStringAppend(&textBuffer, buffer, length);
+
+	    /*
+	     * If the identified backslash sequence is in a literal and
+	     * represented a continuation line, compute and store its
+	     * location (as char offset to the beginning of the _result_
+	     * script). We may have to extend the table of locations.
+	     *
+	     * The continuation line information is relevant even if the word
+	     * being processed is not a literal, as it can affect nested
+	     * commands. See the branch below for TCL_TOKEN_COMMAND, where the
+	     * adjustment being tracked here is taken into account. The good
+	     * thing is a table of everything is not needed, just the number of
+	     * lines to add as correction.
+	     */
+
+	    if ((length == 1) && (buffer[0] == ' ') &&
+		    (tokenPtr->start[1] == '\n')) {
+		if (isLiteral) {
+		    int clPos = Tcl_DStringLength(&textBuffer);
+
+		    if (numCL >= maxNumCL) {
+			maxNumCL *= 2;
+			clPosition = (Tcl_Size *)Tcl_Realloc(clPosition,
+				maxNumCL * sizeof(Tcl_Size));
+		    }
+		    clPosition[numCL] = clPos;
+		    numCL ++;
+		}
+		adjust++;
+	    }
+	    break;
+
+	case TCL_TOKEN_COMMAND:
+	    /*
+	     * Push any accumulated chars appearing before the command.
+	     */
+
+	    if (Tcl_DStringLength(&textBuffer) > 0) {
+		int literal = TclRegisterDStringLiteral(envPtr, &textBuffer);
+
+		TclEmitPush(literal, envPtr);
+		numObjsToConcat++;
+		Tcl_DStringFree(&textBuffer);
+
+		if (numCL) {
+		    TclContinuationsEnter(TclFetchLiteral(envPtr, literal),
+			    numCL, clPosition);
+		}
+		numCL = 0;
+	    }
+
+	    envPtr->line += adjust;
+	    TclCompileScript(interp, tokenPtr->start+1,
+		    tokenPtr->size-2, envPtr);
+	    envPtr->line -= adjust;
+	    numObjsToConcat++;
+	    break;
+
+	case TCL_TOKEN_VARIABLE:
+	    /*
+	     * Push any accumulated chars appearing before the $<var>.
+	     */
+
+	    if (Tcl_DStringLength(&textBuffer) > 0) {
+		int literal;
+
+		literal = TclRegisterDStringLiteral(envPtr, &textBuffer);
+		TclEmitPush(literal, envPtr);
+		numObjsToConcat++;
+		Tcl_DStringFree(&textBuffer);
+	    }
+
+	    TclCompileVarSubst(interp, tokenPtr, envPtr);
+	    numObjsToConcat++;
+	    count -= tokenPtr->numComponents;
+	    tokenPtr += tokenPtr->numComponents;
+	    break;
+
+	default:
+	    Tcl_Panic("Unexpected token type in TclCompileTokens: %d; %.*s",
+		    tokenPtr->type, (int)tokenPtr->size, tokenPtr->start);
+	}
+    }
+
+    /*
+     * Push any accumulated characters appearing at the end.
+     */
+
+    if (Tcl_DStringLength(&textBuffer) > 0) {
+	int literal = TclRegisterDStringLiteral(envPtr, &textBuffer);
+
+	TclEmitPush(literal, envPtr);
+	numObjsToConcat++;
+	if (numCL) {
+	    TclContinuationsEnter(TclFetchLiteral(envPtr, literal),
+		    numCL, clPosition);
+	}
+	numCL = 0;
+    }
+
+    /*
+     * If necessary, concatenate the parts of the word.
+     */
+
+    while (numObjsToConcat > 255) {
+	TclEmitInstInt1(INST_STR_CONCAT1, 255, envPtr);
+	numObjsToConcat -= 254;	/* concat pushes 1 obj, the result */
+    }
+    if (numObjsToConcat > 1) {
+	TclEmitInstInt1(INST_STR_CONCAT1, numObjsToConcat, envPtr);
+    }
+
+    /*
+     * If the tokens yielded no instructions, push an empty string.
+     */
+
+    if (envPtr->codeNext == entryCodeNext) {
+	PushStringLiteral(envPtr, "");
+    }
+    Tcl_DStringFree(&textBuffer);
+
+    /*
+     * Release the temp table we used to collect the locations of continuation
+     * lines, if any.
+     */
+
+    if (maxNumCL) {
+	Tcl_Free(clPosition);
+    }
+    TclCheckStackDepth(depth+1, envPtr);
+}

@@ -203,10 +203,14 @@ fn compare_native_tables(tables: &[(&str, &str)], cases: &[&str]) -> (usize, usi
     (results, headers)
 }
 
+// Native proof: naming.variable.original-upvar-and-exists-completion-and-name-windows
+// docs/design/analysis/name-resolution-proofs/variable.original-upvar-and-exists-completion-and-name-windows.md
 #[test]
 fn original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers() {
     assert_eq!(compare_native_tables(TABLES, CASES), (140, 20));
 }
+// Native proof: naming.variable.exists-read-trace-quiet-result-purpose
+// docs/design/analysis/name-resolution-proofs/variable.exists-read-trace-quiet-result-purpose.md
 #[test]
 fn original_exists_quiet_trace_semantics_preserve_15_native_result_windows() {
     assert_eq!(compare_native_tables(QUIET_TABLES, QUIET_CASES), (15, 0));

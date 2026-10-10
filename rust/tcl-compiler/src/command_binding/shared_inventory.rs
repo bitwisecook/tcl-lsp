@@ -52,6 +52,20 @@ impl<T: Clone + IntoIterator> IntoIterator for SharedSourceInventory<T> {
     }
 }
 
+impl<T: Clone> SharedSourceInventory<T> {
+    /// Detach only when an exact retained selection changes this inventory.
+    /// The caller's predicate observes the whole current collection first.
+    pub(super) fn update_if_needed(
+        &mut self,
+        changes: impl FnOnce(&T) -> bool,
+        update: impl FnOnce(&mut T),
+    ) {
+        if changes(&self.0) {
+            update(Arc::make_mut(&mut self.0));
+        }
+    }
+}
+
 impl<T> SharedSourceInventory<T> {
     pub(super) fn shared(&self) -> Arc<T> {
         Arc::clone(&self.0)

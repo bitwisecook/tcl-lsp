@@ -55,12 +55,17 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 use tcl_compiler::analyser::state::Analyser;
+use tcl_compiler::ir::CommandTokens;
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
+use tcl_compiler::registry_invocation::{
+    EffectiveInvocationWord, effective_invocation_word, invocation_word_with_source,
+};
 use tcl_lexer::{LexerConfig, LineIndex, SourceMap};
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::registry::CommandRegistry;
 use tcl_registry::spec::{CommandSpec, SubCommand};
+use tcl_registry::{InvocationArguments, InvocationDialect, InvocationWord, InvocationWords};
 use tcl_spectcl::catalogue;
 
 use crate::store::{Origin, Resolution};
@@ -89,12 +94,30 @@ struct Word {
     args: Vec<String>,
     /// How many bodies deep the statement is.
     depth: usize,
+    /// Genuine source-word topology and its independently decoded value facets.
+    tokens: Arc<CommandTokens>,
+    values: Arc<Vec<EffectiveInvocationWord>>,
+    config: LexerConfig,
 }
 
 impl Word {
     /// The argument index this word occupies, or `None` for the head.
     fn arg_index(&self) -> Option<usize> {
         self.index.checked_sub(1)
+    }
+
+    fn head_literal(&self) -> Option<&str> {
+        self.values.first()?.as_registry_word().literal()
+    }
+
+    fn argument_words(&self) -> Vec<InvocationWord<'_>> {
+        self.tokens
+            .words()
+            .iter()
+            .zip(self.values.iter())
+            .skip(1)
+            .map(|(source, value)| invocation_word_with_source(source, value, self.config.escapes))
+            .collect()
     }
 }
 
@@ -120,7 +143,27 @@ fn walk(
     for segment in segments_from_document(document, &source_map) {
         let head = segment.texts.first().cloned().unwrap_or_default();
         let args: Vec<String> = segment.texts.iter().skip(1).cloned().collect();
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let tokens = Arc::new(CommandTokens::from_segmented(&source_map, config, &segment));
+        let values = Arc::new(
+            tokens
+                .words()
+                .iter()
+                .map(|word| {
+                    effective_invocation_word(
+                        word,
+                        config.escapes,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
+        let argument_words = tokens
+            .words()
+            .iter()
+            .zip(values.iter())
+            .skip(1)
+            .map(|(source, value)| invocation_word_with_source(source, value, config.escapes))
+            .collect::<Vec<_>>();
 
         for (index, token) in segment.argv.iter().enumerate() {
             let start = base + token.span.start() as usize;
@@ -136,25 +179,43 @@ fn walk(
                 head: head.clone(),
                 args: args.clone(),
                 depth,
+                tokens: Arc::clone(&tokens),
+                values: Arc::clone(&values),
+                config,
             });
         }
 
         // Recurse into the words the *spec* calls scripts. This is the whole
         // reason a pack command that declares `arg_roles { 2 Body }` gets its
         // body inspected without a line of body-specific code here.
-        for arg_index in registry.arg_indices_for_role(&head, &arg_refs, ArgRole::Body) {
+        let Some(head_value) = values
+            .first()
+            .and_then(|value| value.as_registry_word().literal())
+        else {
+            continue;
+        };
+        for arg_index in registry
+            .arg_indices_for_role_words(
+                head_value,
+                InvocationArguments::structured(&argument_words),
+                ArgRole::Body,
+            )
+            .unwrap_or_default()
+        {
             let Some(token) = segment.argv.get(arg_index + 1) else {
                 continue;
             };
             let start = base + token.span.start() as usize;
-            let end = base + token.span.end() as usize;
             let lead = usize::from(token.content_offset);
-            if lead == 0 || end <= start + lead || whole.as_bytes().get(start) != Some(&b'{') {
+            if lead == 0 || whole.as_bytes().get(start) != Some(&b'{') {
                 continue;
             }
-            // The braced word's contents: `{`…`}` minus both delimiters.
+            let Some(close) = tcl_lexer::word_closer_offset_at(source.as_bytes(), token.span)
+            else {
+                continue;
+            };
             let inner_start = start + lead;
-            let inner_end = end - 1;
+            let inner_end = base + close as usize;
             if inner_end <= inner_start {
                 continue;
             }
@@ -187,11 +248,17 @@ struct Provenance {
 }
 
 /// The subcommand a call selects, if the spec dispatches on its first word.
-fn dispatching_subcommand<'s>(spec: &'s CommandSpec, args: &[&str]) -> Option<&'s SubCommand> {
+fn dispatching_subcommand<'s>(
+    spec: &'s CommandSpec,
+    args: InvocationArguments<'_>,
+) -> Option<&'s SubCommand> {
     if spec.subcommands.is_empty() {
         return None;
     }
-    args.first().and_then(|word| spec.resolve_subcommand(word))
+    spec.resolve_subcommand_for_dialect(
+        args.literal_at(0)?,
+        args.dialect().and_then(InvocationDialect::authoring_query),
+    )
 }
 
 /// Where argument `idx` of a call to `spec` gets its meaning.
@@ -203,9 +270,17 @@ fn dispatching_subcommand<'s>(spec: &'s CommandSpec, args: &[&str]) -> Option<&'
 fn provenance(
     registry: &CommandRegistry,
     spec: &CommandSpec,
-    args: &[&str],
+    args: InvocationArguments<'_>,
     idx: usize,
 ) -> Provenance {
+    if registry
+        .arg_role_assignments_words(spec.name, args, ArgRole::ALL)
+        .is_none()
+    {
+        return unknown_provenance(
+            "computed or expanded words prevent an exact source-role projection",
+        );
+    }
     let sub = dispatching_subcommand(spec, args);
     if let Some(sub) = sub
         && idx == 0
@@ -217,85 +292,83 @@ fn provenance(
                 "selects the `{}` subcommand of `{}`{}",
                 sub.name,
                 spec.name,
-                if args[0] == sub.name {
+                if args.literal_at(0) == Some(sub.name) {
                     String::new()
                 } else {
-                    format!(" (`{}` is an accepted abbreviation)", args[0])
+                    format!(
+                        " (`{}` is an accepted abbreviation)",
+                        args.literal_at(0).unwrap_or("")
+                    )
                 }
             ),
         };
     }
 
-    let (options, offset) = match sub {
-        Some(sub) => (sub.options, 1usize),
-        None => (spec.options, 0usize),
+    let Some(resolved) = registry
+        .resolve_structured_invocation(
+            InvocationWords::from_arguments(InvocationWord::Literal(spec.name), args),
+            args.dialect().and_then(InvocationDialect::authoring_query),
+        )
+        .resolved()
+    else {
+        return unknown_provenance("the computed invocation does not select an exact descriptor");
     };
+    let offset = resolved.semantics.argument_offset;
     let owner = match sub {
         Some(sub) => format!("subcommand {} / options", sub.name),
         None => "options".to_owned(),
     };
-    let mut i = offset;
-    while i < args.len() {
-        if args[i] == "--" {
-            if i == idx {
+    let Some(occurrences) = resolved
+        .semantics
+        .options
+        .prefix_occurrences(args.slice_from(offset))
+    else {
+        return unknown_provenance("the leading option layout is not established");
+    };
+    for occurrence in occurrences {
+        let at = offset + occurrence.argument_index;
+        let Some(option) = occurrence.option else {
+            if at == idx {
                 return Provenance {
                     kind: "terminator",
                     field: Some(owner),
                     detail: "ends option parsing — every later word is a value".to_owned(),
                 };
             }
-            break;
-        }
-        if let Some(option) = options.iter().find(|o| o.matches(args[i])) {
-            let values = option.value_indices(args, i);
-            if i == idx {
-                return Provenance {
-                    kind: "option",
-                    field: Some(owner),
-                    detail: if option.takes_value() {
-                        format!(
-                            "declared option `{}`{} — takes {} value word(s){}",
-                            option.name,
-                            if args[i] == option.name {
-                                String::new()
-                            } else {
-                                format!(" (written `{}`)", args[i])
-                            },
-                            values.len(),
-                            describe(option.detail),
-                        )
+            continue;
+        };
+        if at == idx {
+            let word = args.literal_at(at).unwrap_or("");
+            return Provenance {
+                kind: "option",
+                field: Some(owner),
+                detail: format!(
+                    "declared option `{}`{} — takes {} value word(s){}",
+                    option.name,
+                    if word == option.name {
+                        String::new()
                     } else {
-                        format!(
-                            "declared flag `{}`{} — takes no value{}",
-                            option.name,
-                            if args[i] == option.name {
-                                String::new()
-                            } else {
-                                format!(" (written `{}`)", args[i])
-                            },
-                            describe(option.detail),
-                        )
+                        format!(" (written `{word}`)")
                     },
-                };
-            }
-            if values.contains(&idx) {
-                return Provenance {
-                    kind: "option-value",
-                    field: Some(owner),
-                    detail: format!(
-                        "the value of `{}`{}{}",
-                        option.name,
-                        option
-                            .value_role()
-                            .map(|role| format!(", declared {}", catalogue::variant_name(&role)))
-                            .unwrap_or_default(),
-                        describe(option.value_hint()),
-                    ),
-                };
-            }
-            i += 1 + values.len();
-        } else {
-            i += 1;
+                    occurrence.values.len(),
+                    describe(option.detail)
+                ),
+            };
+        }
+        if occurrence.values.contains(&idx.saturating_sub(offset)) && idx >= offset {
+            return Provenance {
+                kind: "option-value",
+                field: Some(owner),
+                detail: format!(
+                    "the value of `{}`{}{}",
+                    option.name,
+                    option
+                        .value_role()
+                        .map(|role| format!(", declared {}", catalogue::variant_name(&role)))
+                        .unwrap_or_default(),
+                    describe(option.value_hint())
+                ),
+            };
         }
     }
 
@@ -308,7 +381,7 @@ fn positional(
     registry: &CommandRegistry,
     spec: &CommandSpec,
     sub: Option<&SubCommand>,
-    args: &[&str],
+    args: InvocationArguments<'_>,
     idx: usize,
     offset: usize,
 ) -> Provenance {
@@ -328,7 +401,13 @@ fn positional(
         None => word.to_owned(),
     };
 
-    if let Some(resolved) = registry.resolve_invocation(spec.name, args, None) {
+    if let Some(resolved) = registry
+        .resolve_structured_invocation(
+            InvocationWords::from_arguments(InvocationWord::Literal(spec.name), args),
+            args.dialect().and_then(InvocationDialect::authoring_query),
+        )
+        .resolved()
+    {
         let semantics = &resolved.semantics;
         let field = if semantics.arg_role_layout_resolver.is_some() {
             Some("arg_role_layout_resolver")
@@ -356,7 +435,13 @@ fn positional(
             };
         }
     }
-    if let Some((_, role)) = roles.iter().find(|(at, _)| usize::from(*at) == local) {
+    let assignments = registry
+        .arg_role_assignments_words(spec.name, args, ArgRole::ALL)
+        .unwrap_or_default();
+    if let Some((_, role)) = roles
+        .iter()
+        .find(|(at, role)| usize::from(*at) == local && assignments.contains(&(idx, *role)))
+    {
         return Provenance {
             kind: "argument",
             field: Some(owner("arg_roles")),
@@ -366,9 +451,14 @@ fn positional(
             ),
         };
     }
-    let tail_len = args.len().saturating_sub(offset);
+    let Some(tail_len) = args
+        .exact_argv_len()
+        .and_then(|length| length.checked_sub(offset))
+    else {
+        return unknown_provenance("expansion prevents an exact positional projection");
+    };
     for layout in repeated {
-        if layout.indices(tail_len).contains(&local) {
+        if layout.indices(tail_len).contains(&local) && assignments.contains(&(idx, layout.role)) {
             return Provenance {
                 kind: "argument",
                 field: Some(owner("repeated_args")),
@@ -389,6 +479,14 @@ fn positional(
             local + 1,
             spec.name
         ),
+    }
+}
+
+fn unknown_provenance(detail: &str) -> Provenance {
+    Provenance {
+        kind: "unknown",
+        field: None,
+        detail: detail.to_owned(),
     }
 }
 
@@ -464,13 +562,20 @@ impl<'a> Bench<'a> {
             .iter()
             .map(|word| {
                 let position = lines.position_at_utf16(clamp_u32(word.start), sample);
-                let (origin, resolved) = self.resolve_head(&word.head);
-                let arg_refs: Vec<&str> = word.args.iter().map(String::as_str).collect();
+                let (origin, resolved) = word
+                    .head_literal()
+                    .map_or((None, None), |head| self.resolve_head(head));
+                let argument_words = word.argument_words();
+                let arg_refs = InvocationArguments::structured(&argument_words).with_dialect(
+                    InvocationDialect::of_profile(crate::environment::profile_for_dialect(
+                        self.merged.builtins().dialect(),
+                    )),
+                );
                 let roles = resolved
-                    .map(|spec| self.roles_at(spec, &word.head, &arg_refs, word.arg_index()))
+                    .map(|spec| self.roles_at(spec, spec.name, arg_refs, word.arg_index()))
                     .unwrap_or_default();
                 let prov = match (resolved, word.arg_index()) {
-                    (Some(spec), Some(idx)) => provenance(&self.registry, spec, &arg_refs, idx),
+                    (Some(spec), Some(idx)) => provenance(&self.registry, spec, arg_refs, idx),
                     (Some(_), None) => Provenance {
                         kind: "command",
                         field: Some("command".to_owned()),
@@ -508,12 +613,21 @@ impl<'a> Bench<'a> {
         let heads: BTreeMap<&str, bool> = words
             .iter()
             .filter(|w| w.index == 0)
-            .map(|w| (w.head.as_str(), self.resolve_head(&w.head).1.is_some()))
+            .map(|w| {
+                (
+                    w.head.as_str(),
+                    w.head_literal()
+                        .is_some_and(|head| self.resolve_head(head).1.is_some()),
+                )
+            })
             .collect();
         let from_pack = words
             .iter()
             .filter(|w| w.index == 0)
-            .filter(|w| self.resolve_head(&w.head).0.is_some_and(Origin::pack_wins))
+            .filter(|w| {
+                w.head_literal()
+                    .is_some_and(|head| self.resolve_head(head).0.is_some_and(Origin::pack_wins))
+            })
             .count();
 
         json!({
@@ -564,8 +678,15 @@ impl<'a> Bench<'a> {
             .filter(|w| w.start <= offset && offset < w.end)
             .min_by_key(|w| w.end - w.start)?;
 
-        let arg_refs: Vec<&str> = word.args.iter().map(String::as_str).collect();
-        let (origin, resolved) = self.resolve_head(&word.head);
+        let argument_words = word.argument_words();
+        let arg_refs = InvocationArguments::structured(&argument_words).with_dialect(
+            InvocationDialect::of_profile(crate::environment::profile_for_dialect(
+                self.merged.builtins().dialect(),
+            )),
+        );
+        let (origin, resolved) = word
+            .head_literal()
+            .map_or((None, None), |head| self.resolve_head(head));
         let lines = LineIndex::new(sample);
         let position = lines.position_at_utf16(clamp_u32(word.start), sample);
         let diagnostics: Vec<Value> = self
@@ -579,7 +700,7 @@ impl<'a> Bench<'a> {
             .collect();
 
         let prov = match (resolved, word.arg_index()) {
-            (Some(spec), Some(idx)) => provenance(&self.registry, spec, &arg_refs, idx),
+            (Some(spec), Some(idx)) => provenance(&self.registry, spec, arg_refs, idx),
             (Some(_), None) => Provenance {
                 kind: "command",
                 field: Some("command".to_owned()),
@@ -595,7 +716,7 @@ impl<'a> Bench<'a> {
                 ),
             },
         };
-        let sub = resolved.and_then(|spec| dispatching_subcommand(spec, &arg_refs));
+        let sub = resolved.and_then(|spec| dispatching_subcommand(spec, arg_refs));
 
         Some(json!({
             "word": {
@@ -623,7 +744,7 @@ impl<'a> Bench<'a> {
             })),
             "role": {
                 "roles": resolved
-                    .map(|spec| self.roles_at(spec, &word.head, &arg_refs, word.arg_index()))
+                    .map(|spec| self.roles_at(spec, spec.name, arg_refs, word.arg_index()))
                     .unwrap_or_default(),
                 "field": prov.field,
                 "detail": prov.detail,
@@ -649,7 +770,7 @@ impl<'a> Bench<'a> {
         &self,
         _spec: &CommandSpec,
         head: &str,
-        args: &[&str],
+        args: InvocationArguments<'_>,
         arg_index: Option<usize>,
     ) -> Vec<Value> {
         let Some(index) = arg_index else {
@@ -659,8 +780,8 @@ impl<'a> Bench<'a> {
             .iter()
             .filter(|role| {
                 self.registry
-                    .arg_indices_for_role(head, args, **role)
-                    .contains(&index)
+                    .arg_indices_for_role_words(head, args, **role)
+                    .is_some_and(|indices| indices.contains(&index))
             })
             .map(|role| {
                 let key = catalogue::variant_name(role);
@@ -1095,6 +1216,74 @@ mod tests {
                     .any(|t| t["text"] == json!("greet") && t["depth"] == json!(1)),
                 "{tokens:?}"
             );
+        });
+    }
+
+    #[test]
+    fn computed_selectors_and_expansion_keep_source_roles_unknown() {
+        // Implementation contract: naming.studio.source-word-role-projection
+        // docs/design/analysis/name-resolution-proofs/studio-source-word-role-projection.md
+
+        bench_on(PACK, |bench| {
+            for sample in [
+                "dict $member key value",
+                "proc {*}$definitions { greet hidden }",
+            ] {
+                let report = bench.analyse(sample);
+                assert!(
+                    report["tokens"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|word| word["index"] != json!(0))
+                        .all(|word| word["roles"] == json!([])),
+                    "{sample}: {report}"
+                );
+                assert!(
+                    !report["tokens"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|word| word["depth"] == json!(1)),
+                    "{sample}: {report}"
+                );
+            }
+            let report = bench.analyse("$command { greet hidden }");
+            assert_eq!(report["summary"]["unknown_commands"], json!(1));
+            assert!(
+                report["tokens"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|word| word["kind"] == json!("unknown"))
+            );
+        });
+    }
+
+    #[test]
+    fn literal_escapes_and_dynamic_value_words_share_the_registry_owner() {
+        // Implementation contract: naming.studio.source-word-role-projection
+        // docs/design/analysis/name-resolution-proofs/studio-source-word-role-projection.md
+
+        bench_on(PACK, |bench| {
+            let view = bench.inspect("di\\x63t {get} $value key", 10).unwrap();
+            assert_eq!(view["call"]["resolved"], json!(true));
+            assert_eq!(view["subcommand"]["name"], json!("get"));
+            let report = bench.analyse("proc p $parameters { greet inner }");
+            assert!(
+                report["tokens"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|word| word["text"] == json!("greet") && word["depth"] == json!(1))
+            );
+            let rebuilt = report["render"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|part| part["text"].as_str())
+                .collect::<String>();
+            assert_eq!(rebuilt, "proc p $parameters { greet inner }");
         });
     }
 

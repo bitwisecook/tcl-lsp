@@ -1,0 +1,14 @@
+{
+  "provider": "tcl9.1",
+  "version": "9.1.0",
+  "revision": "Pinned release source / exact original full-file SHA-256",
+  "original_path": "generic/tclCompCmdsGR.c",
+  "function": "TclCompileLassignCmd",
+  "lines": [
+    996,
+    1079
+  ],
+  "source_sha256": "3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1",
+  "snippet": "TclCompileLassignCmd(\n    Tcl_Interp *interp,\t\t/* Used for error reporting. */\n    Tcl_Parse *parsePtr,\t/* Points to a parse structure for the command\n\t\t\t\t * created by Tcl_ParseCommand. */\n    TCL_UNUSED(Command *),\n    CompileEnv *envPtr)\t\t/* Holds resulting instructions. */\n{\n    DefineLineInformation;\t/* TIP #280 */\n    Tcl_Token *tokenPtr;\n    int isScalar;\n    Tcl_Size numWords = parsePtr->numWords, idx;\n    Tcl_LVTIndex localIndex;\n    /* TODO: Consider support for compiling expanded args. */\n\n    /*\n     * Check for command syntax error, but we'll punt that to runtime.\n     */\n\n    if (numWords < 3 || OutOfUintRange(numWords)) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Generate code to push list being taken apart by [lassign].\n     */\n\n    tokenPtr = TokenAfter(parsePtr->tokenPtr);\n    PUSH_TOKEN(\t\t\ttokenPtr, 1);\n\n    /*\n     * Generate code to assign values from the list to variables.\n     */\n\n    for (idx=0 ; idx<numWords-2 ; idx++) {\n\t/*\n\t * Generate the next variable name.\n\t */\n\n\ttokenPtr = TokenAfter(tokenPtr);\n\tPushVarNameWord(tokenPtr, 0, &localIndex, &isScalar, idx + 2);\n\tif (OutOfUintRangeUpper(localIndex)) {\n\t    return TCL_ERROR;\n\t}\n\n\t/*\n\t * Emit instructions to get the idx'th item out of the list value on\n\t * the stack and assign it to the variable.\n\t */\n\n\tif (isScalar) {\n\t    if (localIndex >= 0) {\n\t\tOP(\t\tDUP);\n\t\tOP4(\t\tLIST_INDEX_IMM, idx);\n\t\tOP4(\t\tSTORE_SCALAR, localIndex);\n\t\tOP(\t\tPOP);\n\t    } else {\n\t\tOP4(\t\tOVER, 1);\n\t\tOP4(\t\tLIST_INDEX_IMM, idx);\n\t\tOP(\t\tSTORE_STK);\n\t\tOP(\t\tPOP);\n\t    }\n\t} else {\n\t    if (localIndex >= 0) {\n\t\tOP4(\t\tOVER, 1);\n\t\tOP4(\t\tLIST_INDEX_IMM, idx);\n\t\tOP4(\t\tSTORE_ARRAY, localIndex);\n\t\tOP(\t\tPOP);\n\t    } else {\n\t\tOP4(\t\tOVER, 2);\n\t\tOP4(\t\tLIST_INDEX_IMM, idx);\n\t\tOP(\t\tSTORE_ARRAY_STK);\n\t\tOP(\t\tPOP);\n\t    }\n\t}\n    }\n\n    /*\n     * Generate code to leave the rest of the list on the stack.\n     */\n\n    OP44(\t\tLIST_RANGE_IMM, idx, TCL_INDEX_END);\n\n    return TCL_OK;\n}\n",
+  "snippet_sha256": "8fa26a16386e530ee1a91f14037cddabf3153bb7ede358663763f11cd13daa6a"
+}

@@ -1,0 +1,7 @@
+
+running 2 tests
+test analyser::types::original_receiver_body::tests::original_source_receiver_body_refuses_computed_or_recooked_script_mapping ... ok
+test analyser::types::original_receiver_body::tests::original_source_receiver_body_retains_child_declaration_without_native_entry ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 8254 filtered out; finished in 1.75s
+

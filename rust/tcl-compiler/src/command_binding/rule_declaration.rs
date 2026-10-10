@@ -178,6 +178,22 @@ impl SourceCommandBindings {
             invocation = invocation.with_dialect(dialect);
         }
         let selection = tcl_registry::native_compilation::NativeCompilationSelection::Unknown;
+        let operands = super::SourceScriptOperands {
+            compilation_spec: prepared.facts.native_compilation.as_ref(),
+            compilation_selection: &selection,
+            words,
+            written_arguments: context.written_arguments,
+            target,
+            arguments: invocation.arguments_ref(),
+        };
+        let original_variable_operands = prepared.original_variable_operands.get_or_init(|| {
+            super::original_name_value::original_variable_invocation(
+                operands,
+                segment.span.start(),
+                incoming,
+                context,
+            )
+        });
         let native = SourceNativeInvocation {
             compilation_spec: prepared.facts.native_compilation.as_ref(),
             compilation_selection: &selection,
@@ -186,6 +202,7 @@ impl SourceCommandBindings {
             written_arguments: context.written_arguments,
             target,
             invocation: &invocation,
+            original_variable_operands,
         };
         let body = super::retained_script_operand(
             body_index,
@@ -231,6 +248,7 @@ impl SourceCommandBindings {
             &mut normal,
             target,
             &SourceExecutionContext {
+                original_variable_compilation: None,
                 selected_compilation: Some(
                     &tcl_registry::native_compilation::NativeCompilationSelection::Unknown,
                 ),

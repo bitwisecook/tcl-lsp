@@ -500,6 +500,43 @@ pub fn resolve_invocation_in_context<'r, 'w>(
     commands.resolve_invocation(name, args, Some(context.authoring_query()))
 }
 
+/// Resolve structured words under the actual supplied availability context.
+/// The context retains keyed versions, packages and overlays; selecting it
+/// supplies no runtime command identity or native compilation admission.
+#[must_use]
+pub fn resolve_structured_invocation_in_resolved_context<'r, 'w>(
+    commands: &'r CommandRegistry,
+    context: Option<&'r ResolvedContext>,
+    words: crate::InvocationWords<'w>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> crate::StructuredInvocationResolution<'r, 'w> {
+    // Implementation contract: naming.vendor.original-registry-metadata
+    // docs/design/analysis/name-resolution-proofs/vendor-original-registry-metadata.md
+    let Some(context) = context else {
+        let query = commands
+            .profile()
+            .and_then(|profile| crate::InvocationDialect::of_profile(profile).authoring_query())
+            .map(|query| query.with_realm(realm));
+        return commands.resolve_structured_invocation(words, query);
+    };
+    let query = context.authoring_query().with_realm(realm);
+    let Some(name) = words.head_literal() else {
+        // A computed head selects nothing in either model; report it through
+        // the ordinary path so the decline names the word kind rather than a
+        // missing spec.
+        return commands.resolve_structured_invocation(words, Some(query));
+    };
+    if context
+        .resolve_spec_in_realm(commands, name, realm)
+        .is_none()
+    {
+        return crate::StructuredInvocationResolution::from_unresolved(
+            crate::InvocationResolutionUnresolved::UnknownLiteralHead { spelling: name },
+        );
+    }
+    commands.resolve_structured_invocation(words, Some(query))
+}
+
 /// The legacy-selection twin of [`resolve_invocation_in_context`] for the
 /// analyser-hook path, which resolves through the registry's
 /// `resolve_call` compatibility selection (exact subcommand lookup) and

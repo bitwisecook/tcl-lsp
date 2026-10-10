@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_variable_names::tests::variable_read_diagnostics_match_five_original_source_controls ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 669 filtered out; finished in 28.70s
+

@@ -8,6 +8,8 @@ use crate::{Value, Vm};
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::value::ValueOps;
 
+// Native proof: naming.variable.absolute-level-cache-reselects-current-frame
+// docs/design/analysis/name-resolution-proofs/variable.absolute-level-cache-reselects-current-frame.md
 #[test]
 fn level_reference_reselects_current_frames_in_thirty_native_windows() {
     let mut compared = 0;
@@ -120,6 +122,8 @@ fn script(case: usize) -> Value {
     }
 }
 
+// Native proof: naming.variable.explicit-uplevel-level-body-cache-and-frame-restoration
+// docs/design/analysis/name-resolution-proofs/variable.explicit-uplevel-level-body-cache-and-frame-restoration.md
 #[test]
 fn explicit_uplevel_preserves_seventy_native_level_body_and_restore_windows() {
     let levels: [&[u8]; 14] = [

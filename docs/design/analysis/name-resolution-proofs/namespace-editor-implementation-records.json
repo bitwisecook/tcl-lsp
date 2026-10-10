@@ -1,0 +1,127 @@
+[
+  {
+    "id": "naming.server.original-namespace-rename-plans",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/server-original-namespace-rename-plans.md",
+    "problem_statement": "Two opaque namespace siblings can share reporting spellings across URI-owned document copies. A cross-document rename could edit the wrong sibling or accept a proposed namespace already occupied only as an implicit parent of another document's declaration.",
+    "question": "Does Server original namespace rename produce typed per-document source plans after reporting names are cleared and reject a proposed implicit-parent collision?",
+    "conclusion": "The Server consumer derives the proposed namespace through the selected original symbol and complete source grammar, checks explicit and descendant-created occupancy through typed workspace rows, and invokes the shared original namespace edit planner separately for every inspected document. Missing document coverage is terminal. The fixed assertion clears reporting names, applies the exact D800 plans to both URI-owned copies while preserving D801, and refuses renamed when renamed::child occupies its implicit parent. This is an implementation assertion, not an executed Rust test or native namespace mutation proof.",
+    "scope": "Source-only workspace editor contract for two documents under the C8.6 analysis profile plus one collision document. The test exercises actual emitted edit text and independent URI ownership, with cleared original/qualified reporting names. It does not execute the edited source, grant a native namespace instance or prove an arbitrary dynamic namespace dispatch.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "consumer-source",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "sha256": "93afa314052ead19f04f6116e17d8bd3ed14caac5d1ab997efd599176e7c6a3d",
+        "description": "Current actual typed Server consumer and fixed emitted-edit/collision assertion; not an execution receipt."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "selector": "tests::original_namespace_rename_uses_typed_workspace_collisions_and_source_plans",
+        "status": "linked",
+        "assertion": "Clears namespace reporting names, applies exactly two edits per URI to the D800 namespace and its reference, preserves the D801 sibling, and rejects another document's implicit renamed parent."
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "symbol": "Backend::cross_document_original_namespace_rename",
+        "purpose": "Select typed proposed occupancy and require independently inspected source edit plans for every indexed URI."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+        "symbol": "original_namespace_rename_edits",
+        "purpose": "Manufacture actual written namespace edits only under retained source/grammar and complete original correspondence."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "symbol": "WorkspaceIndex::original_namespace_descendant_declarations",
+        "purpose": "Treat typed descendant declarations as occupied implicit namespace parents without reporting-string joins."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+        "symbol": "OriginalNamespaceSymbol::renamed",
+        "purpose": "Render and validate the proposed original address using the selected source channel and grammar; the proposed address supplies no namespace existence."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The named fixed Rust selector is a coverage binding. No Rust result or native interpreter capture is attached to this source edit invariant."
+    }
+  }
+]

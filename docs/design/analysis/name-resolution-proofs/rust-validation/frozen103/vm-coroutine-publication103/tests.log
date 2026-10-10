@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized] target(s) in 0.49s
+     Running unittests src/lib.rs (/workspace/.targets/naming-runtime/debug/deps/tcl_vm-13c4a8dc710f7193)
+
+running 1 test
+test interp::native_coroutine_names::tests::original_coroutine_names_match_native_publication_controls ... 
+thread 'interp::native_coroutine_names::tests::original_coroutine_names_match_native_publication_controls' (433779) panicked at rust/tcl-vm/src/interp/native_coroutine_names.rs:146:17:
+assertion `left == right` failed: tcl8.6/PUB_N_TEXT
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_coroutine_names::tests::original_coroutine_names_match_native_publication_controls
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 645 filtered out; finished in 0.46s
+
+error: test failed, to rerun pass `-p tcl-vm --lib`

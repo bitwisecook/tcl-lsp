@@ -1,0 +1,168 @@
+[
+  {
+    "id": "naming.vendor.original-source-context-input",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/vendor-original-source-context-input.md",
+    "problem_statement": "A floating F5 profile does not identify the appliance build or its name producer. Routing an opaque hosted source word through a Tcl 8.4 compatibility recipe or reporting String can collapse source inputs and fabricate runtime lookup authority.",
+    "question": "How do hosted F5 source names retain their actual context and original input without borrowing native Tcl/Jim execution rules?",
+    "conclusion": "Vendor source inputs retain the complete original word, source channel, full lexer configuration, actual lexical command site and independently selected hosted authoring context. The exact measured TMM variable projection is a separate observed authority and is available only for its recorded operand purpose. Unsupported opaque, escaped or computed materialisation remains owned and unavailable; it does not reopen reporting-string advice or select a C/Jim recipe. Source cards, Registry operand roles, byte publication, storage, compiler locals, Normal completion and edits require their own consumers.",
+    "scope": "Implementation contract for explicitly authored TMM, tmsh, iApp implementation and iCall contexts. Registered environments select only their own context; iCall can be supplied explicitly. APL and unmeasured presentation callbacks do not inherit implementation Tcl. Plain ASCII literal source units are the narrow implemented advice projection; numeric escapes, Unicode and counted raw-zero materialisation are not guessed. Exact observed BIG-IP build/event variable addressing remains bounded by its independent existing policy. No native execution or appliance reconfirmation is asserted.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/naming/vendor_source.rs",
+        "selector": "naming::vendor_source::tests::vendor_source_context_and_observed_variable_purpose_are_independent",
+        "assertion": "Authoring context cannot issue observed storage; explicit observed unqualified counted addressing remains independent and no Native projection is supplied.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/vendor_name.rs",
+        "selector": "signature_scan::vendor_name::tests::original_vendor_words_keep_context_units_and_unknown_producers_separate",
+        "assertion": "Actual hosted words retain context and whole-source correspondence, escaped opaque names remain owned/unavailable, and vendor advice does not issue runtime variable symbols.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/vendor_name.rs",
+        "selector": "signature_scan::vendor_name::tests::explicit_vendor_context_does_not_rewrite_grammar_or_attest_a_build",
+        "assertion": "An explicitly retained iCall context survives authentic source input without rewriting the actual supplied parser configuration or attesting an appliance build.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/vendor_variable.rs",
+        "selector": "signature_scan::vendor_variable::tests::vendor_variable_advice_preserves_selected_body_and_formal_source_owners",
+        "assertion": "Selected hosted procedure bodies retain complete ParamList ownership, supported original formal child ordinals and source extents, local receiver form and opaque unavailable names independently of UI variable maps and runtime cell symbols.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/vendor_variable.rs",
+        "selector": "signature_scan::vendor_variable::tests::vendor_event_and_root_source_advice_do_not_select_runtime_domains",
+        "assertion": "Selected event and authentic root source advice remain different lexical homes; RULE_INIT static advice grants no runtime domain, qualified completion abstains, and unsupported ParamList stays owned without invented children.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-dialect/src/model/bigip_execution_context.rs",
+        "symbol": "BigIpExecutionContext::for_environment",
+        "purpose": "One lower hosted-context owner; compatibility does not choose another interpreter context."
+      },
+      {
+        "path": "rust/tcl-syntax/src/naming/vendor_source.rs",
+        "symbol": "VendorSourceNamePolicy",
+        "purpose": "Authoring and exact observed name-purpose issuers stay distinct."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/vendor_name.rs",
+        "symbol": "VendorSourceNameInput",
+        "purpose": "Complete genuine original word/configuration/context remains retained even when materialisation is unavailable."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/commands.rs",
+        "symbol": "retain_original_static_source_names",
+        "purpose": "Capture from authentic complete pre-walk source vector without selecting a Registry role or reached invocation."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types.rs",
+        "symbol": "AnalysisResult::original_vendor_source_name_in_source",
+        "purpose": "Whole consumer image/configuration correspondence and conflict withdrawal."
+      },
+      {
+        "path": "rust/tcl-syntax/src/naming/vendor_source.rs",
+        "symbol": "vendor_source_formal_extents",
+        "purpose": "Pure selected source list grammar authenticates child ordinals and name extents without selecting a native formal setter or activation."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/vendor_variable.rs",
+        "symbol": "VendorSourceVariableAdvice",
+        "purpose": "Genuine whole written receivers and original formal children retain distinct source producer and lexical body homes without runtime cell, frame or TMM authority."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/scope.rs",
+        "symbol": "record_original_vendor_variable_body",
+        "purpose": "Body ownership is retained only from actual selected Registry procedure, namespace or event ingress and complete original words."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/vendor_variable.rs",
+        "symbol": "vendor_variable_source_reference",
+        "purpose": "Source completion consumes supported literal scalar advice through actual full lexer grammar; unavailable, qualified and array-shaped names abstain without a C renderer."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The named Rust selectors exercise the scoped source-context and correspondence premises. No Rust execution receipt or native provider observation is attached. Exact appliance observations remain independent, build-qualified questions."
+    }
+  }
+]

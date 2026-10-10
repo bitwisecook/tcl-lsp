@@ -1,0 +1,15 @@
+version 0.84-9-g5bac7c9
+observation capability status 1 result {only [namespace ensemble create] is supported} errorCode NONE
+observation create-bare status 0 result r2286_nestedBare errorCode {}
+observation invoke-bare-created status 0 result payload errorCode {}
+observation create-immediate-option status 1 result {wrong # args: should be "ensemble command ?-automap prefix?"} errorCode NONE
+observation create-dash-command-map status 1 result {wrong # args: should be "ensemble command ?-automap prefix?"} errorCode NONE
+observation configure-command-name-map-data status 1 result {only [namespace ensemble create] is supported} errorCode NONE
+observation configure-unqualified-map-data status 1 result {only [namespace ensemble create] is supported} errorCode NONE
+observation configure-command-name-namespace-data status 1 result {wrong # args: should be "ensemble command ?-automap prefix?"} errorCode NONE
+observation configure-option-after-command status 1 result {only [namespace ensemble create] is supported} errorCode NONE
+observation configure-invalid-option-after-command status 1 result {only [namespace ensemble create] is supported} errorCode NONE
+observation exists-dash-map-is-command-name status 1 result {only [namespace ensemble create] is supported} errorCode NONE
+observation exists-dash-namespace-is-command-name status 1 result {only [namespace ensemble create] is supported} errorCode NONE
+observation exists-does-not-scan-options status 1 result {only [namespace ensemble create] is supported} errorCode NONE
+observation create-rejects-configure-only-option status 1 result {wrong # args: should be "ensemble command ?-automap prefix?"} errorCode NONE

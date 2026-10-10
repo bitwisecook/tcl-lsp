@@ -28,7 +28,8 @@ pub(super) fn install_object_helpers(vm: &mut Vm, namespace: &str) -> NsId {
     let helpers = vm.definition_namespace_token("oo::Helpers");
     let name = vm.namespace_object_bytes(token);
     vm.push_ns_token(name, token);
-    vm.ns_path_set(vec![helpers]);
+    let oo = vm.definition_namespace_token("::oo");
+    vm.ns_path_set(vec![helpers, oo]);
     vm.pop_ns();
     token
 }
@@ -117,6 +118,7 @@ pub(super) fn object_name(vm: &Vm, object: OoId) -> Value {
 pub(super) fn enter_definition(
     vm: &mut Vm,
     class: bool,
+    target: OoId,
     argv: Vec<Value>,
 ) -> Result<(), Completion<Value>> {
     let name = if class {
@@ -124,16 +126,22 @@ pub(super) fn enter_definition(
     } else {
         "::oo::objdefine"
     };
-    let namespace = match tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
-        vm,
-        vm.current_ns_id(),
-        name.as_bytes(),
-    ) {
-        Ok(namespace) => namespace,
-        Err(error) => return Err(vm.refuse_host_command(error.to_string())),
-    };
-    let Some(namespace) = namespace else {
-        return Err(err("cannot process definitions; support namespace deleted"));
+    let selected = super::native_bootstrap::definition_namespace(vm, target, class);
+    let namespace = if let Some(namespace) = selected {
+        namespace
+    } else {
+        let namespace = match tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
+            vm,
+            vm.current_ns_id(),
+            name.as_bytes(),
+        ) {
+            Ok(namespace) => namespace,
+            Err(error) => return Err(vm.refuse_host_command(error.to_string())),
+        };
+        let Some(namespace) = namespace else {
+            return Err(err("cannot process definitions; support namespace deleted"));
+        };
+        namespace
     };
     vm.push_ns_eval_token_frame(namespace, argv);
     Ok(())
@@ -218,73 +226,100 @@ pub(super) fn magic_definition_invoke(
     )
 }
 
+const DEFINITION_WORKERS: &[(&str, crate::command::BuiltinFn, crate::command::BuiltinFn)] = &[
+    (
+        "method",
+        |v, a| definition_worker(v, a, true, "method"),
+        |v, a| definition_worker(v, a, false, "method"),
+    ),
+    (
+        "deletemethod",
+        |v, a| definition_worker(v, a, true, "deletemethod"),
+        |v, a| definition_worker(v, a, false, "deletemethod"),
+    ),
+    (
+        "renamemethod",
+        |v, a| definition_worker(v, a, true, "renamemethod"),
+        |v, a| definition_worker(v, a, false, "renamemethod"),
+    ),
+    (
+        "constructor",
+        |v, a| definition_worker(v, a, true, "constructor"),
+        |v, a| definition_worker(v, a, false, "constructor"),
+    ),
+    (
+        "destructor",
+        |v, a| definition_worker(v, a, true, "destructor"),
+        |v, a| definition_worker(v, a, false, "destructor"),
+    ),
+    (
+        "superclass",
+        |v, a| definition_worker(v, a, true, "superclass"),
+        |v, a| definition_worker(v, a, false, "superclass"),
+    ),
+    (
+        "export",
+        |v, a| definition_worker(v, a, true, "export"),
+        |v, a| definition_worker(v, a, false, "export"),
+    ),
+    (
+        "unexport",
+        |v, a| definition_worker(v, a, true, "unexport"),
+        |v, a| definition_worker(v, a, false, "unexport"),
+    ),
+    (
+        "mixin",
+        |v, a| definition_worker(v, a, true, "mixin"),
+        |v, a| definition_worker(v, a, false, "mixin"),
+    ),
+    (
+        "forward",
+        |v, a| definition_worker(v, a, true, "forward"),
+        |v, a| definition_worker(v, a, false, "forward"),
+    ),
+    (
+        "variable",
+        |v, a| definition_worker(v, a, true, "variable"),
+        |v, a| definition_worker(v, a, false, "variable"),
+    ),
+    (
+        "self",
+        |v, a| definition_self_at(v, a, true),
+        |v, a| definition_self_at(v, a, false),
+    ),
+    ("private", super::cmd_private, super::cmd_private),
+    (
+        "classmethod",
+        |v, a| definition_worker(v, a, true, "classmethod"),
+        |v, a| definition_worker(v, a, false, "classmethod"),
+    ),
+    (
+        "definitionnamespace",
+        |v, a| definition_worker(v, a, true, "definitionnamespace"),
+        |v, a| definition_worker(v, a, false, "definitionnamespace"),
+    ),
+    (
+        "initialise",
+        |v, a| definition_worker(v, a, true, "initialise"),
+        |v, a| definition_worker(v, a, false, "initialise"),
+    ),
+    (
+        "initialize",
+        |v, a| definition_worker(v, a, true, "initialize"),
+        |v, a| definition_worker(v, a, false, "initialize"),
+    ),
+    (
+        "class",
+        |v, a| definition_worker(v, a, true, "class"),
+        |v, a| definition_worker(v, a, false, "class"),
+    ),
+];
+
 pub(super) fn register_definition_workers(vm: &mut Vm) {
     use tcl_registry::ObjectDispatchLayer;
     let dialect = vm.actual_native_invocation_dialect();
-    let workers: &[(&str, crate::command::BuiltinFn, crate::command::BuiltinFn)] = &[
-        (
-            "method",
-            |v, a| definition_worker(v, a, true, "method"),
-            |v, a| definition_worker(v, a, false, "method"),
-        ),
-        (
-            "deletemethod",
-            |v, a| definition_worker(v, a, true, "deletemethod"),
-            |v, a| definition_worker(v, a, false, "deletemethod"),
-        ),
-        (
-            "renamemethod",
-            |v, a| definition_worker(v, a, true, "renamemethod"),
-            |v, a| definition_worker(v, a, false, "renamemethod"),
-        ),
-        (
-            "constructor",
-            |v, a| definition_worker(v, a, true, "constructor"),
-            |v, a| definition_worker(v, a, false, "constructor"),
-        ),
-        (
-            "destructor",
-            |v, a| definition_worker(v, a, true, "destructor"),
-            |v, a| definition_worker(v, a, false, "destructor"),
-        ),
-        (
-            "superclass",
-            |v, a| definition_worker(v, a, true, "superclass"),
-            |v, a| definition_worker(v, a, false, "superclass"),
-        ),
-        (
-            "export",
-            |v, a| definition_worker(v, a, true, "export"),
-            |v, a| definition_worker(v, a, false, "export"),
-        ),
-        (
-            "unexport",
-            |v, a| definition_worker(v, a, true, "unexport"),
-            |v, a| definition_worker(v, a, false, "unexport"),
-        ),
-        (
-            "mixin",
-            |v, a| definition_worker(v, a, true, "mixin"),
-            |v, a| definition_worker(v, a, false, "mixin"),
-        ),
-        (
-            "forward",
-            |v, a| definition_worker(v, a, true, "forward"),
-            |v, a| definition_worker(v, a, false, "forward"),
-        ),
-        (
-            "variable",
-            |v, a| definition_worker(v, a, true, "variable"),
-            |v, a| definition_worker(v, a, false, "variable"),
-        ),
-        (
-            "self",
-            |v, a| definition_self_at(v, a, true),
-            |v, a| definition_self_at(v, a, false),
-        ),
-    ];
     for layer in [ObjectDispatchLayer::Class, ObjectDispatchLayer::Object] {
-        for &(member, class_handler, object_handler) in workers {
+        for &(member, class_handler, object_handler) in DEFINITION_WORKERS {
             if let Some(identity) =
                 tcl_registry::native_tcloo_registration::definition_identity(member, layer, dialect)
             {
@@ -400,24 +435,11 @@ pub(crate) fn helper_context_error(vm: &mut Vm, head: &[u8]) -> Completion<Value
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::rc::Rc;
 
     fn vm(version: tcl_dialect::TclVersion) -> Vm {
-        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
-        let mut vm = Vm::with_native_core(
-            Box::new(std::io::sink()),
-            Rc::new(crate::host_native::NativeHost::new()),
-            profile,
-            tcl_registry::special_vars::NativeBootstrapInputs {
-                package_path: Vec::new(),
-                default_library: None,
-            },
-        )
-        .unwrap();
-        vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
-        vm
+        let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+            .unit_profile();
+        crate::native_fixture::interpreter(profile)
     }
 
     #[test]

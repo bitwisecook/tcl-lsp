@@ -1,0 +1,9 @@
+version 0.84-9-g5bac7c9
+observation create status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation parent-command status 0 result {} errorCode {}
+observation handle-return status 1 result {invalid command name "s"} errorCode NONE
+observation path-return status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation handle-value status 1 result {invalid command name "s"} errorCode NONE
+observation path-value status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation delete status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation parent-command-after-delete status 0 result {} errorCode {}

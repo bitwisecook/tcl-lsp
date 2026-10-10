@@ -1,0 +1,31 @@
+    };
+    enum EnsCreateOpts {
+	CRT_CMD, CRT_MAP, CRT_PREFIX, CRT_SUBCMDS, CRT_UNKNOWN
+    };
+    static const char *configOptions[] = {
+	"-map", "-namespace", "-prefixes", "-subcommands", "-unknown", NULL
+    };
+    enum EnsConfigOpts {
+	CONF_MAP, CONF_NAMESPACE, CONF_PREFIX, CONF_SUBCMDS, CONF_UNKNOWN
+    };
+    int index;
+
+    nsPtr = (Namespace *) TclGetCurrentNamespace(interp);
+    if (nsPtr == NULL || nsPtr->flags & NS_DYING) {
+	if (!Tcl_InterpDeleted(interp)) {
+	    Tcl_AppendResult(interp,
+		    "tried to manipulate ensemble of deleted namespace", NULL);
+	}
+	return TCL_ERROR;
+    }
+
+    if (objc < 3) {
+	Tcl_WrongNumArgs(interp, 2, objv, "subcommand ?arg ...?");
+	return TCL_ERROR;
+    }
+    if (Tcl_GetIndexFromObj(interp, objv[2], subcommands, "subcommand", 0,
+	    &index) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
+    switch ((enum EnsSubcmds) index) {

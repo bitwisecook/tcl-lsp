@@ -62,6 +62,9 @@ pub struct SignatureProc {
     /// Empty *and* [`Self::params_computed`] set means "unknown", not "none"
     /// — see that field.
     pub params: Vec<ParamDef>,
+    /// Original formal count owner or explicit authored metadata. Display
+    /// parameter labels cannot recreate an original binding/count recipe.
+    pub formal_count: crate::signature_scan::formal_count::SourceFormalCount,
     /// The parameter-list word was **computed**, so the proc's formals are
     /// unmodelled (the signature-scan twin of
     /// [`crate::analyser::ProcDef::params_computed`]).
@@ -100,10 +103,16 @@ impl SignatureProc {
     /// stricter than the same-file one.
     #[must_use]
     pub fn arity(&self) -> tcl_registry::Arity {
-        if self.params_computed {
-            return tcl_registry::Arity::new(0, tcl_registry::Arity::UNLIMITED);
-        }
-        super::arity::arity_of(&self.params)
+        self.formal_count_projection().arity()
+    }
+
+    /// Stable descriptive header count, without source bytes or runtime grants.
+    #[must_use]
+    pub fn formal_count_projection(
+        &self,
+    ) -> crate::signature_scan::formal_count::SourceFormalCountProjection {
+        self.formal_count
+            .projection(&self.params, self.params_computed)
     }
 }
 
@@ -147,6 +156,13 @@ impl SignatureClass {
 /// an unconditional minimum.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignaturePackageRequire {
+    /// Authentic original package operand and selected native package key.
+    /// Authored dependency metadata and unavailable evaluated values have none.
+    pub original_name: Option<super::original_name::SourcePackageName>,
+    /// Authentic original requirement value producers at their actual argv
+    /// ordinals. Missing or dynamic inputs remain `None`; these are values,
+    /// not package names, publication keys or executed version comparisons.
+    pub original_requirements: Vec<Option<super::scope::SignatureSourceNameInput>>,
     /// Package name (the `NAME` argument to `package require`).
     pub name: String,
     /// First requirement, retained as a compatibility view for existing
@@ -238,6 +254,11 @@ pub struct SignaturePackagePrefer {
 /// evidence the path is a plain literal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureSource {
+    /// Optional genuine child source-load advice, retaining its original path,
+    /// full invocation and visibility assumptions. This supplies no file or
+    /// runtime execution authority; consumers can check complete source/input.
+    pub original_interpreter_source_load:
+        Option<std::sync::Arc<crate::analyser::OriginalInterpreterSourceLoad>>,
     /// Verbatim path text as reconstructed by the segmenter (with
     /// `${var}` / `[cmd]` markers preserved for substituted words).
     pub raw_path: String,
@@ -452,12 +473,16 @@ pub struct SignatureNamespaceImportSource {
 impl SignatureNamespaceImportSource {
     /// Retain the selected namespace geometry and pattern without another parse.
     #[must_use]
-    pub fn from_native_pattern(parts: &tcl_syntax::naming::NativeNamespacePatternParts) -> Option<Self> {
+    pub fn from_native_pattern(
+        parts: &tcl_syntax::naming::NativeNamespacePatternParts,
+    ) -> Option<Self> {
         use tcl_syntax::naming::NativeNamespacePatternSource;
         let source = parts.source.as_ref()?;
         let namespace = match source {
             NativeNamespacePatternSource::C(path) => crate::naming::root_unrooted_key(
-                &tcl_syntax::naming::checked_namespace_path_utf8(path).ok()?.join("::"),
+                &tcl_syntax::naming::checked_namespace_path_utf8(path)
+                    .ok()?
+                    .join("::"),
             ),
             NativeNamespacePatternSource::Jim(value) => {
                 crate::naming::root_unrooted_key(value.try_utf8().ok()?)
@@ -479,7 +504,10 @@ impl SignatureNamespaceImportSource {
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<Self> {
         let parts = Self::pattern_parts_with_policy(
-            current, written, policy, tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
+            current,
+            written,
+            policy,
+            tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
         )?;
         Self::from_native_pattern(&parts)
     }
@@ -496,16 +524,31 @@ impl SignatureNamespaceImportSource {
         let root = tcl_core_types::ByteNamespacePath::root();
         match policy.recipe() {
             recipe @ NativeNameProtocol::C(_) => {
-                let path = tcl_core_types::ByteNamespacePath::from_segments(crate::naming::key_segments(current));
-                let addressable = tcl_syntax::naming::native_namespace_source_spelling(recipe, &path)?;
+                let path = tcl_core_types::ByteNamespacePath::from_segments(
+                    crate::naming::key_segments(current),
+                );
+                let addressable =
+                    tcl_syntax::naming::native_namespace_source_spelling(recipe, &path)?;
                 if addressable != current {
                     return None;
                 }
-                recipe.namespace_pattern_parts(NativeNameContext::new(&path), written.as_bytes(), purpose).ok()
+                recipe
+                    .namespace_pattern_parts(
+                        NativeNameContext::new(&path),
+                        written.as_bytes(),
+                        purpose,
+                    )
+                    .ok()
             }
             recipe @ NativeNameProtocol::Jim084 => {
                 let namespace = crate::naming::unroot_rooted_key(current)?;
-                recipe.namespace_pattern_parts(NativeNameContext::with_jim_namespace(&root, namespace.as_bytes()), written.as_bytes(), purpose).ok()
+                recipe
+                    .namespace_pattern_parts(
+                        NativeNameContext::with_jim_namespace(&root, namespace.as_bytes()),
+                        written.as_bytes(),
+                        purpose,
+                    )
+                    .ok()
             }
         }
     }
@@ -848,6 +891,22 @@ impl SignatureCommandLookup {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(clippy::struct_excessive_bools)] // independent per-call-site flags, not a state machine
 pub struct SignatureCommandInvocation {
+    /// Proper conditional source target and body-free original local header.
+    /// Known lookup refusals cannot be bypassed by project header advice.
+    pub original_callback_signature_lookup:
+        Option<std::sync::Arc<crate::analyser::SourceCallbackSignatureLookup>>,
+    /// Genuine readonly prefix, suffix-count metadata and callback lookup
+    /// purpose. This supplies no installed callback or future dispatch receipt.
+    pub original_callback_prefix:
+        Option<std::sync::Arc<crate::command_binding::OriginalCallbackPrefix>>,
+    /// Original ordered byte lookup at its authentic consuming source point.
+    /// Missing positioned ownership remains unknown even when static naming
+    /// geometry or an advisory reporting label is available.
+    pub original_lookup: Option<crate::command_binding::OriginalCommandLookup>,
+    /// Original native naming producer, independent of UI reporting, selected
+    /// implementation and writable token geometry. Computed unowned values
+    /// and specialised purposes retain no complete-word authority here.
+    pub original_name_input: Option<super::scope::SignatureSourceNameInput>,
     /// Authoritative lookup purpose and source point, separate from edit span.
     pub lookup: SignatureCommandLookup,
     /// Command head as written at the call site (no namespace
@@ -981,7 +1040,11 @@ impl SignatureCommandInvocation {
     #[must_use]
     pub fn written(name: String, range: Span, argc: Option<usize>) -> Self {
         Self {
+            original_callback_signature_lookup: None,
+            original_callback_prefix: None,
             lookup: SignatureCommandLookup::InvocationHead,
+            original_lookup: None,
+            original_name_input: None,
             name,
             range,
             argc,
@@ -1007,8 +1070,8 @@ impl SignatureCommandInvocation {
         self.resolved_command_reference = Some(reference.clone());
         self.resolved_definition = reference.definition().cloned();
         self.resolved_user_definition = reference.is_direct_definition();
-        self.resolved_qualified_name = Some(reference.slot().to_owned());
-        self.resolution_candidates = vec![reference.slot().to_owned()];
+        self.resolved_qualified_name = reference.slot().map(str::to_owned);
+        self.resolution_candidates = reference.slot().into_iter().map(str::to_owned).collect();
     }
 
     /// Withdraw positioned navigation facts together. Written/candidate names
@@ -1038,6 +1101,10 @@ pub struct SignatureScanResult {
     pub class_declarations: Vec<SignatureClass>,
     /// Every `package require` invocation.
     pub package_requires: Vec<SignaturePackageRequire>,
+    /// Original package provide metadata; names remain separate from display.
+    pub package_provides: Vec<crate::analyser::types::PackageProvide>,
+    /// Original package script registrations, independent of script execution.
+    pub package_ifneededs: Vec<crate::analyser::types::PackageIfneeded>,
     /// Every `source` invocation.
     pub source_targets: Vec<SignatureSource>,
     /// Every local-interpreter `interp alias`, keyed by alias
@@ -1057,6 +1124,26 @@ pub struct SignatureScanResult {
 }
 
 impl SignatureScanResult {
+    /// Original native name candidates from the authoritative declaration
+    /// inventory. UI maps cannot substitute for opaque or colliding slots.
+    #[must_use]
+    pub fn procedures_for_original_name<'a>(
+        &'a self,
+        input: &super::scope::SignatureSourceNameInput,
+        namespace: &super::scope::SignatureNamespaceScope,
+    ) -> Vec<&'a SignatureProc> {
+        let Some(lookup) =
+            super::scope::SignatureSourceLookup::from_input(namespace.clone(), input)
+        else {
+            return Vec::new();
+        };
+        lookup.first_matching_publications(
+            self.procedure_declarations
+                .iter()
+                .filter_map(|declaration| Some((declaration.source_name.as_ref()?, declaration))),
+        )
+    }
+
     /// Original declaration candidates in ordinary local-before-root source
     /// lookup order. Authored slot assistance supplies no runtime dispatch proof.
     #[must_use]

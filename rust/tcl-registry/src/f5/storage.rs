@@ -74,11 +74,32 @@ pub fn namespace_storage_domain(
     context: BigIpExecutionContext,
     namespace: &str,
 ) -> VariableStorageDomain {
+    namespace_domain(context, namespace == "::", namespace == "::static")
+}
+
+/// Classify an independently resolved namespace's retained components.
+/// Written names, rendering, source advice and registry profiles cannot
+/// supply either the hosted context or the namespace geometry.
+#[must_use]
+pub fn namespace_storage_domain_in_path(
+    context: BigIpExecutionContext,
+    namespace: &tcl_core_types::ByteNamespacePath,
+) -> VariableStorageDomain {
+    let static_namespace =
+        matches!(namespace.as_segments(), [component] if component.as_bytes() == b"static");
+    namespace_domain(context, namespace.is_root(), static_namespace)
+}
+
+fn namespace_domain(
+    context: BigIpExecutionContext,
+    root: bool,
+    static_namespace: bool,
+) -> VariableStorageDomain {
     match context {
-        BigIpExecutionContext::TmmIRule if namespace == "::static" => {
+        BigIpExecutionContext::TmmIRule if static_namespace => {
             VariableStorageDomain::WorkerNamespace
         }
-        BigIpExecutionContext::TmmIRule if namespace == "::" => VariableStorageDomain::CmpGlobal,
+        BigIpExecutionContext::TmmIRule if root => VariableStorageDomain::CmpGlobal,
         _ => VariableStorageDomain::InterpreterNamespace,
     }
 }
@@ -86,6 +107,45 @@ pub fn namespace_storage_domain(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    // Implementation contract: naming.variable.hosted-storage-context
+    // docs/design/analysis/name-resolution-proofs/variable-hosted-storage-context.md
+    fn hosted_domain_uses_exact_resolved_components() {
+        use tcl_core_types::ByteNamespacePath;
+        let root = ByteNamespacePath::root();
+        let private = ByteNamespacePath::from_segments([b"static".as_slice()]);
+        assert_eq!(
+            namespace_storage_domain_in_path(BigIpExecutionContext::TmmIRule, &root),
+            VariableStorageDomain::CmpGlobal
+        );
+        assert_eq!(
+            namespace_storage_domain_in_path(BigIpExecutionContext::TmmIRule, &private),
+            VariableStorageDomain::WorkerNamespace
+        );
+        for path in [
+            ByteNamespacePath::from_segments([b"app".as_slice(), b"static".as_slice()]),
+            ByteNamespacePath::from_segments([b"static\0tail".as_slice()]),
+            ByteNamespacePath::from_segments([b"::static".as_slice()]),
+        ] {
+            assert_eq!(
+                namespace_storage_domain_in_path(BigIpExecutionContext::TmmIRule, &path),
+                VariableStorageDomain::InterpreterNamespace
+            );
+        }
+        for context in BigIpExecutionContext::ALL {
+            if context != BigIpExecutionContext::TmmIRule {
+                assert_eq!(
+                    namespace_storage_domain_in_path(context, &root),
+                    VariableStorageDomain::InterpreterNamespace
+                );
+                assert_eq!(
+                    namespace_storage_domain_in_path(context, &private),
+                    VariableStorageDomain::InterpreterNamespace
+                );
+            }
+        }
+    }
 
     #[test]
     fn storage_overlay_requires_the_tmm_context_and_root_static_namespace() {

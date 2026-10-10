@@ -18,7 +18,13 @@
 
 //! Native assignment evaluates each original target after the preceding store.
 
-use super::*;
+use super::{
+    Arc, ModuleCommandBindings, PreparedSourceArguments, SourceArgumentReceipts,
+    SourceCommandBindings, SourceCommandInput, SourceExecutionContext, SourceObserverExecution,
+    SourceOutcomes, compiled_invocation, frozen_arguments, literal_object_pool, native_result,
+    opaque_source_invocation, original_name_value, publish_source_branch,
+    source_argument_context_boxed, source_arguments, source_effective_words, variable_observers,
+};
 use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand as Operand;
 use tcl_registry::native_list_operations_compilation::{
     NativeListOperationInstruction as Plan, NativeListVariableOperand as Target,
@@ -28,9 +34,17 @@ struct AssignmentRun<'a> {
     input: SourceCommandInput<'a>,
     base: u32,
     prepared: Box<PreparedSourceArguments>,
-    converted: Option<Vec<String>>,
+    converted: Option<Vec<original_name_value::OriginalProducedNameValue>>,
+    conversion_operation: Option<original_name_value::OriginalProducedNameValue>,
     list_operand: &'a Operand,
     pool: Option<literal_object_pool::SourceOrdinaryLiteralPool>,
+}
+
+#[derive(Clone, Copy)]
+struct AssignmentProgress {
+    entered: bool,
+    evaluated_targets: usize,
+    target_count: usize,
 }
 
 impl SourceCommandBindings {
@@ -42,6 +56,20 @@ impl SourceCommandBindings {
         compiled: &compiled_invocation::CompiledInvocationSelection,
         context: &SourceExecutionContext<'_>,
     ) -> Option<SourceOutcomes> {
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+            eprintln!(
+                "ORIGINAL_ASSIGNMENT offset={} stage=selection preview={} live={} unknown={} error={} named={} proofs={} structured={}",
+                input.segment.span.start(),
+                self.declaration_preview_depth,
+                compiled.live,
+                compiled.unknown,
+                compiled.compile_error,
+                compiled.named.len(),
+                compiled.proofs.len(),
+                compiled.structured.is_some(),
+            );
+        }
         if self.declaration_preview_depth != 0
             || compiled.live
             || compiled.unknown
@@ -60,6 +88,16 @@ impl SourceCommandBindings {
         };
         let mut run = AssignmentRun::new(input, base, list, state);
         let mut outcomes = self.evaluate_assignment_operand(list, &mut run, state, context);
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+            eprintln!(
+                "ORIGINAL_ASSIGNMENT offset={} stage=list normal={} complete={} targets={}",
+                input.segment.span.start(),
+                outcomes.normal.is_some(),
+                run.prepared.complete_normally,
+                targets.len(),
+            );
+        }
         let mut entered = false;
         let mut evaluated_targets = 0;
         for (index, target) in targets.iter().enumerate() {
@@ -85,6 +123,30 @@ impl SourceCommandBindings {
                 *context,
             ));
         }
+        Some(self.finish_list_assignment(
+            &mut run,
+            state,
+            compiled,
+            context,
+            outcomes,
+            AssignmentProgress {
+                entered,
+                evaluated_targets,
+                target_count: targets.len(),
+            },
+        ))
+    }
+
+    fn finish_list_assignment(
+        &mut self,
+        run: &mut AssignmentRun<'_>,
+        state: &mut ModuleCommandBindings,
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        context: &SourceExecutionContext<'_>,
+        mut outcomes: SourceOutcomes,
+        progress: AssignmentProgress,
+    ) -> SourceOutcomes {
+        let input = run.input;
         if let Some(normal) = outcomes.normal.take() {
             publish_source_branch(state, normal);
             let mut result = SourceOutcomes::invocation(
@@ -93,32 +155,52 @@ impl SourceCommandBindings {
                     tcl_registry::completion::CompletionCode::Ok,
                 ),
             );
-            if let Some(members) = &run.converted {
-                result.normal_value = Some(Arc::new(native_result::EvaluatedSourceValue {
-                    text: tcl_syntax::list::join_list(members.iter().skip(targets.len())),
-                    representation: tcl_syntax::value::ValueRepresentation::List,
-                    numeric: None,
-                }));
+            if let Some(members) = &run.converted
+                && let Some(operation) = &run.conversion_operation
+            {
+                let remainder = members.get(progress.target_count..).unwrap_or_default();
+                result.normal_name_value =
+                    original_name_value::OriginalProducedNameValue::list_result(
+                        remainder, operation,
+                    )
+                    .filter(|value| value.is_current(&state.source_variables))
+                    .map(Arc::new);
+                let text = result
+                    .normal_name_value
+                    .as_deref()
+                    .and_then(|value| ascii_value(value.bytes()))
+                    .map(str::to_owned);
+                result.normal_value = text.map(|text| {
+                    Arc::new(native_result::EvaluatedSourceValue {
+                        text,
+                        representation: tcl_syntax::value::ValueRepresentation::List,
+                        numeric: None,
+                    })
+                });
             }
             outcomes.join(&result);
         }
-        if entered {
-            run.prepared.complete_normally &= evaluated_targets == targets.len();
+        if progress.entered {
+            run.prepared.complete_normally &= progress.evaluated_targets == progress.target_count;
             run.prepared.effective = run
                 .prepared
                 .written_arguments
                 .iter()
                 .flat_map(frozen_arguments::runtime_words)
                 .collect();
-            let arguments = source_argument_context_boxed(
+            let argument_context = source_argument_context_boxed(
                 context,
-                &run.prepared.written_arguments,
-                &run.prepared.written_values,
-                &run.prepared.written_representations,
-                &run.prepared.written_objects,
-                &run.prepared.written_method_prefixes,
-                &run.prepared.written_variable_reads,
+                SourceArgumentReceipts {
+                    arguments: &run.prepared.written_arguments,
+                    values: &run.prepared.written_values,
+                    name_values: &run.prepared.written_name_values,
+                    representations: &run.prepared.written_representations,
+                    objects: &run.prepared.written_objects,
+                    prefixes: &run.prepared.written_method_prefixes,
+                    reads: &run.prepared.written_variable_reads,
+                },
             );
+            let arguments = argument_context.context();
             let input = SourceCommandInput {
                 effective: &run.prepared.effective,
                 ..input
@@ -135,7 +217,7 @@ impl SourceCommandBindings {
             self.record_invocation_normal_result(basis, &outcomes);
         }
         outcomes.publish(state);
-        Some(outcomes)
+        outcomes
     }
 
     fn evaluate_assignment_operand(
@@ -146,22 +228,32 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         match operand {
-            Operand::LiteralExpansion {
-                original_word,
-                value,
-                ..
-            } => {
+            Operand::LiteralExpansion { original_word, .. } => {
                 // This member is an authenticated parser TEXT expansion, with no runtime substitutions.
-                if std::str::from_utf8(value).is_err() {
-                    return opaque_source_invocation(state);
-                }
                 let Some(word) = run.input.words.get(*original_word) else {
                     return opaque_source_invocation(state);
                 };
-                let frozen = frozen_arguments::freeze_word(word, None, state, context.registry);
-                if let Ok(frozen) = frozen {
-                    Arc::make_mut(&mut run.prepared.written_arguments)[*original_word] = frozen;
-                }
+                let Some(name_value) =
+                    super::original_name_value::capture_word(word, state, context.config)
+                else {
+                    return opaque_source_invocation(state);
+                };
+                let Ok(frozen) = frozen_arguments::freeze_word(
+                    word,
+                    None,
+                    Some(&name_value),
+                    state,
+                    context.registry,
+                ) else {
+                    return SourceOutcomes::invocation(
+                        state,
+                        tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                            tcl_registry::completion::CompletionCode::Error,
+                        ),
+                    );
+                };
+                Arc::make_mut(&mut run.prepared.written_arguments)[*original_word] = frozen;
+                run.prepared.written_name_values[*original_word] = Some(Arc::new(name_value));
                 SourceOutcomes::normal(state)
             }
             Operand::Original(index) => {
@@ -193,6 +285,78 @@ impl SourceCommandBindings {
         }
     }
 
+    fn assignment_conversion_failure(
+        &mut self,
+        index: usize,
+        run: &mut AssignmentRun<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceOutcomes> {
+        #[cfg(not(test))]
+        let _ = index;
+        let closed = run.list_effects_closed(state, context);
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+            eprintln!(
+                "ORIGINAL_ASSIGNMENT offset={} target={} stage=conversion effects={} converted={} pool={}",
+                run.input.segment.span.start(),
+                index,
+                closed,
+                run.converted.is_some(),
+                state
+                    .ordinary_literal_pool
+                    .as_ref()
+                    .is_some_and(literal_object_pool::SourceOrdinaryLiteralPool::effects_current),
+            );
+        }
+        self.record_object_callback_effects(state, run.input.segment.span.start(), closed);
+        if !closed {
+            return Some(opaque_source_invocation(state));
+        }
+        if run.converted.is_none() {
+            let Some(list) = run.operand_input(run.list_operand, state, context.config) else {
+                return Some(opaque_source_invocation(state));
+            };
+            let Some(children) = list.original_list_elements() else {
+                return Some(
+                    if tcl_syntax::list::split_native_list_bytes(
+                        list.bytes(),
+                        list.policy().string_protocol(),
+                    )
+                    .is_err()
+                    {
+                        SourceOutcomes::invocation(
+                            state,
+                            tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                                tcl_registry::completion::CompletionCode::Error,
+                            ),
+                        )
+                    } else {
+                        opaque_source_invocation(state)
+                    },
+                );
+            };
+            run.conversion_operation =
+                original_name_value::OriginalProducedNameValue::from_source_input(
+                    &list,
+                    &state.source_variables,
+                );
+            run.converted = children
+                .iter()
+                .map(|child| {
+                    original_name_value::OriginalProducedNameValue::from_source_input(
+                        child,
+                        &state.source_variables,
+                    )
+                })
+                .collect();
+            if run.conversion_operation.is_none() || run.converted.is_none() {
+                return Some(opaque_source_invocation(state));
+            }
+        }
+        None
+    }
+
     fn store_assignment_member(
         &mut self,
         index: usize,
@@ -201,61 +365,107 @@ impl SourceCommandBindings {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
-        let closed = run.list_effects_closed(state, context);
-        self.record_object_callback_effects(state, run.input.segment.span.start(), closed);
-        if !closed {
-            return opaque_source_invocation(state);
+        if let Some(failure) = self.assignment_conversion_failure(index, run, state, context) {
+            return failure;
         }
-        if run.converted.is_none() {
-            let Some(list) = run.operand_value(run.list_operand) else {
-                return opaque_source_invocation(state);
-            };
-            let Some(dialect) = state.baseline.dialect else {
-                return opaque_source_invocation(state);
-            };
-            let rules =
-                tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
-            let Ok(members) = rules.split_list(list) else {
-                return SourceOutcomes::invocation(
-                    state,
-                    tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
-                        tcl_registry::completion::CompletionCode::Error,
-                    ),
+        let argument_context = source_argument_context_boxed(
+            &context,
+            SourceArgumentReceipts {
+                arguments: &run.prepared.written_arguments,
+                values: &run.prepared.written_values,
+                name_values: &run.prepared.written_name_values,
+                representations: &run.prepared.written_representations,
+                objects: &run.prepared.written_objects,
+                prefixes: &run.prepared.written_method_prefixes,
+                reads: &run.prepared.written_variable_reads,
+            },
+        );
+        let arguments = argument_context.context();
+        let Some(compilation) = arguments.original_variable_compilation else {
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+                eprintln!(
+                    "ORIGINAL_ASSIGNMENT offset={} target={} stage=missing-compilation",
+                    run.input.segment.span.start(),
+                    index
                 );
-            };
-            run.converted = Some(
-                members
-                    .into_iter()
-                    .map(std::borrow::Cow::into_owned)
-                    .collect(),
-            );
-        }
-        let Some(name) = name else {
+            }
             return opaque_source_invocation(state);
         };
-        let receiver = crate::var_resolve::resolve_literal_access(
-            name,
+        let Some(target) =
+            super::original_variable_compilation::original_compiler_list_assignment_operand(
+                compilation,
+                index,
+                &state.source_variables,
+            )
+        else {
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+                eprintln!(
+                    "ORIGINAL_ASSIGNMENT offset={} target={} stage=missing-target",
+                    run.input.segment.span.start(),
+                    index
+                );
+            }
+            return opaque_source_invocation(state);
+        };
+        let receiver = target.resolve(
             &state.source_variables,
-            false,
             context.registry,
+            false,
             tcl_registry::TraceOperation::Write,
         );
-        let value = run
+        let name_value = run
             .converted
             .as_ref()
             .and_then(|members| members.get(index))
-            .map_or("", String::as_str);
+            .cloned()
+            .or_else(|| {
+                original_name_value::OriginalProducedNameValue::list_assignment_empty(
+                    run.conversion_operation.as_ref()?,
+                )
+            });
+        let value = name_value
+            .as_ref()
+            .and_then(|value| ascii_value(value.bytes()));
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+            eprintln!(
+                "ORIGINAL_ASSIGNMENT offset={} target={} stage=store receiver={receiver:?} value={} current={} normal-write={}",
+                run.input.segment.span.start(),
+                index,
+                name_value.is_some(),
+                name_value
+                    .as_ref()
+                    .is_some_and(|value| value.is_current(&state.source_variables)),
+                state
+                    .source_variables
+                    .original_normal_value_write(&receiver, context.registry)
+                    .is_some(),
+            );
+        }
         self.walk_original_opcode_store(
             variable_observers::OriginalOpcodeStore {
                 receiver: &receiver,
-                reference: Some(name),
-                value: Some(value),
+                reference: name,
+                value,
+                name_value: name_value.as_ref(),
                 offset: run.input.segment.span.start(),
             },
             state,
             context,
         )
     }
+}
+
+// The logical compatibility table retains ASCII only. Exact native bytes
+// travel separately and never borrow this presentation as a name producer.
+fn ascii_value(bytes: &[u8]) -> Option<&str> {
+    bytes
+        .iter()
+        .all(u8::is_ascii)
+        .then(|| std::str::from_utf8(bytes).ok())
+        .flatten()
 }
 
 fn target_operand(target: &Target) -> &Operand {
@@ -274,6 +484,7 @@ impl<'a> AssignmentRun<'a> {
         prepared.written_arguments =
             source_effective_words(input.words, state.baseline.dialect, None).into();
         prepared.written_values.resize(input.words.len(), None);
+        prepared.written_name_values.resize(input.words.len(), None);
         prepared
             .written_representations
             .resize(input.words.len(), None);
@@ -289,6 +500,7 @@ impl<'a> AssignmentRun<'a> {
             base,
             prepared,
             converted: None,
+            conversion_operation: None,
             list_operand,
             pool: state.ordinary_literal_pool.clone(),
         }
@@ -296,12 +508,61 @@ impl<'a> AssignmentRun<'a> {
     fn replace_argument(&mut self, index: usize, operand: &PreparedSourceArguments) {
         Arc::make_mut(&mut self.prepared.written_arguments)[index] =
             operand.written_arguments[0].clone();
-        self.prepared.written_values[index] = operand.written_values[0].clone();
+        self.prepared.written_values[index].clone_from(&operand.written_values[0]);
+        self.prepared.written_name_values[index].clone_from(&operand.written_name_values[0]);
         self.prepared.written_representations[index] = operand.written_representations[0];
-        self.prepared.written_objects[index] = operand.written_objects[0].clone();
-        self.prepared.written_method_prefixes[index] = operand.written_method_prefixes[0].clone();
-        self.prepared.written_variable_reads[index] = operand.written_variable_reads[0].clone();
+        self.prepared.written_objects[index].clone_from(&operand.written_objects[0]);
+        self.prepared.written_method_prefixes[index]
+            .clone_from(&operand.written_method_prefixes[0]);
+        self.prepared.written_variable_reads[index].clone_from(&operand.written_variable_reads[0]);
     }
+    fn operand_input(
+        &self,
+        operand: &Operand,
+        state: &ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameValue};
+        match operand {
+            Operand::Original(index) => {
+                let value = self.prepared.written_name_values.get(*index)?.as_deref()?;
+                value.is_current(&state.source_variables).then(|| {
+                    SignatureSourceNameInput::OriginalValue(
+                        SignatureSourceNameValue::from_original_produced_value(value),
+                    )
+                })
+            }
+            Operand::LiteralExpansion {
+                original_word,
+                value_span,
+                ..
+            } => {
+                let word = original_name_value::original_native_word(
+                    self.input.words.get(*original_word)?,
+                    state,
+                    config,
+                )?;
+                let policy = state
+                    .source_variables
+                    .execution_name_policy?
+                    .native_recipe()?;
+                let parent = SignatureSourceNameInput::OriginalValue(
+                    SignatureSourceNameValue::from_original_static_word(
+                        &word,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                        policy,
+                    )?,
+                );
+                let mut children = parent
+                    .original_list_elements_with_source_spans()?
+                    .into_iter()
+                    .filter(|(_, span)| *span == Some(*value_span));
+                let child = children.next()?.0;
+                children.next().is_none().then_some(child)
+            }
+        }
+    }
+
     fn operand_value<'b>(&'b self, operand: &'b Operand) -> Option<&'b str> {
         match operand {
             Operand::Original(index) => self
@@ -355,6 +616,8 @@ impl<'a> AssignmentRun<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::command_binding::{SourceAnalysisOptions, SourceInvocationBinding};
+    use tcl_registry::CommandRegistry;
     use tcl_registry::native_compilation::{
         NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
     };
@@ -364,6 +627,25 @@ mod tests {
         entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> (SourceCommandBindings, Arc<CommandRegistry>) {
+        analyse_in_compilation(
+            source,
+            entry,
+            profile,
+            NativeCompilationContext {
+                frame: NativeCompilationFrame::ScriptCode,
+                mode: NativeCompilationMode::BytecodeObject,
+                catch_depth: Some(0),
+                loop_depth: 0,
+            },
+        )
+    }
+
+    fn analyse_in_compilation(
+        source: &str,
+        entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
+        profile: &'static tcl_dialect::DialectProfile,
+        compilation: NativeCompilationContext,
+    ) -> (SourceCommandBindings, Arc<CommandRegistry>) {
         let registry = Arc::new(CommandRegistry::build_default().project_for_profile(profile));
         let analysis = SourceCommandBindings::analyse_with_options(
             source,
@@ -372,51 +654,240 @@ mod tests {
             SourceAnalysisOptions {
                 native_entry: entry,
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-                native_compilation: NativeCompilationContext {
-                    frame: NativeCompilationFrame::ScriptCode,
-                    mode: NativeCompilationMode::BytecodeObject,
-                    catch_depth: Some(0),
-                    loop_depth: 0,
-                },
+                native_compilation: compilation,
                 ..Default::default()
             },
         );
         (analysis, registry)
     }
+    fn retained_argument_test_context<'a>(
+        binding: &'a SourceInvocationBinding,
+        registry: &'a CommandRegistry,
+        selected: &'a compiled_invocation::CompiledInvocationSelection,
+        config: tcl_lexer::LexerConfig,
+    ) -> SourceExecutionContext<'a> {
+        SourceExecutionContext {
+            realm: tcl_dialect::model::InvocationRealm::RuleLoader,
+            compilation: NativeCompilationContext {
+                frame: NativeCompilationFrame::ScriptCode,
+                mode: NativeCompilationMode::BytecodeObject,
+                catch_depth: Some(0),
+                loop_depth: 0,
+            },
+            compilation_snapshot: None,
+            selected_compilation: selected.admission.as_ref(),
+            original_variable_compilation: None,
+            namespace: &binding.lookup_namespace,
+            namespace_key: Some(&binding.lookup_namespace_key),
+            config,
+            registry,
+            depth: 0,
+            frame: &binding.variable_frame,
+            invocation_offset: 0,
+            variable_read_owner: None,
+            original_written_projection: None,
+            written_arguments: None,
+            written_values: None,
+            written_name_values: None,
+            written_representations: None,
+            written_objects: None,
+            written_method_prefixes: None,
+            written_variable_reads: None,
+            expression_source: None,
+        }
+    }
+
+    #[test]
+    fn original_argument_context_borrows_its_evaluator_owned_compilation() {
+        // naming.source.recursive-driver-state-transport
+        // docs/design/analysis/name-resolution-proofs/recursive-driver-state-transport.md
+        let source = "lassign {one two} first second";
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let (analysis, registry) = analyse(source, Some(&entry), profile);
+        let binding = analysis.invocation_at_source("lassign", 0);
+        // These are the retained selected receipts, not a reconstructed plan.
+        let selected = compiled_invocation::CompiledInvocationSelection {
+            admission: binding.native_compilation_admission,
+            structured: binding.native_structured_preparation.clone(),
+            original_words: binding.original_compiler_words.clone(),
+            ..Default::default()
+        };
+        let state = &binding.lookup_state.as_ref().unwrap().state;
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let mut context = retained_argument_test_context(&binding, &registry, &selected, config);
+        let compilation = original_name_value::OriginalSourceVariableCompilation::from_selected(
+            &selected, state, context,
+        )
+        .expect("actual selected lassign preparation");
+        context.original_variable_compilation = Some(&compilation);
+        let input = binding.original_retained_written_name_input(1).unwrap();
+        let produced = original_name_value::OriginalProducedNameValue::from_source_input(
+            &input,
+            &state.source_variables,
+        )
+        .unwrap();
+        let name_values = [None, Some(Arc::new(produced)), None, None];
+        let arguments = [];
+        let holder = source_argument_context_boxed(
+            &context,
+            SourceArgumentReceipts {
+                arguments: &arguments,
+                values: &[],
+                name_values: &name_values,
+                representations: &[],
+                objects: &[],
+                prefixes: &[],
+                reads: &[],
+            },
+        );
+        let view = holder.context();
+        let owned = holder.compilation.as_ref().unwrap();
+        assert!(std::ptr::eq(
+            view.original_variable_compilation.unwrap(),
+            owned
+        ));
+        assert!(std::ptr::eq(
+            owned.selection(),
+            selected.admission.as_ref().unwrap()
+        ));
+        assert_eq!(owned.site(), compilation.site());
+        assert_eq!(owned.config(), compilation.config());
+        assert_eq!(
+            owned.evaluated_original_word(1).unwrap().bytes(),
+            b"one two"
+        );
+        assert!(compilation.evaluated_original_word(1).is_none());
+        assert!(std::ptr::eq(
+            view.written_name_values.unwrap(),
+            name_values.as_slice()
+        ));
+        let truncated = source_argument_context_boxed(
+            &context,
+            SourceArgumentReceipts {
+                arguments: &arguments,
+                values: &[],
+                name_values: &name_values[..2],
+                representations: &[],
+                objects: &[],
+                prefixes: &[],
+                reads: &[],
+            },
+        );
+        assert!(truncated.context().original_variable_compilation.is_none());
+        context.config.strict_quoting = !context.config.strict_quoting;
+        assert!(
+            original_name_value::OriginalSourceVariableCompilation::from_selected(
+                &selected, state, context,
+            )
+            .is_none()
+        );
+        // The recursive Copy descriptor must stay below the checked argument
+        // transport budget without changing depth or stack configuration.
+        assert!(std::mem::size_of::<SourceExecutionContext<'_>>() <= 256);
+    }
+
+    fn assert_ordered_original_assignment_stores(
+        engine: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::native_compilation::NativeCompilationEntry,
+    ) {
+        for source in [
+            "lassign {one two} first [set first]; list $first $one",
+            "lassign {one two} first a([set first]); list $first $a(one)",
+            "lassign {one two} first [proc lassign args {return CUSTOM}; set first]; list $first $one",
+        ] {
+            let (analysis, registry) = analyse(source, Some(entry), profile);
+            assert_eq!(
+                analysis
+                    .final_state
+                    .source_variables
+                    .literal_value("first", &registry),
+                Some("one"),
+                "{engine}/{source}"
+            );
+            let last = u32::try_from(source.rfind("list").unwrap()).unwrap();
+            let call = analysis.invocation_at_source("list", last);
+            assert_eq!(
+                call.original_retained_written_name_input(1)
+                    .unwrap()
+                    .bytes(),
+                b"one"
+            );
+            assert_eq!(
+                call.original_retained_written_name_input(2)
+                    .unwrap()
+                    .bytes(),
+                b"two"
+            );
+            let target = if source.contains("a([") {
+                "a(one)"
+            } else {
+                "one"
+            };
+            assert_eq!(
+                analysis
+                    .final_state
+                    .source_variables
+                    .literal_value(target, &registry),
+                Some("two"),
+                "{engine}/{source}"
+            );
+        }
+    }
+
     #[test]
     fn original_native_assignment_projects_each_store_before_the_next_target() {
+        // Implementation contract: naming.variable.original-set-read-completion
+        // docs/design/analysis/name-resolution-proofs/original-set-read-completion.md
         for engine in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
             let (_owner, entry) =
                 crate::environment_ingress::captured_native_entry_with_owner(profile);
-            for source in [
-                "lassign {one two} first [set first]; list $first $one",
-                "lassign {one two} first a([set first]); list $first $a(one)",
-                "lassign {one two} first [proc lassign args {return CUSTOM}; set first]; list $first $one",
-            ] {
-                let (analysis, registry) = analyse(source, Some(&entry), profile);
-                assert_eq!(
-                    analysis
-                        .final_state
-                        .source_variables
-                        .literal_value("first", &registry),
-                    Some("one"),
-                    "{engine}/{source}"
-                );
-                let target = if source.contains("a([") {
-                    "a(one)"
-                } else {
-                    "one"
-                };
-                assert_eq!(
-                    analysis
-                        .final_state
-                        .source_variables
-                        .literal_value(target, &registry),
-                    Some("two"),
-                    "{engine}/{source}"
-                );
-            }
+            assert_ordered_original_assignment_stores(engine, profile, &entry);
+            let source = "lassign {one} first second; list $first $second";
+            let (analysis, registry) = analyse(source, Some(&entry), profile);
+            assert_eq!(
+                analysis
+                    .final_state
+                    .source_variables
+                    .literal_value("second", &registry),
+                Some("")
+            );
+            let call = analysis.invocation_at_source(
+                "list",
+                u32::try_from(source.rfind("list").unwrap()).unwrap(),
+            );
+            assert_eq!(
+                call.original_retained_written_name_input(1)
+                    .unwrap()
+                    .bytes(),
+                b"one"
+            );
+            assert_eq!(
+                call.original_retained_written_name_input(2)
+                    .unwrap()
+                    .bytes(),
+                b""
+            );
+            let source = "lassign {one two} n\\uD800 a(k); list [set n\\uD800] $a(k)";
+            let (analysis, _) = analyse(source, Some(&entry), profile);
+            let call = analysis.invocation_at_source(
+                "list",
+                u32::try_from(source.rfind("list").unwrap()).unwrap(),
+            );
+            assert_eq!(
+                call.original_retained_written_name_input(1)
+                    .unwrap()
+                    .bytes(),
+                b"one"
+            );
+            assert_eq!(
+                call.original_retained_written_name_input(2)
+                    .unwrap()
+                    .bytes(),
+                b"two"
+            );
             let (analysis, registry) = analyse(
                 "catch {lassign {one two} first [error STOP]} caught; set first",
                 Some(&entry),
@@ -439,8 +910,29 @@ mod tests {
         let source = "lassign {one two} first [set first]";
         let mut disabled = entry.clone();
         disabled.inline_compilation_disabled = true;
-        for entry in [None, Some(&disabled)] {
-            let (analysis, registry) = analyse(source, entry, profile);
+        // No captured entry with an explicit authored BytecodeObject context
+        // still selects the source compiler recipe; it is not an unknown mode.
+        let (authored, registry) = analyse(source, None, profile);
+        assert_eq!(
+            authored
+                .final_state
+                .source_variables
+                .literal_value("first", &registry),
+            Some("one")
+        );
+        for (entry, compilation) in [
+            (None, NativeCompilationContext::default()),
+            (
+                Some(&disabled),
+                NativeCompilationContext {
+                    frame: NativeCompilationFrame::ScriptCode,
+                    mode: NativeCompilationMode::BytecodeObject,
+                    catch_depth: Some(0),
+                    loop_depth: 0,
+                },
+            ),
+        ] {
+            let (analysis, registry) = analyse_in_compilation(source, entry, profile, compilation);
             assert_eq!(
                 analysis
                     .final_state

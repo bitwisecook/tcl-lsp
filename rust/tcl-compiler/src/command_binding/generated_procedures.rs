@@ -22,6 +22,8 @@ pub struct SourceProcedureImplementationBody<'a> {
     pub namespace_key: &'a super::SourceNamespaceKey,
     /// Original native formal binding plan.
     pub parameters: &'a [tcl_syntax::formal_params::FormalParameter],
+    /// Original byte-valued formal topology, independent of presentation.
+    pub(crate) original_parameters: Option<&'a super::formal_topology::OriginalFormalTopology>,
     /// Original evaluated body source and provenance.
     pub source: &'a ExecutedScriptSource,
 }
@@ -94,6 +96,8 @@ pub struct SourceInstalledProcedureBody {
     pub namespace_key: super::SourceNamespaceKey,
     /// Formals decoded by the selected native definition grammar.
     pub parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    /// Authentic original formal producer and selected binding grammar.
+    pub(crate) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
     /// Exact evaluated body and its retained source origin.
     pub source: ExecutedScriptSource,
 }
@@ -119,6 +123,7 @@ impl SourceCommandBindings {
                 namespace: &root.namespace,
                 namespace_key: &root.namespace_key,
                 parameters: &root.parameters,
+                original_parameters: root.original_parameters.as_ref(),
                 source,
             })
         })
@@ -153,6 +158,7 @@ impl SourceCommandBindings {
             namespace: &root.namespace,
             namespace_key: &root.namespace_key,
             parameters: &root.parameters,
+            original_parameters: root.original_parameters.as_ref(),
             source,
         })
     }
@@ -179,6 +185,7 @@ impl SourceCommandBindings {
                 namespace: body.namespace.to_owned(),
                 namespace_key: body.namespace_key.clone(),
                 parameters: body.parameters.to_vec(),
+                original_parameters: body.original_parameters.cloned(),
                 source: body.source.clone(),
             })
             .collect::<Vec<_>>();
@@ -249,6 +256,7 @@ impl SourceCommandBindings {
                 namespace,
                 namespace_key,
                 parameters: root.parameters.clone(),
+                original_parameters: root.original_parameters.clone(),
                 source: source.clone(),
             });
         }

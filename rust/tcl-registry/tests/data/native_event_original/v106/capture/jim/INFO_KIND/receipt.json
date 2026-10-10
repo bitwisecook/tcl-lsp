@@ -1,0 +1,19 @@
+{
+  "id": "INFO_KIND",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/jim/probe",
+    "11"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "0738c51cf014246743bd148df59bd30b810358b17e57ae44684fba2ea5dc96fa",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|302e38342d392d6735626163376339",
+    "INFO_KIND_INPUT|0|736574206964205b61667465722030207b73657420646f6e6520317d5d3b206c696e646578205b616674657220696e666f202469645d2031",
+    "INFO_KIND|0|69646c65",
+    "INFO_KIND_OPTIONS_NOT_TESTED|0|no-C-return-options-api"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

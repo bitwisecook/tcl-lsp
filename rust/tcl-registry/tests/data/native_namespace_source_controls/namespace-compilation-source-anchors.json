@@ -1,0 +1,94 @@
+{
+  "source_anchors": [
+    {
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.4.20/generic/tclBasic.c",
+      "function": "builtInCmds namespace registration",
+      "lines": [
+        164,
+        165
+      ],
+      "source_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "snippet": "    {\"namespace\",\t(Tcl_CmdProc *) NULL,\tTcl_NamespaceObjCmd,\n        (CompileProc *) NULL,\t\t1},\n",
+      "snippet_sha256": "d8572ff3819a77cfadf044c198dc6953a3e7b1c614ad80b794e4ddd5b6bbbb39",
+      "evidence": "namespace-registration-source-0"
+    },
+    {
+      "provider": "tcl8.5",
+      "version": "8.5.19",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.5.19/generic/tclBasic.c",
+      "function": "builtInCmds namespace registration",
+      "lines": [
+        157,
+        157
+      ],
+      "source_sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "snippet": "    {\"namespace\",\tTcl_NamespaceObjCmd,\tTclCompileNamespaceCmd,\t1},\n",
+      "snippet_sha256": "54766aa16dcebd5e0625bddd6f2f5ab4b9928af57271b5959d0c9a0b4503cee0",
+      "evidence": "namespace-registration-source-1"
+    },
+    {
+      "provider": "tcl8.5",
+      "version": "8.5.19",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.5.19/generic/tclCompCmds.c",
+      "function": "TclCompileNamespaceCmd initial decline",
+      "lines": [
+        5784,
+        5821
+      ],
+      "source_sha256": "117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414",
+      "snippet": "TclCompileNamespaceCmd(\n    Tcl_Interp *interp,\t\t/* Used for error reporting. */\n    Tcl_Parse *parsePtr,\t/* Points to a parse structure for the command\n\t\t\t\t * created by Tcl_ParseCommand. */\n    Command *cmdPtr,\t\t/* Points to defintion of command being\n\t\t\t\t * compiled. */\n    CompileEnv *envPtr)\t\t/* Holds resulting instructions. */\n{\n    Tcl_Token *tokenPtr, *otherTokenPtr, *localTokenPtr;\n    int localIndex, numWords, i;\n    DefineLineInformation;\t/* TIP #280 */\n\n    if (envPtr->procPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Only compile [namespace upvar ...]: needs an odd number of args, >=5\n     */\n\n    numWords = parsePtr->numWords;\n    if (!(numWords%2) || (numWords < 5)) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Check if the second argument is \"upvar\"\n     */\n\n    tokenPtr = TokenAfter(parsePtr->tokenPtr);\n    if ((tokenPtr->size != 5)  /* 5 == strlen(\"upvar\") */\n\t    || strncmp(tokenPtr->start, \"upvar\", 5)) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Push the namespace\n     */\n",
+      "snippet_sha256": "45d419dfdb7d23ba724c61bf85cf4e05ee7d2ec0e0c7f67e596c70a10a2f64dd",
+      "evidence": "namespace-registration-source-2"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.6.18/generic/tclNamesp.c",
+      "function": "namespace implementation map",
+      "lines": [
+        141,
+        162
+      ],
+      "source_sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "snippet": "static const EnsembleImplMap defaultNamespaceMap[] = {\n    {\"children\",   NamespaceChildrenCmd, TclCompileBasic0To2ArgCmd, NULL, NULL, 0},\n    {\"code\",\t   NamespaceCodeCmd,\tTclCompileNamespaceCodeCmd, NULL, NULL, 0},\n    {\"current\",\t   NamespaceCurrentCmd,\tTclCompileNamespaceCurrentCmd, NULL, NULL, 0},\n    {\"delete\",\t   NamespaceDeleteCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"ensemble\",   TclNamespaceEnsembleCmd, NULL, NULL, NULL, 0},\n    {\"eval\",\t   NamespaceEvalCmd,\tNULL, NRNamespaceEvalCmd, NULL, 0},\n    {\"exists\",\t   NamespaceExistsCmd,\tTclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"export\",\t   NamespaceExportCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"forget\",\t   NamespaceForgetCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"import\",\t   NamespaceImportCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"inscope\",\t   NamespaceInscopeCmd,\tNULL, NRNamespaceInscopeCmd, NULL, 0},\n    {\"origin\",\t   NamespaceOriginCmd,\tTclCompileNamespaceOriginCmd, NULL, NULL, 0},\n    {\"parent\",\t   NamespaceParentCmd,\tTclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"path\",\t   NamespacePathCmd,\tTclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"qualifiers\", NamespaceQualifiersCmd, TclCompileNamespaceQualifiersCmd, NULL, NULL, 0},\n    {\"tail\",\t   NamespaceTailCmd,\tTclCompileNamespaceTailCmd, NULL, NULL, 0},\n    {\"unknown\",\t   NamespaceUnknownCmd, TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"upvar\",\t   NamespaceUpvarCmd,\tTclCompileNamespaceUpvarCmd, NULL, NULL, 0},\n    {\"which\",\t   NamespaceWhichCmd,\tTclCompileNamespaceWhichCmd, NULL, NULL, 0},\n    {NULL, NULL, NULL, NULL, NULL, 0}\n};\n",
+      "snippet_sha256": "b79eac5ddc66d6bff4bd274df2453c8b942ac320885355aee2f3d6c4995e5a17",
+      "evidence": "namespace-registration-source-3"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl9.0.4/generic/tclNamesp.c",
+      "function": "namespace implementation map",
+      "lines": [
+        159,
+        180
+      ],
+      "source_sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "snippet": "static const EnsembleImplMap defaultNamespaceMap[] = {\n    {\"children\",   NamespaceChildrenCmd, TclCompileBasic0To2ArgCmd, NULL, NULL, 0},\n    {\"code\",\t   NamespaceCodeCmd,\tTclCompileNamespaceCodeCmd, NULL, NULL, 0},\n    {\"current\",\t   NamespaceCurrentCmd,\tTclCompileNamespaceCurrentCmd, NULL, NULL, 0},\n    {\"delete\",\t   NamespaceDeleteCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"ensemble\",   TclNamespaceEnsembleCmd, NULL, NULL, NULL, 0},\n    {\"eval\",\t   NamespaceEvalCmd,\tNULL, NRNamespaceEvalCmd, NULL, 0},\n    {\"exists\",\t   NamespaceExistsCmd,\tTclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"export\",\t   NamespaceExportCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"forget\",\t   NamespaceForgetCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"import\",\t   NamespaceImportCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"inscope\",\t   NamespaceInscopeCmd,\tNULL, NRNamespaceInscopeCmd, NULL, 0},\n    {\"origin\",\t   NamespaceOriginCmd,\tTclCompileNamespaceOriginCmd, NULL, NULL, 0},\n    {\"parent\",\t   NamespaceParentCmd,\tTclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"path\",\t   NamespacePathCmd,\tTclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"qualifiers\", NamespaceQualifiersCmd, TclCompileNamespaceQualifiersCmd, NULL, NULL, 0},\n    {\"tail\",\t   NamespaceTailCmd,\tTclCompileNamespaceTailCmd, NULL, NULL, 0},\n    {\"unknown\",\t   NamespaceUnknownCmd, TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"upvar\",\t   NamespaceUpvarCmd,\tTclCompileNamespaceUpvarCmd, NULL, NULL, 0},\n    {\"which\",\t   NamespaceWhichCmd,\tTclCompileNamespaceWhichCmd, NULL, NULL, 0},\n    {NULL, NULL, NULL, NULL, NULL, 0}\n};\n",
+      "snippet_sha256": "b79eac5ddc66d6bff4bd274df2453c8b942ac320885355aee2f3d6c4995e5a17",
+      "evidence": "namespace-registration-source-4"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl9.1.0/generic/tclNamesp.c",
+      "function": "namespace implementation map",
+      "lines": [
+        159,
+        180
+      ],
+      "source_sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "snippet": "const EnsembleImplMap tclNamespaceImplMap[] = {\n    {\"children\",   NamespaceChildrenCmd, TclCompileBasic0To2ArgCmd, NULL, NULL, 0},\n    {\"code\",\t   NamespaceCodeCmd,\tTclCompileNamespaceCodeCmd, NULL, NULL, 0},\n    {\"current\",\t   NamespaceCurrentCmd,\tTclCompileNamespaceCurrentCmd, NULL, NULL, 0},\n    {\"delete\",\t   NamespaceDeleteCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"ensemble\",   TclNamespaceEnsembleCmd, NULL, NULL, NULL, 0},\n    {\"eval\",\t   NamespaceEvalCmd,\tNULL, NRNamespaceEvalCmd, NULL, 0},\n    {\"exists\",\t   NamespaceExistsCmd,\tTclCompileBasic1ArgCmd, NULL, NULL, 0}, // TODO: compile?\n    {\"export\",\t   NamespaceExportCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"forget\",\t   NamespaceForgetCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"import\",\t   NamespaceImportCmd,\tTclCompileBasicMin0ArgCmd, NULL, NULL, 0},\n    {\"inscope\",\t   NamespaceInscopeCmd,\tNULL, NRNamespaceInscopeCmd, NULL, 0},\n    {\"origin\",\t   NamespaceOriginCmd,\tTclCompileNamespaceOriginCmd, NULL, NULL, 0},\n    {\"parent\",\t   NamespaceParentCmd,\tTclCompileBasic0Or1ArgCmd, NULL, NULL, 0}, // TODO: compile?\n    {\"path\",\t   NamespacePathCmd,\tTclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"qualifiers\", NamespaceQualifiersCmd, TclCompileNamespaceQualifiersCmd, NULL, NULL, 0},\n    {\"tail\",\t   NamespaceTailCmd,\tTclCompileNamespaceTailCmd, NULL, NULL, 0},\n    {\"unknown\",\t   NamespaceUnknownCmd, TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"upvar\",\t   NamespaceUpvarCmd,\tTclCompileNamespaceUpvarCmd, NULL, NULL, 0},\n    {\"which\",\t   NamespaceWhichCmd,\tTclCompileNamespaceWhichCmd, NULL, NULL, 0},\n    {NULL, NULL, NULL, NULL, NULL, 0}\n};\n",
+      "snippet_sha256": "1c805ac9f2bce92e0863469bd0608b5683f9c4c40acb82510a37079eb3eb2eaf",
+      "evidence": "namespace-registration-source-5"
+    }
+  ]
+}

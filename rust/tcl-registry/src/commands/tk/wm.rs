@@ -38,8 +38,11 @@ fn wm_protocol_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     }
 }
 
-fn wm_protocol_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    if args.len() == 3 {
+fn wm_protocol_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    if count == 3 {
         vec![(2, ScriptTiming::Deferred)]
     } else {
         Vec::new()

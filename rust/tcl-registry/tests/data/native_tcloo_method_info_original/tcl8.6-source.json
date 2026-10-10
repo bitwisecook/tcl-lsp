@@ -1,0 +1,25 @@
+{
+  "provider": "8.6.18",
+  "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c",
+  "source_sha256": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+  "windows": [
+    {
+      "symbol": "InfoObjectMethodsCmd",
+      "lines": [
+        513,
+        582
+      ],
+      "snippet": "InfoObjectMethodsCmd(\n    ClientData clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const objv[])\n{\n    Object *oPtr;\n    int flag = PUBLIC_METHOD, recurse = 0;\n    FOREACH_HASH_DECLS;\n    Tcl_Obj *namePtr, *resultObj;\n    Method *mPtr;\n    static const char *const options[] = {\n\t\"-all\", \"-localprivate\", \"-private\", NULL\n    };\n    enum Options {\n\tOPT_ALL, OPT_LOCALPRIVATE, OPT_PRIVATE\n    };\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"objName ?-option value ...?\");\n\treturn TCL_ERROR;\n    }\n    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[1]);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (objc != 2) {\n\tint i, idx;\n\n\tfor (i=2 ; i<objc ; i++) {\n\t    if (Tcl_GetIndexFromObj(interp, objv[i], options, \"option\", 0,\n\t\t    &idx) != TCL_OK) {\n\t\treturn TCL_ERROR;\n\t    }\n\t    switch ((enum Options) idx) {\n\t    case OPT_ALL:\n\t\trecurse = 1;\n\t\tbreak;\n\t    case OPT_LOCALPRIVATE:\n\t\tflag = PRIVATE_METHOD;\n\t\tbreak;\n\t    case OPT_PRIVATE:\n\t\tflag = 0;\n\t\tbreak;\n\t    }\n\t}\n    }\n\n    TclNewObj(resultObj);\n    if (recurse) {\n\tconst char **names;\n\tint i, numNames = TclOOGetSortedMethodList(oPtr, flag, &names);\n\n\tfor (i=0 ; i<numNames ; i++) {\n\t    Tcl_ListObjAppendElement(NULL, resultObj,\n\t\t    Tcl_NewStringObj(names[i], -1));\n\t}\n\tif (numNames > 0) {\n\t    ckfree(names);\n\t}\n    } else if (oPtr->methodsPtr) {\n\tFOREACH_HASH(namePtr, mPtr, oPtr->methodsPtr) {\n\t    if (mPtr->typePtr && (mPtr->flags & flag) == flag) {\n\t\tTcl_ListObjAppendElement(NULL, resultObj, namePtr);\n\t    }\n\t}\n    }\n    Tcl_SetObjResult(interp, resultObj);\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "a41fdcf7953531f41d7061cc87892ac2d2a64556f763a14c7b30d628de829373"
+    },
+    {
+      "symbol": "InfoClassMethodsCmd",
+      "lines": [
+        1137,
+        1207
+      ],
+      "snippet": "InfoClassMethodsCmd(\n    ClientData clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const objv[])\n{\n    int flag = PUBLIC_METHOD, recurse = 0;\n    Tcl_Obj *namePtr, *resultObj;\n    Method *mPtr;\n    Class *clsPtr;\n    static const char *const options[] = {\n\t\"-all\", \"-localprivate\", \"-private\", NULL\n    };\n    enum Options {\n\tOPT_ALL, OPT_LOCALPRIVATE, OPT_PRIVATE\n    };\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"className ?-option value ...?\");\n\treturn TCL_ERROR;\n    }\n    clsPtr = GetClassFromObj(interp, objv[1]);\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (objc != 2) {\n\tint i, idx;\n\n\tfor (i=2 ; i<objc ; i++) {\n\t    if (Tcl_GetIndexFromObj(interp, objv[i], options, \"option\", 0,\n\t\t    &idx) != TCL_OK) {\n\t\treturn TCL_ERROR;\n\t    }\n\t    switch ((enum Options) idx) {\n\t    case OPT_ALL:\n\t\trecurse = 1;\n\t\tbreak;\n\t    case OPT_LOCALPRIVATE:\n\t\tflag = PRIVATE_METHOD;\n\t\tbreak;\n\t    case OPT_PRIVATE:\n\t\tflag = 0;\n\t\tbreak;\n\t    }\n\t}\n    }\n\n    TclNewObj(resultObj);\n    if (recurse) {\n\tconst char **names;\n\tint i, numNames = TclOOGetSortedClassMethodList(clsPtr, flag, &names);\n\n\tfor (i=0 ; i<numNames ; i++) {\n\t    Tcl_ListObjAppendElement(NULL, resultObj,\n\t\t    Tcl_NewStringObj(names[i], -1));\n\t}\n\tif (numNames > 0) {\n\t    ckfree(names);\n\t}\n    } else {\n\tFOREACH_HASH_DECLS;\n\n\tFOREACH_HASH(namePtr, mPtr, &clsPtr->classMethods) {\n\t    if (mPtr->typePtr && (mPtr->flags & flag) == flag) {\n\t\tTcl_ListObjAppendElement(NULL, resultObj, namePtr);\n\t    }\n\t}\n    }\n    Tcl_SetObjResult(interp, resultObj);\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "38e12e7351ff1b077d1181a2f6c248bbee1f94883e2217b348d9cf3aeb40213a"
+    }
+  ]
+}

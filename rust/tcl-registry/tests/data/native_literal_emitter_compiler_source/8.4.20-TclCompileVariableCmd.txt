@@ -1,0 +1,36 @@
+TclCompileVariableCmd(interp, parsePtr, envPtr)
+    Tcl_Interp *interp;		/* Used for error reporting. */
+    Tcl_Parse *parsePtr;	/* Points to a parse structure for the
+				 * command created by Tcl_ParseCommand. */
+    CompileEnv *envPtr;		/* Holds resulting instructions. */
+{
+    Tcl_Token *varTokenPtr;
+    int i, numWords;
+    CONST char *varName, *tail;
+    
+    if (envPtr->procPtr == NULL) {
+	return TCL_OUT_LINE_COMPILE;
+    }
+
+    numWords = parsePtr->numWords;
+    
+    varTokenPtr = parsePtr->tokenPtr
+	+ (parsePtr->tokenPtr->numComponents + 1);
+    for (i = 1; i < numWords; i += 2) {
+	if (varTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+	    varName = varTokenPtr[1].start;
+	    tail = varName + varTokenPtr[1].size - 1;
+	    if ((*tail == ')') || (tail < varName)) continue;
+	    while ((tail > varName) && ((*tail != ':') || (*(tail-1) != ':'))) {
+		tail--;
+	    }
+	    if ((*tail == ':') && (tail > varName)) {
+		tail++;
+	    }
+	    (void) TclFindCompiledLocal(tail, (tail-varName+1),
+		    /*create*/ 1, /*flags*/ 0, envPtr->procPtr);
+	    varTokenPtr = varTokenPtr + (varTokenPtr->numComponents + 1);
+	}
+    }
+    return TCL_OUT_LINE_COMPILE;
+}

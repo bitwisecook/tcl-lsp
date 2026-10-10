@@ -1,0 +1,55 @@
+{
+  "question": "naming.tcloo.original-forward-registration-prefix",
+  "provider": "9.0.4",
+  "input_channel": "separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source",
+  "scope": "Fresh selected stock class instance forward registration, captured prefix values, replacement by script/forward, missing and empty command target deferred until invocation. No native source-preflight, opaque name storage, custom deletion callback, observer closure, OO object creation Normal or arbitrary target dispatch claim. Unavailable providers execute only startup and availability. Result pointer bit always 0; no pointer claim.",
+  "source_sha256": "9426f3bb7655531c34759934ddeccf94534b3cf6d106fc229c5d35133ae7ed0b",
+  "queue_sha256": "4b75633ac8519e93e441680edc9fb50dcb392cb95be0fc6fd1eb26ee3068f4fd",
+  "runner_sha256": "c203dace948bb8b2bd2388a1d41130164bd6fe1b84f6fa49ee39a13aac5a17d6",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b"
+  },
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+    "/workspace/.proofs/current-native-tcloo-forward-registration174/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/current-native-tcloo-forward-registration174/output/9.0.4/probe"
+  ],
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 0,
+  "executable_sha256": "17783bdbc4ee348e3bb6f66cf39b06b4e09a0c51a735ff20e19dc62627055127",
+  "stdout_sha256": "f09798f1105c461014712126c03a6cbc8db1411ae5a09f188c4c0aade0d33dce",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "9.0.4",
+  "rows": [
+    "VERSION|0|0|392e302e34",
+    "AVAILABILITY|0|0|3a3a6f6f3a3a636c617373",
+    "MISSING_REGISTER|0|0|70617373207b3a3a6c617465722046495845447d",
+    "MISSING_INVOKE|1|0|696e76616c696420636f6d6d616e64206e616d6520223a3a6c6174657222",
+    "PREFIX_CAPTURE|1|0|63616e27742072656164202276616c7565223a206e6f2073756368207661726961626c65",
+    "NO_TARGET_CALL|0|0|30",
+    "SCRIPT_REPLACED|0|0|3a3a6c61746572204649584544",
+    "FORWARD_REPLACED|0|0|534352495054",
+    "EMPTY_TARGET_REGISTER|0|0|7b7d204649584544",
+    "PREFIX_REQUIRED|1|0|77726f6e67202320617267733a2073686f756c642062652022666f7277617264206e616d6520636d644e616d65203f617267202e2e2e3f22",
+    "SUPER_FORWARD|0|0|613a3a62203a3a6c61746572"
+  ],
+  "seconds": 0.1510714409960201
+}

@@ -162,7 +162,7 @@ impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for VmDictionaryOb
 }
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.refresh_scripted_dictionary_wrappers();
+    vm.refresh_scripted_distribution_libraries();
     let Some(namespace) = vm
         .native_invocation_dialect()
         .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Dict)
@@ -180,7 +180,7 @@ pub(crate) fn register(vm: &mut Vm) {
 
 /// Repinning retains replaced public commands and selects native member tokens.
 pub(crate) fn refresh_profile(vm: &mut Vm) {
-    vm.refresh_scripted_dictionary_wrappers();
+    vm.refresh_scripted_distribution_libraries();
     if vm.stock_native_identity("dict").as_deref() != Some("dict") {
         return;
     }
@@ -1344,6 +1344,7 @@ mod tests {
 
 #[cfg(test)]
 mod native_rmw_fixture_tests {
+    use crate::{Code, Value, Vm};
     use tcl_syntax::value::ValueOps;
 
     fn unhex(hex: &str) -> Vec<u8> {
@@ -1368,11 +1369,14 @@ mod native_rmw_fixture_tests {
             result,
             source,
             profile,
+            result_window,
         } = process;
         let receipt_start = std::time::Instant::now();
         tcl_test_support::oracle_row_progress(suite, engine, name, None);
         tcl_test_support::oracle_phase_progress(suite, engine, name, "vm-new-start", receipt_start);
-        let mut vm = crate::native_fixture::interpreter(profile);
+        // Both original C drivers call Jim_InitStaticExtensions, which loads
+        // stdlib; native core bootstrap alone intentionally has no dict update.
+        let mut vm = crate::native_fixture::interpreter_with_dictionary_library(profile);
         tcl_test_support::oracle_phase_progress(
             suite,
             engine,
@@ -1405,8 +1409,14 @@ mod native_rmw_fixture_tests {
             receipt_start,
         );
         assert_eq!(completion.code.as_int(), code, "{engine}/{name}");
-        let actual = vm.native_string_bytes(&completion.result).unwrap();
-        assert_eq!(actual.as_ref(), result, "{engine}/{name}");
+        compare_dictionary_result_window(
+            &mut vm,
+            &completion.result,
+            result,
+            result_window,
+            engine,
+            name,
+        );
         tcl_test_support::oracle_phase_progress(
             suite,
             engine,
@@ -1427,16 +1437,64 @@ mod native_rmw_fixture_tests {
     }
 
     #[derive(Clone, Copy)]
+    enum DictionaryResultWindow {
+        Complete,
+        CompletionAndCallerReadStatus,
+    }
+
+    fn compare_dictionary_result_window(
+        vm: &mut Vm,
+        actual: &Value,
+        expected: &[u8],
+        window: DictionaryResultWindow,
+        engine: &str,
+        name: &str,
+    ) {
+        match window {
+            DictionaryResultWindow::Complete => {
+                let actual = vm.native_string_bytes(actual).unwrap();
+                assert_eq!(actual.as_ref(), expected, "{engine}/{name}");
+            }
+            DictionaryResultWindow::CompletionAndCallerReadStatus => {
+                // Native226 measures final free of the current C85 dictionary
+                // still selected by this cell. Its later value bytes supply no
+                // defined storage-equivalence window; all other fields remain.
+                let expected = vm.new_bytes(expected);
+                let expected_fields = vm.list_elements(&expected).unwrap();
+                let actual_fields = vm.list_elements(actual).unwrap();
+                assert_eq!(expected_fields.len(), 4, "{engine}/{name}");
+                assert_eq!(actual_fields.len(), 4, "{engine}/{name}");
+                for index in 0..3 {
+                    let expected = vm.native_string_bytes(&expected_fields[index]).unwrap();
+                    let actual = vm.native_string_bytes(&actual_fields[index]).unwrap();
+                    assert_eq!(
+                        actual.as_ref(),
+                        expected.as_ref(),
+                        "{engine}/{name}/{index}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[derive(Clone, Copy)]
     struct DictionaryProcess<'a> {
         name: &'a str,
         code: i64,
         result: &'a [u8],
         source: &'a [u8],
         profile: &'static tcl_dialect::DialectProfile,
+        result_window: DictionaryResultWindow,
     }
 
     #[test]
-    fn dictionary_body_writeback_matches_329_complete_native_processes() {
+    fn dictionary_body_writeback_compares_original_native_observation_windows() {
+        // Native proofs: naming.dictionary.update-with-body-and-observer-frontiers;
+        // naming.dictionary.c85-original-update-write-error-object-lifetime
+        // docs/design/analysis/name-resolution-proofs/dictionary-c85-original-update-write-error-object-lifetime.md
+        // All329 completed rows retain outer completion comparisons;328 retain
+        // whole public observations. The measured current C85 lifetime edge compares
+        // separately captured diagnostic/status fields without certifying later value bytes.
         let sources = include_str!("../tests/data/native_dictionary_body/cases.tsv")
             .lines()
             .map(|row| row.split_once('\t').unwrap())
@@ -1474,6 +1532,8 @@ mod native_rmw_fixture_tests {
             ),
         ];
         let mut compared = 0;
+        let mut whole_results = 0;
+        let mut bounded_results = 0;
         for (engine, count, expected) in engines {
             assert_eq!(expected.lines().count(), count);
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
@@ -1483,6 +1543,21 @@ mod native_rmw_fixture_tests {
                 let code: i64 = fields.next().unwrap().parse().unwrap();
                 let result = unhex(fields.next().unwrap());
                 let source = unhex(sources[name]);
+                let result_window = if engine == "tcl8.5"
+                    && name == "compiled-update-dict-write-error"
+                {
+                    assert_eq!(
+                        source.as_slice(),
+                        include_bytes!(
+                            "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/request/original-source.tcl"
+                        )
+                    );
+                    bounded_results += 1;
+                    DictionaryResultWindow::CompletionAndCallerReadStatus
+                } else {
+                    whole_results += 1;
+                    DictionaryResultWindow::Complete
+                };
                 compare_dictionary_process(
                     "dictionary-body329",
                     engine,
@@ -1492,14 +1567,79 @@ mod native_rmw_fixture_tests {
                         result: &result,
                         source: &source,
                         profile,
+                        result_window,
                     },
                     &mut compared,
                 );
             }
         }
         assert_eq!(compared, 329);
+        assert_eq!(whole_results, 328);
+        assert_eq!(bounded_results, 1);
     }
 
+    #[test]
+    fn c85_dictionary_write_error_retains_defined_host_storage() {
+        // Native proof: naming.dictionary.c85-original-update-write-error-object-lifetime
+        // docs/design/analysis/name-resolution-proofs/dictionary-c85-original-update-write-error-object-lifetime.md
+        // Current-build private counters and public bytes are separate evidence.
+        // These live-header/value assertions test the VM's safe ownership policy;
+        // they do not reproduce or certify native freed-object content.
+        let baseline = include_bytes!(
+            "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/baseline-current-case9.stdout"
+        );
+        let observed = include_bytes!(
+            "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/observed-case9.stdout"
+        );
+        assert_eq!(baseline, observed);
+        assert_eq!(
+            include_str!(
+                "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/observed-case9.stderr"
+            ),
+            "DICT_RELEASE_OBSERVER|errors=1|refcount_before_release=1|same_cell=1|defined_scalar=1|final_free=1\n"
+        );
+        for negative in [
+            include_str!(
+                "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/observed-case0.stderr"
+            ),
+            include_str!(
+                "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/observed-case19.stderr"
+            ),
+        ] {
+            assert_eq!(
+                negative,
+                "DICT_RELEASE_OBSERVER|errors=0|refcount_before_release=-1|same_cell=-1|defined_scalar=-1|final_free=0\n"
+            );
+        }
+        let source = include_bytes!(
+            "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/request/original-source.tcl"
+        );
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl8.5").unit_profile();
+        let mut vm = crate::native_fixture::interpreter(profile);
+        let completion = vm.try_eval_source_bytes(source).unwrap();
+        assert_eq!(completion.code, Code::Ok);
+        let fields = vm.list_elements(&completion.result).unwrap();
+        assert_eq!(fields.len(), 4);
+        for (field, expected) in fields[..3].iter().zip([
+            b"1".as_slice(),
+            b"can't set \"d\": WRITE".as_slice(),
+            b"0".as_slice(),
+        ]) {
+            assert_eq!(vm.native_string_bytes(field).unwrap().as_ref(), expected);
+        }
+        assert!(fields[3].native_object_is_live());
+        assert_eq!(
+            vm.native_string_bytes(&fields[3]).unwrap().as_ref(),
+            b"k BASE"
+        );
+        let key = vm.new_bytes(b"k");
+        let member = tcl_cmd_core::dict::get(&mut vm, &fields[3], &[key]).unwrap();
+        assert!(member.native_object_is_live());
+        assert_eq!(vm.native_string_bytes(&member).unwrap().as_ref(), b"BASE");
+    }
+
+    // Native proof: naming.variable.dictionary-rmw-command-versus-selected-local-cell
+    // docs/design/analysis/name-resolution-proofs/variable.dictionary-rmw-command-versus-selected-local-cell.md
     #[test]
     fn dictionary_command_and_local_cell_publication_match_345_complete_native_processes() {
         const CASES: &str = include_str!("../tests/data/native_dictionary_rmw/cases.tsv");
@@ -1558,6 +1698,7 @@ mod native_rmw_fixture_tests {
                         result: &result,
                         source: &source,
                         profile,
+                        result_window: DictionaryResultWindow::Complete,
                     },
                     &mut compared,
                 );

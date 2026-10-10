@@ -1,0 +1,23 @@
+{
+  "id": "ORIGINAL_LIST_RAW_FF",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.5.19/probe",
+    "19"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "ed01c3cd52caaabe72582c0a747b3403cb0467e3f4e7e420ff1403b0e8c1fc06",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e352e3139",
+    "ORIGINAL_LIST_RAW_FF_SCHEDULE_INPUT|0|6bff",
+    "ORIGINAL_LIST_RAW_FF_SCHEDULE|0|61667465722330",
+    "ORIGINAL_LIST_RAW_FF_SCHEDULE_OPTIONS|0|2d636f64652030202d6c6576656c2030",
+    "ORIGINAL_LIST_RAW_FF_UPDATE|0|",
+    "ORIGINAL_LIST_RAW_FF_UPDATE_OPTIONS|0|2d636f64652030202d6c6576656c2030",
+    "ORIGINAL_LIST_RAW_FF_VALUE|0|56414c5545",
+    "ORIGINAL_LIST_RAW_FF_VALUE_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+  ],
+  "reported_version": "8.5.19"
+}

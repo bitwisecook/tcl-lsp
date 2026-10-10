@@ -61,12 +61,35 @@ pub(crate) fn in_expr(
 /// Recognise an existence query at its exact retained nested dispatch point.
 /// Explicit unknown or absent implementations never recover facts from spelling.
 #[must_use]
-pub(crate) fn in_expr_at(
+pub(crate) fn in_expr_at_with_metadata_context(
     node: &ExprNode,
     expression_base: u32,
     parent: &crate::ir::CommandTokens,
     registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
+    let metadata = metadata.filter(|context| context.matches_registry(registry))?;
+    in_expr_at_inner(
+        node,
+        expression_base,
+        parent,
+        registry,
+        config,
+        Some(metadata),
+    )
+}
+
+fn in_expr_at_inner(
+    node: &ExprNode,
+    expression_base: u32,
+    parent: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> Option<(
     ExistenceQuery,
     std::sync::Arc<crate::var_resolve::ResolveContext>,
@@ -77,7 +100,7 @@ pub(crate) fn in_expr_at(
             operand,
         } => {
             let (mut query, context) =
-                in_expr_at(operand, expression_base, parent, registry, config)?;
+                in_expr_at_inner(operand, expression_base, parent, registry, config, metadata)?;
             query.negated = !query.negated;
             Some((query, context))
         }
@@ -88,7 +111,7 @@ pub(crate) fn in_expr_at(
             ));
             let mut nested = crate::word_subst::nested_command_words(text, &source, config).ok()?;
             nested.inherit_nested_bindings(parent);
-            in_tokens(&nested, registry)
+            in_tokens_with_metadata_context(&nested, registry, metadata)
         }
         _ => None,
     }
@@ -109,6 +132,7 @@ pub(crate) fn operand(facts: &tcl_registry::InvocationFacts) -> Option<(Existenc
     Some((kind, facts.argument_offset))
 }
 
+#[cfg(test)]
 fn in_tokens(
     tokens: &crate::ir::CommandTokens,
     registry: &tcl_registry::CommandRegistry,
@@ -116,12 +140,31 @@ fn in_tokens(
     ExistenceQuery,
     std::sync::Arc<crate::var_resolve::ResolveContext>,
 )> {
-    let invocation = crate::registry_invocation::resolved_tokens_invocation(
-        registry,
-        registry
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-        tokens,
+    in_tokens_inner(tokens, registry, standalone_context(registry))
+}
+
+pub(crate) fn in_tokens_with_metadata_context(
+    tokens: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
+    let metadata = metadata.filter(|context| context.matches_registry(registry))?;
+    in_tokens_inner(tokens, registry, Some(metadata))
+}
+
+fn in_tokens_inner(
+    tokens: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
+    let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+        registry, metadata, tokens,
     )?;
     let (kind, argument) = operand(&invocation.facts)?;
     if invocation.facts.arity_accepts_frozen_arguments() != Some(true) {
@@ -146,7 +189,30 @@ pub(crate) fn in_tokens_for_diagnostics(
     ExistenceQuery,
     std::sync::Arc<crate::var_resolve::ResolveContext>,
 )> {
-    if let Some(actual) = in_tokens(tokens, registry) {
+    in_tokens_for_diagnostics_inner(tokens, registry, standalone_context(registry))
+}
+
+pub(crate) fn in_tokens_for_diagnostics_with_metadata_context(
+    tokens: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
+    let metadata = metadata.filter(|context| context.matches_registry(registry))?;
+    in_tokens_for_diagnostics_inner(tokens, registry, Some(metadata))
+}
+
+fn in_tokens_for_diagnostics_inner(
+    tokens: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
+    if let Some(actual) = in_tokens_inner(tokens, registry, metadata) {
         return Some(actual);
     }
     let binding = tokens.source_binding.as_ref()?;
@@ -170,9 +236,9 @@ pub(crate) fn in_tokens_for_diagnostics(
                 .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word),
         );
         let crate::registry_invocation::RegistryInvocationResolution::Resolved(facts) =
-            crate::registry_invocation::resolve_registry_words_in_realm(
+            crate::registry_invocation::resolve_registry_words_in_realm_with_metadata_context(
                 registry,
-                None,
+                metadata,
                 &words,
                 Some(dialect),
                 advice.realm(),
@@ -214,13 +280,62 @@ pub(crate) fn in_expr_for_diagnostics_at(
     ExistenceQuery,
     std::sync::Arc<crate::var_resolve::ResolveContext>,
 )> {
+    in_expr_for_diagnostics_at_inner(
+        node,
+        expression_base,
+        parent,
+        registry,
+        config,
+        standalone_context(registry),
+    )
+}
+
+pub(crate) fn in_expr_for_diagnostics_at_with_metadata_context(
+    node: &ExprNode,
+    expression_base: u32,
+    parent: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
+    let metadata = metadata.filter(|context| context.matches_registry(registry))?;
+    in_expr_for_diagnostics_at_inner(
+        node,
+        expression_base,
+        parent,
+        registry,
+        config,
+        Some(metadata),
+    )
+}
+
+fn in_expr_for_diagnostics_at_inner(
+    node: &ExprNode,
+    expression_base: u32,
+    parent: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
     match node {
         ExprNode::Unary {
             op: UnaryOp::Not,
             operand,
         } => {
-            let (mut query, context) =
-                in_expr_for_diagnostics_at(operand, expression_base, parent, registry, config)?;
+            let (mut query, context) = in_expr_for_diagnostics_at_inner(
+                operand,
+                expression_base,
+                parent,
+                registry,
+                config,
+                metadata,
+            )?;
             query.negated = !query.negated;
             Some((query, context))
         }
@@ -231,10 +346,91 @@ pub(crate) fn in_expr_for_diagnostics_at(
             ));
             let mut nested = crate::word_subst::nested_command_words(text, &source, config).ok()?;
             nested.inherit_nested_bindings(parent);
-            in_tokens_for_diagnostics(&nested, registry)
+            in_tokens_for_diagnostics_inner(&nested, registry, metadata)
         }
         _ => None,
     }
+}
+
+/// Recognise source syntax only under an explicitly retained Logical input.
+/// There is no positioned Native lookup or contents fact in an expression label.
+pub(crate) fn in_expr_with_metadata_context(
+    node: &ExprNode,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<ExistenceQuery> {
+    let metadata = metadata.filter(|context| {
+        context.matches_registry(registry) && context.permits_logical_source_names()
+    })?;
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand,
+        } => {
+            let mut query =
+                in_expr_with_metadata_context(operand, registry, config, Some(metadata))?;
+            query.negated = !query.negated;
+            Some(query)
+        }
+        ExprNode::Command { text, .. } => {
+            let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+            let length = u32::try_from(inner.len()).ok()?;
+            let plan = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(inner),
+                tcl_lexer::Span::new(0, length),
+                config,
+            )
+            .ok()?;
+            let [command] = plan.commands.as_slice() else {
+                return None;
+            };
+            let values = command
+                .words
+                .iter()
+                .map(tcl_syntax::word_rules::original_static_word_ascii_presentation)
+                .collect::<Option<Vec<_>>>()?;
+            let text = values
+                .iter()
+                .map(|value| core::str::from_utf8(value).ok())
+                .collect::<Option<Vec<_>>>()?;
+            let words = text
+                .iter()
+                .map(|word| tcl_registry::InvocationWord::Literal(word))
+                .collect::<Vec<_>>();
+            let crate::registry_invocation::RegistryInvocationResolution::Resolved(facts) =
+                crate::registry_invocation::resolve_registry_words_in_realm_with_metadata_context(
+                    registry,
+                    Some(metadata),
+                    &words,
+                    None,
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .ok()?
+            else {
+                return None;
+            };
+            let (kind, argument) = operand(&facts)?;
+            if facts.arity_accepts_frozen_arguments() != Some(true) {
+                return None;
+            }
+            Some(ExistenceQuery {
+                var: words.get(argument.checked_add(1)?)?.literal()?.to_owned(),
+                negated: false,
+                kind,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn standalone_context(
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
+    registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+        .map(Into::into)
 }
 
 /// Recognise one bracketed command substitution as an existence query.
@@ -513,6 +709,107 @@ mod tests {
                 tcl_lexer::LexerConfig::default(),
             ),
             Some(("name with spaces".to_owned(), ExistenceKind::AnyVariable,)),
+        );
+    }
+    #[test]
+    fn original_existence_metadata_keeps_genuine_advice_and_declines_missing_foreign_input() {
+        // naming.compiler.retained-existence-metadata
+        // docs/design/analysis/name-resolution-proofs/retained-existence-metadata.md
+        let (tokens, registry) = original_query_tokens("tcl8.6", "", "info exists u");
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let metadata = crate::registry_invocation::InvocationMetadataContext::from(context);
+        let (query, _) = super::in_tokens_for_diagnostics_with_metadata_context(
+            &tokens,
+            &registry,
+            Some(metadata),
+        )
+        .expect("genuine source query remains a name dependency");
+        assert_eq!(query.var, "u");
+        assert_eq!(query.kind, ExistenceKind::AnyVariable);
+        assert!(
+            super::in_tokens_with_metadata_context(&tokens, &registry, Some(metadata)).is_none(),
+            "source advice supplies no actual Native query"
+        );
+        assert!(
+            super::in_tokens_for_diagnostics_with_metadata_context(&tokens, &registry, None)
+                .is_none()
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        let foreign = crate::registry_invocation::InvocationMetadataContext::from(foreign);
+        assert!(
+            super::in_tokens_for_diagnostics_with_metadata_context(
+                &tokens,
+                &registry,
+                Some(foreign)
+            )
+            .is_none()
+        );
+        assert!(
+            super::in_tokens_with_metadata_context(&tokens, &registry, Some(foreign)).is_none()
+        );
+    }
+
+    #[test]
+    fn original_unpositioned_existence_requires_retained_logical_input() {
+        // naming.compiler.retained-existence-metadata
+        // docs/design/analysis/name-resolution-proofs/retained-existence-metadata.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        let node =
+            crate::expr_parser::parse_expr_for_profile("![::info exists {x}]", Some(profile));
+        let query = super::in_expr_with_metadata_context(&node, registry, config, Some(metadata))
+            .expect("positive Logical source query");
+        assert_eq!(query.var, "x");
+        assert!(query.negated);
+        assert!(super::in_expr_with_metadata_context(&node, registry, config, None).is_none());
+        let availability_only =
+            crate::registry_invocation::InvocationMetadataContext::from(context);
+        assert!(
+            super::in_expr_with_metadata_context(&node, registry, config, Some(availability_only))
+                .is_none()
+        );
+        let dynamic =
+            crate::expr_parser::parse_expr_for_profile("[info exists $name]", Some(profile));
+        assert!(
+            super::in_expr_with_metadata_context(&dynamic, registry, config, Some(metadata))
+                .is_none()
+        );
+        let native =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let native_profile = native.commands().profile().unwrap();
+        let native_input = crate::analyser::ResolvedAnalysisInput::new(
+            native_profile,
+            native_profile,
+            std::sync::Arc::clone(&native),
+            config,
+        );
+        let native_metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                native.commands(),
+                &native_input,
+            )
+            .unwrap();
+        assert!(
+            super::in_expr_with_metadata_context(
+                &node,
+                native.commands(),
+                config,
+                Some(native_metadata)
+            )
+            .is_none()
         );
     }
 }

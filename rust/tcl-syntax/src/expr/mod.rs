@@ -45,6 +45,7 @@ pub use mathfunc::MathFuncSpec;
 pub use operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorShape, OperatorSpec};
 pub use parser::parse_expr;
 pub use substitution::{
-    LiveExpressionSubstitutions, command_substitution_spans, live_expression_substitutions,
+    LiveExpressionSubstitutions, checked_expression_substitutions, command_substitution_spans,
+    command_substitutions_in_checked_expression, live_expression_substitutions,
 };
 pub use syntax_error::{ExprSyntaxError, ExprSyntaxErrorKind};

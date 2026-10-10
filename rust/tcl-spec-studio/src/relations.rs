@@ -211,6 +211,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "deprecation_fix",
             "deprecated_replacement",
             "deprecated_replacement_drop_in",
+            "source_deprecation_advice",
             "xc_translatable",
         ],
     },

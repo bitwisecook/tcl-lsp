@@ -1,0 +1,14 @@
+{
+  "source_sha256": "d679427bf3e3a4da804be1915547b472eafd3b4df79f0198f8ed465087f5152a",
+  "question": "How do rooted, relative-qualified, unqualified and extra-root alias names publish and resolve for parent-to-child aliases under each provider's actual supported child-interpreter API?",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "jim_expected_version": "0.84-9-g5bac7c9",
+  "channel": "ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim"
+}

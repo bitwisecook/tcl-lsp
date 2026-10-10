@@ -68,6 +68,8 @@ fn original_c85_namespace_upvar_artifact_preserves_native_pools_and_locals() {
     }
 }
 
+// Native proof: naming.variable.namespace-upvar-target-order-and-incarnation-execution
+// docs/design/analysis/name-resolution-proofs/variable.namespace-upvar-target-order-and-incarnation-execution.md
 #[test]
 fn original_c85_namespace_upvar_artifact_matches_original_namespace_lifetimes() {
     for &(label, body, expected_code, expected, visited) in upvar_inputs::EXECUTIONS {
@@ -259,6 +261,22 @@ fn assert_layout(artifact: &NativeBodyArtifact, hex: &str, label: &str) {
 
 #[test]
 fn original_namespace_artifacts_match_native_instruction_and_local_matrix() {
+    // Native proof: naming.namespace-compiler.plain-name
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.plain-name.md
+    // Native proof: naming.namespace-compiler.empty-and-separator-tail
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.empty-and-separator-tail.md
+    // Native proof: naming.namespace-compiler.unmatched-closing-tail
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.unmatched-closing-tail.md
+    // Native proof: naming.namespace-compiler.interleaved-values
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.interleaved-values.md
+    // Native proof: naming.namespace-compiler.declined-prefix-residual
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.declined-prefix-residual.md
+    // Native proof: naming.namespace-compiler.dynamic-final-text
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.dynamic-final-text.md
+    // Native proof: naming.namespace-compiler.mixed-dynamic-prefix
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.mixed-dynamic-prefix.md
+    // Native proof: naming.namespace-compiler.literal-expansion-and-empty-call
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.literal-expansion-and-empty-call.md
     for (profile, table) in MATRIX {
         for row in table.lines().skip(1) {
             let fields: Vec<_> = row.split('\t').collect();
@@ -292,6 +310,12 @@ fn original_namespace_artifacts_match_native_instruction_and_local_matrix() {
 
 #[test]
 fn original_namespace_declined_attempt_retains_native_pool_order_and_private_headers() {
+    // Native proof: naming.namespace-compiler.variable-value-residual
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.variable-value-residual.md
+    // Native proof: naming.namespace-compiler.global-prefix-residual
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.global-prefix-residual.md
+    // Native proof: naming.namespace-compiler.qualified-variable-value-residual
+    // docs/design/analysis/name-resolution-proofs/namespace-compiler.qualified-variable-value-residual.md
     for (profile, table) in ATTEMPTS {
         for row in table.lines().skip(1) {
             let fields: Vec<_> = row.split('\t').collect();

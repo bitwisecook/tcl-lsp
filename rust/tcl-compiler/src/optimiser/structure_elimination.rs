@@ -49,6 +49,7 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
+use crate::ssa::SsaSourceView;
 use crate::tcl_expr_eval::{Env, EnvValue, eval_tcl_expr_with_math_bindings};
 
 use super::helpers::literals::is_plain_literal;
@@ -103,8 +104,12 @@ fn sccp_env_for(fu: &FunctionUnit) -> Env {
         }
     }
     let mut env = Env::new();
-    for (sym, cvs) in per_var {
-        // Require every version to agree on one constant.
+    for (source_name, symbol) in SsaSourceView::unpositioned(&fu.ssa).source_symbols() {
+        let Some(cvs) = per_var.get(&symbol) else {
+            continue;
+        };
+        // Source spellings must select one cell throughout the function;
+        // presentation labels can be shared by independently rebound cells.
         let first = cvs[0];
         if !cvs.iter().all(|cv| *cv == first) {
             continue;
@@ -115,7 +120,7 @@ fn sccp_env_for(fu: &FunctionUnit) -> Env {
             ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
             ConstValue::String(s) => EnvValue::Str(s.clone()),
         };
-        env.insert(fu.ssa.var_name(sym).to_owned(), entry);
+        env.insert(source_name.to_owned(), entry);
     }
     env
 }
@@ -757,6 +762,68 @@ mod tests {
         let env = sccp_env_for(&cu.top_level);
         // `x` is constant → present in env.
         assert!(env.contains_key("x"));
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.optimiser-source-environment
+    // docs/design/analysis/name-resolution-proofs/optimiser-source-environment.md
+    fn original_sccp_environment_withdraws_rebound_source_names_despite_display_collisions() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "proc p {} {set firstcell OLD; set secondcell NEW; upvar 0 firstcell a; set observed $a; upvar 0 secondcell a; return $a}; p";
+        let mut unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
+        let function = unit.procedures.get_mut("::p").unwrap();
+        let mut reads = Vec::new();
+        for (&block, body) in &function.ssa.blocks {
+            for index in (0..body.statements.len()).chain(std::iter::once(usize::MAX)) {
+                let view = SsaSourceView::at_statement(&function.ssa, block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                for access in tokens
+                    .variable_accesses
+                    .iter()
+                    .filter(|access| access.original_spelling == "$a")
+                {
+                    let read = view
+                        .read_reference(&access.source, &access.original_spelling)
+                        .expect("the original alias read has its own value receipt");
+                    reads.push(read);
+                }
+            }
+        }
+        assert_eq!(
+            reads.len(),
+            2,
+            "the separate original alias read points are retained"
+        );
+        assert_ne!(reads[0].symbol, reads[1].symbol);
+        assert_ne!(
+            function.ssa.cell_key(reads[0].symbol),
+            function.ssa.cell_key(reads[1].symbol)
+        );
+        assert!(reads.iter().all(|read| read.version.is_some()));
+        assert!(
+            SsaSourceView::unpositioned(&function.ssa)
+                .symbol("a")
+                .is_none()
+        );
+        assert!(
+            reads
+                .iter()
+                .any(|read| function.ssa.var_name(read.symbol) == "a")
+        );
+
+        // Isolate projection from SCCP evaluation: the two actual cell versions
+        // receive different constant lattice entries, not a new name binding.
+        function.sccp.values.clear();
+        for (read, value) in reads.iter().zip([7, 9]) {
+            function.sccp.values.insert(
+                (read.symbol, read.version.unwrap()),
+                LatticeValue::Const(ConstValue::Int(value)),
+            );
+        }
+        let env = sccp_env_for(function);
+        assert!(!env.contains_key("a"));
     }
 
     #[test]

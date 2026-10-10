@@ -160,6 +160,27 @@ const INFO_NAMED_LOOKUPS: &[crate::native_compilation::NativeCompilerImplementat
         command: "info",
         prepended: &["vars"],
     },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::info",
+        member: "cmdtype",
+        slot: "::tcl::info::cmdtype",
+        command: "info",
+        prepended: &["cmdtype"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::info",
+        member: "constant",
+        slot: "::tcl::info::constant",
+        command: "info",
+        prepended: &["constant"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::info",
+        member: "consts",
+        slot: "::tcl::info::consts",
+        command: "info",
+        prepended: &["consts"],
+    },
 ];
 
 const fn named_member_compilation(
@@ -171,6 +192,26 @@ const fn named_member_compilation(
             lookup,
             implementation_from: TclVersion::V8_5,
             hook_from: TclVersion::V8_6,
+            arity,
+        },
+        operation: crate::SemanticOperationId::Invoke,
+        body: crate::native_compilation::NativeBodyCompilation::Inherit,
+    }
+}
+
+// Source proof: naming.info.original-named-member-source-hooks
+// docs/design/analysis/name-resolution-proofs/info-original-named-member-source-hooks.md
+// These Basic* workers first exist in C9's original defaultInfoMap. Their
+// named compiler does not issue TclOO storage or callable-binding authority.
+const fn named_c9_member_compilation(
+    lookup: &'static crate::native_compilation::NativeCompilerImplementationLookup,
+    arity: Arity,
+) -> crate::native_compilation::NativeCompilationSpec {
+    crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+            lookup,
+            implementation_from: TclVersion::V9_0,
+            hook_from: TclVersion::V9_0,
             arity,
         },
         operation: crate::SemanticOperationId::Invoke,
@@ -204,6 +245,7 @@ macro_rules! oo_info_compiler {
                 },
                 lookups: &[oo_info_lookup!($kind, $parent, $member)],
                 implementation_from: TclVersion::V8_6,
+                monolithic_no_hook_before: false,
             },
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
@@ -243,6 +285,7 @@ macro_rules! oo_info_ensemble_compiler {
                     },
                 ],
                 implementation_from: TclVersion::V8_6,
+                monolithic_no_hook_before: false,
             },
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
@@ -341,8 +384,26 @@ const fn properties_sub(
         detail,
         synopsis,
         options: Some(INFO_PROPERTIES_OPTIONS),
+        option_prefix_words: 1,
         surface: Some(SpecSurface::TCL90_PLUS),
         lifecycle: Lifecycle::introduced_in("9.0"),
+        native_compilation: Some(native_compilation),
+    }
+}
+
+const fn methods_sub(
+    native_compilation: crate::native_compilation::NativeCompilationSpec,
+    detail: &'static str,
+    synopsis: &'static str,
+) -> SubSubCommand {
+    SubSubCommand {
+        name: "methods",
+        detail,
+        synopsis,
+        options: Some(&crate::native_tcloo_info::METHOD_INFO_OPTIONS),
+        option_prefix_words: 1,
+        surface: Some(SpecSurface::TCL86_PLUS),
+        lifecycle: Lifecycle::UNSPECIFIED,
         native_compilation: Some(native_compilation),
     }
 }
@@ -409,9 +470,8 @@ const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
         "Test whether an object belongs to a category: class, metaclass, mixin, object, or typeof.",
         "info object isa category object ?arg?",
     ),
-    sub(
+    methods_sub(
         oo_info_compiler!("Object", "object", "methods", Arity::at_least(1)),
-        "methods",
         "List the methods of an object.",
         "info object methods object ?option...?",
     ),
@@ -521,9 +581,8 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
         "List the instances of a class.",
         "info class instances class ?pattern?",
     ),
-    sub(
+    methods_sub(
         oo_info_compiler!("Class", "class", "methods", Arity::at_least(1)),
-        "methods",
         "List the methods of a class.",
         "info class methods class ?options...?",
     ),
@@ -600,22 +659,45 @@ pub enum InfoOoPropertiesOption {
     Writable,
 }
 
+static INFO_PROPERTIES_NAMES: [&str; 3] = [
+    INFO_PROPERTIES_OPTIONS[0].name,
+    INFO_PROPERTIES_OPTIONS[1].name,
+    INFO_PROPERTIES_OPTIONS[2].name,
+];
+
+fn info_properties_option_at(index: usize) -> InfoOoPropertiesOption {
+    match index {
+        0 => InfoOoPropertiesOption::All,
+        1 => InfoOoPropertiesOption::Readable,
+        2 => InfoOoPropertiesOption::Writable,
+        _ => unreachable!("the registry declares exactly three info properties options"),
+    }
+}
+
+/// Resolve an executable option through its original object and the static
+/// Registry table. The adapter independently selects native index/cache and
+/// failure-publication protocols; the returned option supplies no OO target.
+///
+/// # Errors
+/// An original getter/index capability refusal or the native option failure.
+pub fn resolve_info_oo_properties_option_original<O: tcl_syntax::value::ValueOps>(
+    ops: &mut O,
+    original: &O::Value,
+) -> Result<InfoOoPropertiesOption, tcl_cmd_core::error::CmdError> {
+    let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", &INFO_PROPERTIES_NAMES);
+    Ok(info_properties_option_at(
+        table.index_of_original(ops, original)?,
+    ))
+}
+
 /// Resolve an `info ... properties` option through the option rows attached
 /// to the registry's `properties` operation.
 ///
 /// # Errors
 /// Tcl's byte-exact bad/ambiguous option message.
 pub fn resolve_info_oo_properties_option(word: &[u8]) -> Result<InfoOoPropertiesOption, Vec<u8>> {
-    let names: Vec<&str> = INFO_PROPERTIES_OPTIONS
-        .iter()
-        .map(|option| option.name)
-        .collect();
-    match tcl_cmd_core::prefix::OptionTable::abbreviating("option", &names).index_of(word)? {
-        0 => Ok(InfoOoPropertiesOption::All),
-        1 => Ok(InfoOoPropertiesOption::Readable),
-        2 => Ok(InfoOoPropertiesOption::Writable),
-        _ => unreachable!("the registry declares exactly three info properties options"),
-    }
+    let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", &INFO_PROPERTIES_NAMES);
+    Ok(info_properties_option_at(table.index_of(word)?))
 }
 
 impl InfoOoEnsembleKind {
@@ -686,6 +768,24 @@ pub fn info_oo_subcommands(kind: InfoOoEnsembleKind, version: TclVersion) -> Inf
 }
 
 static SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "version",
+        surface: Some(tcl_dialect::surface![SpecSurface::core_in(
+            tcl_dialect::model::Family::Jim,
+            &[("0.84", None)]
+        )]),
+        arity: Arity::exact(0),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        detail: "Returns the major and minor version of the Jim interpreter.",
+        synopsis: "info version",
+        pure: true,
+        return_type: Some(TclType::String),
+        ..SubCommand::DEFAULT
+    },
     SubCommand {
         name: "stacktrace",
         surface: Some(tcl_dialect::surface![SpecSurface::core_in(
@@ -770,6 +870,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "cmdtype",
+        native_compilation: Some(named_c9_member_compilation(
+            &INFO_NAMED_LOOKUPS[19],
+            Arity::exact(1),
+        )),
         // Introspects a command by its spelled name.
         traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::exact(1),
@@ -844,6 +948,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "constant",
+        native_compilation: Some(named_c9_member_compilation(
+            &INFO_NAMED_LOOKUPS[20],
+            Arity::exact(1),
+        )),
         traits: Traits::INTROSPECTS_BY_NAME,
         arity: Arity::exact(1),
         detail: "Returns 1 if varName is a constant variable and 0 otherwise.",
@@ -856,6 +964,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "consts",
+        native_compilation: Some(named_c9_member_compilation(
+            &INFO_NAMED_LOOKUPS[21],
+            Arity::new(0, 1),
+        )),
         arity: Arity::new(0, 1),
         detail: "Returns the list of constant variables in the current scope.",
         synopsis: "info consts ?pattern?",
@@ -1083,7 +1195,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             Arity::exact(0),
         )),
         arity: Arity::exact(0),
-        detail: "Returns the value of the global variable tcl_patchLevel.",
+        detail: "Returns the live Tcl global tcl_patchLevel, or the independently selected Jim build/core version report.",
         synopsis: "info patchlevel",
         pure: true,
         return_type: Some(TclType::String),
@@ -1155,6 +1267,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tclversion",
+        surface: Some(tcl_dialect::surface![SpecSurface::core_in(
+            tcl_dialect::model::Family::Tcl,
+            &[("8.4", None)]
+        )]),
         native_compilation: Some(named_member_compilation(
             &INFO_NAMED_LOOKUPS[17],
             Arity::exact(0),
@@ -1282,6 +1398,64 @@ mod tests {
         "superclasses",
         "variables",
     ];
+
+    #[test]
+    fn original_c9_basic_info_members_keep_their_selected_source_hooks() {
+        // Source proof: naming.info.original-named-member-source-hooks
+        // docs/design/analysis/name-resolution-proofs/info-original-named-member-source-hooks.md
+        // Source rows prove declarations; actual installed tokens remain separate.
+        let sources = [
+            include_str!(
+                "../../../tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c"
+            ),
+            include_str!(
+                "../../../tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c"
+            ),
+            include_str!(
+                "../../../tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c"
+            ),
+            include_str!(
+                "../../../tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c"
+            ),
+            include_str!(
+                "../../../tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c"
+            ),
+        ];
+        let registry = crate::default_registry();
+        for (version, source) in TclVersion::ALL.into_iter().zip(sources) {
+            for (name, hook) in [
+                ("cmdtype", "TclCompileBasic1ArgCmd"),
+                ("constant", "TclCompileBasic1ArgCmd"),
+                ("consts", "TclCompileBasic0Or1ArgCmd"),
+            ] {
+                let row = source
+                    .lines()
+                    .find(|line| line.trim_start().starts_with(&format!("{{\"{name}\",")));
+                let descriptor = registry.native_compilation_for_registration(
+                    &format!("::tcl::info::{name}"),
+                    crate::InvocationDialect::for_version(version),
+                );
+                if version < TclVersion::V9_0 {
+                    assert!(row.is_none(), "{version:?}/{name}");
+                    assert!(descriptor.is_none(), "{version:?}/{name}");
+                    continue;
+                }
+                assert_eq!(row.unwrap().split(',').nth(2).unwrap().trim(), hook);
+                let crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                    lookup,
+                    implementation_from,
+                    hook_from,
+                    ..
+                } = descriptor.unwrap().grammar
+                else {
+                    panic!("{version:?}/{name}: original Basic named compiler");
+                };
+                assert_eq!(lookup.member, name);
+                assert_eq!(implementation_from, TclVersion::V9_0);
+                assert_eq!(hook_from, TclVersion::V9_0);
+            }
+        }
+    }
 
     #[test]
     fn tcloo_info_tables_are_release_filtered_from_registry_rows() {

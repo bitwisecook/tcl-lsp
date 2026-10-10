@@ -1,0 +1,11 @@
+[
+  {
+    "path": "rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json",
+    "sha256": "088b41b3abb7ec1bb8e04f258bc17c6e8286a89f9aa030acdb5b29b673b4d172",
+    "classification": "provider-scaffolding",
+    "proof_ids": [
+      "naming.variable.original-callable-static-capture"
+    ],
+    "reason": "Inspected exact pinned Jim source slices/full-file and snippet digests; source lookup boundary only, no native output or Rust execution inferred."
+  }
+]

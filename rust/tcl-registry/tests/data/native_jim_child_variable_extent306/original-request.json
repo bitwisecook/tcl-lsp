@@ -1,0 +1,9 @@
+{
+  "question": "Jim child startup-variable copies use Jim_String and NewStringObj(...,-1), while ordinary interp object crossings are counted: does a parent argv containing runtime-produced NUL truncate, does Unicode copy intact, do reads remain global in a local procedure, and does absent argv stay absent?",
+  "input_channel": "Exact ASCII LF Tcl source; \\u escapes produce NUL and non-ASCII characters at runtime. These variable-copy observations do not override counted script/argument/result copy purpose.",
+  "probe_sha256": "dfd97898714c2b6d789d7d53162526ba5b2b0140bdf6c3c3dc72fb4b6d99d6eb",
+  "source_anchors": {
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9"
+  },
+  "scope": "Pinned current Jim only; C8.4-9.1 and BIG-IP not tested by this Jim-specific API source question."
+}

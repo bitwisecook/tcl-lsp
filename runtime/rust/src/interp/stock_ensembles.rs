@@ -794,12 +794,19 @@ mod tests {
         else {
             panic!("actual codec ensemble");
         };
-        let mut config = token.config();
-        config.map = Some(vec![(
-            b"hex".to_vec(),
-            vec![b"::tcl::binary::encode::base64".to_vec()],
-        )]);
-        token.configure(config);
+        // The public configuration owner retains the replacement native map
+        // and invalidates its selected prefix table on the same command token.
+        assert_eq!(
+            interpreter.eval_str(b"namespace ensemble configure ::tcl::binary::encode -map {hex ::tcl::binary::encode::base64}"),
+            Code::Ok
+        );
+        assert_eq!(
+            token.config().map,
+            Some(vec![(
+                b"hex".to_vec(),
+                vec![b"::tcl::binary::encode::base64".to_vec()],
+            )])
+        );
         assert_eq!(
             invoke(&mut interpreter, &[b"binary", b"encode", b"hex", b"A"]),
             (Code::Ok, b"QQ==".to_vec())

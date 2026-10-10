@@ -1,0 +1,15 @@
+{
+  "question": "naming.procedure.original-formal-count-shape",
+  "problem": "Which original formal signatures accept each source argv count under C Tcl 8.4-9.1 and current Jim, including positional defaults, rest anywhere vs final, and Apply alias/rename shapes?",
+  "source_sha256": "b92e5d75c20968e3894cb49992e571f3f9e20bd0c7807db97a2adc12c00868f9",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "channel": "CLI original fixed ASCII script, binary-scan result projection; not a native getter/header/cell/activation receipt.",
+  "scope": "Definition status and exact caught count acceptance. Apply/alias/rename unsupported cases are controls; unsupported setup cannot establish call geometry. Captured alias lambda runtime observations do not create an original source producer for compiler use."
+}

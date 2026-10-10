@@ -1,0 +1,35 @@
+{
+  "request_id": "naming.coroutine.original-constructed-holder-lifecycle",
+  "question": "Can two original coroutine commands created as p in current a: and :p in current a remain independently resumable, and do original relative rename/deletion in one actual holder preserve the other coroutine despite equal displayed coroutine names?",
+  "problem": "Runtime creates actual command slots but tracks coroutine workers by displayed fully-qualified names. Display bytes cannot identify actual command holder/generation. The controls keep public report bytes separate from original relative resumptions and lifecycle operations.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse unchanged Native236/245 original counted C API driver and independently verified provider build pins. Fresh full Tcl_Init or Jim static extensions per source. Emit VERSION and original whole code/result bytes with no outer catch/eval normalization, plus stdout/stderr/exit and exact source hashes. Capability branch checks actual info commands coroutine; no C label or package require substitutes availability.",
+  "cases": [
+    {
+      "id": "distinct-original-relative-resumptions",
+      "source_file": "/workspace/.proofs/native-coroutine-original-holder250-request/distinct-original-relative-resumptions.tcl",
+      "source_sha256": "51a1f96f06b8182710e60d90c233b80704eafef6c6e1d3fec79206bc5dd346d6",
+      "source_encoding": "ASCII LF. a: is namespace tail ending with one colon; :p is command simple name beginning with one colon. Current namespace activation and original relative spelling are retained for creation/resume/rename/delete. info coroutine only contributes independent reported bytes."
+    },
+    {
+      "id": "original-relative-deletion-preserves-other-holder",
+      "source_file": "/workspace/.proofs/native-coroutine-original-holder250-request/original-relative-deletion-preserves-other-holder.tcl",
+      "source_sha256": "110063fd3690a06f7cdf04fde67390f7b8bb9c3323224742187f53740e854ded",
+      "source_encoding": "ASCII LF. a: is namespace tail ending with one colon; :p is command simple name beginning with one colon. Current namespace activation and original relative spelling are retained for creation/resume/rename/delete. info coroutine only contributes independent reported bytes."
+    },
+    {
+      "id": "original-relative-rename-preserves-other-holder",
+      "source_file": "/workspace/.proofs/native-coroutine-original-holder250-request/original-relative-rename-preserves-other-holder.tcl",
+      "source_sha256": "9c572658864bbf99bcc60f96d04d3066451eb3201ccb3a9fb0212a634e0f0556",
+      "source_encoding": "ASCII LF. a: is namespace tail ending with one colon; :p is command simple name beginning with one colon. Current namespace activation and original relative spelling are retained for creation/resume/rename/delete. info coroutine only contributes independent reported bytes."
+    }
+  ],
+  "scope": "Whole original public completion, exact independent yielded info coroutine reports and original relative resume/rename/delete effects. Equal reports grant no private token/pointer/worker identity. Actual unavailable branch is retained independently; no coroinject/coroprobe/stack/frame or BIG-IP coroutine claim."
+}

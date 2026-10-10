@@ -16,81 +16,28 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Code-lens provider.
+//! Source declaration reference lenses.
 //!
-//! Surfaces a reference-count lens above every user-proc
-//! definition: `N references` at the proc's name span,
-//! showing how many call sites target it in the current
-//! document.
+//! Native source analysis enumerates genuine declarations through
+//! `original_declaration::declarations` and retains each sealed readonly
+//! identity. Local counts use the same canonical original reference kernel;
+//! indexed command counts remain retained source advice. The server resolves
+//! the identity against independently current participating documents before
+//! publishing its reference locations and final count. Optional labels and
+//! `qname` fields are presentation and cannot reissue the identity.
 //!
-//! Provided lenses:
+//! A source declaration or count supplies no native dispatch, object lifetime
+//! or edit permission. Missing complete source/configuration correspondence
+//! withdraws original advice. Equal bytes in independent URI owners remain
+//! independent candidates.
 //!
-//! * Per-proc lenses — `N references` per user proc.
-//! * Class lenses — `N references` per `oo::class create`
-//!   declaration, counting `ClassName new`, `ClassName create
-//!   <inst>`, and inheritance references in
-//!   `analysis.command_invocations`.
+//! Explicit lexical declaration advice uses the separate procedure, class,
+//! method, property and lifecycle compatibility scanners below. Its member
+//! counts are local to the supplied analysis; a workspace host must retain its
+//! own source correspondence before showing cross-document locations.
 //!
-//! Per-method / classmethod reference-count lenses: each member
-//! declaration's name span gets a `N references` lens whose count comes
-//! from [`crate::references::method_references_for_class`] — the same
-//! resolver Find All References and rename use — so the lens and the peek
-//! always agree.  That resolver counts intra-class `my method` dispatch,
-//! external `$obj method` call sites (matched through the analyser's
-//! `instance_classes` variable-type tracking), and the sites of any
-//! subclass that inherits the definition.  Each member lens
-//! carries a `qname` ([`tcl_compiler::analyser::class_member_key`]) just
-//! like the proc / class lenses, so it resolves to a clickable
-//! `tcl-lsp.showReferences` command the same way.
-//!
-//! Per-property reference-count lenses: each `property` declaration gets
-//! the same treatment, sourced from
-//! [`crate::references::property_references_for_class`] instead — a
-//! class-local `my <property>` scan, since properties have no `$obj
-//! property` dispatch shape and no inheritance model. Carries a
-//! `{class}::property::{name}` qname
-//! ([`tcl_compiler::analyser::class_property_key`]) so it resolves through
-//! the same click-to-references flow.
-//!
-//! Constructor / destructor next-chain lenses: a class's own explicit
-//! `constructor` / `destructor` also gets a lens, but a conventional
-//! dispatch-count has no general meaning for either (both are invoked
-//! positionally — `ClassName new`/`create`/`destroy` — never by name). The
-//! one name-independent relationship that *is* meaningful: an overriding
-//! subclass's own constructor/destructor chaining up to this one via
-//! `next` / `nextto`. Sourced from
-//! [`crate::references::constructor_next_chain_references`] /
-//! [`crate::references::destructor_next_chain_references`], which resolve
-//! the chain through the full class hierarchy (via
-//! [`tcl_compiler::analyser::class_hierarchy::ClassHierarchy::constructor_next_provider`]
-//! / `destructor_next_provider`), not just the immediate superclass.
-//! Carries a `{class}::constructor` / `{class}::destructor` qname
-//! ([`tcl_compiler::analyser::class_constructor_key`] /
-//! `class_destructor_key`) for the same click-to-references flow.
-//!
-//! Cross-document reference counts: when the
-//! caller threads a [`crate::workspace_index::WorkspaceIndex`]
-//! and the document's URI, the proc / class lens count
-//! includes call sites in sibling documents.
-//!
-//! Scope of the counts this module computes:
-//!
-//! * Class-member counts (method / classmethod / property, and the
-//!   constructor / destructor next-chain) are **current-document only**.
-//!   Resolving a cross-file `$obj method` site needs each sibling
-//!   document's own analysis, which this pure, single-document provider
-//!   has no way to obtain.  Proc / class counts do fold in cross-document
-//!   command-head call sites, since the workspace index carries those
-//!   directly.
-//! * That is not what the editor ends up showing for a member lens.  Every
-//!   lens carrying a `qname` is returned to the client *without* a command,
-//!   so the client must call `codeLens/resolve` before rendering it — and
-//!   the server relabels it there from the workspace-wide site set it
-//!   resolves for the click, via [`reference_count_title`].  The number
-//!   shown and the locations the click opens are therefore one and the same
-//!   set, and both match Find All References on the declaration.  The counts
-//!   here are the single-document floor under that, and
-//!   what a caller with no server gets.
+//! Every clickable resolved lens uses the same location set for its title and
+//! reference command. [`reference_count_title`] renders the count only.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -100,6 +47,8 @@ use crate::definition::LspRange;
 /// One code-lens entry — anchor range plus a command label.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeLens {
+    /// Sealed readonly declaration for current source and wire resolution.
+    pub identity: Option<crate::original_declaration::OriginalDeclarationIdentity>,
     /// Anchor range for the lens.
     pub range: LspRange,
     /// Command label shown to the user.
@@ -130,6 +79,31 @@ pub fn code_lenses(
     let Some(analysis) = analysis else {
         return Vec::new();
     };
+    if !analysis.allows_lexical_declaration_advice() {
+        let Some(identities) =
+            crate::original_declaration::declarations(current_uri, source, analysis)
+        else {
+            return Vec::new();
+        };
+        let index = LineIndex::new(source);
+        return identities.into_iter().filter(|identity| !matches!(identity.role(),
+            crate::original_declaration::OriginalDeclarationRole::Document))
+            .map(|identity| {
+                let mut count = crate::original_declaration::reference_spans(&identity, source, analysis, true).len();
+                if let Some(workspace) = workspace {
+                    let declaration = identity.procedure_metadata(analysis).map(|row| row.name())
+                        .or_else(|| identity.class_metadata(analysis).filter(|_| identity.role() == crate::original_declaration::OriginalDeclarationRole::Class).map(|row| row.name()));
+                    if let Some(name) = declaration {
+                        let owners = workspace.original_procedure_declarations().map(|(_, row)| row.name())
+                            .chain(workspace.original_class_declarations().map(|(_, row)| row.name()))
+                            .filter(|row| *row == name).count();
+                        if owners == 1 { count += workspace.original_invocations_of(name, current_uri, true).len(); }
+                    }
+                }
+                CodeLens { range: crate::definition::span_to_range(source, &index, identity.span()),
+                    command_title: reference_count_title(count), command: String::new(), qname: identity.label(), identity: Some(identity) }
+            }).collect();
+    }
     // The lens title is a reference *count*, so it has to agree with the peek
     // it labels — and both must exclude a bare call a live `namespace import
     // -force` shadows, a fact only whole-program export knowledge can
@@ -169,6 +143,7 @@ pub fn code_lenses(
         let start = line_index.position_at_utf16(proc_def.name_span.start(), source);
         let end = line_index.position_at_utf16(proc_def.name_span.end(), source);
         lenses.push(CodeLens {
+            identity: None,
             range: LspRange {
                 start_line: start.line,
                 start_character: start.character.get(),
@@ -202,6 +177,7 @@ pub fn code_lenses(
         let start = line_index.position_at_utf16(class_def.name_span.start(), source);
         let end = line_index.position_at_utf16(class_def.name_span.end(), source);
         lenses.push(CodeLens {
+            identity: None,
             range: LspRange {
                 start_line: start.line,
                 start_character: start.character.get(),
@@ -287,6 +263,7 @@ fn emit_class_member_lenses(
             let start = line_index.position_at_utf16(name_span.start(), source);
             let end = line_index.position_at_utf16(name_span.end(), source);
             lenses.push(CodeLens {
+                identity: None,
                 range: LspRange {
                     start_line: start.line,
                     start_character: start.character.get(),
@@ -487,6 +464,40 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn original_lenses_keep_repeated_and_opaque_source_declarations_without_ui_maps() {
+        // Implementation contract: naming.consumer.original-code-lens
+        // docs/design/analysis/name-resolution-proofs/original-code-lens.md
+        let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; proc repeated {} {}; proc repeated {value} {}";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_procs.clear();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let lenses = code_lenses(source, profile, Some(&analysis), None, "file:///lenses.tcl");
+        assert_eq!(lenses.len(), 4);
+        assert_ne!(lenses[0].identity, lenses[1].identity);
+        assert_ne!(lenses[2].identity, lenses[3].identity);
+        assert!(
+            lenses
+                .iter()
+                .all(|lens| lens.identity.as_ref().unwrap().is_current(
+                    "file:///lenses.tcl",
+                    source,
+                    &analysis
+                ))
+        );
+        assert!(
+            code_lenses(
+                "proc changed {} {}",
+                profile,
+                Some(&analysis),
+                None,
+                "file:///lenses.tcl"
+            )
+            .is_empty()
+        );
     }
 
     #[test]

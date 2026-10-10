@@ -379,10 +379,32 @@ fn run(physical: bool) -> (usize, usize) {
 }
 #[test]
 fn generic_each_loops_match_all_120_original_native_completions() {
+    // Native proof naming.each-loop.original-member-and-body-roles:
+    // docs/design/analysis/name-resolution-proofs/each-loop-original-member-and-body-roles.md
+    // Native proof naming.each-loop.incomplete-group-padding:
+    // docs/design/analysis/name-resolution-proofs/each-loop-incomplete-group-padding.md
+    // Native proof naming.each-loop.empty-values-body-withdrawal:
+    // docs/design/analysis/name-resolution-proofs/each-loop-empty-values-body-withdrawal.md
+    // Native proof naming.each-loop.original-lmap-collection:
+    // docs/design/analysis/name-resolution-proofs/each-loop-original-lmap-collection.md
+    // Native proof naming.each-loop.group-validation-order:
+    // docs/design/analysis/name-resolution-proofs/each-loop-group-validation-order.md
     assert_eq!(run(false), (120, 0));
 }
 #[test]
 fn generic_each_loops_match_all_406_original_native_physical_windows() {
+    // Native proof naming.each-loop.original-member-and-body-roles:
+    // docs/design/analysis/name-resolution-proofs/each-loop-original-member-and-body-roles.md
+    // Native proof naming.each-loop.incomplete-group-padding:
+    // docs/design/analysis/name-resolution-proofs/each-loop-incomplete-group-padding.md
+    // Native proof naming.each-loop.empty-values-body-withdrawal:
+    // docs/design/analysis/name-resolution-proofs/each-loop-empty-values-body-withdrawal.md
+    // Native proof naming.each-loop.original-lmap-collection:
+    // docs/design/analysis/name-resolution-proofs/each-loop-original-lmap-collection.md
+    // Native proof naming.each-loop.group-validation-order:
+    // docs/design/analysis/name-resolution-proofs/each-loop-group-validation-order.md
+    // Native proof naming.each-loop.original-root-shimmer-and-refetch:
+    // docs/design/analysis/name-resolution-proofs/each-loop-original-root-shimmer-and-refetch.md
     assert_eq!(run(true), (120, 406));
 }
 

@@ -1,0 +1,19 @@
+{
+  "id": "CANCEL_COUNTED",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.4.20/probe",
+    "8"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "9eca97f6890fb8d165cd789597832804c034150ffa1d32f94e4210b81baa4542",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e342e3230",
+    "CANCEL_COUNTED_INPUT|0|73657420646f6e6520303b2061667465722030207b73657420646f6e6520317d3b2061667465722063616e63656c207b73657420646f6e6520317d3b207570646174653b2073657420646f6e65",
+    "CANCEL_COUNTED|0|30",
+    "CANCEL_COUNTED_OPTIONS_NOT_TESTED|0|no-Tcl_GetReturnOptions"
+  ],
+  "reported_version": "8.4.20"
+}

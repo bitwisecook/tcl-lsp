@@ -27,6 +27,9 @@
 //! Inspired by the CHA techniques used in LLVM and JVM `HotSpot`
 //! for devirtualisation and call graph construction.
 
+/// Original byte-joined relation order for source declaration assistance.
+pub mod original_metadata;
+
 use std::collections::{HashMap, HashSet};
 
 use super::mro::{build_mro_map, tcloo_linearise};
@@ -131,6 +134,24 @@ impl ClassHierarchy {
         self.mro_map
             .get(child)
             .is_some_and(|mro| mro.iter().any(|c| c == parent))
+    }
+
+    /// Exact reported declaration on one member side, without inherited
+    /// lookup. Lexical compatibility consumers must independently select that
+    /// advice mode; this query supplies no original or runtime member identity.
+    #[must_use]
+    pub fn declared_member(
+        &self,
+        class: &str,
+        name: &str,
+        side: super::types::MemberSide,
+    ) -> Option<(&ClassDef, &MethodDef)> {
+        let class = self.classes.get(class)?;
+        let method = match side {
+            super::types::MemberSide::Instance => class.methods.get(name),
+            super::types::MemberSide::ClassObject => class.class_methods.get(name),
+        }?;
+        Some((class, method))
     }
 
     /// Resolve which class provides `method_name` for
@@ -559,6 +580,23 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
     None
 }
 
+/// Positively retained Logical reporting lookup in the actual lexical
+/// namespace. This shares command candidate ordering, without joining Native
+/// source-name records, guessing a unique tail or issuing a class identity.
+#[must_use]
+pub fn resolve_retained_logical_class_name(
+    analysis: &super::types::AnalysisResult,
+    name: &str,
+    namespace: &str,
+) -> Option<String> {
+    analysis
+        .allows_retained_logical_declaration_advice()
+        .then_some(())?;
+    crate::naming::bareword_resolution_candidates(namespace, name)
+        .into_iter()
+        .find(|candidate| analysis.all_classes.contains_key(candidate))
+}
+
 /// Resolve original source naming against retained class publication slots.
 /// Missing, colliding or foreign-policy records do not establish class identity.
 #[must_use]
@@ -568,7 +606,7 @@ pub fn resolve_class_lookup<S: std::hash::BuildHasher>(
 ) -> Option<String> {
     for candidate in lookup.candidates()? {
         if classes.values().any(|class| {
-            class.source_name_ambiguous
+            class.source_name_ambiguous.is_observed()
                 && class.source_name.as_ref().is_some_and(|source| {
                     source.policy() == lookup.policy() && source.slot() == &candidate
                 })
@@ -576,7 +614,7 @@ pub fn resolve_class_lookup<S: std::hash::BuildHasher>(
             return None;
         }
         let mut matches = classes.iter().filter(|(_, class)| {
-            !class.source_name_ambiguous
+            !class.source_name_ambiguous.is_observed()
                 && class.source_name.as_ref().is_some_and(|source| {
                     source.policy() == lookup.policy() && source.slot() == &candidate
                 })
@@ -714,11 +752,10 @@ fn build_supers_mixins_maps(
                 .map(|written| match class.relation_lookups.get(written) {
                     Some(Some(lookup)) => resolve_class_lookup(lookup, classes)
                         .unwrap_or_else(|| format!("@unresolvedclass@{qname} {written}")),
-                    Some(None) => format!("@unresolvedclass@{qname} {written}"),
                     None if class.source_name.is_none() => {
                         resolve_super_name(written, qname, classes, &HashMap::new())
                     }
-                    None => format!("@unresolvedclass@{qname} {written}"),
+                    Some(None) | None => format!("@unresolvedclass@{qname} {written}"),
                 })
                 .collect()
         };
@@ -990,6 +1027,9 @@ mod tests {
                     name: (*m).to_string(),
                     params: Vec::new(),
                     params_computed: false,
+                    formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                        tcl_dialect::ParameterGrammar::Tcl,
+                    ),
                     name_span: span(),
                     body_span: span(),
                     kind: "method".to_string(),
@@ -1008,6 +1048,29 @@ mod tests {
             .into_iter()
             .map(|c| (c.qualified_name.clone(), c))
             .collect()
+    }
+
+    #[test]
+    fn declared_member_keeps_reported_side_and_declaring_class_separate() {
+        let mut class = cls("::C", &[], &[], &["same"]);
+        let mut class_method = class.methods["same"].clone();
+        class_method.name_span = Span::new(20, 24);
+        class_method.is_self_method = true;
+        class.class_methods.insert("same".to_owned(), class_method);
+        let hierarchy = build_class_hierarchy(map(vec![class, cls("::Sub", &["::C"], &[], &[])]));
+        let (_, instance) = hierarchy
+            .declared_member("::C", "same", super::super::types::MemberSide::Instance)
+            .unwrap();
+        let (_, class_object) = hierarchy
+            .declared_member("::C", "same", super::super::types::MemberSide::ClassObject)
+            .unwrap();
+        assert_ne!(instance.name_span, class_object.name_span);
+        assert_eq!(hierarchy.method_target("::Sub", "same"), Some("::C"));
+        assert!(
+            hierarchy
+                .declared_member("::Sub", "same", super::super::types::MemberSide::Instance)
+                .is_none()
+        );
     }
 
     #[test]
@@ -1195,6 +1258,9 @@ mod tests {
             name: "<constructor>".to_string(),
             params: Vec::new(),
             params_computed: false,
+            formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                tcl_dialect::ParameterGrammar::Tcl,
+            ),
             name_span: span(),
             body_span,
             kind: "constructor".to_string(),
@@ -1362,6 +1428,9 @@ mod tests {
             name: "<destructor>".to_string(),
             params: Vec::new(),
             params_computed: false,
+            formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                tcl_dialect::ParameterGrammar::Tcl,
+            ),
             name_span: span(),
             body_span: NON_EMPTY_BODY,
             kind: "destructor".to_string(),
@@ -1632,7 +1701,11 @@ mod source_naming_tests {
             "::a:::b::Base".to_owned(),
             source_class(policy, &right, "Base"),
         );
-        assert!(result.all_classes["::a:::b::Base"].source_name_ambiguous);
+        assert!(
+            result.all_classes["::a:::b::Base"]
+                .source_name_ambiguous
+                .is_observed()
+        );
         assert_eq!(
             resolve_written_class_name_in_context("Base", &right, policy, &result.all_classes),
             None

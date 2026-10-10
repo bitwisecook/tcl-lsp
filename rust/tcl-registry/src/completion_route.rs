@@ -303,11 +303,16 @@ mod tests {
         use crate::InvocationWord::{Dynamic, Literal};
         use crate::registry::native_return_state_effect;
         use crate::world_effect::WorldStateDomain;
-        let descriptor = CommandRegistry::build_default()
-            .get("return")
-            .expect("core return spec")
+        // Implementation contract: naming.registry.return-identity-effect-coverage
+        // docs/design/analysis/name-resolution-proofs/return-identity-effect-coverage.md
+        let registry = CommandRegistry::build_default();
+        let selected = registry.get("return").expect("core return spec");
+        let descriptor = selected
             .world_effects
             .expect("authored native return storage");
+        let transitions = selected
+            .state_transitions
+            .expect("independent native return identity effects");
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = InvocationDialect::for_version(version);
             for words in [
@@ -328,6 +333,7 @@ mod tests {
                 );
                 let effects = descriptor.resolve(args);
                 assert!(!effects.requires_world_barrier());
+                assert!(transitions.resolve(args).facts().is_empty());
                 assert_eq!(
                     effects
                         .accesses()
@@ -353,11 +359,26 @@ mod tests {
                     ReturnStateEffect::MayMaterialiseError
                 );
                 assert!(descriptor.resolve(args).requires_world_barrier());
+                let unresolved = transitions.resolve(args);
+                assert!(
+                    crate::StateTransitionDomain::ALL
+                        .iter()
+                        .all(|domain| unresolved.widens(*domain))
+                );
+                assert!(unresolved.facts().iter().all(|fact| {
+                    fact.commit == crate::StateTransitionCommit::MayCommitBeforeAbruptCompletion
+                }));
             }
         }
         assert_eq!(
             native_return_state_effect(InvocationArguments::literals(&["value"])),
             ReturnStateEffect::MayMaterialiseError
+        );
+        let unavailable = transitions.resolve(InvocationArguments::literals(&["value"]));
+        assert!(
+            crate::StateTransitionDomain::ALL
+                .iter()
+                .all(|domain| unavailable.widens(*domain))
         );
     }
 

@@ -1,0 +1,25 @@
+available	0	1
+factory.class	0	::oo::class
+factory.superclasses	0	::oo::class
+factory.constructor	1	definition not available for this kind of method
+support.class	0	::oo::class
+support.constructor	0	
+support.destructor	0	
+support.superclasses	0	::oo::object
+support.mixins	0	
+support.methods	0	configure destroy
+scope.class.path	0	::oo::define
+scope.object.path	0	::oo::objdefine
+create.class	0	::C
+created.class	0	::oo::configurable
+created.mixins	0	::oo::configuresupport::configurable
+created.constructor	0	
+created.destructor	0	
+created.superclasses	0	::oo::object
+created.filters	0	
+default.new	0	::C
+default.extra.arguments	0	::C
+readable.properties	1	this command may only be called from within the context of an ::oo::define or ::oo::objdefine command
+writable.properties	1	this command may only be called from within the context of an ::oo::define or ::oo::objdefine command
+moved.support	0	::oo::Obj24
+future.factory.missing.support	1	::oo::configuresupport::configurable does not refer to an object

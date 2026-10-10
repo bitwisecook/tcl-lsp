@@ -1,0 +1,71 @@
+TclCompileLindexCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *idxTokenPtr, *valTokenPtr;
+    int i, idx, numWords = parsePtr->numWords;
+
+    /*
+     * Quit if not enough args.
+     */
+
+    /* TODO: Consider support for compiling expanded args. */
+    if (numWords <= 1) {
+	return TCL_ERROR;
+    }
+
+    valTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    if (numWords != 3) {
+	goto emitComplexLindex;
+    }
+
+    idxTokenPtr = TokenAfter(valTokenPtr);
+    if (TclGetIndexFromToken(idxTokenPtr, TCL_INDEX_BEFORE, TCL_INDEX_BEFORE,
+	    &idx) == TCL_OK) {
+	/*
+	 * The idxTokenPtr parsed as a valid index value and was
+	 * encoded as expected by INST_LIST_INDEX_IMM.
+	 *
+	 * NOTE: that we rely on indexing before a list producing the
+	 * same result as indexing after a list.
+	 */
+
+	CompileWord(envPtr, valTokenPtr, interp, 1);
+	TclEmitInstInt4(	INST_LIST_INDEX_IMM, idx,	envPtr);
+	return TCL_OK;
+    }
+
+    /*
+     * If the value was not known at compile time, the conversion failed or
+     * the value was negative, we just keep on going with the more complex
+     * compilation.
+     */
+
+    /*
+     * Push the operands onto the stack.
+     */
+
+  emitComplexLindex:
+    for (i=1 ; i<numWords ; i++) {
+	CompileWord(envPtr, valTokenPtr, interp, i);
+	valTokenPtr = TokenAfter(valTokenPtr);
+    }
+
+    /*
+     * Emit INST_LIST_INDEX if objc==3, or INST_LIST_INDEX_MULTI if there are
+     * multiple index args.
+     */
+
+    if (numWords == 3) {
+	TclEmitOpcode(		INST_LIST_INDEX,		envPtr);
+    } else {
+	TclEmitInstInt4(	INST_LIST_INDEX_MULTI, numWords-1, envPtr);
+    }
+
+    return TCL_OK;
+}

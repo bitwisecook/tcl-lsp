@@ -327,7 +327,7 @@ let packs survive releases without rebuilds:
   dropped with a logged notice; the rest of the spec loads. New server +
   old pack always works; old server + new pack degrades gracefully.
 - A trait name the registry has retired is dropped the same way,
-  but the notice names what carries the fact now: a pack saying
+  and the notice identifies the fact's current owner: a pack saying
   `traits HAS_SWITCH_BODY` is told that a `case_list` block carries it and
   that `CommandSpec::has_switch_body` is the derived answer. The table is
   `RETIRED_TRAITS` in `rust/tcl-registry/src/traits.rs`; the rule for
@@ -482,8 +482,13 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   prefix, each in an independent synthetic callback frame; an explicit
   shared global (`set ::state …`) is the deliberate remaining limit,
   because real events can race. `script_timing_resolver {words ctx} { … }`
-  handles positions whose timing depends on the written form
-  (`send` versus `send -async`).
+  handles positions whose timing depends on the selected form
+  (`send` versus `send -async`). The hook host retains genuine structured
+  argument kinds and exact count: unknown callback payloads keep their
+  positions, while unknown selectors and expanded cardinality cannot select
+  a layout. A literal empty value remains distinct from a dynamic word.
+  `ReferenceOnly` positions supply no executable source role. These source
+  metadata facts grant no callback execution or entered frame.
 
 - **Variables and geometry.** `option … -taints-var-write` marks a
   variable-valued option whose linked variable can be written from
@@ -838,8 +843,9 @@ the form and the Pack DSL pane as projections of it; the contract is
 Behaviour that is not a pure words→data function stays native: commands
 needing new lowering/codegen/analyser specialisations are contribution
 candidates. The `state_transitions` and `world_effects` block rows are
-documented vocabulary the loader does not read (dropped with a
-notice), a library-defined completion code scoped to one command's body
+documented vocabulary the loader cannot materialise. Unsupported rows
+exclude the command from strong analysis with a semantic notice; they cannot
+produce an empty effect or transition descriptor, a library-defined completion code scoped to one command's body
 has no spelling, and a method-scoped taint sink is a registry change
 rather than a DSL one — the register is in
 [`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md), "Known

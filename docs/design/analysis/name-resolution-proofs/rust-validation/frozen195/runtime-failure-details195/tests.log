@@ -1,0 +1,262 @@
+
+running 38 tests
+test cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis ... 
+thread 'cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis' (714949) panicked at src/cmd_alias.rs:1148:13:
+assertion `left == right` failed: jim: []
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_alias::tests::interp_subcommand_words_resolve_like_tcl_get_index_from_obj ... 
+thread 'cmd_alias::tests::interp_subcommand_words_resolve_like_tcl_get_index_from_obj' (714986) panicked at src/cmd_alias.rs:1378:13:
+assertion `left == right` failed
+  left: "ambiguous option \"\": must be alias, aliases, bgerror, cancel, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, share, target, or transfer"
+ right: "ambiguous option \"\": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target"
+FAILED
+test cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion ... 
+thread 'cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion' (715004) panicked at src/cmd_alias.rs:1347:9:
+assertion `left == right` failed: []
+  left: Error
+ right: Ok
+FAILED
+test cmd_alias::tests::jim_interpreter_handle_isolation ... 
+thread 'cmd_alias::tests::jim_interpreter_handle_isolation' (715006) panicked at src/cmd_alias.rs:1361:9:
+assertion `left == right` failed: []
+  left: Error
+ right: Ok
+FAILED
+test cmd_coro::tests::coroinject_runs_on_next_resume ... 
+thread 'cmd_coro::tests::coroinject_runs_on_next_resume' (715007) panicked at src/cmd_coro.rs:1047:9:
+assertion `left == right` failed: eval failed: [100, 32, 104, 101, 108, 108, 111]
+  left: Error
+ right: Ok
+FAILED
+test cmd_info::tests::info_consts_includes_only_tcloo_instance_links ... 
+thread 'cmd_info::tests::info_consts_includes_only_tcloo_instance_links' (715009) panicked at src/cmd_info.rs:974:9:
+assertion `left == right` failed: eval "const G 9; oo::class create C {variable X; constructor {} {const X 1}; method inspect {} {global G; upvar #0 ::G U; list [info consts] [info constant G] [info constant U]}; method retarget {} {upvar #0 ::G X; list [info consts] [info constant X]}; method shadow {X} {list $X [info consts]}}; set o [C new]; oo::object create O; oo::objdefine O {variable P; method init {} {const P 2}; method inspect {} {info consts}}; O init; oo::class create CA {variable X; method inspect {} {list [info consts] [info constant X] $X}}; set oa [CA new]; namespace eval [info object namespace $oa] {namespace upvar :: G X}; oo::class create CP {method inspect {} {info consts}}; CP create op; oo::objdefine op {variable Q; method init {} {const Q 3}}; op init; list [$o inspect] [$o retarget] [$o shadow formal] [O inspect] [$oa inspect] [op inspect] [info constant [info object namespace op]::Q]"
+  left: Error
+ right: Ok
+FAILED
+test cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation ... 
+thread 'cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation' (715010) panicked at src/cmd_list.rs:1165:17:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+FAILED
+test cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release ... 
+thread 'cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release' (715024) panicked at src/cmd_mathfunc.rs:316:13:
+assertion `left == right` failed
+  left: None
+ right: Some([84, 67, 76, 32, 80, 65, 82, 83, 69, 32, 69, 88, 80, 82, 32, 66, 65, 82, 69, 87, 79, 82, 68])
+FAILED
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... 
+thread 'cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls' (715025) panicked at src/cmd_mathop.rs:173:13:
+assertion `left == right` failed: tcl8.5/9
+  left: [53, 32, 53]
+ right: [53, 32, 79, 86, 69, 82, 82, 73, 68, 69]
+FAILED
+test cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers ... 
+thread 'cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers' (715065) panicked at src/cmd_namespace/native_holder_routing.rs:114:5:
+assertion `left == right` failed: tcl8.4/2/QUERY
+  left: [115, 105, 120, 32, 115, 105, 120, 32, 102, 111, 117, 114, 32, 116, 104, 114, 101, 101, 32, 101, 105, 103, 104, 116, 32, 115, 101, 118, 101, 110, 32, 110, 105, 110, 101, 32, 102, 105, 118, 101, 32, 116, 119, 111, 32, 111, 110, 101, 32, 116, 101, 110, 32, 122, 122]
+ right: [115, 105, 120, 32, 115, 105, 120, 32, 122, 122, 32, 102, 111, 117, 114, 32, 116, 104, 114, 101, 101, 32, 101, 105, 103, 104, 116, 32, 115, 101, 118, 101, 110, 32, 110, 105, 110, 101, 32, 102, 105, 118, 101, 32, 116, 119, 111, 32, 111, 110, 101, 32, 116, 101, 110]
+FAILED
+test cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy ... 
+thread 'cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy' (715066) panicked at src/cmd_namespace.rs:2519:13:
+assertion `left == right` failed
+  left: None
+ right: Some(CommandProtocolUnavailable("variable naming"))
+FAILED
+test cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls ... 
+thread 'cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls' (715079) panicked at src/cmd_oo/native_variables.rs:148:9:
+PREFIX_DECLARATION_NEGATIVE_STATIC_READ: native access Some(CommandProtocolUnavailable("combined original variable reporting operand")), compilation admission None
+FAILED
+test cmd_oo::tests::define_context_self_arity ... 
+thread 'cmd_oo::tests::define_context_self_arity' (715080) panicked at src/cmd_oo.rs:6622:9:
+assertion `left == right` failed: eval "oo::define Cls {set ::r [self]}; set ::r" -> "wrong # args: should be \"self arg ?arg ...?\""
+  left: Error
+ right: Ok
+FAILED
+test cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages ... 
+thread 'cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages' (715081) panicked at src/cmd_oo.rs:8548:13:
+assertion `left == right` failed
+  left: Ok
+ right: Error
+FAILED
+test cmd_oo::tests::definitionnamespace_semantics ... 
+thread 'cmd_oo::tests::definitionnamespace_semantics' (715082) panicked at src/cmd_oo.rs:6622:9:
+assertion `left == right` failed: eval "oo::class create foocls { superclass oo::class parent; definitionnamespace foodef }" -> "namespace \"foodef\" not found"
+  left: Error
+ right: Ok
+FAILED
+test cmd_oo::tests::objdefine_forward_mixin_unexport_copy ... 
+thread 'cmd_oo::tests::objdefine_forward_mixin_unexport_copy' (715083) panicked at src/cmd_oo.rs:8727:13:
+assertion `left == right` failed
+  left: [58, 58, 111, 111, 58, 58, 79, 98, 106, 50, 48]
+ right: [58, 58, 111, 111, 58, 58, 79, 98, 106, 48]
+FAILED
+test cmd_oo::tests::object_builtin_variable_varname_eval ... 
+thread 'cmd_oo::tests::object_builtin_variable_varname_eval' (715084) panicked at src/cmd_oo.rs:7630:13:
+assertion `left == right` failed
+  left: [58, 58, 111, 111, 58, 58, 79, 98, 106, 50, 48, 58, 58, 120]
+ right: [58, 58, 111, 111, 58, 58, 79, 98, 106, 48, 58, 58, 120]
+FAILED
+test cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object ... 
+thread 'cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object' (715087) panicked at src/cmd_oo.rs:7518:13:
+assertion `left == right` failed
+  left: [0x7fa1320aa5f0]
+ right: [0x7fa1321465d0]
+FAILED
+test cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries ... 
+thread 'cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries' (715093) panicked at src/cmd_proc/native_formal_alpha_tests.rs:31:5:
+RAW_ZERO_TEXT_ORIGINAL: native access Some(CommandProtocolUnavailable("combined original variable reporting operand")), compilation admission None
+FAILED
+test cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces ... 
+thread 'cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces' (715094) panicked at src/cmd_trace.rs:1009:9:
+assertion `left == right` failed: eval "set log {}\n                        proc cb args {global log; lappend log $args}\n                        proc foo {} {set x 1; return ok}\n                        trace add execution foo {enter leave enterstep leavestep} cb\n                        interp hide {} foo h\n                        set result [interp invokehidden {} h]\n                        interp expose {} h visible\n                        list $result $log [trace info execution visible]" → ""
+  left: Error
+ right: Ok
+FAILED
+test cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies ... 
+thread 'cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies' (715095) panicked at src/cmd_var.rs:687:21:
+assertion `left == right` failed: tcl8.4: proc lifetime {} {upvar 0 missing(k) y; list [array exists missing] [info exists y]}; lifetime
+  left: [49, 32, 49]
+ right: [49, 32, 48]
+FAILED
+test cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x ... 
+thread 'cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x' (715096) panicked at src/cmd_var.rs:1053:13:
+assertion `left == right` failed: a declared-but-unset `variable` blocks the fallback
+  left: Ok
+ right: Error
+FAILED
+test cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes ... 
+thread 'cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes' (715097) panicked at src/cmd_var.rs:487:21:
+assertion `left == right` failed: V8_4: variable_array_unset_captured_member_prefixes_ignore_recreated_root
+  left: [48, 32, 123, 111, 108, 100, 120, 32, 111, 108, 100, 121, 32, 114, 101, 112, 108, 97, 99, 101, 109, 101, 110, 116, 32, 114, 111, 111, 116, 125]
+ right: [48, 32, 123, 111, 108, 100, 120, 32, 111, 108, 100, 121, 32, 114, 111, 111, 116, 125]
+FAILED
+test codegen_abi::tests::a_declining_entry_falls_back_to_the_source_body_observably_unchanged ... 
+thread 'codegen_abi::tests::a_declining_entry_falls_back_to_the_source_body_observably_unchanged' (715110) panicked at src/codegen_abi.rs:4416:17:
+assertion `left == right` failed
+  left: [73, 78, 78, 69, 82, 32, 123, 114, 101, 116, 117, 114, 110, 73, 109, 109, 32, 123, 98, 97, 100, 32, 81, 125, 32, 123, 125, 125, 32, 67, 65, 76, 76, 32, 123, 98, 111, 111, 109, 32, 81, 125]
+ right: [73, 78, 78, 69, 82, 32, 123, 101, 114, 114, 111, 114, 32, 34, 98, 97, 100, 32, 36, 97, 34, 125, 32, 67, 65, 76, 76, 32, 123, 98, 111, 111, 109, 32, 81, 125]
+FAILED
+test codegen_abi::tests::a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one ... 
+thread 'codegen_abi::tests::a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one' (715111) panicked at src/codegen_abi.rs:4622:17:
+assertion `left == right` failed
+  left: [73, 78, 78, 69, 82, 32, 123, 101, 114, 114, 111, 114, 32, 34, 98, 97, 100, 32, 36, 97, 34, 125, 32, 67, 65, 76, 76, 32, 123, 98, 111, 111, 109, 32, 81, 125]
+ right: [73, 78, 78, 69, 82, 32, 123, 114, 101, 116, 117, 114, 110, 73, 109, 109, 32, 123, 98, 97, 100, 32, 81, 125, 32, 123, 125, 125, 32, 67, 65, 76, 76, 32, 123, 98, 111, 111, 109, 32, 81, 125]
+FAILED
+test codegen_abi::tests::compiled_activation_defers_error_publication_to_its_own_leave ... 
+thread 'codegen_abi::tests::compiled_activation_defers_error_publication_to_its_own_leave' (715112) panicked at src/codegen_abi.rs:3512:18:
+leaving the outermost activation publishes the trace
+FAILED
+test codegen_abi::tests::invoke_argv_reports_unknown_error_with_options ... 
+thread 'codegen_abi::tests::invoke_argv_reports_unknown_error_with_options' (715113) panicked at src/codegen_abi.rs:3176:13:
+assertion `left == right` failed
+  left: [84, 67, 76, 32, 76, 79, 79, 75, 85, 80, 32, 67, 79, 77, 77, 65, 78, 68, 32, 100, 101, 102, 105, 110, 105, 116, 101, 108, 121, 95, 109, 105, 115, 115, 105, 110, 103, 95, 99, 111, 109, 109, 97, 110, 100]
+ right: [78, 79, 78, 69]
+FAILED
+test dict::tests::actual_c84_updater_retains_original_long_and_wide_minimum_cache ... 
+thread 'dict::tests::actual_c84_updater_retains_original_long_and_wide_minimum_cache' (715114) panicked at src/dict.rs:815:18:
+explicit pinned native formatter: "C84 native formatter reference build identity mismatch"
+FAILED
+test interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows ... 
+thread 'interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows' (715115) panicked at src/interp/native_body_artifact/native_introspection.rs:249:21:
+assertion `left == right` failed: tcl8.6/17
+  left: "0"
+ right: "1"
+FAILED
+test interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows ... 
+thread 'interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows' (715116) panicked at src/interp/native_body_artifact/native_introspection.rs:246:17:
+assertion `left == right` failed: tcl8.6/13
+  left: "none"
+ right: "string"
+FAILED
+test interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs ... 
+thread 'interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs' (715117) panicked at src/interp/native_body_artifact/native_list_operations.rs:276:9:
+tcl8.4/catch {lassign $name first [error STOP]} caught; list $first $caught: Some(CommandProtocolUnavailable("combined original variable reporting operand"))
+FAILED
+test interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally ... 
+thread 'interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally' (715118) panicked at src/interp/native_body_artifact/native_try.rs:521:17:
+assertion `left == right` failed: tcl8.6 try-handlers-prefix: original result
+  left: [66, 79, 68, 89]
+ right: [99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 115, 101, 99, 111, 110, 100, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 118, 97, 114, 105, 97, 98, 108, 101]
+FAILED
+test interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers ... 
+thread 'interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers' (715119) panicked at src/interp/native_body_artifact/native_upvar_info_exists_tests.rs:182:13:
+assertion `left == right` failed: tcl8.4/8 result
+  left: [98, 97, 100, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 110, 97, 109, 101, 32, 34, 58, 58, 97, 108, 105, 97, 115, 34, 58, 32, 99, 97, 110, 39, 116, 32, 99, 114, 101, 97, 116, 101, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 116, 104, 97, 116, 32, 114, 101, 102, 101, 114, 115, 32, 116, 111, 32, 112, 114, 111, 99, 101, 100, 117, 114, 101, 32, 118, 97, 114, 105, 97, 98, 108, 101]
+ right: [98, 97, 100, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 110, 97, 109, 101, 32, 34, 58, 58, 97, 108, 105, 97, 115, 34, 58, 32, 117, 112, 118, 97, 114, 32, 119, 111, 110, 39, 116, 32, 99, 114, 101, 97, 116, 101, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 116, 104, 97, 116, 32, 114, 101, 102, 101, 114, 115, 32, 116, 111, 32, 112, 114, 111, 99, 101, 100, 117, 114, 101, 32, 118, 97, 114, 105, 97, 98, 108, 101]
+FAILED
+test interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics ... 
+thread 'interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics' (715120) panicked at src/interp/native_command_names.rs:318:13:
+assertion `left == right` failed: V8_4
+  left: [49, 32, 123, 105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 109, 105, 115, 115, 192, 128, 195, 191, 34, 125, 32, 78, 79, 78, 69]
+ right: [49, 32, 123, 105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 109, 105, 115, 115, 0, 255, 34, 125, 32, 78, 79, 78, 69]
+FAILED
+test interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver ... 
+thread 'interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver' (715121) panicked at src/interp/native_error_variables.rs:918:13:
+assertion failed: !interp.exc.borrow().already_logged
+FAILED
+test interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results ... 
+thread 'interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results' (715122) panicked at src/interp/native_jim_links.rs:314:17:
+assertion `left == right` failed: tcl8.4/missing-element
+  left: [99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 115, 101, 99, 111, 110, 100, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 101, 108, 101, 109, 101, 110, 116, 32, 105, 110, 32, 97, 114, 114, 97, 121]
+ right: [99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 115, 101, 99, 111, 110, 100, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 118, 97, 114, 105, 97, 98, 108, 101]
+FAILED
+test interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache ... 
+thread 'interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache' (715123) panicked at src/interp/native_variable_names.rs:1874:21:
+tcl8.6
+FAILED
+test interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch ... 
+thread 'interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch' (715124) panicked at src/interp/stock_ensembles.rs:803:9:
+assertion `left == right` failed
+  left: (Ok, [82, 69, 80, 76, 65, 67, 69, 68])
+ right: (Ok, [81, 81, 61, 61])
+FAILED
+
+failures:
+
+failures:
+    cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis
+    cmd_alias::tests::interp_subcommand_words_resolve_like_tcl_get_index_from_obj
+    cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion
+    cmd_alias::tests::jim_interpreter_handle_isolation
+    cmd_coro::tests::coroinject_runs_on_next_resume
+    cmd_info::tests::info_consts_includes_only_tcloo_instance_links
+    cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation
+    cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release
+    cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls
+    cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers
+    cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy
+    cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls
+    cmd_oo::tests::define_context_self_arity
+    cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages
+    cmd_oo::tests::definitionnamespace_semantics
+    cmd_oo::tests::objdefine_forward_mixin_unexport_copy
+    cmd_oo::tests::object_builtin_variable_varname_eval
+    cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object
+    cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries
+    cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces
+    cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies
+    cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x
+    cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes
+    codegen_abi::tests::a_declining_entry_falls_back_to_the_source_body_observably_unchanged
+    codegen_abi::tests::a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one
+    codegen_abi::tests::compiled_activation_defers_error_publication_to_its_own_leave
+    codegen_abi::tests::invoke_argv_reports_unknown_error_with_options
+    dict::tests::actual_c84_updater_retains_original_long_and_wide_minimum_cache
+    interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows
+    interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows
+    interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs
+    interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally
+    interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers
+    interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics
+    interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver
+    interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results
+    interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache
+    interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch
+
+test result: FAILED. 0 passed; 38 failed; 0 ignored; 0 measured; 1199 filtered out; finished in 21.16s
+

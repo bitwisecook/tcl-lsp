@@ -1,0 +1,25 @@
+{
+  "question": "Declared-variable info option extent/order, independently from target lookup or declaration installation",
+  "channels": {
+    "DIRECT": "original Tcl_NewStringObj counted argv / original Jim_NewStringObj vector",
+    "COUNTED_SOURCE": "counted Tcl_EvalEx source / original counted Jim script object; no Document ReadChars"
+  },
+  "cases": [
+    "BASE",
+    "PRIVATE_EXACT",
+    "PRIVATE_RAW_ZERO",
+    "PRIVATE_ENCODED_ZERO",
+    "PRIVATE_PREFIX",
+    "BAD_RAW_ZERO",
+    "MISSING_BAD",
+    "MISSING_PRIVATE",
+    "MISSING_EXTRA",
+    "MISSING_BASE",
+    "NO_TARGET"
+  ],
+  "kinds": [
+    "object",
+    "class"
+  ],
+  "preconditions": "Fresh interpreter per control. Base setup and C9 private setup results retained separately. Legacy C/Jim rejection does not donate OO target availability."
+}

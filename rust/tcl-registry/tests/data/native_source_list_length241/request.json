@@ -1,0 +1,49 @@
+{
+  "request_id": "naming.list.original-jim-source-length-conversion",
+  "question": "What are the original operand primaries and results across the unchanged three concat evaluation channels, and what exact primary/source metadata conversion does current Jim_ListLength perform on an independently created Jim_SetSourceInfo object?",
+  "problem": "Runtime201 Jim refuses object list length storage while Runtime and VM currently classify authentic Source as Unknown. A genuine Source descriptor and its existing native conversion must be established before adding a dedicated shared class; arbitrary Unknown objects must remain refused.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "probe_file": "/workspace/.proofs/native-source-list-length241-request/probe.c",
+  "probe_sha256": "f4f958ef8f46e68f3f77379c173bf1bad4f01410f2a227bb85565cb8f1f62dd3",
+  "cases": [
+    {
+      "id": "original-0",
+      "source_file": "/workspace/.proofs/native-source-list-length241-request/original-0.tcl",
+      "source_sha256": "b3eb8cfd9fa12f3a1ef73dfa04e5b692614a4886e15f9223582b3358bba20434",
+      "source_encoding": "ASCII; no final LF; adjacent spaces in A  B are intentional; three original evaluations in the same fresh interpreter."
+    },
+    {
+      "id": "original-1",
+      "source_file": "/workspace/.proofs/native-source-list-length241-request/original-1.tcl",
+      "source_sha256": "eda85d1c66d47586df52ec545ae570bfede96b181b291d4d8a0904b8844826e7",
+      "source_encoding": "ASCII; no final LF; adjacent spaces in A  B are intentional; three original evaluations in the same fresh interpreter."
+    },
+    {
+      "id": "original-2",
+      "source_file": "/workspace/.proofs/native-source-list-length241-request/original-2.tcl",
+      "source_sha256": "6a45ae435a479f08c5eef5dbc696dc99c5fdec2dfc4a6a7d6e261fdf43859eb4",
+      "source_encoding": "ASCII; no final LF; adjacent spaces in A  B are intentional; three original evaluations in the same fresh interpreter."
+    }
+  ],
+  "source_anchors": [
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "copy_file": "/workspace/.proofs/native-source-list-length241-request/jim.c"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.h",
+      "source_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "copy_file": "/workspace/.proofs/native-source-list-length241-request/jim.h"
+    }
+  ],
+  "driver": "Compile this exact ASCII C99 probe against the same six independently pinned Native236 headers/archives/build sources and linker arguments. Fresh full Tcl_Init or Jim core/static extensions. Call executable with no arguments; retain full original stdout/stderr/exit and actual linked patchlevel. No outer source wrapper, no result normalization. The dedicated Source-length API channel uses its own fresh Jim interpreter and reports C NOT_APPLICABLE; it is separate from the three public source evaluations.",
+  "scope": "Original direct typePtr-name observations and complete counted result hex for the three public source channels. The separate Jim API constructor proves only its produced Source primary, retained resident original bytes, observed same-object Length conversion and first-child source filename/line. No resolver/name-table identity, variable aliasing, all stock classes, allocator ownership counters, VM execution, static/TMM or C Source equivalence."
+}

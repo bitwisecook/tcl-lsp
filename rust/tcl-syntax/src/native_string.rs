@@ -7,6 +7,9 @@
 
 use std::borrow::Cow;
 
+mod name_display;
+pub use name_display::resident_name_label;
+
 use tcl_dialect::{
     EscapeSyntax, TclVersion,
     model::{BuildProfileId, DialectPoint, Family, Release},
@@ -43,6 +46,20 @@ pub enum NativeStringStorageIdentity {
 }
 
 impl NativeStringProtocol {
+    /// Public C `Tcl_Eval` mirrors its result through the legacy `CString`
+    /// result on C8. A subsequent object-result getter imports that extent.
+    /// This pure reporting projection does not alter counted object results
+    /// from `Tcl_EvalEx`/`Tcl_EvalObjv` or their stored variable keys.
+    #[must_use]
+    pub fn legacy_eval_result_input(self, original: &[u8]) -> Option<&[u8]> {
+        match self {
+            Self::C(TclVersion::V8_4 | TclVersion::V8_5 | TclVersion::V8_6) => {
+                Some(tcl_core_types::c_string_extent(original))
+            }
+            Self::C(TclVersion::V9_0 | TclVersion::V9_1) => Some(original),
+            Self::Jim084 => None,
+        }
+    }
     /// `Tcl_NewUnicodeObj` retains an empty Unicode array on C86+, while
     /// C84/85 retain only the zero character count until a getter is reached.
     #[must_use]
@@ -228,6 +245,32 @@ pub fn materialize_native_string(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_eval_result_extent_keeps_encoded_zero_separate_from_counted_zero() {
+        // Native proof: naming.interpreter.legacy-eval-object-result-boundary
+        // docs/design/analysis/name-resolution-proofs/legacy-eval-object-result-boundary.md
+        for version in TclVersion::ALL {
+            let protocol = NativeStringProtocol::C(version);
+            let original = b"k\0tail";
+            assert_eq!(
+                protocol.legacy_eval_result_input(original).unwrap(),
+                if version <= TclVersion::V8_6 {
+                    b"k".as_slice()
+                } else {
+                    original
+                }
+            );
+            assert_eq!(
+                protocol.legacy_eval_result_input(b"k\xc0\x80tail").unwrap(),
+                b"k\xc0\x80tail"
+            );
+        }
+        assert_eq!(
+            NativeStringProtocol::Jim084.legacy_eval_result_input(b"k\0tail"),
+            None
+        );
+    }
 
     #[test]
     fn header_duplicate_empty_shortcut_requires_jim_and_resident_zero_length() {

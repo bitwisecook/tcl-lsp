@@ -1,0 +1,55 @@
+--- original/tclExecute.c
++++ instrumented/tclExecute.c
+@@ -15,6 +15,14 @@
+  */
+ 
+ #include "tclInt.h"
++
++/* Independent observer: counters only; no allocation or changed Tcl ownership. */
++Tcl_Obj *tclLspDictReleaseWatch = NULL;
++int tclLspDictErrorObserved = 0;
++int tclLspDictErrorRefcount = -1;
++int tclLspDictErrorSameCell = -1;
++int tclLspDictErrorDefinedScalar = -1;
++int tclLspDictFinalFreeObserved = 0;
+ #include "tclCompile.h"
+ #include "tommath.h"
+ 
+@@ -7272,6 +7280,12 @@
+ 	    CACHE_STACK_INFO();
+ 	    if (objResultPtr == NULL) {
+ 		if (allocdict) {
++                    tclLspDictErrorObserved++;
++                    tclLspDictErrorRefcount = dictPtr->refCount;
++                    tclLspDictErrorSameCell = (varPtr->value.objPtr == dictPtr);
++                    tclLspDictErrorDefinedScalar =
++                        TclIsVarScalar(varPtr) && !TclIsVarUndefined(varPtr);
++                    tclLspDictReleaseWatch = dictPtr;
+ 		    TclDecrRefCount(dictPtr);
+ 		}
+ 		result = TCL_ERROR;
+--- original/tclObj.c
++++ instrumented/tclObj.c
+@@ -15,6 +15,10 @@
+  */
+ 
+ #include "tclInt.h"
++
++/* Same observed live header; no freed-object dereference. */
++extern Tcl_Obj *tclLspDictReleaseWatch;
++extern int tclLspDictFinalFreeObserved;
+ #include "tommath.h"
+ #include <float.h>
+ #include <math.h>
+@@ -1458,6 +1462,11 @@
+ TclFreeObj(
+     register Tcl_Obj *objPtr)	/* The object to be freed. */
+ {
++    if (objPtr == tclLspDictReleaseWatch) {
++        tclLspDictFinalFreeObserved++;
++        tclLspDictReleaseWatch = NULL;
++    }
++
+     /* Invalidate the string rep first so we can use the bytes value
+      * for our pointer chain, and signal an obj deletion (as opposed
+      * to shimmering) with 'length == -1' */

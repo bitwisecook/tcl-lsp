@@ -1,0 +1,61 @@
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-dialect)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-host-c-abi)
+   Compiling tcl-host-native v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-host-native)
+   Compiling tcl-engine-api v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-engine-api)
+   Compiling tcl-lexer v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-lexer)
+   Compiling tcl-userdirs v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-userdirs)
+   Compiling tcl-syntax v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-syntax)
+   Compiling tcl-sandbox v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-sandbox)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-version)
+   Compiling tcl-cli v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-cli)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-bytecode)
+   Compiling tcl-pkg v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-pkg)
+   Compiling tcl-regex v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-registry)
+   Compiling tcl-f5mku v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-f5mku)
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-spectcl)
+   Compiling tcl-irule-test v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-irule-test)
+   Compiling tcl-spec-studio v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-spec-studio)
+   Compiling tcl-explorer v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-explorer)
+   Compiling tcl-cli-support v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-cli-support)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-bigip-query)
+   Compiling tcl-bigip-io v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-bigip-io)
+   Compiling tcl-diagram v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-diagram)
+   Compiling f5-cli v0.1.0 (/workspace/.checkpoints/naming101/rust/f5-cli)
+   Compiling f5-xc v0.1.0 (/workspace/.checkpoints/naming101/rust/f5-xc)
+   Compiling tcl-mcp v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-mcp)
+    Finished `test` profile [unoptimized] target(s) in 1m 58s
+     Running unittests src/main.rs (/workspace/.targets/naming/debug/deps/tcl_mcp-b2c80d5af5aeb4a3)
+
+running 8 tests
+test datagroup::tests::original_datagroup_suggestions_separate_heuristics_from_current_edit_eligibility ... ok
+test irule_gen::tests::original_irule_scaffolds_keep_source_candidates_without_predicted_outcomes ... ok
+test irule_test::tests::original_irule_path_annotations_join_emitting_extents_instead_of_labels ... ok
+test tools::docstring_tests::original_doc_tools_preserve_opaque_names_and_repeated_declarations ... ok
+test tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps ... 
+thread 'tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps' (420665) panicked at rust/tcl-mcp/src/tools.rs:2418:9:
+assertion failed: detect_events(shadow, &analyse(shadow, "f5-irules")).is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test tools::original_refactor_request_tests::original_code_action_responses_retain_disabled_rewrite_obligations ... ok
+test tools::original_refactor_request_tests::original_refactor_requests_do_not_replace_native_or_vendor_policy_with_irules ... ok
+test tools::original_refactor_request_tests::original_refactor_requests_use_the_selected_analysis_for_shadowed_heads ... ok
+
+failures:
+
+failures:
+    tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 82 filtered out; finished in 8.82s
+
+error: test failed, to rerun pass `-p tcl-mcp --bin tcl-mcp`

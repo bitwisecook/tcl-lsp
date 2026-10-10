@@ -162,6 +162,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Dict),
         return_elements: Some(ReturnElements::DictOfPairs { from: 0 }),
+        // Unknown key objects still require string materialisation. Only the
+        // successful-handler projection closes this phase for known keys;
+        // unknown values are retained without coercion.
+        world_effects: None,
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {

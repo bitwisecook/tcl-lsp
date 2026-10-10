@@ -1,0 +1,51 @@
+TclCompileErrorCmd(
+    Tcl_Interp *interp,		/* Used for context. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    Tcl_Size numWords = parsePtr->numWords;
+
+    /*
+     * General syntax: [error message ?errorInfo? ?errorCode?]
+     */
+
+    if (numWords < 2 || numWords > 4) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Handle the message.
+     */
+
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    PUSH_TOKEN(			tokenPtr, 1);
+
+    /*
+     * Construct the options. Note that -code and -level are not here.
+     */
+
+    PUSH(			"");
+    if (numWords > 2) {
+	tokenPtr = TokenAfter(tokenPtr);
+	PUSH(			"-errorinfo");
+	PUSH_TOKEN(		tokenPtr, 2);
+	OP(			DICT_PUT);
+	if (numWords > 3) {
+	    tokenPtr = TokenAfter(tokenPtr);
+	    PUSH(		"-errorcode");
+	    PUSH_TOKEN(		tokenPtr, 3);
+	    OP(			DICT_PUT);
+	}
+    }
+
+    /*
+     * Issue the error via 'returnImm error 0'.
+     */
+
+    OP44(			RETURN_IMM, TCL_ERROR, 0);
+    return TCL_OK;
+}

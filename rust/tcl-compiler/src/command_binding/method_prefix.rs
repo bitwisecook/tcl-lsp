@@ -16,6 +16,7 @@ pub struct SourceCapturedMethodPrefix {
     receiver: Arc<SourceObjectInstanceProof>,
     entry: SourceReceiverMethodEntry,
     selector: crate::ir::WordExpr,
+    selector_input: crate::signature_scan::scope::SignatureSourceNameInput,
     capture: super::CommandAllocationSite,
     builder: SourceCommandTarget,
     self_scope: Option<CapturedSelfScope>,
@@ -44,6 +45,14 @@ impl SourceCapturedMethodPrefix {
     pub fn selector(&self) -> &crate::ir::WordExpr {
         &self.selector
     }
+    /// Original name value actually captured by this prefix builder. It
+    /// retains its own producer and supplies no writable source-word grant.
+    #[must_use]
+    pub fn original_selector_input(
+        &self,
+    ) -> &crate::signature_scan::scope::SignatureSourceNameInput {
+        &self.selector_input
+    }
     /// Exact source instance and instruction of the native builder.
     #[must_use]
     pub fn capture_site(&self) -> &super::CommandAllocationSite {
@@ -51,25 +60,18 @@ impl SourceCapturedMethodPrefix {
     }
 
     pub(super) fn is_current(&self, state: &ModuleCommandBindings) -> bool {
-        state.receiver_allocation_is_current(&self.receiver)
+        self.selector_input.is_current(&state.source_variables)
+            && state.receiver_allocation_is_current(&self.receiver)
             && self.self_scope.as_ref().is_none_or(|scope| {
                 state.object_instances.receiver_dispatcher_generation
                     == Some(scope.dispatcher_generation)
                     && !state.source_execution_observed(None)
             })
-            && self
-                .receiver
-                .class_target()
-                .identity
-                .as_ref()
-                .and_then(|identity| state.class_definitions.get(identity))
-                .and_then(|definition| {
-                    definition.receiver_method_entries.get(&(
-                        super::SourceMethodReceiver::Instance,
-                        self.entry.name().to_owned(),
-                    ))
-                })
-                == Some(&self.entry)
+            && state.retained_instance_method_entry(
+                &self.receiver,
+                self.entry.original_name_input().bytes(),
+                self.entry.original_name_input().policy(),
+            ) == Some(&self.entry)
     }
 }
 
@@ -127,30 +129,16 @@ pub(super) fn retain_created_prefix(
     let Some(selector) = native.words.get(2) else {
         return;
     };
-    let Some(name) = native.invocation.arguments().literal_at(1) else {
+    let Some(name) = native
+        .original_variable_operands
+        .input(1, &normal.source_variables)
+    else {
         return;
     };
     let Some(origin) = &normal.current_source_origin else {
         return;
     };
-    let Some(source) = super::executed_script_source::source_text(origin) else {
-        return;
-    };
-    if super::ExecutedScriptSource::literal_word_base(source, selector, name, context.config)
-        .is_none()
-    {
-        return;
-    }
-    let Some(entry) = receiver
-        .class_target()
-        .identity
-        .as_ref()
-        .and_then(|identity| normal.class_definitions.get(identity))
-        .and_then(|definition| {
-            definition
-                .receiver_method_entries
-                .get(&(super::SourceMethodReceiver::Instance, name.to_owned()))
-        })
+    let Some(entry) = normal.retained_instance_method_entry(&receiver, name.bytes(), name.policy())
     else {
         return;
     };
@@ -158,6 +146,7 @@ pub(super) fn retain_created_prefix(
         receiver,
         entry: entry.clone(),
         selector: selector.clone(),
+        selector_input: name.clone(),
         capture: super::CommandAllocationSite {
             source: Arc::clone(origin),
             offset: native.segment.span.start(),

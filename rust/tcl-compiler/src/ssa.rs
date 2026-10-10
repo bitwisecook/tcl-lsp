@@ -100,10 +100,13 @@ fn definition_source_name(
 
 fn bound_defs(
     statement: &Statement,
-    context: &ResolveContext,
+    block: BlockId,
+    index: usize,
+    points: &PointResolveContexts,
     registry: &CommandRegistry,
-    after: &ResolveContext,
 ) -> Vec<VariableCellKey> {
+    let context = points.before_statement(block, index);
+    let after = points.after_statement(block, index);
     if matches!(
         statement,
         Statement::Call { .. }
@@ -113,7 +116,7 @@ fn bound_defs(
             | Statement::Incr { .. }
     ) {
         let mut definitions: Vec<_> =
-            crate::place_bridge::def_places_with_continuation(statement, context, after, registry)
+            crate::place_bridge::def_places_at(statement, block, index, points, registry)
                 .iter()
                 .filter_map(crate::var_resolve::canonical_binding_value_key)
                 .collect();
@@ -171,6 +174,100 @@ impl SsaReadPresenceAlternatives {
 
 /// Key identifying a specific SSA value: `(variable symbol, version)`.
 pub type ValueKey = (Symbol, Version);
+
+/// Source name of one selected SSA value definition. This pairs an actual
+/// definition cell with its retained written operand; it supplies no value,
+/// current-read, rename or native representation capability.
+#[derive(Debug, Clone)]
+pub struct OriginalSsaDefinitionName {
+    span: tcl_lexer::Span,
+    input: crate::signature_scan::scope::SignatureSourceNameInput,
+    cell: VariableCellKey,
+}
+
+impl OriginalSsaDefinitionName {
+    /// Complete written receiver extent in this function's source coordinates.
+    #[must_use]
+    pub const fn span(&self) -> tcl_lexer::Span {
+        self.span
+    }
+
+    /// Independently retained source producer at the actual receiver ordinal.
+    #[must_use]
+    pub const fn original_name_input(
+        &self,
+    ) -> &crate::signature_scan::scope::SignatureSourceNameInput {
+        &self.input
+    }
+
+    /// Actual SSA cell selected at this definition, without current contents.
+    #[must_use]
+    pub const fn cell(&self) -> &VariableCellKey {
+        &self.cell
+    }
+}
+
+/// Point-owned absence of a proposed ordinary scalar in an actually entered
+/// local activation. The original operation/frame and name policy are retained
+/// independently; this grants no new store, value, normal completion, source
+/// movement or edit permission.
+#[derive(Debug, Clone)]
+pub struct OriginalFreshScalarVariableProposal {
+    slot: crate::var_resolve::FreshScalarVariableSlot,
+    site: crate::command_binding::CommandAllocationSite,
+    config: tcl_lexer::LexerConfig,
+}
+
+impl OriginalFreshScalarVariableProposal {
+    /// Proposed native name units with no display re-encoding.
+    #[must_use]
+    pub fn name(&self) -> &[u8] {
+        self.slot.name()
+    }
+    /// Exact selected activation slot at this original operation point.
+    #[must_use]
+    pub fn cell(&self) -> &VariableCellKey {
+        self.slot.cell()
+    }
+    /// Genuine original invocation at which absence was checked.
+    #[must_use]
+    pub fn site(&self) -> &crate::command_binding::CommandAllocationSite {
+        &self.site
+    }
+    /// Independently selected native naming purpose.
+    #[must_use]
+    pub fn policy(&self) -> tcl_syntax::naming::NamePolicyProtocol {
+        self.slot.policy()
+    }
+    /// Full retained source parser configuration.
+    #[must_use]
+    pub const fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        self.config
+    }
+}
+
+/// Point-owned insertion naming plan retaining both independent local-slot
+/// availability and the actual registered scalar setter selection. It grants
+/// no store completion, native preparation, value or source motion.
+#[derive(Debug, Clone)]
+pub struct OriginalFreshScalarAssignmentProposal {
+    variable: OriginalFreshScalarVariableProposal,
+    command: crate::command_binding::OriginalScalarAssignmentCommand,
+}
+
+impl OriginalFreshScalarAssignmentProposal {
+    /// Proposed unoccupied scalar slot in the actual entered local frame.
+    #[must_use]
+    pub const fn variable(&self) -> &OriginalFreshScalarVariableProposal {
+        &self.variable
+    }
+
+    /// Independently selected current registered setter and authored word.
+    #[must_use]
+    pub const fn command(&self) -> &crate::command_binding::OriginalScalarAssignmentCommand {
+        &self.command
+    }
+}
 
 // SSA data structures
 
@@ -412,6 +509,53 @@ pub struct SsaSourceView<'a> {
     point: Option<(BlockId, usize)>,
 }
 
+#[cfg(debug_assertions)]
+fn trace_original_definition_place(
+    tokens: &crate::ir::CommandTokens,
+    context: &crate::var_resolve::ResolveContext,
+    written: usize,
+    place: &crate::place::Place,
+    key: &crate::var_resolve::VariableCellKey,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_SSA_DEFINITION").is_some() {
+        let selected = crate::var_resolve::canonical_binding_value_key(place);
+        eprintln!(
+            "original_definition site={} written={} policy={} frame={:?} place={:?} dynamic={} selected={} matches={} generation={:?}",
+            tokens
+                .words()
+                .first()
+                .map_or(0, |word| word.source().span.start()),
+            written,
+            context.execution_name_policy.is_some(),
+            context.frame_kind,
+            place.kind,
+            place.dynamic,
+            selected.is_some(),
+            selected.as_ref() == Some(key),
+            place.cell.as_ref().map(|cell| cell.generation)
+        );
+        if let (Some(selected), crate::var_resolve::VariableCellKey::Namespace { identity, simple }) =
+            (selected.as_ref(), key.root())
+            && let crate::var_resolve::VariableCellKey::Namespace {
+                identity: selected_identity,
+                simple: selected_simple,
+            } = selected.root()
+        {
+            eprintln!(
+                "original_definition mismatch namespace_equal={} selected_name={:?} definition_name={:?} selected_lifetime={} definition_lifetime={}",
+                selected_identity == identity,
+                selected_simple.as_bytes(),
+                simple.as_bytes(),
+                matches!(
+                    selected,
+                    crate::var_resolve::VariableCellKey::Lifetime { .. }
+                ),
+                matches!(key, crate::var_resolve::VariableCellKey::Lifetime { .. }),
+            );
+        }
+    }
+}
+
 impl<'a> SsaSourceView<'a> {
     /// Whether this query selects one operation rather than compatibility-wide bindings.
     #[must_use]
@@ -539,9 +683,9 @@ impl<'a> SsaSourceView<'a> {
         let Some(points) = self.ssa.point_contexts.as_ref() else {
             return false;
         };
-        let Some(before) = points.context_before(block, index) else {
+        if points.context_before(block, index).is_none() {
             return false;
-        };
+        }
         let Some(tokens) = self.source_tokens() else {
             return false;
         };
@@ -553,35 +697,40 @@ impl<'a> SsaSourceView<'a> {
         };
         let captured = binding.normal_variable_continuation();
         let after = captured.unwrap_or_else(|| points.after_statement(block, index));
-        crate::place_bridge::def_places_with_continuation(
-            &statement.statement,
-            before,
-            after,
-            registry,
-        )
-        .iter()
-        .any(|place| {
-            crate::var_resolve::canonical_binding_value_key(place).as_ref()
-                == Some(self.ssa.cell_key(symbol))
-                && !place.dynamic
-                && if captured.is_some() {
-                    after.captured_contents_presence(place)
-                } else {
-                    after.contents_presence(place)
-                } == crate::var_resolve::ContentsPresence::Defined
-                && place.cell.as_ref().is_some_and(|cell| {
-                    !matches!(cell.generation, crate::place::CellGeneration::Unknown)
-                        && after
-                            .generations
-                            .get(&crate::var_resolve::cell_key(place))
-                            .copied()
-                            .unwrap_or(crate::place::CellGeneration::Incoming)
-                            == cell.generation
-                })
-                && after.contents_have_source(place, &site.source)
-                && after.contents_origin(place)
-                    == crate::var_resolve::ContentsOrigin::WrittenAt(site.offset)
-        })
+        crate::place_bridge::def_places_at(&statement.statement, block, index, points, registry)
+            .iter()
+            .any(|place| {
+                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+                    eprintln!("ORIGINAL_STORE_CONTENTS site={} captured={} cell_matches={} dynamic={} presence={:?} generation_current={} source_matches={} offset_matches={}",
+                        site.offset, captured.is_some(),
+                        crate::var_resolve::canonical_binding_value_key(place).as_ref() == Some(self.ssa.cell_key(symbol)),
+                        place.dynamic, if captured.is_some() { after.captured_contents_presence(place) } else { after.contents_presence(place) },
+                        place.cell.as_ref().is_some_and(|cell| cell.generation != crate::place::CellGeneration::Unknown
+                            && after.generations.get(&crate::var_resolve::cell_key(place)).copied().unwrap_or_default() == cell.generation),
+                        after.contents_have_source(place, &site.source),
+                        after.contents_origin(place) == crate::var_resolve::ContentsOrigin::WrittenAt(site.offset));
+                }
+                crate::var_resolve::canonical_binding_value_key(place).as_ref()
+                    == Some(self.ssa.cell_key(symbol))
+                    && !place.dynamic
+                    && if captured.is_some() {
+                        after.captured_contents_presence(place)
+                    } else {
+                        after.contents_presence(place)
+                    } == crate::var_resolve::ContentsPresence::Defined
+                    && place.cell.as_ref().is_some_and(|cell| {
+                        !matches!(cell.generation, crate::place::CellGeneration::Unknown)
+                            && after
+                                .generations
+                                .get(&crate::var_resolve::cell_key(place))
+                                .copied()
+                                .unwrap_or(crate::place::CellGeneration::Incoming)
+                                == cell.generation
+                    })
+                    && after.contents_have_source(place, &site.source)
+                    && after.contents_origin(place)
+                        == crate::var_resolve::ContentsOrigin::WrittenAt(site.offset)
+            })
     }
 
     /// Resolve a source spelling using the selected proof context.
@@ -692,6 +841,144 @@ impl<'a> SsaSourceView<'a> {
             .point_contexts
             .as_ref()?
             .source_tokens_at(block, index)
+    }
+
+    /// Match one actual SSA definition to its original variable receiver.
+    /// Definition phase, effective-to-written ordinal and byte-cell identity
+    /// come from the retained normal-transfer and original operand owners.
+    /// Equal names, catalogue roles or a source span cannot issue this mapping.
+    #[must_use]
+    pub fn original_definition_name(
+        self,
+        symbol: Symbol,
+        registry: &CommandRegistry,
+    ) -> Option<OriginalSsaDefinitionName> {
+        use tcl_registry::native_compilation::VariableOperandBindingPhase;
+        let (block, index) = self.point?;
+        let statement = self.ssa.blocks.get(&block)?.statements.get(index)?;
+        statement.defs.get(&symbol)?;
+        let points = self.ssa.point_contexts.as_ref()?;
+        let before = points.context_before(block, index)?;
+        let tokens = self.source_tokens()?;
+        if tokens.synthetic.is_some() {
+            return None;
+        }
+        let binding = tokens.source_binding.as_ref()?;
+        let selected_invocation = crate::registry_invocation::normal_transfer_invocation(
+            registry,
+            registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+            tokens,
+        );
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_SSA_DEFINITION").is_some() {
+            eprintln!(
+                "original_definition admission site={} normal={} operand_owner={} before_policy={} key_kind={:?}",
+                tokens
+                    .words()
+                    .first()
+                    .map_or(0, |word| word.source().span.start()),
+                selected_invocation.is_some(),
+                binding
+                    .original_variable_operands_for_tokens(tokens)
+                    .is_some(),
+                before.execution_name_policy.is_some(),
+                match self.ssa.cell_key(symbol).root() {
+                    crate::var_resolve::VariableCellKey::Activation { .. } => "activation",
+                    crate::var_resolve::VariableCellKey::Namespace { .. } => "namespace",
+                    crate::var_resolve::VariableCellKey::Authored(_) => "authored",
+                    _ => "other",
+                }
+            );
+        }
+        let invocation = selected_invocation?;
+        let context = match invocation.variable_binding_phase() {
+            VariableOperandBindingPhase::AfterArguments => before,
+            VariableOperandBindingPhase::NormalContinuation => binding
+                .normal_variable_continuation()
+                .unwrap_or_else(|| points.after_statement(block, index)),
+            VariableOperandBindingPhase::BodyProtocol => return None,
+        };
+        let key = self.ssa.cell_key(symbol);
+        let mut found = None;
+        for (written, place) in invocation.written_definition_places(context, registry) {
+            #[cfg(debug_assertions)]
+            trace_original_definition_place(tokens, context, written, &place, key);
+            if crate::var_resolve::canonical_binding_value_key(&place).as_ref() != Some(key) {
+                continue;
+            }
+            let written = written.checked_add(1)?;
+            let input = binding.original_written_name_input(tokens, written)?;
+            let span = tokens.words().get(written)?.source().span;
+            if found
+                .as_ref()
+                .is_some_and(|(old_span, old_input)| *old_span != span || old_input != &input)
+            {
+                return None;
+            }
+            found = Some((span, input));
+        }
+        let (span, input) = found?;
+        Some(OriginalSsaDefinitionName {
+            span,
+            input,
+            cell: key.clone(),
+        })
+    }
+
+    /// Propose an unused scalar slot at this genuine reached source operation.
+    /// Complete entered local ownership and observer closure are required;
+    /// namespace/global/event availability is deliberately not inferred.
+    #[must_use]
+    pub fn fresh_scalar_variable_proposal(
+        self,
+        native_name: &[u8],
+        registry: &CommandRegistry,
+    ) -> Option<OriginalFreshScalarVariableProposal> {
+        let (block, index) = self.point?;
+        let context = self
+            .ssa
+            .point_contexts
+            .as_ref()?
+            .context_before(block, index)?;
+        let tokens = self.source_tokens()?;
+        if tokens.synthetic.is_some() {
+            return None;
+        }
+        let binding = tokens.source_binding.as_ref()?;
+        if binding.runtime_reachability()
+            != crate::command_binding::SourceRuntimeReachability::Reached
+        {
+            return None;
+        }
+        let site = binding.invocation_site()?.clone();
+        let config = binding.original_lexer_config_for_tokens(tokens)?;
+        let slot = context.fresh_scalar_variable_slot(native_name, registry)?;
+        Some(OriginalFreshScalarVariableProposal { slot, site, config })
+    }
+
+    /// Propose an unused local scalar and independently select its current
+    /// registered setter at the same original source operation. Neither
+    /// receipt can replace the other's point, policy or parser configuration.
+    #[must_use]
+    pub fn fresh_scalar_assignment_proposal(
+        self,
+        native_name: &[u8],
+        registry: &CommandRegistry,
+    ) -> Option<OriginalFreshScalarAssignmentProposal> {
+        let variable = self.fresh_scalar_variable_proposal(native_name, registry)?;
+        let tokens = self.source_tokens()?;
+        let binding = tokens.source_binding.as_ref()?;
+        let command = binding.original_scalar_assignment_command(tokens, registry)?;
+        if command.site() != variable.site()
+            || command.lexer_config() != variable.lexer_config()
+            || command.policy() != variable.policy()
+            || !command.matches_original_point(binding)
+        {
+            return None;
+        }
+        Some(OriginalFreshScalarAssignmentProposal { variable, command })
     }
 
     /// Whether an activation-owned dependency belongs to this operation's
@@ -944,6 +1231,36 @@ impl<'a> SsaSourceView<'a> {
         let Some(access) = self.word_variable_access(word) else {
             return false;
         };
+        Self::access_produces_value(access, registry)
+    }
+
+    /// Completed value production at one retained original substitution site,
+    /// including a variable component inside an interpolated word. Every
+    /// physical alternative must prove the read; a label cannot supply a site.
+    #[must_use]
+    pub fn read_produces_value_at(
+        self,
+        source: &SourceSite,
+        original_spelling: &str,
+        registry: &CommandRegistry,
+    ) -> bool {
+        let Some(tokens) = self.source_tokens() else {
+            return false;
+        };
+        let Some(access) = crate::command_binding::SourceVariableAccess::find_at_source(
+            &tokens.variable_accesses,
+            source,
+            original_spelling,
+        ) else {
+            return false;
+        };
+        Self::access_produces_value(access, registry)
+    }
+
+    fn access_produces_value(
+        access: &crate::command_binding::SourceVariableAccess,
+        registry: &CommandRegistry,
+    ) -> bool {
         !access.context_alternatives().is_empty()
             && access.context_residual()
                 == crate::command_binding::SourceVariableReadResidual::Closed
@@ -951,6 +1268,68 @@ impl<'a> SsaSourceView<'a> {
                 let place = access.place_in_context(context, registry);
                 context.read_produces_value(&place, registry)
             })
+    }
+
+    /// One represented value read which can be replaced without removing a
+    /// variable observer. Every original physical context must select the same
+    /// bounded scalar cell and produce a value. This grants no source extent,
+    /// store deletion, alias continuity or movement of the producing expression.
+    #[must_use]
+    pub fn replaceable_read_at(
+        self,
+        source: &SourceSite,
+        original_spelling: &str,
+        registry: &CommandRegistry,
+    ) -> Option<SsaReadReference> {
+        let tokens = self.source_tokens()?;
+        let access = crate::command_binding::SourceVariableAccess::find_at_source(
+            &tokens.variable_accesses,
+            source,
+            original_spelling,
+        )?;
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+            eprintln!(
+                "ORIGINAL_REPLACEABLE_READ offset={} alternatives={} residual={:?} produces={}",
+                source.span.start(),
+                access.context_alternatives().len(),
+                access.context_residual(),
+                Self::access_produces_value(access, registry)
+            );
+            for context in access.context_alternatives() {
+                let place = access.place_in_context(context, registry);
+                eprintln!(
+                    "ORIGINAL_REPLACEABLE_READ offset={} place_kind={:?} observed={} dynamic={} presence={:?} generation_known={}",
+                    source.span.start(),
+                    place.kind,
+                    place.observed,
+                    place.dynamic,
+                    context.contents_presence(&place),
+                    place.cell.as_ref().is_some_and(
+                        |cell| cell.generation != crate::place::CellGeneration::Unknown
+                    )
+                );
+            }
+        }
+        if !Self::access_produces_value(access, registry) {
+            return None;
+        }
+        let reference = self.read_reference(source, original_spelling)?;
+        reference.version?;
+        access
+            .context_alternatives()
+            .iter()
+            .all(|context| {
+                let place = access.place_in_context(context, registry);
+                !place.observed
+                    && !place.dynamic
+                    && place.kind == crate::place::PlaceKind::Scalar
+                    && place.cell.as_ref().is_some_and(|cell| {
+                        cell.generation != crate::place::CellGeneration::Unknown
+                    })
+                    && crate::var_resolve::canonical_binding_value_key(&place).as_ref()
+                        == Some(self.ssa.cell_key(reference.symbol))
+            })
+            .then_some(reference)
     }
 
     /// Actual representation at this captured read, independently of a
@@ -1077,12 +1456,11 @@ impl<'a> SsaSourceView<'a> {
                     if statement.statement.span().start() != *offset {
                         continue;
                     }
-                    let before = points.before_statement(block, index);
-                    let after = points.after_statement(block, index);
-                    let writes = crate::place_bridge::def_places_with_continuation(
+                    let writes = crate::place_bridge::def_places_at(
                         &statement.statement,
-                        before,
-                        after,
+                        block,
+                        index,
+                        points,
                         registry,
                     );
                     if writes.iter().any(|write| {
@@ -2650,16 +3028,12 @@ fn collect_array_elems(
     let mut elems = ArrayElems::default();
     for (&id, block) in &func.blocks {
         for (index, statement) in block.statements.iter().enumerate() {
-            for target in crate::place_bridge::def_places_with_continuation(
-                statement,
-                points.before_statement(id, index),
-                points.after_statement(id, index),
-                registry,
-            )
-            .into_iter()
-            .chain(crate::place_bridge::read_places_at(
-                statement, id, index, points, registry,
-            )) {
+            for target in crate::place_bridge::def_places_at(statement, id, index, points, registry)
+                .into_iter()
+                .chain(crate::place_bridge::read_places_at(
+                    statement, id, index, points, registry,
+                ))
+            {
                 elems.note(target);
             }
         }
@@ -2781,9 +3155,10 @@ fn nonlocal_names_and_defsites(
                     .into_iter()
                     .map(|(_, bound)| bound),
             );
-            direct_uses.extend(invocation_read_bindings(points, *bn, index, registry));
-            let direct_defs =
-                bound_defs(stmt, context, registry, points.after_statement(*bn, index));
+            direct_uses.extend(invocation_read_bindings(
+                points, *bn, index, context, registry,
+            ));
+            let direct_defs = bound_defs(stmt, *bn, index, points, registry);
             for u in
                 direct_uses
                     .iter()
@@ -2824,7 +3199,13 @@ fn nonlocal_names_and_defsites(
                 .into_iter()
                 .map(|(_, bound)| bound),
         );
-        term_uses.extend(invocation_read_bindings(points, *bn, usize::MAX, registry));
+        term_uses.extend(invocation_read_bindings(
+            points,
+            *bn,
+            usize::MAX,
+            points.before_terminator(*bn),
+            registry,
+        ));
         for u in term_uses
             .iter()
             .cloned()
@@ -3356,9 +3737,18 @@ fn canonical_set_value<'a>(
 /// spellings.
 fn set_value_reads(
     value: &str,
+    tokens: Option<&CommandTokens>,
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
 ) -> BTreeSet<String> {
+    // naming.variable.selected-setter-expression-reads
+    // docs/design/analysis/name-resolution-proofs/variable-selected-setter-expression-reads.md
+    // Queried commands already use original entered/conditional child owners
+    // in scan_nested_substitution_words. A written head cannot add another
+    // evaluator after that lookup has selected a different or unknown handler.
+    if tokens.is_some_and(|tokens| tokens.source_binding.is_some()) {
+        return scanner.scan_word(value, registry);
+    }
     let trimmed = value.trim();
     // The registry carries the expression-language profile; the scanner owns
     // the exact word lexer config used to recover the `[expr …]` interior.
@@ -3467,7 +3857,7 @@ fn uses_in_call(
         registry,
         tokens.as_ref(),
     ) {
-        for v in set_value_reads(value, scanner, registry) {
+        for v in set_value_reads(value, tokens.as_ref(), scanner, registry) {
             if defs.iter().any(|d| d.as_str() == v) {
                 reads_own_def.insert(v.clone());
             }
@@ -3740,7 +4130,7 @@ fn scan_command_words(
                 word: arg,
                 name: &name,
                 registry,
-                config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                config: scanner.lexer_config(),
             });
             match class {
                 UseClass::Quoted => out.quoted.insert(name),
@@ -3817,7 +4207,7 @@ fn scan_nested_substitution_words(
     registry: &CommandRegistry,
     substituted: &mut BTreeSet<String>,
 ) {
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let config = scanner.lexer_config();
     if tokens.is_some_and(|tokens| tokens.source_binding.is_some()) {
         for evaluation in
             crate::word_subst::entered_expression_evaluations(tokens, config, registry)
@@ -4622,8 +5012,11 @@ fn invocation_read_bindings(
     points: &PointResolveContexts,
     block: BlockId,
     index: usize,
+    context: &ResolveContext,
     registry: &CommandRegistry,
 ) -> Vec<VariableCellKey> {
+    // Implementation contract: naming.variable.invocation-caller-ssa-frame
+    // docs/design/analysis/name-resolution-proofs/variable-invocation-caller-ssa-frame.md
     points
         .source_tokens_at(block, index)
         .into_iter()
@@ -4637,7 +5030,21 @@ fn invocation_read_bindings(
                 )
         })
         .filter_map(|place| crate::var_resolve::canonical_binding_value_key(&place))
+        .filter_map(|key| invocation_read_key_in_context(key, context))
         .collect()
+}
+
+/// Execution inventories retain all physical subtree reads. Foreign callee
+/// locals are not caller SSA cells; shared namespace and caller alias cells stay.
+fn invocation_read_key_in_context(
+    key: VariableCellKey,
+    context: &ResolveContext,
+) -> Option<VariableCellKey> {
+    // Implementation contract: naming.variable.invocation-caller-ssa-frame
+    // docs/design/analysis/name-resolution-proofs/variable-invocation-caller-ssa-frame.md
+    key.activation_identity()
+        .is_none_or(|activation| context.activation.as_deref() == Some(activation))
+        .then_some(key)
 }
 
 fn source_read_bindings(
@@ -5111,51 +5518,52 @@ impl RenameWalk {
             source_symbols.remove(name);
             self.unknown_source_names.insert(name.clone());
         }
-        for name in defs_of_with_registry(stmt, Some(registry)) {
-            let after = self.points.after_statement(point.0, point.1);
-            let bound = definition_source_name(stmt, &name, after, registry);
-            if let Some(bound) = bound {
-                source_symbols
-                    .entry(name)
-                    .or_insert_with(|| self.interner.intern(&bound));
-            } else {
-                self.unknown_source_names.insert(name);
+        if context.execution_name_policy.is_none() {
+            for name in defs_of_with_registry(stmt, Some(registry)) {
+                let after = self.points.after_statement(point.0, point.1);
+                let bound = definition_source_name(stmt, &name, after, registry);
+                if let Some(bound) = bound {
+                    source_symbols
+                        .entry(name)
+                        .or_insert_with(|| self.interner.intern(&bound));
+                } else {
+                    self.unknown_source_names.insert(name);
+                }
             }
         }
-        self.retain_native_operand_symbols(stmt, context, registry, &mut source_symbols);
+        self.retain_native_operand_symbols(point, context, registry, &mut source_symbols);
         self.point_symbols
             .insert((point.0, point.1), source_symbols);
     }
 
     fn retain_native_operand_symbols(
         &mut self,
-        stmt: &Statement,
+        point: (BlockId, usize),
         context: &ResolveContext,
         registry: &CommandRegistry,
         source_symbols: &mut HashMap<String, Symbol>,
     ) {
-        if let Some(invocation) = stmt.tokens().and_then(|tokens| {
-            crate::registry_invocation::normal_transfer_invocation(
-                registry,
-                registry
-                    .profile()
-                    .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-                tokens,
-            )
-        }) {
+        if let Some(invocation) =
+            self.points
+                .source_tokens_at(point.0, point.1)
+                .and_then(|tokens| {
+                    crate::registry_invocation::normal_transfer_invocation(
+                        registry,
+                        registry
+                            .profile()
+                            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+                        tokens,
+                    )
+                })
+        {
             for (argument, _) in invocation.variable_roles() {
                 let Some(name) = invocation.argument_literal(argument) else {
                     continue;
                 };
-                let target = crate::var_resolve::resolve_literal_access(
-                    &name,
-                    context,
-                    invocation
-                        .variable_traits()
-                        .contains(tcl_registry::Traits::WHOLE_ARRAY_ARG),
-                    registry,
-                    tcl_registry::TraceOperation::Read,
-                );
+                let Some(target) = invocation.variable_operand_place(argument, context, registry)
+                else {
+                    continue;
+                };
                 if let Some(bound) = crate::var_resolve::canonical_binding_value_key(&target) {
                     let symbol = self.interner.intern(&bound);
                     if source_symbols
@@ -5268,12 +5676,7 @@ impl RenameWalk {
             }
         }
 
-        let direct_defs = bound_defs(
-            stmt,
-            context,
-            registry,
-            self.points.after_statement(frame.block, index),
-        );
+        let direct_defs = bound_defs(stmt, frame.block, index, &self.points, registry);
         let destructions = crate::place_bridge::ssa_destruction_keys(
             stmt,
             context,
@@ -5517,12 +5920,7 @@ fn array_root_refresh_metadata(
     let mut ordinary_definitions = HashSet::new();
     for (&block_id, block) in blocks {
         for (index, statement) in block.statements.iter().enumerate() {
-            let direct = bound_defs(
-                &statement.statement,
-                points.before_statement(block_id, index),
-                registry,
-                points.after_statement(block_id, index),
-            );
+            let direct = bound_defs(&statement.statement, block_id, index, points, registry);
             for (&symbol, &version) in &statement.defs {
                 if roots.contains(&symbol)
                     && statement.may_defs.contains(&symbol)
@@ -7096,6 +7494,72 @@ mod tests {
         assert_eq!(classify(&stmt, &reg, "myf"), Some(UseClass::Substituted));
     }
 
+    #[test]
+    fn source_ownership_classification_uses_the_retained_lexical_config() {
+        // naming.variable.ssa-retained-lexical-config
+        // docs/design/analysis/name-resolution-proofs/variable-ssa-retained-lexical-config.md
+        let registry = default_registry();
+        let tcl = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        let jim = tcl_lexer::LexerConfig {
+            base_offset: 87,
+            base_line: 4,
+            base_col: 12,
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..tcl_lexer::LexerConfig::for_dialect("jim")
+        };
+        // These unchanged, brace-balanced source words exercise command
+        // separators and list parsing. They are lexical classification controls,
+        // not a proof that the unknown wrapper executes either body.
+        for (body, tcl_class, jim_class) in [
+            (
+                "{set\u{000b}x 1; puts $x}",
+                UseClass::Quoted,
+                UseClass::Substituted,
+            ),
+            (
+                "{foreach \"{x}y\" {1 2} {}; puts $x}",
+                UseClass::Substituted,
+                UseClass::Quoted,
+            ),
+        ] {
+            let statement = call_with_words("wrapper", &[body]);
+            for (config, expected) in [(tcl, tcl_class), (jim, jim_class)] {
+                let mut scanner =
+                    VarReferenceScanner::with_config(VarScanOptions::default(), config);
+                let class = uses_of_classified(&statement, &mut scanner, &registry)
+                    .into_iter()
+                    .find(|(name, _)| name == "x")
+                    .map(|(_, class)| class);
+                assert_eq!(class, Some(expected), "{body:?}, {config:?}");
+                assert_eq!(scanner.lexer_config(), config.nested().normalized());
+            }
+        }
+    }
+
+    #[test]
+    fn nested_source_expression_roles_use_the_retained_lexical_config() {
+        // naming.variable.ssa-retained-lexical-config
+        // docs/design/analysis/name-resolution-proofs/variable-ssa-retained-lexical-config.md
+        let registry = default_registry();
+        let statement = call_with_words("puts", &["[expr\u{000b} {$nested}]"]);
+        for (config, expected) in [
+            (tcl_lexer::LexerConfig::for_dialect("tcl9.0"), true),
+            (tcl_lexer::LexerConfig::for_dialect("jim"), false),
+        ] {
+            // Jim's actual head is `expr` followed by a vertical-tab byte.
+            // Registry source roles cannot replace that head with `expr`.
+            let mut scanner = VarReferenceScanner::with_config(VarScanOptions::default(), config);
+            let names = uses_of_classified(&statement, &mut scanner, &registry);
+            assert_eq!(
+                names
+                    .iter()
+                    .any(|(name, class)| name == "nested" && *class == UseClass::Substituted),
+                expected,
+                "{config:?}: {names:?}",
+            );
+        }
+    }
+
     /// A name reached both ways in one statement is a definite read.
     #[test]
     fn uses_of_classified_substituted_wins_over_quoted() {
@@ -7694,6 +8158,76 @@ mod tests {
     }
 
     #[test]
+    fn setter_source_reads_use_selected_child_expression_owners() {
+        // naming.variable.selected-setter-expression-reads
+        // docs/design/analysis/name-resolution-proofs/variable-selected-setter-expression-reads.md
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let registry =
+                tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+            let (_owner, entry) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            for (source, read, expected) in [
+                (
+                    "set input 3; interp alias {} setter {} set; setter output [expr {$input + 1}]",
+                    "input",
+                    true,
+                ),
+                (
+                    "proc expr args {return VALUE}; interp alias {} setter {} set; setter output [expr {$missing}]",
+                    "missing",
+                    false,
+                ),
+                (
+                    "set input 3; interp alias {} calc {} expr; interp alias {} setter {} set; setter output [calc {$input + 1}]",
+                    "input",
+                    true,
+                ),
+            ] {
+                let mut lowerer = crate::lowering::Lowerer::new(&registry);
+                lowerer.set_source_analysis_options(
+                    crate::command_binding::SourceAnalysisOptions {
+                        native_entry: Some(&entry),
+                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                            profile,
+                        )),
+                        native_compilation:
+                            crate::environment_ingress::authoring_native_compilation(),
+                        ..Default::default()
+                    },
+                );
+                let module = crate::lowering::lower_to_ir_with(lowerer, source);
+                let call = module
+                    .top_level
+                    .statements
+                    .last()
+                    .expect("actual setter call");
+                let tokens = module
+                    .top_level
+                    .retained_source_tokens_for_statement(call)
+                    .unwrap_or_else(|| {
+                        panic!("{dialect}: original aliased setter carrier missing: {call:?}")
+                    });
+                assert!(tokens.source_binding.is_some(), "{dialect}: {source}");
+                assert!(
+                    defs_of_with_registry(call, Some(&registry)).contains(&"output".to_owned()),
+                    "{dialect}: actual setter definition is an independent positive: {call:?}",
+                );
+                let mut scanner = VarReferenceScanner::with_config(
+                    VarScanOptions::default(),
+                    module.native_lexer_config(),
+                );
+                let names = uses_of(call, &mut scanner, &registry);
+                assert_eq!(
+                    names.iter().any(|name| name == read),
+                    expected,
+                    "{dialect}: {source}: {names:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn set_value_reads_preserves_scanner_element_qualification() {
         let reg = default_registry();
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
@@ -7701,7 +8235,7 @@ mod tests {
             ..VarScanOptions::default()
         });
         assert!(
-            set_value_reads("[::expr {$array(key) + 1}]", &mut scanner, &reg)
+            set_value_reads("[::expr {$array(key) + 1}]", None, &mut scanner, &reg)
                 .contains("array(key)")
         );
     }
@@ -7963,7 +8497,7 @@ fn additional_read_bindings(
     scope_read_bindings(statement, context, registry)
         .into_iter()
         .chain(
-            invocation_read_bindings(points, block, index, registry)
+            invocation_read_bindings(points, block, index, context, registry)
                 .into_iter()
                 .map(|name| (name, UseClass::Name)),
         )
@@ -7990,6 +8524,102 @@ mod cell_resolution_tests {
     use super::*;
     use crate::cfg::Terminator;
     use tcl_lexer::Span;
+
+    #[test]
+    fn caller_ssa_read_key_uses_typed_activation_identity() {
+        // Implementation contract: naming.variable.invocation-caller-ssa-frame
+        // docs/design/analysis/name-resolution-proofs/variable-invocation-caller-ssa-frame.md
+        let context = ResolveContext::default().in_frame(
+            &crate::var_resolve::VariableExecutionFrame::Procedure {
+                namespace: "::".to_owned(),
+                identity: "caller".to_owned(),
+            },
+        );
+        let caller = VariableCellKey::Activation {
+            identity: "caller".to_owned(),
+            simple: "shared".into(),
+        }
+        .with_lifetime(11)
+        .with_index("member");
+        let foreign = VariableCellKey::Activation {
+            identity: "callee".to_owned(),
+            simple: "local".into(),
+        };
+        assert_eq!(
+            invocation_read_key_in_context(caller.clone(), &context),
+            Some(caller)
+        );
+        assert!(invocation_read_key_in_context(foreign.clone(), &context).is_none());
+        assert!(
+            invocation_read_key_in_context(
+                foreign.clone(),
+                &ResolveContext::default()
+                    .in_frame(&crate::var_resolve::VariableExecutionFrame::Global)
+            )
+            .is_none()
+        );
+        let written = VariableCellKey::Authored(foreign.compatibility_name());
+        assert_eq!(
+            invocation_read_key_in_context(written.clone(), &context),
+            Some(written)
+        );
+        let shared = VariableCellKey::Namespace {
+            identity: crate::command_binding::SourceNamespaceKey::authored("::"),
+            simple: "shared".into(),
+        };
+        assert_eq!(
+            invocation_read_key_in_context(shared.clone(), &context),
+            Some(shared)
+        );
+    }
+
+    #[test]
+    fn invocation_read_projection_keeps_physical_inventory_and_root_alias_reads() {
+        // Implementation contract: naming.variable.invocation-caller-ssa-frame
+        // docs/design/analysis/name-resolution-proofs/variable-invocation-caller-ssa-frame.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (source, foreign) in [
+            ("proc child {} {set local 1; set copy $local}; child", true),
+            (
+                "set shared 1; proc child {} {upvar #0 shared alias; set copy $alias}; child",
+                false,
+            ),
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+                source, registry, false, "tcl8.6",
+            );
+            let ssa = &unit.top_level.ssa;
+            let mut seen = false;
+            for block in ssa.blocks.values() {
+                for statement in &block.statements {
+                    let Some(tokens) = statement.statement.tokens() else {
+                        continue;
+                    };
+                    for place in
+                        crate::place_bridge::invocation_execution_read_places(tokens, registry)
+                    {
+                        let Some(key) = crate::var_resolve::canonical_binding_value_key(&place)
+                        else {
+                            continue;
+                        };
+                        if key.activation_identity().is_some() != foreign {
+                            continue;
+                        }
+                        seen = true;
+                        let used = statement
+                            .uses
+                            .keys()
+                            .any(|symbol| ssa.cell_key(*symbol) == &key);
+                        assert_eq!(used, !foreign, "{source}/{key:?}");
+                    }
+                }
+            }
+            assert!(
+                seen,
+                "original physical read inventory missing for {source}"
+            );
+        }
+    }
 
     #[test]
     fn word_read_requires_original_spelling_as_well_as_site() {
@@ -9161,5 +9791,81 @@ mod external_mutability_tests {
             ),
             Some(false)
         );
+    }
+}
+
+#[cfg(test)]
+mod original_definition_name_tests {
+    use super::*;
+
+    #[test]
+    // Implementation contract: naming.variable.original-ssa-definition-operand
+    // docs/design/analysis/name-resolution-proofs/original-ssa-definition-operand.md
+    fn original_ssa_definition_names_preserve_exact_operands_and_distinct_cells() {
+        let source = r"set v\uD800 42; set v\uD801 TEXT; set a(k) 7";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl8.6",
+        );
+        let function = &unit.top_level;
+        let specialised = function
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        (statement.statement.span().start() == 0).then_some((
+                            block,
+                            index,
+                            &statement.statement,
+                        ))
+                    })
+            })
+            .expect("first original assignment");
+        assert!(matches!(specialised.2, Statement::AssignConst { .. }));
+        assert!(specialised.2.tokens().is_none());
+        assert!(
+            function
+                .ssa
+                .point_contexts
+                .as_ref()
+                .expect("source points")
+                .source_tokens_at(specialised.0, specialised.1)
+                .is_some()
+        );
+        let mut definitions = Vec::new();
+        for (&block, body) in &function.ssa.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                let view = SsaSourceView::at_statement(&function.ssa, block, index);
+                for &symbol in statement.defs.keys() {
+                    if let Some(definition) = view.original_definition_name(symbol, registry) {
+                        assert_eq!(definition.cell(), function.ssa.cell_key(symbol));
+                        definitions.push(definition);
+                    }
+                }
+            }
+        }
+        let select = |spelling: &str| {
+            definitions
+                .iter()
+                .find(|definition| &source[definition.span().as_range()] == spelling)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing original definition for {spelling}; count={}",
+                        definitions.len()
+                    )
+                })
+        };
+        let first = select(r"v\uD800");
+        let second = select(r"v\uD801");
+        assert_ne!(
+            first.original_name_input().bytes(),
+            second.original_name_input().bytes()
+        );
+        assert_ne!(first.cell(), second.cell());
+        assert_eq!(select("a(k)").original_name_input().bytes(), b"a(k)");
     }
 }

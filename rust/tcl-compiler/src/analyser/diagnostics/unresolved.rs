@@ -23,10 +23,10 @@
 //! Default autoloading remains possible; custom or uncertain fallback handlers
 //! suppress absence advice. Missing-package advice uses its separate surface.
 
+use rustc_hash::FxHashSet;
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 
-use rustc_hash::FxHashSet;
 use tcl_registry::model::{BindingKnowledge, BindingTarget};
 
 use crate::analyser::state::Analyser;
@@ -59,7 +59,7 @@ impl Analyser {
         let emit_w123 = !self.disabled_diagnostics.contains("W123");
 
         let oracle = self.command_existence_oracle(registry);
-        self.emit_w123_for_invocations(&oracle, emit_w123);
+        self.emit_w123_for_invocations(&oracle, emit_w123, registry);
     }
 
     /// Build suggestions only; presence comes from the shared positioned owner.
@@ -85,9 +85,12 @@ impl Analyser {
 
     /// Catalogue and lexical names are candidates for a reviewed spelling fix.
     /// They provide no command-presence, namespace or implementation authority.
-    fn build_w123_known_names(&self, registry: &tcl_registry::CommandRegistry) -> KnownNameTiers {
+    fn build_w123_known_names(&self, _registry: &tcl_registry::CommandRegistry) -> KnownNameTiers {
+        let context = self.analysis_context();
+        let registry = context.commands();
         let mut candidates = registry
-            .command_names()
+            .command_names_in_any_dialect()
+            .filter(|name| context.context().resolve_spec(registry, name).is_some())
             .map(str::to_owned)
             .collect::<Vec<_>>();
         candidates.extend(self.result.all_procs.keys().cloned());
@@ -133,8 +136,12 @@ impl Analyser {
             return BindingKnowledge::Unknown;
         };
         let presence = if is_mathfunc_call {
-            self.head_identities
-                .diagnostic_math_function_presence_at(name, offset)
+            self.registry
+                .as_deref()
+                .map_or(Presence::Unknown, |registry| {
+                    self.head_identities
+                        .diagnostic_math_function_presence_at(registry, name, offset)
+                })
         } else {
             match lookup {
                 crate::signature_scan::types::SignatureCommandLookup::InvocationHead => {
@@ -160,7 +167,12 @@ impl Analyser {
     /// proves `Absent` as call sites, and (when `emit_w123`) push a W123
     /// with a "did you mean…?" suggestion.  Restores
     /// `command_invocations` on exit.
-    fn emit_w123_for_invocations(&mut self, oracle: &CommandExistenceOracle, emit_w123: bool) {
+    fn emit_w123_for_invocations(
+        &mut self,
+        oracle: &CommandExistenceOracle,
+        emit_w123: bool,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
         let known = &oracle.known;
         // Pre-compute the deduplicated ``Vec<&str>`` over the
         // candidate set once, instead of rebuilding it per
@@ -182,6 +194,8 @@ impl Analyser {
         // ``self.result.diagnostics`` freely; restore at the end
         // (matches the snapshot/restore round-trip contract).
         let invocations = std::mem::take(&mut self.result.command_invocations);
+        #[cfg(debug_assertions)]
+        self.trace_unresolved_math_invocations(oracle, &invocations);
         for inv in &invocations {
             let name = &inv.name;
             // An existence probe (`namespace which -command NAME`, exact
@@ -213,6 +227,16 @@ impl Analyser {
                 continue;
             }
 
+            let subject = self.unresolved_source_subject(inv, registry);
+            let original_name = subject.as_ref().and_then(|subject| match subject {
+                super::super::DiagnosticSubject::UnresolvedCommand(subject) => {
+                    Some(subject.reporting_name())
+                }
+                super::super::DiagnosticSubject::UnresolvedMathFunction(subject) => {
+                    Some(subject.reporting_name())
+                }
+                _ => None,
+            });
             // "Did you mean…?" suggestion via edit distance (max 1
             // suggestion, budget scaled to the name's length so a short
             // typo can't match an unrelated short command).
@@ -223,39 +247,117 @@ impl Analyser {
             // renamed-away builtin is still in the registry candidate set,
             // and suggesting the very name that no longer resolves would be
             // a self-referential fix.
-            let suggestions = crate::text::suggest_similar(
-                name,
-                candidate_strs
-                    .iter()
-                    .copied()
-                    .filter(|candidate| *candidate != name.as_str()),
-                1,
-                crate::text::scaled_max_distance(name),
-            );
+            let suggestions = original_name
+                .map(|name| {
+                    crate::text::suggest_similar(
+                        name,
+                        candidate_strs
+                            .iter()
+                            .copied()
+                            .filter(|candidate| *candidate != name),
+                        1,
+                        crate::text::scaled_max_distance(name),
+                    )
+                })
+                .unwrap_or_default();
             let mut message = format!("Unresolved command '{name}' at this source point");
             let mut fixes: Vec<super::types::CodeFix> = Vec::new();
             if let Some(best) = suggestions.first() {
                 use std::fmt::Write as _;
                 let _ = write!(message, "; did you mean '{best}'?");
-                fixes.push(super::types::CodeFix {
-                    span: inv.range,
-                    new_text: (*best).to_string(),
-                    description: format!("Replace with '{best}'"),
-                    // W123: an edit-distance guess at the intended command.
-                    safety: crate::irules_checks::FixSafety::RequiresReview,
-                });
+                if let Some(fix) = subject.as_ref().and_then(|subject| {
+                    original_command_suggestion_fix(subject, best, self.lexer_config())
+                }) {
+                    fixes.push(fix);
+                }
             }
-            self.result.diagnostics.push(
-                crate::analyser::types::Diagnostic::new(
-                    DiagCode::W123,
-                    inv.range,
-                    message,
-                    Severity::Hint,
-                )
-                .with_fixes(fixes),
-            );
+            let mut diagnostic = crate::analyser::types::Diagnostic::new(
+                DiagCode::W123,
+                inv.range,
+                message,
+                Severity::Hint,
+            )
+            .with_fixes(fixes);
+            if let Some(subject) = subject {
+                diagnostic = diagnostic.with_subject(subject);
+            }
+            self.result.diagnostics.push(diagnostic);
         }
         self.result.command_invocations = invocations;
+    }
+
+    #[cfg(debug_assertions)]
+    fn trace_unresolved_math_invocations(
+        &self,
+        oracle: &CommandExistenceOracle,
+        invocations: &[crate::signature_scan::types::SignatureCommandInvocation],
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MATH_SUBJECT").is_some() {
+            for invocation in invocations {
+                eprintln!(
+                    "ORIGINAL_MATH_SUBJECT stage=diagnostic-invocation name={:?} range={:?} math={} knowledge={:?}",
+                    invocation.name,
+                    invocation.range,
+                    invocation.is_mathfunc_call,
+                    self.command_binding_knowledge(
+                        oracle,
+                        &invocation.name,
+                        invocation.range,
+                        invocation.lookup,
+                        invocation.is_mathfunc_call,
+                        &invocation.resolution_candidates
+                    )
+                );
+            }
+        }
+    }
+
+    fn unresolved_source_subject(
+        &self,
+        invocation: &crate::signature_scan::types::SignatureCommandInvocation,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<super::super::DiagnosticSubject> {
+        use super::super::{DiagnosticSubject, SourceUnresolvedMathFunctionSubject};
+        let offset = invocation.lookup.offset(invocation.range)?;
+        if invocation.is_mathfunc_call {
+            let image = self.head_identities.original_source_image()?;
+            let config = self.lexer_config();
+            let mut occurrences = self
+                .head_identities
+                .source_bindings_ref()
+                .original_math_functions_in_source(registry, image, config, invocation.range)
+                .into_iter()
+                .filter(|occurrence| occurrence.span() == invocation.range);
+            let occurrence = occurrences.next()?;
+            if !occurrences.all(|other| other == occurrence) {
+                return None;
+            }
+            let subject = SourceUnresolvedMathFunctionSubject::from_original_occurrence(
+                occurrence,
+                invocation,
+                image,
+                config,
+                registry,
+                self.head_identities.diagnostic_math_function_presence_at(
+                    registry,
+                    &invocation.name,
+                    offset,
+                ),
+            )?;
+            return Some(DiagnosticSubject::UnresolvedMathFunction(
+                std::sync::Arc::new(subject),
+            ));
+        }
+        let subject = super::super::SourceUnresolvedCommandSubject::from_original_invocation(
+            self.head_identities.invocation_at_source("", offset),
+            invocation,
+            self.lexer_config(),
+            self.word_rules(),
+            self.declaration_name_policy()?,
+        )?;
+        Some(DiagnosticSubject::UnresolvedCommand(std::sync::Arc::new(
+            subject,
+        )))
     }
 
     /// Whether the bare command head `name`, invoked at `range`, resolves
@@ -286,33 +388,73 @@ impl Analyser {
         })
     }
 
-    /// W120 — command used without a corresponding
-    /// `package require`.
-    ///
-    /// For every command
-    /// invocation whose registry spec carries a
-    /// `required_package`, emit W120 (once per command name)
-    /// unless that package is already imported (a
-    /// `package require` / `package provide` in this file).
-    /// Attaches a `CodeFix` that inserts
-    /// `package require <pkg>` after the last existing
-    /// `package require`, or at the top of the file.
-    ///
-    /// Gated off entirely when:
-    /// * the dialect has no `package` command (iRules);
-    /// * the file loads packages dynamically
-    ///   (`has_dynamic_providers`) — the runtime set of
-    ///   commands is then unknowable;
-    /// * W120 is in `disabled_diagnostics`.
+    /// Original source selections for package advice, using immutable whole
+    /// vectors and current full context rather than invocation reporting names.
+    fn original_package_advice_invocations(
+        &self,
+    ) -> Vec<super::super::diagnostic_registry::OriginalDiagnosticInvocation> {
+        // naming.diagnostic.original-package-source-advice
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-package-source-advice.md
+        use crate::signature_scan::types::SignatureCommandLookup;
+        let context = self.analysis_context();
+        let mut offsets = HashSet::new();
+        self.result
+            .command_invocations
+            .iter()
+            .filter(|invocation| {
+                !invocation.existence_probe
+                    && !invocation.is_mathfunc_call
+                    && invocation.lookup == SignatureCommandLookup::InvocationHead
+            })
+            .filter_map(|invocation| invocation.lookup.offset(invocation.range))
+            .filter(|offset| offsets.insert(*offset))
+            .filter_map(|offset| {
+                crate::registry_invocation::source_structure::source_registry_words_at(
+                    &self.source,
+                    &self.result,
+                    offset,
+                )
+            })
+            .filter_map(|words| {
+                super::super::diagnostic_registry::OriginalDiagnosticInvocation::new(
+                    words,
+                    std::sync::Arc::clone(&context),
+                )
+            })
+            .collect()
+    }
+
+    fn source_package_references(
+        &self,
+        invocations: &[super::super::diagnostic_registry::OriginalDiagnosticInvocation],
+    ) -> Vec<(
+        crate::registry_invocation::source_structure::OriginalSourcePackageReference,
+        bool,
+    )> {
+        invocations
+            .iter()
+            .filter_map(|original| {
+                let reference = original.words().package_reference(original.context())?;
+                let head = original.head();
+                let token_start = head.tokens().first()?.span.start();
+                let unconditional =
+                    self.result.package_requires.iter().any(|require| {
+                        !require.conditional && require.range.start() == token_start
+                    });
+                Some((reference, unconditional))
+            })
+            .collect()
+    }
+
+    /// Missing package source advice for an authentically selected descriptor.
+    /// It never claims installation, loading or eventual callable presence.
     pub fn emit_missing_package_require_diagnostics(
         &mut self,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        if self.disabled_diagnostics.contains("W120") {
+        if self.disabled_diagnostics.contains("W120") || self.result.has_dynamic_providers {
             return;
         }
-        // Dialects without a `package` command (e.g. iRules)
-        // can't `package require`, so W120 never applies.
         let generation = self.analysis_context();
         if generation
             .context()
@@ -321,183 +463,88 @@ impl Analyser {
         {
             return;
         }
-        // Dynamic providers ⇒ unknowable command set ⇒ no W120.
-        if self.result.has_dynamic_providers {
-            return;
-        }
-
-        // This is the **single-file** W120: it knows only the packages
-        // required / provided *in this document*.  Workspace-level
-        // refinement — resolving a `package require X` through the
-        // project's `pkgIndex.tcl` files to learn what `X` (transitively)
-        // pulls in, e.g. a wrapper package whose body does `package
-        // require Tk` — is layered on top by the LSP server, which
-        // owns the `tcl-lsp-core::package_resolver` package database and
-        // the workspace/`auto_path` it was scanned from.  Keeping the
-        // analyser single-file mirrors C Tcl, where the set of available
-        // commands is only known after the `auto_path` is searched and the
-        // `ifneeded` scripts run — knowledge the document text alone does
-        // not carry.
-
-        // Packages already available in this file: every
-        // `package require` name plus every `package provide`
-        // name (a file that provides a package needn't require
-        // it).
-        let mut imported: FxHashSet<&str> = FxHashSet::default();
-        for pr in &self.result.package_requires {
-            imported.insert(pr.name.as_str());
-        }
-        for pp in &self.result.package_provides {
-            imported.insert(pp.name.as_str());
-        }
-
-        // Insertion point for the code fix: just after the last
-        // `package require` line, else the top of the file.
-        let insert_offset = self.package_require_insert_offset();
-
-        // Emit once per command name, anchored at its **source-earliest**
-        // invocation.  Selecting by position (rather than the first in
-        // `command_invocations` iteration order) makes the result independent of
-        // *how* the walk was driven — the whole-file DFS and the per-item
-        // shell+graft order record invocations in different orders, but both
-        // pick the same anchor here (the per-item path's `command_invocations`
-        // is only sorted by `canonicalize_result_order`, which runs after this
-        // emitter).  This keeps the result walk-strategy-independent, as the
-        // tail already enforces for other order-sensitive collections.
-        // The document's own declarations, for the shadowing gate below —
-        // the same fact table the arity path's suppression is built from, so
-        // the two agree about what "this file defines that command" means.
-        let declared = super::validity::UserResolutionFacts::build(self);
-        let mut best: HashMap<&str, &crate::signature_scan::types::SignatureCommandInvocation> =
-            HashMap::new();
-        for inv in &self.result.command_invocations {
-            // Dialect-aware, not the bare `registry.get` (which ignores
-            // dialect entirely and would pick an arbitrary same-name spec —
-            // e.g. `link`'s 8.6-`ooutil`-gated spec even under a 9.0+
-            // dialect where the unconditional core spec is the one that's
-            // actually visible). Matches
-            // W120 queries package assistance independently of W123's
-            // positioned command-slot advice.
-            let Some(spec) = generation.context().resolve_spec(registry, &inv.name) else {
-                continue;
-            };
-            if spec.required_package.is_none() {
-                continue;
-            }
-            // A head resolved by a scoped command environment at its call
-            // site is that environment's command, not the package-gated
-            // registry command it happens to share a name with — `entry`
-            // in a tclpkg manifest is the entry-point directive, never the
-            // Tk widget, so no `package require Tk` is missing.
-            if self.is_scoped_command_resolved(&inv.name, inv.range) {
-                continue;
-            }
-            // The document defines the command itself — a `proc`, a class, an
-            // `interp alias`, a static `rename` target, an ensemble, or a
-            // declared stub. Then the name resolves to *that*, and no
-            // `package require` is missing however the registry happens to
-            // spell the same word. The real corpus case is the package's own
-            // implementation file: georgtree/argparse's `proc ::argparse
-            // {args}` beside its own uses was told to `package require
-            // argparse` — i.e. to require the very package it is.  The
-            // sibling W113 false positive on the same declaration is gated by
-            // `is_package_gated_non_ambient`.
-            let candidates: Vec<String> = if inv.resolution_candidates.is_empty() {
-                crate::naming::bareword_resolution_candidates("", &inv.name)
-            } else {
-                inv.resolution_candidates.clone()
-            };
-            let bare = inv.name.rsplit("::").next().unwrap_or(&inv.name);
-            if declared.declares_any(&candidates, bare) {
-                continue;
-            }
-            best.entry(inv.name.as_str())
-                .and_modify(|cur| {
-                    if (inv.range.start(), inv.range.end()) < (cur.range.start(), cur.range.end()) {
-                        *cur = inv;
-                    }
-                })
-                .or_insert(inv);
-        }
-        let mut new_diags: Vec<super::types::Diagnostic> = Vec::new();
-        for inv in best.values() {
-            let spec = generation
-                .context()
-                .resolve_spec(registry, &inv.name)
-                .expect("invocation selected only when registry-known");
-            let pkg = spec
-                .required_package
-                .expect("invocation selected only when it requires a package");
-            if imported.contains(pkg) {
-                continue;
-            }
-            // A package the runtime ships ambiently (an F5 surface, an EDA
-            // shell's own tool commands, or a package a loaded pack declared
-            // with `ambient_package`) is part of the runtime — no
-            // `package require` exists for it (§7.1 axis C).
-            if generation.context().ambient_package(pkg) {
-                continue;
-            }
-            let fix = super::types::CodeFix {
-                span: tcl_lexer::Span::new(insert_offset, insert_offset),
-                new_text: format!("package require {pkg}\n"),
-                description: format!("Add 'package require {pkg}'"),
-                // W120: a `package require` loads the package, running its
-                // initialisation code and changing what commands exist.
-                safety: crate::irules_checks::FixSafety::BehaviourHardening,
-            };
-            new_diags.push(
-                crate::analyser::types::Diagnostic::new(
-                    DiagCode::W120,
-                    inv.range,
-                    format!("\"{}\" requires `package require {pkg}`", inv.name),
-                    Severity::Warning,
-                )
-                .with_fixes(vec![fix]),
+        let invocations = self.original_package_advice_invocations();
+        let references = self.source_package_references(&invocations);
+        let insert_offset =
+            crate::registry_invocation::source_structure::original_package_require_insert_offset(
+                &self.source,
+                &self.result,
             );
+        let mut best = HashMap::new();
+        for original in &invocations {
+            let Some(package) = original
+                .with_schema(super::super::diagnostic_registry::source_descriptors)
+                .and_then(|descriptors| descriptors.command.required_package)
+            else {
+                continue;
+            };
+            if !package.is_ascii()
+                || generation.context().ambient_package(package)
+                || references
+                    .iter()
+                    .any(|(reference, _)| reference.matches_ascii(package))
+            {
+                continue;
+            }
+            best.entry(original.command()).and_modify(|current: &mut &super::super::diagnostic_registry::OriginalDiagnosticInvocation| {
+                if original.head().span().start() < current.head().span().start() { *current = original; }
+            }).or_insert(original);
         }
-        self.result.diagnostics.extend(new_diags);
+        let mut rows = best.into_values().collect::<Vec<_>>();
+        rows.sort_by_key(|original| original.head().span().start());
+        for original in rows {
+            let Some(subject) = original.subject(
+                super::super::RegistrySourceDiagnosticKind::PackageRequirement,
+                None,
+            ) else {
+                continue;
+            };
+            let super::super::DiagnosticSubject::RegistrySource(selected) = &subject else {
+                continue;
+            };
+            let Some(package) = selected.required_package() else {
+                continue;
+            };
+            let Some(name) = self.source.get(original.head().span().as_range()) else {
+                continue;
+            };
+            let mut diagnostic = super::types::Diagnostic::new(
+                DiagCode::W120,
+                original.head().span(),
+                format!("\"{name}\" requires `package require {package}`"),
+                Severity::Warning,
+            )
+            .with_subject(subject);
+            // A metadata package label cannot manufacture a Native source
+            // spelling. Only the retained original naming recipe supplies one.
+            if let Some((atom, insert_offset)) = diagnostic
+                .required_package_key()
+                .and_then(|key| key.manifest_atom(self.lexer_config()))
+                .zip(insert_offset)
+            {
+                diagnostic.fixes.push(super::types::CodeFix {
+                    span: tcl_lexer::Span::new(insert_offset, insert_offset),
+                    new_text: format!(
+                        "{}package require {atom}\n",
+                        package_insert_separator(&self.source, insert_offset)
+                    ),
+                    description: format!("Add 'package require {package}'"),
+                    safety: crate::irules_checks::FixSafety::BehaviourHardening,
+                });
+            }
+            self.result.diagnostics.push(diagnostic);
+        }
     }
 
-    /// H301 — a command used *above* the `package require` that provides it.
-    ///
-    /// On by default.  The semantic view is position-insensitive and stays
-    /// that way: a `package require` anywhere in the file makes its commands
-    /// available for the whole file, because Tcl only resolves a command
-    /// name when the call actually runs, so
-    ///
-    /// ```tcl
-    /// proc later {} { csv::join {a b} }
-    /// package require csv
-    /// ```
-    ///
-    /// is correct and must not be reported as broken. What this reports is
-    /// the *reading* problem: top-down, the call appears before the thing
-    /// that provides it. It is a hint, it carries no fix, and it never
-    /// changes what is available.
-    ///
-    /// Disjoint from W120 by construction: W120 fires when the package is
-    /// **not** required at all, this when it **is**.
-    ///
-    /// Silent when:
-    /// * the dialect has no `package` command, or the file loads packages
-    ///   dynamically — the same two gates W120 takes;
-    /// * the package is ambient (part of the runtime, so no `package
-    ///   require` exists for it at all);
-    /// * the file `package provide`s the package — it is the package's own
-    ///   implementation, and requiring yourself first is not a rule;
-    /// * every `package require` for it is conditional — inside a guarded
-    ///   branch there is no unconditional "before" to be after;
-    /// * H301 is in `disabled_diagnostics`.
-    ///
-    /// One hint per package, not per command: a package with twenty
-    /// commands used above its requirement is one ordering mistake with one
-    /// edit behind it, and twenty hints would be twenty ways of saying so.
+    /// Source reading order for a genuine selected package command relative
+    /// to an authenticated unconditional requirement. Deferred body advice
+    /// retains its own source applicability; no executed ordering is asserted.
     pub fn emit_package_require_ordering_hints(
         &mut self,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        if self.disabled_diagnostics.contains("H301") {
+        use tcl_registry::source_navigation::SourcePackageReferenceKind as Kind;
+        if self.disabled_diagnostics.contains("H301") || self.result.has_dynamic_providers {
             return;
         }
         let generation = self.analysis_context();
@@ -505,123 +552,127 @@ impl Analyser {
             .context()
             .resolve_spec(registry, "package")
             .is_none()
-            || self.result.has_dynamic_providers
         {
             return;
         }
-        // The package's own implementation file requires nothing of itself.
-        let provided: FxHashSet<&str> = self
-            .result
-            .package_provides
-            .iter()
-            .map(|pp| pp.name.as_str())
-            .collect();
-
-        // The earliest *unconditional* requirement per package. A
-        // conditional one cannot anchor an ordering claim.
-        let mut required_at: HashMap<&str, u32> = HashMap::new();
-        for pr in &self.result.package_requires {
-            if pr.conditional {
-                continue;
-            }
-            required_at
-                .entry(pr.name.as_str())
-                .and_modify(|at| *at = (*at).min(pr.range.start()))
-                .or_insert_with(|| pr.range.start());
-        }
-        if required_at.is_empty() {
-            return;
-        }
-        let declared = super::validity::UserResolutionFacts::build(self);
-
-        // The earliest offending invocation per package, and the command
-        // name it was — the message names one command, because naming
-        // twenty would not help.
-        let mut earliest: HashMap<&str, (u32, tcl_lexer::Span, &str)> = HashMap::new();
-        for inv in &self.result.command_invocations {
-            let Some(spec) = generation.context().resolve_spec(registry, &inv.name) else {
+        let invocations = self.original_package_advice_invocations();
+        let references = self.source_package_references(&invocations);
+        let mut earliest = HashMap::new();
+        for original in &invocations {
+            let Some(package) = original
+                .with_schema(super::super::diagnostic_registry::source_descriptors)
+                .and_then(|descriptors| descriptors.command.required_package)
+            else {
                 continue;
             };
-            let Some(pkg) = spec.required_package else {
-                continue;
-            };
-            if provided.contains(pkg) || generation.context().ambient_package(pkg) {
-                continue;
-            }
-            let Some(&require_start) = required_at.get(pkg) else {
-                continue;
-            };
-            if inv.range.start() >= require_start {
-                continue;
-            }
-            // The same two suppressions W120 takes: a head a scoped command
-            // environment resolved is not the package's command, and a
-            // command this document defines resolves to that definition.
-            if self.is_scoped_command_resolved(&inv.name, inv.range) {
-                continue;
-            }
-            let candidates: Vec<String> = if inv.resolution_candidates.is_empty() {
-                crate::naming::bareword_resolution_candidates("", &inv.name)
-            } else {
-                inv.resolution_candidates.clone()
-            };
-            let bare = inv.name.rsplit("::").next().unwrap_or(&inv.name);
-            if declared.declares_any(&candidates, bare) {
-                continue;
-            }
-            let row = (inv.range.start(), inv.range, inv.name.as_str());
-            earliest
-                .entry(pkg)
-                .and_modify(|cur| {
-                    if row.0 < cur.0 {
-                        *cur = row;
-                    }
+            if !package.is_ascii()
+                || generation.context().ambient_package(package)
+                || references.iter().any(|(reference, _)| {
+                    reference.kind() == Kind::Provide && reference.matches_ascii(package)
                 })
-                .or_insert(row);
+            {
+                continue;
+            }
+            let require_start = references
+                .iter()
+                .filter(|(reference, unconditional)| {
+                    *unconditional
+                        && reference.kind() == Kind::Require
+                        && reference.matches_ascii(package)
+                })
+                .filter_map(|(reference, _)| {
+                    reference
+                        .words()
+                        .head_source()?
+                        .word()
+                        .map(|word| word.span().start())
+                })
+                .min();
+            if require_start.is_none_or(|start| original.head().span().start() >= start) {
+                continue;
+            }
+            earliest.entry(package).and_modify(|current: &mut &super::super::diagnostic_registry::OriginalDiagnosticInvocation| {
+                if original.head().span().start() < current.head().span().start() { *current = original; }
+            }).or_insert(original);
         }
-
-        // Sorted so the emitted order does not depend on hash iteration.
-        let mut rows: Vec<(&str, (u32, tcl_lexer::Span, &str))> = earliest.into_iter().collect();
-        rows.sort_by_key(|(pkg, (start, _, _))| (*start, *pkg));
-        let new_diags: Vec<super::types::Diagnostic> = rows
-            .into_iter()
-            .map(|(pkg, (_, range, name))| {
-                crate::analyser::types::Diagnostic::new(
+        let mut rows = earliest.into_iter().collect::<Vec<_>>();
+        rows.sort_by_key(|(package, original)| (original.head().span().start(), *package));
+        for (package, original) in rows {
+            let Some(subject) = original.subject(
+                super::super::RegistrySourceDiagnosticKind::PackageOrdering,
+                None,
+            ) else {
+                continue;
+            };
+            let Some(name) = self.source.get(original.head().span().as_range()) else {
+                continue;
+            };
+            self.result.diagnostics.push(
+                super::types::Diagnostic::new(
                     DiagCode::H301,
-                    range,
+                    original.head().span(),
                     format!(
-                        "\"{name}\" is used above the `package require {pkg}` that provides it"
+                        "\"{name}\" is used above the `package require {package}` that provides it"
                     ),
                     Severity::Hint,
                 )
-            })
-            .collect();
-        self.result.diagnostics.extend(new_diags);
+                .with_subject(subject),
+            );
+        }
     }
+}
 
-    /// Byte offset at which a `package require <pkg>` line
-    /// should be inserted: just past the newline after the
-    /// last existing `package require`, else `0` (top of
-    /// file).
-    fn package_require_insert_offset(&self) -> u32 {
-        let Some(last) = self
-            .result
-            .package_requires
-            .iter()
-            .max_by_key(|p| p.range.end())
-        else {
-            return 0;
-        };
-        let bytes = self.source.as_bytes();
-        let mut off = last.range.end() as usize;
-        while off < bytes.len() && bytes[off] != b'\n' {
-            off += 1;
-        }
-        if off < bytes.len() {
-            off += 1; // past the newline
-        }
-        u32::try_from(off).unwrap_or(0)
+fn package_insert_separator(source: &str, offset: u32) -> &'static str {
+    if usize::try_from(offset).ok() == Some(source.len())
+        && !source.is_empty()
+        && !source.ends_with('\n')
+    {
+        "\n"
+    } else {
+        ""
     }
+}
+
+/// A reviewed metadata suggestion gains only faithful source spelling, never
+/// command presence. Native lexical ownership supplies the whole replacement
+/// extent and string recipe; expression identifiers remain a separate grammar.
+fn original_command_suggestion_fix(
+    subject: &super::super::DiagnosticSubject,
+    candidate: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<super::types::CodeFix> {
+    // naming.diagnostic.original-command-suggestion-source
+    // docs/design/analysis/name-resolution-proofs/diagnostic-original-command-suggestion-source.md
+    let super::super::DiagnosticSubject::UnresolvedCommand(subject) = subject else {
+        return None;
+    };
+    let original = subject.name_input().original_word();
+    (candidate.is_ascii() && original.config() == config).then_some(())?;
+    let quoted = tcl_syntax::backslash::native_literal_source_word(
+        candidate.as_bytes(),
+        original.image().channel(),
+        config,
+        subject.name_input().policy().string_protocol(),
+    )?;
+    let safe_atom = !candidate.is_empty()
+        && !candidate.bytes().any(|byte| {
+            byte.is_ascii_whitespace()
+                || byte.is_ascii_control()
+                || matches!(
+                    byte,
+                    b';' | b'$' | b'[' | b']' | b'{' | b'}' | b'"' | b'\\' | b'#'
+                )
+        });
+    Some(super::types::CodeFix {
+        span: original.span(),
+        new_text: if safe_atom {
+            candidate.to_owned()
+        } else {
+            quoted
+        },
+        description: format!("Replace with '{candidate}'"),
+        safety: crate::irules_checks::FixSafety::RequiresReview,
+    })
 }
 
 #[cfg(test)]
@@ -762,6 +813,8 @@ mod require_ordering_tests {
         use crate::signature_scan::types::SignatureCommandLookup;
         let source = "if {$unknown} {rename info original; proc info args {return ordinary}}; info body missing";
         let result = Analyser::new().analyse(source, "tcl8.6");
+        // naming.source.native-baseline-conditional-source-roles
+        // docs/design/analysis/name-resolution-proofs/native-baseline-conditional-source-roles.md
         assert_eq!(slot_count(source, "W123"), 0);
         let reference = result
             .command_invocations
@@ -843,5 +896,124 @@ mod require_ordering_tests {
             "{:?}",
             out.diagnostics
         );
+    }
+    #[test]
+    fn original_package_advice_distinguishes_queries_and_genuine_source_provisions() {
+        // naming.diagnostic.original-package-source-advice
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-package-source-advice.md
+        assert_eq!(count("package provide csv\ncsv::join {a b}", "W120"), 1);
+        assert_eq!(count("package provide csv 1\ncsv::join {a b}", "W120"), 0);
+        assert_eq!(
+            count(
+                "namespace eval csv {proc join args {return local}}\ncsv::join {a b}",
+                "W120"
+            ),
+            0
+        );
+        let source = "csv::join {a b}";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|d| d.code == tcl_core_types::DiagCode::W120)
+            .unwrap();
+        let subject = diagnostic.registry_source().unwrap();
+        assert_eq!(subject.required_package(), Some("csv"));
+        assert_eq!(
+            subject.kind(),
+            crate::analyser::RegistrySourceDiagnosticKind::PackageRequirement
+        );
+        assert_eq!(diagnostic.required_package_key().unwrap().bytes(), b"csv");
+        assert!(subject.words().matches_source(
+            &tcl_lexer::SourceImage::document(source),
+            result.body_lexer_config.unwrap()
+        ));
+    }
+
+    #[test]
+    fn package_source_advice_does_not_reparse_mutated_reporting_invocations_or_packages() {
+        // naming.diagnostic.original-package-source-advice
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-package-source-advice.md
+        for source in ["csv::join {a b}", "csv::join {a b}\npackage require csv"] {
+            let mut analyser = Analyser::new();
+            let original = analyser.analyse(source, "tcl8.6");
+            let expected = original
+                .diagnostics
+                .iter()
+                .filter(|d| matches!(d.code.as_str(), "W120" | "H301"))
+                .map(|d| (d.code, d.span))
+                .collect::<Vec<_>>();
+            assert_eq!(expected.len(), 1);
+            analyser = analyser.with_resolved_input(original.resolved_input.clone().unwrap());
+            analyser.result = original;
+            for invocation in &mut analyser.result.command_invocations {
+                invocation.name = "puts".to_owned();
+            }
+            for requirement in &mut analyser.result.package_requires {
+                requirement.name = "wrong".to_owned();
+            }
+            analyser
+                .result
+                .diagnostics
+                .retain(|d| !matches!(d.code.as_str(), "W120" | "H301"));
+            let context = analyser.analysis_context();
+            analyser.emit_missing_package_require_diagnostics(context.commands());
+            analyser.emit_package_require_ordering_hints(context.commands());
+            let actual = analyser
+                .result
+                .diagnostics
+                .iter()
+                .filter(|d| matches!(d.code.as_str(), "W120" | "H301"))
+                .map(|d| (d.code, d.span))
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn reviewed_command_suggestions_keep_original_word_extent_and_full_context() {
+        // naming.diagnostic.original-command-suggestion-source
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-command-suggestion-source.md
+        let source = "{puta} hi";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|d| d.code == tcl_core_types::DiagCode::W123)
+            .unwrap();
+        let subject = diagnostic.subject().unwrap();
+        let fix = super::original_command_suggestion_fix(
+            subject,
+            "two words",
+            result.body_lexer_config.unwrap(),
+        )
+        .unwrap();
+        assert_eq!(&source[fix.span.as_range()], "{puta}");
+        let image = tcl_lexer::SourceImage::document(&fix.new_text);
+        let end = u32::try_from(image.len()).unwrap();
+        let parsed = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, end),
+            result.body_lexer_config.unwrap(),
+        )
+        .unwrap();
+        assert_eq!(parsed.commands.len(), 1);
+        assert_eq!(parsed.commands[0].words.len(), 1);
+        assert!(
+            super::original_command_suggestion_fix(
+                subject,
+                "\u{1f642}",
+                result.body_lexer_config.unwrap()
+            )
+            .is_none()
+        );
+        let mut analyser = Analyser::new();
+        analyser.analyse("missing", "tcl8.4");
+        let registry = analyser.analysis_context();
+        let candidates = analyser
+            .build_w123_known_names(registry.commands())
+            .candidates;
+        assert!(candidates.iter().any(|name| name == "puts"));
+        assert!(!candidates.iter().any(|name| name == "dict"));
     }
 }

@@ -1,0 +1,77 @@
+{
+  "version": "jim",
+  "probe_sha256": "546d7b5b88b63999848a828c8650f8800d8487ed96a7942631028f87b2df5941",
+  "library_sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+  "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-DUSE_JIM",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/current-dictionary-value/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/captured-dictionary-value/jim/probe"
+  ],
+  "compile_exit": 0,
+  "executable_sha256": "13339e48ae3b915fa4aa030248824900e0030dd476fa95f4641705ffead6f1f8",
+  "exit": 0,
+  "stdout_sha256": "b6ca57edfcb527cb4da52f26e945ac90ff1a94be587c6ef2be5b95b18cf326fd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    {
+      "row": "startup",
+      "patchlevel_hex": "302e38342d392d6735626163376339"
+    },
+    {
+      "case": "simple",
+      "code": 0,
+      "result_hex": "4649525354"
+    },
+    {
+      "case": "duplicate-last",
+      "code": 0,
+      "result_hex": "4c415354"
+    },
+    {
+      "case": "raw-zero",
+      "code": 0,
+      "result_hex": "524157"
+    },
+    {
+      "case": "modified-zero",
+      "code": 0,
+      "result_hex": "4d4f44"
+    },
+    {
+      "case": "surrogate",
+      "code": 0,
+      "result_hex": "535552"
+    },
+    {
+      "case": "colon",
+      "code": 0,
+      "result_hex": "434f4c4f4e"
+    },
+    {
+      "case": "odd",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261286b29223a207661726961626c652069736e2774206172726179"
+    },
+    {
+      "case": "missing",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261286f7468657229223a206e6f207375636820656c656d656e7420696e206172726179"
+    },
+    {
+      "case": "mutated",
+      "code": 0,
+      "result_hex": "4c415354"
+    }
+  ]
+}

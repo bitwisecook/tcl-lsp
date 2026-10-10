@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_var::tests::captured_increment_receivers_match_actual_native_releases ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1225 filtered out; finished in 17.68s
+

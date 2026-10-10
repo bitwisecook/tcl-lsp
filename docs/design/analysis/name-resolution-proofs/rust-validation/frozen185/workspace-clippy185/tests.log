@@ -1,0 +1,21 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+error: this function has too many lines (102/100)
+    --> rust/tcl-registry/src/definer.rs:2618:5
+     |
+2618 | /     fn source_member_indices_where(
+2619 | |         &self,
+2620 | |         keyword: &str,
+2621 | |         args: crate::InvocationArguments<'_>,
+2622 | |         dialect: Option<SurfaceQuery<'_>>,
+2623 | |         admit: &dyn Fn(ArgRole) -> bool,
+2624 | |     ) -> Option<Vec<(usize, bool)>> {
+     | |___________________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+     = note: `-D clippy::too-many-lines` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: could not compile `tcl-registry` (lib) due to 1 previous error

@@ -72,6 +72,7 @@ impl Interp {
         }
         .map_err(|error| crate::cmd_trace::trace_var_error(self, &name, error))?;
         let home = self.trace_identity(&base);
+        let cell = self.variable_trace_scope(&home, elem.as_deref());
         let token = NativeVariableTraceToken::new();
         let mut table = self.traces.borrow_mut();
         let id = table.next_var_trace_id;
@@ -79,6 +80,7 @@ impl Interp {
         table.traces.push(crate::cmd_trace::VarTrace {
             id,
             binding_id: home.binding_id,
+            element_binding_id: cell.member_identity(),
             name: name.to_vec(),
             base: home.base,
             elem,
@@ -111,17 +113,23 @@ impl Interp {
         };
         let home = crate::vars::TraceHome {
             binding_id: removed.binding_id,
+            selected_member: removed
+                .elem
+                .as_ref()
+                .zip(removed.element_binding_id)
+                .map(|(element, identity)| (element.clone(), identity)),
             ns: removed.ns,
             level: removed.frame_level,
             base: removed.base,
             link_elem: removed.elem.clone(),
         };
+        let cell = self.variable_trace_scope(&home, removed.elem.as_deref());
         if !self
             .traces
             .borrow()
             .traces
             .iter()
-            .any(|t| t.binding_id == home.binding_id && t.elem == removed.elem)
+            .any(|trace| cell.owns_registration(trace))
         {
             self.cleanup_trace_shell(&home, removed.elem.as_deref());
         }
@@ -178,7 +186,7 @@ mod tests {
                 tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .unwrap();
-            let name = unsafe { obj::Owned::from_raw(new_string(b"x")) };
+            let name = obj::Owned::fresh(new_string(b"x"));
             let events = Rc::new(RefCell::new(Vec::new()));
             let token = interp
                 .add_native_variable_observer(
@@ -190,9 +198,11 @@ mod tests {
                     Rc::new(Record(events.clone())),
                 )
                 .unwrap();
+            // Registration owns its counted name independently of the caller object.
+            drop(name);
             assert_eq!(interp.eval_str(b"trace info variable x"), Code::Ok);
             assert!(interp.result_bytes().is_empty());
-            let value = unsafe { obj::Owned::from_raw(new_string(b"A")) };
+            let value = obj::Owned::fresh(new_string(b"A"));
             interp.var_set(b"x", value.as_ptr()).unwrap();
             assert_eq!(*events.borrow(), [NativeVariableTraceOperation::Write]);
             assert!(interp.var_unset(b"x"));
@@ -204,6 +214,8 @@ mod tests {
                 ]
             );
             assert!(!interp.remove_native_variable_observer(&token));
+            // The variable releases its reference; the caller still owns this value.
+            assert_eq!(obj_bytes(value.as_ptr()), b"A");
         }
     }
 }

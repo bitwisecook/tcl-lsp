@@ -378,7 +378,7 @@ mod tests {
             context().expr_grammar_base,
             None,
         );
-        assert!(failures.is_empty());
+        assert_eq!(failures, [] as [tcl_lexer::ExprLexicalFailure; 0]);
         let terms = tcl_lexer::expression_terms(
             source,
             &tokens,

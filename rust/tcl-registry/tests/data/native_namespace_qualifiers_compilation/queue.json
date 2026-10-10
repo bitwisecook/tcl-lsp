@@ -1,0 +1,22 @@
+{
+  "kind": "native-probe-queue",
+  "probe": "counted namespace qualifiers direct versus original procedure compiler",
+  "input": "/workspace/.proofs/current-native-namespace-qualifiers125/probe.c",
+  "input_sha256": "acaa00f436a2989628a335890f8c54fdff45de85979783012a86e53f0bcdf9fc",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "counted native NewString and exact original object-vector; separate fixed ASCII proc source",
+  "version_channel": "native object-vector info patchlevel before rows",
+  "rows": 20,
+  "forms": [
+    "direct public worker",
+    "fixed original procedure body"
+  ],
+  "expectation": "Capture exact code/type/count/identity/bytes and C disassembly; no predetermined semantic outcomes. Leading/trailing/>2-colon runs, FF, D800/D801 and raw00 are literal counted inputs. Old C no-hook and Jim no-C-compiler controls are separate."
+}

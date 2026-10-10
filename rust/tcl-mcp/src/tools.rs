@@ -26,7 +26,7 @@ use std::collections::HashSet;
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
-use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, Utf16Col};
+use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
@@ -145,11 +145,15 @@ fn cursor(source: &str, line: u32, character: u32) -> (LineIndex, u32) {
 }
 
 fn refactoring_json(source: &str, r: &tcl_lsp_core::refactor::Refactoring) -> Value {
-    json!({
+    let mut result = json!({
         "title": r.title,
         "rewritten": r.apply(source),
         "edit_count": r.edits.len(),
-    })
+    });
+    if let Some(reason) = &r.disabled {
+        result["disabled"] = json!(reason);
+    }
+    result
 }
 
 /// Analyse `source` under `dialect` (fresh analyser per call, like the facades).
@@ -157,7 +161,7 @@ fn refactoring_json(source: &str, r: &tcl_lsp_core::refactor::Refactoring) -> Va
 /// [`registry`] first, then the overlay key it built: the analyser resolves its
 /// own registry from the dialect profile, so without the key it would miss the
 /// bundled `.tclspec` loadables and call every EDA vendor command unknown.
-fn analyse(source: &str, dialect: &str) -> AnalysisResult {
+pub(crate) fn analyse(source: &str, dialect: &str) -> AnalysisResult {
     let _ = registry(dialect);
     Analyser::new()
         .with_pack_overlay(tcl_spectcl::bundled::packs().key)
@@ -205,6 +209,9 @@ fn diag_to_json(d: &Diagnostic, sm: &SourceMap<'_>) -> Value {
         "range": byte_range(sm, d.span),
         "category": crate::diag_meta::meta().categorise(code),
     });
+    if let Some(subject) = tcl_lsp_core::diagnostic_subject::diagnostic_subject_data(d) {
+        obj["data"] = subject;
+    }
     if !d.fixes.is_empty() {
         let fixes: Vec<Value> = d
             .fixes
@@ -247,39 +254,68 @@ fn doc_symbol_to_json(sym: &tcl_lsp_core::document_symbols::DocumentSymbol) -> V
     node
 }
 
-/// iRule events in canonical firing order as `{index, name, multiplicity}`
-/// (1-based index) — the `ordered_events` shape.
-fn event_order_list(source: &str) -> Vec<Value> {
+/// The independently selected source event cards in this current analysis.
+fn event_source_cards(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Vec<tcl_lsp_core::document_symbols::DocumentSymbol> {
+    tcl_lsp_core::document_symbols::document_symbols_from_analysis(source, analysis)
+        .into_iter()
+        .filter(|card| card.kind == tcl_lsp_core::document_symbols::SymbolKind::Event)
+        .collect()
+}
+
+/// Order supported authored event units after actual source-role selection.
+/// The catalogue supplies presentation ordering, never runtime event authority.
+fn event_order_list(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
     let events = EventRegistry::build();
     let mut seen = HashSet::new();
-    let names: Vec<String> = tcl_irules::when_blocks(source)
+    let cards = event_source_cards(source, analysis);
+    let Some(declarations) = tcl_lsp_core::vendor_declaration::declarations(source, analysis)
+    else {
+        return Vec::new();
+    };
+    let index = LineIndex::new(source);
+    let names = declarations
         .into_iter()
-        .map(|block| block.event)
+        .filter(|row| {
+            row.symbol_metadata()
+                .is_some_and(|metadata| metadata.kind == tcl_registry::DefinedSymbolKind::Event)
+        })
+        .filter(|row| {
+            cards.iter().any(|card| {
+                index.offset_at_utf16(
+                    card.selection_range.start_line,
+                    Utf16Col::new(card.selection_range.start_character),
+                    source,
+                ) == row.span().start()
+            })
+        })
+        .filter_map(|row| row.input().literal_units(row.purpose()))
+        .filter(|units| units.is_ascii())
+        .filter_map(|units| std::str::from_utf8(units).ok())
+        .map(str::to_ascii_uppercase)
         .filter(|event| seen.insert(event.clone()))
-        .collect();
+        .collect::<Vec<_>>();
     events
         .order_events(&names)
         .into_iter()
         .enumerate()
         .map(|(i, name)| {
             let multiplicity = events.event_multiplicity(&name);
-            json!({ "index": i + 1, "name": name, "multiplicity": multiplicity })
+            json!({"index":i+1,"name":name,"multiplicity":multiplicity})
         })
         .collect()
 }
 
-/// iRule `when EVENT` handlers as `{name, line}` (0-based line), first
-/// appearance only, using the shared top-level event-handler owner.
-fn detect_events(source: &str) -> Vec<Value> {
-    let mut out = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    let lines = tcl_lexer::LineIndex::new(source);
-    for block in tcl_irules::when_blocks(source) {
-        if seen.insert(block.event.clone()) {
-            out.push(json!({ "name": block.event, "line": lines.line_at(block.span.start()) }));
-        }
-    }
-    out
+/// Readable selected source event headers; unavailable units remain source cards.
+fn detect_events(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
+    let mut seen = HashSet::new();
+    event_source_cards(source, analysis)
+        .into_iter()
+        .filter(|card| seen.insert(card.name.clone()))
+        .map(|card| json!({"name":card.name,"line":card.selection_range.start_line}))
+        .collect()
 }
 
 /// Split `s` into lines keeping each trailing `\n` (like
@@ -389,7 +425,10 @@ fn detect_dialect(args: &Value) -> Value {
 }
 
 fn event_order(args: &Value) -> Value {
-    let ordered = event_order_list(arg_str(args, "source"));
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let ordered = event_order_list(source, &analysis);
     json!({ "events": ordered, "total": ordered.len() })
 }
 
@@ -514,17 +553,15 @@ fn refactor_at(
     f: impl FnOnce(
         &str,
         u32,
-        &CommandRegistry,
+        &AnalysisResult,
         &LineIndex,
-        LexerConfig,
     ) -> Option<tcl_lsp_core::refactor::Refactoring>,
 ) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let (idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
-    let config =
-        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
-    match f(source, off, &registry(&dialect), &idx, config) {
+    let analysis = analyse(source, &dialect);
+    match f(source, off, &analysis, &idx) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -554,9 +591,8 @@ fn brace_expr(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let (_idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
-    let config =
-        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
-    match tcl_lsp_core::refactor::brace_expr(source, off, &registry(&dialect), config) {
+    let analysis = analyse(source, &dialect);
+    match tcl_lsp_core::refactor::brace_expr(source, off, &analysis) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -574,19 +610,17 @@ fn analyze(args: &Value) -> Value {
         .iter()
         .map(|d| diag_to_json(d, &sm))
         .collect();
-    let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(
-        source,
-        tcl_lsp_core::profile_for_dialect(&dialect),
-    )
-    .iter()
-    .map(doc_symbol_to_json)
-    .collect();
+    let symbols: Vec<Value> =
+        tcl_lsp_core::document_symbols::document_symbols_from_analysis(source, &analysis)
+            .iter()
+            .map(doc_symbol_to_json)
+            .collect();
     json!({
         "diagnostics": diagnostics,
         "diagnostic_count": analysis.diagnostics.len(),
         "symbols": symbols,
-        "events": detect_events(source),
-        "event_order": event_order_list(source),
+        "events": detect_events(source,&analysis),
+        "event_order": event_order_list(source,&analysis),
     })
 }
 
@@ -994,6 +1028,9 @@ fn code_actions(args: &Value) -> Value {
             if let Some(dg) = &a.data_group_definition {
                 m.insert("data_group_definition".to_owned(), json!(dg));
             }
+            if let Some(reason) = &a.disabled {
+                m.insert("disabled".to_owned(), json!(reason));
+            }
             obj
         })
         .collect();
@@ -1005,8 +1042,7 @@ fn code_actions(args: &Value) -> Value {
 fn extract_variable(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let config =
-        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
+    let analysis = analyse(source, &dialect);
     let line_index = LineIndex::new(source);
     let start_off = line_index.offset_at_utf16(
         arg_u32(args, "start_line"),
@@ -1024,11 +1060,10 @@ fn extract_variable(args: &Value) -> Value {
     };
     match tcl_lsp_core::refactor::extract_variable(
         source,
-        start_off,
-        end_off,
+        (start_off, end_off),
         var_name,
+        &analysis,
         &line_index,
-        config,
     ) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
@@ -1039,14 +1074,22 @@ fn extract_datagroup(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let (line_index, cursor) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let dg_name = arg_str(args, "dg_name");
-    let reg = registry(IRULES_DIALECT);
-    let config =
-        LexerConfig::from_grammar(crate::environment::profile_for_dialect(IRULES_DIALECT).grammar);
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    if !analysis.allows_lexical_declaration_advice() {
+        return Value::Null;
+    }
+    let Some(config) = analysis.body_lexer_config else {
+        return Value::Null;
+    };
+    let Some(reg) = analysis.resolved_registry() else {
+        return Value::Null;
+    };
     let Some(r) = tcl_lsp_core::refactor::extract_to_datagroup(
         source,
         cursor,
         dg_name,
-        &reg,
+        reg,
         &line_index,
         config,
     ) else {
@@ -1090,12 +1133,14 @@ fn refactor(args: &Value) -> Value {
         source,
     );
     let analysis = analyse(source, &dialect);
-    let config =
-        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
     let mut available: Vec<Value> = Vec::new();
     let mut push = |tool: &str, r: Option<tcl_lsp_core::refactor::Refactoring>| {
         if let Some(r) = r {
-            available.push(json!({ "tool": tool, "title": r.title }));
+            let mut candidate = json!({ "tool": tool, "title": r.title });
+            if let Some(reason) = r.disabled {
+                candidate["disabled"] = json!(reason);
+            }
+            available.push(candidate);
         }
     };
     // Extract-variable only applies to a non-empty selection.
@@ -1104,11 +1149,10 @@ fn refactor(args: &Value) -> Value {
             "extract_variable",
             tcl_lsp_core::refactor::extract_variable(
                 source,
-                start_off,
-                end_off,
+                (start_off, end_off),
                 "result",
+                &analysis,
                 &line_index,
-                config,
             ),
         );
     }
@@ -1118,27 +1162,32 @@ fn refactor(args: &Value) -> Value {
     );
     push(
         "if_to_switch",
-        tcl_lsp_core::refactor::if_to_switch(source, start_off, &reg, &line_index, config),
+        tcl_lsp_core::refactor::if_to_switch(source, start_off, &analysis, &line_index),
     );
     push(
         "switch_to_dict",
-        tcl_lsp_core::refactor::switch_to_dict(source, start_off, &reg, &line_index, config),
+        tcl_lsp_core::refactor::switch_to_dict(source, start_off, &analysis, &line_index),
     );
     push(
         "brace_expr",
-        tcl_lsp_core::refactor::brace_expr(source, start_off, &reg, config),
+        tcl_lsp_core::refactor::brace_expr(source, start_off, &analysis),
     );
-    push(
-        "extract_datagroup",
-        tcl_lsp_core::refactor::extract_to_datagroup(
-            source,
-            start_off,
-            "",
-            &reg,
-            &line_index,
-            config,
-        ),
-    );
+    if analysis.allows_lexical_declaration_advice()
+        && let Some(config) = analysis.body_lexer_config
+        && let Some(registry) = analysis.resolved_registry()
+    {
+        push(
+            "extract_datagroup",
+            tcl_lsp_core::refactor::extract_to_datagroup(
+                source,
+                start_off,
+                "",
+                registry,
+                &line_index,
+                config,
+            ),
+        );
+    }
     json!({ "total": available.len(), "available": available })
 }
 
@@ -1154,37 +1203,29 @@ fn generate_docstring(args: &Value) -> Value {
     };
     let decoration = arg_bool(args, "decoration");
     let analysis = analyse(source, &dialect);
-    // Resolve `proc_name` to its `ProcDef`: the qualified spelling (`::name`,
-    // or the exact name as given) first, then — for a bare name that names a
-    // proc in some namespace — the lexicographically smallest qualified name
-    // among the same-named procs.  The tool has no call-site namespace to
-    // resolve against, so an ambiguous bare name resolves *deterministically*
-    // rather than in `HashMap` iteration order (which picked an arbitrary
-    // same-named proc across namespaces run to run).
-    let qualified = format!("::{proc_name}");
-    let proc = analysis
-        .all_procs
-        .values()
-        .find(|p| p.qualified_name == qualified || p.qualified_name == proc_name)
-        .or_else(|| {
-            // drift-ok: a user-typed bare name with no cursor context — the
-            // deterministic (lexicographically-least) simple-name fallback,
-            // the same discipline as definition.rs::fallback_proc_by_simple_name.
-            analysis
-                .all_procs
-                .values()
-                .filter(|p| p.name == proc_name)
-                .min_by(|a, b| a.qualified_name.cmp(&b.qualified_name))
-        });
-    match proc {
-        Some(proc) => {
+    let Some(declarations) =
+        tcl_lsp_core::procedure_symbol::for_literal_name(source, &analysis, proc_name)
+    else {
+        return json!({ "error": "The current original procedure inventory is unavailable" });
+    };
+    match declarations.as_slice() {
+        [proc] => {
             let tag = tcl_lsp_core::formatting::resolve_tag_style(style);
             let docstring = tcl_lsp_core::formatting::generate_stub_for_proc(
                 proc, tag, decoration, '.', 70, "",
             );
             json!({ "proc": proc_name, "docstring": docstring })
         }
-        None => json!({ "error": format!("Proc '{proc_name}' not found") }),
+        [] => json!({
+            "error": format!("Proc '{proc_name}' not found at global scope; use its qualified name for a namespace declaration"),
+        }),
+        _ => json!({
+            "error": format!("Proc '{proc_name}' has multiple source declarations"),
+            "declarations": declarations.iter().map(|proc| json!({
+                "name_start": proc.name_span.start(),
+                "name_end": proc.name_span.end(),
+            })).collect::<Vec<_>>(),
+        }),
     }
 }
 
@@ -1192,8 +1233,9 @@ fn read_proc_docs(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
-    let mut procs: Vec<_> = analysis.all_procs.values().collect();
-    procs.sort_by_key(|p| p.name_span.start());
+    let Some(procs) = tcl_lsp_core::procedure_symbol::declarations(source, &analysis) else {
+        return json!({ "error": "The current original procedure inventory is unavailable" });
+    };
     let entries: Vec<Value> = procs
         .into_iter()
         .map(|proc| {
@@ -1211,6 +1253,17 @@ fn read_proc_docs(args: &Value) -> Value {
             let mut entry =
                 json!({ "name": proc.name, "qualified_name": proc.qualified_name, "params": params });
             let m = entry.as_object_mut().expect("json object");
+            if let Some(original) = analysis
+                .original_procedure_declarations()
+                .find(|row| row.metadata().name_span == proc.name_span)
+            {
+                m.insert(
+                    "name_source".to_owned(),
+                    json!(source.get(original.name_input().span().as_range())),
+                );
+            }
+            m.insert("name_start".to_owned(), json!(proc.name_span.start()));
+            m.insert("name_end".to_owned(), json!(proc.name_span.end()));
             if proc.doc.is_empty() {
                 m.insert("doc".to_owned(), Value::Null);
             } else {
@@ -1246,14 +1299,16 @@ fn update_docstrings(args: &Value) -> Value {
     let analysis = analyse(source, &dialect);
     let line_index = LineIndex::new(source);
     let tag = tcl_lsp_core::formatting::resolve_tag_style(style);
-    let total_procs = analysis.all_procs.len();
+    let Some(procs) = tcl_lsp_core::procedure_symbol::declarations(source, &analysis) else {
+        return json!({ "error": "The current original procedure inventory is unavailable" });
+    };
+    let total_procs = procs.len();
 
-    // Undocumented procs, bottom-up so earlier insertions don't shift later
-    // line numbers.
-    let mut targets: Vec<_> = analysis
-        .all_procs
-        .values()
-        .filter(|p| p.doc.is_empty())
+    // Insert from the last original declaration so earlier source positions
+    // stay valid while each independent declaration receives its own comment.
+    let mut targets: Vec<_> = procs
+        .into_iter()
+        .filter(|proc| proc.doc.is_empty())
         .collect();
     targets.sort_by_key(|p| std::cmp::Reverse(line_index.line_at(p.name_span.start())));
 
@@ -1462,7 +1517,7 @@ const TOOLS: &[ToolDef] = &[
     ToolDef {
         name: "event_order",
         description: "iRule events in canonical firing order with multiplicity.",
-        params: &[SRC],
+        params: &[SRC, DIALECT],
         required: &["source"],
         handler: event_order,
     },
@@ -1673,6 +1728,7 @@ const TOOLS: &[ToolDef] = &[
         description: "Extract an if/switch over literals into an iRules data-group + lookup.",
         params: &[
             SRC,
+            DIALECT,
             LINE,
             CHAR,
             (
@@ -2189,9 +2245,10 @@ mod source_integrity_tests {
 
     #[test]
     fn event_order_deduplicates_repeated_handlers() {
-        let result = event_order_list(
-            "when HTTP_REQUEST { return }\nwhen CLIENT_ACCEPTED {}\nwhen HTTP_REQUEST {}\n",
-        );
+        let source =
+            "when HTTP_REQUEST { return }\nwhen CLIENT_ACCEPTED {}\nwhen HTTP_REQUEST {}\n";
+        let analysis = analyse(source, "f5-irules");
+        let result = event_order_list(source, &analysis);
         let names: Vec<_> = result
             .iter()
             .filter_map(|row| row["name"].as_str())
@@ -2230,15 +2287,136 @@ mod docstring_tests {
     }
 
     #[test]
-    fn ambiguous_bare_name_is_deterministic() {
-        // A bare `dup` names a proc in two namespaces; with no call-site
-        // namespace to resolve against, the smallest qualified name
-        // (`::a::dup`) wins — and it must win on every run, never in `HashMap`
-        // iteration order.
-        for _ in 0..32 {
-            let ds = docstring_for("dup");
-            assert!(ds.contains("alphaparam"), "{ds}");
-            assert!(!ds.contains("omegaparam"), "{ds}");
+    fn bare_name_without_a_namespace_does_not_choose_an_unrelated_declaration() {
+        let result = generate_docstring(&json!({
+            "source": TWO_NS_DUP,
+            "proc_name": "dup",
+        }));
+        assert!(result["docstring"].is_null());
+        assert!(result["error"].as_str().unwrap().contains("qualified name"));
+    }
+
+    #[test]
+    fn original_doc_tools_preserve_opaque_names_and_repeated_declarations() {
+        let source = r"proc p\uD800 {} {}
+proc p\uD801 {} {}
+proc repeated {first} {}
+proc repeated {second} {}";
+        let result = read_proc_docs(&json!({ "source": source, "dialect": "tcl8.6" }));
+        let rows = result["procs"].as_array().unwrap();
+        assert_eq!(rows.len(), 4);
+        assert_eq!(rows[0]["name_source"], r"p\uD800");
+        assert_eq!(rows[1]["name_source"], r"p\uD801");
+        assert_ne!(rows[0]["name_start"], rows[1]["name_start"]);
+        let ambiguous = generate_docstring(&json!({
+            "source": source, "dialect": "tcl8.6", "proc_name": "repeated",
+        }));
+        assert!(ambiguous["docstring"].is_null());
+        assert_eq!(ambiguous["declarations"].as_array().unwrap().len(), 2);
+        let updated = update_docstrings(&json!({ "source": source, "dialect": "tcl8.6" }));
+        assert_eq!(updated["total_procs"], 4);
+        assert_eq!(updated["procs_documented"], 4);
+        let after = updated["source"].as_str().unwrap();
+        assert!(after.contains(r"proc p\uD800"));
+        assert!(after.contains(r"proc p\uD801"));
+    }
+}
+
+#[cfg(test)]
+mod original_refactor_request_tests {
+    use super::*;
+
+    // Implementation contract: naming.consumer.original-mcp-refactor-context
+    // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+    #[test]
+    fn original_refactor_requests_do_not_replace_native_or_vendor_policy_with_irules() {
+        let source = "switch -- $value { a {set result 1} b {set result 2} }";
+        for dialect in ["tcl8.6", "tcl9.0", "jimtcl", "f5-irules", "f5-tmsh"] {
+            let args = json!({"source":source,"dialect":dialect,"line":0,"character":0,
+                "start_line":0,"start_character":0,"end_line":0,"end_character":0});
+            assert_eq!(extract_datagroup(&args), Value::Null, "{dialect}");
+            let candidates = refactor(&args);
+            assert!(
+                candidates["available"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|candidate| candidate["tool"] != "extract_datagroup"),
+                "{dialect}"
+            );
         }
+    }
+
+    #[test]
+    fn original_code_action_responses_retain_disabled_rewrite_obligations() {
+        // Implementation contract: naming.consumer.original-mcp-refactor-context
+        // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+        let source = "if {1} {puts YES} else {puts NO}";
+        let response = code_actions(&json!({
+            "source": source,
+            "dialect": "tcl8.6",
+            "start_line": 0,
+            "start_character": 0,
+            "end_line": 0,
+            "end_character": 0,
+        }));
+        let action = response["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|action| action["title"] == "Convert if chain to switch")
+            .expect("selected Native structure retains its rewrite obligation");
+        assert!(action["edits"].is_null());
+        assert!(
+            action["disabled"]
+                .as_str()
+                .unwrap()
+                .starts_with("missing-control-flow-equivalence:")
+        );
+    }
+
+    // Implementation contract: naming.consumer.original-mcp-refactor-context
+    // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+    #[test]
+    fn original_refactor_requests_use_the_selected_analysis_for_shadowed_heads() {
+        let source = "proc expr {value} {return $value}\nexpr $x + 1\n";
+        let args = json!({"source":source,"dialect":"tcl8.6","line":1,"character":2});
+        let result = brace_expr(&args);
+        assert!(
+            result.is_null() || result.get("disabled").is_some(),
+            "{result}"
+        );
+        assert_eq!(arg_str(&args, "dialect"), "tcl8.6");
+    }
+}
+
+#[cfg(test)]
+mod original_event_source_tests {
+    use super::*;
+
+    #[test]
+    fn original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps() {
+        // Implementation contract: naming.consumer.original-mcp-event-source-advice
+        // docs/design/analysis/name-resolution-proofs/original-mcp-event-source-advice.md
+        let source = "when HTTP_REQUEST {}";
+        let mut analysis = analyse(source, "f5-irules");
+        analysis.all_defined_symbols.clear();
+        analysis.global_scope.defined_symbols.clear();
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "counterfactual".to_owned();
+        }
+        assert_eq!(detect_events(source, &analysis)[0]["name"], "HTTP_REQUEST");
+        assert_eq!(
+            event_order_list(source, &analysis)[0]["name"],
+            "HTTP_REQUEST"
+        );
+        assert!(detect_events(&format!("# moved\n{source}"), &analysis).is_empty());
+        for profile in ["tcl8.6", "tcl9.0", "f5-iapps"] {
+            let result = analyze(&json!({"source":source,"dialect":profile}));
+            assert_eq!(result["events"], json!([]), "{profile}");
+            assert_eq!(result["event_order"], json!([]), "{profile}");
+        }
+        let shadow = "proc when {args} {}; when HTTP_REQUEST {}";
+        assert!(detect_events(shadow, &analyse(shadow, "f5-irules")).is_empty());
     }
 }

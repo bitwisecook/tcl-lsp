@@ -164,6 +164,9 @@ where
     O: ValueOps<Value = V> + Procs,
 {
     let n = ops.native_string_bytes(name)?;
+    if let Some(original) = ops.proc_original_formal_list_value(&n)? {
+        return Ok(original);
+    }
     let Some(parameters) = ops.proc_formal_names_bytes(&n)? else {
         return Err(not_a_proc(&n));
     };
@@ -244,27 +247,10 @@ where
         ),
     )?;
     if policy.recipe().is_jim084() {
-        let current = Namespaces::current(ops);
-        let rooted = Namespaces::name_bytes(ops, current);
-        let namespace = rooted.strip_prefix(b"::").ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "Jim command enumeration namespace object",
-            ),
-        )?;
-        let candidates = if procs_only {
-            ops.procs_in_bytes(ROOT_NS)
-        } else {
-            ops.commands_in_bytes(ROOT_NS)
-        };
-        let names = policy
-            .recipe()
-            .jim_info_command_names(namespace, pat.as_deref(), &candidates, procs_only)
-            .map_err(|_| {
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "Jim command enumeration projection",
-                )
-            })?;
-        return Ok(build_name_list_bytes(ops, names));
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "Jim enumeration requires original inventory dispatch",
+        )
+        .into());
     }
     let matcher = NativeGlobProtocol::from_name_policy(policy);
     let pattern = pat.as_deref().map(tcl_core_types::c_string_extent);
@@ -299,6 +285,84 @@ where
         filter_command_names(v, pattern, matcher)?
     };
     Ok(build_name_list_bytes(ops, names))
+}
+
+/// Direct Jim inventory over an independently retained actual root table.
+/// The caller selects the original -nons/namespace-helper boundary and exact
+/// -all grammar before entering this operation.
+pub fn jim_core_command_list<O, V>(
+    ops: &mut O,
+    pattern: Option<&V>,
+    include_spaces: bool,
+    kind: tcl_registry::commands::tcl::NativeJimCommandInventoryKind,
+) -> Result<V, CmdError>
+where
+    O: ValueOps<Value = V> + Namespaces,
+{
+    let policy = ops.name_policy_protocol().ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("Jim core inventory issuer"),
+    )?;
+    if !policy.recipe().is_jim084() {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "Jim core inventory dialect",
+        )
+        .into());
+    }
+    let root = ops.root_command_context_checked()?.ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("Jim core inventory root table"),
+    )?;
+    let candidates = match kind {
+        tcl_registry::commands::tcl::NativeJimCommandInventoryKind::Commands => {
+            ops.commands_in_bytes(root)
+        }
+        tcl_registry::commands::tcl::NativeJimCommandInventoryKind::Procs => {
+            ops.procs_in_bytes(root)
+        }
+        tcl_registry::commands::tcl::NativeJimCommandInventoryKind::Aliases => {
+            ops.aliases_in_bytes_checked(root)?
+        }
+    };
+    let pattern = pattern
+        .map(|value| ops.native_string_bytes(value))
+        .transpose()?;
+    let names = policy
+        .recipe()
+        .jim_core_command_names(pattern.as_deref(), &candidates, include_spaces)
+        .map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim core inventory native match",
+            )
+        })?;
+    Ok(build_name_list_bytes(ops, names))
+}
+
+/// Jim `info alias` returns the actual retained prefix object. Only a reached
+/// lookup failure formats the original name; successful queries retain lazy members.
+pub fn jim_original_alias<O, V>(ops: &mut O, original_name: &V) -> Result<V, CmdError>
+where
+    O: ValueOps<Value = V> + tcl_runtime_api::Aliases,
+{
+    let policy = ops.name_policy_protocol().ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("Jim alias introspection issuer"),
+    )?;
+    if !policy.recipe().is_jim084() {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "Jim alias introspection dialect",
+        )
+        .into());
+    }
+    let failure = match ops.alias_prefix_original_value(original_name)? {
+        tcl_runtime_api::AliasPrefixLookup::Prefix(original) => return Ok(original),
+        tcl_runtime_api::AliasPrefixLookup::MissingCommand => {
+            tcl_registry::commands::tcl::NativeJimAliasLookupFailure::MissingCommand
+        }
+        tcl_runtime_api::AliasPrefixLookup::NotAlias => {
+            tcl_registry::commands::tcl::NativeJimAliasLookupFailure::NotAlias
+        }
+    };
+    let name = ops.native_string_bytes(original_name)?;
+    Err(CmdError::new_bytes(failure.message(&name))
+        .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084))
 }
 
 fn command_pattern_matches(
@@ -348,7 +412,12 @@ where
     let current = Namespaces::current(ops);
     let namespace = Namespaces::name_bytes(ops, current);
     let key = tcl_syntax::naming::jim_global_variable_key_bytes(&namespace, &pattern);
-    let mut names = filter_ordered_names(ops.vars_in_bytes_checked(ROOT_NS)?, Some(&key));
+    let mut names = filter_ordered_names(
+        ops.vars_in_bytes_checked(ROOT_NS)?,
+        Some(&key),
+        variable_name_matcher(ops)?,
+        NativeNameGlobPurpose::InfoVariablesScan,
+    )?;
     if rooted {
         names = names
             .into_iter()
@@ -380,13 +449,20 @@ where
     let pat = pattern
         .map(|value| ops.native_string_bytes(value).map(|bytes| bytes.to_vec()))
         .transpose()?;
+    let matcher = variable_name_matcher(ops)?;
     let cur = Namespaces::current(ops);
-    let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier_bytes) {
-        qualified_variable_listing_bytes(ops, prefix, tail, cur)?
+    let extent = pat.as_deref().map(tcl_core_types::c_string_extent);
+    let names = if let Some((prefix, tail)) = extent.and_then(split_last_qualifier_bytes) {
+        qualified_variable_listing_bytes(ops, prefix, tail, cur, matcher)?
     } else if Frames::in_proc(ops) {
-        filter_ordered_names(ops.var_names_bytes_checked(true)?, pat.as_deref())
+        filter_frame_names(ops, true, pat.as_deref(), matcher)?
     } else {
-        filter_ordered_names(ops.vars_in_bytes_checked(cur)?, pat.as_deref())
+        filter_ordered_names(
+            ops.vars_in_bytes_checked(cur)?,
+            pat.as_deref(),
+            matcher,
+            NativeNameGlobPurpose::InfoVariablesSearch,
+        )?
     };
     Ok(build_name_list_bytes(ops, names))
 }
@@ -400,7 +476,7 @@ where
     let pat = pattern
         .map(|value| ops.native_string_bytes(value).map(|bytes| bytes.to_vec()))
         .transpose()?;
-    let names = filter_ordered_names(ops.var_names_bytes_checked(false)?, pat.as_deref());
+    let names = filter_frame_names(ops, false, pat.as_deref(), variable_name_matcher(ops)?)?;
     Ok(build_name_list_bytes(ops, names))
 }
 
@@ -418,17 +494,24 @@ where
         .map(|value| {
             let bytes = ops.native_string_bytes(value)?;
             let selected = if bytes.starts_with(b"::") {
-                bytes
+                tcl_core_types::c_string_extent(&bytes)
                     .iter()
                     .position(|byte| *byte != b':')
-                    .map_or(&[][..], |start| &bytes[start..])
+                    .map_or(&[][..], |start| {
+                        &tcl_core_types::c_string_extent(&bytes)[start..]
+                    })
             } else {
                 bytes.as_ref()
             };
             Ok::<_, tcl_syntax::value::ValueError>(selected.to_vec())
         })
         .transpose()?;
-    let names = filter_ordered_names(ops.vars_in_bytes_checked(ROOT_NS)?, pat.as_deref());
+    let names = filter_ordered_names(
+        ops.vars_in_bytes_checked(ROOT_NS)?,
+        pat.as_deref(),
+        variable_name_matcher(ops)?,
+        NativeNameGlobPurpose::InfoVariablesSearch,
+    )?;
     Ok(build_name_list_bytes(ops, names))
 }
 
@@ -534,6 +617,7 @@ fn qualified_variable_listing_bytes<O: Namespaces>(
     prefix: &[u8],
     tail: &[u8],
     current: NsId,
+    matcher: NativeGlobProtocol,
 ) -> Result<Vec<Vec<u8>>, CmdError> {
     let target = if prefix.is_empty() {
         Some(ROOT_NS)
@@ -548,23 +632,82 @@ fn qualified_variable_listing_bytes<O: Namespaces>(
     if target != ROOT_NS {
         prefix.extend_from_slice(b"::");
     }
-    Ok(filter_ordered_names(names, Some(tail))
-        .into_iter()
-        .map(|name| {
-            let mut full = prefix.clone();
-            full.extend_from_slice(&name);
-            full
-        })
-        .collect())
+    Ok(filter_ordered_names(
+        names,
+        Some(tail),
+        matcher,
+        NativeNameGlobPurpose::InfoVariablesSearch,
+    )?
+    .into_iter()
+    .map(|name| {
+        let mut full = prefix.clone();
+        full.extend_from_slice(&name);
+        full
+    })
+    .collect())
 }
 
 /// Filter an already ordered native inventory without changing entry identity,
 /// declaration multiplicity, or physical table traversal.
-fn filter_ordered_names(mut names: Vec<Vec<u8>>, pattern: Option<&[u8]>) -> Vec<Vec<u8>> {
-    if let Some(pattern) = pattern {
-        names.retain(|name| string_match_bytes(pattern, name));
+fn filter_frame_names<O: Frames>(
+    ops: &O,
+    include_links: bool,
+    pattern: Option<&[u8]>,
+    matcher: NativeGlobProtocol,
+) -> Result<Vec<Vec<u8>>, CmdError> {
+    let Some(pattern) = pattern else {
+        return Ok(ops.var_names_bytes_checked(include_links)?);
+    };
+    let mut selected = Vec::new();
+    for (name, purpose) in ops.var_name_pattern_inputs_bytes_checked(include_links)? {
+        if matcher
+            .match_name_pattern(purpose, pattern, &name)
+            .map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original frame variable pattern inputs",
+                )
+            })?
+        {
+            selected.push(name);
+        }
     }
-    names
+    Ok(selected)
+}
+
+fn variable_name_matcher<O: ValueOps>(ops: &O) -> Result<NativeGlobProtocol, CmdError> {
+    ops.name_policy_protocol()
+        .map(NativeGlobProtocol::from_name_policy)
+        .ok_or_else(|| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "variable enumeration native pattern purpose",
+            )
+            .into()
+        })
+}
+
+fn filter_ordered_names(
+    names: Vec<Vec<u8>>,
+    pattern: Option<&[u8]>,
+    matcher: NativeGlobProtocol,
+    purpose: NativeNameGlobPurpose,
+) -> Result<Vec<Vec<u8>>, CmdError> {
+    let Some(pattern) = pattern else {
+        return Ok(names);
+    };
+    let mut selected = Vec::new();
+    for name in names {
+        if matcher
+            .match_name_pattern(purpose, pattern, &name)
+            .map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "variable enumeration native pattern purpose",
+                )
+            })?
+        {
+            selected.push(name);
+        }
+    }
+    Ok(selected)
 }
 
 fn build_name_list_bytes<O, V>(ops: &mut O, names: Vec<Vec<u8>>) -> V
@@ -603,11 +746,64 @@ mod tests {
             b"k05".to_vec(),
             b"k00".to_vec(),
         ];
-        assert_eq!(super::filter_ordered_names(names.to_vec(), None), names);
+        let matcher = tcl_syntax::native_glob::NativeGlobProtocol::authored_tcl(
+            tcl_dialect::TclVersion::V9_0,
+        );
+        let purpose = tcl_syntax::native_glob::NativeNameGlobPurpose::InfoVariablesScan;
         assert_eq!(
-            super::filter_ordered_names(names.to_vec(), Some(b"x")),
+            super::filter_ordered_names(names.to_vec(), None, matcher, purpose).unwrap(),
+            names
+        );
+        assert_eq!(
+            super::filter_ordered_names(names.to_vec(), Some(b"x"), matcher, purpose).unwrap(),
             [b"x".to_vec(), b"x".to_vec()]
         );
+    }
+
+    #[test]
+    fn variable_name_patterns_keep_original_counted_keys_and_native_scan_units() {
+        // Native proof: naming.tcloo.explicit-variable-link-counted-target
+        // docs/design/analysis/name-resolution-proofs/explicit-variable-link-counted-target.md
+        use tcl_dialect::TclVersion;
+        use tcl_syntax::native_glob::{NativeGlobProtocol, NativeNameGlobPurpose};
+        let names = [
+            b"k\xc0\x80tail".to_vec(),
+            b"k\xff".to_vec(),
+            b"k\0tail".to_vec(),
+        ];
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let matcher = NativeGlobProtocol::authored_tcl(version);
+            assert_eq!(
+                super::filter_ordered_names(
+                    names.to_vec(),
+                    Some(b"*"),
+                    matcher,
+                    NativeNameGlobPurpose::InfoVariablesSearch
+                )
+                .unwrap(),
+                names
+            );
+            assert_eq!(
+                super::filter_ordered_names(
+                    names.to_vec(),
+                    Some(b"k\0tail"),
+                    matcher,
+                    NativeNameGlobPurpose::InfoVariablesSearch
+                )
+                .unwrap(),
+                [names[2].clone()]
+            );
+            assert_eq!(
+                super::filter_ordered_names(
+                    names.to_vec(),
+                    Some(b"k"),
+                    matcher,
+                    NativeNameGlobPurpose::InfoVariablesSearch
+                )
+                .unwrap(),
+                Vec::<Vec<u8>>::new()
+            );
+        }
     }
 
     #[test]

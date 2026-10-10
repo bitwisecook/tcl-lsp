@@ -1,0 +1,1 @@
+interp create kid; interp alias kid swap {} swap; proc swap {} {interp delete kid; interp create kid; return REPLACED}; list [catch {kid eval {set before OLD; set replacement [swap]; list $before $replacement}} message] $message [interp exists kid] [kid eval {info exists before}]

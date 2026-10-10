@@ -1,0 +1,5 @@
+namespace_install 0 resolution_scope_handler
+namespace_create 0 {}
+namespace_trigger 0 handled observed TRIGGER
+package_install 0 {}
+package_trigger 1 {can't find package resolution_scope_missing_package} observed GLOBAL

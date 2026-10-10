@@ -30,7 +30,7 @@ use std::rc::{Rc, Weak};
 use tcl_cmd_core::namespace::TclStringHashOrder;
 use tcl_core_types::{ByteNamespacePath, NameBytes, NsId, ROOT_NS};
 use tcl_syntax::naming::{
-    NameProjectionUnavailable, NativeNameContext, NativeNameProtocol, NativeNameQualification,
+    NameProjectionUnavailable, NativeCommandNamespaceRoute, NativeNameContext, NativeNameProtocol,
 };
 
 use super::{CommandIdentityIndex, CommandSlot, NamespaceDeferral};
@@ -79,6 +79,9 @@ pub(crate) struct NativeNameWorld {
     pub(super) jim_local_depth: usize,
     /// Actual table owners; object caches carry only token/epoch plus original namespace.
     pub(super) jim_command_nodes: HashMap<u64, Rc<super::native_jim_lookup::JimCommandNode>>,
+    /// Original key spelling belongs to the table entry, independently of its command generation.
+    pub(super) jim_command_table_keys:
+        HashMap<String, tcl_syntax::naming::NativeJimCommandTableKey>,
     /// Retired active nodes remain discoverable only through their original descriptor.
     pub(super) jim_command_receipts: HashMap<u64, Weak<super::native_jim_lookup::JimCommandNode>>,
     pub(super) jim_retired_commands: usize,
@@ -126,6 +129,7 @@ impl NativeNameWorld {
             jim_procedure_epoch: 1,
             jim_local_depth: 0,
             jim_command_nodes: HashMap::new(),
+            jim_command_table_keys: HashMap::new(),
             jim_command_receipts: HashMap::new(),
             jim_retired_commands: 0,
             jim_retired_tokens: HashSet::new(),
@@ -148,6 +152,7 @@ impl NativeNameWorld {
             node.unpublish();
         }
         self.jim_command_nodes.clear();
+        self.jim_command_table_keys.clear();
         self.jim_command_receipts.clear();
     }
 
@@ -296,30 +301,31 @@ impl NativeNameWorld {
         Ok(id)
     }
 
-    fn holder_from_path(
+    fn holder_from_qualifiers(
         &mut self,
         base: NsId,
-        path: &ByteNamespacePath,
+        qualifiers: &[NameBytes],
         create: bool,
     ) -> Result<Option<NsId>, NativePublicationError> {
-        let base_path = self
-            .ns_arena
-            .get(base.0 as usize)
-            .ok_or(NativePublicationError::NamespaceExpired)?;
-        let tails = path
-            .as_segments()
-            .strip_prefix(base_path.as_segments())
-            .ok_or(NativePublicationError::InvalidConstructedPath)?
-            .to_vec();
         let mut selected = base;
-        for tail in tails {
+        for tail in qualifiers {
             match self.namespace_child_token(selected, tail.as_bytes()) {
                 Some(child) => selected = child,
-                None if create => selected = self.create_child(selected, &tail)?,
+                None if create => selected = self.create_child(selected, tail)?,
                 None => return Ok(None),
             }
         }
         Ok(Some(selected))
+    }
+
+    /// Actual parent metadata after active deletion detaches a retained root.
+    /// Descendants retain their physical parent inside the retained subtree.
+    pub(super) fn physical_namespace_parent(&self, namespace: NsId) -> Option<NsId> {
+        if self.ns_deferral.retained.contains_key(&namespace) {
+            None
+        } else {
+            self.ns_parents.get(namespace.0 as usize).copied().flatten()
+        }
     }
 
     fn selected_create_slot(
@@ -329,23 +335,20 @@ impl NativeNameWorld {
         original: &[u8],
     ) -> Result<CommandSlot, NativePublicationError> {
         let native_context = self.namespace_context(context, protocol)?;
-        let input = protocol.command_c_api_publication_input(native_context, original)?;
-        let base = if input.qualification() == NativeNameQualification::Absolute
-            || input
-                .context()
-                .is_some_and(|selected| selected.namespace.is_root())
-        {
-            ROOT_NS
-        } else {
-            context
+        let projected = protocol.command_c_api_publication_projection(native_context, original)?;
+        let base = match projected.namespace_route() {
+            NativeCommandNamespaceRoute::Root => ROOT_NS,
+            NativeCommandNamespaceRoute::Context => context,
+            NativeCommandNamespaceRoute::ContextParent => {
+                self.physical_namespace_parent(context).unwrap_or(context)
+            }
         };
-        let projected = protocol.command_c_api_publication_slot(native_context, original)?;
         let namespace = self
-            .holder_from_path(base, &projected.namespace, true)?
+            .holder_from_qualifiers(base, projected.qualifiers(), true)?
             .ok_or(NativePublicationError::NamespaceExpired)?;
         Ok(CommandSlot {
             namespace,
-            simple: projected.simple,
+            simple: projected.into_slot().simple,
         })
     }
 
@@ -366,9 +369,9 @@ impl NativeNameWorld {
                 self.observed_slot_presence(&slot).then_some(slot)
             }));
         }
-        let input =
-            protocol.command_lookup_input(self.namespace_context(context, protocol)?, original)?;
-        let absolute = input.qualification() == NativeNameQualification::Absolute;
+        let projected = protocol
+            .command_lookup_projection(self.namespace_context(context, protocol)?, original)?;
+        let absolute = projected.namespace_route() == NativeCommandNamespaceRoute::Root;
         let mut bases = if absolute {
             vec![ROOT_NS]
         } else {
@@ -397,14 +400,23 @@ impl NativeNameWorld {
             if !self.namespace_available(base) {
                 continue;
             }
-            let projected =
-                protocol.command_lookup_slot(self.namespace_context(base, protocol)?, original)?;
-            let Some(namespace) = self.holder_from_path(base, &projected.namespace, false)? else {
+            let projected = protocol
+                .command_lookup_projection(self.namespace_context(base, protocol)?, original)?;
+            let anchor = match projected.namespace_route() {
+                NativeCommandNamespaceRoute::Root => ROOT_NS,
+                NativeCommandNamespaceRoute::Context => base,
+                NativeCommandNamespaceRoute::ContextParent => {
+                    self.physical_namespace_parent(base).unwrap_or(base)
+                }
+            };
+            let Some(namespace) =
+                self.holder_from_qualifiers(anchor, projected.qualifiers(), false)?
+            else {
                 continue;
             };
             let slot = CommandSlot {
                 namespace,
-                simple: projected.simple,
+                simple: projected.into_slot().simple,
             };
             if self.observed_slot_presence(&slot) {
                 return Ok(Some(slot));

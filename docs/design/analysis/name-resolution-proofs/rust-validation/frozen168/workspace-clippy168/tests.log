@@ -1,0 +1,40 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+error: method `declares_any` is never used
+   --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:895:19
+    |
+803 | impl UserResolutionFacts {
+    | ------------------------ method in this implementation
+...
+895 |     pub(super) fn declares_any(&self, candidates: &[String], bare: &str) -> bool {
+    |                   ^^^^^^^^^^^^
+    |
+    = note: `-D dead-code` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: redundant closure
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:952:46
+    |
+952 |             self.with_source_schema(context, |schema| schema.authored_source_package_reference())??;
+    |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_package_reference`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+    = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: could not compile `tcl-compiler` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: this expression creates a reference which is immediately dereferenced by the compiler
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2659:41
+     |
+2659 |         assert!(words.package_reference(&foreign).is_none());
+     |                                         ^^^^^^^^ help: change this to: `foreign`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_borrow
+     = note: `-D clippy::needless-borrow` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::needless_borrow)]`
+
+error: could not compile `tcl-compiler` (lib test) due to 3 previous errors

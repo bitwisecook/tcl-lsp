@@ -21,11 +21,11 @@
 //!
 //! A namespace is also a *container*: a
 //! [`ScopeKind::Namespace`](tcl_compiler::analyser::ScopeKind) node holding
-//! variables and procs, and a `Namespace` entry in the document outline.  A
-//! namespace *name* written as an argument — `namespace children ::tomato`,
-//! `namespace exists ::x`, `namespace delete ::a`, the `::app` of a second
-//! `namespace eval ::app { … }` block — resolved to nothing at all, in any
-//! provider, even single-file.
+//! variables and procs, and a `Namespace` entry in the document outline.
+//! Namespace-name operands resolve through retained analyser occurrences.
+//! Original inputs keep selected component geometry and name policy separate
+//! from optional display names. Cursor selection verifies the complete source
+//! image and configuration before returning a namespace symbol.
 //!
 //! ## What a namespace's definition is
 //!
@@ -90,13 +90,285 @@
 //!   needing a textual gate — a `NamespaceRef` exists only because the
 //!   analyser walked the command as live code, and the walk descends neither
 //!   comments nor braced data words.  See [`namespace_cell_at_offset`] for
-//!   why [`crate::inert_text::offset_in_data_brace`] specifically must *not*
+//!   why [`crate::inert_text::offset_in_data_brace_in_analysis`] specifically must *not*
 //!   be applied: a namespace name may legitimately be a braced word
 //!   (`namespace eval {my ns} { … }` creates a real namespace on both
 //!   interpreters).
 
+use std::ops::ControlFlow;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::Span;
+
+/// One exact namespace geometry selected from an authentic original operand.
+/// This is source assistance, without namespace existence or lifetime proof.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalNamespaceSymbol {
+    scope: tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+}
+
+impl OriginalNamespaceSymbol {
+    pub(crate) fn from_retained(
+        scope: tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Self {
+        Self { scope, policy }
+    }
+    /// Propose one final-component replacement through the independently
+    /// selected source channel/name recipe. This is collision geometry only;
+    /// it establishes no namespace existence, publication or edit permission.
+    #[must_use]
+    pub fn renamed(
+        &self,
+        new_tail: &str,
+        channel: tcl_lexer::SourceChannel,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Self> {
+        if config.escapes != self.policy.string_protocol().escape_syntax() {
+            return None;
+        }
+        let units = tcl_syntax::backslash::native_source_literal_bytes(
+            new_tail.as_bytes(),
+            channel,
+            self.policy.string_protocol(),
+        )
+        .ok()?;
+        let proposed = tcl_syntax::naming::native_namespace_rename_target(
+            self.policy.recipe(),
+            self.scope.context()?,
+            &units,
+        )?;
+        let scope = match proposed {
+            tcl_syntax::naming::NativeNamespaceRenameTarget::C(path) => {
+                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(path)
+            }
+            tcl_syntax::naming::NativeNamespaceRenameTarget::Jim(value) => {
+                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::Jim(value)
+            }
+        };
+        Some(Self {
+            scope,
+            policy: self.policy,
+        })
+    }
+
+    /// Exact retained namespace components; this grants no namespace existence.
+    #[must_use]
+    pub fn scope(&self) -> &tcl_compiler::signature_scan::scope::SignatureNamespaceScope {
+        &self.scope
+    }
+    /// Independently selected naming recipe and provider policy.
+    #[must_use]
+    pub const fn policy(&self) -> tcl_syntax::naming::NamePolicyProtocol {
+        self.policy
+    }
+    /// Render a source word only when the actual namespace address round-trips
+    /// under this channel and full grammar. This supplies no edit permission.
+    #[must_use]
+    pub fn source_word(
+        &self,
+        channel: tcl_lexer::SourceChannel,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<String> {
+        tcl_syntax::naming::native_namespace_source_word(
+            self.policy.recipe(),
+            self.scope.context()?,
+            channel,
+            config,
+        )
+    }
+}
+
+/// Select by the authentic namespace operand at this cursor. Opaque units need
+/// no display key; current source and full configuration must still correspond.
+#[must_use]
+pub fn original_namespace_at_offset(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<OriginalNamespaceSymbol> {
+    let mut selected = None;
+    for reference in analysis
+        .namespace_refs
+        .iter()
+        .filter(|row| row.span.start() <= cursor && cursor < row.span.end())
+    {
+        let input = reference.original_name_input.as_ref()?;
+        if !crate::original_name_edit::original_input_matches_source(
+            source,
+            analysis,
+            input,
+            reference.span,
+        ) {
+            return None;
+        }
+        let candidate = OriginalNamespaceSymbol {
+            scope: reference.source_namespace.clone()?,
+            policy: input.policy(),
+        };
+        if reference.name_policy != Some(candidate.policy) {
+            return None;
+        }
+        if selected
+            .as_ref()
+            .is_some_and(|previous| previous != &candidate)
+        {
+            return None;
+        }
+        selected = Some(candidate);
+    }
+    selected
+}
+
+/// Select an original namespace operand without conflating an unavailable
+/// retained identity with an authored lookup. The complete current document
+/// and grammar must correspond before any original occurrence can be used.
+#[must_use]
+pub fn select_at_offset(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> ControlFlow<Option<OriginalNamespaceSymbol>> {
+    let image = tcl_lexer::SourceImage::document(source);
+    if analysis.body_lexer_config.is_some_and(|config| {
+        analysis
+            .original_variable_root_in_source(&image, config, cursor)
+            .is_some()
+    }) {
+        return ControlFlow::Continue(());
+    }
+    let has_original = analysis.namespace_refs.iter().any(|reference| {
+        reference.name_policy.is_some() || reference.original_name_input.is_some()
+    }) || !analysis.namespace_name_unknowns.is_empty();
+    if has_original
+        && analysis.body_lexer_config.is_none_or(|config| {
+            !analysis
+                .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        })
+    {
+        return ControlFlow::Break(None);
+    }
+    if let Some(symbol) = original_namespace_at_offset(source, analysis, cursor) {
+        return ControlFlow::Break(Some(symbol));
+    }
+    let contains = |span: Span| span.start() <= cursor && cursor < span.end();
+    if analysis.namespace_refs.iter().any(|reference| {
+        (reference.name_policy.is_some() || reference.original_name_input.is_some())
+            && contains(reference.span)
+    }) || analysis
+        .namespace_name_unknowns
+        .iter()
+        .copied()
+        .any(contains)
+    {
+        return ControlFlow::Break(None);
+    }
+    ControlFlow::Continue(())
+}
+
+/// Exact declaring extents, including implicit parents when no source block
+/// declares the selected address itself. Byte geometry and policy supply the
+/// join; reporting names are not identity.
+#[must_use]
+pub fn original_namespace_declaration_spans(
+    source: &str,
+    analysis: &AnalysisResult,
+    symbol: &OriginalNamespaceSymbol,
+) -> Vec<Span> {
+    let declarations = analysis.namespace_refs.iter().filter(|reference| {
+        reference.declares
+            && reference.name_policy == Some(symbol.policy())
+            && reference.original_name_input.as_ref().is_some_and(|input| {
+                input.policy() == symbol.policy()
+                    && crate::original_name_edit::original_input_matches_source(
+                        source,
+                        analysis,
+                        input,
+                        reference.span,
+                    )
+            })
+    });
+    let mut spans: Vec<_> = declarations
+        .clone()
+        .filter(|reference| reference.source_namespace.as_ref() == Some(symbol.scope()))
+        .map(|reference| reference.span)
+        .collect();
+    if spans.is_empty() {
+        spans.extend(declarations.filter_map(|reference| {
+            namespace_implicit_parent_span_in(source, reference, symbol.scope())
+        }));
+    }
+    spans.sort_by_key(|span| (span.start(), span.end()));
+    spans.dedup();
+    spans
+}
+
+/// Exact source declaration/reference rows for the selected namespace.
+#[must_use]
+pub fn original_namespace_spans(
+    analysis: &AnalysisResult,
+    symbol: &OriginalNamespaceSymbol,
+    include_declaration: bool,
+) -> Vec<Span> {
+    analysis
+        .namespace_refs
+        .iter()
+        .filter(|row| {
+            (include_declaration || !row.declares)
+                && row.source_namespace.as_ref() == Some(&symbol.scope)
+                && row.name_policy == Some(symbol.policy)
+                && row
+                    .original_name_input
+                    .as_ref()
+                    .is_some_and(|input| input.policy() == symbol.policy)
+        })
+        .map(|row| row.span)
+        .collect()
+}
+
+/// Counts from exact retained scope/policy joins rather than reporting names.
+#[must_use]
+pub fn original_namespace_facts(
+    analysis: &AnalysisResult,
+    symbol: &OriginalNamespaceSymbol,
+) -> NamespaceFacts {
+    let mut facts = NamespaceFacts::default();
+    for row in &analysis.namespace_refs {
+        if row.name_policy != Some(symbol.policy) || row.original_name_input.is_none() {
+            continue;
+        }
+        let Some(scope) = row.source_namespace.as_ref() else {
+            continue;
+        };
+        if scope == &symbol.scope {
+            if row.declares {
+                facts.declarations += 1;
+            } else {
+                facts.references += 1;
+            }
+        } else if row.declares
+            && symbol.scope.is_strict_ancestor_of(scope, symbol.policy) == Some(true)
+        {
+            facts.implicit_declarations += 1;
+        }
+    }
+    facts.documents =
+        usize::from(facts.declarations + facts.references + facts.implicit_declarations > 0);
+    facts
+}
+
+/// Namespace hover for a typed cursor selection, including opaque names.
+#[must_use]
+pub fn original_namespace_hover_text(
+    analysis: &AnalysisResult,
+    symbol: &OriginalNamespaceSymbol,
+) -> Option<String> {
+    let label = symbol.source_word(
+        tcl_lexer::SourceChannel::Document,
+        analysis.body_lexer_config?,
+    )?;
+    namespace_hover_markdown(&label, original_namespace_facts(analysis, symbol))
+}
 
 /// The `::`-rooted **namespace** the cursor names, when it names one.
 ///
@@ -134,17 +406,25 @@ pub fn namespace_cell_at_offset(
     analysis: &AnalysisResult,
     cursor_off: u32,
 ) -> Option<String> {
+    match select_at_offset(source, analysis, cursor_off) {
+        ControlFlow::Break(symbol) => return symbol.and_then(|symbol| symbol.scope().display()),
+        ControlFlow::Continue(()) => {}
+    }
     let hit = analysis
         .namespace_refs
         .iter()
         .find(|r| r.span.start() <= cursor_off && cursor_off < r.span.end())?;
+    if hit.original_name_input.is_some() {
+        return original_namespace_at_offset(source, analysis, cursor_off)
+            .and_then(|symbol| symbol.scope().display());
+    }
     // The recording itself is the liveness proof, and it is a *stronger* one
     // than the textual data-brace test: a `NamespaceRef` exists only because
     // the analyser walked that command as live code, and the walk never
     // descends a comment or a braced data word (`set d {namespace children
     // ::mypkg}` records nothing at all — see the TN test).
     //
-    // Applying [`crate::inert_text::offset_in_data_brace`] here would be
+    // Applying [`crate::inert_text::offset_in_data_brace_in_analysis`] here would be
     // actively wrong, because a namespace-name argument may legitimately *be*
     // a braced word.  Pinned on tclsh 9.0.4 and 8.6.16, byte-identical:
     // `namespace eval {my ns} { variable v 7; proc p {} {return P} }` creates
@@ -154,10 +434,10 @@ pub fn namespace_cell_at_offset(
     // The brace-role test sees a word whose `ArgRole` does not carry script
     // and calls it data, which would silently un-resolve every such name.
     //
-    // The comment test stays: it is conservative (it answers "inert" only
-    // when the position provably is), so it can only ever agree with the
-    // walk, and it costs a cheap scan.
-    if crate::inert_text::offset_in_comment(source, cursor_off) {
+    // The actual retained physical-comment inventory supplies source syntax
+    // only. A stale or unavailable original analysis cannot sustain this
+    // reporting fallback; multiline quoting is never reconstructed by line.
+    if crate::inert_text::offset_in_physical_comment_in_analysis(source, analysis, cursor_off)? {
         return None;
     }
     let (scope, policy) = retained_namespace_for_report(analysis, &hit.qualified_name)?;
@@ -1302,5 +1582,152 @@ mod tests {
         let analysis = analyse(src);
         assert!(namespace_declaration_spans(&analysis, "::a").is_empty());
         assert!(namespace_declaration_spans(&analysis, "::b").is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_namespace_surface_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_namespace_selection_is_shared_and_terminal_for_stale_or_unknown_inputs() {
+        // Implementation contract: naming.editor.original-namespace-symbol-selection
+        // docs/design/analysis/name-resolution-proofs/editor-original-namespace-symbol-selection.md
+        let source = r"namespace eval n\uD800 {}
+namespace eval n\uD801 {}
+namespace exists n\uD800";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        for reference in &mut analysis.namespace_refs {
+            reference.qualified_name.clear();
+            reference.original_name.clear();
+        }
+        let cursor = u32::try_from(source.rfind(r"n\uD800").unwrap()).unwrap();
+        let ControlFlow::Break(Some(symbol)) = select_at_offset(source, &analysis, cursor) else {
+            panic!("the original operand selects a byte namespace");
+        };
+        let spans = original_namespace_declaration_spans(source, &analysis, &symbol);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(&source[spans[0].as_range()], r"n\uD800");
+        assert_eq!(
+            crate::definition::definition(source, 2, 18, &analysis).len(),
+            1
+        );
+        assert_eq!(
+            crate::references::references(
+                source,
+                crate::profile_for_dialect("tcl8.6"),
+                2,
+                18,
+                &analysis,
+                true
+            )
+            .len(),
+            2
+        );
+        let stale = format!("# changed\n{source}");
+        assert!(
+            matches!(
+                select_at_offset(&stale, &analysis, cursor + 10),
+                ControlFlow::Break(None)
+            ),
+            "shifted source cannot use old occurrences or reporting names"
+        );
+        let unknown = "namespace exists $unresolved";
+        let analysis = Analyser::new().analyse(unknown, "tcl8.6");
+        let cursor = u32::try_from(unknown.find('$').unwrap()).unwrap();
+        assert!(
+            analysis
+                .namespace_name_unknowns
+                .iter()
+                .any(|span| span.start() <= cursor && cursor < span.end())
+        );
+        assert!(matches!(
+            select_at_offset(unknown, &analysis, cursor),
+            ControlFlow::Continue(())
+        ));
+        assert!(matches!(
+            crate::variable_symbol::select(unknown, &analysis, 0, cursor),
+            ControlFlow::Break(None)
+        ));
+        let unknown = "namespace exists [unknown]";
+        let analysis = Analyser::new().analyse(unknown, "tcl8.6");
+        let cursor = u32::try_from(unknown.find('[').unwrap()).unwrap();
+        assert!(
+            analysis
+                .namespace_name_unknowns
+                .iter()
+                .any(|span| span.start() <= cursor && cursor < span.end())
+        );
+        assert!(matches!(
+            select_at_offset(unknown, &analysis, cursor),
+            ControlFlow::Break(None)
+        ));
+    }
+
+    #[test]
+    fn original_namespace_definition_uses_written_implicit_parent_geometry() {
+        // Implementation contract: naming.editor.original-namespace-symbol-selection
+        // docs/design/analysis/name-resolution-proofs/editor-original-namespace-symbol-selection.md
+        let source = r"namespace eval n\uD800::child {}
+namespace exists n\uD800";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        for reference in &mut analysis.namespace_refs {
+            reference.qualified_name.clear();
+            reference.original_name.clear();
+            reference.source_span = None;
+        }
+        let cursor = u32::try_from(source.rfind(r"n\uD800").unwrap()).unwrap();
+        let ControlFlow::Break(Some(symbol)) = select_at_offset(source, &analysis, cursor) else {
+            panic!("a genuine original parent query is selected");
+        };
+        let spans = original_namespace_declaration_spans(source, &analysis, &symbol);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(&source[spans[0].as_range()], r"n\uD800");
+    }
+
+    #[test]
+    fn opaque_namespace_cursor_and_hover_keep_distinct_native_units() {
+        let source =
+            r"namespace eval n\uD800 {}; namespace eval n\uD801 {}; namespace exists n\uD800";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let first = original_namespace_at_offset(
+            source,
+            &analysis,
+            u32::try_from(source.find(r"n\uD800").unwrap()).unwrap(),
+        )
+        .unwrap();
+        let second = original_namespace_at_offset(
+            source,
+            &analysis,
+            u32::try_from(source.find(r"n\uD801").unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert_ne!(first, second);
+        analysis.all_procs.clear();
+        analysis.all_classes.clear();
+        assert_eq!(original_namespace_spans(&analysis, &first, true).len(), 2);
+        assert_eq!(original_namespace_spans(&analysis, &second, true).len(), 1);
+        let text = original_namespace_hover_text(&analysis, &first).unwrap();
+        assert!(text.contains(r"\ud800"), "{text}");
+        assert!(text.contains("1 other reference(s)"));
+        assert!(
+            original_namespace_at_offset(&source.replace("exists", "delete"), &analysis, 15)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn computed_namespace_cursor_uses_readonly_value_and_exact_current_document() {
+        let source = "set target ::n; namespace eval $target {}; namespace exists ::n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let cursor = u32::try_from(source.find("$target").unwrap()).unwrap();
+        let symbol = original_namespace_at_offset(source, &analysis, cursor).unwrap();
+        assert_eq!(original_namespace_facts(&analysis, &symbol).declarations, 1);
+        assert_eq!(original_namespace_facts(&analysis, &symbol).references, 1);
+        assert!(
+            original_namespace_at_offset(&source.replace("::n", "::m"), &analysis, cursor)
+                .is_none()
+        );
     }
 }

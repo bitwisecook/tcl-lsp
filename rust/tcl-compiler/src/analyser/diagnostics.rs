@@ -95,7 +95,7 @@ fn semantic_diagnostic_blocks(
 // Re-export the sibling analyser modules the family submodules reference by
 // relative path (`super::types::Diagnostic`, `super::utils::…`, …) so those
 // references resolve from `analyser::diagnostics::<family>`.
-pub(super) use super::{class_hierarchy, confusables_table, dispatch, state, types, utils};
+pub(super) use super::{class_hierarchy, confusables_table, state, types, utils};
 
 // Re-export the family helpers exercised by this module's unit tests so the
 // `tests` submodule reaches them through its `use super::*`.
@@ -113,8 +113,8 @@ pub(in crate::analyser::diagnostics) use usage::{
 #[cfg(test)]
 pub(in crate::analyser::diagnostics) use validity::contains_gated_word;
 pub(in crate::analyser) use validity::{
-    emit_invalid_formal_parameter_list_diagnostics, emit_invalid_lambda_parameter_list_diagnostics,
-    emit_invalid_static_variable_list_diagnostics,
+    ArityWords, emit_invalid_formal_parameter_list_diagnostics,
+    emit_invalid_lambda_parameter_list_diagnostics, emit_invalid_static_variable_list_diagnostics,
 };
 
 // The W110 operator-anchor selector is consumed by the EXPR-argument
@@ -124,6 +124,11 @@ pub(in crate::analyser) use usage::W110Anchor;
 mod const_dispatch;
 mod dataflow;
 pub(in crate::analyser) mod helpers;
+#[cfg(test)]
+mod original_control_advice;
+#[cfg(test)]
+mod original_positioned_callee;
+mod original_roles;
 mod security;
 mod unresolved;
 mod usage;
@@ -132,95 +137,86 @@ mod var_command;
 pub(in crate::analyser) mod version_gate;
 pub(in crate::analyser) mod widget_command;
 
-/// Whether a command head names something **this compilation unit can
-/// resolve** — a registry command the active dialect enables, or a
-/// definition the document makes itself.
-///
-/// The complement is what matters: a head this answers `false` for is a
-/// callee whose body is simply not here (the split-file layout of a helper in
-/// `utils.tcl` called from `options.tcl`), so nothing in this unit can say
-/// whether it writes the
-/// caller's frame through `upvar`.
-/// [`crate::interprocedural::collect_opaque_callee_name_args`] turns that
-/// into the per-frame abstention the read-before-set emitters honour.
-///
-/// Resolution mirrors Tcl's own: an absolute head is looked up as written,
-/// a relative one may name a definition in any namespace this document
-/// declares (the leaf spellings), and the registry half goes through the
-/// dialect profile — exactly the availability query
-/// [`Analyser::build_w123_known_names`](super::state::Analyser) uses, so
-/// "unknown command" and "opaque callee" cannot disagree about the same
-/// head.  No command name appears here.
+/// Local body availability at the original invocation, separate from effects.
+/// Native rows use the retained implementation allocation/Registry identity;
+/// explicit Logical compatibility alone may consult reporting procedure names.
 struct UnitCommandResolver<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     generation: std::sync::Arc<tcl_registry::model::ContextRegistry>,
-    /// Every spelling under which this document's own definitions —
-    /// procedures, classes, `interp alias` / `rename` targets, declared
-    /// stubs, and created object-instance commands — can be called.
-    defined: HashSet<String>,
+    procedures: HashSet<crate::command_binding::CommandAllocationSite>,
+    logical_definitions: Option<HashSet<String>>,
 }
 
 impl UnitCommandResolver<'_> {
-    fn resolves(&self, command: &str) -> bool {
-        if self.defined.contains(command) {
-            return true;
+    fn resolves(&self, statement: &crate::ir::Statement) -> bool {
+        if let Some(target) = statement
+            .tokens()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target)
+        {
+            if target.registry_backed {
+                return target.registry_identity().is_some_and(|identity| {
+                    self.generation
+                        .context()
+                        .resolve_spec(self.registry, identity)
+                        .is_some()
+                });
+            }
+            return target.kind == crate::command_binding::BindingKind::Proc
+                && target
+                    .implementation_allocation
+                    .as_ref()
+                    .is_some_and(|allocation| self.procedures.contains(&allocation.site));
         }
-        let bare = command.trim_start_matches(':');
-        if self.defined.contains(bare) {
-            return true;
-        }
-        self.generation
-            .context()
-            .resolve_spec(self.registry, command)
-            .is_some()
+        let Some(definitions) = &self.logical_definitions else {
+            return false;
+        };
+        let (crate::ir::Statement::Call { command, .. }
+        | crate::ir::Statement::Barrier { command, .. }) = statement
+        else {
+            return false;
+        };
+        // A retained Logical source binding supplies its own lexical
+        // namespace. Tokenless compatibility statements belong to the root;
+        // an explicitly unknown positioned namespace remains unavailable.
+        let namespace = match statement
+            .tokens()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+        {
+            Some(binding) if binding.variable_context.namespace_known => {
+                binding.variable_context.namespace.as_str()
+            }
+            Some(_) => return false,
+            None => "::",
+        };
+        crate::naming::bareword_resolution_candidates(namespace, command)
+            .iter()
+            .any(|candidate| definitions.contains(candidate))
+            || self
+                .generation
+                .context()
+                .resolve_spec(self.registry, command)
+                .is_some()
     }
 }
 
 impl Analyser {
-    /// Build the [`UnitCommandResolver`] for the document just walked.
     fn unit_command_resolver<'a>(
         &self,
         registry: &'a tcl_registry::CommandRegistry,
     ) -> UnitCommandResolver<'a> {
-        let mut defined: HashSet<String> = HashSet::new();
-        let mut add = |name: &str| {
-            let bare = name.trim_start_matches(':');
-            if bare.is_empty() {
-                return;
-            }
-            defined.insert(name.to_owned());
-            defined.insert(bare.to_owned());
-            if let Some(leaf) = bare.rsplit("::").next() {
-                defined.insert(leaf.to_owned());
-            }
-        };
-        for name in self.result.all_procs.keys() {
-            add(name);
-        }
-        for name in self.result.all_classes.keys() {
-            add(name);
-        }
-        for name in self.result.command_aliases.keys() {
-            add(name);
-        }
-        for name in self.result.renamed_commands.keys() {
-            add(name);
-        }
-        for stub in &self.result.stub_commands {
-            add(&stub.name);
-        }
-        if let Some(declared) = &self.declared_commands {
-            for (name, _) in declared.iter() {
-                add(name);
-            }
-        }
-        for name in &self.result.created_instance_commands {
-            add(name);
-        }
         UnitCommandResolver {
             registry,
             generation: self.analysis_context(),
-            defined,
+            procedures: self
+                .result
+                .original_procedure_declarations()
+                .map(|procedure| procedure.declaration_site().clone())
+                .collect(),
+            logical_definitions: self
+                .result
+                .allows_retained_logical_declaration_advice()
+                .then(|| self.result.all_procs.keys().cloned().collect()),
         }
     }
 }
@@ -407,28 +403,22 @@ impl Analyser {
                 // variable the command writes.
                 declared_commands: self.declared_commands.as_ref(),
             };
-            let cu = match self.source_analysis_entry.as_deref() {
-                Some(entry) => crate::compilation_unit::CompilationUnit::build_with_source_entry(
-                    source, options, entry,
-                ),
-                None => {
-                    crate::compilation_unit::CompilationUnit::build_with_options(source, options)
-                }
-            }
+            let cu = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                source,
+                options,
+                self.source_analysis_entry.as_deref(),
+                std::sync::Arc::clone(&generation),
+            )
             .with_interprocedural(registry, dialect_opt);
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
         }));
     }
 
-    /// The compilation-unit-derived object-fact seam, run before any emitter
-    /// that reads those facts.
-    ///
-    /// The pending `$class`-headed `TclOO`
-    /// instance-creation sites must settle against `cu`'s flow-sensitive value
-    /// model **first** — `emit_var_command_diagnostics` reads
-    /// `instance_classes` to suppress W307 / validate W308, so the settle must
-    /// land before that read, not after (unlike `settle_const_dispatches`,
-    /// which only feeds `command_invocations` and has no such in-pass reader).
+    /// Settle explicitly Logical constructor reporting labels, then produce
+    /// typed object-handle facts from this compilation unit before diagnostics
+    /// consume them. W307/W308 read `object_handle_facts`, whose implementation
+    /// and construction obligations remain separate from reporting labels.
+    /// `instance_classes` supplies no Native diagnostic admission.
     fn settle_cu_derived_object_facts(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
@@ -492,8 +482,16 @@ impl Analyser {
         // per-function `scan_scope_aliases` only sees a function's own traces;
         // fold the module-wide traced globals into every function's
         // suppression context (which already covers both W211 and W220).
+        let trace_context = crate::registry_invocation::retained_source_metadata_context(
+            registry,
+            cu.ir_module.source_metadata_input.as_ref(),
+        );
         let mut traced_globals =
-            crate::optimiser::elimination::scan_module_traced_globals(cu, registry);
+            crate::optimiser::elimination::scan_module_traced_globals_with_metadata_context(
+                cu,
+                registry,
+                trace_context.as_deref().map(Into::into),
+            );
         // The registry-driven whole-module fact stores the canonical
         // (`::`-stripped) spelling, so an *unqualified* top-level store
         // (`set g 1`, chain key `g`) is also suppressed when the trace
@@ -540,9 +538,10 @@ impl Analyser {
         // still reports.
         let unit_commands = self.unit_command_resolver(registry);
         let opaque_callee_defs = |fu: &crate::compilation_unit::FunctionUnit| {
-            crate::interprocedural::collect_opaque_callee_name_args(&fu.cfg, &|cmd: &str| {
-                unit_commands.resolves(cmd)
-            })
+            crate::interprocedural::collect_positioned_opaque_callee_name_args(
+                &fu.cfg,
+                &|statement| unit_commands.resolves(statement),
+            )
         };
         top_level_known_defined.extend(opaque_callee_defs(&cu.top_level));
 
@@ -558,7 +557,7 @@ impl Analyser {
             &top_level_cross_event_vars,
             &cell_facts,
         );
-        self.emit_channel_diagnostics(&cu.top_level, registry);
+        self.emit_channel_diagnostics(&cu.top_level);
         self.emit_irules_cell_diagnostics(&cu.top_level, "::top", registry);
         self.emit_procedure_body_diagnostics(cu, registry, &traced_globals, &unit_commands);
 
@@ -570,12 +569,6 @@ impl Analyser {
 
         // W250 — instantiating an `oo::abstract` class.
         self.emit_abstract_instantiation_diagnostics(cu);
-
-        // Suppress W123 for command-name
-        // heads with partial interpolations like ``foo$suffix``
-        // when ``$suffix`` resolves cleanly to a finite set of
-        // known commands via SCCP.
-        self.resolve_interpolated_w123_diagnostics();
 
         // Resolve the constant-`$cmd` dispatch sites against the
         // flow-sensitive value model,
@@ -601,10 +594,12 @@ impl Analyser {
             // different iRule event.
             let (mut cross_event_vars, mut extra_known_defined) =
                 when_proc_cross_event_names(cu, qname);
-            extra_known_defined.extend(crate::interprocedural::collect_opaque_callee_name_args(
-                &fu.cfg,
-                &|command| unit_commands.resolves(command),
-            ));
+            extra_known_defined.extend(
+                crate::interprocedural::collect_positioned_opaque_callee_name_args(
+                    &fu.cfg,
+                    &|statement| unit_commands.resolves(statement),
+                ),
+            );
             // Suppress dead-store on caller-locals this
             // proc passes by name to an upvar callee.
             cross_event_vars.extend(
@@ -624,7 +619,7 @@ impl Analyser {
                 &extra_known_defined,
                 &cross_event_vars,
             );
-            self.emit_channel_diagnostics(fu, registry);
+            self.emit_channel_diagnostics(fu);
             self.emit_irules_cell_diagnostics(fu, qname, registry);
             if qname.starts_with("::when::")
                 && let Some(concerns) = cu
@@ -720,10 +715,12 @@ impl Analyser {
                 crate::compilation_unit::MethodBodyFacts::known_bound_at_entry,
             );
             let mut cross_event_vars = known_bound.clone();
-            known_bound.extend(crate::interprocedural::collect_opaque_callee_name_args(
-                &fu.cfg,
-                &|cmd: &str| unit_commands.resolves(cmd),
-            ));
+            known_bound.extend(
+                crate::interprocedural::collect_positioned_opaque_callee_name_args(
+                    &fu.cfg,
+                    &|statement| unit_commands.resolves(statement),
+                ),
+            );
             cross_event_vars.extend(
                 crate::interprocedural::collect_positioned_call_by_name_reads(
                     &fu.cfg,
@@ -738,7 +735,7 @@ impl Analyser {
                 &known_bound,
                 &cross_event_vars,
             );
-            self.emit_channel_diagnostics(fu, registry);
+            self.emit_channel_diagnostics(fu);
         }
     }
 
@@ -789,10 +786,12 @@ impl Analyser {
             };
             let mut known_bound: HashSet<String> = ir_proc.params.iter().cloned().collect();
             let mut cross_event_vars = known_bound.clone();
-            known_bound.extend(crate::interprocedural::collect_opaque_callee_name_args(
-                &fu.cfg,
-                &|cmd: &str| unit_commands.resolves(cmd),
-            ));
+            known_bound.extend(
+                crate::interprocedural::collect_positioned_opaque_callee_name_args(
+                    &fu.cfg,
+                    &|statement| unit_commands.resolves(statement),
+                ),
+            );
             cross_event_vars.extend(
                 crate::interprocedural::collect_positioned_call_by_name_reads(
                     &fu.cfg,
@@ -807,7 +806,7 @@ impl Analyser {
                 &known_bound,
                 &cross_event_vars,
             );
-            self.emit_channel_diagnostics(fu, registry);
+            self.emit_channel_diagnostics(fu);
         }
     }
 
@@ -891,6 +890,20 @@ impl Analyser {
         }
     }
 
+    fn undef_suppression_semantics<'a>(
+        &'a self,
+        context: &'a tcl_registry::model::ContextRegistry,
+    ) -> UndefSuppressionSemantics<'a> {
+        UndefSuppressionSemantics {
+            dialect: Some(context.context().authoring_query()),
+            rules: self.word_rules(),
+            lexer_config: self.lexer_config(),
+            source: &self.source,
+            analysis: &self.result,
+            context,
+        }
+    }
+
     fn emit_cfg_ssa_diagnostics_for_function_with_cells(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
@@ -904,12 +917,20 @@ impl Analyser {
         // default registry when the analyser has none loaded.
         let generation = self.analysis_context();
         let scan_registry = self.registry.as_deref().unwrap_or(generation.commands());
-        let scope_aliases =
-            crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg, scan_registry);
-        let global_aliases = crate::optimiser::elimination::scan_global_scope_aliases(
+        let Some(metadata) = function_unit.invocation_metadata_context(scan_registry) else {
+            return;
+        };
+        let scope_aliases = crate::optimiser::elimination::scan_scope_aliases_with_metadata_context(
             &function_unit.cfg,
             scan_registry,
+            Some(metadata),
         );
+        let global_aliases =
+            crate::optimiser::elimination::scan_global_scope_aliases_with_metadata_context(
+                &function_unit.cfg,
+                scan_registry,
+                Some(metadata),
+            );
         let mut textually_referenced =
             crate::optimiser::elimination::collect_textual_var_references(
                 &self.source,
@@ -964,20 +985,19 @@ impl Analyser {
         // alias tails, dict vars), threaded through both the version-0
         // statement/branch emitter and the `Terminator::Return` pass.
         let considered = semantic_diagnostic_blocks(function_unit);
+        let suppression_context = self.analysis_context();
         let supp = build_undef_suppression(
             function_unit,
             &considered,
             initial_global,
             &global_aliases,
-            UndefSuppressionSemantics {
-                dialect: Some(self.analysis_context().context().authoring_query()),
-                registry: self.registry.as_deref(),
-                rules: self.word_rules(),
-                lexer_config: self.lexer_config(),
-            },
+            self.undef_suppression_semantics(&suppression_context),
         );
-        let exists_guards =
-            collect_existence_guards(function_unit, self.registry.as_deref(), self.lexer_config());
+        let exists_guards = collect_existence_guards(
+            function_unit,
+            suppression_context.commands(),
+            self.lexer_config(),
+        );
         let rbs_params: HashSet<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())
             .unwrap_or_default();
@@ -1000,7 +1020,7 @@ impl Analyser {
                 registry: self.profile_registry(),
                 initial_global,
                 global_aliases: &global_aliases,
-                dialect: Some(self.analysis_context().context().authoring_query()),
+                dialect: Some(suppression_context.context().authoring_query()),
                 params: &rbs_params,
                 exists_guards: &exists_guards,
                 scope_aliases: &scope_aliases,
@@ -1012,7 +1032,12 @@ impl Analyser {
             },
         );
         // W210 on reads of a provably-no-match regexp / scan output var.
-        self.emit_provably_unset_w210(function_unit, &considered, &defined);
+        self.emit_provably_unset_w210(
+            function_unit,
+            &considered,
+            &read_before_set_ctx,
+            &rbs_params,
+        );
         self.emit_constant_branch_diagnostics(function_unit);
         self.emit_existence_constant_branch_diagnostics(function_unit, existence_frame);
         self.emit_invalid_ip_diagnostics(function_unit);

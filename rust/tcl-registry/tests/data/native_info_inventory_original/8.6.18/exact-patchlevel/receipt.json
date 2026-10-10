@@ -1,0 +1,17 @@
+{
+  "id": "exact-patchlevel",
+  "command": [
+    "/workspace/.proofs/captured-native-info-inventory193/8.6.18/probe",
+    "31"
+  ],
+  "timeout_seconds": 5,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "cffa9cc8c6b7cd0b728461399fc4e53a300b9d5df6d97943362752032524adfa",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|6|382e362e3138",
+    "INFO|1|41|77726f6e67202320617267733a2073686f756c642062652022696e666f2070617463686c6576656c22"
+  ],
+  "reported_version": "8.6.18"
+}

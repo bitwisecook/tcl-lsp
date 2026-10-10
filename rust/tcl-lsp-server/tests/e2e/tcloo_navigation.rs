@@ -1456,13 +1456,13 @@ fn tp_renamed_member_is_navigable_under_its_new_name() {
     );
 }
 
-// W315 on a definition that cannot run.
+// Native source declarations retain outlines independently of table closure.
 
-/// TP: retract-first aborts the whole class definition in real Tcl, so the
-/// file declares a class that never exists.  The server reports it — and still
-/// serves the partial class's outline, the same degradation a parse error gets.
+/// Source member reports supply no current Native worker/table abort proof.
 #[test]
-fn tp_retract_before_declare_reports_w315_and_keeps_the_outline() {
+fn native_retract_before_declare_withdraws_w315_and_keeps_the_outline() {
+    // naming.diagnostics.original-definition-abort-admission
+    // docs/design/analysis/name-resolution-proofs/diagnostic-original-definition-abort-admission.md
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -1475,7 +1475,10 @@ fn tp_retract_before_declare_reports_w315_and_keeps_the_outline() {
             "}\n",
         ),
     );
-    assert!(carries_code(&diags, "W315"), "expected W315: {diags:?}");
+    assert!(
+        !carries_code(&diags, "W315"),
+        "unproved Native abort: {diags:?}"
+    );
     let outline = format!("{}", lsp.document_symbols(&uri));
     assert!(
         outline.contains("\"kept\""),

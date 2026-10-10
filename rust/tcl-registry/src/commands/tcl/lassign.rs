@@ -26,19 +26,10 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     ..SideEffect::DEFAULT
 }];
 
-// Tcl 8.5's SYNOPSIS is `lassign list varName ?varName ...?` — at least one
-// varName is required there (`lassign $lst` alone is a "wrong # args"
-// error). Tcl 8.6 relaxed this to `lassign list ?varName ...?`, making
-// every varName optional; Tcl 9.0 and 9.1 keep the 8.6 shape unchanged.
-// The two dialect-scoped forms below capture the exact legal shape per
-// version — the broader 8.6+ shape is listed first since
-// `CommandSpec::primary_synopsis` (the arity-diagnostic "usage: …" suffix)
-// picks the first non-empty form regardless of dialect, and 8.6+ covers
-// three of the four dialects `lassign` is available in. The command-level
-// `arity` floor below stays at 1 (the 8.6+ minimum) since `Arity` has no
-// per-dialect axis of its own — a real but narrow gap for arity
-// diagnostics against code specifically targeting Tcl 8.5 and calling
-// `lassign` with a list but no varName at all.
+// Presentation forms describe the C-family source shapes. Selected execution
+// arity comes from the shared list-assignment invocation protocol: C Tcl 8.5
+// and current Jim require a target; C Tcl 8.6–9.1 permit none. Catalogue arity
+// remains a presentation fallback when no actual invocation point is retained.
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "lassign list ?varName ...?",

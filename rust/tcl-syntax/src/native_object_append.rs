@@ -52,6 +52,20 @@ impl NativeObjectAppendProtocol {
         self.string
     }
 
+    /// C8.4/8.5 convert the receiver before a counted zero-length append returns.
+    /// Later releases return before reaching its primary representation.
+    #[must_use]
+    // Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
+    // docs/design/analysis/name-resolution-proofs/original-counted-tail-compiler-and-runtime.md
+    pub const fn converts_empty_counted_receiver(self) -> bool {
+        // naming.object.original-empty-counted-append
+        // docs/design/analysis/name-resolution-proofs/original-empty-counted-append.md
+        matches!(
+            self.string.tcl_version(),
+            Some(TclVersion::V8_4 | TclVersion::V8_5)
+        )
+    }
+
     /// C9 uses proper binary backing even when original string bytes are resident.
     #[must_use]
     pub fn binary_eligible(self, value: &NativeObjectSnapshot) -> bool {
@@ -213,5 +227,41 @@ impl NativeObjectCatProtocol {
         } else {
             NativeObjectCatMode::Bytes
         }
+    }
+}
+
+/// Readonly data result for independently known source string components.
+/// This is not the physical TclStringCat/append owner: representation-sensitive
+/// non-ASCII or NUL cases require that owner and are deliberately unavailable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceStringConcatenationProtocol {
+    string: NativeStringProtocol,
+}
+
+impl SourceStringConcatenationProtocol {
+    /// The data recipe is selected independently of engine or object authority.
+    #[must_use]
+    pub const fn for_string_protocol(string: NativeStringProtocol) -> Self {
+        Self { string }
+    }
+
+    /// ASCII non-NUL source strings have the same data concatenation under each
+    /// selected C/Jim recipe. Unknown binary/Unicode primaries cannot borrow it.
+    #[must_use]
+    pub fn concatenate(self, left: &[u8], right: &[u8]) -> Option<Vec<u8>> {
+        match self.string {
+            NativeStringProtocol::C(_) | NativeStringProtocol::Jim084 => {}
+        }
+        if left
+            .iter()
+            .chain(right)
+            .any(|byte| !byte.is_ascii() || *byte == 0)
+        {
+            return None;
+        }
+        let mut bytes = Vec::with_capacity(left.len().checked_add(right.len())?);
+        bytes.extend_from_slice(left);
+        bytes.extend_from_slice(right);
+        Some(bytes)
     }
 }

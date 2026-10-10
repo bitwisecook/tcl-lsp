@@ -108,6 +108,44 @@ pub const SOURCE_DIALECT_KEY: &str = "__sourceDialect";
 /// A draft is a plain JSON object; the schema names its keys.
 pub type Draft = Map<String, Value>;
 
+/// Validate authored receiver rows before either renderer emits the field.
+/// Invalid draft data must not silently select Combined or argument zero.
+pub(crate) fn selected_variable_receivers(
+    values: &[Value],
+) -> Option<
+    Vec<(
+        u8,
+        tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+    )>,
+> {
+    use tcl_registry::resolved_invocation::VariableReceiverOperandForm;
+    let mut selected = Vec::with_capacity(values.len());
+    for value in values {
+        let (index, form) = if let Some(row) = value.as_object() {
+            if row.len() != 2 {
+                return None;
+            }
+            let index = u8::try_from(row.get("index")?.as_u64()?).ok()?;
+            let form = match row.get("form")?.as_str()? {
+                "Combined" => VariableReceiverOperandForm::Combined,
+                "TraceSubject" => VariableReceiverOperandForm::TraceSubject,
+                _ => return None,
+            };
+            (index, form)
+        } else {
+            (
+                u8::try_from(value.as_u64()?).ok()?,
+                VariableReceiverOperandForm::Combined,
+            )
+        };
+        if selected.iter().any(|&(previous, _)| previous == index) {
+            return None;
+        }
+        selected.push((index, form));
+    }
+    Some(selected)
+}
+
 fn opt_str(value: Option<&'static str>) -> Value {
     value.map_or(Value::Null, |s| json!(s))
 }
@@ -219,6 +257,30 @@ fn role_map(entries: &[(u8, ArgRole)]) -> Value {
             .map(|(i, role)| json!({ "index": i, "role": catalogue::variant_name(role) }))
             .collect(),
     )
+}
+
+fn variable_receiver_positions(
+    receivers: Option<
+        &[(
+            u8,
+            tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+        )],
+    >,
+) -> Value {
+    use tcl_registry::resolved_invocation::VariableReceiverOperandForm;
+    receivers.map_or(Value::Null, |receivers| {
+        Value::Array(
+            receivers
+                .iter()
+                .map(|&(index, form)| match form {
+                    VariableReceiverOperandForm::Combined => json!(index),
+                    VariableReceiverOperandForm::TraceSubject => {
+                        json!({ "index": index, "form": "TraceSubject" })
+                    }
+                })
+                .collect(),
+        )
+    })
 }
 
 fn role_list(entries: &[ArgRole]) -> Value {
@@ -588,6 +650,7 @@ pub(crate) fn hover(value: Option<HoverSnippet>) -> Value {
 
 pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
     let mut d = Map::new();
+    d.insert("option_prefix_words".into(), json!(sub.option_prefix_words));
     d.insert("name".into(), json!(sub.name));
     d.insert("detail".into(), json!(sub.detail));
     d.insert("synopsis".into(), json!(sub.synopsis));
@@ -1043,6 +1106,10 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
     d.insert("hover".into(), hover(sub.hover));
     d.insert("arg_roles".into(), role_map(sub.arg_roles));
     d.insert(
+        "variable_receivers".into(),
+        variable_receiver_positions(sub.variable_receivers),
+    );
+    d.insert(
         "arg_presentation".into(),
         presentation_map(sub.arg_presentation),
     );
@@ -1241,6 +1308,10 @@ fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
         }),
     );
     d.insert("arg_roles".into(), role_map(form.arg_roles));
+    d.insert(
+        "variable_receivers".into(),
+        variable_receiver_positions(form.variable_receivers),
+    );
     d.insert("options".into(), option_rows(form.options, lost));
     d.insert(
         "option_relations".into(),
@@ -1344,6 +1415,11 @@ fn subcommand_execution_fields(d: &mut Draft, sub: &SubCommand, lost: &mut Unrec
         json!(catalogue::variant_name(&sub.body_kind)),
     );
     d.insert(
+        "script_lookup_scope".into(),
+        sub.script_lookup_scope
+            .map_or(Value::Null, |scope| json!(catalogue::variant_name(&scope))),
+    );
+    d.insert(
         "body_execution".into(),
         lost.expr("body_execution", sub.body_execution.is_some()),
     );
@@ -1377,6 +1453,10 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         json!(catalogue::variant_name(&sub.prefix_matching)),
     );
     d.insert("option_prefix_words".into(), json!(sub.option_prefix_words));
+    d.insert(
+        "reserved_trailing_words".into(),
+        json!(sub.reserved_trailing_words),
+    );
     d.insert("arg_values".into(), arg_value_map(sub.arg_values, lost));
     let versioned_arg_values = if sub.versioned_arg_values.is_empty() {
         Value::Null
@@ -1489,6 +1569,10 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("arity".into(), arity(spec.arity));
     d.insert("arity_windows".into(), arity_windows(spec.arity_windows));
     d.insert("arg_roles".into(), role_map(spec.arg_roles));
+    d.insert(
+        "variable_receivers".into(),
+        variable_receiver_positions(spec.variable_receivers),
+    );
     d.insert(
         "arg_presentation".into(),
         presentation_map(spec.arg_presentation),
@@ -1847,6 +1931,11 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         json!(catalogue::variant_name(&spec.body_kind)),
     );
     d.insert(
+        "script_lookup_scope".into(),
+        spec.script_lookup_scope
+            .map_or(Value::Null, |scope| json!(catalogue::variant_name(&scope))),
+    );
+    d.insert(
         "body_execution".into(),
         lost.expr("body_execution", spec.body_execution.is_some()),
     );
@@ -1983,6 +2072,13 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "deprecated_replacement".into(),
         opt_str(spec.deprecated_replacement),
+    );
+    d.insert(
+        "source_deprecation_advice".into(),
+        spec.source_deprecation_advice
+            .map_or(Value::Null, |advice| {
+                json!(catalogue::variant_name(&advice))
+            }),
     );
     d.insert(
         "deprecated_replacement_drop_in".into(),

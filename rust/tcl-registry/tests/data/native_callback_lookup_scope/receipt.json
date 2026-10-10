@@ -1,0 +1,108 @@
+{
+  "source_sha256": "212514c650b20975e7a3fc1f414463bf6d24c5f24f423c604bac176efc20332f",
+  "input_channel": "ASCII source file through selected native CLI",
+  "budget_seconds": 60,
+  "max_concurrency": 2,
+  "captures": [
+    {
+      "provider": "tcl8.4",
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "launcher_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "native_executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+      "native_executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "source_release": "tcl8.4.20",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_callback_lookup_scope/scope.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "provider 8.4.20\nlsort 0 {b a} {A 1 ::A}\nafter 0 {} {ROOT 1 ::}\ntrace 0 VALUE {B 1 ::B}\ncommand-trace 0 {} {B 1 ::B}\nexecution-trace 0 VALUE {B 1 ::B}\n",
+      "stderr": "",
+      "stdout_sha256": "8fda5a0c7a0ca3bb45ec66ca54f6a2def098e5e2abc37583c8b8c937ea484825",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.5",
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "launcher_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "native_executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+      "native_executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "source_release": "tcl8.5.19",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_callback_lookup_scope/scope.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "provider 8.5.19\nlsort 0 {b a} {A 1 ::A}\nafter 0 {} {ROOT 1 ::}\ntrace 0 VALUE {B 1 ::B}\ncommand-trace 0 {} {B 1 ::B}\nexecution-trace 0 VALUE {B 1 ::B}\n",
+      "stderr": "",
+      "stdout_sha256": "db8647084f06810f41619736bc185e8912007ee7ff6e5bcbea5a7be75a565491",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.6",
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "launcher_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "native_executable_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "native_executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "source_release": "tcl8.6.18",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_callback_lookup_scope/scope.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "provider 8.6.18\nlsort 0 {b a} {A 1 ::A}\nafter 0 {} {ROOT 1 ::}\ntrace 0 VALUE {B 1 ::B}\ncommand-trace 0 {} {B 1 ::B}\nexecution-trace 0 VALUE {B 1 ::B}\n",
+      "stderr": "",
+      "stdout_sha256": "a41598e2078d2a61cd3cb736bd8bc5011d66bdff64f2be8e26dab6276767ff11",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.0",
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "launcher_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "native_executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "native_executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "source_release": "tcl9.0.4",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_callback_lookup_scope/scope.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "provider 9.0.4\nlsort 0 {b a} {A 1 ::A}\nafter 0 {} {ROOT 1 ::}\ntrace 0 VALUE {B 1 ::B}\ncommand-trace 0 {} {B 1 ::B}\nexecution-trace 0 VALUE {B 1 ::B}\n",
+      "stderr": "",
+      "stdout_sha256": "5ca9999a3b64990cf6fd37a92667ba630646ded3d22a1bbe4502e28024e317a3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.1",
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "launcher_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "native_executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "native_executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "source_release": "tcl9.1.0",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_callback_lookup_scope/scope.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "provider 9.1.0\nlsort 0 {b a} {A 1 ::A}\nafter 0 {} {ROOT 1 ::}\ntrace 0 VALUE {B 1 ::B}\ncommand-trace 0 {} {B 1 ::B}\nexecution-trace 0 VALUE {B 1 ::B}\n",
+      "stderr": "",
+      "stdout_sha256": "1f046914602167fc4e772ca34192fc6bb26cf5356d17c1ac3d3a7cd9d839f2d0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim",
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "launcher_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "native_executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_callback_lookup_scope/scope.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "provider 0.84-9-g5bac7c9\nlsort 0 {b a} {A 1 ::A}\nafter 0 {ROOT 1 ::} {ROOT 1 ::}\ntrace 1 {invalid command name \"trace\"} {}\ncommand-trace 1 {invalid command name \"trace\"} {}\nexecution-trace 1 {invalid command name \"trace\"} {}\n",
+      "stderr": "",
+      "stdout_sha256": "7245221f4916a0d4e5889427a166fc53518bbd8fbc705e950a02a4c866e4e741",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

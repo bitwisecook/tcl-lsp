@@ -5,11 +5,18 @@ This is the design reference for how the stack answers
 **variable**, **class/method**, and **expr function** — across the analyser,
 the LSP providers, the bytecode VM, and the WASM runtime.
 
+The selected input determines which naming owner applies. Original C and Jim
+inputs retain separate purpose-specific byte recipes; hosted F5 source inputs
+retain their actual policy and ContextRegistry. Explicit Logical reporting uses
+the representable namespace/catalogue algorithms described below. Reporting
+names, whole-file headers and source geometry cannot establish an Original
+callable, entered frame, completed world or native capability.
+
 Three documents cover this surface, and they do not overlap:
 
 | Document | Answers |
 |---|---|
-| [contracts/command-resolution.md](../contracts/command-resolution.md) | *The rule.* The candidate order, its single Rust home, every consumer, and the conformance gates that stop them drifting. |
+| [contracts/command-resolution.md](../contracts/command-resolution.md) | *The owners.* C candidate order, Original source/table receipts, independent Jim/hosted inputs, reporting compatibility and bounded conformance gates. |
 | [name-resolution-c-conformance.md](name-resolution-c-conformance.md) | *The ground truth.* The C Tcl algorithm and version-specific rules for 8.4–9.1, pinned to source permalinks. |
 | **This document** | *The model.* What we build on top of the rule: written-name parsing, the link graph, workspace and library tiers, value provenance, TclOO dispatch, interpreter domains, and every place we deliberately abstain. |
 
@@ -26,18 +33,43 @@ consumers read rather than a guess each consumer re-derives.
 Resolution splits into two halves, and both are centralised:
 
 - **Enumeration** — given a definition, find every call site that reaches it.
-  Owned by the recorded invocation facts plus the workspace oracle.
-- **Selection** — given a cursor on a call site, decide *which* definition it
-  names. Owned by `tcl_lsp_core::definition`'s `resolve_proc_target_at` /
-  `resolve_class_target_at`, which layer decl-cover then the namespace-aware
-  `resolve_called_proc` over `tcl_syntax::naming`.
+  Original enumeration compares retained declaration allocations and authentic
+  call edges under each current source/URI/configuration/Registry owner.
+  Unknown relevant documents or call coverage cannot become an empty inventory.
+  Reporting invocation facts and the workspace name oracle supply only the
+  independently selected Logical branch.
+- **Selection** — given a cursor on a call site, decide which retained
+  declaration or implementation it names. Native source consumers first match
+  the complete original source image, input channel, full lexer configuration
+  and Registry generation. They then consume the command-binding owner's
+  original name input, selected lookup scope and declaration allocation.
+  `tcl_lsp_core::definition` shares this selection across providers. Logical
+  compatibility selection uses the namespace-aware syntax resolver separately.
 
-Every provider — rename, references, call hierarchy, linked editing,
+C Native command identity is a counted byte name plus its typed namespace slot;
+reporting names and the public `all_procs` / `all_classes` maps cannot replace
+that identity. A bare global call does not select a same-tailed declaration in
+an unrelated namespace. A genuine retained namespace path can select it.
+Jim retains its selected flat command-name recipe without borrowing C namespace
+components. Hosted source coordinates retain their source-only applicability
+and cannot manufacture either native recipe.
+
+Readonly declaration grammar is another purpose. Original body layouts can
+supply Registry header assistance before operands run, without proving that the
+body was entered or the command completed. Hosted F5 metadata retains its
+actual `ContextRegistry`, selected vendor context and complete original word
+vector. Authored source roles remain separate from C/Jim parameter acceptance,
+lookup, successful stores and compiler admission.
+
+Providers — rename, references, call hierarchy, linked editing,
 document highlight, go-to-implementation, signature help, inlay hints,
 hover, type hierarchy, type definition, workspace symbols, minify, and the
-MCP docstring tool — routes through the shared resolvers. A namespace-blind
-name scan cannot select a definition: same-named symbols in different
-namespaces need the retained call-site namespace and declaration scope.
+MCP docstring tool — consume the shared owner for their actual purpose. Original
+identity uses positioned lookup and allocation receipts. Readonly syntax uses
+Compiler `OriginalRegistryWords` under the complete retained ContextRegistry;
+selected, conditional, hosted and authored-transition schemas keep separate
+obligations. Edit geometry, rewrite equivalence and native admission require
+their own receipts. A namespace-blind name scan cannot replace any of them.
 
 Two rules keep it that way:
 
@@ -50,15 +82,19 @@ Two rules keep it that way:
    helpers. Reviewed exceptions carry a `// drift-ok: <reason>` comment.
    The gate enforces this shared-owner rule across consumers.
 
-A class name **is** a command name, so class selection uses the same
-candidate order rather than a bespoke walk.
+A selected C class command uses the C command lookup order; proving that its
+allocation is a class requires the separate original class owner. A reporting
+class label or authored declaration form supplies no runtime metaclass role.
 
 ---
 
 ## 2. Written names: colon runs and addressability
 
-Before any candidate list is built, the written word is parsed the way
-`TclGetNamespaceForQualName` parses it — invariant from 8.4 to 9.1:
+For a selected C name purpose, the shared namespace geometry follows
+`TclGetNamespaceForQualName` — invariant from 8.4 to 9.1 for the source forms
+below. The original name protocol first selects the reached input extent;
+CString and counted purposes cannot borrow each other’s bytes. Jim and hosted
+source inputs do not acquire this C geometry from their labels.
 
 - A run of **two or more** colons is one separator, wholly consumed:
   `a:::b` names `a::b`.
@@ -95,24 +131,28 @@ relative dispatch**, which is precisely what W314's wording says.
 
 ### The constructed-key discipline
 
-Written names and display names remain strings, but a runtime command-table
-identity is `tcl_core_types::CommandSlot<S>`: a stable `NsId` plus a simple
-name. This is necessary because `a:` / `p` and `a` / `:p` are distinct live
+Written source remains in its original image and channel. A runtime
+command-table identity is `tcl_core_types::CommandSlot<S>`: a stable `NsId`
+plus a counted simple name. This is necessary because `a:` / `p` and `a` / `:p` are distinct live
 slots that both render as `::a:::p`. The native VM and the structural WASM
 runtime resolve written names at ingress, retain the structured slot through
 rename/import/trace/deletion, and render an FQN only at Tcl-facing boundaries.
 
-Static analyser and LSP compatibility keys are **rooted** flat strings derived
-from an authoritative `StaticCommandSlot`; VM indexes that cannot
-store the slot use private injective storage keys selected by their
-`CommandSlot`. Two rules govern construction and rendering:
+The Native source analyser retains `SourceCommandKey::Slot` with the actual
+namespace holder and counted name bytes. Logical compatibility keys may use
+rooted strings derived from an authoritative `StaticCommandSlot`; VM indexes
+that cannot store a slot use private injective storage keys selected by their
+`CommandSlot`. These compatibility encodings cannot replace an original Native
+name producer. Two rules govern construction and rendering:
 
-1. **Canonicalise written words once, at intake.**
-   `naming::canonical_written_command` for commands and variables
-   (preserving a trailing separator as the empty simple name), and
-   `normalise_qualified_name` / `qualifier_segments` for namespace names
-   (where a trailing run drops). Applied to the call word, to `namespace
-   path` entries, and to definition names (`qualify`, `Vm::qualify_name`).
+1. **Select the actual input and purpose before constructing identity.**
+   `NativeNameProtocol` owns lookup, publication, rename source/destination and
+   namespace-pattern recipes over original bytes. Those purposes may use
+   different extents. Authentic source occurrences retain the original image,
+   full grammar and producer; the same display string cannot reconstruct them.
+   `canonical_written_command`, `normalise_qualified_name` and
+   `qualifier_segments` remain representable C/Logical helpers only where the
+   caller already owns their input and selected geometry.
 2. **Never use a rendered FQN as table identity.** A display may legitimately
    contain a lone-colon segment (`":::"` is the proc named `:`), so joins
    concatenate with exactly one `::` for presentation. Runtime consumers carry
@@ -131,10 +171,11 @@ global namespace, so the dispatched `:` misses), but Tcl 9.0's **generated
 word** carries a cached `nsName` intrep — a reference to the namespace
 captured at generation time — which `namespace inscope` consumes directly,
 reaching the unaddressable namespace by identity rather than by name. Any
-string shimmer restores textual semantics. For the static stack and both
-string-round-tripping engines the textual semantics are the contract; the
-9.0 identity path is unreachable by any name a document could contain,
-which is exactly W314's premise.
+string shimmer restores textual semantics. Textual Document lookup follows those textual semantics. An independently
+issued original namespace-object/cache receipt has a different purpose and
+cannot be inferred from the rendered `:::` word. W314 concerns the textual
+name's unaddressability; it does not deny a separately retained object identity
+or establish a cache, shimmer or execution permission.
 
 ---
 
@@ -142,17 +183,24 @@ which is exactly W314's premise.
 
 ### 3.1 Resolution tiers
 
-A call settles against the first tier that answers:
+A source query selects its own purpose before consulting provider tiers:
 
-1. **Document** — the analyser's own `all_procs` / registry, resolved with
-   `command_resolution_candidates(ns, path, name)` at settlement time
-   (call-time semantics: whole-file definitions count).
-2. **Workspace** — `WorkspaceIndex::workspace_command_exists` over a
-   `defined_command_names` set. `invocations_of(qualified_name)` is pure
-   candidate resolution: a call is a reference **iff the first of its
-   recorded `resolution_candidates` that exists anywhere in the workspace is
-   the target**. There is no literal-text special case, no bare-name
-   ambiguity heuristic, and no textual fallback — one rule.
+1. **Document** — Native source selection consumes the original call input,
+   positioned lookup and retained declaration or implementation allocation.
+   Conditional declaration advice supplies only its own readonly grammar.
+   Whole-file reporting maps cannot donate a later command, body entry or
+   completed world to an earlier call. Logical compatibility uses
+   `command_resolution_candidates(ns, path, name)` over its document catalogue.
+2. **Workspace** — Original declarations and invocation edges retain each
+   owning document’s URI, current complete source/configuration/Registry and
+   canonical allocation. A missing loaded-provider or selected-slot receipt
+   remains unavailable; the workspace reporting set cannot repair it.
+   Explicit Logical compatibility uses `workspace_command_exists` and the first
+   recorded representable candidate in `defined_command_names`.
+   Server reporting settlement, callable arity and W123 refinement require
+   `AnalysisResult::allows_lexical_declaration_advice`, including empty hosted
+   inputs whose actual policy/context remains Original. See the
+   [workspace diagnostic contract](name-resolution-proofs/original-workspace-diagnostic-refinement.md).
 3. **Library / autoload** — `PackageResolver::resolve_auto_command` locates
    the defining file for a `package require`d or autoloaded name (honouring
    `TCL_LIBRARY`, `TCLLIBPATH`, `tclLsp.libraryPaths`, and `.tcl-lsp.ini`,
@@ -162,13 +210,17 @@ A call settles against the first tier that answers:
    one index. It is idempotent, a real workspace definition always beats a
    same-named library one, and merged URIs are dropped when the package
    database is rebuilt so a `libraryPaths` change cannot strand stale
-   definitions.
+   definitions. Indexing provides current source candidates. Package provision,
+   loader completion and an actually loaded callable remain independent
+   receipts; an indexed filename or matching name does not establish dispatch.
 
-The path tier of step 1 is **dialect-gated at the recording site**: under a
+The reporting path tier is **dialect-gated at the recording site**: under a
 pre-8.5 dialect `handle_namespace_path_command` records no path entry, so
 every consumer skips the tier without threading a dialect through each. The
 VM gates at *resolution* time instead (`runtime_version < V8_5`), because its
 version knob is mutable mid-life where a document's dialect is not.
+Original source lookup instead retains its actual point, policy and namespace
+geometry; a missing path cannot use the final reporting path as a substitute.
 
 ### 3.2 Source-site namespace propagation
 
@@ -193,19 +245,26 @@ sourcing file standing in for `[info script]`, so `source [file join [file
 dirname [info script]] b.tcl]` re-homes like a literal — and anything the
 folder cannot prove abstains rather than guessing.
 
-**One document, many identities.** A document sourced under several
-namespaces is one physical syntax with **one runtime identity per seed**
+**One document, several source views.** A document sourced under several
+namespaces is one physical syntax with **one source view per seed**
 (`namespace eval ::x {source b.tcl}` alongside `namespace eval ::y {source
 b.tcl}` creates both `::x::helper` and `::y::helper`). Declaration-side
 queries return the **full identity set** (`seed_mapped_symbols`), never an
 arbitrary first seed; references union every view's callers; definition
 dedupes to the physical site; and rename is an explicit **multi-symbol
 edit** where one refusal aborts all of them.
+The seed is source advice, not proof that either source call executed. Original
+source/file queries retain authentic handler and operand geometry from the
+shared source schema; current URI/source/configuration/Registry and actual
+loading/namespace receipts remain independent. Logical path-expression folding
+is a separately selected reporting branch.
 
 ### 3.3 The command link graph
 
-`namespace import`, `interp alias`, and `rename` all create a second name
-for one command. The workspace index lifts each into a flat
+The following flat link graph describes reporting compatibility. Actual import,
+alias and rename operations have distinct original token, target-lookup and
+publication purposes; readonly source transition advice does not execute them.
+For representable reporting names the workspace index lifts each into a flat
 `WorkspaceCommandLink` (`linked_qname → target_qname`, plus the defining-side
 span). `linked_invocations_of` widens the existence oracle to admit linked
 names and chases the winning candidate to its ultimate target;
@@ -227,8 +286,11 @@ The **follow vs rewrite** policy is the load-bearing distinction:
 
 ### 3.4 Command names held as data
 
-A command name written as a *value* is still a reference. Three mechanisms
-cover it, and all three abstain by construction.
+A value becomes an Original reference only through its authentic input,
+selected lookup/allocation and source correspondence. Known text alone cannot
+supply identity or writable coverage. The following String/provenance mechanisms
+describe the reporting model; Original rename plans separately require complete
+call coverage, genuine source edit containers and their semantic permission.
 
 **Constant `$cmd` dispatch — flow-sensitive provenance.** A `$cmd` head is
 recorded as a pending `ConstDispatchSite` (variable, head span, resolution
@@ -307,12 +369,12 @@ Two deliberate exceptions:
   `TclNRApplyObjCmd` both `::`-prefix the word before lookup, so
   `handle_apply_command` qualifies it against the global namespace
   unconditionally (tclsh 9.0.4-verified from three different calling
-  contexts). An earlier revision treated it as caller-relative; that was a
-  bug.
-- **TclOO method bodies resolve globally** (`Scope::oo_global_resolution`),
-  because at run time they execute in the *object's* namespace, which is not
-  statically knowable. A `namespace import` written inside a method is
-  therefore attributed to `::`. This is a tclsh-pinned approximation, and
+  contexts).
+- **TclOO reporting bodies use a global approximation**
+  (`Scope::oo_global_resolution`) when the actual object namespace is
+  unavailable. Original body selection retains that unknown frame and namespace;
+  the reporting `::` does not establish either one. In this compatibility model
+  a `namespace import` written inside a method is attributed to `::`, and
   `namespace inscope NS SCRIPT` is **not** one of these cases — it shares the
   `namespace eval` hook, so its body walks in `NS`. `namespace code SCRIPT`
   carries an `ArgRole::Body` and is analysed in the *current* namespace,
@@ -321,6 +383,13 @@ Two deliberate exceptions:
 ---
 
 ## 4. Variable names
+
+Original variable consumers select their own input, receiver form, actual frame,
+namespace/cell generation and read/write purpose. `var_resolve` and retained SSA
+views keep those receipts separate from declaration advice and display maps.
+The link-name, scope and candidate machinery below describes reporting
+compatibility where an actual storage or activation receipt is not supplied;
+it cannot manufacture a cell, read, successful write or entered alias.
 
 The C mechanism is `VAR_LINK`: `upvar`, `global`, `variable`, and `namespace
 upvar` each install a `Var` whose `value.linkPtr` points at the target, and
@@ -361,24 +430,23 @@ alias variables with no key link. Both are honest misses, not wrong edits.
 
 ### 4.2 TclOO instance variables
 
-At method dispatch the class's declared variables and the object's own are
-auto-linked as `(v, "{obj_ns}::v")` into **every** method frame, so `$v` in
-one method and `set v` in another are the same variable spanning all method
-bodies plus the class-body declaration. `collect_var_decl_spans` (in
-`analyser/oo.rs`) maps each `variable v` to its declaration name-token span
-and threads it through `walk_method_body` and `DeferredBody` for both the
-inline and per-item passes; the seeding fallback is a zero-width span at the
-body start. This matters more than it sounds: the previous fallback was the
-**whole method body span**, and rename replaced that range with the bare new
-name — turning `method get {} { return $n }` into `method get {} w`,
-destroying the body.
+At actual method entry, independently selected class/object variable links can
+address the same cell across method frames. The reporting OO model separately
+seeds declared variable advice in method bodies. `collect_var_decl_spans`
+(`analyser/oo.rs`) retains each written `variable` declaration span through
+`walk_method_body` and `DeferredBody`; an unavailable declaration uses a
+zero-width advisory span. Neither the method body range nor an advisory seed
+is an editable variable declaration. Original variable rename requires its
+own current receiver, source spelling and reference-coverage receipts.
 
 ### 4.3 The 8.x namespace-scope global fallback
 
-The only cross-version *resolution-semantics* change in the whole 8.4 → 9.1
-range. For an unqualified, undefined name at namespace scope, 8.4/8.5/8.6
-fall back to the global cell; **9.0 removed the fallback** and raises "no
-such variable". One registry knob is the single source of truth:
+For the represented unqualified variable lookup at namespace scope,
+8.4/8.5/8.6 can fall back to the global cell when the namespace variable is
+undefined; 9.0/9.1 omit that fallback and raise "no such variable".
+Original receiver extent, namespace allocation, alias and observer purposes
+remain independently selected; this comparison does not describe every
+cross-version naming behavior. One registry knob is the single source of truth:
 `DialectProfile::namespace_var_global_fallback` derives the behaviour from the
 dialect's *runtime base version*, so `f5-irules` follows its embedded 8.4 and
 EDA shells follow their embedded cores; an unknown base takes the stricter
@@ -425,6 +493,17 @@ not one shared type.
 ---
 
 ## 5. Classes and methods
+
+Original class and method selection uses canonical declaration and receiver
+owners, including `receiver_identity`, `method_symbol` and the independent
+source member roster. Complete source/configuration/Registry and exact
+class/object allocation, side, method entry and selector purpose remain separate
+premises. Known original inputs do not enter the String hierarchy’s tail
+fallback. The hierarchy, type-flow and factory catalogues below describe
+reporting/source assistance; they supply neither runtime object identity nor a
+Native constructor, member dispatch or complete rename permission. Authored
+member bodies retain their genuine whole worker words and selected source
+dialect without issuing body activation.
 
 ### 5.1 Class-name resolution is the one-hop rule
 
@@ -540,18 +619,16 @@ hierarchy edge. `ClassDef::via_define` marks an
 cross-document go-to-definition prefers the `oo::class create` site, falling
 back to all sites only when a class is defined solely by `oo::define`.
 
-A class named by a `superclass` / `mixin` / itcl `inherit` argument is a
-**reference**, recorded through the ordinary invocation machinery by
-`record_member_command_references`, dispatching on registry data —
-`MemberSpec::all_args_ref == MemberRefKind::Class` and member
-`ArgRole::CommandName` positions (which is also how `forward`'s TARGET is
-handled, generalised off its former hardcoded special case) — never on a
-member keyword. The redundant `superclass_refs` / `mixin_refs` band-aid was
-removed from `references::class_references`, so references, rename, and the
-code-lens count read one source of truth and cannot diverge. This gap was
-real and silent: on a deeply-namespaced one-class-per-file project, Find All
-References on a class returned only its declaration and rename left 64
-`superclass` sites dangling.
+Class references from `superclass`, `mixin` and itcl `inherit` use
+`record_member_command_references` and Registry member descriptors:
+`MemberSpec::all_args_ref == MemberRefKind::Class` and
+`ArgRole::CommandName` positions also retain forward target references.
+These reporting references carry no fixed call arity and do not invoke a
+superclass, mixin or forward target. Original source consumers independently
+retain the selected member/body context, authentic operand geometry and current
+class identity; reporting names cannot replace those owners. References and
+code-lens counts consume the common reference inventory, while rename additionally
+requires its complete original selection, visibility and edit coverage.
 
 ### 5.6 Object→class binding is a lattice — and the ⊤ taxonomy
 
@@ -597,25 +674,18 @@ matched to a same-tailed class in an unrelated namespace, so cross-file
 resolution cannot manufacture a confident false resolution from a namespace
 collision.
 
-**What the lattice half is measured to be worth.** The prototype
-(`class_lattice.rs`, not wired into shipping diagnostics) was ablated over
-1,803 real `$obj method` sites in 154 files — see
-[`experiments/mro_eval/RESULTS.md`](../../../experiments/mro_eval/RESULTS.md).
-Intraprocedurally it binds a class at **0.2 %** of sites: adding the CFG-merge
-join resolved **zero** additional sites, and adding mixins and filters
-resolved **zero**. All of the resolving power — 0.2 % → 18.7 % — came from
-making the *class index* cross-file, which is the MRO/CHA half plus a
-workspace index, not the lattice. The reason is structural: 60 % of sites
-have a receiver that is never assigned in the file (a parameter, a global, or
-an `upvar`), which **no** intraprocedural lattice can bind; only
-interprocedural object-type flow could. The genuinely dynamic reasons the
-lattice exists to catch — `factory-return`, `introspection`,
-`per-object-mixin` — are together 5.2 % of sites, and it abstains on all of
-them correctly. Two independent corpora agree: tcllib's clay and the Tcl core
-`oo` tests stay 100 % ⊤ even cross-file, because both dispatch through
-dynamic class handles. This is why the shipping model is MRO/CHA over a
-cross-file index with provenance harvesting, and why the ⊤ taxonomy above is
-the durable part of the experiment.
+`ClassValue`, `TopReason` and `analyse_dispatch` in `class_lattice.rs` expose
+standalone advisory lattice and dispatch queries. Shipping object diagnostics
+consume the SSA type/provenance and class hierarchy owners. A class label or
+finite label set supplies no Native receiver allocation, current method table or
+entered frame. Source receiver assistance independently requires the genuine
+positioned `source_class_instance_words_at` carrier and canonical original class
+metadata, including its conditional applicability obligations. Actual dispatch
+and diagnostics that require current presence or absence retain their own
+original allocation, lookup and completeness premises. Missing ownership remains
+unavailable even when a reporting class name matches. The fixed
+[receiver corpus measurements](../../../experiments/mro_eval/RESULTS.md)
+retain their observed source population and supply no per-site Native identity.
 
 ### 5.7 Abstentions on the class *definition* side
 
@@ -640,9 +710,11 @@ would not splice statically, or with a computed word in a declaring role
 registry spec or declares an `ArgRole::Body` — a script that can install
 members out of sight. Neither signal names a command or keyword. What is
 readable stays recorded; the flag only says "there may be more", which is
-exactly the premise W308 needs. Recovering member *names* from a literal
-`foreach` list is deliberately **not** built: it buys an outline entry at the
-cost of a `MethodDef` whose parameter list is a fabrication.
+exactly the premise W308 needs. Readonly member declarations can retain authentic conditional installer schema
+and whole worker words, including declarations nested in source loops. Such
+source cards retain their unknown applicability and never fabricate an installed
+`MethodDef`, formal topology, runtime roster or successful declaration from a
+literal loop list.
 
 **Cross-file class factories.** A user metaclass is resolved wherever it can
 be **proved** to be one. When a class is recorded, the walk asks whether it
@@ -667,9 +739,10 @@ query those descriptors and never match `new`, `create`, or
 `createWithNamespace` on ordinary class-command dispatch and hides `new` on
 `oo::class` itself, so `exported_manufacturer_method` is the single
 external-callability query used by lowering, signature scanning, binding,
-type inference, and semantic tokens. **A source line the interpreter would
-reject cannot become a class merely because its words resemble a
-constructor.**
+type inference, and semantic tokens. An authored class-shaped source line cannot publish a class allocation merely
+because its words resemble a constructor. Independent readonly source roles
+can describe that syntax with applicability obligations; manufacturer admission,
+actual allocation and constructor completion remain separate.
 
 The publish is a **fixpoint**, not a single pass: `item_tree` reads the
 published factory index and the index is built out of `item_tree`, so one
@@ -703,6 +776,14 @@ exactly as same-file.
 
 ## 6. Interpreter domains
 
+Original interpreter paths retain genuine list elements, the selected child-key
+purpose and independently current interpreter allocation/generation. Runtime
+child commands, deletion/recreation and evaluation ownership remain separate.
+Synthetic `@interp@` source domains below are reporting-analysis isolation;
+their strings cannot supply an actual interpreter token, runtime command table
+or frame. Original source body advice preserves an unknown entry rather than
+turning domain geometry into successful `interp eval`.
+
 The analyser maintains an interpreter-domain map driven entirely by registry
 hooks (`InterpCreate` / `InterpDelete` / `InterpHide` / `InterpExpose` /
 `InterpEval`) — no command names in the walker.
@@ -720,13 +801,27 @@ hooks (`InterpCreate` / `InterpDelete` / `InterpHide` / `InterpExpose` /
 - **Existence.** An `interp eval` into a literal path never created in the
   file draws **W140** (abstaining when any interp operation used a dynamic
   path).
-- **Safe visibility.** `Traits::SAFE_INTERP_HIDDEN` marks the registry specs
-  C hides in a safe interpreter (the non-`CMD_IS_SAFE` set). A safe child's
-  body walks under a visibility context; a hidden, un-exposed command draws
-  **W129** and is skipped **entirely** — no invocation, and no source /
-  package / definition edges, because C raises `invalid command name` before
-  any effect. `interp hide` / `expose` layer per-interpreter deltas, and a
-  dynamic operand taints the state so the gate abstains.
+- **Source visibility.** `SourceInterpreterVisibilitySnapshot` retains the
+  original complete child creation/evaluation source, C naming policy, full
+  editing input, scoped visible slots and distinct hidden-token allocations.
+  `Traits::SAFE_INTERP_HIDDEN` selects the provided Registry source initializer.
+  Original structured define/move/delete/alias and hide/expose operations update
+  this conditional source map. A literal single colon remains name data; scoped
+  command keys are projected by the selected C purpose, never by stripping all
+  leading colons. Unsupported known lookup/table transitions withdraw advice.
+  The source-only C root geometry requires the original complete `interp eval`
+  body owner. An unknown nested child cannot borrow its parent's snapshot.
+- **Conditional visibility diagnostics.** W129 carries
+  `ConditionalInterpreterVisibilitySubject`, including original name/whole
+  invocation, scoped slot, full source/configuration/context and explicit
+  applicability obligations. `Diagnostic::conditional_interpreter_visibility`
+  and the shared `DiagnosticSubjectData` transport expose this data without
+  reparsing messages. W129 does not select an actual hidden allocation or
+  exclude invocation effects: possible source/package/definition edges remain.
+  Direct and nested calls, original list quoting and deferred-body snapshots
+  share the same issuer. A reporting ensemble map or handle name alone cannot
+  issue an original mapped-target/body receipt. Jim does not acquire the C child
+  interpreter surface through this source model.
 - **Cross-domain aliases.** `interp alias PATH name TPATH target` records the
   alias under the *source* domain (`::@interp@<path>::name`) targeting the
   *target* domain's command, so child-side calls resolve through the ordinary
@@ -737,14 +832,20 @@ hooks (`InterpCreate` / `InterpDelete` / `InterpHide` / `InterpExpose` /
   child definitions into the parent namespace. W312 separately flags the
   injection-prone shape.
 
-Command-table *mutations* written inside such a body — `rename`, and an
-`interp alias` with an empty (`{}`) path, both of which act on "the
-interpreter I am running in" — are scoped to that child: `rename` abstains
-from the file-wide rename/deletion maps rather than making the parent's own
-builtin look deleted. What remains approximate is the *content* of a child's
-command table, which is not modelled as a separate universe: a diagnostic
-that would depend on a rename having happened **inside** the child is not
-emitted at all — silence, never a wrong answer.
+Command-table mutations inside a child retain separate source and execution
+purposes. Source definitions, moves, deletions and aliases use original scoped
+operands and source order. Renaming a child command does not mutate the parent's
+file-wide reporting maps. Hidden allocations remain independent when a new
+visible command occupies the same slot; exposing an allocation under a different
+name preserves that distinction. Unknown entry, operand materialization,
+observer interference and unmodelled mutation remain explicit source
+assumptions, never a completed-world or selected-callable result. Deferred-body
+cache keys retain the complete source receipt and immutable editing generation;
+a projection that loses that owner uses the whole-file analysis entry.
+
+The implementation assertions and exact CLI observations have separate scope:
+[original source visibility advice](name-resolution-proofs/interpreter-original-source-visibility-advice.md)
+and [C child visibility source controls](name-resolution-proofs/interpreter-safe-visibility-source-controls.md).
 
 Frame identity inside alias callbacks and cross-interpreter runtime re-entry
 are execution concerns, not resolution ones; they live with the VM.
@@ -760,10 +861,19 @@ re-resolved against the current namespace at run time, so a namespace-local
 different mechanism entirely — a fixed C function table with no command name,
 no namespace, and no user override.
 
-`ExprNode::function_calls` walks the expression AST for every application and
-records each as an invocation, so a user mathfunc proc gets go-to-definition,
-references, rename, and arity, and is not flagged unused. Two details earn
-their keep:
+Native readonly function selection retains the checked expression AST,
+original function extent, full source configuration and independently selected
+function dispatch protocol. C 8.4 and Jim fixed-table functions supply selected
+Registry metadata; C 8.5+ command-table functions retain their actual original
+lookup and declaration reference. The source owner is
+`OriginalMathFunctionOccurrence`, queried through
+`AnalysisResult::original_math_functions_in_source`; an expression function is
+never manufactured as an ordinary command-head word. Missing ownership
+withdraws Native navigation before any reporting-map fallback.
+
+Logical compatibility records `ExprNode::function_calls` as mathematical
+invocations. Its flags and candidate rules remain separate from the Native
+function producer:
 
 - **The mathfunc shape is a recorded flag, not a string sniff.**
   `SignatureCommandInvocation::is_mathfunc_call` is set once, at record time,
@@ -797,9 +907,9 @@ These are the answers we refuse to give, and why refusing is correct.
 
 | Surface | Behaviour |
 |---|---|
-| **Dynamic command head** (`$cmd` with unprovable provenance, `{*}$cmd`, computed) | Nothing recorded. Provable constants are covered by §3.4; the rest is undecidable. |
+| **Dynamic command head** (`$cmd` with unprovable provenance, `{*}$cmd`, computed) | Actual target identity remains unavailable. Authentic source vectors and conditional schemas may remain readonly advice with explicit unknowns; reporting constant provenance is covered by §3.4. |
 | **`upvar` to a non-`#0` frame** | The target frame is statically unknown. The local alias is defined with no link; the body scope is isolated. |
-| **Non-literal `namespace path`** | `namespace path $entries` keeps the conservative empty path. |
+| **Non-literal `namespace path`** | Original lookup retains an unknown path obligation. The reporting approximation uses an empty candidate-path list, which cannot donate an Original lookup. |
 | **`forward` target at call time** | The target is re-resolved per call against the object's namespace, so only the written word is a reference — the callee is correct-by-deferral. |
 | **Glob `namespace import ::mod::*`** | Names no single command; introduces no link. |
 | **Glob `info commands PATTERN`** | Names no single command; no probe reference. |
@@ -808,7 +918,7 @@ These are the answers we refuse to give, and why refusing is correct.
 | **Custom C resolvers** (`Tcl_SetNamespaceResolvers`) and `namespace unknown` handlers | Out of scope for static resolution; the runtime's fallback fires only after the rule misses. |
 | **Values reachable only through folding** (`string map`, computed dict keys) | No source span exists to rewrite, so they contribute no reference. |
 | **Members installed reflectively** | `member_set_incomplete`; the member table is a lower bound (§5.7). |
-| **Metaclass with a dynamic or unproved head** | No `ClassDef`, no diagnostic. |
+| **Metaclass with a dynamic or unproved head** | No actual class allocation or constructor permission follows. Independently retained source schema can describe syntax without establishing execution. |
 | **`::tcl::prefix`, `::tcl::clock` ensemble internals** | Unmodelled by choice — ensemble-backing implementation detail, not documented public surface. |
 
 Two known asymmetries worth naming because they look like bugs and are not:
@@ -839,6 +949,9 @@ Two known asymmetries worth naming because they look like bugs and are not:
 | Flow-sensitive constant provenance | `rust/tcl-compiler/src/value_provenance.rs` |
 | Compiler place/alias layer | `rust/tcl-compiler/src/var_resolve.rs` |
 | Target selection for every provider | `rust/tcl-lsp-core/src/definition.rs` |
+| Original source/schema selection and complete operand correspondence | `rust/tcl-compiler/src/registry_invocation/source_structure.rs`, `conditional_metadata.rs`, `conditional_vendor_metadata.rs` |
+| Current readonly declaration/URI identity | `rust/tcl-lsp-core/src/original_declaration.rs`, `original_indexed_location.rs` |
+| Original receiver/member selection | `rust/tcl-lsp-core/src/receiver_identity.rs`, `method_symbol.rs`, `original_member_rename.rs` |
 | Workspace oracle, links, method dispatch chain | `rust/tcl-lsp-core/src/workspace_index.rs` |
 | Import/export lifecycle decisions | `rust/tcl-lsp-core/src/namespace_import.rs` |
 | Source/`package require` run order | `rust/tcl-lsp-core/src/source_graph.rs` |
@@ -851,7 +964,11 @@ Two known asymmetries worth naming because they look like bugs and are not:
 ## Related
 
 - [contracts/command-resolution.md](../contracts/command-resolution.md) — the
-  resolution rule, its consumers, and the conformance gates.
+  selected lookup owners, reporting rule and bounded conformance gates.
+- [contracts/naming-consumer-matrix.md](../contracts/naming-consumer-matrix.md)
+  — current shared APIs, independent authority and remaining consumer limits.
+- [compiler/name-resolution-implementer-guide.md](../compiler/name-resolution-implementer-guide.md)
+  — Original input, schema, frame, storage and edit receipts with usage examples.
 - [name-resolution-c-conformance.md](name-resolution-c-conformance.md) — the
   C algorithm and the 8.4 → 9.1 version matrix.
 - [contracts/cross-file-diagnostics.md](../contracts/cross-file-diagnostics.md)

@@ -54,6 +54,10 @@ impl crate::InvocationDialect {
 mod tests {
     #[test]
     fn original_private_header_fields_match_five_native_constructor_and_save_windows() {
+        // Native proof: naming.error.original-private-return-options-header
+        // docs/design/analysis/name-resolution-proofs/error-original-private-return-options-header.md
+        // Native proof: naming.error.original-private-error-stack-header
+        // docs/design/analysis/name-resolution-proofs/error-original-private-error-stack-header.md
         let fixture = include_str!("../tests/data/native_error_headers/observations.tsv");
         let mut rows = 0;
         for (name, version) in [

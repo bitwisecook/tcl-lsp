@@ -1,0 +1,252 @@
+[
+  {
+    "id": "naming.editor.original-variable-symbol-selection",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/editor-original-variable-symbol-selection.md",
+    "problem_statement": "Opaque sibling variable names can share a reporting spelling. A readonly editor provider could select the wrong declaration/reference or accept coordinates from a source that changed after analysis.",
+    "question": "Does the shared variable editor selector retain opaque slot identity and complete original-source currency after reporting qualified names are removed?",
+    "conclusion": "The shared selector checks the complete source image and retained grammar before issuing an original occurrence. Exact typed symbol equality selects declaration/reference spans and readonly hover counts; stale source and retained-but-unavailable operands are terminal. The fixed source assertion distinguishes surrogate D800/D801 siblings after clearing reporting names and rejects a same-width whole-source change. This is an implementation binding, not an executed test or a native cell/value/type proof.",
+    "scope": "Core readonly source navigation/occurrence-count-summary contract for one C8.6 document containing escaped surrogate sibling names. The test asserts one declaration, one reference, optional declaration inclusion and source-only hover counts. No variable value, normal completion, runtime alias, frame lifetime or editable rename plan is supplied.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "actual-consumer-source",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+        "sha256": "a1cbe154d4ce877607ee8cc0d29d0f0722936fa07711d84776366aba71ee18d8",
+        "description": "Exact current consumer and fixed test source; not an execution receipt or native observation."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+        "selector": "variable_symbol::tests::original_variable_editor_selection_uses_bytes_and_complete_source_currency",
+        "assertion": "Clears qualified-name reports, distinguishes two opaque siblings, checks declaration/reference/hover counts, and refuses stale whole source.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+        "symbol": "select",
+        "purpose": "Selects only authentic current-source occurrences and makes retained unknowns terminal."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+        "symbol": "occurrences",
+        "purpose": "Compares actual typed variable symbols independently of optional reporting keys."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+        "symbol": "declaration_spans",
+        "purpose": "Projects exact declaration-name source extents."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+        "symbol": "reference_spans",
+        "purpose": "Projects source occurrence extents with explicit declaration inclusion."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+        "symbol": "hover_text",
+        "purpose": "Renders the original name through retained policy/grammar and readonly source counts, without value/type inference."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The named fixed Rust test is a source coverage binding. No Rust test result or native provider capture is attached to this contract; C Tcl, Jim and BIG-IP have not tested this Rust invariant."
+    }
+  },
+  {
+    "id": "naming.server.original-variable-symbol-query",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/server-original-variable-symbol-query.md",
+    "problem_statement": "Two documents can have equal source and opaque sibling spellings while their editor locations remain document-owned. Cross-document query consumers could join by presentation or fall back to reporting names after source currency fails.",
+    "question": "Do Server cross-document variable definition/reference/hover queries use typed opaque symbols, URI ownership and actual current source?",
+    "conclusion": "The fixed Server integration assertion inserts two distinct URI-owned copies, clears all reporting qualified names, and selects only the typed D800 variable: one foreign declaration, two selected references, four typed occurrences including declarations, and source-only hover counts. Changed source withdraws both direct selection and cross-document definition instead of reviving a reporting-name fallback. These are implementation assertions whose execution must be verified separately; no native resolution/cell/value grant follows.",
+    "scope": "Server editor integration contract for two documents under a C8.6 source-analysis profile. Typed global naming correspondence can relate documents, while returned locations retain their own URI/range. Equal source alone is not occurrence ownership. No runtime currentness, alias execution, type/value result or rename coverage is asserted.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "actual-consumer-source",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "sha256": "d554d436ef2d376901ce4b4e33440a992770198683fd144ad293e393aea498e3",
+        "description": "Exact current consumer and fixed test source; not an execution receipt or native observation."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "selector": "tests::original_variable_queries_keep_opaque_slots_across_documents",
+        "assertion": "Checks opaque sibling separation across two URIs after clearing reports, exact definition/reference/occurrence counts, readonly hover and stale-source refusal.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "symbol": "cross_document_variable_definition",
+        "purpose": "Uses the authentic selected variable symbol and foreign document-owned declaration locations."
+      },
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "symbol": "cross_document_variable_references",
+        "purpose": "Queries exact typed symbol occurrences while retaining each URI/range."
+      },
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "symbol": "cross_document_variable_hover",
+        "purpose": "Renders readonly original-name and source-count facts under actual consumer currency."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The named fixed Rust test is a source coverage binding. No Rust test result or native provider capture is attached to this contract; C Tcl, Jim and BIG-IP have not tested this Rust invariant."
+    }
+  }
+]

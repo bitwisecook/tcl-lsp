@@ -1,0 +1,10 @@
+{
+  "question": "At the pinned Jim interp extension boundary, how do one/multiple source arguments, counted NUL/Unicode strings, alias arguments/results and non-OK completion codes cross independently live parent/child interpreter contexts?",
+  "input_channel": "Exact ASCII LF Tcl source; NUL and Unicode are runtime-produced by explicit \\u escapes, no source NUL or non-ASCII code points.",
+  "provider": "Pinned current Jim 0.84-9-g5bac7c9; C/BIG-IP not tested by this API-specific question.",
+  "probe_sha256": "a3c7e936edc60ad3cac149ba48099b83992fc6679d903118b5d3a7d2872154cc",
+  "source_anchors": {
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9"
+  },
+  "purpose": "Public crossing/conversion outcomes; source anchors determine original object copy/alias-prefix ownership. No private allocation identity or general foreign-object dispatch permission follows from public rows."
+}

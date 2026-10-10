@@ -1,0 +1,146 @@
+[
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "ScriptObjAddTokens",
+    "lines": [
+      3635,
+      3647
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "            const ParseToken *t = &tokenlist->list[i++];\n\n            token->type = t->type;\n            token->objPtr = JimMakeScriptObj(interp, t);\n            Jim_IncrRefCount(token->objPtr);\n\n            /* Every object is initially a string of type 'source', but the\n             * internal type may be specialized during execution of the\n             * script. */\n            Jim_SetSourceInfo(interp, token->objPtr, script->fileNameObj, t->line);\n            token++;\n        }\n    }\n",
+    "snippet_sha256": "daf4e2428d85f8cf71d5a54da0238010064b7d3cd5d6cef93a90d35e60ef4661",
+    "evidence": "jim-source-0"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "Jim_GetSourceInfo",
+    "lines": [
+      3727,
+      3747
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "Jim_Obj *Jim_GetSourceInfo(Jim_Interp *interp, Jim_Obj *objPtr, int *lineptr)\n{\n    int line;\n    Jim_Obj *fileNameObj;\n\n    if (objPtr->typePtr == &sourceObjType) {\n        fileNameObj = objPtr->internalRep.sourceValue.fileNameObj;\n        line = objPtr->internalRep.sourceValue.lineNumber;\n    }\n    else if (objPtr->typePtr == &scriptObjType) {\n        ScriptObj *script = JimGetScript(interp, objPtr);\n        fileNameObj = script->fileNameObj;\n        line = script->firstline;\n    }\n    else {\n        fileNameObj = interp->emptyObj;\n        line = 1;\n    }\n    *lineptr = line;\n    return fileNameObj;\n}\n",
+    "snippet_sha256": "0bb79aca785137c131e8755b68d6dfd8924bf9535c586df5750058f240a4444b",
+    "evidence": "jim-source-1"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "Jim_SetSourceInfo",
+    "lines": [
+      3749,
+      3758
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "void Jim_SetSourceInfo(Jim_Interp *interp, Jim_Obj *objPtr,\n    Jim_Obj *fileNameObj, int lineNumber)\n{\n    JimPanic((Jim_IsShared(objPtr), \"Jim_SetSourceInfo called with shared object\"));\n    Jim_FreeIntRep(interp, objPtr);\n    Jim_IncrRefCount(fileNameObj);\n    objPtr->internalRep.sourceValue.fileNameObj = fileNameObj;\n    objPtr->internalRep.sourceValue.lineNumber = lineNumber;\n    objPtr->typePtr = &sourceObjType;\n}\n",
+    "snippet_sha256": "35e9e861f6e1c593cf6fc3909275de4d7ff5661badba6828f3af6f17efc169b3",
+    "evidence": "jim-source-2"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "JimSetScriptFromAny",
+    "lines": [
+      3791,
+      3844
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "static void JimSetScriptFromAny(Jim_Interp *interp, struct Jim_Obj *objPtr)\n{\n    int scriptTextLen;\n    const char *scriptText = Jim_GetString(objPtr, &scriptTextLen);\n    struct JimParserCtx parser;\n    struct ScriptObj *script;\n    ParseTokenList tokenlist;\n    Jim_Obj *fileNameObj;\n    int line;\n    int oldtaint;\n\n    /* Try to get information about filename / line number */\n    fileNameObj = Jim_GetSourceInfo(interp, objPtr, &line);\n\n    /* Initially parse the script into tokens (in tokenlist) */\n    ScriptTokenListInit(&tokenlist);\n\n    JimParserInit(&parser, scriptText, scriptTextLen, line);\n    while (!parser.eof) {\n        JimParseScript(&parser);\n        ScriptAddToken(&tokenlist, parser.tstart, parser.tend - parser.tstart + 1, parser.tt,\n            parser.tline);\n    }\n\n    /* Add a final EOF token */\n    ScriptAddToken(&tokenlist, scriptText + scriptTextLen, 0, JIM_TT_EOF, 0);\n\n    /* Create the \"real\" script tokens from the parsed tokens */\n\n    /* Set the correct taint on the objects in the script */\n    oldtaint = interp->taint;\n    interp->taint = objPtr->taint;\n\n    script = Jim_Alloc(sizeof(*script));\n    memset(script, 0, sizeof(*script));\n    script->inUse = 1;\n    script->fileNameObj = fileNameObj;\n    Jim_IncrRefCount(script->fileNameObj);\n    script->missing = parser.missing.ch;\n    script->linenr = parser.missing.line;\n\n    ScriptObjAddTokens(interp, script, &tokenlist);\n\n    /* No longer need the token list */\n    ScriptTokenListFree(&tokenlist);\n\n    /* Free the old internal rep and set the new one. */\n    Jim_FreeIntRep(interp, objPtr);\n    Jim_SetIntRepPtr(objPtr, script);\n    objPtr->typePtr = &scriptObjType;\n\n    interp->taint = oldtaint;\n}\n\n",
+    "snippet_sha256": "f6c402b64a7486ae6b886b7307c31f8ed4cd10ef688a8ad808ba2e140b678f44",
+    "evidence": "jim-source-3"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "JimAddStackFrame",
+    "lines": [
+      6151,
+      6168
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "static void JimAddStackFrame(Jim_Interp *interp, Jim_EvalFrame *frame, Jim_Obj *listObj)\n{\n    Jim_Obj *procNameObj = JimProcForEvalFrame(interp, frame);\n    Jim_Obj *fileNameObj = interp->emptyObj;\n    int linenr = 1;\n\n    if (frame->scriptObj) {\n        ScriptObj *script = JimGetScript(interp, frame->scriptObj);\n        fileNameObj = script->fileNameObj;\n        linenr = script->linenr;\n    }\n\n    Jim_ListAppendElement(interp, listObj, procNameObj ? procNameObj : interp->emptyObj);\n    Jim_ListAppendElement(interp, listObj, fileNameObj);\n    Jim_ListAppendElement(interp, listObj, Jim_NewIntObj(interp, linenr));\n    Jim_ListAppendElement(interp, listObj, Jim_NewListObj(interp, frame->argv, frame->argc));\n}\n\n",
+    "snippet_sha256": "4ba750a4d923b20a06b846475ed11b4608fcbbcb6374a65de857a011178179b3",
+    "evidence": "jim-source-4"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "JimSetErrorStack",
+    "lines": [
+      6180,
+      6205
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "static void JimSetErrorStack(Jim_Interp *interp, ScriptObj *script)\n{\n    if (!interp->hasErrorStackTrace) {\n        int i;\n        Jim_Obj *stackTrace = Jim_NewListObj(interp, NULL, 0);\n\n        if (interp->procLevel == 0 && script) {\n            /* If this is at the top level and there is a script, use the script info\n             * rather than the proc info\n             */\n            Jim_ListAppendElement(interp, stackTrace, interp->emptyObj);\n            Jim_ListAppendElement(interp, stackTrace, script->fileNameObj);\n            Jim_ListAppendElement(interp, stackTrace, Jim_NewIntObj(interp, script->linenr));\n            Jim_ListAppendElement(interp, stackTrace, interp->emptyObj);\n        }\n        else {\n            for (i = 0; i <= interp->procLevel; i++) {\n                Jim_EvalFrame *frame = JimGetEvalFrameByProcLevel(interp, -i);\n                if (frame) {\n                    JimAddStackFrame(interp, frame, stackTrace);\n                }\n            }\n        }\n        JimSetStackTrace(interp, stackTrace);\n    }\n}\n",
+    "snippet_sha256": "db70fab854b7998d42a9790361b714bec939a259756b19d46c6cd8e07134b6fe",
+    "evidence": "jim-source-5"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "Jim_EvalSource",
+    "lines": [
+      12068,
+      12081
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "int Jim_EvalSource(Jim_Interp *interp, const char *filename, int lineno, const char *script)\n{\n    int retval;\n    Jim_Obj *scriptObjPtr;\n\n    scriptObjPtr = Jim_NewStringObj(interp, script, -1);\n    Jim_IncrRefCount(scriptObjPtr);\n    if (filename) {\n        Jim_SetSourceInfo(interp, scriptObjPtr, Jim_NewStringObj(interp, filename, -1), lineno);\n    }\n    retval = Jim_EvalObj(interp, scriptObjPtr);\n    Jim_DecrRefCount(interp, scriptObjPtr);\n    return retval;\n}\n",
+    "snippet_sha256": "852961cf3bad4c9297bb5b101aabb63420585bcc4aace3e4c52804c1db88d55b",
+    "evidence": "jim-source-6"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "Jim_EvalFile",
+    "lines": [
+      12120,
+      12168
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "int Jim_EvalFile(Jim_Interp *interp, const char *filename)\n{\n    FILE *fp;\n    char *buf;\n    Jim_Obj *scriptObjPtr;\n    Jim_Obj *filenameObj, *oldFilenameObj;\n    int retcode = JIM_ERR;\n    int readlen;\n#define READ_BUF_SIZE 256\n\n   if ((fp = fopen(filename, \"rt\")) == NULL) {\n        Jim_SetResultFormatted(interp, \"couldn't read file \\\"%s\\\": %s\", filename, strerror(errno));\n        return JIM_ERR;\n    }\n    scriptObjPtr = Jim_NewStringObj(interp, NULL, 0);\n\n    buf = Jim_Alloc(READ_BUF_SIZE);\n    while ((readlen = fread(buf, 1, READ_BUF_SIZE, fp)) > 0) {\n        Jim_AppendString(interp, scriptObjPtr, buf, readlen);\n    }\n    Jim_Free(buf);\n    if (ferror(fp)) {\n        fclose(fp);\n        Jim_SetResultFormatted(interp, \"failed to load file \\\"%s\\\": %s\", filename, strerror(errno));\n        Jim_FreeNewObj(interp, scriptObjPtr);\n        return retcode;\n    }\n    fclose(fp);\n\n    /* Convert the stringObjType to a sourceObjType with filename and line */\n    filenameObj = Jim_NewStringObj(interp, filename, -1);\n    Jim_SetSourceInfo(interp, scriptObjPtr, filenameObj, 1);\n    oldFilenameObj = JimPushInterpObj(interp->currentFilenameObj, filenameObj);\n\n    retcode = Jim_EvalObj(interp, scriptObjPtr);\n\n    JimPopInterpObj(interp, interp->currentFilenameObj, oldFilenameObj);\n\n    /* Handle the JIM_RETURN return code */\n    if (retcode == JIM_RETURN) {\n        if (--interp->returnLevel <= 0) {\n            retcode = interp->returnCode;\n            interp->returnCode = JIM_OK;\n            interp->returnLevel = 0;\n        }\n    }\n\n    return retcode;\n}\n",
+    "snippet_sha256": "4dcbe0c82d53aff2760380ea9daed26891e9400aea9c272d8510940734f8df8b",
+    "evidence": "jim-source-7"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "JimCatchTryHelper",
+    "lines": [
+      15319,
+      15330
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "\n    interp->signal_level += sig;\n    if (Jim_CheckSignal(interp)) {\n        /* If a signal is set, don't even try to execute the body */\n        exitCode = JIM_SIGNAL;\n    }\n    else {\n        exitCode = Jim_EvalObj(interp, argv[idx]);\n        /* Once caught, a new error will set a stack trace again */\n        interp->hasErrorStackTrace = 0;\n    }\n    interp->signal_level -= sig;\n",
+    "snippet_sha256": "0c9bb7938a26a9b55db95c6aa641511d40ec1f10dfe5faea798c8e2b13905f46",
+    "evidence": "jim-source-8"
+  }
+]

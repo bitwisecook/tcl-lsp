@@ -1,0 +1,29 @@
+[
+  {
+    "path": "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/manifest.json",
+    "sha256": "0a1ab146a9e37a32edcaab2bd68e78c0dc21b9e05c45e4072c892256518e2688",
+    "classification": "native-observation",
+    "reason": "Inspected retained native rows and original question scope: Does the configured namespace unknown handler run for reached missing commands, including rooted names, while known and unreachable commands leave its counter unchanged? Only the exact preserved input/row subset named in the linked record is covered; absent full captures are not reconstructed.",
+    "proof_ids": [
+      "naming.namespace.unknown-compile-dispatch"
+    ]
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_bootstrap/capture-manifest.json",
+    "sha256": "8ab0c79e76d1dc3b4373ed3266028cc70e5330bc4378b687e1e786e578f1ec98",
+    "classification": "native-observation",
+    "reason": "Inspected retained native rows and original question scope: Which root cells and definition/array states are recorded immediately after each actual native interpreter constructor? Only the exact preserved input/row subset named in the linked record is covered; absent full captures are not reconstructed.",
+    "proof_ids": [
+      "naming.bootstrap.original-root-cells"
+    ]
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_jim_lookup/manifest.json",
+    "sha256": "a554e11a95d021e5142610fdeb67426317034c6cf24794803e4bd10d1c420545",
+    "classification": "native-observation",
+    "reason": "Inspected retained native rows and original question scope: Which original Jim command and variable cached-name hits survive replacement, rename, frame change, unset/recreate and active command deletion? Only the exact preserved input/row subset named in the linked record is covered; absent full captures are not reconstructed.",
+    "proof_ids": [
+      "naming.jim.original-lookup-currency"
+    ]
+  }
+]

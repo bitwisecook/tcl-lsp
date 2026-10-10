@@ -50,6 +50,10 @@ pub mod native_hash_abi;
 pub mod native_return_literal;
 
 pub mod native_each_loop;
+/// Same-entry backend TclOO allocations, roles and method observations.
+pub mod native_oo;
+/// Actual original substitution-template compiler purpose.
+pub mod native_substitution;
 
 /// Native procedure roles shared by concrete declaration and frame owners.
 pub mod native_procedure_roles;
@@ -88,6 +92,8 @@ pub mod error_stack;
 /// Jim's native evaluation-frame error capture and raw explicit trace values.
 pub mod jim_error_stack;
 
+/// Actual Jim frame storage reuse, independently of activation currency.
+pub mod jim_call_frame;
 pub mod jim_interpreter;
 /// Jim private return counters and owned catch/try metadata.
 pub mod jim_return_state;
@@ -923,6 +929,21 @@ pub trait CompileService {
     /// The runtime-executable artifact produced (the bytecode VM's `ModuleAsm`).
     type Module;
 
+    /// Compile an original native substitution template with its own cache and
+    /// completion purpose. It is not a script containing a synthetic command.
+    /// Services without the genuine template emitter refuse explicitly.
+    fn compile_substitution_with_entry(
+        &self,
+        target: native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, CompileError> {
+        let _ = (target, profile, entry);
+        Err(CompileError::Unsupported(
+            "CompileService does not support original substitution templates".into(),
+        ))
+    }
+
     /// Compile original native script bytes in their constructed namespace.
     /// A service must implement byte ingress explicitly; decoding or escaping
     /// opaque source would change names and literal objects.
@@ -1597,6 +1618,21 @@ pub trait Frames {
         Ok(self.var_names_bytes(include_links))
     }
 
+    /// Retain the actual compiled-name scan versus dynamic hash-key search
+    /// selected by this entered frame. Bytes alone cannot identify that purpose.
+    /// This supplies no native object header, lookup existence or value receipt.
+    fn var_name_pattern_inputs_bytes_checked(
+        &self,
+        _include_links: bool,
+    ) -> Result<
+        Vec<(Vec<u8>, tcl_syntax::native_glob::NativeNameGlobPurpose)>,
+        tcl_syntax::value::ValueError,
+    > {
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original frame variable pattern inputs",
+        ))
+    }
+
     /// The active frame's `info consts` bindings: direct constants plus typed
     /// `TclOO` instance projections whose target is constant. Ordinary link
     /// aliases are excluded even though `info constant alias` follows them.
@@ -1629,8 +1665,30 @@ pub trait Commands {
     fn dispatch_id(&mut self, cmd: CommandId, argv: &[Self::Value]) -> Completion<Self::Value>;
 }
 
-/// The namespace tree and name resolution. (Contract surface; not yet
-/// implemented.)
+/// The result of original-object alias lookup in an actual command table.
+pub enum AliasPrefixLookup<V> {
+    /// No current command was selected by the original operand.
+    MissingCommand,
+    /// The selected command does not carry an alias prefix.
+    NotAlias,
+    /// The retained original prefix list, without rebuilding its header.
+    Prefix(V),
+}
+
+/// Object introspection over actual retained alias bindings.
+pub trait Aliases: tcl_syntax::value::ValueOps {
+    /// Resolve the original name object and retain its actual prefix header.
+    /// A byte-only prefix or reporting name cannot supply this object.
+    ///
+    /// # Errors
+    /// Propagates unavailable lookup, retired prefix storage or missing original ownership.
+    fn alias_prefix_original_value(
+        &mut self,
+        original_name: &Self::Value,
+    ) -> Result<AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>;
+}
+
+/// The namespace tree and actual command lookup owners.
 pub trait Namespaces {
     /// Whether imports retain source tokens or resolve source names on use.
     fn namespace_import_binding(&self) -> Option<tcl_dialect::NamespaceImportBinding> {
@@ -1641,6 +1699,33 @@ pub trait Namespaces {
     /// Byte-native runtimes preserve the target words verbatim.
     fn command_alias_prefix_bytes(&self, _cmd: CommandId) -> Option<Vec<Vec<u8>>> {
         None
+    }
+
+    /// Project an actual retained alias prefix, preserving conversion refusal.
+    /// A reporting name cannot select a different command generation.
+    ///
+    /// # Errors
+    /// The default supplies no actual alias-prefix owner and refuses.
+    fn command_alias_prefix_bytes_checked(
+        &self,
+        _cmd: CommandId,
+    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "alias prefix owner",
+        ))
+    }
+
+    /// Original report keys of actual live alias entries in this command table.
+    ///
+    /// # Errors
+    /// The default supplies no actual alias inventory owner and refuses.
+    fn aliases_in_bytes_checked(
+        &self,
+        _namespace: NsId,
+    ) -> Result<Vec<Vec<u8>>, tcl_syntax::value::ValueError> {
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "alias inventory owner",
+        ))
     }
 
     /// Variable lookup/listing policy of this execution engine, when selected.
@@ -1654,6 +1739,16 @@ pub trait Namespaces {
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId>;
     /// The current namespace.
     fn current(&self) -> NsId;
+    /// Actual root command lookup context, independently of namespace-tree
+    /// lookup. Flat namespace engines must retain their genuine root object
+    /// and live interpreter before supplying this context.
+    ///
+    /// # Errors
+    /// Propagates unavailable or stale root naming authority. The default
+    /// adapter uses the engine's checked C-style namespace lookup.
+    fn root_command_context_checked(&self) -> Result<Option<NsId>, tcl_syntax::value::ValueError> {
+        self.find_namespace_bytes_checked(self.current(), b"::")
+    }
     /// The fully-qualified name of namespace `ns` (`"::"` for the global root) —
     /// what `namespace current` reports.
     fn name(&self, ns: NsId) -> String;
@@ -1944,6 +2039,15 @@ pub trait Procs: tcl_syntax::value::ValueOps {
         tcl_syntax::raw_string::RawString::from_bytes(name).unicode()?;
         Ok(name.to_vec())
     }
+
+    /// Original formal-list result for an engine whose introspection exposes
+    /// the whole retained declaration, including defaults and reference names.
+    /// Returning None selects the stored-name projection below. A selected
+    /// original-list engine must refuse if its genuine declaration is missing.
+    fn proc_original_formal_list_value(
+        &self,
+        name: &[u8],
+    ) -> Result<Option<Self::Value>, tcl_syntax::value::ValueError>;
 
     /// Stored formal names without materialising their default objects.
     fn proc_formal_names_bytes(

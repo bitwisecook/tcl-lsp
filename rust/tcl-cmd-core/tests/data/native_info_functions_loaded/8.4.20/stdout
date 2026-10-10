@@ -1,0 +1,12 @@
+fixed-or-script-sin 0 3 {115 105 110}
+caller-local-function 0 0 {}
+global-local-merge 0 0 {}
+opaque-function-pattern 0 0 {}
+raw-zero-function-pattern 0 0 {}
+encoded-zero-function-pattern 0 0 {}
+loaded-root 0 0 {}
+loaded-nested-child 0 0 {}
+loaded-original-raw-zero-child 0 0 {}
+loaded-invalid-list 1 28 {117 110 109 97 116 99 104 101 100 32 111 112 101 110 32 98 114 97 99 101 32 105 110 32 108 105 115 116}
+loaded-missing-child 1 43 {99 111 117 108 100 32 110 111 116 32 102 105 110 100 32 105 110 116 101 114 112 114 101 116 101 114 32 34 77 105 115 115 105 110 103 73 110 102 111 48 56 53 34}
+functions-observe-apply-helper 0 3 {115 105 110}

@@ -41,8 +41,9 @@ use crate::irules_checks::{
 use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
 use crate::sccp::ConstantBranch;
 use crate::shimmer::{
-    SharingWarning, ShimmerWarning, ThunkingWarning, find_byte_array_warnings,
-    find_sharing_warnings, find_shimmer_warnings, find_thunking_warnings,
+    SharingWarning, ShimmerWarning, ThunkingWarning, find_byte_array_warnings_with_context,
+    find_sharing_warnings_with_context, find_shimmer_warnings_with_context,
+    find_thunking_warnings_with_context,
 };
 use crate::taint::{
     TaintWarning, find_destructive_file_warnings, find_setter_constraint_warnings,
@@ -56,6 +57,55 @@ use tcl_registry::CommandRegistry;
 pub use tcl_core_types::DiagCode;
 /// Severity of a compiler diagnostic — the shared [`tcl_core_types::Severity`].
 pub use tcl_core_types::Severity;
+
+/// Exact source and command-store inputs retained by a diagnostic issuer.
+/// This is source currency, not a reached command, cell or edit permission.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DiagnosticSourceContext {
+    image: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    registry: tcl_registry::RegistrySnapshot,
+}
+
+impl DiagnosticSourceContext {
+    /// Whole original image, including the source channel.
+    #[must_use]
+    pub const fn image(&self) -> &tcl_lexer::SourceImage {
+        &self.image
+    }
+    /// Every actual lexer configuration axis.
+    #[must_use]
+    pub const fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        self.config
+    }
+    /// Immutable command store used by the diagnostic producer.
+    #[must_use]
+    pub const fn registry(&self) -> &tcl_registry::RegistrySnapshot {
+        &self.registry
+    }
+}
+
+/// Structured taint producer fields, independent of the rendered message.
+/// The variable is a taint-analysis subject, not a native lookup key. Consumers
+/// select a source read independently before proposing a replacement.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TaintDiagnosticSubject {
+    variable: String,
+    sink_command: String,
+}
+
+impl TaintDiagnosticSubject {
+    /// Taint-analysis subject used for source advice and presentation.
+    #[must_use]
+    pub fn variable(&self) -> &str {
+        &self.variable
+    }
+    /// Sink selected by the producer; never extracted from diagnostic prose.
+    #[must_use]
+    pub fn sink_command(&self) -> &str {
+        &self.sink_command
+    }
+}
 
 /// A unified diagnostic emitted by the compiler-checks pipeline.
 ///
@@ -84,6 +134,10 @@ pub struct Diagnostic {
     /// check has no such fix. Consumers emit one `TextEdit` per fix at its own
     /// `span`.
     pub fixes: Vec<CodeFix>,
+    /// Exact issuer inputs for a context-driven source action, when retained.
+    pub source_context: Option<DiagnosticSourceContext>,
+    /// Original taint fields, independent of any message or reporting label.
+    pub taint_subject: Option<TaintDiagnosticSubject>,
 }
 
 impl Diagnostic {
@@ -102,6 +156,8 @@ impl Diagnostic {
             ),
             replacement: None,
             fixes: Vec::new(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -120,6 +176,8 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -132,6 +190,8 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -148,6 +208,8 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -165,6 +227,11 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: w.fixes.clone(),
+            source_context: None,
+            taint_subject: Some(TaintDiagnosticSubject {
+                variable: w.variable.clone(),
+                sink_command: w.sink_command.clone(),
+            }),
         }
     }
 
@@ -184,6 +251,8 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: w.fixes.clone(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -196,6 +265,8 @@ impl Diagnostic {
             message: r.message.clone(),
             replacement: None,
             fixes: Vec::new(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -227,6 +298,8 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes,
+            source_context: None,
+            taint_subject: None,
         }
     }
 }
@@ -326,6 +399,7 @@ pub fn run_all_checks_with_solved_and_patterns(
     // module-level checks — the half that is not per-function-pure.
     push_taint_and_module_checks(cu, registry, dialect, solved, generic_patterns, &mut out);
 
+    retain_diagnostic_source_context(cu, registry, &mut out);
     // Deterministic ordering (producers emit in `HashMap`-iteration order);
     // see [`sort_diagnostics`].
     sort_diagnostics(&mut out);
@@ -372,63 +446,65 @@ pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
 /// / expression / phi shimmer (S100/S101), loop-oscillation thunking (S102),
 /// shared-value copy-on-write (S103), and byte-array corruption (S110).
 ///
-/// Split out of [`function_nontaint_checks`] so it can also run over `TclOO`
-/// method bodies and synthetic body units (`apply` lambdas, `namespace eval`
-/// bodies) — [`CompilationUnit.methods`](crate::compilation_unit::CompilationUnit::methods)
-/// and `.body_units` are excluded from the SCCP/GVN half (`cu.analysable_functions()`
-/// only walks the top level and procedures), so without this split every
-/// shimmer diagnostic was silently unreachable inside a method or a
-/// `namespace eval` body. The S110 `*::payload` byte-command set is
-/// dialect-gated (empty outside iRules).
+/// Uses the function's actual retained availability and lexical configuration.
+/// Missing, foreign or mismatched metadata declines the entire family.
+/// Callers can supply procedures, `TclOO` methods and synthetic body units;
+/// [`CompilationUnit::analysable_functions`] visits top level and procedures.
+/// Byte payload layouts follow the retained source profile, independently of
+/// the compatibility dialect argument. Availability supplies no Native handler.
 #[must_use]
 pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    _dialect: Option<&'static tcl_dialect::DialectProfile>,
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
+    let Some(context) = crate::shimmer::ShimmerContext::for_function(fu, registry) else {
+        return Vec::new();
+    };
     let mut out: Vec<Diagnostic> = Vec::new();
-    for w in find_shimmer_warnings(
+    for w in find_shimmer_warnings_with_context(
         &fu.cfg,
         &fu.ssa,
         &fu.types,
         &fu.sccp.executable_blocks,
-        registry,
+        context,
         &fu.sccp.values,
         &fu.sccp.executable_edges,
     ) {
         out.push(Diagnostic::from_shimmer(&w));
     }
-    for w in find_thunking_warnings(
+    for w in find_thunking_warnings_with_context(
         &fu.cfg,
         &fu.ssa,
         &fu.types,
         &fu.sccp.executable_blocks,
-        registry,
+        context,
         instance_vars,
     ) {
         out.push(Diagnostic::from_thunking(&w));
     }
-    for w in find_sharing_warnings(
+    for w in find_sharing_warnings_with_context(
         &fu.cfg,
         &fu.ssa,
         &fu.def_use,
         &fu.sccp.executable_blocks,
-        registry,
+        context,
         instance_vars,
     ) {
         out.push(Diagnostic::from_sharing(&w));
     }
-    let payload_layouts = if is_irules_dialect(dialect) {
-        registry.byte_array_payload_layouts()
-    } else {
-        std::collections::HashMap::new()
-    };
-    for w in find_byte_array_warnings(
+    let payload_layouts =
+        if is_irules_dialect(fu.source_metadata_input().map(|input| input.unit_profile())) {
+            registry.byte_array_payload_layouts()
+        } else {
+            std::collections::HashMap::new()
+        };
+    for w in find_byte_array_warnings_with_context(
         &fu.cfg,
         &fu.ssa,
         &fu.sccp.executable_blocks,
-        registry,
+        context,
         &payload_layouts,
     ) {
         out.push(Diagnostic::from_shimmer(&w));
@@ -448,6 +524,7 @@ pub fn push_taint_and_module_checks(
     generic_patterns: Option<&[String]>,
     out: &mut Vec<Diagnostic>,
 ) {
+    let first = out.len();
     // The interprocedural solve produces colour-aware return summaries and
     // parameter entry taints; its `top_taints` / `proc_taints` supersede the bare
     // per-function `fu.taints` for the warning families so a tainted argument
@@ -540,6 +617,32 @@ pub fn push_taint_and_module_checks(
 
     // iRules-dialect non-taint (module-level / control-flow) checks.
     push_irules_flow_checks(cu, registry, dialect, generic_patterns, out);
+    retain_diagnostic_source_context(cu, registry, &mut out[first..]);
+}
+
+/// Attach complete original issuer inputs after diagnostics have their final
+/// whole-document spans. A foreign command store supplies no source currency.
+/// This retains provenance, independently of every diagnostic's fix permission.
+pub fn retain_diagnostic_source_context(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    diagnostics: &mut [Diagnostic],
+) {
+    // Implementation contract: naming.editor.original-diagnostic-edit-currency
+    // docs/design/analysis/name-resolution-proofs/original-diagnostic-edit-currency.md
+    let matching = cu
+        .ir_module
+        .registry_snapshot
+        .as_ref()
+        .is_some_and(|snapshot| snapshot.semantic_key() == registry.snapshot().semantic_key());
+    let context = matching.then(|| DiagnosticSourceContext {
+        image: cu.ir_module.source.clone(),
+        config: cu.ir_module.lexer_config,
+        registry: registry.snapshot(),
+    });
+    for diagnostic in diagnostics {
+        diagnostic.source_context.clone_from(&context);
+    }
 }
 
 /// Append the iRules-dialect module-level checks (IRULE5002/5004 +

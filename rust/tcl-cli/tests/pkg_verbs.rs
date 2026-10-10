@@ -141,7 +141,7 @@ fn pkg_discover_uses_analysis_and_optimisation() {
         requirement["name"] == "tls"
             && requirement["minimum"] == "1.7"
             && requirement["version_expression"] == "${minimum}"
-            && requirement["resolution"] == "optimiser"
+            && requirement["resolution"] == "original-value"
             && requirement["status"] == "candidate"
     }));
     assert!(requirements.iter().any(|requirement| {
@@ -154,7 +154,7 @@ fn pkg_discover_uses_analysis_and_optimisation() {
             && requirement["requirements"] == serde_json::json!(["1.0", "2.0-2.5"])
             && requirement["requirement_expressions"]
                 == serde_json::json!(["1.0", "${alternative}"])
-            && requirement["resolution"] == "optimiser"
+            && requirement["resolution"] == "original-value"
             && requirement["status"] == "review"
     }));
     assert!(requirements.iter().any(|requirement| {

@@ -1,0 +1,75 @@
+{
+  "version": "8.6.18",
+  "probe_sha256": "546d7b5b88b63999848a828c8650f8800d8487ed96a7942631028f87b2df5941",
+  "library_sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+  "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+    "/workspace/.proofs/current-dictionary-value/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-dictionary-value/8.6.18/probe"
+  ],
+  "compile_exit": 0,
+  "executable_sha256": "b168966e41db50842ae8f31b38b6c9f556b502996ef82f08caab804b3d2e14e6",
+  "exit": 0,
+  "stdout_sha256": "c061984f2be275967748cacf5447d76950905d784b9adb4f35208909221cf642",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    {
+      "row": "startup",
+      "patchlevel_hex": "382e362e3138"
+    },
+    {
+      "case": "simple",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261286b29223a207661726961626c652069736e2774206172726179"
+    },
+    {
+      "case": "duplicate-last",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261286b29223a207661726961626c652069736e2774206172726179"
+    },
+    {
+      "case": "raw-zero",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261286b29223a207661726961626c652069736e2774206172726179"
+    },
+    {
+      "case": "modified-zero",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261286bc0807429223a207661726961626c652069736e2774206172726179"
+    },
+    {
+      "case": "surrogate",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261286beda08029223a207661726961626c652069736e2774206172726179"
+    },
+    {
+      "case": "colon",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261283a3a6b29223a207661726961626c652069736e2774206172726179"
+    },
+    {
+      "case": "odd",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261286b29223a207661726961626c652069736e2774206172726179"
+    },
+    {
+      "case": "missing",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261286f7468657229223a207661726961626c652069736e2774206172726179"
+    },
+    {
+      "case": "mutated",
+      "code": 1,
+      "result_hex": "63616e27742072656164202261286b29223a207661726961626c652069736e2774206172726179"
+    }
+  ]
+}

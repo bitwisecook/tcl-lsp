@@ -1,0 +1,17 @@
+
+running 1 test
+
+thread 'cmd_array::tests::variable_container_storage_matches_all_native_columns' (583458) panicked at src/cmd_array.rs:827:21:
+assertion `left == right` failed: tcl8.6 case 1: array set a {k OLD};set c [catch {set a NEW} r];list $c $r [array exists a]; result=[]; refusal=Some(CommandProtocolUnavailable("original variable lookup diagnostic"))
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test cmd_array::tests::variable_container_storage_matches_all_native_columns ... FAILED
+
+failures:
+
+failures:
+    cmd_array::tests::variable_container_storage_matches_all_native_columns
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1225 filtered out; finished in 3.85s
+

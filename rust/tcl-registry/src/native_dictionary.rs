@@ -67,6 +67,38 @@ pub enum NativeDictionaryVariableLookup {
 }
 
 impl crate::InvocationDialect {
+    /// Validate the already-produced Jim dictionary-variable root bytes.
+    /// This is pure list/cardinality knowledge, independently of a current
+    /// cell, successful read, representation conversion or native dispatch.
+    #[must_use]
+    pub fn dictionary_variable_root_valid(self, root: &[u8]) -> Option<bool> {
+        (self.native_string_protocol()? == NativeStringProtocol::Jim084).then_some(())?;
+        Some(
+            tcl_syntax::list::split_native_list_bytes(root, NativeStringProtocol::Jim084)
+                .is_ok_and(|elements| elements.len() % 2 == 0),
+        )
+    }
+
+    /// Original list-value ordinal selected by Jim's counted dictionary key.
+    /// A duplicate key selects its last value; malformed/odd roots and missing
+    /// members abstain. No value or normal-completion certificate is issued.
+    #[must_use]
+    pub fn dictionary_variable_value_ordinal(self, root: &[u8], index: &[u8]) -> Option<usize> {
+        (self.native_string_protocol()? == NativeStringProtocol::Jim084).then_some(())?;
+        let elements =
+            tcl_syntax::list::split_native_list_bytes(root, NativeStringProtocol::Jim084).ok()?;
+        if elements.len() % 2 != 0 {
+            return None;
+        }
+        elements
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(ordinal, pair)| (pair[0].as_ref() == index).then_some(ordinal * 2 + 1))
+    }
+
     /// Select the actual Tcl 9 array-default command independently of the
     /// source grammar or a vendor's compatibility version.
     #[must_use]
@@ -229,6 +261,7 @@ const IMPLEMENTATIONS: [NativeCompilerImplementationLookup; 21] = [
 impl NativeDictionaryCommand {
     /// Retain original dictionary compiler visits, including a declined prefix.
     /// Missing geometry is distinct from a compiler decline.
+    #[must_use]
     pub fn original_preparations(
         self,
         words: &crate::native_compiler_words::NativeCompilerWords<'_>,
@@ -667,6 +700,78 @@ fn local_scalar(name: &str) -> bool {
 #[cfg(test)]
 mod compiler_tests {
     use super::*;
+
+    #[test]
+    fn dictionary_variable_ordinal_matches_current_native_key_values() {
+        // Native proof: naming.dictionary-variable.original-counted-values
+        // docs/design/analysis/name-resolution-proofs/dictionary-variable-original-counted-values.md
+        let jim = crate::InvocationDialect::of_profile(
+            crate::model::resolve_environment("jim").unit_profile(),
+        );
+        let cases: &[(&str, &[u8], &[u8])] = &[
+            ("simple", b"k FIRST", b"k"),
+            ("duplicate-last", b"k FIRST k LAST", b"k"),
+            ("raw-zero", b"k\0t RAW", b"k\0t"),
+            ("modified-zero", b"k\xc0\x80t MOD", b"k\xc0\x80t"),
+            ("surrogate", b"k\xed\xa0\x80 SUR", b"k\xed\xa0\x80"),
+            ("colon", b"::k COLON", b"::k"),
+            ("odd", b"k", b"k"),
+            ("missing", b"k VALUE", b"other"),
+            ("mutated", b"k LAST", b"k"),
+        ];
+        let fixture =
+            include_str!("../tests/data/native_dictionary_variable_values/observations.tsv");
+        for row in fixture.lines().filter(|row| !row.starts_with('#')) {
+            let fields: Vec<_> = row.split('\t').collect();
+            let (_, root, key) = cases
+                .iter()
+                .find(|(label, _, _)| *label == fields[1])
+                .unwrap();
+            if fields[0] == "jim" {
+                let ordinal = jim.dictionary_variable_value_ordinal(root, key);
+                if fields[2] == "0" {
+                    let elements = tcl_syntax::list::split_native_list_bytes(
+                        root,
+                        NativeStringProtocol::Jim084,
+                    )
+                    .unwrap();
+                    let hex = elements[ordinal.expect("native successful member")]
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>();
+                    assert_eq!(hex, fields[3], "{}", fields[1]);
+                } else {
+                    assert_eq!(ordinal, None, "{}", fields[1]);
+                }
+            } else {
+                let profile = crate::model::resolve_environment(&format!("tcl{}", &fields[0][..3]));
+                let dialect = crate::InvocationDialect::of_profile(profile.unit_profile());
+                assert_eq!(dialect.dictionary_variable_value_ordinal(root, key), None);
+                assert_eq!(
+                    fields[2], "1",
+                    "C scalar root is not a Jim dictionary variable"
+                );
+            }
+        }
+        assert_eq!(jim.dictionary_variable_root_valid(b"k"), Some(false));
+        assert_eq!(jim.dictionary_variable_root_valid(b"k VALUE"), Some(true));
+        assert_eq!(
+            jim.dictionary_variable_value_ordinal(b"k FIRST k LAST", b"k"),
+            Some(3)
+        );
+        assert_eq!(
+            jim.dictionary_variable_value_ordinal(b"k\0t RAW", b"k"),
+            None
+        );
+        assert_eq!(
+            jim.dictionary_variable_value_ordinal(b"k\xc0\x80t MOD", b"k\0t"),
+            None
+        );
+        assert_eq!(
+            jim.dictionary_variable_value_ordinal(b"k\xed\xa0\x80 SUR", b"k\xed\xa0\x81"),
+            None
+        );
+    }
 
     fn procedure() -> NativeCompilationContext {
         NativeCompilationContext {

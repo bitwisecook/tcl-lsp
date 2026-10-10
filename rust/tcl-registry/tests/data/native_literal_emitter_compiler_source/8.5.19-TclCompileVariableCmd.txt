@@ -1,0 +1,64 @@
+TclCompileVariableCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to defintion of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    Tcl_Token *varTokenPtr, *valueTokenPtr;
+    int localIndex, numWords, i;
+    DefineLineInformation;	/* TIP #280 */
+
+    numWords = parsePtr->numWords;
+    if (numWords < 2) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Bail out if not compiling a proc body
+     */
+
+    if (envPtr->procPtr == NULL) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Loop over the (var, value) pairs.
+     */
+
+    valueTokenPtr = parsePtr->tokenPtr;
+    for(i=1; i<numWords; i+=2) {
+	varTokenPtr = TokenAfter(valueTokenPtr);
+	valueTokenPtr = TokenAfter(varTokenPtr);
+
+	localIndex = IndexTailVarIfKnown(interp, varTokenPtr, envPtr);
+
+	if(localIndex < 0) {
+	    return TCL_ERROR;
+	}
+
+	/* TODO: Consider what values can pass through the
+	 * IndexTailVarIfKnown() screen.  Full CompileWord()
+	 * likely does not apply here.  Push known value instead. */
+	CompileWord(envPtr, varTokenPtr, interp, i);
+	TclEmitInstInt4(INST_VARIABLE, localIndex, envPtr);
+
+	if (i != numWords-1) {
+	    /*
+	     * A value has been given: set the variable, pop the value
+	     */
+
+	    CompileWord(envPtr, valueTokenPtr, interp, i+1);
+	    TclEmitInstInt4(INST_STORE_SCALAR4, localIndex, envPtr);
+	    TclEmitOpcode(INST_POP, envPtr);
+	}
+    }
+
+    /*
+     * Set the result to empty
+     */
+
+    PushLiteral(envPtr, "", 0);
+    return TCL_OK;
+}

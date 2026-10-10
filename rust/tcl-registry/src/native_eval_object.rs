@@ -19,6 +19,10 @@ pub enum EvalObjectPurpose {
     NamespaceConcat,
     /// An ordinary control-command body evaluated as an object.
     ControlBody,
+    /// A retained timer or idle script evaluated in the actual global frame.
+    AfterCallback,
+    /// A copied C trace prefix evaluated through the counted direct source entry.
+    TraceCallback,
 }
 
 /// Independently installed logical script-object dispatcher.
@@ -35,42 +39,63 @@ pub struct NativeEvalObjectProtocol {
 }
 
 impl NativeEvalObjectProtocol {
-    /// Source objects use the native compiler unless the selected C84 caller
-    /// explicitly requests direct evaluation. This does not admit an artifact.
+    /// Source objects use the native compiler except selected direct C84
+    /// evaluation and counted C trace callbacks. This does not admit an artifact.
     #[must_use]
     pub const fn compiles_source(self, purpose: EvalObjectPurpose) -> bool {
+        if matches!(purpose, EvalObjectPurpose::TraceCallback) {
+            return false;
+        }
         match self.version {
             Some(TclVersion::V8_4) => !matches!(
                 purpose,
                 EvalObjectPurpose::Eval
                     | EvalObjectPurpose::UpLevel
                     | EvalObjectPurpose::NamespaceConcat
+                    | EvalObjectPurpose::AfterCallback
             ),
             Some(_) => true,
             None => false,
         }
     }
 
-    /// Whether this recipe authorizes fresh source operands without native literal registration.
-    /// Jim's Script parser owns its tokens separately and cannot use this C84 door.
+    /// Whether this purpose authorizes fresh source operands without native literal registration.
+    /// C84 direct object evaluation and C trace scripts have distinct selected purposes;
+    /// Jim's Script parser owns its tokens separately.
     #[must_use]
     pub const fn permits_direct_source_operands(
         self,
         purpose: EvalObjectPurpose,
         strings: tcl_syntax::native_string::NativeStringProtocol,
     ) -> bool {
-        matches!(self.version, Some(TclVersion::V8_4))
-            && matches!(
-                strings,
-                tcl_syntax::native_string::NativeStringProtocol::C(TclVersion::V8_4)
-            )
-            && !self.compiles_source(purpose)
+        match (self.version, strings) {
+            (
+                Some(version),
+                tcl_syntax::native_string::NativeStringProtocol::C(strings_version),
+            ) if version as u8 == strings_version as u8 => {
+                matches!(purpose, EvalObjectPurpose::TraceCallback)
+                    || (matches!(version, TclVersion::V8_4) && !self.compiles_source(purpose))
+            }
+            _ => false,
+        }
     }
 
     /// C84 compiled bodies fail before entering a clean command prefix.
     #[must_use]
     pub const fn parse_failure_precedes_commands(self, purpose: EvalObjectPurpose) -> bool {
         matches!(self.version, Some(TclVersion::V8_4)) && self.compiles_source(purpose)
+    }
+
+    /// Deleted C interpreters reject new evaluation at the shared ready check.
+    /// This selects only the message and error code; it proves no lifetime lease.
+    #[must_use]
+    pub const fn deleted_interpreter_error(self) -> Option<(&'static [u8], &'static [u8])> {
+        let code: &[u8] = match self.version {
+            Some(TclVersion::V8_4) => b"CORE IDELETE {attempt to call eval in deleted interpreter}",
+            Some(_) => b"TCL IDELETE {attempt to call eval in deleted interpreter}",
+            None => return None,
+        };
+        Some((b"attempt to call eval in deleted interpreter", code))
     }
 
     /// Public C source evaluation consumes its command-log flag on exit.
@@ -88,6 +113,9 @@ impl NativeEvalObjectProtocol {
         purpose: EvalObjectPurpose,
         object: &NativeObjectSnapshot,
     ) -> bool {
+        if matches!(purpose, EvalObjectPurpose::TraceCallback) {
+            return false;
+        }
         let NativeObjectCacheSnapshot::List { canonical, .. } = object.cache else {
             return false;
         };
@@ -261,5 +289,87 @@ mod tests {
                 .eval_object_protocol(Some(provider))
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod trace_source_tests {
+    use super::*;
+
+    #[test]
+    fn copied_trace_scripts_select_direct_operands_without_borrowing_control_body_compilation() {
+        // Native proof: naming.variable.trace-callback-direct-source
+        // docs/design/analysis/name-resolution-proofs/trace-callback-direct-source.md
+        for version in TclVersion::ALL {
+            let selected = InvocationDialect::for_version(version)
+                .native_eval_object_protocol()
+                .unwrap();
+            let strings = tcl_syntax::native_string::NativeStringProtocol::C(version);
+            assert!(!selected.compiles_source(EvalObjectPurpose::TraceCallback));
+            assert!(
+                selected.permits_direct_source_operands(EvalObjectPurpose::TraceCallback, strings)
+            );
+            assert!(selected.compiles_source(EvalObjectPurpose::ControlBody));
+            assert!(!selected.permits_direct_source_operands(
+                EvalObjectPurpose::TraceCallback,
+                tcl_syntax::native_string::NativeStringProtocol::Jim084
+            ));
+            for foreign in TclVersion::ALL {
+                if foreign != version {
+                    assert!(!selected.permits_direct_source_operands(
+                        EvalObjectPurpose::TraceCallback,
+                        tcl_syntax::native_string::NativeStringProtocol::C(foreign)
+                    ));
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod after_source_tests {
+    use super::*;
+    #[test]
+    fn original_after_callback_keeps_counted_c84_entry_separate_from_object_dispatch() {
+        // Source proof: naming.event.original-callback-source-entry
+        // docs/design/analysis/name-resolution-proofs/event-original-callback-source-entry.md
+        let object = NativeObjectSnapshot {
+            resident: None,
+            storage: None,
+            cache: NativeObjectCacheSnapshot::List {
+                length: 1,
+                canonical: true,
+            },
+        };
+        for version in TclVersion::ALL {
+            let p = InvocationDialect::for_version(version)
+                .native_eval_object_protocol()
+                .unwrap();
+            let purpose = EvalObjectPurpose::AfterCallback;
+            assert_eq!(p.compiles_source(purpose), version != TclVersion::V8_4);
+            assert_eq!(
+                p.dispatches_list(purpose, &object),
+                version != TclVersion::V8_4
+            );
+            assert_eq!(
+                p.permits_direct_source_operands(
+                    purpose,
+                    tcl_syntax::native_string::NativeStringProtocol::C(version)
+                ),
+                version == TclVersion::V8_4
+            );
+            for foreign in TclVersion::ALL {
+                if foreign != version {
+                    assert!(!p.permits_direct_source_operands(
+                        purpose,
+                        tcl_syntax::native_string::NativeStringProtocol::C(foreign)
+                    ));
+                }
+            }
+            assert!(!p.permits_direct_source_operands(
+                purpose,
+                tcl_syntax::native_string::NativeStringProtocol::Jim084
+            ));
+        }
     }
 }

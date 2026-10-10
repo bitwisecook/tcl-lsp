@@ -1,403 +1,543 @@
-// tcl-lsp — a language server and toolchain for Tcl
-// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//
 // SPDX-License-Identifier: AGPL-3.0-or-later
+//! Original-object event callbacks and independently selected global wait subjects.
 
-//! The Tcl event loop: `after`, `vwait`, and `update` (T-event).
-//!
-//! A minimal but faithful single-threaded event loop. `after` schedules timer
-//! and idle events; `vwait` runs the loop until a named variable is written;
-//! `update` drains the currently-ready events once. Timer events fire in
-//! deadline order (then scheduling order); idle events fire after all due
-//! timers. This is the scheduler half of the coroutine subsystem (`cmd_coro`):
-//! `after 0 $coro` schedules a coroutine resume, and `vwait`/`update` drives it.
-//!
-//! C refs: `tclEvent.c` (`Tcl_DoOneEvent`, `Tcl_AfterObjCmd`, `vwait`),
-//! `tclTimer.c`.
-
-use std::collections::VecDeque;
+use crate::interp::{new_string, Code, Interp};
+use crate::obj::{self, TclObj};
+use std::cell::Cell;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
+use tcl_cmd_core::event::EventKind;
+use tcl_registry::native_event::{NativeEventProtocol, NativeEventWait};
+use tcl_runtime_api::native_variable_trace::{
+    NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
+};
+use tcl_syntax::value::{ValueError, ValueOps};
 
-use crate::interp::{obj_bytes, Code, Interp};
-use crate::obj::TclObj;
-
-/// A scheduled timer event (`after ms script`); `after 0` has a now-deadline.
-struct TimerEv {
-    id: u64,
-    deadline: Instant,
-    seq: u64,
-    script: Vec<u8>,
-}
-
-/// The pending event set: due-ordered timers + a FIFO idle queue.
-#[derive(Default)]
-pub struct EventQueue {
-    timers: Vec<TimerEv>,
-    idle: VecDeque<(u64, Vec<u8>)>,
-    next_id: u64,
-    seq: u64,
-}
-
-impl EventQueue {
-    fn fresh_id(&mut self) -> u64 {
-        self.next_id += 1;
-        self.next_id
-    }
-
-    /// Schedule a timer event `ms` from now; returns its `after#<id>` number.
-    fn push_timer(&mut self, ms: u64, script: Vec<u8>) -> u64 {
-        let id = self.fresh_id();
-        self.seq += 1;
-        self.timers.push(TimerEv {
-            id,
-            deadline: Instant::now() + Duration::from_millis(ms),
-            seq: self.seq,
-            script,
-        });
-        id
-    }
-
-    /// Schedule an idle event; returns its id.
-    fn push_idle(&mut self, script: Vec<u8>) -> u64 {
-        let id = self.fresh_id();
-        self.idle.push_back((id, script));
-        id
-    }
-
-    /// Cancel by id (`after#<id>`); returns the removed script, if any.
-    fn cancel_id(&mut self, id: u64) -> Option<Vec<u8>> {
-        if let Some(p) = self.timers.iter().position(|t| t.id == id) {
-            return Some(self.timers.remove(p).script);
-        }
-        if let Some(p) = self.idle.iter().position(|(i, _)| *i == id) {
-            return self.idle.remove(p).map(|(_, s)| s);
-        }
-        None
-    }
-
-    /// Cancel by exact script text; returns the removed script, if any.
-    fn cancel_script(&mut self, script: &[u8]) -> Option<Vec<u8>> {
-        if let Some(p) = self.timers.iter().position(|t| t.script == script) {
-            return Some(self.timers.remove(p).script);
-        }
-        if let Some(p) = self.idle.iter().position(|(_, s)| s == script) {
-            return self.idle.remove(p).map(|(_, s)| s);
-        }
-        None
-    }
-
-    fn is_empty(&self) -> bool {
-        self.timers.is_empty() && self.idle.is_empty()
-    }
-
-    /// The earliest timer deadline (to know how long `vwait` may sleep).
-    fn earliest_deadline(&self) -> Option<Instant> {
-        self.timers.iter().map(|t| t.deadline).min()
-    }
-
-    /// Pop the next event whose time has come: a due timer (earliest deadline,
-    /// then scheduling order), else an idle event. `None` if nothing is ready
-    /// yet (a future timer remains) or the queue is empty.
-    fn pop_ready(&mut self, now: Instant) -> Option<Vec<u8>> {
-        // The earliest-deadline due timer.
-        let due = self
-            .timers
-            .iter()
-            .enumerate()
-            .filter(|(_, t)| t.deadline <= now)
-            .min_by_key(|(_, t)| (t.deadline, t.seq))
-            .map(|(i, _)| i);
-        if let Some(i) = due {
-            return Some(self.timers.remove(i).script);
-        }
-        // No due timer: an idle event runs only when no timer is *due*.
-        self.idle.pop_front().map(|(_, s)| s)
-    }
-
-    /// Pop the next idle event only (never a timer) — `update idletasks` drains
-    /// idle handlers but must not run due timer events.
-    fn pop_idle(&mut self) -> Option<Vec<u8>> {
-        self.idle.pop_front().map(|(_, s)| s)
-    }
-}
-
-/// Register `after`, `vwait`, and (replacing the stub) `update`.
+/// Pending events retain actual owning references to their script objects.
+pub(crate) type EventQueue = tcl_cmd_core::event::EventQueue<obj::Owned>;
+/// Register the selected after, vwait and update handlers.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"after", after_cmd);
     interp.register_builtin(b"vwait", vwait_cmd);
     interp.register_builtin(b"update", update_cmd);
 }
-
-fn err(interp: &mut Interp, m: &[u8]) -> Code {
-    interp.set_error(m)
+fn selected(interp: &mut Interp) -> Result<NativeEventProtocol, Code> {
+    interp
+        .native_invocation_dialect()
+        .native_event_protocol()
+        .ok_or_else(|| {
+            failure(
+                interp,
+                ValueError::CommandProtocolUnavailable("native event purpose"),
+            )
+        })
 }
-
-/// `after`'s subcommand words, in C table order (`afterSubCmds[]`,
-/// `tclTimer.c`). C scans them at flags `0` with a NULL interp, so
-/// abbreviations resolve (`in` → `info`, `ca` → `cancel`) but the miss is
-/// silent and `after` composes its own `bad argument …, or an integer`
-/// sentence — an `OptionTable` message must never surface here, only the scan
-/// is shared. `i` is ambiguous (idle/info) and so lands on the integer path,
-/// exactly as in tclsh.
-const AFTER_SUBCOMMANDS: &[&[u8]] = &[b"cancel", b"idle", b"info"];
-
-/// `after ms ?script ...?` / `after idle ?script ...?` / `after cancel id|script`
-/// / `after info ?id?`. With a bare `after ms` (no script) it processes events
-/// until `ms` has elapsed (a delay). Multiple script args are concatenated as a
-/// command prefix (C joins them with spaces).
-fn after_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 {
-        return interp
-            .wrong_arguments_message(b"wrong # args: should be \"after option ?arg ...?\"");
+fn failure(interp: &mut Interp, error: ValueError) -> Code {
+    interp.report_cmd_error(error.into())
+}
+fn empty() -> *mut TclObj {
+    new_string(b"")
+}
+fn finish(interp: &mut Interp, value: Result<*mut TclObj, Code>) -> Code {
+    match value {
+        Ok(value) => {
+            unsafe { interp.set_obj_result(value) };
+            Code::Ok
+        }
+        Err(code) => code,
     }
-    let first = obj_bytes(argv[1]);
-    let scanned = match tcl_cmd_core::prefix::scan(AFTER_SUBCOMMANDS, &first, false) {
-        tcl_cmd_core::prefix::Resolution::Exact(i)
-        | tcl_cmd_core::prefix::Resolution::UniquePrefix(i) => AFTER_SUBCOMMANDS[i],
-        tcl_cmd_core::prefix::Resolution::Ambiguous | tcl_cmd_core::prefix::Resolution::NoMatch => {
-            b""
+}
+fn script(
+    interp: &mut Interp,
+    p: NativeEventProtocol,
+    args: &[*mut TclObj],
+) -> Result<obj::Owned, Code> {
+    if p.retains_single_script() && args.len() == 1 {
+        return Ok(obj::Owned::retain(args[0]));
+    }
+    tcl_cmd_core::list::concat_selected(interp, args)
+        .map(obj::Owned::fresh)
+        .map_err(|e| interp.report_cmd_error(e))
+}
+fn numeric(
+    interp: &mut Interp,
+    p: NativeEventProtocol,
+    original: *mut TclObj,
+) -> Result<Duration, ValueError> {
+    let snapshot = obj::native_object_snapshot(original)?;
+    if let Some(ms) = p.cached_number_ms(&snapshot) {
+        return Ok(Duration::from_millis(ms));
+    }
+    if p.number_kind() == tcl_syntax::scalar_getter::NativeScalarGetterKind::Double {
+        let value = interp.as_double(&original)?;
+        return Duration::try_from_secs_f64(value.max(0.0) / 1000.0)
+            .map_err(|_| ValueError::CommandProtocolUnavailable("host timer capacity"));
+    }
+    let value = crate::typed_value::native_scalar_getter_with_environment(
+        original,
+        interp.native_invocation_dialect(),
+        p.number_kind(),
+        interp.host().numeric_environment(),
+    )?;
+    let tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(ms) = value else {
+        return Err(ValueError::ScalarNumericInputUnavailable);
+    };
+    Ok(Duration::from_millis(u64::try_from(ms).unwrap_or(0)))
+}
+fn option(
+    interp: &mut Interp,
+    p: NativeEventProtocol,
+    first: *mut TclObj,
+) -> Result<Option<usize>, ValueError> {
+    let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+        p.after_options(),
+    );
+    if p.after_options_exact() {
+        interp
+            .native_jim_enum_from_original(
+                first,
+                &table,
+                tcl_registry::native_jim_enum::NativeJimEnumFlags::options(true),
+                Some(b"argument"),
+            )
+            .map(|r| r.ok())
+    } else {
+        interp
+            .native_index_from_original(first, &table, false, "argument")
+            .map(|r| r.ok())
+    }
+}
+fn after_miss(interp: &mut Interp, p: NativeEventProtocol, first: *mut TclObj) -> Code {
+    if p.after_options_exact() {
+        return match interp.native_static_string_option_index(
+            first,
+            p.after_options(),
+            true,
+            "argument",
+        ) {
+            Err(e) => interp.report_cmd_error(e),
+            Ok(_) => unreachable!("prior enum miss"),
+        };
+    }
+    let bytes = match interp.native_string_bytes(&first) {
+        Ok(b) => b,
+        Err(e) => return failure(interp, e),
+    };
+    interp.error_with_code(
+        &p.after_miss_message(&bytes).expect("C after miss"),
+        &p.after_miss_code(&bytes).expect("C after code"),
+    )
+}
+fn after_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let result = after(interp, &argv[1..]);
+    finish(interp, result)
+}
+fn after(interp: &mut Interp, args: &[*mut TclObj]) -> Result<*mut TclObj, Code> {
+    let Some(&first) = args.first() else {
+        return Err(
+            interp.wrong_arguments_message(b"wrong # args: should be \"after option ?arg ...?\"")
+        );
+    };
+    let p = selected(interp)?;
+    let object = obj::native_object_snapshot(first).map_err(|e| failure(interp, e))?;
+    let first_byte = if p.number_kind() == tcl_syntax::scalar_getter::NativeScalarGetterKind::Int
+        && !matches!(
+            object.cache,
+            tcl_syntax::native_object::NativeObjectCacheSnapshot::Numeric(_)
+        ) {
+        interp
+            .native_string_bytes(&first)
+            .map_err(|e| failure(interp, e))?
+            .first()
+            .copied()
+    } else {
+        None
+    };
+    let numeric_first = p.number_before_options(&object, first_byte);
+    let mut delay = None;
+    let member = if numeric_first {
+        match numeric(interp, p, first) {
+            Ok(ms) => {
+                delay = Some(ms);
+                None
+            }
+            Err(e) if e.native_access_refusal().is_some() || p.reports_number_error() => {
+                return Err(failure(interp, e));
+            }
+            Err(_) => option(interp, p, first).map_err(|e| failure(interp, e))?,
+        }
+    } else {
+        match option(interp, p, first).map_err(|e| failure(interp, e))? {
+            Some(i) => Some(i),
+            None => match numeric(interp, p, first) {
+                Ok(ms) => {
+                    delay = Some(ms);
+                    None
+                }
+                Err(e) if e.native_access_refusal().is_some() => return Err(failure(interp, e)),
+                Err(_) => return Err(after_miss(interp, p, first)),
+            },
         }
     };
-    match scanned {
-        b"idle" => {
-            if argv.len() < 3 {
-                return interp
-                    .wrong_arguments_message(b"wrong # args: should be \"after idle script\"");
-            }
-            let script = join_args(&argv[2..]);
-            let id = interp.events_mut().push_idle(script);
-            set_after_id(interp, id);
-            Code::Ok
+    if let Some(ms) = delay {
+        if args.len() == 1 {
+            std::thread::sleep(ms);
+            return Ok(empty());
         }
-        b"cancel" => {
-            if argv.len() < 3 {
-                return interp.wrong_arguments_message(
-                    b"wrong # args: should be \"after cancel id|command\"",
-                );
+        return schedule(interp, p, &args[1..], ms, EventKind::Timer);
+    }
+    let Some(member) = member else {
+        return Err(after_miss(interp, p, first));
+    };
+    match p.after_options()[member] {
+        "idle" => {
+            if args.len() < 2 {
+                return Err(interp.wrong_arguments_message(
+                    b"wrong # args: should be \"after idle script ?script ...?\"",
+                ));
             }
-            // `after cancel <id>` or `after cancel <script...>`.
-            let arg = obj_bytes(argv[2]);
-            let by_id = parse_after_id(&arg);
-            let removed = match by_id {
-                Some(id) => interp.events_mut().cancel_id(id),
-                None => {
-                    let script = join_args(&argv[2..]);
-                    interp.events_mut().cancel_script(&script)
+            schedule(interp, p, &args[1..], Duration::ZERO, EventKind::Idle)
+        }
+        "cancel" => cancel(interp, p, &args[1..]),
+        "info" => info(interp, p, &args[1..]),
+        _ => unreachable!("selected after table"),
+    }
+}
+fn schedule(
+    interp: &mut Interp,
+    p: NativeEventProtocol,
+    args: &[*mut TclObj],
+    delay: Duration,
+    kind: EventKind,
+) -> Result<*mut TclObj, Code> {
+    if Instant::now().checked_add(delay).is_none() {
+        return Err(failure(
+            interp,
+            ValueError::CommandProtocolUnavailable("host timer deadline capacity"),
+        ));
+    }
+    let original = script(interp, p, args)?;
+    let reported = if kind == EventKind::Idle || (delay.is_zero() && p.zero_timer_reports_idle()) {
+        EventKind::Idle
+    } else {
+        EventKind::Timer
+    };
+    let actual = if kind == EventKind::Idle && p.idle_is_timer() {
+        EventKind::Timer
+    } else {
+        kind
+    };
+    let id = interp
+        .events_mut()
+        .push(p.first_id(), delay, actual, reported, original);
+    Ok(new_string(format!("after#{id}").as_bytes()))
+}
+fn after_id(p: NativeEventProtocol, bytes: &[u8]) -> Result<Option<u64>, ValueError> {
+    p.after_id(
+        bytes,
+        tcl_runtime_api::native_hash_abi::supported_backend_array_search_abi(),
+    )
+}
+fn cancel(
+    interp: &mut Interp,
+    p: NativeEventProtocol,
+    args: &[*mut TclObj],
+) -> Result<*mut TclObj, Code> {
+    let Some(&first) = args.first() else {
+        return Err(
+            interp.wrong_arguments_message(b"wrong # args: should be \"after cancel id|command\"")
+        );
+    };
+    let mut id = None;
+    if p.cancel_id_first() {
+        let bytes = interp
+            .native_string_bytes(&first)
+            .map_err(|e| failure(interp, e))?;
+        id = after_id(p, &bytes)
+            .map_err(|error| failure(interp, error))?
+            .filter(|id| *id > 0);
+    }
+    if id.is_none() {
+        let original = script(interp, p, args)?;
+        let bytes = interp
+            .native_string_bytes(&original.as_ptr())
+            .map_err(|e| failure(interp, e))?;
+        let ids = interp.events_mut().ids(p.deadline_order());
+        for candidate in ids {
+            let owned = interp
+                .events_mut()
+                .script(candidate)
+                .map(|(s, _)| s.clone());
+            let Some(owned) = owned else { continue };
+            let other = interp
+                .native_string_bytes(&owned.as_ptr())
+                .map_err(|e| failure(interp, e))?;
+            if bytes == other {
+                id = Some(candidate);
+                break;
+            }
+        }
+        if id.is_none() && !p.cancel_id_first() {
+            id = after_id(p, &bytes).map_err(|error| failure(interp, error))?;
+        }
+    }
+    if let Some(id) = id {
+        let remaining = interp.events_mut().remaining(id);
+        let cancelled = interp.events_mut().cancel(id);
+        if p.cancel_id_first() && cancelled.is_some() {
+            if let Some(remaining) = remaining {
+                return Ok(interp.new_int(
+                    i64::try_from(remaining.as_micros()).expect("selected Jim event deadline"),
+                ));
+            }
+        }
+    }
+    Ok(empty())
+}
+fn info(
+    interp: &mut Interp,
+    p: NativeEventProtocol,
+    args: &[*mut TclObj],
+) -> Result<*mut TclObj, Code> {
+    if args.is_empty() {
+        let values = interp
+            .events_mut()
+            .ids(p.deadline_order())
+            .into_iter()
+            .map(|i| obj::Owned::fresh(new_string(format!("after#{i}").as_bytes())))
+            .collect::<Vec<_>>();
+        return Ok(interp.new_list(values.iter().map(obj::Owned::as_ptr).collect()));
+    }
+    let [original] = args else {
+        return Err(interp.wrong_arguments_message(b"wrong # args: should be \"after info ?id?\""));
+    };
+    let bytes = interp
+        .native_string_bytes(original)
+        .map_err(|e| failure(interp, e))?;
+    if let Some(id) = after_id(p, &bytes).map_err(|error| failure(interp, error))? {
+        let script = interp.events_mut().script(id).map(|(s, k)| (s.clone(), k));
+        if let Some((script, kind)) = script {
+            let kind = obj::Owned::fresh(new_string(if kind == EventKind::Idle {
+                b"idle"
+            } else {
+                b"timer"
+            }));
+            return Ok(interp.new_list(vec![script.as_ptr(), kind.as_ptr()]));
+        }
+    }
+    let reported = tcl_core_types::c_string_extent(&bytes);
+    let mut message = b"event \"".to_vec();
+    message.extend_from_slice(reported);
+    message.extend_from_slice(b"\" doesn't exist");
+    let mut detail = tcl_cmd_core::CmdError::new_bytes(message).into_byte_details();
+    if let Some(code) = p.missing_event_code(&bytes) {
+        detail.error_code = tcl_cmd_core::CmdErrorCodeUpdate::Set(code);
+    }
+    Err(interp.report_cmd_error(tcl_cmd_core::CmdError::from_byte_details(detail)))
+}
+struct WaitFlag(Rc<Cell<bool>>);
+impl NativeVariableObserver<Interp> for WaitFlag {
+    type Error = tcl_cmd_core::CmdError;
+    fn observe(&self, _: &mut Interp, _: NativeVariableTraceAccess<'_>) -> Result<(), Self::Error> {
+        self.0.set(true);
+        Ok(())
+    }
+}
+fn vwait_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // Implementation contract: naming.event.original-vwait-operand-boundaries
+    // docs/design/analysis/name-resolution-proofs/event-original-vwait-operand-boundaries.md
+    let p = match selected(interp) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let form = match p.vwait().form(argv.len() - 1, |index| {
+        interp.native_string_bytes(&argv[index + 1])
+    }) {
+        Ok(form) => form,
+        Err(error) => return failure(interp, error),
+    };
+    match form {
+        tcl_registry::native_vwait::NativeVwaitForm::Basic => {}
+        tcl_registry::native_vwait::NativeVwaitForm::Extended => {
+            return failure(
+                interp,
+                ValueError::CommandProtocolUnavailable("extended native vwait grammar"),
+            );
+        }
+        tcl_registry::native_vwait::NativeVwaitForm::WrongArity => {
+            return interp.wrong_arguments_message(p.vwait().wrong_arguments().as_bytes());
+        }
+    }
+    let original = &argv[1];
+    if p.wait() == NativeEventWait::GlobalValueComparison {
+        return jim_wait(interp, *original);
+    }
+    let flag = Rc::new(Cell::new(false));
+    let token = match interp.with_event_global_frame(|i| {
+        i.add_native_variable_observer(
+            *original,
+            &[
+                NativeVariableTraceOperation::Write,
+                NativeVariableTraceOperation::Unset,
+            ],
+            Rc::new(WaitFlag(flag.clone())),
+        )
+    }) {
+        Ok(t) => t,
+        Err(c) => return c,
+    };
+    let mut completion = Code::Ok;
+    while !flag.get() {
+        if interp.events_mut().is_empty() {
+            completion = failure(
+                interp,
+                ValueError::CommandProtocolUnavailable("host event-source inventory"),
+            );
+            break;
+        }
+        process_one(interp);
+        if interp.native_access_refusal().is_some() {
+            completion = Code::Error;
+            break;
+        }
+    }
+    interp.remove_native_variable_observer(&token);
+    if completion == Code::Ok {
+        interp.set_result_bytes(b"");
+    }
+    completion
+}
+fn jim_wait(interp: &mut Interp, original: *mut TclObj) -> Code {
+    let before = match interp.original_global_event_value(original) {
+        Ok(value) => value.map(obj::Owned::retain),
+        Err(code) => return code,
+    };
+    while !interp.events_mut().is_empty() {
+        process_one(interp);
+        if interp.native_access_refusal().is_some() {
+            return Code::Error;
+        }
+        let current = match interp.original_global_event_value(original) {
+            Ok(value) => value.map(obj::Owned::retain),
+            Err(code) if interp.native_access_refusal().is_some() => return code,
+            Err(_) => None,
+        };
+        match (&before, current) {
+            (None, None) => {}
+            (Some(old), Some(new)) => {
+                let a = match interp.native_string_bytes(&old.as_ptr()) {
+                    Ok(b) => b,
+                    Err(e) => return failure(interp, e),
+                };
+                let b = match interp.native_string_bytes(&new.as_ptr()) {
+                    Ok(b) => b,
+                    Err(e) => return failure(interp, e),
+                };
+                if a != b {
+                    break;
                 }
-            };
-            let _ = removed;
-            interp.set_result_bytes(b"");
-            Code::Ok
+            }
+            _ => break,
         }
-        b"info" => {
-            // Minimal: list pending ids, or for a given id its script.
-            interp.set_result_bytes(b"");
-            Code::Ok
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+fn update_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let p = match selected(interp) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let idle = match &argv[1..] {
+        [] => false,
+        [option] if p.after_options_exact() => {
+            let table =
+                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(&[
+                    "idletasks",
+                ]);
+            match interp.native_jim_enum_from_original(
+                *option,
+                &table,
+                tcl_registry::native_jim_enum::NativeJimEnumFlags(
+                    tcl_registry::native_jim_enum::NativeJimEnumFlags::ABBREVIATE,
+                ),
+                None,
+            ) {
+                Ok(Ok(_)) => true,
+                Ok(Err(_)) => {
+                    return interp.wrong_arguments_message(
+                        b"wrong # args: should be \"update ?idletasks?\"",
+                    );
+                }
+                Err(error) => return failure(interp, error),
+            }
+        }
+        [option] => {
+            match interp.native_static_option_index(*option, &[b"idletasks"], false, "option") {
+                Ok(_) => true,
+                Err(e) => return interp.report_cmd_error(e),
+            }
         }
         _ => {
-            // `after ms ?script?`: a non-negative integer delay.
-            let ms = match parse_ms(&first) {
-                Some(ms) => ms,
-                None => {
-                    let mut m = b"bad argument \"".to_vec();
-                    m.extend_from_slice(&first);
-                    m.extend_from_slice(b"\": must be cancel, idle, info, or an integer");
-                    return err(interp, &m);
-                }
-            };
-            if argv.len() == 2 {
-                // Bare delay: process events until `ms` elapses (Tcl blocks the
-                // event loop for the delay, still servicing other events).
-                return delay(interp, ms);
-            }
-            let script = join_args(&argv[2..]);
-            let id = interp.events_mut().push_timer(ms, script);
-            set_after_id(interp, id);
-            Code::Ok
+            return interp
+                .wrong_arguments_message(b"wrong # args: should be \"update ?idletasks?\"");
         }
-    }
-}
-
-/// `vwait varName` — run the event loop until `varName` is written (set/unset),
-/// returning when its value changes. Returns immediately (after draining) if no
-/// events remain and the variable never changes (C reports nothing to wait on).
-fn vwait_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 2 {
-        return interp.wrong_arguments_message(b"wrong # args: should be \"vwait name\"");
-    }
-    let var = obj_bytes(argv[1]);
-    let before = read_var_snapshot(interp, &var);
-    loop {
-        // Stop as soon as the watched variable has changed.
-        let now = read_var_snapshot(interp, &var);
-        if now != before {
-            break;
-        }
-        if interp.events_mut().is_empty() {
-            // Nothing left to service and the variable hasn't changed: C would
-            // report "can't wait … would wait forever"; we return so a missing
-            // event source doesn't hang the test runner.
-            break;
-        }
-        if process_one(interp) == Code::Error {
+    };
+    interp.process_bg_errors();
+    while service_ready(interp, idle && !p.idle_update_runs_timers()) {
+        if interp.native_access_refusal().is_some() {
             return Code::Error;
         }
     }
-    interp.set_result_bytes(b"");
+    interp.process_bg_errors();
+    if p.clears_update_result() {
+        interp.set_result_bytes(b"");
+    }
     Code::Ok
 }
-
-/// `update`'s one option word (`tclCmdIL.c`): `Tcl_GetIndexFromObj(…,
-/// "option", 0)`, so `i` abbreviates `idletasks` and a one-entry table's miss
-/// is always `bad`, never `ambiguous`. This reported `wrong # args` for a
-/// misspelled option, where C reports `bad option`.
-const UPDATE_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"idletasks"]);
-
-/// `update` / `update idletasks` — service the events that are ready now, then
-/// return. `idletasks` services *only* idle events — it must not run timer
-/// events (C's `Tcl_UpdateObjCmd`: `TCL_IDLE_EVENTS` excludes timers).
-fn update_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() > 2 {
-        return interp.wrong_arguments_message(b"wrong # args: should be \"update ?idletasks?\"");
-    }
-    let idletasks = argv.len() == 2;
-    if idletasks {
-        if let Err(error) = interp.native_index_operand(
-            argv[1],
-            &tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend_bytes(
-                UPDATE_OPTIONS.names(),
-            ),
-            false,
-            "option",
-        ) {
-            return interp.report_cmd_error(error);
-        }
-    }
-    interp.process_bg_errors();
-    // Drain everything ready *now* (does not wait for future timers); for
-    // `idletasks`, only idle handlers.
-    let now = Instant::now();
+fn service_ready(interp: &mut Interp, idle_only: bool) -> bool {
+    let turn = interp.events_mut().begin_turn(Instant::now(), idle_only);
+    let Some(turn) = turn else { return false };
     loop {
-        let script = if idletasks {
-            interp.events_mut().pop_idle()
-        } else {
-            interp.events_mut().pop_ready(now)
-        };
+        let script = interp.events_mut().pop_turn(turn);
         let Some(script) = script else { break };
-        if run_event(interp, &script) == Code::Error {
-            return Code::Error;
+        run_event(interp, script.as_ptr());
+        if interp.native_access_refusal().is_some() {
+            break;
         }
     }
-    interp.process_bg_errors();
-    interp.set_result_bytes(b"");
-    Code::Ok
+    true
 }
-
-/// Process exactly one event, sleeping until the earliest timer is due if no
-/// event is ready yet. Returns `Ok` even when nothing ran.
-fn process_one(interp: &mut Interp) -> Code {
-    let now = Instant::now();
-    let script = interp.events_mut().pop_ready(now);
-    if let Some(script) = script {
-        return run_event(interp, &script);
+fn process_one(interp: &mut Interp) {
+    if service_ready(interp, false) {
+        return;
     }
-    // Nothing ready: wait until the earliest timer deadline, then retry.
     let deadline = interp.events_mut().earliest_deadline();
-    if let Some(d) = deadline {
-        let wait = d.saturating_duration_since(Instant::now());
-        if !wait.is_zero() {
-            std::thread::sleep(wait.min(Duration::from_millis(50)));
-        }
-        let now = Instant::now();
-        let script = interp.events_mut().pop_ready(now);
-        if let Some(script) = script {
-            return run_event(interp, &script);
-        }
+    if let Some(deadline) = deadline {
+        std::thread::sleep(
+            deadline
+                .saturating_duration_since(Instant::now())
+                .min(Duration::from_millis(50)),
+        );
+        service_ready(interp, false);
     }
-    Code::Ok
 }
-
-/// Evaluate one event script at the global level; a script error is reported as
-/// a background error (C's event handlers route errors to `bgerror`).
-fn run_event(interp: &mut Interp, script: &[u8]) -> Code {
-    let code = interp.eval_str(script);
-    if code == Code::Error {
-        let msg = interp.result_bytes();
-        // Simple-word options list (no special chars → space-join is valid Tcl).
-        interp.report_bg_error(&msg, b"-code 1 -level 0");
+fn run_event(interp: &mut Interp, script: *mut TclObj) {
+    let code = interp.eval_original_event(script);
+    let p = match selected(interp) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    if interp.native_access_refusal().is_none() && p.reports_callback_code(code.as_int()) {
+        let message = obj::Owned::retain(interp.get_obj_result());
+        let options = obj::Owned::fresh(crate::cmd_error::completion_options(interp, code));
+        interp.report_bg_error_original(message, options);
         interp.process_bg_errors();
     }
-    Code::Ok
 }
 
-/// Bare `after ms`: block, servicing events, until `ms` has elapsed.
-fn delay(interp: &mut Interp, ms: u64) -> Code {
-    let end = Instant::now() + Duration::from_millis(ms);
-    while Instant::now() < end {
-        if interp.events_mut().is_empty() {
-            let remaining = end.saturating_duration_since(Instant::now());
-            std::thread::sleep(remaining.min(Duration::from_millis(50)));
-        } else if process_one(interp) == Code::Error {
-            return Code::Error;
-        }
-    }
-    interp.set_result_bytes(b"");
-    Code::Ok
-}
-
-// helpers
-
-fn join_args(args: &[*mut TclObj]) -> Vec<u8> {
-    let mut out = Vec::new();
-    for (i, &a) in args.iter().enumerate() {
-        if i > 0 {
-            out.push(b' ');
-        }
-        out.extend_from_slice(&obj_bytes(a));
-    }
-    out
-}
-
-fn parse_ms(s: &[u8]) -> Option<u64> {
-    core::str::from_utf8(s)
-        .ok()?
-        .trim()
-        .parse::<i64>()
-        .ok()
-        .map(|n| n.max(0) as u64)
-}
-
-/// Set the result to the `after#<id>` token C returns for a scheduled event.
-fn set_after_id(interp: &mut Interp, id: u64) {
-    let mut t = b"after#".to_vec();
-    t.extend_from_slice(id.to_string().as_bytes());
-    interp.set_result_bytes(&t);
-}
-
-fn parse_after_id(s: &[u8]) -> Option<u64> {
-    let rest = s.strip_prefix(b"after#")?;
-    core::str::from_utf8(rest).ok()?.parse::<u64>().ok()
-}
-
-/// Read a variable's current `(exists, value)` snapshot for `vwait` change
-/// detection (a missing variable and an empty one are distinguished).
-fn read_var_snapshot(interp: &mut Interp, name: &[u8]) -> Option<Vec<u8>> {
-    interp.var_get(name).map(obj_bytes)
-}
+#[cfg(test)]
+mod native_original_tests;
 
 #[cfg(test)]
 mod tests {
@@ -429,7 +569,15 @@ mod tests {
     ///   after {}   -> bad argument "": must be cancel, idle, info, or an integer
     #[test]
     fn update_and_after_words_resolve_like_tcl_get_index_from_obj() {
-        let mut i = Interp::new();
+        let mut i = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs {
+                package_path: Vec::new(),
+                default_library: None,
+            },
+        )
+        .unwrap();
         assert_eq!(i.eval_str(b"update {}"), Code::Error);
         assert_eq!(i.result_bytes(), b"bad option \"\": must be idletasks");
         assert_eq!(i.eval_str(b"update x"), Code::Error);

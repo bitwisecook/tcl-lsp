@@ -95,8 +95,11 @@ impl CommonAotEnvironment {
 pub struct DirectProcEvidence {
     /// Exact in-unit definition selected by command-binding analysis.
     pub callee: ProcedureIdentity,
-    /// Fixed required formal names, in Tcl binding order.
+    /// Checked display of fixed required formal keys, in argument order.
     pub formals: Vec<String>,
+    /// Genuine counted declaration/argument ordinals, separate from native slots.
+    pub original_formals:
+        Option<std::sync::Arc<crate::var_escape::original_slots::OriginalScalarArgumentSlots>>,
     /// Types propagated from this call's already-evaluated actual arguments.
     pub actual_types: Vec<TypeLattice>,
     /// Exact caller values corresponding to each formal, when retained by SSA.
@@ -371,6 +374,8 @@ pub struct MaterialisableSlotEvidence {
     pub local_slot: u32,
     /// Variable display name retained for diagnostics.
     pub variable: String,
+    /// Independent byte/frame or explicit authored allocation selecting the slot.
+    pub authority: MaterialisableSlotAuthority,
     /// Exact singleton type shape used by materialisation.
     pub shape: TypeShape,
     /// Existing sparse-conditional-constant-propagation fact.
@@ -384,6 +389,28 @@ pub struct MaterialisableSlotEvidence {
     /// Live-interpreter epochs a later consumer must guard before using this
     /// slot without a continuously authoritative frame cell.
     pub runtime_guards: MaterialisationGuardRequirements,
+}
+
+/// Purpose of a selected allocation. Source rewrite ordinals never describe a
+/// physical local cache, and an advisory label cannot construct a native receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MaterialisableSlotAuthority {
+    /// Explicit logical analysis of a symbolic authored cell.
+    Authored,
+    /// Fixed scalar argument ordinal from its complete original `ParamList`.
+    SourceFormal {
+        /// Original declaration and exact counted argument keys.
+        declaration: std::sync::Arc<crate::var_escape::original_slots::OriginalScalarArgumentSlots>,
+        /// Exact local activation represented by SSA.
+        cell: crate::var_resolve::VariableCellKey,
+    },
+    /// Exact source cell accounted for by the sealed-program statement proof.
+    SealedProgramCell {
+        /// Original namespace and root storage key, without a label conversion.
+        cell: crate::var_resolve::VariableCellKey,
+    },
+    /// Actual retained native frame layout and its required incarnation.
+    NativeFrame(Box<crate::var_escape::original_slots::OriginalNativeFrameSlot>),
 }
 
 /// Runtime observability domains not discharged by source-only analysis.
@@ -418,6 +445,8 @@ pub enum MaterialisableSlotDecline {
     PassDisabled,
     /// Escape analysis did not allocate a local slot for this name.
     NoLocalSlot,
+    /// A typed original cell lacks its own byte/frame allocation receipt.
+    OriginalSlotUnavailable,
     /// This SSA version may be observed through a frame alias.
     EscapesToFrame,
     /// A literal or dynamic variable trace may observe representation changes.
@@ -438,6 +467,7 @@ impl MaterialisableSlotDecline {
             Self::MathBindingPrerequisiteRequired => "math-binding-prerequisite-required",
             Self::PassDisabled => "pass-disabled",
             Self::NoLocalSlot => "no-local-slot",
+            Self::OriginalSlotUnavailable => "original-slot-unavailable",
             Self::EscapesToFrame => "escapes-to-frame",
             Self::VariableTrace => "variable-trace",
             Self::TypeNotSingleton => "type-not-singleton",
@@ -451,7 +481,7 @@ impl MaterialisableSlotDecline {
 #[derive(Debug, Clone, PartialEq)]
 pub enum MaterialisableSlotDecision {
     /// Common analysis proved an exact materialisation recipe.
-    Selected(MaterialisableSlotEvidence),
+    Selected(Box<MaterialisableSlotEvidence>),
     /// The value stays boxed/frame-resident.
     Declined(MaterialisableSlotDecline),
 }
@@ -1409,23 +1439,75 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     }) {
         return decline(DirectProcDecline::ExpandedArgumentsUnsupported);
     }
-    let Some(grammar) = input.unit.ir_module.parameter_grammar() else {
-        return decline(DirectProcDecline::ContextUnavailable);
+    let (formals, original_formals) = match selected_direct_formals(input) {
+        Ok(selected) => selected,
+        Err(reason) => return decline(reason),
     };
-    let formals =
-        match direct_formal_bindings(&input.proc_def.params_raw, input.site.args.len(), grammar) {
-            Ok(formals) => formals,
-            Err(reason) => return decline(reason),
-        };
     let Some(summary) = input.summary else {
         return decline(DirectProcDecline::DynamicCallee);
     };
-    select_direct_evidence(input, &formals, summary)
+    select_direct_evidence(input, &formals, original_formals, summary)
 }
+
+fn selected_direct_formals(
+    input: &DirectInputs<'_>,
+) -> Result<DirectFormalSelection, DirectProcDecline> {
+    let Some(grammar) = input.unit.ir_module.parameter_grammar() else {
+        return Err(DirectProcDecline::ContextUnavailable);
+    };
+    let original_formals = crate::var_escape::original_slots::original_procedure_argument_slots(
+        &input.unit.ir_module,
+        input.proc_def,
+    );
+    let formals = if let Some(original) = &original_formals {
+        if original.names().len() != input.site.args.len() {
+            return Err(DirectProcDecline::ArityMismatch {
+                expected: original.names().len(),
+                actual: input.site.args.len(),
+            });
+        }
+        let Some(formals) = original
+            .names()
+            .iter()
+            .map(|name| {
+                Some(tcl_syntax::formal_params::FormalParameter {
+                    name: name.try_utf8().ok()?.to_owned(),
+                    default: None,
+                })
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Err(DirectProcDecline::InvalidFormalList);
+        };
+        formals
+    } else if input.unit.ir_module.source.is_empty()
+        && input.unit.ir_module.source_entry.native_entry.is_none()
+    {
+        // Explicit synthetic/logical IR keeps its authored parameter grammar.
+        direct_formal_bindings(&input.proc_def.params_raw, input.site.args.len(), grammar)?
+    } else {
+        // Preserve the established typed shape reasons without using the
+        // presentation parser as an original-name issuer.
+        return Err(direct_formal_bindings(
+            &input.proc_def.params_raw,
+            input.site.args.len(),
+            grammar,
+        )
+        .err()
+        .unwrap_or(DirectProcDecline::InvalidFormalList));
+    };
+    Ok((formals, original_formals))
+}
+
+type DirectFormalSelection = (
+    Vec<tcl_syntax::formal_params::FormalParameter>,
+    Option<crate::var_escape::original_slots::OriginalScalarArgumentSlots>,
+);
 
 fn select_direct_evidence(
     input: &DirectInputs<'_>,
     formals: &[tcl_syntax::formal_params::FormalParameter],
+    original_formals: Option<crate::var_escape::original_slots::OriginalScalarArgumentSlots>,
     summary: &ProcEscapeSummary,
 ) -> DirectProcDecision {
     let actual_facts: Vec<_> = input
@@ -1447,6 +1529,7 @@ fn select_direct_evidence(
             definition_end: input.proc_def.span.end(),
         },
         formals: formals.iter().map(|formal| formal.name.clone()).collect(),
+        original_formals: original_formals.map(std::sync::Arc::new),
         actual_types,
         actual_values,
         context: input.context,
@@ -1761,33 +1844,29 @@ fn collect_materialisable_slots(
         std::iter::once((&unit.top_level.name, &unit.top_level)).chain(unit.procedures.iter())
     {
         let summary = escape.get(qname);
-        let local_slots = if qname == "::top" && environment == CommonAotEnvironment::SealedProgram
+        let sealed_cells = if qname == "::top" && environment == CommonAotEnvironment::SealedProgram
         {
-            let names: BTreeSet<String> = match closed_program_coverage {
-                ClosedProgramCoverageDecision::Selected(coverage) => coverage
-                    .statements
-                    .iter()
-                    .filter_map(|statement| match statement {
-                        ClosedProgramStatementEvidence::DirectActualConstant { value, .. } => {
-                            Some(function.ssa.var_name(value.symbol).to_owned())
+            let mut cells = Vec::new();
+            if let ClosedProgramCoverageDecision::Selected(coverage) = closed_program_coverage {
+                for statement in &coverage.statements {
+                    if let ClosedProgramStatementEvidence::DirectActualConstant { value, .. } =
+                        statement
+                    {
+                        let cell = function.ssa.cell_key(value.symbol);
+                        if !cells.contains(cell) {
+                            cells.push(cell.clone());
                         }
-                        ClosedProgramStatementEvidence::DirectProcedureDefinition { .. }
-                        | ClosedProgramStatementEvidence::SemanticBoundary { .. } => None,
-                    })
-                    .collect(),
-                ClosedProgramCoverageDecision::Declined(_) => BTreeSet::new(),
-            };
-            names
-                .into_iter()
-                .take(crate::var_escape::LOCALS_ARRAY_CAP)
-                .enumerate()
-                .map(|(slot, name)| (name, u32::try_from(slot).unwrap_or(u32::MAX)))
-                .collect()
+                    }
+                }
+            }
+            cells.truncate(crate::var_escape::LOCALS_ARRAY_CAP);
+            cells
         } else {
-            summary
-                .map(|summary| summary.local_slots.clone())
-                .unwrap_or_default()
+            Vec::new()
         };
+        let local_slots = summary
+            .map(|summary| summary.local_slots.clone())
+            .unwrap_or_default();
         // The lowered module's own numeral grammar (`Module::dialect`) — the
         // same source `codegen_module` reads, so a slot decision made here and
         // the code emitted for it agree on what `0755` is.
@@ -1810,6 +1889,7 @@ fn collect_materialisable_slots(
                 key,
                 summary,
                 local_slots: &local_slots,
+                sealed_cells: &sealed_cells,
                 propagated,
                 intervals: &intervals,
                 enabled: config.is_enabled(SemanticOptimisationPassId::MaterialisableSlot),
@@ -1828,10 +1908,130 @@ struct MaterialisableInputs<'a> {
     key: ValueKey,
     summary: Option<&'a ProcEscapeSummary>,
     local_slots: &'a BTreeMap<String, u32>,
+    sealed_cells: &'a [crate::var_resolve::VariableCellKey],
     propagated: &'a HashMap<(String, usize), Option<TypeLattice>>,
     intervals: &'a HashMap<ValueKey, Interval>,
     enabled: bool,
     environment: CommonAotEnvironment,
+}
+
+fn native_frame_slot_allocation(
+    input: &MaterialisableInputs<'_>,
+    cell: &crate::var_resolve::VariableCellKey,
+) -> Option<(u32, MaterialisableSlotAuthority)> {
+    use crate::var_escape::original_slots::OriginalNativeFrameSlot;
+    // The entry layout belongs only to the root's actual active frame.
+    // It cannot be lent to a separately declared procedure.
+    if input.qname != input.unit.top_level.name {
+        return None;
+    }
+    let receipt = OriginalNativeFrameSlot::from_entry(&input.unit.ir_module, cell)?;
+    let points = input.function.ssa.point_contexts.as_ref()?;
+    let mut represented = false;
+    for (&block, statements) in &input.function.ssa.blocks {
+        for (index, statement) in statements.statements.iter().enumerate() {
+            if statement.uses.contains_key(&input.key.0)
+                || statement.defs.contains_key(&input.key.0)
+            {
+                let context = points.context_before(block, index)?;
+                // A compiled name alone establishes neither link absence nor
+                // quiet activation contents. Those domains remain separate.
+                if !receipt.matches_current_activation(context)
+                    || !context.activation_observers_closed()
+                    || context.dynamic_bindings
+                    || context.dynamic_traces
+                    || !context.alias_bindings.is_empty()
+                    || !context.name_alias_bindings.is_empty()
+                {
+                    return None;
+                }
+                represented = true;
+            }
+        }
+    }
+    represented.then(|| {
+        (
+            receipt.ordinal(),
+            MaterialisableSlotAuthority::NativeFrame(Box::new(receipt)),
+        )
+    })
+}
+
+fn materialisable_slot_allocation(
+    input: &MaterialisableInputs<'_>,
+) -> Option<(u32, MaterialisableSlotAuthority)> {
+    use crate::var_escape::original_slots::{
+        original_procedure_argument_slots, original_procedure_topology,
+    };
+    use crate::var_resolve::VariableCellKey;
+    let cell = input.function.ssa.cell_key(input.key.0);
+    if input.unit.ir_module.source_entry.native_entry.is_some() {
+        return native_frame_slot_allocation(input, cell);
+    }
+    if input.qname == input.unit.top_level.name
+        && input.environment == CommonAotEnvironment::SealedProgram
+    {
+        if !matches!(
+            cell,
+            VariableCellKey::Authored(_) | VariableCellKey::Namespace { .. }
+        ) {
+            return None;
+        }
+        let ordinal = u32::try_from(
+            input
+                .sealed_cells
+                .iter()
+                .position(|candidate| candidate == cell)?,
+        )
+        .ok()?;
+        return Some((
+            ordinal,
+            MaterialisableSlotAuthority::SealedProgramCell { cell: cell.clone() },
+        ));
+    }
+    match cell {
+        VariableCellKey::Authored(_) => {
+            let ordinal = *input
+                .local_slots
+                .get(input.function.ssa.var_name(input.key.0))?;
+            Some((ordinal, MaterialisableSlotAuthority::Authored))
+        }
+        VariableCellKey::Activation { identity, simple } => {
+            let procedure = input.unit.ir_module.procedures.get(input.qname)?;
+            let topology = original_procedure_topology(&input.unit.ir_module, procedure)?;
+            let declaration = original_procedure_argument_slots(&input.unit.ir_module, procedure)?;
+            let ordinal = declaration.ordinal(simple.as_bytes())?;
+            let points = input.function.ssa.point_contexts.as_ref()?;
+            let mut represented = false;
+            for (&block, statements) in &input.function.ssa.blocks {
+                for (index, statement) in statements.statements.iter().enumerate() {
+                    if statement.uses.contains_key(&input.key.0)
+                        || statement.defs.contains_key(&input.key.0)
+                    {
+                        let context = points.context_before(block, index)?;
+                        if context.activation.as_ref() != Some(identity)
+                            || context.original_formal_topology.as_deref() != Some(topology)
+                            || context.dynamic_bindings
+                            || !context.activation_observers_closed()
+                        {
+                            return None;
+                        }
+                        represented = true;
+                    }
+                }
+            }
+            represented.then(|| {
+                (
+                    ordinal,
+                    MaterialisableSlotAuthority::SourceFormal {
+                        declaration: std::sync::Arc::new(declaration),
+                        cell: cell.clone(),
+                    },
+                )
+            })
+        }
+        _ => None,
+    }
 }
 
 fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSlotDecision {
@@ -1855,8 +2055,8 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
     if summary.tags.get(&variable) == Some(&EscapeTag::Frame) {
         return decline(MaterialisableSlotDecline::EscapesToFrame);
     }
-    let Some(&local_slot) = input.local_slots.get(&variable) else {
-        return decline(MaterialisableSlotDecline::NoLocalSlot);
+    let Some((local_slot, authority)) = materialisable_slot_allocation(input) else {
+        return decline(MaterialisableSlotDecline::OriginalSlotUnavailable);
     };
     if input.unit.ir_module.has_dynamic_variable_trace
         || input.unit.ir_module.traced_variables.contains(&variable)
@@ -1871,7 +2071,14 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
         .unwrap_or_else(TypeLattice::unknown);
     if input.key.1 == 0
         && let Some(proc_def) = input.unit.ir_module.procedures.get(input.qname)
-        && let Some(index) = proc_def.params.iter().position(|name| name == &variable)
+        && let Some(index) = match &authority {
+            MaterialisableSlotAuthority::SourceFormal { .. } => usize::try_from(local_slot).ok(),
+            MaterialisableSlotAuthority::Authored => {
+                proc_def.params.iter().position(|name| name == &variable)
+            }
+            MaterialisableSlotAuthority::SealedProgramCell { .. }
+            | MaterialisableSlotAuthority::NativeFrame(_) => None,
+        }
         && let Some(propagated) = input.propagated.get(&(input.qname.to_owned(), index))
     {
         let Some(propagated) = propagated else {
@@ -1885,9 +2092,10 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
     let Some(shape) = ty.single_shape().cloned() else {
         return decline(MaterialisableSlotDecline::TypeNotSingleton);
     };
-    MaterialisableSlotDecision::Selected(MaterialisableSlotEvidence {
+    MaterialisableSlotDecision::Selected(Box::new(MaterialisableSlotEvidence {
         local_slot,
         variable,
+        authority,
         shape,
         constant: input.function.sccp.values.get(&input.key).cloned(),
         interval: input
@@ -1903,7 +2111,7 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
             variable_trace_epoch: true,
             interpreter_policy_epoch: true,
         },
-    })
+    }))
 }
 
 #[cfg(test)]
@@ -2182,10 +2390,8 @@ mod tests {
         assert!(plan.materialisable_slots().all(|(_, decision)| {
             !matches!(
                 decision,
-                MaterialisableSlotDecision::Selected(MaterialisableSlotEvidence {
-                    storage: VarStorage::NativeOnly,
-                    ..
-                })
+                MaterialisableSlotDecision::Selected(evidence)
+                    if evidence.storage == VarStorage::NativeOnly
             )
         }));
         assert!(CommonAotEnvironment::SealedProgram.permits_native_only());
@@ -2214,14 +2420,15 @@ mod tests {
                     identity.function == "::top"
                         && matches!(
                             decision,
-                            MaterialisableSlotDecision::Selected(MaterialisableSlotEvidence {
-                                variable: selected,
-                                shape: TypeShape::Int,
-                                constant: Some(LatticeValue::Const(
-                                    crate::analyses::ConstValue::Int(value)
-                                )),
-                                ..
-                            }) if selected == variable && *value == expected
+                            MaterialisableSlotDecision::Selected(evidence)
+                                if matches!(evidence.as_ref(), MaterialisableSlotEvidence {
+                                    variable: selected,
+                                    shape: TypeShape::Int,
+                                    constant: Some(LatticeValue::Const(
+                                        crate::analyses::ConstValue::Int(value)
+                                    )),
+                                    ..
+                                } if selected == variable && *value == expected)
                         )
                 }),
                 "missing sealed {variable}={expected}: {plan:#?}"

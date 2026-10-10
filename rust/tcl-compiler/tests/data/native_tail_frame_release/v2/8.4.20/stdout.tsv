@@ -1,0 +1,8 @@
+case	0	original	0	33	made=0	free=
+case	0	loop	0	31	made=0	free=
+case	1	original	0	31	made=0	free=
+case	1	loop	0	3939	made=0	free=
+case	2	original	0	444f4e45207b7b3020327d207b3120317d207b3220307d7d	made=0	free=
+case	2	loop	0	444f4e45207b7b3020307d207b3120307d207b3220307d7d	made=0	free=
+case	3	original	0	444f4e45	made=2	free=2,1
+case	3	loop	0	444f4e45	made=2	free=1,2

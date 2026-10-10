@@ -364,6 +364,22 @@ fn extract_single_value(
     }
 }
 
+// The output words are explicitly authored proposals, not original source
+// inputs. Availability is selected by this Registry; it does not prove their
+// current command-table implementation or permit Native insertion/movement.
+fn emitted_forms_available(registry: &CommandRegistry) -> bool {
+    [
+        ["match", "ITEM", "equals", "GROUP"].as_slice(),
+        ["lookup", "ITEM", "GROUP"].as_slice(),
+    ]
+    .iter()
+    .all(|arguments| {
+        registry
+            .resolve_invocation("class", arguments, registry.own_surface_query())
+            .is_some_and(|selected| selected.subcommand.is_resolved())
+    })
+}
+
 // if-chain extraction
 
 /// Extract an if/elseif chain comparing one variable to literals.
@@ -376,6 +392,9 @@ pub fn extract_to_datagroup_from_if(
     line_index: &LineIndex,
     config: LexerConfig,
 ) -> Option<Refactoring> {
+    if !emitted_forms_available(registry) {
+        return None;
+    }
     let cmd = find_command_at(source, cursor, Some("if"), registry, config)?;
     let chain = parse_if_chain(&cmd.texts)?;
     if chain.values.len() < 2 {
@@ -617,6 +636,9 @@ pub fn extract_to_datagroup_from_switch(
     line_index: &LineIndex,
     config: LexerConfig,
 ) -> Option<Refactoring> {
+    if !emitted_forms_available(registry) {
+        return None;
+    }
     let cmd = find_command_at(source, cursor, Some("switch"), registry, config)?;
     let (subject, pairs) = super::parse_exact_switch(&cmd.texts)?;
     let subject_var = extract_var_name(&subject)?;
@@ -777,6 +799,30 @@ mod tests {
 
     fn dg(r: &Refactoring) -> &DataGroupDefinition {
         r.data_group.as_ref().expect("data group")
+    }
+
+    #[test]
+    fn original_datagroup_proposals_require_the_selected_output_surface() {
+        let source = "if {$host eq \"a.com\"} {pool web_pool} elseif {$host eq \"b.com\"} {pool web_pool} elseif {$host eq \"c.com\"} {pool web_pool}";
+        let index = LineIndex::new(source);
+        for (dialect, available) in [("tcl8.6", false), ("f5-irules", true)] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+            let registry = analysis.resolved_registry().unwrap();
+            assert_eq!(emitted_forms_available(registry), available, "{dialect}");
+            assert_eq!(
+                extract_to_datagroup(
+                    source,
+                    0,
+                    "",
+                    registry,
+                    &index,
+                    analysis.body_lexer_config.unwrap()
+                )
+                .is_some(),
+                available,
+                "{dialect}"
+            );
+        }
     }
 
     #[test]

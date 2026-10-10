@@ -47,7 +47,7 @@ use tcl_dialect::model::SpecSurface;
 /// expression payload. This observation supplies no runtime activation capability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MeasuredBigIpExpressionObservation {
-    /// Dynamically evaluated expression in the HTTP_REQUEST event.
+    /// Dynamically evaluated expression in the `HTTP_REQUEST` event.
     TmmHttpRequest,
     /// A tmsh CLI script.
     TmshCliScript,

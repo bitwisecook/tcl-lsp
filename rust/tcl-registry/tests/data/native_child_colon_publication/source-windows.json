@@ -1,0 +1,102 @@
+{
+  "line_rule": "Source coordinates count only byte LF (0x0a); form-feed and CR stay inside their source lines.",
+  "original_request_sha256": "c2c45fd33cc0eb59839bb5fcddd0da3a65b972a2cc0f45be295e0a46cc19453c",
+  "windows": [
+    {
+      "provider": "8.4.20",
+      "function": "Tcl_ProcObjCmd",
+      "source_path": "rust/tcl-registry/tests/data/native_child_colon_publication/full-source/8.4.20/tclProc.c",
+      "source_sha256": "bfeecc7c08dabce16946efad9c0e7eb3cacf43d4a5376bf622fa4b69483eb879",
+      "lines": [
+        126,
+        143
+      ],
+      "snippet": "     * Now create a command for the procedure. This will initially be in\n     * the current namespace unless the procedure's name included namespace\n     * qualifiers. To create the new command in the right namespace, we\n     * generate a fully qualified name for it.\n     */\n\n    Tcl_DStringInit(&ds);\n    if (nsPtr != iPtr->globalNsPtr) {\n\tTcl_DStringAppend(&ds, nsPtr->fullName, -1);\n\tTcl_DStringAppend(&ds, \"::\", 2);\n    }\n    Tcl_DStringAppend(&ds, procName, -1);\n\n    Tcl_CreateCommand(interp, Tcl_DStringValue(&ds), TclProcInterpProc,\n\t    (ClientData) procPtr, TclProcDeleteProc);\n    cmd = Tcl_CreateObjCommand(interp, Tcl_DStringValue(&ds),\n\t    TclObjInterpProc, (ClientData) procPtr, TclProcDeleteProc);\n\n",
+      "snippet_sha256": "b100249a9a6566a9c52959c969fc2a14e3cc289476daae77768fa5e65012eb3d",
+      "requested_lines": [
+        126,
+        143
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "function": "Tcl_ProcObjCmd",
+      "source_path": "rust/tcl-registry/tests/data/native_child_colon_publication/full-source/8.5.19/tclProc.c",
+      "source_sha256": "9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6",
+      "lines": [
+        173,
+        187
+      ],
+      "snippet": "     * Now create a command for the procedure. This will initially be in the\n     * current namespace unless the procedure's name included namespace\n     * qualifiers. To create the new command in the right namespace, we\n     * generate a fully qualified name for it.\n     */\n\n    Tcl_DStringInit(&ds);\n    if (nsPtr != iPtr->globalNsPtr) {\n\tTcl_DStringAppend(&ds, nsPtr->fullName, -1);\n\tTcl_DStringAppend(&ds, \"::\", 2);\n    }\n    Tcl_DStringAppend(&ds, procName, -1);\n\n    cmd = Tcl_CreateObjCommand(interp, Tcl_DStringValue(&ds),\n\t    TclObjInterpProc, (ClientData) procPtr, TclProcDeleteProc);\n",
+      "snippet_sha256": "42a3cb36df01b6f23da0a3773062d1d6317d4dbcd098a889a40a6b9c86ad9f34",
+      "requested_lines": [
+        173,
+        187
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "function": "SetLambdaFromAny",
+      "source_path": "rust/tcl-registry/tests/data/native_child_colon_publication/full-source/8.5.19/tclProc.c",
+      "source_sha256": "9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6",
+      "lines": [
+        2591,
+        2602
+      ],
+      "snippet": "    if (objc == 2) {\n\tTclNewLiteralStringObj(nsObjPtr, \"::\");\n    } else {\n\tchar *nsName = TclGetString(objv[2]);\n\n\tif ((*nsName != ':') || (*(nsName+1) != ':')) {\n\t    TclNewLiteralStringObj(nsObjPtr, \"::\");\n\t    Tcl_AppendObjToObj(nsObjPtr, objv[2]);\n\t} else {\n\t    nsObjPtr = objv[2];\n\t}\n    }\n",
+      "snippet_sha256": "77acf3444c81b456c1385d5c18b486bd8382e17772d7286c7c02504d9ca4a203",
+      "requested_lines": [
+        2610,
+        2630
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "function": "SetLambdaFromAny",
+      "source_path": "rust/tcl-registry/tests/data/native_child_colon_publication/full-source/8.6.18/tclProc.c",
+      "source_sha256": "c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3",
+      "lines": [
+        2569,
+        2580
+      ],
+      "snippet": "    if (objc == 2) {\n\tTclNewLiteralStringObj(nsObjPtr, \"::\");\n    } else {\n\tconst char *nsName = TclGetString(objv[2]);\n\n\tif ((*nsName != ':') || (*(nsName+1) != ':')) {\n\t    TclNewLiteralStringObj(nsObjPtr, \"::\");\n\t    Tcl_AppendObjToObj(nsObjPtr, objv[2]);\n\t} else {\n\t    nsObjPtr = objv[2];\n\t}\n    }\n",
+      "snippet_sha256": "b1fb8269e3562204555fe961cfa7793c434c27db08b774418d9c952492427f96",
+      "requested_lines": [
+        2591,
+        2611
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "function": "SetLambdaFromAny",
+      "source_path": "rust/tcl-registry/tests/data/native_child_colon_publication/full-source/9.0.4/tclProc.c",
+      "source_sha256": "ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110",
+      "lines": [
+        2603,
+        2614
+      ],
+      "snippet": "    if (objc == 2) {\n\tTclNewLiteralStringObj(nsObjPtr, \"::\");\n    } else {\n\tconst char *nsName = TclGetString(objv[2]);\n\n\tif ((nsName[0] != ':') || (nsName[1] != ':')) {\n\t    TclNewLiteralStringObj(nsObjPtr, \"::\");\n\t    Tcl_AppendObjToObj(nsObjPtr, objv[2]);\n\t} else {\n\t    nsObjPtr = objv[2];\n\t}\n    }\n",
+      "snippet_sha256": "f27cf516ed3417377b63ba485291cb2120a5b97ecc644abb772f37af9f6a2334",
+      "requested_lines": [
+        2624,
+        2644
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "function": "SetLambdaFromAny",
+      "source_path": "rust/tcl-registry/tests/data/native_child_colon_publication/full-source/9.1.0/tclProc.c",
+      "source_sha256": "2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a",
+      "lines": [
+        2503,
+        2514
+      ],
+      "snippet": "    if (objc == 2) {\n\tTclNewLiteralStringObj(nsObjPtr, \"::\");\n    } else {\n\tconst char *nsName = TclGetString(objv[2]);\n\n\tif ((*nsName != ':') || (*(nsName+1) != ':')) {\n\t    TclNewLiteralStringObj(nsObjPtr, \"::\");\n\t    Tcl_AppendObjToObj(nsObjPtr, objv[2]);\n\t} else {\n\t    nsObjPtr = objv[2];\n\t}\n    }\n",
+      "snippet_sha256": "b1fb8269e3562204555fe961cfa7793c434c27db08b774418d9c952492427f96",
+      "requested_lines": [
+        2525,
+        2545
+      ]
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+[
+  {
+    "path": "rust/tcl-vm/tests/data/native_alias_simple/manifest.json",
+    "sha256": "abee378ef2008d25f429f9938d5e579b4f444de0f1035ebbeb42c240a0e879ef",
+    "classification": "duplicate-evidence",
+    "proof_ids": [
+      "naming.alias.original-local-name-object"
+    ],
+    "reason": "Whole-byte equality with runtime/rust/tests/data/native_alias_simple/manifest.json independently checked; same recorded probe SHA and exact native outcomes.",
+    "duplicate_of": "runtime/rust/tests/data/native_alias_simple/manifest.json"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_alias_simple/manifest.json",
+    "sha256": "abee378ef2008d25f429f9938d5e579b4f444de0f1035ebbeb42c240a0e879ef",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.alias.original-local-name-object"
+    ],
+    "reason": "Inspected exact native probe, 5 release receipts and hash-matched stdout, preserving object snapshot order and guest completion."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_alias_simple/canonical/manifest.json",
+    "sha256": "918eb0e1d8c676af675db4f2107c4cdcc848327b4c687ed5056c1e7a0fe23082",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.alias.original-local-name-list-canonical"
+    ],
+    "reason": "Inspected exact native probe and five release receipts; each retained two-column canonical projection matches its canonical_fixture_sha256. The full private probe stdout is not retained, so its recorded full-stream hash is not a replay assertion."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_global_cache_token/manifest.json",
+    "sha256": "32fd592ec8270e02072e43455702b3010de9bfc55c24cc814c5a73c1849981f0",
+    "classification": "duplicate-evidence",
+    "proof_ids": [
+      "naming.variable.original-global-cache-token"
+    ],
+    "reason": "Whole-byte equality with runtime/rust/tests/data/native_global_cache_token/manifest.json independently checked; same recorded probe SHA and exact native outcomes.",
+    "duplicate_of": "runtime/rust/tests/data/native_global_cache_token/manifest.json"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_global_cache_token/manifest.json",
+    "sha256": "32fd592ec8270e02072e43455702b3010de9bfc55c24cc814c5a73c1849981f0",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.original-global-cache-token"
+    ],
+    "reason": "Inspected exact native probe, 5 release receipts and hash-matched stdout, preserving object snapshot order and guest completion."
+  }
+]

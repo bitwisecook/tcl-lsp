@@ -226,9 +226,13 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
             // the next command resumes. The lexer always closes a stream with
             // a zero-width `Eol`, so `None` only reaches here from a
             // hand-built token slice; end of source is then both answers.
-            let (end, next) = cmd.terminator.map_or((src.len(), src.len()), |i| {
-                (toks[i].span.start() as usize, toks[i].span.end() as usize)
-            });
+            let end = cmd
+                .source_extent(&toks, src.len())
+                .expect("original lexer command source extent")
+                .end() as usize;
+            let next = cmd
+                .terminator
+                .map_or(src.len(), |i| toks[i].span.end() as usize);
             Command {
                 words: cmd
                     .words

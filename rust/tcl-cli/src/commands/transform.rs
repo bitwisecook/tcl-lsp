@@ -27,10 +27,10 @@ use tcl_cli_support::{
     OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
     registry_for_dialect, write_highlighted_output, write_text_output,
 };
-use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
+use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle};
 use tcl_lsp_core::minify::{
-    SymbolMap, minify_tcl, minify_tcl_aggressive_with, minify_tcl_compact, remap_line_references,
-    unminify_error,
+    MinifyOptions as CoreMinifyOptions, MinifyTier as CoreMinifyTier, SymbolMap,
+    minify_with_profile, remap_line_references, unminify_error,
 };
 
 use std::collections::HashSet;
@@ -78,13 +78,8 @@ fn format_config(
 
 /// `tcl format` — pretty-print each input with canonical style rules.
 ///
-/// Kept on `combine_sources` after #2120's investigation of `run_opt`'s
-/// concatenation bug: the formatter is a pure syntactic rewriter
-/// (`format_tcl(source) -> source`, see `formatter-engine.md`) that never
-/// folds a value from one statement into another the way the optimiser's
-/// constant propagation does, so concatenating documents before formatting
-/// cannot produce the "ran a variable's *value* across a file boundary that
-/// never shares a scope at run time" defect #2120 is about.
+/// Each document retains its own resolved source input and command advice.
+/// Joining the output does not share declarations or aliases across inputs.
 pub fn run_format(
     input: &InputArgs,
     indent_size: Option<usize>,
@@ -94,18 +89,22 @@ pub fn run_format(
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
-    let source = combine_sources(&documents);
-    let registry = registry_for_dialect(dialect.name);
-
-    let config = format_config(dialect.name, indent_size, indent_style, max_line_length);
-
-    // `formatting_with` returns a single whole-document edit, or an empty Vec
-    // when the source is already canonical.
-    let edits = formatting_with(&source, &config, &registry);
-    let formatted = edits
-        .into_iter()
-        .next()
-        .map_or(source, |edit| edit.new_text);
+    // Each input keeps its own command table and source ingress. Joined output
+    // does not let a rename or declaration in one input govern another.
+    let formatted = documents
+        .iter()
+        .map(|document| {
+            let profile = document.effective_dialect(input.dialect_profile()?);
+            let registry = registry_for_dialect(profile.name);
+            let config = format_config(profile.name, indent_size, indent_style, max_line_length);
+            Ok(tcl_lsp_core::formatting::format_tcl(
+                &document.source,
+                &config,
+                &registry,
+            ))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?
+        .join("\n");
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
@@ -335,18 +334,26 @@ pub fn run_minify(
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
 
-    let (rendered, map) = match tier {
-        MinifyTier::Aggressive => {
-            let result =
-                minify_tcl_aggressive_with(&source, dialect, isolated, &registry, abbreviations);
-            (result.source, Some(result.symbol_map))
-        }
-        MinifyTier::Compact => {
-            let (minified, sm) = minify_tcl_compact(&source, dialect, isolated, &registry);
-            (minified, Some(sm))
-        }
-        MinifyTier::Default => (minify_tcl(&source, dialect, &registry), None),
+    let core_tier = match tier {
+        MinifyTier::Aggressive => CoreMinifyTier::Aggressive,
+        MinifyTier::Compact => CoreMinifyTier::Compact,
+        MinifyTier::Default => CoreMinifyTier::Default,
     };
+    let result = minify_with_profile(
+        &source,
+        dialect,
+        &registry,
+        CoreMinifyOptions {
+            tier: core_tier,
+            isolated,
+            abbreviations,
+        },
+    );
+    for refusal in &result.refusals {
+        eprintln!("minify: {}", refusal.reason());
+    }
+    let rendered = result.source;
+    let map = result.symbol_map;
 
     write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
 
@@ -356,7 +363,7 @@ pub fn run_minify(
         // Skipping the write left the file uncreated, so a later
         // `unminify-error` failed on a missing path — and the flag's help
         // documents no dependency on `--compact`/`--aggressive` (issue 198).
-        let map_text = map.unwrap_or_default().format();
+        let map_text = map.format();
         write_text_output(&OutputTarget::File(path.to_path_buf()), &map_text)?;
     }
     Ok(0)

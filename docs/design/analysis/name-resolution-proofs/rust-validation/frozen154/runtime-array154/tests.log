@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch ... 
+thread 'interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch' (606390) panicked at src/interp/execution_name_policy.rs:450:13:
+assertion `left == right` failed: source=[115, 101, 116, 32, 123, 82, 0, 84, 40, 107, 41, 125, 32, 101, 108, 101, 109, 101, 110, 116, 59, 32, 108, 105, 115, 116, 32, 91, 97, 114, 114, 97, 121, 32, 101, 120, 105, 115, 116, 115, 32, 123, 82, 0, 84, 125, 93, 32, 91, 97, 114, 114, 97, 121, 32, 115, 105, 122, 101, 32, 123, 82, 0, 84, 125, 93, 32, 91, 97, 114, 114, 97, 121, 32, 110, 97, 109, 101, 115, 32, 123, 82, 0, 84, 125, 93, 32, 91, 105, 110, 102, 111, 32, 101, 120, 105, 115, 116, 115, 32, 123, 82, 0, 84, 40, 107, 41, 125, 93, 32, 91, 105, 110, 102, 111, 32, 101, 120, 105, 115, 116, 115, 32, 123, 82, 0, 84, 40, 109, 105, 115, 115, 105, 110, 103, 41, 125, 93] result=[] admission=None refusal=Some(CommandProtocolUnavailable("unmeasured observed variable purpose"))
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1227 filtered out; finished in 1.44s
+

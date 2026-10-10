@@ -45,16 +45,8 @@ pub(super) fn install(variables: &mut ResolveContext, entry: &NativeCompilationE
         {
             continue;
         }
-        // A complete analytical table needs every original key representable.
-        // Omitting an opaque row would turn a partial view into false absence.
-        let Some(roots) = table
-            .roots
-            .iter()
-            .map(|name| name.try_utf8().ok().map(str::to_owned))
-            .collect::<Option<Vec<_>>>()
-        else {
-            continue;
-        };
+        // The table inventory retains every counted native key, including opaque units.
+        let roots = table.roots.iter().cloned();
         let identity = SourceNamespaceKey::Native(table.namespace.clone());
         variables
             .namespace_cells
@@ -84,16 +76,16 @@ mod tests {
         let native = entry
             .retained_namespace_context(entry.current_namespace)
             .unwrap();
-        let mut variables = ResolveContext {
-            frame_kind: VariableFrameKind::Global,
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-            ..Default::default()
-        };
+        let mut variables = ResolveContext::for_frame(
+            VariableFrameKind::Global,
+            crate::var_resolve::BindingIdentity::Legacy,
+            Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        );
         variables.widen();
         let mut root = place::scalar("fresh_array", "::", false);
         root.cell = Some(place::CellIdentity {
             owner: CellOwner::NamespaceIdentity(Box::new(SourceNamespaceKey::Native(native))),
-            name: root.name.clone(),
+            name: root.name.clone().into(),
             generation: place::CellGeneration::default(),
             interpreter: None,
             storage_domain: None,
@@ -159,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn allocated_undefined_or_opaque_root_never_becomes_a_fresh_array_proof() {
+    fn allocated_undefined_and_opaque_root_keys_retain_exact_table_inventory() {
         let (mut entry, mut variables, root) = fixture();
         let namespace = entry
             .retained_namespace_context(entry.current_namespace)
@@ -179,11 +171,25 @@ mod tests {
             roots: vec![tcl_core_types::NameBytes::from(&b"\xff"[..])],
         }]);
         install(&mut variables, &entry);
+        let mut opaque = root.clone();
+        opaque.name.clear();
+        opaque.cell.as_mut().unwrap().name = b"\xff".into();
+        assert_eq!(
+            variables.contents_presence(&opaque),
+            ContentsPresence::Unknown
+        );
+        assert!(
+            variables
+                .namespace_cells
+                .present
+                .contains(&crate::var_resolve::cell_key(&opaque))
+        );
         let mut different = root;
         different.name = "different".into();
+        different.cell.as_mut().unwrap().name = "different".into();
         assert_eq!(
             variables.contents_presence(&different),
-            ContentsPresence::Unknown
+            ContentsPresence::Undefined
         );
     }
 

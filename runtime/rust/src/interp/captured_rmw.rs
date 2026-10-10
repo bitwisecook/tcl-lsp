@@ -12,6 +12,13 @@ use crate::{
 };
 use tcl_registry::native_rmw::{NativeRmwOperation, NativeRmwReadFailure, NativeRmwReadPolicy};
 
+struct IncrementTarget<'a> {
+    name: &'a [u8],
+    root: &'a [u8],
+    element: Option<&'a [u8]>,
+    originals: Option<(Option<*mut TclObj>, Option<*mut TclObj>, bool)>,
+}
+
 impl Interp {
     /// Execute the selected C read/modify/write protocol, or leave another
     /// native container protocol to its existing adapter.
@@ -57,7 +64,12 @@ impl Interp {
         };
         let home = self.trace_identity(base);
         self.increment_retained_receiver(
-            (name, base, element),
+            IncrementTarget {
+                name,
+                root: base,
+                element,
+                originals: None,
+            },
             (amount, legacy_amount),
             policy,
             (receiver, home),
@@ -165,7 +177,12 @@ impl Interp {
                 .retain_original_element_key(original_element);
         }
         self.increment_retained_receiver(
-            (&captured.root, &captured.root, captured.element.as_deref()),
+            IncrementTarget {
+                name: &captured.root,
+                root: &captured.root,
+                element: captured.element.as_deref(),
+                originals: Some(originals),
+            },
             (Some(amount), legacy),
             policy,
             (captured.receiver, captured.home),
@@ -174,7 +191,7 @@ impl Interp {
 
     fn increment_retained_receiver(
         &mut self,
-        target: (&[u8], &[u8], Option<&[u8]>),
+        target: IncrementTarget<'_>,
         amounts: (
             Option<*mut TclObj>,
             Option<tcl_cmd_core::native_increment::PreparedLegacyIncrementAmount>,
@@ -182,9 +199,21 @@ impl Interp {
         policy: NativeRmwReadPolicy,
         captured: (crate::frame::VariableReceiver, crate::vars::TraceHome),
     ) -> Code {
-        let (name, base, element) = target;
+        let base = target.root;
+        let element = target.element;
         let (amount, legacy_amount) = amounts;
         let (receiver, home) = captured;
+        let reported = if self.original_variable_trace_requires_name(&home, element, b"read")
+            || self.original_variable_trace_requires_name(&home, element, b"write")
+        {
+            Some(match self.increment_reporting_name(&target) {
+                Ok(name) => name,
+                Err(code) => return code,
+            })
+        } else {
+            None
+        };
+        let name = reported.as_deref().unwrap_or(target.name);
         let access = self.trace_access(name, base, element, &home, false);
         let read_error = self.fire_var_trace_resolved(&home, &access, b"read");
         if self.host_refusal_pending() {
@@ -207,7 +236,7 @@ impl Interp {
                 // Modern Tcl treats a failed fetch as zero, then reports the
                 // actual captured receiver's failure at the store boundary.
                 Err(_) if policy == NativeRmwReadPolicy::InitialiseZero => None,
-                Err(error) => return self.increment_receiver_error(name, base, error, policy),
+                Err(error) => return self.increment_target_receiver_error(&target, error, policy),
             }
         };
         if current.is_none() && policy == NativeRmwReadPolicy::RequireContents {
@@ -216,7 +245,7 @@ impl Interp {
             } else {
                 NativeRmwReadFailure::MissingVariable
             };
-            return self.increment_read_failure(name, base, failure, policy);
+            return self.increment_target_read_failure(&target, failure, policy);
         }
         let default_amount = (amount.is_none() && legacy_amount.is_none())
             .then(|| Owned::fresh(obj::new_wide_int_obj(1)));
@@ -260,7 +289,7 @@ impl Interp {
             }
         };
         if let Err(error) = receiver.store(sum.as_ptr()) {
-            return self.increment_receiver_error(name, base, error, policy);
+            return self.increment_target_receiver_error(&target, error, policy);
         }
         drop(sum);
         if self.fire_var_trace_resolved(&home, &access, b"write") {
@@ -271,6 +300,58 @@ impl Interp {
             Ok(None) | Err(_) => self.set_result_bytes(b""),
         }
         Code::Ok
+    }
+
+    fn increment_reporting_name(&mut self, target: &IncrementTarget<'_>) -> Result<Vec<u8>, Code> {
+        let Some(originals) = target.originals else {
+            return Ok(target.name.to_vec());
+        };
+        let input =
+            self.original_c_variable_reporting_input((target.root, target.element), originals)?;
+        let Some(protocol) = self.native_c_variable_name_protocol() else {
+            return Err(self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "compiled Increment C reporting protocol",
+                ),
+            ));
+        };
+        tcl_syntax::naming::report_native_c_variable_value_name(
+            tcl_syntax::naming::NativeNameProtocol::C(protocol.version()),
+            input.input(),
+        )
+        .map_err(|_| {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "compiled Increment original reporting name",
+                ),
+            )
+        })
+    }
+
+    fn increment_target_receiver_error(
+        &mut self,
+        target: &IncrementTarget<'_>,
+        error: VarError,
+        policy: NativeRmwReadPolicy,
+    ) -> Code {
+        let name = match self.increment_reporting_name(target) {
+            Ok(name) => name,
+            Err(code) => return code,
+        };
+        self.increment_receiver_error(&name, target.root, error, policy)
+    }
+
+    fn increment_target_read_failure(
+        &mut self,
+        target: &IncrementTarget<'_>,
+        failure: NativeRmwReadFailure,
+        policy: NativeRmwReadPolicy,
+    ) -> Code {
+        let name = match self.increment_reporting_name(target) {
+            Ok(name) => name,
+            Err(code) => return code,
+        };
+        self.increment_read_failure(&name, target.root, failure, policy)
     }
 
     fn increment_receiver_error(

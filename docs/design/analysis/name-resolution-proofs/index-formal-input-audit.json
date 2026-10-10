@@ -1,0 +1,210 @@
+[
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_list_index_compilation/manifest.json",
+    "provider": "8.4.20",
+    "probe_sha_checked": true,
+    "all19body_literals_match_cases": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 19
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_list_index_compilation/manifest.json",
+    "provider": "8.5.19",
+    "probe_sha_checked": true,
+    "all19body_literals_match_cases": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 19
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_list_index_compilation/manifest.json",
+    "provider": "8.6.18",
+    "probe_sha_checked": true,
+    "all19body_literals_match_cases": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 19
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_list_index_compilation/manifest.json",
+    "provider": "9.0.4",
+    "probe_sha_checked": true,
+    "all19body_literals_match_cases": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 19
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_list_index_compilation/manifest.json",
+    "provider": "9.1.0",
+    "probe_sha_checked": true,
+    "all19body_literals_match_cases": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 19
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json",
+    "provider": "8.4.20",
+    "probe_sha_checked": true,
+    "nine_input_literals_match_json": true,
+    "raw_stdout_hash_checked": true,
+    "process_exit": 0,
+    "compile_exit_recorded": false,
+    "rows": 9
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json",
+    "provider": "8.5.19",
+    "probe_sha_checked": true,
+    "nine_input_literals_match_json": true,
+    "raw_stdout_hash_checked": true,
+    "process_exit": 0,
+    "compile_exit_recorded": false,
+    "rows": 9
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json",
+    "provider": "8.6.18",
+    "probe_sha_checked": true,
+    "nine_input_literals_match_json": true,
+    "raw_stdout_hash_checked": true,
+    "process_exit": 0,
+    "compile_exit_recorded": false,
+    "rows": 9
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json",
+    "provider": "9.0.4",
+    "probe_sha_checked": true,
+    "nine_input_literals_match_json": true,
+    "raw_stdout_hash_checked": true,
+    "process_exit": 0,
+    "compile_exit_recorded": false,
+    "rows": 9
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json",
+    "provider": "9.1.0",
+    "probe_sha_checked": true,
+    "nine_input_literals_match_json": true,
+    "raw_stdout_hash_checked": true,
+    "process_exit": 0,
+    "compile_exit_recorded": false,
+    "rows": 9
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/manifest.json",
+    "provider": "8.4.20",
+    "current_observer_safe_source_sha_checked": true,
+    "original_pre_observer_source_unretained": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 24
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/manifest.json",
+    "provider": "8.5.19",
+    "current_observer_safe_source_sha_checked": true,
+    "original_pre_observer_source_unretained": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 24
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/manifest.json",
+    "provider": "8.6.18",
+    "current_observer_safe_source_sha_checked": true,
+    "original_pre_observer_source_unretained": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 24
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/manifest.json",
+    "provider": "9.0.4",
+    "current_observer_safe_source_sha_checked": true,
+    "original_pre_observer_source_unretained": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 24
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/manifest.json",
+    "provider": "9.1.0",
+    "current_observer_safe_source_sha_checked": true,
+    "original_pre_observer_source_unretained": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 24
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/manifest.json",
+    "provider": "Jim",
+    "current_observer_safe_source_sha_checked": true,
+    "original_pre_observer_source_unretained": true,
+    "raw_stdout_hash_checked": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "rows": 12
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json",
+    "provider": "8.4.20",
+    "probe_sha_checked": true,
+    "raw_jsonl_matches_manifest_observation": true,
+    "original_stream_digest_recorded": false,
+    "process_status_recorded": false
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json",
+    "provider": "8.5.19",
+    "probe_sha_checked": true,
+    "raw_jsonl_matches_manifest_observation": true,
+    "original_stream_digest_recorded": false,
+    "process_status_recorded": false
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json",
+    "provider": "8.6.18",
+    "probe_sha_checked": true,
+    "raw_jsonl_matches_manifest_observation": true,
+    "original_stream_digest_recorded": false,
+    "process_status_recorded": false
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json",
+    "provider": "9.0.4",
+    "probe_sha_checked": true,
+    "raw_jsonl_matches_manifest_observation": true,
+    "original_stream_digest_recorded": false,
+    "process_status_recorded": false
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json",
+    "provider": "9.1.0",
+    "probe_sha_checked": true,
+    "raw_jsonl_matches_manifest_observation": true,
+    "original_stream_digest_recorded": false,
+    "process_status_recorded": false
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json",
+    "provider": "jim0.84",
+    "probe_sha_checked": true,
+    "raw_jsonl_matches_manifest_observation": true,
+    "original_stream_digest_recorded": false,
+    "process_status_recorded": false
+  }
+]

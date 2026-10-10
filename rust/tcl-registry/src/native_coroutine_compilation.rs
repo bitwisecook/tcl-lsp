@@ -392,3 +392,121 @@ mod tests {
         }
     }
 }
+
+/// Original coroutine resume arity, independently of a printable command name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeCoroutineResumeArity {
+    /// The coroutine is parked at a single optional `yield` value.
+    SingleOptional,
+    /// The coroutine is parked at an arbitrary `yieldto` argument vector.
+    Arbitrary,
+}
+
+/// C9.0–9.1 pending-injection chronology, without frame or invocation authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NativeCoroutineInjectionProtocol(());
+impl NativeCoroutineInjectionProtocol {
+    /// Select the measured native callback protocol independently of CPP.
+    #[must_use]
+    pub fn select(dialect: crate::InvocationDialect) -> Option<Self> {
+        // naming.coroutine.original-injection-public-completions
+        // docs/design/analysis/name-resolution-proofs/coroutine-original-injection-public-completions.md
+        matches!(
+            dialect.native_name_protocol(),
+            Some(tcl_syntax::naming::NativeNameProtocol::C(
+                TclVersion::V9_0 | TclVersion::V9_1
+            ))
+        )
+        .then_some(Self(()))
+    }
+
+    /// The injected kind reflects the retained suspension's resume arity.
+    #[must_use]
+    pub const fn kind(self, arity: NativeCoroutineResumeArity) -> &'static [u8] {
+        match arity {
+            NativeCoroutineResumeArity::SingleOptional => b"yield",
+            NativeCoroutineResumeArity::Arbitrary => b"yieldto",
+        }
+    }
+
+    /// Run newest pending callbacks first, replacing every incoming completion.
+    /// An earlier callback's error does not skip the remaining callbacks.
+    pub fn run_pending<T, R>(
+        self,
+        pending: &mut Vec<T>,
+        mut completion: R,
+        mut invoke: impl FnMut(T, R) -> R,
+    ) -> R {
+        while let Some(callback) = pending.pop() {
+            completion = invoke(callback, completion);
+        }
+        completion
+    }
+}
+
+#[cfg(test)]
+mod injection_tests {
+    use super::*;
+
+    #[test]
+    fn original_injection_chronology_replaces_errors_and_retains_suspend_kind() {
+        // Native proof: naming.coroutine.original-injection-order-and-completion
+        // docs/design/analysis/name-resolution-proofs/coroutine-original-injection-order-and-completion.md
+        let dialect = crate::InvocationDialect::of_profile(
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+        );
+        let selected = NativeCoroutineInjectionProtocol::select(dialect).unwrap();
+        let mut callbacks = vec![("A", 0), ("B", 1)];
+        let outcome = selected.run_pending(
+            &mut callbacks,
+            (0, Vec::new()),
+            |(name, code), (_, mut log)| {
+                log.push(name);
+                (code, log)
+            },
+        );
+        assert_eq!(outcome, (0, vec!["B", "A"]));
+        assert!(callbacks.is_empty());
+        assert_eq!(
+            selected.kind(NativeCoroutineResumeArity::SingleOptional),
+            b"yield"
+        );
+        assert_eq!(
+            selected.kind(NativeCoroutineResumeArity::Arbitrary),
+            b"yieldto"
+        );
+        // naming.coroutine.original-injection-public-completions
+        // docs/design/analysis/name-resolution-proofs/coroutine-original-injection-public-completions.md
+        let c90 = NativeCoroutineInjectionProtocol::select(crate::InvocationDialect::of_profile(
+            tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
+        ))
+        .unwrap();
+        let mut earlier_pending = vec!["A", "B"];
+        assert_eq!(
+            c90.run_pending(&mut earlier_pending, "ORIGINAL", |name, _| name),
+            "A"
+        );
+        assert!(earlier_pending.is_empty());
+        assert_eq!(
+            c90.kind(NativeCoroutineResumeArity::SingleOptional),
+            b"yield"
+        );
+        assert_eq!(c90.kind(NativeCoroutineResumeArity::Arbitrary), b"yieldto");
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl"] {
+            assert!(
+                NativeCoroutineInjectionProtocol::select(crate::InvocationDialect::of_profile(
+                    tcl_dialect::DialectProfile::find(profile).unwrap(),
+                ))
+                .is_none()
+            );
+        }
+        let jim = crate::InvocationDialect::of_profile(
+            crate::model::resolve_environment("jim").unit_profile(),
+        );
+        assert_eq!(
+            jim.native_name_protocol(),
+            Some(tcl_syntax::naming::NativeNameProtocol::Jim084),
+        );
+        assert!(NativeCoroutineInjectionProtocol::select(jim).is_none());
+    }
+}

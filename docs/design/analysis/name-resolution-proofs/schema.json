@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Name resolution per-question proof manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "proofs"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "proofs": {"type": "array", "items": {"$ref": "#/$defs/proof"}}
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1},
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "document", "problem_statement", "question", "conclusion", "scope", "providers", "evidence", "source_anchors", "tests", "owners", "replay"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^naming\\.[a-z0-9][a-z0-9._-]+$"},
+        "kind": {"enum": ["native-observation", "source-anchor", "implementation-contract"]},
+        "document": {"$ref": "#/$defs/text"},
+        "problem_statement": {"$ref": "#/$defs/text"},
+        "question": {"$ref": "#/$defs/text"},
+        "conclusion": {"$ref": "#/$defs/text"},
+        "scope": {"$ref": "#/$defs/text"},
+        "providers": {"type": "array", "minItems": 7, "maxItems": 7, "items": {"$ref": "#/$defs/provider"}},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+        "source_anchors": {"type": "array", "items": {"$ref": "#/$defs/source"}},
+        "tests": {"type": "array", "items": {"$ref": "#/$defs/test"}},
+        "owners": {"type": "array", "items": {"$ref": "#/$defs/owner"}},
+        "replay": {"type":"object","additionalProperties":false,"required":["command","limitations"],"properties":{"command":{"type":"array","items":{"$ref":"#/$defs/text"}},"limitations":{"$ref":"#/$defs/text"}}}
+      }
+    },
+    "provider": {
+      "type":"object","additionalProperties":false,
+      "required":["id","version","build","input_channel","dialect","status","answer","evidence"],
+      "properties":{
+        "id":{"enum":["tcl8.4","tcl8.5","tcl8.6","tcl9.0","tcl9.1","jim","bigip"]},
+        "version":{"$ref":"#/$defs/text"},"build":{"$ref":"#/$defs/text"},"input_channel":{"$ref":"#/$defs/text"},"dialect":{"$ref":"#/$defs/text"},
+        "status":{"enum":["observed","inspected","unsupported","not-tested","unavailable"]},
+        "answer":{"$ref":"#/$defs/text"},"evidence":{"type":"array","items":{"$ref":"#/$defs/text"}}
+      }
+    },
+    "evidence": {
+      "type":"object","additionalProperties":false,
+      "required":["id","role","path","sha256","description"],
+      "properties":{
+        "id":{"$ref":"#/$defs/text"},"role":{"enum":["input","observation","provider","source-anchor","implementation","reconfirmation","limitation"]},
+        "path":{"$ref":"#/$defs/text"},"sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"description":{"$ref":"#/$defs/text"},
+        "json_pointer":{"type":"string"},"contains":{"$ref":"#/$defs/text"},"lines":{"type":"array","prefixItems":[{"type":"integer","minimum":1},{"type":"integer","minimum":1}],"minItems":2,"maxItems":2}
+      }
+    },
+    "source": {
+      "type":"object","additionalProperties":false,
+      "required":["provider","version","revision","original_path","function","lines","source_sha256","snippet","snippet_sha256","evidence"],
+      "properties":{
+        "provider":{"$ref":"#/$defs/text"},"version":{"$ref":"#/$defs/text"},"revision":{"$ref":"#/$defs/text"},"original_path":{"$ref":"#/$defs/text"},"function":{"$ref":"#/$defs/text"},
+        "lines":{"type":"array","items":{"type":"integer","minimum":1},"minItems":2,"maxItems":2},
+        "source_sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"snippet":{"$ref":"#/$defs/text"},"snippet_sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"evidence":{"$ref":"#/$defs/text"}
+      }
+    },
+    "test": {
+      "type":"object","additionalProperties":false,
+      "required":["path","selector","assertion","status"],
+      "properties":{"path":{"$ref":"#/$defs/text"},"selector":{"$ref":"#/$defs/text"},"assertion":{"$ref":"#/$defs/text"},"status":{"enum":["linked","unlinked"]}}
+    },
+    "owner": {
+      "type":"object","additionalProperties":false,
+      "required":["path","symbol","purpose"],
+      "properties":{"path":{"$ref":"#/$defs/text"},"symbol":{"$ref":"#/$defs/text"},"purpose":{"$ref":"#/$defs/text"}}
+    }
+  }
+}

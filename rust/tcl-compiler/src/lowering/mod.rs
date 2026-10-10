@@ -51,11 +51,40 @@ mod installed_bodies;
 mod native_body_context_tests;
 #[cfg(test)]
 mod native_control_carrier_tests;
+#[cfg(test)]
+mod passive_metadata_tests;
 pub use execution_regions::stock_body_provider_loader;
 // `pub(crate)` for one item: `structured::parse_switch_options`, which the
 // opaque-switch emitter asks where a `switch`'s options end rather than
 // carrying a second copy of that rule.
 pub(crate) mod structured;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LoweringMetadataOrigin {
+    Standalone,
+    Supplied,
+}
+
+/// Optional test/debug timings expose counts without source payloads or
+/// physical addresses. They supply no semantic or native execution evidence.
+#[cfg(any(test, debug_assertions))]
+fn trace_source_lowering(
+    start: Option<std::time::Instant>,
+    phase: &str,
+    source_len: usize,
+    module: &Module,
+) {
+    if let Some(start) = start {
+        eprintln!(
+            "LOWER_SOURCE_PHASE bytes={} phase={} ms={} statements={} procedures={}",
+            source_len,
+            phase,
+            start.elapsed().as_millis(),
+            module.top_level.statements.len(),
+            module.procedures.len()
+        );
+    }
+}
 
 /// Stand-in `Script` for a body past [`MAX_LOWER_NEST_DEPTH`]: a single
 /// [`Statement::Barrier`] spanning `[base_offset, base_offset + len)`, so
@@ -174,125 +203,197 @@ impl Lowerer<'_> {
     /// This is registry-driven: command form and Tcl release decide the
     /// result, not a consumer-side command-name or read-modify-write rule.
     fn safe_on_uninit(&self, command: &str, args: &[String]) -> bool {
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let dialect = self.registry.own_surface_query();
-        // A profile-less registry is an intentionally dialect-blind union.
-        // `safe_on_uninit` is a release/runtime guarantee, so the union cannot
-        // prove it: in particular, `incr` differs between Tcl 8.4 and 8.5.
-        // Abstain until a concrete profile selects the applicable fact.
-        if dialect.is_none() {
+        let Some(context) = self
+            .invocation_metadata_context()
+            .filter(|context| context.matches_registry(self.registry))
+        else {
             return false;
-        }
+        };
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let dialect = Some(context.context().authoring_query());
         self.registry
             .resolve_invocation(command, &arg_refs, dialect)
-            .and_then(|resolved| resolved.semantics.safe_on_uninit)
-            .is_none_or(|allowed| surface_admits(allowed, dialect.as_ref()))
+            .is_some_and(|resolved| {
+                resolved
+                    .semantics
+                    .safe_on_uninit
+                    .is_none_or(|allowed| surface_admits(allowed, dialect.as_ref()))
+            })
     }
 
-    /// Classify one command as a statically-extractable definer call, from
-    /// its registry spec (see [`DefinerCall`]).  `None` when the command is
-    /// not a definer, uses a non-`create` metaclass form, or does not carry
-    /// a static braced body at the expected position (the single-member
-    /// `oo::define Cls method m {…} {…}` inline form and dynamic-body forms
-    /// stay with the default lowering).
-    fn classify_definer_call(
-        &self,
-        command: &str,
-        canonical: Option<&str>,
-        texts: &[String],
-        kinds: &[TokenType],
-        single: &[bool],
-    ) -> Option<DefinerCall> {
-        let spec = self.registry.get(canonical.unwrap_or(command))?;
-        let grammar = spec.definition_body?;
-        if !grammar.family.manufactures_runtime_commands() {
-            return None;
-        }
-        // A metaclass's registry manufacturer descriptor supplies both the
-        // static class-name word and definition-body word. Every other
-        // definer is `DEFINER TARGET {body}`. Auto-naming manufacturers and
-        // forms without a definition body stay with the default lowering.
-        let (name_idx, body_idx) = if spec
-            .traits
-            .contains(tcl_registry::prelude::Traits::IS_OO_METACLASS)
+    /// Read an exact definition layout from the selected original invocation.
+    /// These source units do not establish class presence or entered execution.
+    fn classify_definer_call(&self, tokens: &CommandTokens) -> Option<DefinerCall> {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context = self.invocation_metadata_context()?;
+        let invocation = self.logical_structured_invocation(tokens)?;
+        let mut bodies = invocation
+            .written_roles()
+            .into_iter()
+            .filter_map(|(index, role)| (role == ArgRole::Body).then_some(index + 1));
+        let body_idx = bodies.next()?;
+        if bodies.next().is_some()
+            || !word_is_static_braced(&tokens.argv_kinds, &tokens.single_token_word, body_idx)
         {
-            let method = self
-                .registry
-                .exported_manufacturer_method(canonical.unwrap_or(command), texts.get(1)?)?;
-            (
-                usize::from(method.names_instance_at?) + 1,
-                usize::from(method.definition_body_at?) + 1,
-            )
-        } else {
-            (1usize, 2usize)
-        };
-        if texts.len() <= body_idx || !word_is_static_braced(kinds, single, body_idx) {
             return None;
         }
-        // Per-object vs per-class is dispatched on the spec's typed analyser
-        // hook ID — the same registry datum the analyser dispatches on —
-        // never the spelling.
-        let per_object =
-            spec.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine);
-        Some(DefinerCall {
-            grammar,
-            name_idx,
-            body_idx,
-            per_object,
+        let realm = tokens
+            .source_binding
+            .as_ref()
+            .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
+            .unwrap_or(self.invocation_realm);
+        invocation.with_metadata_schema(self.registry, context, realm, |selected| {
+            let grammar = selected.authored_source_definition_body_grammar()?;
+            if !grammar.family.manufactures_runtime_commands()
+                || !selected
+                    .authored_source_script_arguments()?
+                    .contains(&(body_idx - 1))
+            {
+                return None;
+            }
+            let name_arg = selected
+                .state_transitions()
+                .facts()
+                .iter()
+                .find_map(|fact| match &fact.transition {
+                    tcl_registry::StateTransition::ObjectDispatch(
+                        tcl_registry::ObjectDispatchTransition::Configure { target, .. },
+                    ) => target.argument_index(),
+                    _ => None,
+                })
+                .or_else(|| {
+                    selected
+                        .authored_source_command_publication()
+                        .map(|name| name.argument)
+                })?;
+            let name_idx = name_arg.checked_add(1)?;
+            (name_idx < tokens.argv.len()).then_some(DefinerCall {
+                grammar,
+                name_idx,
+                body_idx,
+                per_object: selected.authored_source_descriptors().command.analyser_hook
+                    == Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine),
+            })
         })
     }
 
-    /// Whether a registry-declared definer invocation supplies (or may select)
-    /// an executable definition body that the exact extractor did not accept.
-    ///
-    /// Exact calls are classified before this is queried. Alias-prefix and
-    /// dynamic-dispatch shapes cannot be aligned reliably with the source argv
-    /// here, so they conservatively report a possible body.
-    fn definer_invocation_may_supply_body(
-        &self,
-        command: &str,
-        canonical: Option<&str>,
-        texts: &[String],
-    ) -> bool {
-        let identity = canonical.unwrap_or(command);
-        let Some(spec) = self.registry.get(identity) else {
-            return false;
+    /// Retain possible definition roots from original candidate identities.
+    /// Unknown availability or lookup withdraws completeness, never supplies
+    /// a nominal grammar or a class declaration from the written command name.
+    fn definer_invocation_may_supply_body(&self, tokens: &CommandTokens) -> bool {
+        let Some(context) = self
+            .invocation_metadata_context()
+            .filter(|context| context.matches_registry(self.registry))
+        else {
+            return true;
         };
-        if !spec
-            .definition_body
-            .is_some_and(|grammar| grammar.family.manufactures_runtime_commands())
-        {
-            return false;
-        }
-        if canonical.is_some_and(|canonical| canonical != command) {
+        let Some(advice) = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+            self.registry, Some(context), tokens,
+        ) else { return true; };
+        if advice.unknown_residual || advice.candidates.is_empty() {
             return true;
         }
-        let args: Vec<&str> = texts.iter().skip(1).map(String::as_str).collect();
-        if !self
-            .registry
-            .arg_indices_for_role(identity, &args, ArgRole::Body)
-            .is_empty()
-        {
-            return true;
-        }
-        // A computed manufacturer/subcommand can select a body-bearing form
-        // even when the registry cannot assign one exact argument layout.
-        texts
+        let realm = tokens
+            .source_binding
+            .as_ref()
+            .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
+            .unwrap_or(self.invocation_realm);
+        advice.candidates.iter().any(|candidate| {
+            let Some(spec) =
+                context
+                    .context()
+                    .resolve_spec_in_realm(self.registry, &candidate.command, realm)
+            else {
+                return true;
+            };
+            spec.definition_body.is_some_and(|grammar| {
+                grammar.family.manufactures_runtime_commands()
+                    && (!candidate.roles_complete
+                        || candidate
+                            .roles
+                            .iter()
+                            .any(|&(_, role)| role == ArgRole::Body))
+            })
+        })
+    }
+
+    /// A selected namespace wrapper with unchanged original source operands.
+    fn is_namespace_eval_shape(&self, tokens: &CommandTokens) -> bool {
+        tokens.argv.len() >= 4
+            && word_is_static_braced(&tokens.argv_kinds, &tokens.single_token_word, 3)
+            && self
+                .logical_structured_invocation(tokens)
+                .is_some_and(|invocation| {
+                    invocation.lowering_hook() == Some(LoweringHookId::NamespaceEval)
+                        && invocation.written_roles().contains(&(2, ArgRole::Body))
+                })
+    }
+
+    fn source_definition_member(
+        &self,
+        grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+        keyword: &str,
+    ) -> Option<&'static tcl_registry::definer::MemberSpec> {
+        let context = self
+            .invocation_metadata_context()
+            .filter(|context| context.matches_registry(self.registry))?;
+        grammar.source_member_in(
+            keyword.as_bytes(),
+            Some(context.context().authoring_query()),
+        )
+    }
+
+    /// Shared vocabulary and layout over original semantic source words.
+    /// Dynamic control words cannot become literal optional member selectors.
+    fn source_member_body_indices(
+        &self,
+        grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+        keyword: &str,
+        segment: &SegmentedCommand,
+        base: usize,
+    ) -> Option<Vec<usize>> {
+        let context = self
+            .invocation_metadata_context()
+            .filter(|context| context.matches_registry(self.registry))?;
+        let dialect = self.invocation_dialect?;
+        let tokens = self.cmd_tokens(segment);
+        let source = tokens.words().get(base..)?;
+        let values: Vec<_> = source
             .iter()
-            .skip(1)
-            .any(|word| word.contains('$') || word.contains('['))
+            .map(|word| {
+                crate::registry_invocation::effective_invocation_word(
+                    word,
+                    self.config.escapes,
+                    dialect.word_values,
+                )
+            })
+            .collect();
+        let words: Vec<_> = source
+            .iter()
+            .zip(&values)
+            .map(|(source, value)| {
+                crate::registry_invocation::invocation_word_with_source(
+                    source,
+                    value,
+                    self.config.escapes,
+                )
+            })
+            .collect();
+        grammar.source_member_body_indices_in(
+            keyword.as_bytes(),
+            tcl_registry::InvocationArguments::structured(&words).with_dialect(dialect),
+            Some(context.context().authoring_query()),
+        )
     }
 
     fn member_invocation_supplies_body(
         &self,
         grammar: &tcl_registry::definer::DefinitionBodyGrammar,
-        keyword: &str,
-        args: &[String],
+        segment: &SegmentedCommand,
     ) -> bool {
-        let args: Vec<&str> = args.iter().map(String::as_str).collect();
-        !grammar
-            .member_body_indices_in(keyword, &args, self.registry.own_surface_query())
-            .is_empty()
+        self.source_member_body_indices(grammar, &segment.texts[0], segment, 1)
+            .is_none_or(|indices| !indices.is_empty())
     }
 
     /// A definition created only when this method runs is not part of the
@@ -304,38 +405,10 @@ impl Lowerer<'_> {
                 return true;
             }
             script.statements.iter().any(|stmt| {
-                let installs = match stmt {
-                    Statement::Call {
-                        command,
-                        canonical_command,
-                        tokens,
-                        ..
-                    }
-                    | Statement::Barrier {
-                        command,
-                        canonical_command,
-                        tokens,
-                        ..
-                    } => tokens.as_ref().map_or_else(
-                        || {
-                            lowerer
-                                .registry
-                                .get(canonical_command.as_deref().unwrap_or(command))
-                                .and_then(|spec| spec.definition_body)
-                                .is_some_and(|grammar| {
-                                    grammar.family.manufactures_runtime_commands()
-                                })
-                        },
-                        |tokens| {
-                            lowerer.definer_invocation_may_supply_body(
-                                command,
-                                canonical_command.as_deref(),
-                                &tokens.argv_texts,
-                            )
-                        },
-                    ),
-                    _ => false,
-                };
+                let installs = matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. })
+                    && stmt
+                        .tokens()
+                        .is_none_or(|tokens| lowerer.definer_invocation_may_supply_body(tokens));
                 installs
                     || crate::ir_helpers::nested_bodies(stmt)
                         .into_iter()
@@ -345,23 +418,6 @@ impl Lowerer<'_> {
 
         walk(self, script, 0)
     }
-}
-
-/// True iff `command` (`::`-stripped) is `namespace` and the args are
-/// the `eval CHILD {static-braced-body}` shape — the form whose body
-/// the Rust lowerer evaluates inline and discards (it emits a
-/// `Barrier`), so the OO post-pass must re-segment it to find any
-/// classes defined directly inside the namespace.
-fn is_namespace_eval_shape(
-    command: &str,
-    texts: &[String],
-    kinds: &[TokenType],
-    single: &[bool],
-) -> bool {
-    command.strip_prefix("::").unwrap_or(command) == "namespace"
-        && texts.len() >= 4
-        && texts.get(1).is_some_and(|s| s == "eval")
-        && word_is_static_braced(kinds, single, 3)
 }
 
 /// True iff word `idx` (full argv index) is a single braced-literal
@@ -515,18 +571,24 @@ fn parse_var_list_names(list_text: &str, rules: WordValueRules) -> Option<Vec<St
 /// (defaulting to `2`), and `args`; and `proc p {a\ b} {}` is the *single*
 /// parameter `a` defaulting to `b` (tclsh 9.0: `info args p` → `a`), not the
 /// two names a whitespace split would produce.
-/// [`tcl_syntax::formal_params::parse_formal_parameters`] owns that grammar and
+/// [`tcl_syntax::formal_params::parse_formal_parameters_in`] owns the selected
+/// engine grammar and
 /// is what the VM, the WASM runtime, and `signature_scan` all decode with.
 ///
 /// Only the names reach the IR — [`Procedure::params`] is name-only, and
 /// `params_raw` keeps the source text for consumers that need the defaults.
 ///
-/// `None` means Tcl itself would refuse to create the procedure (a malformed
-/// list, a specifier with three or more fields, an array-element or qualified
-/// name), so the caller defers to the runtime command that reports it.
-fn parse_formal_param_names(param_text: &str, rules: WordValueRules) -> Option<Vec<String>> {
+/// An unavailable grammar or a parameter list refused by that engine declines.
+/// Jim keeps its own lenient list and name grammar; original link spelling
+/// in a name-only header supplies no caller-link or ordinary-cell activation.
+fn parse_formal_param_names(
+    param_text: &str,
+    rules: WordValueRules,
+    grammar: Option<tcl_dialect::ParameterGrammar>,
+) -> Option<Vec<String>> {
     let collapsed = rules.collapse_braced_word(param_text);
-    let parameters = tcl_syntax::formal_params::parse_formal_parameters(&collapsed).ok()?;
+    let parameters =
+        tcl_syntax::formal_params::parse_formal_parameters_in(&collapsed, grammar?).ok()?;
     Some(
         parameters
             .into_iter()
@@ -908,7 +970,10 @@ pub struct Lowerer<'r> {
     invocation_realm: tcl_dialect::model::InvocationRealm,
     /// Invocation policy snapshot supplied by the driver.
     invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    hosted_execution_context: Option<tcl_registry::f5::BigIpExecutionContext>,
     execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
+    logical_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    vendor_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
     compiled_variable_provider:
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
     /// Evaluation protocol, independent of the runtime variable frame.
@@ -1023,6 +1088,9 @@ pub struct Lowerer<'r> {
     /// environment does not provide selects no lowering hook and falls to
     /// the default `Statement::Call` path.
     dialect_context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+    /// Explicit source context survives a driver transition; static authoring
+    /// compatibility cannot fill an absent driver's input.
+    metadata_origin: LoweringMetadataOrigin,
     /// Which lowering pass this instance performs — folds what would
     /// otherwise be two related bool fields (`for_bytecode`, `trace_visible`)
     /// into one three-state enum (`clippy::struct_excessive_bools`); see
@@ -1183,7 +1251,10 @@ impl<'r> Lowerer<'r> {
             )),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             compiled_variable_provider: None,
+            hosted_execution_context: None,
             execution_name_policy: None,
+            logical_source_input: None,
+            vendor_source_input: None,
             native_entry: None,
             source_channel: tcl_lexer::SourceChannel::Document,
             incoming_formals: Vec::new(),
@@ -1207,6 +1278,7 @@ impl<'r> Lowerer<'r> {
             config,
             dialect: None,
             dialect_context: None,
+            metadata_origin: LoweringMetadataOrigin::Standalone,
             target: CompileTarget::Analysis,
             body_cache: None,
             nest_depth: 0,
@@ -1250,7 +1322,37 @@ impl<'r> Lowerer<'r> {
                     self.config,
                 ));
         }
-        self.dialect_context = dialect.map(crate::environment_ingress::context_for_profile);
+        if self.source_entry_origin == SourceEntryOrigin::Authoring
+            && self.metadata_origin == LoweringMetadataOrigin::Standalone
+        {
+            self.dialect_context = dialect.map(|profile| {
+                let context = crate::environment_ingress::context_for_profile(profile);
+                if context.commands().snapshot().semantic_key()
+                    == self.registry.snapshot().semantic_key()
+                {
+                    context
+                } else {
+                    std::sync::Arc::new(
+                        context.with_command_store(self.registry.snapshot().shared_registry()),
+                    )
+                }
+            });
+        }
+        self
+    }
+
+    /// Use the caller's complete availability context for conditional source
+    /// metadata. A foreign command generation declines instead of resolving
+    /// a replacement from the profile label.
+    #[must_use]
+    pub fn with_context_registry(
+        mut self,
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> Self {
+        // Preserve supplied ownership even when it is foreign. Shared metadata
+        // consumers then refuse it instead of rebuilding a profile fallback.
+        self.dialect_context = Some(context);
+        self.metadata_origin = LoweringMetadataOrigin::Supplied;
         self
     }
 
@@ -1295,10 +1397,20 @@ impl<'r> Lowerer<'r> {
 
     /// Lower a complete source string to an IR module.
     pub fn lower(&mut self, source: &str) -> &Module {
+        #[cfg(any(test, debug_assertions))]
+        let trace_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_lowering(trace_start, "entry", source.len(), &self.module);
         self.start_module();
+        #[cfg(any(test, debug_assertions))]
+        trace_source_lowering(trace_start, "configured", source.len(), &self.module);
         self.module.top_level_namespace.clear();
         self.module.top_level_namespace.push_str("::");
         self.module.top_level = self.lower_script(source, "::");
+        #[cfg(any(test, debug_assertions))]
+        trace_source_lowering(trace_start, "lowered", source.len(), &self.module);
         &self.module
     }
 
@@ -1374,6 +1486,19 @@ impl<'r> Lowerer<'r> {
         self.module.lexer_config = self.config;
         self.module.dialect_profile = self.dialect.or_else(|| self.registry.profile());
         self.module.registry_snapshot = Some(self.registry.snapshot());
+        self.module.source_metadata_input = self
+            .logical_source_input
+            .clone()
+            .or_else(|| self.vendor_source_input.clone())
+            .or_else(|| {
+                let profile = self.module.dialect_profile?;
+                Some(crate::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    self.dialect_context.as_ref()?.clone(),
+                    self.config,
+                ))
+            });
         self.module.dialect = self
             .module
             .dialect_profile
@@ -1401,7 +1526,10 @@ impl<'r> Lowerer<'r> {
         }
         self.module.plain_command_dispatch = self.target.is_trace_visible();
         self.module.source_entry = crate::command_binding::SourceAnalysisEntry {
+            hosted_execution_context: self.hosted_execution_context,
             execution_name_policy: self.execution_name_policy,
+            logical_source_input: self.logical_source_input.clone(),
+            vendor_source_input: self.vendor_source_input.clone(),
             compilation_scope: self.compilation_scope,
             invocation_realm: self.invocation_realm,
             declared_commands: self
@@ -1634,7 +1762,20 @@ impl<'r> Lowerer<'r> {
         self.invocation_dialect = options.source_invocation_dialect(self.config);
         self.native_compilation = options.native_compilation;
         self.compiled_variable_provider = options.compiled_variable_provider;
+        self.hosted_execution_context = options.hosted_execution_context;
         self.execution_name_policy = options.execution_name_policy();
+        self.logical_source_input = options.logical_source_input.cloned();
+        self.vendor_source_input = options.vendor_source_input.cloned();
+        if let Some(input) = self
+            .logical_source_input
+            .as_ref()
+            .or(self.vendor_source_input.as_ref())
+        {
+            self.dialect_context = Some(input.context_registry());
+            self.metadata_origin = LoweringMetadataOrigin::Supplied;
+        } else if self.metadata_origin == LoweringMetadataOrigin::Standalone {
+            self.dialect_context = None;
+        }
         self.native_entry = options
             .native_entry
             .map(|entry| std::sync::Arc::new(entry.clone()));
@@ -1686,7 +1827,10 @@ impl<'r> Lowerer<'r> {
             self.config,
             self.registry,
             SourceAnalysisOptions {
+                hosted_execution_context: self.hosted_execution_context,
                 execution_name_policy: self.execution_name_policy,
+                logical_source_input: self.logical_source_input.as_ref(),
+                vendor_source_input: self.vendor_source_input.as_ref(),
                 compilation_scope: self.compilation_scope,
                 invocation_realm: self.invocation_realm,
                 declared_commands: self
@@ -1742,6 +1886,7 @@ impl<'r> Lowerer<'r> {
                                 namespace: body.namespace.to_owned(),
                                 namespace_key: body.namespace_key.clone(),
                                 parameters: body.parameters.to_vec(),
+                                original_parameters: body.original_parameters.cloned(),
                                 source: body.source.clone(),
                             },
                         )
@@ -2071,6 +2216,30 @@ impl<'r> Lowerer<'r> {
         scope.get(inner).cloned()
     }
 
+    fn logical_structured_invocation(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::LogicalStructuredInvocation> {
+        match self.dialect_context.as_deref() {
+            Some(context) => {
+                crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                    self.registry,
+                    context.into(),
+                    tokens,
+                    self.source_bindings.as_ref(),
+                )
+            }
+            None if self.source_entry_origin == SourceEntryOrigin::Authoring => {
+                crate::registry_invocation::logical_structured_invocation(
+                    self.registry,
+                    tokens,
+                    self.source_bindings.as_ref(),
+                )
+            }
+            None => None,
+        }
+    }
+
     /// Build a `CommandTokens` snapshot from a segmented command, decomposing
     /// each word under the document's own grammar (`self.config`) from the
     /// text that was segmented into it (see [`WordSpace`]).
@@ -2079,6 +2248,24 @@ impl<'r> Lowerer<'r> {
         if let Some(bindings) = &self.source_bindings {
             bindings.stamp_original_tokens(&mut tokens);
         }
+        // Implementation contract: naming.consumer.hosted-source-taint-descriptor
+        // docs/design/analysis/name-resolution-proofs/hosted-source-taint-descriptor.md
+        // The invocation owns the original whole image. A retained body's
+        // positioned lowering buffer can contain padding before this command;
+        // those bytes are not the source owner of conditional hosted metadata.
+        tokens.hosted_taint_context = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.invocation_site())
+            .zip(self.dialect_context.as_ref())
+            .and_then(|(site, context)| {
+                crate::registry_invocation::HostedSourceTaintContext::from_lowering(
+                    site.source.source_image().clone(),
+                    self.config,
+                    std::sync::Arc::clone(context),
+                )
+            })
+            .map(std::sync::Arc::new);
         tokens
     }
 
@@ -2286,13 +2473,8 @@ impl<'r> Lowerer<'r> {
                 &tokens,
             )
         });
-        let logical = (!self.target.is_bytecode()).then(|| {
-            crate::registry_invocation::logical_structured_invocation(
-                self.registry,
-                &tokens,
-                self.source_bindings.as_ref(),
-            )
-        });
+        let logical =
+            (!self.target.is_bytecode()).then(|| self.logical_structured_invocation(&tokens));
         let resolved = if let Some(admitted) = &admitted {
             let admitted = admitted.as_ref()?;
             StructuredHookSelection {
@@ -2874,11 +3056,7 @@ impl<'r> Lowerer<'r> {
             };
             target.command.clone()
         } else {
-            let Some(logical) = crate::registry_invocation::logical_structured_invocation(
-                self.registry,
-                &tokens,
-                self.source_bindings.as_ref(),
-            ) else {
+            let Some(logical) = self.logical_structured_invocation(&tokens) else {
                 return Some(self.lower_default_boxed(seg, namespace));
             };
             logical.canonical_command().to_owned()
@@ -2986,11 +3164,7 @@ impl<'r> Lowerer<'r> {
                 self.safe_on_uninit(resolved_name, args),
             )?
         } else {
-            let logical = crate::registry_invocation::logical_structured_invocation(
-                self.registry,
-                hook_cmd.tokens.as_ref()?,
-                self.source_bindings.as_ref(),
-            )?;
+            let logical = self.logical_structured_invocation(hook_cmd.tokens.as_ref()?)?;
             crate::lowering_hooks::try_lower_logical_hook_with_binding(
                 &hook_cmd,
                 &logical,
@@ -3093,9 +3267,12 @@ impl<'r> Lowerer<'r> {
         // an array-element or qualified name) creates no procedure: leave it to
         // the runtime `proc`, which raises the error, rather than registering a
         // Procedure whose parameters we guessed at.
-        let Some(params) =
-            parse_formal_param_names(&args[1], WordValueRules::from_config(&self.config))
-        else {
+        let Some(params) = parse_formal_param_names(
+            &args[1],
+            WordValueRules::from_config(&self.config),
+            self.invocation_dialect
+                .and_then(tcl_registry::InvocationDialect::parameter_grammar),
+        ) else {
             return Statement::Barrier {
                 span: seg.span,
                 reason: "malformed proc params".into(),
@@ -3433,6 +3610,84 @@ impl<'r> Lowerer<'r> {
         Ok((materialised_body, body_is_dynamic, body_offset))
     }
 
+    /// Event geometry comes from the retained declaration and original words.
+    /// A captured/derived argument cannot borrow a displayed event spelling.
+    fn original_when_event_word(
+        &self,
+        seg: &SegmentedCommand,
+        event: &str,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<tcl_lexer::NativeWord> {
+        use tcl_registry::events::IrulesTopLevelDeclaration;
+        let candidates = self
+            .source_bindings
+            .as_ref()?
+            .deferred_rule_declaration_candidates(seg.span.start())?;
+        let indices = candidates
+            .iter()
+            .map(|candidate| {
+                let IrulesTopLevelDeclaration::Event { event: name, .. } = &candidate.declaration
+                else {
+                    return None;
+                };
+                if name != event
+                    || !candidate.target.registry_backed
+                    || !candidate.target.prepended.is_empty()
+                {
+                    return None;
+                }
+                let symbol = self
+                    .registry
+                    .get(&candidate.target.command)?
+                    .defines_symbol?;
+                (symbol.kind == tcl_registry::DefinedSymbolKind::Event)
+                    .then_some(usize::from(symbol.name_arg) + 1)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let &index = indices.first()?;
+        if indices.iter().any(|candidate| *candidate != index) {
+            return None;
+        }
+        let tokens = self.cmd_tokens(seg);
+        let words = crate::registry_invocation::original_native_compiler_words(
+            image,
+            &tokens.word_exprs,
+            seg.span.start(),
+            self.config,
+        )?;
+        let word = words.get(index)?;
+        let dialect = self.invocation_dialect?;
+        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            word,
+            dialect.word_values,
+            dialect.authored_name_policy()?,
+        )?;
+        key.bytes()
+            .eq_ignore_ascii_case(event.as_bytes())
+            .then(|| word.clone())
+    }
+
+    fn original_when_source_geometry(
+        &self,
+        seg: &SegmentedCommand,
+        event: &str,
+    ) -> (tcl_lexer::SourceImage, Option<tcl_lexer::NativeWord>) {
+        let image = self
+            .source_bindings
+            .as_ref()
+            .map(|bindings| bindings.invocation_at_source(seg.name(), seg.span.start()))
+            .and_then(|binding| {
+                binding
+                    .invocation_site()
+                    .map(|site| site.source.source_image().clone())
+            })
+            .unwrap_or_else(|| {
+                tcl_lexer::SourceImage::from_bytes(self.source.as_bytes(), self.source_channel)
+            });
+        let word = self.original_when_event_word(seg, event, &image);
+        (image, word)
+    }
+
     /// Lower a registry-validated iRules event declaration.
     fn lower_when(
         &mut self,
@@ -3475,6 +3730,19 @@ impl<'r> Lowerer<'r> {
             format!("::when::{event_name}#{n}")
         };
 
+        let (image, event_word) = self.original_when_source_geometry(seg, event_name);
+        self.module.irules_event_bodies.insert(
+            qualified.clone(),
+            std::sync::Arc::new(crate::ir::SourceIrulesEventBody::from_lowering(
+                event_name,
+                seg.span,
+                &body,
+                image,
+                self.config,
+                self.registry,
+                event_word,
+            )),
+        );
         self.module.procedures.insert(
             qualified.clone(),
             Procedure {
@@ -4158,6 +4426,20 @@ impl<'r> Lowerer<'r> {
             .collect()
     }
 
+    fn invocation_metadata_context(
+        &self,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
+        match self.dialect_context.as_deref() {
+            Some(context) => Some(context.into()),
+            None if self.source_entry_origin == SourceEntryOrigin::Authoring => self
+                .dialect
+                .or_else(|| self.registry.profile())
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(crate::registry_invocation::InvocationMetadataContext::from),
+            None => None,
+        }
+    }
+
     /// Default lowering: generic [`Statement::Call`] with registry-based
     /// arg roles.
     // The generic path deliberately assembles every registry-owned call fact
@@ -4224,21 +4506,20 @@ impl<'r> Lowerer<'r> {
         let role_args: Vec<String> = prefix.into_iter().chain(args.iter().cloned()).collect();
         let canonical = (role_cmd != cmd_name).then(|| role_cmd.clone());
 
-        let role_args_ref: Vec<&str> = role_args.iter().map(String::as_str).collect();
-        let context = self
-            .dialect
-            .or_else(|| self.registry.profile())
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-        let facts = match crate::registry_invocation::resolve_command_tokens(
-            self.registry,
-            context,
-            &tokens,
-        ) {
-            Ok(crate::registry_invocation::RegistryInvocationResolution::Resolved(facts)) => {
-                Some(facts)
-            }
-            _ => None,
-        };
+        let context = self.invocation_metadata_context();
+        let invocation = context.and_then(|context| {
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                self.registry,
+                Some(context),
+                &tokens,
+            )
+        });
+        let facts = invocation.as_ref().map(|invocation| &invocation.facts);
+        let realm = tokens
+            .source_binding
+            .as_ref()
+            .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
+            .unwrap_or(self.invocation_realm);
         let role_indices = |role| {
             facts.as_ref().map_or_else(Vec::new, |facts| {
                 facts
@@ -4281,13 +4562,13 @@ impl<'r> Lowerer<'r> {
         // is SameInvocation needs the opaque runtime barrier. This is checked
         // per index because one invocation may mix immediate and deferred code.
         let has_same_invocation_executable = executable_indices.iter().any(|&index| {
-            self.registry
-                .script_timing(
-                    &role_cmd,
-                    &role_args_ref,
-                    index,
-                    self.registry.own_surface_query(),
-                )
+            invocation
+                .as_ref()
+                .and_then(|invocation| {
+                    invocation.with_metadata_schema(self.registry, context?, realm, |selected| {
+                        selected.authored_source_script_timing_at(index)
+                    })
+                })
                 .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
         });
         if has_same_invocation_executable && tokens.evaluated_body().is_none() {
@@ -4307,11 +4588,6 @@ impl<'r> Lowerer<'r> {
             // substitutes nothing, so the word's content **is** the variable
             // name. The de-braced `args` text cannot show that;
             // the word's own token kind can.
-            let invocation = crate::registry_invocation::resolved_tokens_invocation(
-                self.registry,
-                context,
-                &tokens,
-            );
             let variable_at = |index: usize| -> Option<String> {
                 let invocation = invocation.as_ref()?;
                 let effective = &invocation.effective;
@@ -4320,12 +4596,9 @@ impl<'r> Lowerer<'r> {
                 let braced = matches!(word, crate::ir::WordExpr::BracedLiteral { .. })
                     || effective.written_argument(index).is_none();
                 let name = crate::naming::element_var_name_braced(&value, braced);
-                if self.registry.option_variable_scope(
-                    &role_cmd,
-                    &role_args_ref,
-                    index,
-                    self.registry.own_surface_query(),
-                ) == Some(tcl_registry::VariableScope::Global)
+                if invocation.with_metadata_schema(self.registry, context?, realm, |selected| {
+                    selected.authored_source_option_variable_scope_at(index)
+                }) == Some(tcl_registry::VariableScope::Global)
                     && !name.starts_with("::")
                 {
                     Some(format!("::{name}"))
@@ -4418,7 +4691,9 @@ impl<'r> Lowerer<'r> {
         // treat object state as a private local.  Order-free by construction —
         // the union does not depend on which block was walked first.
         for method in self.module.methods.values_mut() {
-            if let Some(class_vars) = self.class_instance_vars.get(&method.class_name) {
+            if method.body.executed_source.is_none()
+                && let Some(class_vars) = self.class_instance_vars.get(&method.class_name)
+            {
                 method.instance_vars.extend(class_vars.iter().cloned());
             }
         }
@@ -4426,7 +4701,9 @@ impl<'r> Lowerer<'r> {
         // consumers, so they need the same whole-class instance-variable
         // union.
         for method in self.module.redefined_methods.values_mut().flatten() {
-            if let Some(class_vars) = self.class_instance_vars.get(&method.class_name) {
+            if method.body.executed_source.is_none()
+                && let Some(class_vars) = self.class_instance_vars.get(&method.class_name)
+            {
                 method.instance_vars.extend(class_vars.iter().cloned());
             }
         }
@@ -4458,42 +4735,21 @@ impl<'r> Lowerer<'r> {
                     self.walk_for_oo_methods(&body.statements, ns);
                 }
                 Statement::Call {
-                    command,
-                    canonical_command,
-                    tokens: Some(ct),
-                    ..
+                    tokens: Some(ct), ..
                 }
                 | Statement::Barrier {
-                    command,
-                    canonical_command,
-                    tokens: Some(ct),
-                    ..
+                    tokens: Some(ct), ..
                 } => {
-                    if let Some(call) = self.classify_definer_call(
-                        command,
-                        canonical_command.as_deref(),
-                        &ct.argv_texts,
-                        &ct.argv_kinds,
-                        &ct.single_token_word,
-                    ) {
+                    if let Some(call) = self.classify_definer_call(ct) {
                         self.extract_definer_members(
                             call,
                             &ct.argv_texts,
                             ct.argv[call.body_idx].start() + 1,
                             namespace,
                         );
-                    } else if self.definer_invocation_may_supply_body(
-                        command,
-                        canonical_command.as_deref(),
-                        &ct.argv_texts,
-                    ) {
+                    } else if self.definer_invocation_may_supply_body(ct) {
                         self.module.oo_evidence.unretained_executable_roots = true;
-                    } else if is_namespace_eval_shape(
-                        command,
-                        &ct.argv_texts,
-                        &ct.argv_kinds,
-                        &ct.single_token_word,
-                    ) {
+                    } else if self.is_namespace_eval_shape(ct) {
                         // The body was lowered inline and discarded;
                         // re-segment it to find classes defined directly
                         // inside the namespace.
@@ -4521,23 +4777,20 @@ impl<'r> Lowerer<'r> {
             if seg.texts.is_empty() {
                 continue;
             }
-            let kinds: Vec<TokenType> = seg.argv.iter().map(|t| t.kind).collect();
-            let cmd = seg.texts[0].as_str();
+            let tokens = self.cmd_tokens(seg);
             if seg.is_partial {
-                if self.definer_invocation_may_supply_body(cmd, None, &seg.texts) {
+                if self.definer_invocation_may_supply_body(&tokens) {
                     self.module.oo_evidence.unretained_executable_roots = true;
                 }
                 continue;
             }
-            if let Some(call) =
-                self.classify_definer_call(cmd, None, &seg.texts, &kinds, &seg.single_token_word)
-            {
+            if let Some(call) = self.classify_definer_call(&tokens) {
                 let body = seg.argv[call.body_idx];
                 let off = body.span.start() + u32::from(body.content_offset);
                 self.extract_definer_members(call, &seg.texts, off, namespace);
-            } else if self.definer_invocation_may_supply_body(cmd, None, &seg.texts) {
+            } else if self.definer_invocation_may_supply_body(&tokens) {
                 self.module.oo_evidence.unretained_executable_roots = true;
-            } else if is_namespace_eval_shape(cmd, &seg.texts, &kinds, &seg.single_token_word) {
+            } else if self.is_namespace_eval_shape(&tokens) {
                 let child_ns = join_namespace(namespace, &seg.texts[2]);
                 let off = seg.argv[3].span.start() + u32::from(seg.argv[3].content_offset);
                 let Some(sub) = self.segment_source(&seg.texts[3], off) else {
@@ -4563,7 +4816,9 @@ impl<'r> Lowerer<'r> {
         class_qname: &str,
     ) -> bool {
         let head = seg.texts[0].as_str();
-        let Some(member) = definer_grammar.and_then(|g| g.member(head)) else {
+        let Some(member) =
+            definer_grammar.and_then(|grammar| self.source_definition_member(grammar, head))
+        else {
             return false;
         };
         if member.all_args_ref != Some(tcl_registry::definer::MemberRefKind::Class) {
@@ -4637,7 +4892,10 @@ impl<'r> Lowerer<'r> {
             return;
         };
 
-        let class_ivars = declared_member_vars(call.grammar, &segments);
+        let surface = self
+            .invocation_metadata_context()
+            .map(|context| context.context().authoring_query());
+        let class_ivars = declared_member_vars(call.grammar, &segments, surface);
         // This block sees only its own declarations; a sibling `oo::define`
         // block may declare more state for the same class, and may be walked
         // *after* the methods that use it.  Accumulate the whole-class union
@@ -4672,8 +4930,7 @@ impl<'r> Lowerer<'r> {
                 continue;
             }
             let head = seg.texts[0].as_str();
-            let member_supplies_body =
-                self.member_invocation_supplies_body(call.grammar, head, &seg.texts[1..]);
+            let member_supplies_body = self.member_invocation_supplies_body(call.grammar, seg);
             if seg.is_partial {
                 self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
                 continue;
@@ -4681,7 +4938,7 @@ impl<'r> Lowerer<'r> {
             if self.record_class_relation_member(Some(call.grammar), seg, class_qname) {
                 continue;
             }
-            let Some(member) = call.grammar.member(head) else {
+            let Some(member) = self.source_definition_member(call.grammar, head) else {
                 // Definition scripts can call ordinary absolute commands (or
                 // dynamically installed definition helpers). Their execution
                 // is not represented by a MethodDef root.
@@ -4694,8 +4951,10 @@ impl<'r> Lowerer<'r> {
             // whole nested definition script to recurse into.
             let (member, kw, base, wrapper) = match member.kind {
                 tcl_registry::definer::MemberKind::Wrapper => match seg.texts.get(1) {
-                    Some(inner) if call.grammar.is_member(inner) => {
-                        let inner_member = call.grammar.member(inner).expect("checked is_member");
+                    Some(inner) if self.source_definition_member(call.grammar, inner).is_some() => {
+                        let inner_member = self
+                            .source_definition_member(call.grammar, inner)
+                            .expect("selected source member");
                         // No double wrapping (`self private method …` is not
                         // a real Tcl shape).
                         if inner_member.kind != tcl_registry::definer::MemberKind::Flat {
@@ -4782,13 +5041,12 @@ impl<'r> Lowerer<'r> {
                 continue;
             }
             let head = seg.texts[0].as_str();
-            let member_supplies_body =
-                self.member_invocation_supplies_body(call.grammar, head, &seg.texts[1..]);
+            let member_supplies_body = self.member_invocation_supplies_body(call.grammar, seg);
             if seg.is_partial {
                 self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
                 continue;
             }
-            let Some(member) = call.grammar.member(head) else {
+            let Some(member) = self.source_definition_member(call.grammar, head) else {
                 self.module.oo_evidence.unretained_executable_roots = true;
                 continue;
             };
@@ -4833,12 +5091,21 @@ impl<'r> Lowerer<'r> {
             wrapper,
         } = ex;
         let args = &seg.texts[base..];
+        let Some(context) = self
+            .invocation_metadata_context()
+            .filter(|context| context.matches_registry(self.registry))
+        else {
+            self.module.oo_evidence.unretained_executable_roots = true;
+            return;
+        };
+        let surface = Some(context.context().authoring_query());
         // Argument layout comes from the grammar: which relative index (0-
         // based after the keyword) is the body / name / parameter list.
-        let Some(body_rel) = member
-            .indices_for_call(args, ArgRole::Body)
-            .find(|&index| index < args.len())
+        let Some(body_rel) = self
+            .source_member_body_indices(call.grammar, kw, seg, base)
+            .and_then(|indices| indices.into_iter().find(|&index| index < args.len()))
         else {
+            self.module.oo_evidence.unretained_executable_roots = true;
             return;
         };
         let Some(kind) = member_method_kind(kw, wrapper == Some("self")) else {
@@ -4851,7 +5118,7 @@ impl<'r> Lowerer<'r> {
         // (documented limit; `member_method_kind` already excludes them by
         // keyword, this keeps the exclusion structural too).
         if member
-            .indices_for_call(args, ArgRole::VarWrite)
+            .indices_for_call_in(args, surface, ArgRole::VarWrite)
             .next()
             .is_some()
         {
@@ -4860,7 +5127,10 @@ impl<'r> Lowerer<'r> {
         }
         let b_idx = base + body_rel;
         let name_owned: String;
-        let name: &str = if let Some(rel) = member.indices_for_call(args, ArgRole::Name).next() {
+        let name: &str = if let Some(rel) = member
+            .indices_for_call_in(args, surface, ArgRole::Name)
+            .next()
+        {
             let Some(n) = seg.texts.get(base + rel) else {
                 self.module.oo_evidence.unretained_executable_roots = true;
                 return;
@@ -4892,6 +5162,9 @@ impl<'r> Lowerer<'r> {
             seg,
             base,
             WordValueRules::from_config(&self.config),
+            self.invocation_dialect
+                .and_then(tcl_registry::InvocationDialect::parameter_grammar),
+            surface,
         ) else {
             self.module
                 .oo_unanalysed_classes
@@ -4974,6 +5247,19 @@ impl<'r> Lowerer<'r> {
             }
         }
 
+        let original_receiver_context = body_script.executed_source.as_deref().and_then(|source| {
+            self.source_bindings
+                .as_ref()?
+                .original_receiver_body_context(source)
+        });
+        let original_parameters = body_script.executed_source.as_deref().and_then(|source| {
+            self.source_bindings
+                .as_ref()?
+                .original_script_formals(source)
+        });
+        if body_script.executed_source.is_some() {
+            method_ivars.clear();
+        }
         let method_qname = format!("{class_qname}::{name}");
         let def = MethodDef {
             class_name: class_qname.to_string(),
@@ -4984,6 +5270,8 @@ impl<'r> Lowerer<'r> {
             kind: MethodKind::from_str_lossy(kind),
             span: Some(seg.span),
             instance_vars: method_ivars,
+            original_receiver_context,
+            original_parameters,
         };
         // First definition wins for the stored body (matches proc
         // registration), but a redefinition (a later `oo::define`
@@ -5016,14 +5304,16 @@ fn member_param_names(
     seg: &SegmentedCommand,
     base: usize,
     rules: WordValueRules,
+    grammar: Option<tcl_dialect::ParameterGrammar>,
+    surface: Option<tcl_dialect::model::SurfaceQuery<'_>>,
 ) -> Option<Vec<String>> {
     let param_text = member
-        .indices_for_call(args, ArgRole::ParamList)
+        .indices_for_call_in(args, surface, ArgRole::ParamList)
         .next()
         .and_then(|rel| seg.texts.get(base + rel))
         .filter(|text| !text.is_empty());
     match param_text {
-        Some(text) => parse_formal_param_names(text, rules),
+        Some(text) => parse_formal_param_names(text, rules, grammar),
         None => Some(Vec::new()),
     }
 }
@@ -5092,6 +5382,7 @@ fn member_method_kind(kw: &str, wrapped_in_self: bool) -> Option<&'static str> {
 fn declared_member_vars(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     segments: &[crate::segmenter::SegmentedCommand],
+    surface: Option<tcl_dialect::model::SurfaceQuery<'_>>,
 ) -> HashSet<String> {
     let mut out = HashSet::new();
     for seg in segments {
@@ -5099,14 +5390,18 @@ fn declared_member_vars(
             continue;
         }
         let head = seg.texts[0].as_str();
-        let Some(member) = grammar.member(head) else {
+        let Some(member) = grammar.source_member_in(head.as_bytes(), surface) else {
             continue;
         };
         // Unwrap an access-modifier prefix (itcl `public variable x`,
         // TclOO 9's `private variable x`) one level.
         let (member, args): (&tcl_registry::definer::MemberSpec, &[String]) =
             if member.kind == tcl_registry::definer::MemberKind::Wrapper {
-                match seg.texts.get(1).and_then(|inner| grammar.member(inner)) {
+                match seg
+                    .texts
+                    .get(1)
+                    .and_then(|inner| grammar.source_member_in(inner.as_bytes(), surface))
+                {
                     Some(inner_member)
                         if inner_member.kind == tcl_registry::definer::MemberKind::Flat
                             && seg.texts.len() >= 3 =>
@@ -5134,7 +5429,7 @@ fn declared_member_vars(
                 }
             }
         } else {
-            for rel in member.indices_for_call(args, ArgRole::VarWrite) {
+            for rel in member.indices_for_call_in(args, surface, ArgRole::VarWrite) {
                 if let Some(nm) = args.get(rel)
                     && is_instance_var_name(nm)
                 {
@@ -6006,6 +6301,8 @@ impl Lowerer<'_> {
             self.extract_oo_methods_pass();
         }
         let registry = self.registry;
+        let standalone_metadata = self.metadata_origin == LoweringMetadataOrigin::Standalone
+            && self.source_entry_origin == SourceEntryOrigin::Authoring;
         let mut module = self.module;
         module.source = tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         module.retained_source_bindings =
@@ -6014,7 +6311,7 @@ impl Lowerer<'_> {
                     bindings, &module, registry,
                 )
             });
-        populate_trace_facts(&mut module, registry);
+        populate_trace_facts(&mut module, registry, standalone_metadata);
         module
     }
 }
@@ -6036,9 +6333,25 @@ impl Lowerer<'_> {
 /// covering both the modern and deprecated legacy spellings — land in
 /// `traced_variables`; non-literal targets flip
 /// `has_dynamic_variable_trace`.
-fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry) {
+fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry, standalone: bool) {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let actual = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        module.source_metadata_input.as_ref(),
+    );
+    let context = actual.as_deref().map(Into::into).or_else(|| {
+        (standalone && module.source_metadata_input.is_none())
+            .then(|| {
+                registry
+                    .profile()
+                    .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                    .map(crate::registry_invocation::InvocationMetadataContext::from)
+            })
+            .flatten()
+    });
     let top_level = module.top_level.clone();
-    walk_for_trace(&top_level, module, registry);
+    walk_for_trace(&top_level, module, registry, context);
     // Every statically-known frame, not just named procedures: a `trace`
     // call inside a `namespace eval` / `apply` body (`Module::body_units`)
     // or a `TclOO` method (`Module::methods`) is just as live as one inside
@@ -6053,7 +6366,7 @@ fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry) {
         .chain(module.methods.values().map(|m| m.body.clone()))
         .collect();
     for body in &bodies {
-        walk_for_trace(body, module, registry);
+        walk_for_trace(body, module, registry, context);
     }
 }
 
@@ -6079,25 +6392,43 @@ fn record_possible_variable_trace(transition: &tcl_registry::TraceTransition, mo
 }
 
 /// Collect typed trace transitions through the shared retained-body visitor.
-fn walk_for_trace(script: &Script, module: &mut Module, registry: &CommandRegistry) {
+fn walk_for_trace(
+    script: &Script,
+    module: &mut Module,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) {
     crate::ir::for_each_statement(script, &mut |stmt| {
         if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
             return;
         }
-        let context = registry
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        let Some(context) = context else {
+            // Missing source metadata cannot close either observer-hazard inventory.
+            module.has_dynamic_variable_trace = true;
+            module.has_dynamic_trace = true;
+            return;
+        };
         if let Some(possible) = stmt.tokens().and_then(|tokens| {
-            crate::registry_invocation::possible_variable_trace_transitions(
-                registry, context, tokens,
+            crate::registry_invocation::possible_variable_trace_transitions_with_metadata_context(
+                registry,
+                Some(context),
+                tokens,
             )
         }) {
             for transition in possible.transitions() {
                 record_possible_variable_trace(transition, module);
             }
+            if possible.metadata_unavailable() {
+                module.has_dynamic_variable_trace = true;
+                module.has_dynamic_trace = true;
+            }
         }
         let Some(invocation) =
-            crate::registry_invocation::resolved_statement_invocation(registry, context, stmt)
+            crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+                registry,
+                Some(context),
+                stmt,
+            )
         else {
             return;
         };
@@ -6217,12 +6548,22 @@ mod tests {
         let wrapped = "a b\\\nc";
 
         assert_eq!(
-            parse_formal_param_names(wrapped, FOLD_RULES).unwrap(),
+            parse_formal_param_names(
+                wrapped,
+                FOLD_RULES,
+                Some(tcl_dialect::ParameterGrammar::Tcl)
+            )
+            .unwrap(),
             vec!["a", "b", "c"],
             "C Tcl folds the continuation into a separator"
         );
         assert_eq!(
-            parse_formal_param_names(wrapped, LITERAL_RULES).unwrap(),
+            parse_formal_param_names(
+                wrapped,
+                LITERAL_RULES,
+                Some(tcl_dialect::ParameterGrammar::Jim)
+            )
+            .unwrap(),
             vec!["a", "b"],
             "Jim keeps the bytes, so `b c` is one specifier: `b` defaulting to `c`"
         );
@@ -7370,22 +7711,71 @@ mod tests {
     }
 
     #[test]
+    fn original_formal_name_headers_use_selected_grammar_and_keep_activation_separate() {
+        // naming.variable.original-readonly-formal-topology
+        // docs/design/analysis/name-resolution-proofs/original-readonly-formal-topology.md
+        let tcl = Some(tcl_dialect::ParameterGrammar::Tcl);
+        let jim = Some(tcl_dialect::ParameterGrammar::Jim);
+        assert_eq!(parse_formal_param_names("{a::b}", FOLD_RULES, tcl), None);
+        assert_eq!(
+            parse_formal_param_names("{a::b}", LITERAL_RULES, jim),
+            Some(vec!["a::b".to_owned()])
+        );
+        assert_eq!(parse_formal_param_names("{a(1)}", FOLD_RULES, tcl), None);
+        assert_eq!(
+            parse_formal_param_names("{a(1)}", LITERAL_RULES, jim),
+            Some(vec!["a(1)".to_owned()])
+        );
+        // Name-only headers retain original link spelling. They cannot claim
+        // the ordinary local storage name or manufacture a caller-link frame.
+        assert_eq!(
+            parse_formal_param_names("&a {&b default}", LITERAL_RULES, jim),
+            Some(vec!["&a".to_owned(), "&b".to_owned()])
+        );
+        assert_eq!(
+            parse_formal_param_names("args args", LITERAL_RULES, jim),
+            None
+        );
+        assert_eq!(
+            parse_formal_param_names("args args", FOLD_RULES, tcl),
+            Some(vec!["args".to_owned(), "args".to_owned()])
+        );
+        assert_eq!(parse_formal_param_names("a b", FOLD_RULES, None), None);
+    }
+
+    #[test]
     fn formal_param_names_take_the_specifier_name_only() {
         assert_eq!(
-            parse_formal_param_names("a b c", FOLD_RULES).unwrap(),
+            parse_formal_param_names(
+                "a b c",
+                FOLD_RULES,
+                Some(tcl_dialect::ParameterGrammar::Tcl)
+            )
+            .unwrap(),
             vec!["a", "b", "c"],
         );
         assert_eq!(
-            parse_formal_param_names("{x default} y", FOLD_RULES).unwrap(),
+            parse_formal_param_names(
+                "{x default} y",
+                FOLD_RULES,
+                Some(tcl_dialect::ParameterGrammar::Tcl)
+            )
+            .unwrap(),
             vec!["x", "y"]
         );
         assert_eq!(
-            parse_formal_param_names("", FOLD_RULES).unwrap(),
+            parse_formal_param_names("", FOLD_RULES, Some(tcl_dialect::ParameterGrammar::Tcl))
+                .unwrap(),
             [] as [std::string::String; 0]
         );
         // A wrapped parameter list collapses its continuation before splitting.
         assert_eq!(
-            parse_formal_param_names("a b\\\n    c", FOLD_RULES).unwrap(),
+            parse_formal_param_names(
+                "a b\\\n    c",
+                FOLD_RULES,
+                Some(tcl_dialect::ParameterGrammar::Tcl)
+            )
+            .unwrap(),
             vec!["a", "b", "c"]
         );
     }
@@ -7393,10 +7783,34 @@ mod tests {
     #[test]
     fn formal_param_names_reject_what_tcl_rejects() {
         // Tcl refuses to create these procedures, so lowering declines too.
-        assert_eq!(parse_formal_param_names("{a b c}", FOLD_RULES), None);
-        assert_eq!(parse_formal_param_names("{a::b}", FOLD_RULES), None);
-        assert_eq!(parse_formal_param_names("{a(1)}", FOLD_RULES), None);
-        assert_eq!(parse_formal_param_names("{a", FOLD_RULES), None);
+        assert_eq!(
+            parse_formal_param_names(
+                "{a b c}",
+                FOLD_RULES,
+                Some(tcl_dialect::ParameterGrammar::Tcl)
+            ),
+            None
+        );
+        assert_eq!(
+            parse_formal_param_names(
+                "{a::b}",
+                FOLD_RULES,
+                Some(tcl_dialect::ParameterGrammar::Tcl)
+            ),
+            None
+        );
+        assert_eq!(
+            parse_formal_param_names(
+                "{a(1)}",
+                FOLD_RULES,
+                Some(tcl_dialect::ParameterGrammar::Tcl)
+            ),
+            None
+        );
+        assert_eq!(
+            parse_formal_param_names("{a", FOLD_RULES, Some(tcl_dialect::ParameterGrammar::Tcl)),
+            None
+        );
     }
 
     #[test]
@@ -8847,6 +9261,8 @@ mod tests {
 
     #[test]
     fn same_invocation_command_prefix_is_a_runtime_barrier() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let m = lower_to_ir("lsort -command compare {b a}", &reg());
         let stmt = m.top_level.statements.first().expect("lsort call");
         assert_runtime_opaque_call(stmt, &reg(), "lsort");
@@ -8854,6 +9270,8 @@ mod tests {
 
     #[test]
     fn deferred_command_prefix_does_not_create_a_runtime_barrier() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         for (source, expected_command) in [
             ("scrollbar .s -command moved", "scrollbar"),
             ("trace add variable v write changed", "trace"),
@@ -8868,7 +9286,74 @@ mod tests {
     }
 
     #[test]
+    fn lowered_generic_metadata_keeps_supplied_context_and_refuses_missing_driver_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context = tcl_registry::model::ingress::context_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let registry = context.commands();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let mut missing = Lowerer::with_config(registry, config).with_dialect(registry.profile());
+        missing.set_source_analysis_options(SourceAnalysisOptions::default());
+        missing = missing.with_dialect(registry.profile());
+        assert!(missing.invocation_metadata_context().is_none());
+        assert!(
+            missing
+                .lower("puts retained")
+                .source_metadata_input
+                .is_none()
+        );
+        let mut supplied = Lowerer::with_config(registry, config)
+            .with_context_registry(std::sync::Arc::clone(&context))
+            .with_dialect(registry.profile());
+        supplied.set_source_analysis_options(SourceAnalysisOptions::default());
+        assert!(
+            supplied
+                .invocation_metadata_context()
+                .unwrap()
+                .matches_registry(registry)
+        );
+        let module = supplied.lower("puts retained");
+        assert!(std::sync::Arc::ptr_eq(
+            &module
+                .source_metadata_input
+                .as_ref()
+                .unwrap()
+                .context_registry(),
+            &context
+        ));
+        let foreign = tcl_registry::model::ingress::context_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
+        );
+        let mut wrong = Lowerer::with_config(registry, config)
+            .with_context_registry(std::sync::Arc::clone(&foreign));
+        wrong.set_source_analysis_options(SourceAnalysisOptions::default());
+        assert!(
+            !wrong
+                .invocation_metadata_context()
+                .unwrap()
+                .matches_registry(registry)
+        );
+        assert!(!wrong.safe_on_uninit("incr", &["value".to_owned()]));
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        let actual = Lowerer::with_config(registry, config)
+            .with_dialect(registry.profile())
+            .with_context_registry(older);
+        assert!(!actual.safe_on_uninit("incr", &["value".to_owned()]));
+        let current = Lowerer::with_config(registry, config)
+            .with_dialect(registry.profile())
+            .with_context_registry(std::sync::Arc::clone(&context));
+        assert!(current.safe_on_uninit("incr", &["value".to_owned()]));
+    }
+
+    #[test]
     fn reference_only_command_prefix_does_not_create_a_runtime_barrier() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let m = lower_to_ir("trace remove variable v write changed", &reg());
         let stmt = m.top_level.statements.first().expect("trace remove call");
         assert!(

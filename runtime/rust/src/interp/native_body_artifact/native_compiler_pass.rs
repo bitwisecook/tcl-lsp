@@ -20,7 +20,7 @@
 
 use super::*;
 use tcl_registry::native_compiler_pass::{
-    NativeCompilerPassHazard as Hazard, native_compiler_replays,
+    native_compiler_replays, NativeCompilerPassHazard as Hazard,
 };
 use tcl_runtime_api::native_compiler_pass::{
     NativeCompilerPassEnvironment, NativeCompilerPassOwner, NativeCompilerPassProcedure,
@@ -126,7 +126,7 @@ impl Builder<'_> {
         self.materialize_body_literals(original)
     }
 
-    fn materialize_body_literals(
+    pub(super) fn materialize_body_literals(
         &mut self,
         original: *mut TclObj,
     ) -> Result<Rc<NativeRuntimeLiteralArray>, ValueError> {
@@ -287,7 +287,7 @@ impl Operation {
             // Arithmetic stack steps add no compaction hazard. Substitutions in
             // actually visited operands are already collected from self.scripts.
             Self::MathOperator(_) => Vec::new(),
-            Self::Scalar(_) | Self::Introspection(_) | Self::ListIndex(_) | Self::ListOperations(_) | Self::StringTrim(_) | Self::StringMatch(_) | Self::Error(_) | Self::DictionaryLookup(_) | Self::DictionaryMutation(_) | Self::Break | Self::Continue | Self::Each(_) | Self::InfoExists(_) | Self::Switch(_) | Self::TclOoHelper(..) | Self::List(..) | Self::Concat{..} | Self::Unset(_) | Self::Load(_) | Self::Store(..) | Self::Increment(..) | Self::Append(..) | Self::SelectedReturn(..) => Vec::new(),
+            Self::NamespaceString(_) | Self::Scalar(_) | Self::Introspection(_) | Self::ListIndex(_) | Self::ListOperations(_) | Self::StringTrim(_) | Self::StringMatch(_) | Self::Error(_) | Self::DictionaryLookup(_) | Self::DictionaryMutation(_) | Self::Break | Self::Continue | Self::Each(_) | Self::InfoExists(_) | Self::Switch(_) | Self::TclOoHelper(..) | Self::List(..) | Self::Concat{..} | Self::Unset(_) | Self::Load(_) | Self::Store(..) | Self::Increment(..) | Self::Append(..) | Self::SelectedReturn(..) => Vec::new(),
         }
     }
 }

@@ -43,6 +43,7 @@
 //! new registry.
 
 pub mod authored_surface;
+pub mod bigip_execution_context;
 mod bundled_environments;
 pub mod dynamic;
 pub mod environment;

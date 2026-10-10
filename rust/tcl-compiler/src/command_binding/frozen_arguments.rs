@@ -11,6 +11,7 @@ use crate::registry_invocation::{EffectiveInvocationWord as Word, InvocationWord
 pub(super) fn freeze_word(
     word: &WordExpr,
     value: Option<&super::native_result::EvaluatedSourceValue>,
+    name_value: Option<&super::original_name_value::OriginalProducedNameValue>,
     state: &mut ModuleCommandBindings,
     registry: &tcl_registry::CommandRegistry,
 ) -> Result<Word, ()> {
@@ -19,23 +20,51 @@ pub(super) fn freeze_word(
         WordExpr::Expand { word, .. } => word.as_ref(),
         _ => word,
     };
-    let frozen = value.map_or_else(
+    let current_name = name_value.filter(|value| value.is_current(&state.source_variables));
+    let frozen = current_name.map_or_else(
         || {
-            super::source_effective_words(
-                std::slice::from_ref(inner),
-                state.baseline.dialect,
-                Some((&state.source_variables, registry)),
+            value.map_or_else(
+                || {
+                    super::source_effective_words(
+                        std::slice::from_ref(inner),
+                        state.baseline.dialect,
+                        Some((&state.source_variables, registry)),
+                    )
+                    .into_iter()
+                    .next()
+                    .unwrap_or(Word::Opaque)
+                },
+                |value| Word::Literal(value.text.clone()),
             )
-            .into_iter()
-            .next()
-            .unwrap_or(Word::Opaque)
         },
-        |value| Word::Literal(value.text.clone()),
+        |value| Word::from_bytes(value.bytes()),
     );
     if !expanded {
         return Ok(frozen);
     }
     Arc::make_mut(&mut state.source_variables).invalidate_shared_representations();
+    if let Some(value) = current_name {
+        let values = tcl_syntax::list::split_native_list_bytes(
+            value.bytes(),
+            value.policy().string_protocol(),
+        )
+        .map_err(|_| ())?;
+        let unicode = values
+            .iter()
+            .map(|value| std::str::from_utf8(value).ok().map(str::to_owned))
+            .collect::<Option<Vec<_>>>();
+        return Ok(unicode.map_or_else(
+            || {
+                Word::KnownByteExpansion(
+                    values
+                        .into_iter()
+                        .map(|value| Arc::from(value.into_owned()))
+                        .collect(),
+                )
+            },
+            Word::KnownExpansion,
+        ));
+    }
     let Word::Literal(text) = frozen else {
         return Ok(Word::Expanded);
     };
@@ -61,12 +90,19 @@ pub(super) fn freeze_word(
 pub(super) fn runtime_words(word: &Word) -> Vec<Word> {
     match word {
         Word::KnownExpansion(elements) => elements.iter().cloned().map(Word::Literal).collect(),
+        Word::KnownByteExpansion(elements) => elements
+            .iter()
+            .map(|value| Word::from_bytes(value))
+            .collect(),
         word => vec![word.clone()],
     }
 }
 
 impl<'a> SourceScriptOperands<'a> {
     pub(super) fn written_origin(self, argument: usize) -> Option<Origin> {
+        if argument < self.target.prepended.len() {
+            return Some(Origin::BindingPrefix(argument));
+        }
         let argument = argument.checked_sub(self.target.prepended.len())?;
         let Some(written) = self.written_arguments else {
             return Some(Origin::Written(argument + 1));
@@ -75,15 +111,18 @@ impl<'a> SourceScriptOperands<'a> {
         for (index, word) in written.iter().enumerate() {
             let count = match word {
                 Word::KnownExpansion(values) => values.len(),
+                Word::KnownByteExpansion(values) => values.len(),
                 Word::Expanded => return None,
                 _ => 1,
             };
             if actual < count {
                 return Some(match word {
-                    Word::KnownExpansion(_) => Origin::ExpandedElement {
-                        written: index,
-                        element: actual,
-                    },
+                    Word::KnownExpansion(_) | Word::KnownByteExpansion(_) => {
+                        Origin::ExpandedElement {
+                            written: index,
+                            element: actual,
+                        }
+                    }
                     _ => Origin::Written(index),
                 });
             }
@@ -199,6 +238,97 @@ mod tests {
         let offset = u32::try_from(source.find("info exists").unwrap()).unwrap();
         let binding = bindings.invocation_at_source("info", offset);
         assert!(binding.proved_handler_target().is_some());
+    }
+
+    #[test]
+    fn frozen_native_argv_keeps_opaque_units_and_expansion_ordinals() {
+        // Implementation contract: naming.source.readonly-original-operand-projections (docs/design/analysis/name-resolution-proofs/readonly-original-operand-projections.md).
+        let dialects = tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(tcl_registry::InvocationDialect::for_version)
+            .chain([tcl_registry::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
+            )]);
+        for dialect in dialects {
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            let registry = tcl_registry::CommandRegistry::build_default();
+            let source = r"list p\uD800 p\u0000tail";
+            let options = SourceAnalysisOptions {
+                invocation_dialect: Some(dialect),
+                native_compilation: NativeCompilationContext {
+                    mode: NativeCompilationMode::Direct,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let bindings =
+                SourceCommandBindings::analyse_with_options(source, config, &registry, options);
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                &segment,
+            );
+            bindings.stamp_original_tokens(&mut tokens);
+            let binding = bindings.invocation_at_source("list", 0);
+            for written in 1..=2 {
+                let input = binding
+                    .original_written_name_input(&tokens, written)
+                    .expect("exact static native operand");
+                assert_eq!(
+                    binding.frozen_written_words().unwrap()[written].literal_bytes(),
+                    Some(input.bytes())
+                );
+            }
+            if !config.expand_syntax {
+                continue;
+            }
+            let source = r"list {*}[list p\uD800 p\u0000tail]";
+            let bindings =
+                SourceCommandBindings::analyse_with_options(source, config, &registry, options);
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                &segment,
+            );
+            bindings.stamp_original_tokens(&mut tokens);
+            let binding = bindings.invocation_at_source("list", 0);
+            let parent = binding
+                .original_written_name_input(&tokens, 1)
+                .expect("original expansion parent");
+            let children = parent.original_list_elements().unwrap();
+            let frozen = &binding.frozen_written_words().unwrap()[1];
+            assert_eq!(frozen.expansion_len(), Some(2));
+            assert_eq!(frozen.expansion_element(0), Some(children[0].bytes()));
+            assert_eq!(frozen.expansion_element(1), Some(children[1].bytes()));
+            let effective = crate::registry_invocation::effective_command_words(&tokens).unwrap();
+            assert_eq!(
+                &effective.origins[1..],
+                &[
+                    Origin::ExpandedElement {
+                        written: 1,
+                        element: 0
+                    },
+                    Origin::ExpandedElement {
+                        written: 1,
+                        element: 1
+                    },
+                ]
+            );
+            let words = crate::registry_invocation::frozen_argument_words(&tokens, &effective);
+            assert_eq!(words[0].literal_bytes(), Some(children[0].bytes()));
+            assert_eq!(words[1].literal_bytes(), Some(children[1].bytes()));
+            assert!(
+                children
+                    .iter()
+                    .all(|input| input.original_word_key().is_none())
+            );
+        }
     }
 
     #[test]

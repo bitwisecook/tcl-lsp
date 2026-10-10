@@ -154,8 +154,8 @@ impl BooleanForm {
 ///
 /// This is a flat configuration DTO of *style* knobs: every boolean is an
 /// independent, user-facing on/off setting (not a state machine). The one
-/// non-style member is [`Self::profile`], the resolved dialect every
-/// dialect-derived fact is projected from — build it with
+/// naming members are [`Self::profile`] and [`Self::lexer_config_override`].
+/// A retained resolved analysis input supplies both; standalone callers build it with
 /// [`Self::for_profile`] / [`Self::for_dialect`] and set the style knobs on
 /// top.
 ///
@@ -269,6 +269,9 @@ pub struct FormatterConfig {
     /// [`Self::for_dialect`] (which alias-normalises, so both iRules
     /// spellings land on the same profile).
     pub profile: &'static DialectProfile,
+    /// Complete source grammar supplied by the document owner. This selects
+    /// authoring syntax and does not supply a native execution capability.
+    pub lexer_config_override: Option<LexerConfig>,
     /// An explicit **range of releases** the document must stay correct
     /// across, replacing the profile's own forward range.
     ///
@@ -314,6 +317,7 @@ impl Default for FormatterConfig {
             boolean_form: BooleanForm::TrueFalse,
             // The "no dialect stated" ingress, through the one seam.
             profile: crate::profile_for_dialect(""),
+            lexer_config_override: None,
             target_range_override: None,
         }
     }
@@ -342,6 +346,16 @@ pub fn detect_line_ending(source: &str) -> &'static str {
 }
 
 impl FormatterConfig {
+    pub(crate) fn for_resolved_input(
+        &self,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        let mut config = self.clone();
+        config.profile = input.analyser_profile();
+        config.lexer_config_override = Some(input.lexer_config());
+        config
+    }
+
     /// Default formatting knobs, targeting `profile`.
     ///
     /// The one way to aim the formatter at a dialect: the lexer preset, the
@@ -376,7 +390,8 @@ impl FormatterConfig {
     /// dialects so a `{*}` there stays a literal braced word.
     #[must_use]
     pub fn lexer_config(&self) -> LexerConfig {
-        LexerConfig::from_grammar(self.profile.grammar)
+        self.lexer_config_override
+            .unwrap_or_else(|| LexerConfig::from_grammar(self.profile.grammar))
     }
 
     /// The document dialect's word-value rules — how a braced word's
@@ -385,7 +400,7 @@ impl FormatterConfig {
     /// re-renders a parameter list the way the document's runtime parses it.
     #[must_use]
     pub fn word_rules(&self) -> tcl_syntax::word_rules::WordValueRules {
-        tcl_syntax::word_rules::WordValueRules::from_grammar(&self.profile.grammar)
+        tcl_syntax::word_rules::WordValueRules::from_config(&self.lexer_config())
     }
 
     /// The availability point the profile's own release(s) contribute, or

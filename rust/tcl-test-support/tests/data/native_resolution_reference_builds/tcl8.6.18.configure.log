@@ -1,0 +1,184 @@
+checking whether to use symlinks for manpages... no
+checking whether to compress the manpages... no
+checking whether to add a package name suffix for the manpages... no
+checking for gcc... gcc
+checking for C compiler default output file name... a.out
+checking whether the C compiler works... yes
+checking whether we are cross compiling... no
+checking for suffix of executables... 
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to accept ANSI C... none needed
+checking for inline... inline
+checking how to run the C preprocessor... gcc -E
+checking for egrep... grep -E
+checking for ANSI C header files... yes
+checking for sys/types.h... yes
+checking for sys/stat.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for memory.h... yes
+checking for strings.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for unistd.h... yes
+checking dirent.h... yes
+checking float.h usability... yes
+checking float.h presence... yes
+checking for float.h... yes
+checking values.h usability... yes
+checking values.h presence... yes
+checking for values.h... yes
+checking for stdlib.h... (cached) yes
+checking for string.h... (cached) yes
+checking sys/wait.h usability... yes
+checking sys/wait.h presence... yes
+checking for sys/wait.h... yes
+checking dlfcn.h usability... yes
+checking dlfcn.h presence... yes
+checking for dlfcn.h... yes
+checking sys/param.h usability... yes
+checking sys/param.h presence... yes
+checking for sys/param.h... yes
+checking if the compiler understands -pipe... yes
+checking for pthread_mutex_init in -lpthread... yes
+checking for pthread_attr_setstacksize... yes
+checking for pthread_atfork... yes
+checking for building with threads... yes
+checking for sin... no
+checking for main in -linet... no
+checking net/errno.h usability... no
+checking net/errno.h presence... no
+checking for net/errno.h... no
+checking for connect... yes
+checking for gethostbyname... yes
+checking how to build libraries... static
+checking for tclsh... /usr/bin/tclsh8.6
+checking zlib.h usability... yes
+checking zlib.h presence... yes
+checking for zlib.h... yes
+checking for gz_header... yes
+checking for library containing deflateSetHeader... -lz
+checking for ranlib... ranlib
+checking if 64bit support is requested... no
+checking if 64bit Sparc VIS support is requested... no
+checking if compiler supports visibility "hidden"... yes
+checking if rpath support is requested... yes
+checking system version... Linux-6.18.44
+checking for dlopen in -ldl... yes
+checking for ar... ar
+checking for cast to union support... yes
+checking for working -fno-lto... yes
+checking for vfork... yes
+checking for posix_spawnp... yes
+checking for posix_spawn_file_actions_adddup2... yes
+checking for posix_spawnattr_setflags... yes
+checking for build with symbols... no
+checking for required early compiler flags...  _LARGEFILE64_SOURCE
+checking for 64-bit integer type... using long
+checking whether byte ordering is bigendian... no
+checking for getcwd... yes
+checking for mkstemp... yes
+checking for opendir... yes
+checking for strtol... yes
+checking for waitpid... yes
+checking for strerror... yes
+checking for getwd... yes
+checking for wait3... yes
+checking for fork... yes
+checking for mknod... yes
+checking for tcdrain... yes
+checking for uname... yes
+checking for realpath... yes
+checking for getnameinfo... yes
+checking for getaddrinfo... yes
+checking for freeaddrinfo... yes
+checking for gai_strerror... yes
+checking for struct addrinfo... yes
+checking for struct in6_addr... yes
+checking for struct sockaddr_in6... yes
+checking for struct sockaddr_storage... yes
+checking for getpwuid_r... yes
+checking for getpwuid_r with 5 args... yes
+checking for getpwnam_r... yes
+checking for getpwnam_r with 5 args... yes
+checking for getgrgid_r... yes
+checking for getgrgid_r with 5 args... yes
+checking for getgrnam_r... yes
+checking for getgrnam_r with 5 args... yes
+checking whether gethostbyname_r is declared... yes
+checking for gethostbyname_r... yes
+checking for gethostbyname_r with 6 args... yes
+checking whether gethostbyaddr_r is declared... yes
+checking for gethostbyaddr_r... yes
+checking for gethostbyaddr_r with 7 args... no
+checking for gethostbyaddr_r with 8 args... yes
+checking termios.h usability... yes
+checking termios.h presence... yes
+checking for termios.h... yes
+checking sys/ioctl.h usability... yes
+checking sys/ioctl.h presence... yes
+checking for sys/ioctl.h... yes
+checking sys/modem.h usability... no
+checking sys/modem.h presence... no
+checking for sys/modem.h... no
+checking for fd_set in sys/types... yes
+checking sys/time.h usability... yes
+checking sys/time.h presence... yes
+checking for sys/time.h... yes
+checking whether time.h and sys/time.h may both be included... yes
+checking for gmtime_r... yes
+checking for localtime_r... yes
+checking for mktime... yes
+checking tm_tzadj in struct tm... no
+checking tm_gmtoff in struct tm... yes
+checking long timezone variable... yes
+checking for struct stat.st_blocks... yes
+checking for struct stat.st_blksize... yes
+checking for blkcnt_t... yes
+checking for fstatfs... yes
+checking for working memcmp... yes
+checking for memmove... yes
+checking for strstr... yes
+checking proper strstr implementation... ok
+checking for strtoul... yes
+checking proper strtoul implementation... ok
+checking for mode_t... yes
+checking for pid_t... yes
+checking for size_t... yes
+checking for uid_t in sys/types.h... yes
+checking for socklen_t... yes
+checking for intptr_t... yes
+checking for uintptr_t... yes
+checking for opendir... (cached) yes
+checking union wait... no
+checking for strncasecmp... yes
+checking for gettimeofday... yes
+checking for gettimeofday declaration... present
+checking whether char is unsigned... no
+checking signed char declarations... yes
+checking for a putenv() that copies the buffer... no
+checking langinfo.h usability... yes
+checking langinfo.h presence... yes
+checking for langinfo.h... yes
+checking whether to use nl_langinfo... yes
+checking for chflags... no
+checking for mkstemps... yes
+checking isnan... yes
+checking for fts... yes
+checking for sys/ioctl.h... (cached) yes
+checking sys/filio.h usability... no
+checking sys/filio.h presence... no
+checking for sys/filio.h... no
+checking system version... (cached) Linux-6.18.44
+checking FIONBIO vs. O_NONBLOCK for nonblocking I/O... O_NONBLOCK
+checking whether to use dll unloading... yes
+checking for timezone data... /usr/share/zoneinfo
+checking whether to enable DTrace support... no
+checking whether the cpuid instruction is usable... yes
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating dltest/Makefile
+config.status: creating tclConfig.sh
+config.status: creating tcl.pc

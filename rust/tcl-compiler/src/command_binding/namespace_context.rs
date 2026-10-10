@@ -179,13 +179,6 @@ impl SourceCommandKey {
         }
     }
 
-    pub(super) fn simple_utf8(&self) -> Option<&str> {
-        match self {
-            Self::Slot { simple, .. } => simple.try_utf8().ok(),
-            Self::Authored(text) => Some(tcl_syntax::naming::key_holder_and_tail(text).1),
-        }
-    }
-
     /// Symbolic document spelling only. Native slots require an independent
     /// callable-spelling receipt rather than a rendered path.
     pub fn authored_spelling(&self) -> Option<&str> {

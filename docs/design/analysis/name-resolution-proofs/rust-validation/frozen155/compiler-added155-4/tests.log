@@ -1,0 +1,17 @@
+
+running 1 test
+test realm::tests::a_safe_interpreters_hidden_command_states_nothing_here ... 
+thread 'realm::tests::a_safe_interpreters_hidden_command_states_nothing_here' (607430) panicked at rust/tcl-compiler/src/realm.rs:1064:9:
+assertion `left == right` failed
+  left: Command("format")
+ right: Unchanged
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    realm::tests::a_safe_interpreters_hidden_command_states_nothing_here
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8198 filtered out; finished in 0.20s
+

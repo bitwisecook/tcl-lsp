@@ -43,7 +43,7 @@ pub use crate::expr_error::ExprError;
 pub use crate::obj::Owned;
 use tcl_syntax::expr::errors::{OperandDesc, OperandSide};
 use tcl_syntax::expr::mathfunc::MathFuncError;
-use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp, eval};
+use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
 
 /// Immutable original expression backing. Jim terms retain their own objects,
 /// including unvisited lazy branches and original command Source descriptors.
@@ -701,7 +701,7 @@ pub(crate) fn dispatch_shared_in(
     args: &[Owned],
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{NumValue, try_dispatch_with_backend_protocol};
+    use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_protocol, NumValue};
     let protocol = tcl_registry::mathfunc::native_math_protocol(dialect)
         .expect("native math handler dispatch must retain its selected protocol");
     let nums: Result<Option<Vec<NumValue<crate::bignum::TowerMp>>>, ExprError> = args
@@ -746,7 +746,7 @@ fn native_math_operand(
     dialect: tcl_registry::InvocationDialect,
     protocol: tcl_syntax::expr::mathfunc::NativeMathProtocol,
 ) -> Result<Option<tcl_syntax::expr::mathfunc::NumValue<bignum::TowerMp>>, ExprError> {
-    use tcl_syntax::expr::mathfunc::{NativeMathProtocol, NumValue, jim_numeric_operand};
+    use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NativeMathProtocol, NumValue};
     if protocol == NativeMathProtocol::Tcl {
         if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide) {
             if let Some(integer) = fixed_integer(operand, dialect)? {
@@ -1633,7 +1633,7 @@ pub(crate) fn native_logical84(
 /// otherwise its original string spelling. Tcl preserves boolean literal text
 /// (`expr {yes}` returns `yes`); coercion happens only in a boolean context.
 fn make_literal(text: &str, dialect: tcl_registry::InvocationDialect) -> Result<Owned, ExprError> {
-    use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
+    use tcl_syntax::number::{parse_whole_with, Number, ParseFlags};
     if let Some(number) = parse_whole_with(text, ParseFlags::for_syntax(dialect.numbers)) {
         if let Some(policy) = dialect
             .arithmetic()
@@ -1801,7 +1801,9 @@ fn fixed_integer_with_environment(
                     })?;
                 }
                 if outcome.is_err() {
-                    return Err(ExprError::msg(b"non-numeric operand"));
+                    // This preflight selected the integer conversion, not the
+                    // enclosing operator's illegal-operand completion.
+                    return Ok(None);
                 }
             }
         }
@@ -2176,3 +2178,7 @@ mod tests {
 #[cfg(test)]
 #[path = "expr_float_tests.rs"]
 mod float_error_tests;
+
+#[cfg(test)]
+#[path = "expr_reference_tests.rs"]
+mod reference_root_tests;

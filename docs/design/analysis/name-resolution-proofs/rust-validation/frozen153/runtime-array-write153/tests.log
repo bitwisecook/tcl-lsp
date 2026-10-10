@@ -1,0 +1,20 @@
+
+running 4 tests
+test frame::rmw::tests::native_get_creates_elements_only_with_an_existing_array_root ... ok
+test interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch ... 
+thread 'interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch' (597229) panicked at src/interp/execution_name_policy.rs:448:13:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test interp::native_variable_names::tests::array_root_write_diagnostics_match_five_original_source_controls ... ok
+test interp::native_variable_names::tests::array_root_write_preserves_current_jim_dictionary_replacement ... ok
+
+failures:
+
+failures:
+    interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 1224 filtered out; finished in 8.65s
+

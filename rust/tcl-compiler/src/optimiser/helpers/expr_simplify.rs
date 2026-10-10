@@ -55,7 +55,6 @@ use crate::compilation_unit::FunctionUnit;
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr_for_profile;
-use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{
     Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value_with_policy, leading_zero_is_octal,
 };
@@ -639,9 +638,29 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
     constants: &std::collections::HashMap<String, String, S>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> SubstitutionResult {
-    let tokens = tcl_lexer::tokenise_expr_for_profile(
+    let profile = dialect.unwrap_or_else(|| tcl_dialect::DialectProfile::plain_tcl());
+    substitute_expr_constants_in_context(
         expr,
-        dialect.unwrap_or_else(|| tcl_dialect::DialectProfile::plain_tcl()),
+        constants,
+        &tcl_syntax::expr::parser::ExprParseContext::for_profile(profile),
+    )
+}
+
+/// Project scalar value constants using the supplied complete expression
+/// grammar. This source emitter supplies no native object/read or execution
+/// erasure proof. Jim and hosted grammars need no legacy catalogue profile.
+#[must_use]
+pub fn substitute_expr_constants_in_context<S: std::hash::BuildHasher>(
+    expr: &str,
+    constants: &std::collections::HashMap<String, String, S>,
+    context: &tcl_syntax::expr::parser::ExprParseContext,
+) -> SubstitutionResult {
+    let config = tcl_lexer::LexerConfig::from_grammar(context.lexer_grammar);
+    let (tokens, _) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
+        expr,
+        &context.lexer_grammar,
+        context.expr_grammar_base,
+        context.f5_word_grammar,
     );
     let mut pieces: Vec<String> = Vec::new();
     let mut cursor: usize = 0;
@@ -658,8 +677,12 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
         }
 
         if tok.kind == ExprTokenType::Variable {
-            let name = normalise_var_name(&tok.text).to_owned();
-            if let Some(value) = constants.get(&name) {
+            let name = expr
+                .get(start..end_excl)
+                .and_then(|written| scalar_expression_reference_name(written, config));
+            if let Some((name, value)) =
+                name.and_then(|name| constants.get(name).map(|value| (name, value)))
+            {
                 if is_numeric_literal(value) {
                     pieces.push(value.clone());
                 } else {
@@ -667,7 +690,7 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
                     pieces.push(format!("\"{escaped}\""));
                 }
                 changed = true;
-                substituted.insert(name);
+                substituted.insert(name.to_owned());
             } else {
                 pieces.push(tok.text.clone());
             }
@@ -687,6 +710,22 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
         changed,
         substituted,
     }
+}
+
+/// Scalar constants need a complete selected reference, not an analytical
+/// array root. Current constant maps retain no original element-key receipt.
+fn scalar_expression_reference_name(written: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    // naming.expression.scalar-reference-constant-source-projection
+    // docs/design/analysis/name-resolution-proofs/expression-scalar-reference-constant-source-projection.md
+    let reference = tcl_lexer::word_parts::whole_var_ref(written.as_bytes(), config).ok()??;
+    if reference.index.is_some()
+        || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
+    {
+        return None;
+    }
+    let root =
+        tcl_syntax::naming::variable_reference_root_bytes(written.as_bytes(), config).ok()??;
+    std::str::from_utf8(root).ok()
 }
 
 /// Substitute constants only with actual retained-operand execution evidence.
@@ -1996,6 +2035,105 @@ mod tests {
             .iter()
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
             .collect()
+    }
+
+    #[test]
+    fn scalar_constant_source_substitution_keeps_exact_literal_names_and_array_refusal() {
+        // naming.expression.scalar-reference-constant-source-projection
+        // docs/design/analysis/name-resolution-proofs/expression-scalar-reference-constant-source-projection.md
+        // Source/API emitter controls. Native public scalar-value observations
+        // are separate; these constants establish no runtime object/read proof.
+        let constants = consts(&[
+            ("scalar(open", "11"),
+            ("scalar(open)tail", "12"),
+            ("scalar", "99"),
+            ("$cash", "13"),
+            ("cash", "98"),
+            ("é(open", "14"),
+            ("é", "97"),
+            ("arr", "96"),
+        ]);
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let invocation = tcl_registry::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::of_dialect_name(Some(dialect)).unwrap(),
+            );
+            let context = invocation.expression_parse_context(None);
+            for (source, name, expected) in [
+                ("${scalar(open}", "scalar(open", "11"),
+                ("${scalar(open)tail}", "scalar(open)tail", "12"),
+                ("${$cash}", "$cash", "13"),
+                ("${é(open}", "é(open", "14"),
+            ] {
+                let out = substitute_expr_constants_in_context(source, &constants, &context);
+                assert!(out.changed, "{dialect} {source}");
+                assert_eq!(out.text, expected);
+                assert_eq!(out.substituted, HashSet::from([name.to_owned()]));
+                let execution = substitute_expr_constants_for_execution(
+                    source,
+                    &constants,
+                    tcl_dialect::DialectProfile::find(dialect),
+                    &crate::tcl_expr_eval::NativeOperandProofs::new(),
+                );
+                assert!(!execution.changed);
+                assert_eq!(
+                    execution.text, source,
+                    "value constants grant no execution erasure"
+                );
+            }
+            for source in ["$arr(key)", "${arr(key)}", "$arr($key)", "${missing"] {
+                let out = substitute_expr_constants_in_context(source, &constants, &context);
+                assert!(!out.changed, "{dialect} {source}");
+                assert_eq!(out.text, source);
+                assert!(out.substituted.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn scalar_constant_context_uses_jim_variable_grammar_without_catalogue_profile() {
+        // naming.expression.scalar-reference-constant-source-projection
+        // docs/design/analysis/name-resolution-proofs/expression-scalar-reference-constant-source-projection.md
+        assert!(tcl_dialect::DialectProfile::find("jimtcl").is_none());
+        let jim = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some("jimtcl")).unwrap(),
+        )
+        .expression_parse_context(None);
+        let c = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+            .expression_parse_context(None);
+        let constants = consts(&[("é", "14"), ("x", "15")]);
+        let jim_out = substitute_expr_constants_in_context("$é + $x", &constants, &jim);
+        assert_eq!(jim_out.text, "14 + 15");
+        assert_eq!(
+            jim_out.substituted,
+            HashSet::from(["é".to_owned(), "x".to_owned()])
+        );
+        let c_out = substitute_expr_constants_in_context("$é + $x", &constants, &c);
+        assert_eq!(c_out.text, "$é + 15");
+        assert_eq!(c_out.substituted, HashSet::from(["x".to_owned()]));
+    }
+
+    #[test]
+    fn scalar_constant_reference_selection_uses_actual_brace_close_grammar() {
+        // naming.expression.scalar-reference-constant-source-projection
+        // docs/design/analysis/name-resolution-proofs/expression-scalar-reference-constant-source-projection.md
+        let constants = consts(&[("a{b", "15"), ("a{b}c", "16"), ("a", "99")]);
+        let first = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let nested = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        assert_eq!(
+            substitute_expr_constants("${a{b}", &constants, Some(first)).text,
+            "15"
+        );
+        assert_eq!(
+            substitute_expr_constants("${a{b}", &constants, Some(nested)).text,
+            "${a{b}"
+        );
+        assert_eq!(
+            substitute_expr_constants("${a{b}c}", &constants, Some(nested)).text,
+            "16"
+        );
+        let mixed = substitute_expr_constants("${a{b}c}", &constants, Some(first));
+        assert_eq!(mixed.text, "15c}");
+        assert_eq!(mixed.substituted, HashSet::from(["a{b".to_owned()]));
     }
 
     #[test]

@@ -1,0 +1,18 @@
+
+	    if (parsePtr->term ==
+		    parsePtr->commandStart + parsePtr->commandSize - 1) {
+		eeFramePtr->len--;
+	    }
+
+	    eeFramePtr->nline = objectsUsed;
+	    eeFramePtr->line = lines;
+
+	    TclArgumentEnter(interp, objv, objectsUsed, eeFramePtr);
+	    code = Tcl_EvalObjv(interp, objectsUsed, objv,
+		    TCL_EVAL_NOERR | TCL_EVAL_SOURCE_IN_FRAME);
+	    TclArgumentRelease(interp, objv, objectsUsed);
+
+	    eeFramePtr->line = NULL;
+	    eeFramePtr->nline = 0;
+	    if (eeFramePtr->cmdObj) {
+		Tcl_DecrRefCount(eeFramePtr->cmdObj);

@@ -54,6 +54,22 @@ const fn v(key: &'static str, doc: &'static str) -> Variant {
     Variant { key, doc }
 }
 
+/// Independently declared frame at executable argument entry.
+pub const SCRIPT_LOOKUP_SCOPES: &[Variant] = &[
+    v(
+        "InvokingFrame",
+        "Current invoking frame when the executable argument runs",
+    ),
+    v(
+        "GlobalFrame",
+        "Global interpreter frame at a deferred callback entry",
+    ),
+    v(
+        "TriggerFrame",
+        "Frame of the operation that triggers an installed trace",
+    ),
+];
+
 /// [`ArgRole`] — how a consumer should treat an argument position.
 pub const ARG_ROLES: &[Variant] = &[
     v("Body", "Tcl script body, recursed into by the analyser"),
@@ -197,6 +213,12 @@ pub const BYTE_ARRAY_EFFECTS: &[Variant] = &[
         "reinstalls a byte-array rep on the operand at the given index",
     ),
 ];
+
+/// [`tcl_registry::deprecation::SourceDeprecationAdvice`] source review plans.
+pub const SOURCE_DEPRECATION_ADVICE: &[Variant] = &[v(
+    "IruleMatchclass",
+    "review proposal replacing the declared legacy shape with class match",
+)];
 
 /// [`CommandTableEffect`] — how a command rebinds command names.
 pub const COMMAND_TABLE_EFFECTS: &[Variant] = &[
@@ -933,8 +955,17 @@ mod tests {
         }
     }
 
+    fn covered_source_deprecation_advice(advice: tcl_registry::SourceDeprecationAdvice) -> bool {
+        match advice {
+            tcl_registry::SourceDeprecationAdvice::IruleMatchclass => true,
+        }
+    }
+
     #[test]
     fn enum_witnesses_compile_and_hold() {
+        assert!(covered_source_deprecation_advice(
+            tcl_registry::SourceDeprecationAdvice::IruleMatchclass
+        ));
         assert!(covered_arg_role(ArgRole::Value));
         assert!(covered_tcl_type(TclType::String));
         assert!(covered_side_effect_target(SideEffectTarget::Unknown));
@@ -952,10 +983,12 @@ mod tests {
             TCL_TYPES,
             BODY_KINDS,
             SCRIPT_TIMINGS,
+            SCRIPT_LOOKUP_SCOPES,
             VARIABLE_SCOPES,
             ARG_PRESENTATIONS,
             STORAGE_TYPES,
             BYTE_ARRAY_EFFECTS,
+            SOURCE_DEPRECATION_ADVICE,
             COMMAND_TABLE_EFFECTS,
             PATTERN_TYPES,
             TAINT_TRANSFORM_CONDITIONS,

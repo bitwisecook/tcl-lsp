@@ -43,7 +43,7 @@
 //! C refs: `tclBasic.c` (`TclNRCoroutineObjCmd`, `TclNRYieldObjCmd`,
 //! `CoroTypeObjCmd`).
 
-use crate::interp::{Code, CoroContext, Interp, obj_bytes};
+use crate::interp::{Code, CoroContext, Interp};
 use crate::obj::{self, TclObj};
 
 /// Register `coroutine`, `yield`, `yieldto`, and the `info coroutine` hook.
@@ -90,12 +90,12 @@ mod imp {
 
     /// One original owning reference transferred only while the other interpreter
     /// thread is blocked at its rendezvous. No object access occurs concurrently.
-    struct OriginalHandoff(obj::Owned);
+    pub(super) struct OriginalHandoff(pub(super) obj::Owned);
     // SAFETY: only the serialised coroutine channels transport this owner; the
     // sender cannot access it after send and interpreter access remains parked.
     unsafe impl Send for OriginalHandoff {}
 
-    enum ResumeValue {
+    pub(super) enum ResumeValue {
         Wire(Vec<u8>),
         Original(OriginalHandoff),
     }
@@ -107,12 +107,6 @@ mod imp {
                 Self::Original(original) => interp.set_result(original.0.as_ptr()),
             }
         }
-        fn wire_bytes(&self) -> Vec<u8> {
-            match self {
-                Self::Wire(bytes) => bytes.clone(),
-                Self::Original(original) => obj_bytes(original.0.as_ptr()),
-            }
-        }
     }
 
     /// Main → worker: resume with a value, tear the coroutine down, run a probe
@@ -121,8 +115,8 @@ mod imp {
     pub(super) enum ToCoro {
         Resume(ResumeValue),
         Terminate,
-        Probe(Vec<Vec<u8>>),
-        Inject(Vec<Vec<u8>>),
+        Probe(OriginalHandoff),
+        Inject(OriginalHandoff),
     }
 
     /// Worker → main: a `yield` (value), the body finished (code + result), a
@@ -132,7 +126,7 @@ mod imp {
         Yield(ResumeValue),
         YieldTo(OriginalHandoff),
         Done(Code, OriginalHandoff),
-        ProbeDone(Code, Vec<u8>),
+        ProbeDone(Code, OriginalHandoff),
         InjectAck,
     }
 
@@ -161,19 +155,26 @@ mod imp {
     /// worker thread so a `rename` is visible on both sides: C ties the
     /// coroutine to the command *token*, and `[info coroutine]` reports
     /// whatever that token is called now.
-    pub(crate) type CoroName = Arc<Mutex<Vec<u8>>>;
+    pub(crate) struct CoroIdentity {
+        generation: u64,
+        report: Mutex<Vec<u8>>,
+    }
+    pub(crate) type CoroName = Arc<CoroIdentity>;
 
     /// Read the shared name. Poisoning is ignored — the value is a plain name
     /// that is never observed half-written, because the lock is only ever held
     /// across a clone or an assignment, never across anything that can unwind
     /// (the `CoroTerminate` sentinel included).
     pub(super) fn read_name(name: &CoroName) -> Vec<u8> {
-        name.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        name.report
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Point the shared name at `value` (a `rename` of the coroutine command).
     fn write_name(name: &CoroName, value: &[u8]) {
-        value.clone_into(&mut name.lock().unwrap_or_else(|e| e.into_inner()));
+        value.clone_into(&mut name.report.lock().unwrap_or_else(|e| e.into_inner()));
     }
 
     /// The worker thread's own handles + identity (its end of the channels).
@@ -198,6 +199,10 @@ mod imp {
         })
     }
 
+    pub(super) fn current_generation() -> Option<u64> {
+        TLS.with(|t| t.borrow().as_ref().map(|c| c.name.generation))
+    }
+
     pub(super) fn in_coroutine() -> bool {
         TLS.with(|t| t.borrow().is_some())
     }
@@ -210,14 +215,11 @@ mod imp {
                 b"wrong # args: should be \"coroutine name cmd ?arg ...?\"",
             );
         }
-        let raw = obj_bytes(argv[1]);
-        let name = interp.fqn_for(&raw);
-        // A leaked coroutine may still be registered under this name with no
-        // command (e.g. a coroutine that renamed *itself* away while running).
-        // Tear its worker down cleanly before reusing the name, so overwriting
-        // the registry entry can't drop a still-parked worker (which would wake
-        // on the closed channel and run concurrently with us).
-        terminate(interp, &name);
+        let slot = match interp.native_coroutine_publication_slot(argv[1]) {
+            Ok(slot) => slot,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let name = interp.namespaces().command_fqn_at(slot.0, &slot.1);
         let Some(protocol) = interp.native_invocation_dialect().native_string_protocol() else {
             return interp.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -230,6 +232,8 @@ mod imp {
             crate::list::new_list_obj_native(&argv[2..], protocol),
         ));
 
+        // Retire the old binding before attaching the fresh coroutine state.
+        let generation = interp.register_coroutine_command_in_slot(slot);
         ensure_quiet_terminate_hook();
         let (to_tx, to_rx) = std::sync::mpsc::channel::<ToCoro>();
         let (from_tx, from_rx) = std::sync::mpsc::channel::<FromCoro>();
@@ -239,7 +243,10 @@ mod imp {
 
         // Hand a clone of the interp to the worker (sound under serialisation).
         let send_interp = SendPtr(interp.clone_handle());
-        let shared_name: CoroName = Arc::new(Mutex::new(name.clone()));
+        let shared_name: CoroName = Arc::new(CoroIdentity {
+            generation,
+            report: Mutex::new(name),
+        });
         let worker_name = Arc::clone(&shared_name);
         let join = std::thread::Builder::new()
             .stack_size(16 * 1024 * 1024)
@@ -247,7 +254,7 @@ mod imp {
             .expect("spawn coroutine thread");
 
         interp.coros_mut().insert(
-            name.clone(),
+            generation,
             CoroEntry {
                 context,
                 yielded_to: false,
@@ -257,10 +264,8 @@ mod imp {
                 join: Some(join),
             },
         );
-        // The coroutine is invoked by name to resume it.
-        interp.register_coroutine_command(&name);
         // Run to the first suspension point.
-        resume_value(interp, &name, ResumeValue::Wire(Vec::new()))
+        resume_value(interp, generation, ResumeValue::Wire(Vec::new()))
     }
 
     /// The worker thread entry: wait for the first resume, run the body in the
@@ -301,9 +306,8 @@ mod imp {
         // completion, or in response to a terminate). The main thread is blocked
         // in `resume`/`terminate` recv, so this is race-free.
         let ip = interp;
-        // Read the name now, not at spawn: a `rename` while this coroutine was
-        // suspended moved the registry key this swap has to address.
-        ip.coro_swap_named(&read_name(&name));
+        // The same actual command generation owns the context across rename.
+        ip.coro_swap_generation(name.generation);
         let msg = match outcome {
             Ok((code, result)) => FromCoro::Done(code, result),
             Err(_) => FromCoro::Done(
@@ -329,21 +333,17 @@ mod imp {
         }
     }
 
-    /// Evaluate the command `words` in the current (worker) context — used to run
-    /// `coroprobe`/`coroinject` scripts inside a suspended coroutine's frames.
-    /// Returns the completion code and the result bytes (mirroring the body
-    /// dispatch in `worker_main`).
-    fn eval_words(interp: &mut Interp, words: &[Vec<u8>]) -> (Code, Vec<u8>) {
-        let argv: Vec<*mut TclObj> = words.iter().map(|b| obj::new_string_bytes(b)).collect();
-        for &a in &argv {
-            unsafe { obj::incr_ref_count(a) };
-        }
-        let code = interp.dispatch(&argv);
-        let result = interp.result_bytes();
-        for &a in &argv {
-            unsafe { obj::decr_ref_count(a) };
-        }
-        (code, result)
+    /// Dispatch the retained original prefix inside the parked worker context.
+    /// Pin the result before releasing the prefix's owning reference.
+    fn eval_words(interp: &mut Interp, words: &obj::Owned) -> (Code, OriginalHandoff) {
+        let code = match crate::list::list_elements(words.as_ptr()) {
+            Ok(argv) => interp.dispatch(&argv),
+            Err(error) => interp.report_cmd_error(error.into()),
+        };
+        (
+            code,
+            OriginalHandoff(obj::Owned::retain(interp.result_obj())),
+        )
     }
 
     /// `yield ?value?` — suspend the current coroutine, returning `value` to the
@@ -396,17 +396,24 @@ mod imp {
     }
 
     fn yield_message(interp: &mut Interp, mut outgoing: FromCoro) -> Code {
-        let name = current_name();
-        if name.is_empty() {
+        let Some(name) = current_generation() else {
             return interp.error_with_code(
                 b"yield can only be called in a coroutine",
                 b"TCL COROUTINE ILLEGAL_YIELD",
             );
-        }
+        };
         // Restore the caller's context, hand back the yield value, then loop
         // servicing requests until an actual resume (or teardown) arrives.
-        interp.coro_swap_named(&name);
-        let mut pending_inject: Option<Vec<Vec<u8>>> = None;
+        interp.coro_swap_generation(name);
+        use tcl_registry::native_coroutine_compilation::{
+            NativeCoroutineInjectionProtocol, NativeCoroutineResumeArity,
+        };
+        let arity = if matches!(&outgoing, FromCoro::YieldTo(_)) {
+            NativeCoroutineResumeArity::Arbitrary
+        } else {
+            NativeCoroutineResumeArity::SingleOptional
+        };
+        let mut pending_inject: Vec<OriginalHandoff> = Vec::new();
         loop {
             let to_send = outgoing;
             let msg = TLS.with(|t| {
@@ -422,11 +429,34 @@ mod imp {
                     // A queued `coroinject` runs first, in this (now swapped-in)
                     // context, with the yield command + resume value appended; its
                     // result becomes what `yield` returns.
-                    if let Some(mut words) = pending_inject.take() {
-                        words.push(b"yield".to_vec());
-                        words.push(v.wire_bytes());
-                        let (code, _result) = eval_words(interp, &words);
-                        return code;
+                    if !pending_inject.is_empty() {
+                        let Some(protocol) = NativeCoroutineInjectionProtocol::select(
+                            interp.native_invocation_dialect(),
+                        ) else {
+                            return interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "original coroutine injection protocol",
+                                )
+                                .into(),
+                            );
+                        };
+                        v.publish(interp);
+                        return protocol.run_pending(
+                            &mut pending_inject,
+                            Code::Ok,
+                            |words, _prior_code| {
+                                let mut argv = match crate::list::list_elements(words.0.as_ptr()) {
+                                    Ok(argv) => argv,
+                                    Err(error) => return interp.report_cmd_error(error.into()),
+                                };
+                                let kind =
+                                    obj::Owned::fresh(obj::new_string_bytes(protocol.kind(arity)));
+                                let delivered = obj::Owned::retain(interp.result_obj());
+                                argv.push(kind.as_ptr());
+                                argv.push(delivered.as_ptr());
+                                interp.dispatch(&argv)
+                            },
+                        );
                     }
                     v.publish(interp);
                     return Code::Ok;
@@ -435,14 +465,14 @@ mod imp {
                 // command here, capture its error trace for transplanting, and
                 // stay suspended.
                 Some(ToCoro::Probe(words)) => {
-                    let (code, result) = eval_words(interp, &words);
+                    let (code, result) = eval_words(interp, &words.0);
                     let snap = interp.snapshot_error();
                     interp.publish_coro_probe_error(snap);
                     outgoing = FromCoro::ProbeDone(code, result);
                 }
                 // `coroinject`: remember the command; it runs on the next resume.
                 Some(ToCoro::Inject(words)) => {
-                    pending_inject = Some(words);
+                    pending_inject.push(words);
                     outgoing = FromCoro::InjectAck;
                 }
                 // Deleted while suspended (Terminate / closed channel): unwind
@@ -455,20 +485,20 @@ mod imp {
 
     /// Resume coroutine `name` with `value`; returns its next yield value, or
     /// its final result (and tears it down) if the body completed.
-    pub(super) fn resume_original(interp: &mut Interp, name: &[u8], value: obj::Owned) -> Code {
+    pub(super) fn resume_original(interp: &mut Interp, name: u64, value: obj::Owned) -> Code {
         resume_value(interp, name, ResumeValue::Original(OriginalHandoff(value)))
     }
 
-    fn resume_value(interp: &mut Interp, name: &[u8], value: ResumeValue) -> Code {
+    fn resume_value(interp: &mut Interp, name: u64, value: ResumeValue) -> Code {
         // Swap the coroutine's context into the interpreter, then hand control
         // to its worker and block until it yields or completes.
-        let exists = interp.coros_mut().contains_key(name);
+        let exists = interp.coros_mut().contains_key(&name);
         if !exists {
-            return interp.invalid_command(name);
+            return interp.set_error(b"coroutine is dead");
         }
         let chans = {
             let mut reg = interp.coros_mut();
-            let entry = reg.get_mut(name).expect("checked above");
+            let entry = reg.get_mut(&name).expect("checked above");
             // (the actual context swap touches other RefCells; do it after)
             entry
                 .from_coro
@@ -479,33 +509,36 @@ mod imp {
             // Already running (re-entrant resume) — C: "coroutine ... is already
             // running".
             let mut m = b"coroutine \"".to_vec();
-            m.extend_from_slice(name);
+            let report = interp
+                .coros_mut()
+                .get(&name)
+                .map(|entry| read_name(&entry.name))
+                .unwrap_or_default();
+            m.extend_from_slice(&report);
             m.extend_from_slice(b"\" is already running");
             return interp.set_error(&m);
         };
-        interp.coro_swap_named(name);
+        interp.coro_swap_generation(name);
         if to_coro.send(ToCoro::Resume(value)).is_err() {
             return interp.set_error(b"coroutine is dead");
         }
         let msg = from_coro.recv();
-        // The body may have renamed the coroutine — including itself, `rename
-        // [info coroutine] new` — so address the registry by where it is *now*,
-        // not by the name this resume was called through.
-        let name = &read_name(&shared_name);
+        // The retained actual command generation owns the sidecar across rename.
+        let name = shared_name.generation;
         // Put the receiver back for the next resume.
-        if let Some(entry) = interp.coros_mut().get_mut(name) {
+        if let Some(entry) = interp.coros_mut().get_mut(&name) {
             entry.from_coro = Some(from_coro);
         }
         match msg {
             Ok(FromCoro::Yield(v)) => {
-                if let Some(entry) = interp.coros_mut().get_mut(name) {
+                if let Some(entry) = interp.coros_mut().get_mut(&name) {
                     entry.yielded_to = false;
                 }
                 v.publish(interp);
                 Code::Ok
             }
             Ok(FromCoro::YieldTo(original)) => {
-                if let Some(entry) = interp.coros_mut().get_mut(name) {
+                if let Some(entry) = interp.coros_mut().get_mut(&name) {
                     entry.yielded_to = true;
                 }
                 interp.invoke_original_namespace_list(original.0.as_ptr())
@@ -524,50 +557,45 @@ mod imp {
         }
     }
 
-    pub(super) fn yielded_to(interp: &Interp, name: &[u8]) -> bool {
+    pub(super) fn yielded_to(interp: &Interp, name: u64) -> bool {
         interp
             .coros_mut()
-            .get(name)
+            .get(&name)
             .is_some_and(|entry| entry.yielded_to)
     }
 
-    /// `rename $coro $new` moved a live coroutine's command: move its registry
-    /// entry to the new key and point the shared name at it, so the worker's
-    /// own context swaps and `[info coroutine]` address the coroutine where it
-    /// now lives. C needs no equivalent — the coroutine hangs off the command
-    /// token, which a rename moves wholesale.
-    pub(super) fn rename(interp: &mut Interp, old_fqn: &[u8], new_fqn: &[u8]) {
-        let entry = interp.coros_mut().remove(old_fqn);
-        if let Some(entry) = entry {
+    /// Rename updates only the public name of the same actual coroutine generation.
+    /// The worker, sidecar and context retain that immutable registration identity.
+    pub(super) fn rename(interp: &mut Interp, generation: u64, new_fqn: &[u8]) {
+        if let Some(entry) = interp.coros_mut().get(&generation) {
             write_name(&entry.name, new_fqn);
-            interp.coros_mut().insert(new_fqn.to_vec(), entry);
         }
     }
 
     /// Tear down a completed/dead coroutine: remove the registry entry (before
     /// deleting the command, so the command-delete hook sees no coroutine), join
     /// its thread, and delete the command.
-    fn finish(interp: &mut Interp, name: &[u8]) {
-        let entry = interp.coros_mut().remove(name);
+    fn finish(interp: &mut Interp, name: u64) {
+        let entry = interp.coros_mut().remove(&name);
         if let Some(mut e) = entry {
             if let Some(j) = e.join.take() {
                 let _ = j.join();
             }
         }
-        interp.delete_command(name);
+        interp.delete_command_generation(name);
     }
 
     /// `coroprobe coroName cmd ?arg ...?` — run `cmd args` in the *suspended*
     /// coroutine `name`'s context (its frames/variables) and return the result;
     /// the coroutine stays suspended. Its error trace (if any) is transplanted
     /// into the caller once the context is swapped back out.
-    pub(super) fn probe(interp: &mut Interp, name: &[u8], words: Vec<Vec<u8>>) -> Code {
-        if !interp.coros_mut().contains_key(name) {
+    pub(super) fn probe(interp: &mut Interp, name: u64, words: OriginalHandoff) -> Code {
+        if !interp.coros_mut().contains_key(&name) {
             return interp.set_error(b"can only inject a probe command into a coroutine");
         }
         let chans = {
             let mut reg = interp.coros_mut();
-            let entry = reg.get_mut(name).expect("checked above");
+            let entry = reg.get_mut(&name).expect("checked above");
             entry
                 .from_coro
                 .take()
@@ -580,20 +608,19 @@ mod imp {
         // off, and block for the result — then swap back to the caller's context.
         // The swap is a symmetric toggle, so it is self-correcting regardless of
         // whether the caller is the main flow or another coroutine.
-        interp.coro_swap_named(name);
+        interp.coro_swap_generation(name);
         let sent = to_coro.send(ToCoro::Probe(words)).is_ok();
         let msg = if sent { from_coro.recv().ok() } else { None };
-        // A probe command can rename the coroutine, so swap back and put the
-        // receiver away under the name it answers to now (see `resume`).
-        let name = &read_name(&shared_name);
-        interp.coro_swap_named(name);
-        if let Some(entry) = interp.coros_mut().get_mut(name) {
+        // Probe callbacks preserve the same actual sidecar generation across rename.
+        let name = shared_name.generation;
+        interp.coro_swap_generation(name);
+        if let Some(entry) = interp.coros_mut().get_mut(&name) {
             entry.from_coro = Some(from_coro);
         }
         let snapshot = interp.take_coro_probe_error();
         match (msg, snapshot) {
             (Some(FromCoro::ProbeDone(code, result)), Some(snap)) => {
-                interp.set_result_bytes(&result);
+                interp.set_result(result.0.as_ptr());
                 if code == Code::Error {
                     interp.restore_error(snap);
                     interp.append_frame_noline(b"injected coroutine probe command");
@@ -611,13 +638,13 @@ mod imp {
     /// *suspended* coroutine `name` the next time it is resumed, before it
     /// continues; the yield command and resume value are appended, and the
     /// injected command's result becomes what `yield` returns. Returns empty.
-    pub(super) fn inject(interp: &mut Interp, name: &[u8], words: Vec<Vec<u8>>) -> Code {
-        if !interp.coros_mut().contains_key(name) {
+    pub(super) fn inject(interp: &mut Interp, name: u64, words: OriginalHandoff) -> Code {
+        if !interp.coros_mut().contains_key(&name) {
             return interp.set_error(b"can only inject a command into a coroutine");
         }
         let chans = {
             let mut reg = interp.coros_mut();
-            let entry = reg.get_mut(name).expect("checked above");
+            let entry = reg.get_mut(&name).expect("checked above");
             entry
                 .from_coro
                 .take()
@@ -630,8 +657,8 @@ mod imp {
         // resume). Send + await the acknowledgement to keep the channel in step.
         let sent = to_coro.send(ToCoro::Inject(words)).is_ok();
         let msg = if sent { from_coro.recv().ok() } else { None };
-        let name = &read_name(&shared_name);
-        if let Some(entry) = interp.coros_mut().get_mut(name) {
+        let name = shared_name.generation;
+        if let Some(entry) = interp.coros_mut().get_mut(&name) {
             entry.from_coro = Some(from_coro);
         }
         match msg {
@@ -651,15 +678,18 @@ mod imp {
     /// worker unwinds, waits for the acknowledgement (so the unwind happens with
     /// no concurrent interpreter access), then joins. Removes the registry entry
     /// but does **not** delete the command (the caller is doing that).
-    pub(super) fn terminate(interp: &mut Interp, name: &[u8]) {
+    pub(super) fn terminate(interp: &mut Interp, name: u64) {
         // Don't try to terminate from within a coroutine worker (avoid a thread
         // joining itself); only the main flow tears coroutines down.
+        if let Some(entry) = interp.coros_mut().get(&name) {
+            write_name(&entry.name, b"");
+        }
         if in_coroutine() {
             return;
         }
         let chans = {
             let mut reg = interp.coros_mut();
-            match reg.get_mut(name) {
+            match reg.get_mut(&name) {
                 Some(e) => e
                     .from_coro
                     .take()
@@ -667,15 +697,15 @@ mod imp {
                 None => return,
             }
         };
-        let mut name = name.to_vec();
+        let mut name = name;
         if let Some((to_coro, from_coro, shared_name)) = chans {
             // Install the coroutine's context so its worker unwinds in its own
             // frames, then signal + await the acknowledgement.
-            interp.coro_swap_named(&name);
+            interp.coro_swap_generation(name);
             if to_coro.send(ToCoro::Terminate).is_ok() {
                 let _ = from_coro.recv();
             }
-            name = read_name(&shared_name);
+            name = shared_name.generation;
         }
         let entry = interp.coros_mut().remove(&name);
         if let Some(mut e) = entry {
@@ -775,15 +805,21 @@ pub(crate) fn yieldto_original(interp: &mut Interp, value: obj::Owned) -> Code {
     }
 }
 
-/// The registry key a written coroutine name addresses: its fully-qualified
-/// name, followed through an open `rename` window. Inside a rename's callbacks
-/// the vacating name still resolves but *is* the destination command (C's two
-/// hash entries reference the one `Command`, and the coroutine hangs off that),
-/// so resuming or probing through either name reaches the one coroutine.
+/// Retain the actual original prefix objects for the serialised worker handoff.
 #[cfg(not(target_arch = "wasm32"))]
-fn coro_key(interp: &Interp, written: &[u8]) -> Vec<u8> {
-    let fqn = interp.fqn_for(written);
-    interp.renamed_cmd_key(&fqn).unwrap_or(fqn)
+fn original_prefix(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+) -> Result<imp::OriginalHandoff, tcl_syntax::value::ValueError> {
+    let protocol = interp
+        .native_invocation_dialect()
+        .native_string_protocol()
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original coroutine prefix List issuer",
+        ))?;
+    Ok(imp::OriginalHandoff(obj::Owned::fresh(
+        crate::list::new_list_obj_native(argv, protocol),
+    )))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -793,9 +829,16 @@ fn coroprobe_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             b"wrong # args: should be \"coroprobe coroName cmd ?arg1 arg2 ...?\"",
         );
     }
-    let name = coro_key(interp, &obj_bytes(argv[1]));
-    let words: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
-    imp::probe(interp, &name, words)
+    let name = match interp.resolve_original_command_generation(argv[1]) {
+        Ok(Some(key)) => key,
+        Ok(None) => return interp.set_error(b"can only inject a probe command into a coroutine"),
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let words = match original_prefix(interp, &argv[2..]) {
+        Ok(words) => words,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    imp::probe(interp, name, words)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -805,9 +848,16 @@ fn coroinject_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             b"wrong # args: should be \"coroinject coroName cmd ?arg1 arg2 ...?\"",
         );
     }
-    let name = coro_key(interp, &obj_bytes(argv[1]));
-    let words: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
-    imp::inject(interp, &name, words)
+    let name = match interp.resolve_original_command_generation(argv[1]) {
+        Ok(Some(key)) => key,
+        Ok(None) => return interp.set_error(b"can only inject a command into a coroutine"),
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let words = match original_prefix(interp, &argv[2..]) {
+        Ok(words) => words,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    imp::inject(interp, name, words)
 }
 
 /// `::tcl::unsupported::corotype coroName` — the coroutine's current type: the
@@ -820,13 +870,17 @@ fn corotype_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             b"wrong # args: should be \"::tcl::unsupported::corotype coroName\"",
         );
     }
-    let name = coro_key(interp, &obj_bytes(argv[1]));
-    if current_coroutine() == name {
+    let name = match interp.resolve_original_command_generation(argv[1]) {
+        Ok(Some(key)) => key,
+        Ok(None) => return interp.set_error(b"can only get coroutine type of a coroutine"),
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    if imp::current_generation() == Some(name) {
         interp.set_result_bytes(b"active");
         return Code::Ok;
     }
     if interp.coros_mut().contains_key(&name) {
-        interp.set_result_bytes(if imp::yielded_to(interp, &name) {
+        interp.set_result_bytes(if imp::yielded_to(interp, name) {
             b"yieldto"
         } else {
             b"yield"
@@ -839,8 +893,15 @@ fn corotype_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// Resume the coroutine named by `argv[0]` (its command invocation).
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn coro_resume_command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let name = coro_key(interp, &obj_bytes(argv[0]));
-    let value = if imp::yielded_to(interp, &name) {
+    let Some(name) = interp.active_builtin_command_generation() else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original coroutine selected registration",
+            )
+            .into(),
+        );
+    };
+    let value = if imp::yielded_to(interp, name) {
         let Some(protocol) = interp.native_invocation_dialect().native_string_protocol() else {
             return interp.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -859,15 +920,13 @@ pub(crate) fn coro_resume_command(interp: &mut Interp, argv: &[*mut TclObj]) -> 
             |&original| obj::Owned::retain(original),
         )
     };
-    imp::resume_original(interp, &name, value)
+    imp::resume_original(interp, name, value)
 }
 
-/// Hook for command deletion (`rename $coro {}`, `delete_command`): if `name`
-/// is a *suspended* coroutine, terminate its worker cleanly first.
+/// Retire the suspended worker attached to an actual deleted command generation.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn on_command_deleted(interp: &mut Interp, name: &[u8]) {
-    let fqn = coro_key(interp, name);
-    imp::terminate(interp, &fqn);
+pub(crate) fn on_command_deleted(interp: &mut Interp, generation: u64) {
+    imp::terminate(interp, generation);
 }
 
 /// Hook for `rename $coro $new`: move a live coroutine's state to the new name.
@@ -875,8 +934,8 @@ pub(crate) fn on_command_deleted(interp: &mut Interp, name: &[u8]) {
 /// it — including to `[info coroutine]`, which reports the new name from inside
 /// the coroutine itself (tclsh 8.6/9.0-pinned).
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn on_command_renamed(interp: &mut Interp, old_fqn: &[u8], new_fqn: &[u8]) {
-    imp::rename(interp, old_fqn, new_fqn);
+pub(crate) fn on_command_renamed(interp: &mut Interp, generation: u64, new_fqn: &[u8]) {
+    imp::rename(interp, generation, new_fqn);
 }
 
 /// `info coroutine` — the current coroutine's command name (empty on the main
@@ -946,10 +1005,10 @@ pub(crate) fn coro_resume_command(interp: &mut Interp, _argv: &[*mut TclObj]) ->
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn on_command_deleted(_interp: &mut Interp, _name: &[u8]) {}
+pub(crate) fn on_command_deleted(_interp: &mut Interp, _generation: u64) {}
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn on_command_renamed(_interp: &mut Interp, _old_fqn: &[u8], _new_fqn: &[u8]) {}
+pub(crate) fn on_command_renamed(_interp: &mut Interp, _generation: u64, _new_fqn: &[u8]) {}
 
 #[cfg(target_arch = "wasm32")]
 pub fn current_coroutine() -> Vec<u8> {
@@ -962,7 +1021,7 @@ pub fn in_coroutine() -> bool {
 }
 
 /// The wasm32 stand-in for a registered coroutine: the type must exist so the
-/// shared `Interp`'s `coros` table + `coro_swap_named` compile, but it is never
+/// shared `Interp`'s `coros` table + `coro_swap_generation` compile, but it is never
 /// populated (coroutine creation errors in the single-threaded wasm build).
 #[cfg(target_arch = "wasm32")]
 pub struct CoroEntry {
@@ -978,12 +1037,14 @@ mod tests {
     /// thread alloc/free is expected to skew them (the production build does not
     /// leak-check, and the tcltest sweep covers behaviour end-to-end).
     fn run(i: &mut Interp, s: &[u8]) -> Vec<u8> {
-        assert_eq!(
-            i.eval_str(s),
-            crate::interp::Code::Ok,
-            "eval failed: {:?}",
-            s
+        let code = i.eval_str(s);
+        assert!(
+            !i.host_refusal_pending(),
+            "admission {:?}, native access {:?}",
+            i.native_compilation_admission_error(),
+            i.native_access_refusal()
         );
+        assert_eq!(code, crate::interp::Code::Ok, "eval failed: {:?}", s);
         i.result_bytes()
     }
 
@@ -1139,6 +1200,59 @@ mod tests {
         assert_eq!(i.eval_str(b"::tcl::unsupported::corotype"), Code::Error);
     }
 
+    #[test]
+    fn original_injection_public_completions_match_both_c9_releases() {
+        // naming.coroutine.original-injection-public-completions
+        // docs/design/analysis/name-resolution-proofs/coroutine-original-injection-public-completions.md
+        macro_rules! original_case {
+            ($directory:literal, $case:literal) => {
+                (include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/", $case, ".tcl")), [
+                    include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/9.0.4/", $case, "/stdout")),
+                    include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/9.1.0/", $case, "/stdout")),
+                ])
+            };
+        }
+        let cases = [
+            original_case!("original", "yield-ok"),
+            original_case!("original", "yield-error"),
+            original_case!("original", "yieldto-ok"),
+            original_case!("original", "yieldto-error"),
+            original_case!("errors", "yield-terminal-error"),
+            original_case!("errors", "yield-replaced-error"),
+            original_case!("errors", "yieldto-terminal-error"),
+            original_case!("errors", "yieldto-replaced-error"),
+        ];
+        for (provider, version) in [tcl_dialect::TclVersion::V9_0, tcl_dialect::TclVersion::V9_1]
+            .into_iter()
+            .enumerate()
+        {
+            for (source, rows) in &cases {
+                let mut interp = Interp::new();
+                interp.set_runtime_version(version);
+                let row = rows[provider]
+                    .lines()
+                    .find(|row| row.starts_with("ORIGINAL|"))
+                    .unwrap();
+                let columns: Vec<_> = row.split('|').collect();
+                assert_eq!(columns[1], "0", "fixed original C API completion");
+                let expected: Vec<_> = columns[2]
+                    .as_bytes()
+                    .chunks_exact(2)
+                    .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                    .collect();
+                assert_eq!(
+                    interp.eval_str(source.as_bytes()),
+                    crate::interp::Code::Ok,
+                    "{version:?}: {source}; admission={:?}; access={:?}",
+                    interp.native_compilation_admission_error(),
+                    interp.native_access_refusal()
+                );
+                assert!(!interp.host_refusal_pending(), "{version:?}: {source}");
+                assert_eq!(interp.result_bytes(), expected, "{version:?}: {source}");
+            }
+        }
+    }
+
     // Needs the numeric tower: the coroutine body parks in `while`.
     #[cfg(have_tommath)]
     #[test]
@@ -1239,3 +1353,127 @@ mod tests {
         );
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod original_operand_tests {
+    use super::*;
+
+    fn first(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+        interp.set_result(argv[1]);
+        Code::Ok
+    }
+
+    fn native() -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    fn dispatch(interp: &mut Interp, head: &[u8], args: &[*mut TclObj]) -> Code {
+        let head = obj::Owned::fresh(obj::new_string_bytes(head));
+        let mut argv = vec![head.as_ptr()];
+        argv.extend_from_slice(args);
+        interp.dispatch(&argv)
+    }
+
+    #[test]
+    fn coroutine_probe_and_injection_keep_opaque_names_and_original_objects() {
+        // Source proof: naming.coroutine.original-probe-and-injection-object-transport
+        // docs/design/analysis/name-resolution-proofs/coroutine-original-probe-and-injection-object-transport.md
+        let mut interp = native();
+        assert_eq!(
+            interp.eval_str(b"coroutine c apply {{} {return [yield READY]}}"),
+            Code::Ok
+        );
+        let old = obj::Owned::fresh(obj::new_string_bytes(b"c"));
+        let name = obj::Owned::fresh(obj::new_string_bytes(b"c\xff"));
+        assert_eq!(
+            dispatch(&mut interp, b"rename", &[old.as_ptr(), name.as_ptr()]),
+            Code::Ok
+        );
+        interp.register_builtin(b"probe\xff", first);
+        let head = obj::Owned::fresh(obj::new_string_bytes(b"probe\xff"));
+        let argument = obj::Owned::fresh(obj::new_string_bytes(b"A\0B\xff"));
+        assert_eq!(
+            dispatch(
+                &mut interp,
+                b"::tcl::unsupported::corotype",
+                &[name.as_ptr()]
+            ),
+            Code::Ok
+        );
+        assert_eq!(interp.result_bytes(), b"yield");
+        assert_eq!(
+            dispatch(
+                &mut interp,
+                b"coroprobe",
+                &[name.as_ptr(), head.as_ptr(), argument.as_ptr()]
+            ),
+            Code::Ok
+        );
+        assert_eq!(interp.result_obj(), argument.as_ptr());
+        assert_eq!(
+            dispatch(
+                &mut interp,
+                b"coroinject",
+                &[name.as_ptr(), head.as_ptr(), argument.as_ptr()]
+            ),
+            Code::Ok
+        );
+        assert_eq!(interp.dispatch(&[name.as_ptr()]), Code::Ok);
+        assert_eq!(interp.result_obj(), argument.as_ptr());
+        assert!(!interp.host_refusal_pending());
+    }
+
+    #[test]
+    fn coroutine_name_lookup_preserves_native_missing_and_unavailable_boundaries() {
+        let missing = obj::Owned::fresh(obj::new_string_bytes(b"missing\xff"));
+        let mut interp = native();
+        assert_eq!(
+            dispatch(
+                &mut interp,
+                b"::tcl::unsupported::corotype",
+                &[missing.as_ptr()]
+            ),
+            Code::Error
+        );
+        assert!(!interp.host_refusal_pending());
+        // The default engine has a known C command-name issuer even when its
+        // assistance profile is unpinned. Missing is distinct from unavailable.
+        let mut default = Interp::new();
+        assert_eq!(
+            default.resolve_original_command_generation(missing.as_ptr()),
+            Ok(None)
+        );
+        let unavailable = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )));
+        default.set_dialect_profile(unavailable);
+        // Assistance configuration does not replace the actual physical C issuer.
+        assert_eq!(
+            default.resolve_original_command_generation(missing.as_ptr()),
+            Ok(None)
+        );
+        // An unsupported actual bootstrap purpose cannot manufacture an issuer.
+        assert!(
+            Interp::with_native_core(
+                crate::interp::default_host(),
+                unavailable,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .is_none()
+        );
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod native_injection_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod native_original_holder_tests;

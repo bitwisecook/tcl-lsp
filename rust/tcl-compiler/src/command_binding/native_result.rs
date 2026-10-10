@@ -32,11 +32,218 @@ pub(super) fn retain_store_results(
     arguments: tcl_registry::InvocationArguments<'_>,
     context: SourceExecutionContext<'_>,
 ) {
+    retain_original_store(outcomes, facts, target, arguments, context);
     super::source_representation::retain_store_representation(
         outcomes, facts, target, arguments, context,
     );
     retain_numeric_store(outcomes, facts, target, arguments, context);
     super::object_instance::retain_object_store(outcomes, facts, target, arguments, context);
+}
+
+/// Store byte correspondence only on an independently represented Normal route
+/// through Set. Inline targets use the actual retained compiler recipe; a
+/// generic invocation uses its independently frozen runtime value instead.
+fn retain_original_store(
+    outcomes: &mut SourceOutcomes,
+    facts: &tcl_registry::InvocationFacts,
+    target: &SourceCommandTarget,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    context: SourceExecutionContext<'_>,
+) {
+    let Some(normal) = &mut outcomes.normal else {
+        return;
+    };
+    let variables = Arc::make_mut(&mut normal.source_variables);
+    #[cfg(debug_assertions)]
+    let trace = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some();
+    let Some((receiver, value_word)) =
+        original_store_receiver(facts, target, arguments, context, variables)
+    else {
+        #[cfg(debug_assertions)]
+        if trace {
+            eprintln!(
+                "ORIGINAL_STORE_CARRIER site={} receiver=false selection={:?} arguments={:?} epoch={:?}",
+                context.invocation_offset,
+                context.selected_compilation,
+                arguments.exact_argv_len(),
+                variables.original_contents_epoch(),
+            );
+        }
+        return;
+    };
+    let Some(value) = context
+        .written_name_values
+        .and_then(|values| values.get(value_word))
+        .and_then(Option::as_deref)
+    else {
+        #[cfg(debug_assertions)]
+        if trace {
+            eprintln!(
+                "ORIGINAL_STORE_CARRIER site={} receiver=true value_word={} value=false epoch={:?}",
+                context.invocation_offset,
+                value_word,
+                variables.original_contents_epoch(),
+            );
+        }
+        return;
+    };
+    let written = variables.read_contents_origin(&receiver, context.registry)
+        == crate::var_resolve::ContentsOrigin::WrittenAt(context.invocation_offset);
+    let retained =
+        written && variables.retain_original_name_value(&receiver, value, context.registry);
+    #[cfg(debug_assertions)]
+    if trace {
+        eprintln!(
+            "ORIGINAL_STORE_CARRIER site={} receiver=true kind={:?} observed={} dynamic={} value_word={} current={} epoch={:?} written={} retained={}",
+            context.invocation_offset,
+            receiver.kind,
+            receiver.observed,
+            receiver.dynamic,
+            value_word,
+            value.is_current(variables),
+            variables.original_contents_epoch(),
+            written,
+            retained,
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = retained;
+}
+
+/// Capture value-free successful read authority at the actual selected Set
+/// receiver. Produced bytes and physical representation do not supply it.
+pub(super) fn capture_original_read_completion(
+    native: super::SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<crate::var_resolve::OriginalNormalValueRead> {
+    // Implementation contract: naming.variable.original-set-read-completion
+    // docs/design/analysis/name-resolution-proofs/original-set-read-completion.md
+    if facts.operation
+        != tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Set,
+        )
+        || facts.argument_offset != 0
+        || native.invocation.arguments().exact_argv_len() != Some(1)
+    {
+        return None;
+    }
+    let NativeResultSelection::VariableValue {
+        variable_at,
+        phase: tcl_registry::native_result::VariableResultPhase::AfterRead,
+    } = facts
+        .native_result?
+        .select(native.invocation.arguments(), facts.argument_offset)
+    else {
+        return None;
+    };
+    let receiver = native.original_variable_operands.access(
+        variable_at,
+        &state.source_variables,
+        registry,
+        tcl_registry::TraceOperation::Read,
+        false,
+    );
+    let receipt = state
+        .source_variables
+        .original_normal_value_read(&receiver, registry);
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        eprintln!(
+            "ORIGINAL_READ_COMPLETION_CAPTURE site={} kind={:?} cell={} observed={} dynamic={} presence={:?} available={}",
+            native.segment.span.start(),
+            receiver.kind,
+            receiver.cell.is_some(),
+            receiver.observed,
+            receiver.dynamic,
+            state.source_variables.contents_presence(&receiver),
+            receipt.is_some()
+        );
+    }
+    receipt
+}
+
+/// Exact Set receiver and stored operand coordinate, independently of whether
+/// the handler succeeds or the RHS has a retained byte value.
+pub(super) fn original_store_receiver(
+    facts: &tcl_registry::InvocationFacts,
+    target: &SourceCommandTarget,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    context: SourceExecutionContext<'_>,
+    variables: &crate::var_resolve::ResolveContext,
+) -> Option<(crate::place::Place, usize)> {
+    use tcl_registry::{
+        native_compilation::NativeCompilationSelection,
+        native_instruction_plan::NativeInstructionPlan,
+    };
+    if facts.operation
+        != tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Set,
+        )
+        || !target.prepended.is_empty()
+        || arguments.exact_argv_len() != Some(2)
+    {
+        return None;
+    }
+    let words = context.written_arguments?;
+    if words.len() != 3
+        || words.iter().any(|word| {
+            matches!(
+                word,
+                EffectiveInvocationWord::Expanded
+                    | EffectiveInvocationWord::KnownExpansion(_)
+                    | EffectiveInvocationWord::KnownByteExpansion(_)
+            )
+        })
+    {
+        return None;
+    }
+    let (target_word, value_word) = match context.selected_compilation {
+        Some(NativeCompilationSelection::Inline { .. }) => {
+            let compilation = context.original_variable_compilation?;
+            let preparation = compilation.structured()?;
+            let NativeInstructionPlan::Store {
+                target_word,
+                value_word,
+                ..
+            } = preparation.recipe()
+            else {
+                return None;
+            };
+            (*target_word, *value_word)
+        }
+        Some(NativeCompilationSelection::Generic) => (1, 2),
+        _ => return None,
+    };
+    let receiver = if let Some(compilation) = context.original_variable_compilation {
+        super::original_variable_compilation::resolve_original_compiler_variable_operand(
+            compilation,
+            target_word,
+            variables,
+            context.registry,
+            tcl_registry::TraceOperation::Write,
+        )
+    } else {
+        let name = context
+            .written_name_values
+            .filter(|values| values.len() == words.len())?
+            .get(target_word)?
+            .as_deref()?;
+        let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(
+            crate::signature_scan::scope::SignatureSourceNameValue::from_original_produced_value(
+                name,
+            ),
+        );
+        crate::var_resolve::resolve_original_name_input(
+            &input,
+            variables,
+            context.registry,
+            false,
+            tcl_registry::TraceOperation::Write,
+        )
+    };
+    Some((receiver, value_word))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,7 +293,9 @@ pub(super) fn numeric_call_arguments<'a>(
     if words.iter().any(|word| {
         matches!(
             word,
-            EffectiveInvocationWord::Expanded | EffectiveInvocationWord::KnownExpansion(_)
+            EffectiveInvocationWord::Expanded
+                | EffectiveInvocationWord::KnownExpansion(_)
+                | EffectiveInvocationWord::KnownByteExpansion(_)
         )
     }) {
         return None;
@@ -112,7 +321,9 @@ pub(super) fn retain_numeric_store(
             words.iter().any(|word| {
                 matches!(
                     word,
-                    EffectiveInvocationWord::Expanded | EffectiveInvocationWord::KnownExpansion(_)
+                    EffectiveInvocationWord::Expanded
+                        | EffectiveInvocationWord::KnownExpansion(_)
+                        | EffectiveInvocationWord::KnownByteExpansion(_)
                 )
             })
         })
@@ -484,6 +695,14 @@ impl SourceOutcomes {
             return;
         };
         let selection = contract.select(invocation.arguments(), facts.argument_offset);
+        if self.normal_name_value.is_none()
+            && let Some(normal) = &self.normal
+        {
+            self.normal_name_value =
+                selected_name_result(selection, facts.operation, before, normal, target, context)
+                    .map(Arc::new);
+        }
+
         if self.normal_value.is_none()
             && let Some(normal) = &self.normal
         {
@@ -514,6 +733,13 @@ impl SourceOutcomes {
         .flatten();
         for (route, state) in &self.abrupt {
             if matches!(route, Route::Return(_))
+                && let Some(value) =
+                    selected_name_result(selection, facts.operation, before, state, target, context)
+            {
+                self.abrupt_name_values.retain(|(known, _)| known != route);
+                self.abrupt_name_values.push((*route, Arc::new(value)));
+            }
+            if matches!(route, Route::Return(_))
                 && let Some(object) = &returned_object
                 && state.receiver_allocation_is_current(object)
                 && !state.source_step_observed()
@@ -530,6 +756,72 @@ impl SourceOutcomes {
                 self.abrupt_values.push((*route, Arc::new(value)));
             }
         }
+    }
+}
+
+/// Independent byte correspondence for selected original result operations.
+/// Missing exact argv/producers never falls back to encoding compatibility text.
+fn selected_name_result(
+    selection: NativeResultSelection,
+    operation: tcl_registry::SemanticOperationId,
+    before: &ModuleCommandBindings,
+    after: &ModuleCommandBindings,
+    target: &SourceCommandTarget,
+    context: SourceExecutionContext<'_>,
+) -> Option<super::original_name_value::OriginalProducedNameValue> {
+    if !target.prepended.is_empty()
+        || before.source_step_observed()
+        || before.source_execution_observed(target.identity.as_ref())
+    {
+        return None;
+    }
+    let words = context.written_arguments?;
+    if words.iter().any(|word| {
+        matches!(
+            word,
+            EffectiveInvocationWord::KnownExpansion(_)
+                | EffectiveInvocationWord::KnownByteExpansion(_)
+                | EffectiveInvocationWord::Expanded
+        )
+    }) {
+        return None;
+    }
+    let values = context.written_name_values?;
+    if values.len() != words.len() {
+        return None;
+    }
+    let selected = |index: usize| {
+        values
+            .get(index)?
+            .as_deref()
+            .filter(|value| value.is_current(&after.source_variables))
+            .cloned()
+    };
+    match selection {
+        NativeResultSelection::Argument(index) => selected(index.checked_add(1)?),
+        NativeResultSelection::ListArguments { from, len } => {
+            let elements = (from..from.checked_add(len)?)
+                .map(|index| selected(index.checked_add(1)?))
+                .collect::<Option<Vec<_>>>()?;
+            super::original_name_value::OriginalProducedNameValue::list_result(
+                &elements,
+                &selected(0)?,
+            )
+        }
+        NativeResultSelection::VariableValue {
+            phase: tcl_registry::native_result::VariableResultPhase::AfterWrite,
+            ..
+        } if words.len() == 3 && before.baseline.dialect.is_some() => {
+            // The result contract chooses a post-write value, but only the
+            // genuine Set operation preserves its exact evaluated RHS.
+            (operation
+                == tcl_registry::SemanticOperationId::StructuredLowering(
+                    tcl_registry::hooks::LoweringHookId::Set,
+                ))
+            .then_some(())?;
+            selected(2)
+        }
+        _ => None,
     }
 }
 
@@ -708,6 +1000,148 @@ mod tests {
                 ..SourceAnalysisOptions::default()
             },
         )
+    }
+
+    #[test]
+    fn original_root_entry_retains_selected_frame_and_withdraws_after_unknown_observer() {
+        // Implementation contract: naming.variable.original-root-entry-frame
+        // docs/design/analysis/name-resolution-proofs/original-root-entry-frame.md
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let inspect = |source: &str| {
+            SourceCommandBindings::analyse_with_options(
+                source,
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                &registry,
+                SourceAnalysisOptions {
+                    native_entry: Some(&entry),
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                    ..Default::default()
+                },
+            )
+        };
+        let source = "set first one; set first";
+        let analysed = inspect(source);
+        let selected = analysed.invocation_at_source("set", 15);
+        let expected =
+            crate::command_binding::SourceNamespaceKey::from_native_entry(&entry).unwrap();
+        assert_eq!(
+            selected.variable_context.namespace_identity.as_ref(),
+            Some(&expected)
+        );
+        assert_eq!(
+            analysed
+                .final_state
+                .source_variables
+                .namespace_identity
+                .as_ref(),
+            Some(&expected)
+        );
+        assert_eq!(analysed.final_state.variable_frame, selected.variable_frame);
+        assert!(!analysed.final_state.source_variables.dynamic_bindings);
+        assert_eq!(
+            analysed
+                .final_state
+                .source_variables
+                .literal_value("first", &registry),
+            Some("one")
+        );
+        let unknown = inspect("set first one; mystery");
+        assert!(unknown.final_state.source_variables.dynamic_bindings);
+        assert!(
+            unknown
+                .final_state
+                .source_variables
+                .literal_value("first", &registry)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_set_read_completion_requires_a_current_defined_quiet_receiver() {
+        // Implementation contract: naming.variable.original-set-read-completion
+        // docs/design/analysis/name-resolution-proofs/original-set-read-completion.md
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+            let registry =
+                tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+            let (_owner, entry) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            let inspect = |source: &str| {
+                SourceCommandBindings::analyse_with_options(
+                    source,
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                    &registry,
+                    SourceAnalysisOptions {
+                        native_entry: Some(&entry),
+                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                            profile,
+                        )),
+                        native_compilation:
+                            crate::environment_ingress::authoring_native_compilation(),
+                        ..SourceAnalysisOptions::default()
+                    },
+                )
+            };
+            let source = "set first one; set first";
+            let bindings = inspect(source);
+            let offset = u32::try_from(source.rfind("set").unwrap()).unwrap();
+            let binding = bindings.invocation_at_source("set", offset);
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            )
+            .pop()
+            .unwrap();
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                &segment,
+            );
+            bindings.stamp_original_tokens(&mut tokens);
+            assert!(
+                binding.original_invocation_completes_normally(&tokens),
+                "{engine}"
+            );
+            assert_eq!(
+                bindings
+                    .final_state
+                    .source_variables
+                    .literal_value("first", &registry),
+                Some("one")
+            );
+            for source in [
+                "set missing",
+                "array set first {key value}; set first",
+                "set first one; trace add variable first read mystery; set first",
+                "proc set args {error CUSTOM}; set first",
+            ] {
+                let bindings = inspect(source);
+                let offset = u32::try_from(source.rfind("set").unwrap()).unwrap();
+                let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                    source,
+                    0,
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .pop()
+                .unwrap();
+                let mut tokens = crate::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceMap::new(source),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                    &segment,
+                );
+                bindings.stamp_original_tokens(&mut tokens);
+                assert!(
+                    !bindings
+                        .invocation_at_source("set", offset)
+                        .original_invocation_completes_normally(&tokens),
+                    "{engine}/{source}"
+                );
+            }
+        }
     }
 
     #[test]

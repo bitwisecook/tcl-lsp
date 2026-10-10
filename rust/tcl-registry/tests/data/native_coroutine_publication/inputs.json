@@ -1,0 +1,87 @@
+{
+  "publication_names": [
+    {
+      "name": "TEXT",
+      "hex": "63"
+    },
+    {
+      "name": "EMPTY",
+      "hex": ""
+    },
+    {
+      "name": "ROOT_EMPTY",
+      "hex": "3a3a"
+    },
+    {
+      "name": "TRAIL_REL",
+      "hex": "513a3a"
+    },
+    {
+      "name": "TRAIL_ABS",
+      "hex": "3a3a513a3a"
+    },
+    {
+      "name": "RELATIVE",
+      "hex": "513a3a63"
+    },
+    {
+      "name": "ABSOLUTE",
+      "hex": "3a3a513a3a63"
+    },
+    {
+      "name": "MISSING_REL",
+      "hex": "4d697373696e673a3a63"
+    },
+    {
+      "name": "MISSING_ABS",
+      "hex": "3a3a4d697373696e673a3a63"
+    },
+    {
+      "name": "RAW_ZERO",
+      "hex": "63003a3a4d697373696e673a3a7461696c"
+    },
+    {
+      "name": "ENCODED_ZERO",
+      "hex": "63c0807a"
+    },
+    {
+      "name": "OPAQUE_FF",
+      "hex": "63ff7a"
+    },
+    {
+      "name": "SURROGATE_D800",
+      "hex": "63eda0807a"
+    },
+    {
+      "name": "QUAL_RAW_ZERO",
+      "hex": "3a3a4e3a3a63003a3a4d697373696e673a3a7461696c"
+    },
+    {
+      "name": "QUAL_ENCODED_ZERO",
+      "hex": "513a3a63c0807a"
+    }
+  ],
+  "current_contexts": [
+    "::",
+    "::N"
+  ],
+  "setup_source": "namespace eval ::N {}; namespace eval ::N::Q {}; namespace eval ::Q {}",
+  "publication_argv": [
+    "coroutine",
+    "original_name",
+    "yield",
+    "READY"
+  ],
+  "resume_argv": [
+    "original_name",
+    "RESUMED"
+  ],
+  "channel": "Original counted name enters a native callback under namespace eval with typed List script; original pointer correspondence recorded before coroutine invocation. Native callback invokes Tcl_EvalObjv/Jim_EvalObjVector with unchanged original name object. ASCII setup source is distinct.",
+  "transport_scope": "C9.1 only: custom API collector returns original probe argument or injection appended last argument; pointer comparisons precede result getter; opaque FF helper head and renamed coroutine name; yield/yieldto kind and two queued injection order/error controls.",
+  "limits": [
+    "C8.4/C8.5/Jim coroutine unsupported or unavailable retained as actual outcomes",
+    "C8.4/Jim return options API not tested",
+    "Older coroprobe/coroinject providers not tested independently",
+    "No command-generation lifetime/cache/compiler or observer closure claim"
+  ]
+}

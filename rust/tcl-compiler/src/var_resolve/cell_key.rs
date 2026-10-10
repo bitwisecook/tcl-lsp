@@ -11,6 +11,7 @@ use std::{
     hash::Hash,
     ops::{Deref, DerefMut},
 };
+use tcl_core_types::NameBytes;
 
 /// Namespace membership for diagnostics, keeping authored scope advice separate
 /// from a retained namespace owner. This supplies no contents or execution fact.
@@ -33,35 +34,35 @@ pub enum VariableCellKey {
         /// Retained namespace incarnation and component boundaries.
         identity: SourceNamespaceKey,
         /// Selected variable-table key, without written-name reinterpretation.
-        simple: String,
+        simple: NameBytes,
     },
     /// Cell in an actual source-proved activation.
     Activation {
         /// Original activation identity.
         identity: String,
         /// Selected local key.
-        simple: String,
+        simple: NameBytes,
     },
     /// Cell in an explicitly selected foreign stack frame.
     SelectedFrame {
         /// Original validated selector.
         selector: tcl_registry::FrameLevel,
         /// Selected cell key.
-        simple: String,
+        simple: NameBytes,
     },
     /// Cell in an actual object instance storage table.
     Instance {
         /// Original instance identity.
         identity: String,
         /// Selected variable key.
-        simple: String,
+        simple: NameBytes,
     },
     /// Cell belonging to an actual bounded object allocation.
     AllocatedInstance {
         /// Original allocation identity.
         allocation: Box<crate::command_binding::SourceObjectAllocation>,
         /// Selected member key.
-        simple: String,
+        simple: NameBytes,
     },
     /// Actual retained raw wrapper or callable-owned static allocation.
     RetainedSlot(Box<crate::raw_binding::RawBindingSlotId>),
@@ -77,29 +78,49 @@ pub enum VariableCellKey {
         /// Original typed array root.
         cell: Box<VariableCellKey>,
         /// Exact selected element name.
-        index: String,
+        index: NameBytes,
     },
 }
+// A diagnostic label is never accepted as a retained byte key.
+fn byte_label(name: &NameBytes) -> String {
+    name.try_utf8()
+        .map_or_else(|_| format!("{name:?}"), str::to_owned)
+}
+
 impl VariableCellKey {
     /// Compatibility spelling only; never a lookup or equality proof.
     #[must_use]
     pub fn compatibility_name(&self) -> String {
         match self {
             Self::Authored(name) => name.clone(),
-            Self::Namespace { identity, simple } => format!("{identity:?}::{simple}"),
+            Self::Namespace { identity, simple } => format!("{identity:?}::{}", byte_label(simple)),
             Self::Activation { identity, simple } => {
-                format!("@frame:{}:{identity}:{simple}", identity.len())
+                format!(
+                    "@frame:{}:{identity}:{}",
+                    identity.len(),
+                    byte_label(simple)
+                )
             }
-            Self::SelectedFrame { selector, simple } => format!("@selected:{selector:?}:{simple}"),
+            Self::SelectedFrame { selector, simple } => {
+                format!("@selected:{selector:?}:{}", byte_label(simple))
+            }
             Self::Instance { identity, simple } => {
-                format!("@instance:{}:{identity}:{simple}", identity.len())
+                format!(
+                    "@instance:{}:{identity}:{}",
+                    identity.len(),
+                    byte_label(simple)
+                )
             }
-            Self::AllocatedInstance { allocation, simple } => format!("{allocation:?}:{simple}"),
+            Self::AllocatedInstance { allocation, simple } => {
+                format!("{allocation:?}:{}", byte_label(simple))
+            }
             Self::RetainedSlot(slot) => format!("{slot:?}"),
             Self::Lifetime { source, cell } => {
                 format!("@lifetime:{source}:{}", cell.compatibility_name())
             }
-            Self::Element { cell, index } => format!("{}({index})", cell.compatibility_name()),
+            Self::Element { cell, index } => {
+                format!("{}({})", cell.compatibility_name(), byte_label(index))
+            }
         }
     }
     /// Symbolic authored key, excluding every native or allocated slot.
@@ -111,6 +132,32 @@ impl VariableCellKey {
             None
         }
     }
+    /// Actual local activation owner, including retained wrappers and members.
+    /// Namespace tables and authored reporting labels never supply an activation.
+    #[must_use]
+    pub fn activation_identity(&self) -> Option<&str> {
+        // Implementation contract: naming.variable.invocation-caller-ssa-frame
+        // docs/design/analysis/name-resolution-proofs/variable-invocation-caller-ssa-frame.md
+        fn in_owner(owner: &crate::place::CellOwner) -> Option<&str> {
+            match owner {
+                crate::place::CellOwner::Activation(identity) => Some(identity),
+                crate::place::CellOwner::RetainedSlot(slot) => match slot.as_ref() {
+                    crate::raw_binding::RawBindingSlotId::Variable(cell) => in_owner(&cell.owner),
+                    crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
+                },
+                _ => None,
+            }
+        }
+        match self.root() {
+            Self::Activation { identity, .. } => Some(identity),
+            Self::RetainedSlot(slot) => match slot.as_ref() {
+                crate::raw_binding::RawBindingSlotId::Variable(cell) => in_owner(&cell.owner),
+                crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
+            },
+            _ => None,
+        }
+    }
+
     /// Root slot, excluding element and lifetime wrappers.
     #[must_use]
     pub fn root(&self) -> &Self {
@@ -232,7 +279,7 @@ impl VariableCellKey {
     }
     /// Select an array element without modifying its root identity.
     #[must_use]
-    pub fn with_index(self, index: impl Into<String>) -> Self {
+    pub fn with_index(self, index: impl Into<NameBytes>) -> Self {
         Self::Element {
             cell: Box::new(self),
             index: index.into(),
@@ -638,6 +685,33 @@ mod tests {
             Some(VariableNamespaceMembership::Authored("named"))
         );
         assert!(!authored.is_namespace_storage());
+    }
+
+    #[test]
+    fn activation_identity_uses_retained_structures_instead_of_display_labels() {
+        // Implementation contract: naming.variable.invocation-caller-ssa-frame
+        // docs/design/analysis/name-resolution-proofs/variable-invocation-caller-ssa-frame.md
+        let cell = crate::place::CellIdentity {
+            owner: crate::place::CellOwner::Activation("caller".to_owned()),
+            name: "member".into(),
+            generation: crate::place::CellGeneration::Incoming,
+            interpreter: None,
+            storage_domain: None,
+            execution: None,
+        };
+        let wrapper = VariableCellKey::RetainedSlot(Box::new(
+            crate::raw_binding::RawBindingSlotId::Variable(Box::new(cell)),
+        ))
+        .with_lifetime(37)
+        .with_index("key");
+        assert_eq!(wrapper.activation_identity(), Some("caller"));
+        let label = VariableCellKey::Authored(wrapper.compatibility_name());
+        assert!(label.activation_identity().is_none());
+        let namespace = VariableCellKey::Namespace {
+            identity: SourceNamespaceKey::authored("::caller"),
+            simple: "member".into(),
+        };
+        assert!(namespace.activation_identity().is_none());
     }
 
     #[test]

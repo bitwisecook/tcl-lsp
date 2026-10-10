@@ -578,6 +578,8 @@ mod tests {
 
     #[test]
     fn native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics() {
+        // Native proof naming.namespace.origin-generated-opaque-failure-units:
+        // docs/design/analysis/name-resolution-proofs/namespace-origin-generated-opaque-failure-units.md
         let source = include_bytes!(
             "../../../../runtime/rust/tests/data/native_namespace_origin_failures/source.tcl"
         );
@@ -685,6 +687,11 @@ mod tests {
 
     #[test]
     fn ordered_literal_actions_match_sixty_original_native_observations() {
+        // Native proof: naming.literal.command-action.ordered-primary
+        // docs/design/analysis/name-resolution-proofs/literal-command-action-ordered-primary.md
+        // Native proof: naming.literal.command-action.replacement-primary
+        // docs/design/analysis/name-resolution-proofs/literal-command-action-replacement-primary.md
+
         use crate::literal_pool::NativeLiteralPool;
         let fixtures = COMMAND_ACTION_FIXTURES;
         let mut checked = 0;

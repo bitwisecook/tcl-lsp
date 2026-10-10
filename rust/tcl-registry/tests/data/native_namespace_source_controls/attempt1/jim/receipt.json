@@ -1,0 +1,19 @@
+{
+  "provider": "jim",
+  "channel": "ASCII source-file shell ingress; opaque Tcl units are produced by source backslash substitutions. No raw counted NativeString NUL or physical object cache claim.",
+  "input_sha256": "e1d2be49ba164055fb4e72d7007466b16fc14f70b77317a86604303c1dba5978",
+  "runner_sha256": "eb9f5c115147c9bc624e0d88d5efad49c3e7b4eba5a1163e3f38da631d9c1316",
+  "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/current-namespace-byte-controls88/cases.tcl"
+  ],
+  "reported_version": "0.84-9-g5bac7c9",
+  "version_exit": 0,
+  "exit": 0,
+  "stdout_sha256": "27120040cc30cf59b397db9fb647139f176726c52c5eec31cb2a9966b55806ff",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": 11,
+  "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+}

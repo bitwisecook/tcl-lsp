@@ -288,6 +288,8 @@ mod tests {
         bytes.iter().map(|byte| format!("{byte:02x}")).collect()
     }
 
+    // Native proof: naming.variable.empty-vector-reset-result-and-error-episode
+    // docs/design/analysis/name-resolution-proofs/variable.empty-vector-reset-result-and-error-episode.md
     #[test]
     fn empty_public_vectors_reset_original_result_owners_without_dispatch() {
         let fixtures = [
@@ -368,6 +370,14 @@ mod tests {
 
     #[test]
     fn original_public_vectors_and_source_commands_match_all_60_native_windows() {
+        // Native proof: naming.object-vector.missing-handler-result
+        // docs/design/analysis/name-resolution-proofs/object-vector-missing-handler-result.md
+        // Native proof: naming.object-vector.native-error-result-publication
+        // docs/design/analysis/name-resolution-proofs/object-vector-native-error-result-publication.md
+        // Native proof: naming.object-vector.nested-error-result-primary
+        // docs/design/analysis/name-resolution-proofs/object-vector-nested-error-result-primary.md
+        // Native proof: naming.object-vector.successful-native-result-reset
+        // docs/design/analysis/name-resolution-proofs/object-vector-successful-native-result-reset.md
         let heads = [
             b"missing_original".as_slice(),
             b"fail_original",
@@ -444,6 +454,8 @@ mod tests {
 
     #[test]
     fn public_original_return_matches_all_six_native_completion_boundaries() {
+        // Native proof: naming.object-vector.completion.return-boundary
+        // docs/design/analysis/name-resolution-proofs/object-vector-completion-return-boundary.md
         let fixtures = [
             (
                 "tcl8.4",

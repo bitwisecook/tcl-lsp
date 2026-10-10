@@ -88,17 +88,16 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::types::{ProcArgTrait, ProcDef};
 use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_dialect::model::surface_admits;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_dialect::NumberSyntax;
-use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::SurfaceQuery;
-use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
-use tcl_registry::{CommandRegistry, InvocationArguments};
+use tcl_registry::CommandRegistry;
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
+
+mod original;
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -340,104 +339,6 @@ const MOD_DEFINITION: u32 = 1 << 1;
 /// command declares / writes (`set x`, `incr n`, `global v`, `lassign … a`).
 const MOD_DECLARATION: u32 = 1 << 0;
 
-/// `TclOO` method-body helper commands (used inside a method body, not
-/// definition-context members) with no `CommandSpec` **in the active
-/// dialect** — the part of [`is_language_keyword_sub_keyword`]'s residue
-/// specific to this crate (its clause-keyword half lives in the registry;
-/// see that function's docs).
-///
-/// Both carry real, 9.0-gated registry specs
-/// (`tcl_registry::commands::tcl::oo_callback`), so under a 9.0/9.1 profile
-/// the `LANGUAGE_KEYWORD` lookup answers and this list is inert. It still earns its place on 8.4-8.6, where the same
-/// two words are only ever a hand-installed `proc ::oo::Helpers::callback`
-/// (the "`TclOO` Tricks" wiki helper) or Tcllib `ooutil`'s `mymethod`: they
-/// read as method-body keywords to a human either way, and the highlighter
-/// has no package-load information to decide otherwise.
-const METHOD_BODY_HELPER_SUB_KEYWORDS: &[&str] = &["callback", "mymethod"];
-
-/// `true` for sub-keywords highlighted as `keyword` that are **not**
-/// standalone commands, so they have no `CommandSpec` to carry the
-/// `LANGUAGE_KEYWORD` trait, **and** are not definition-body members.
-///
-/// Definition-body member sub-keywords (`method`, `constructor`, `typemethod`,
-/// `variable`, …) are deliberately **absent**: they are recognised
-/// context-sensitively from the enclosing definer's `definition_body` grammar
-/// (via [`crate::oo_body::is_member`] in [`emit_command_head`] for the script
-/// form and [`insert_oo_define_keyword_overrides`] for the inline form), so a
-/// same-named user proc outside a definition body is never mis-coloured and
-/// `TclOO` and snit members behave identically. This residue only covers what
-/// the grammar does not otherwise model: clause keywords of `if`/`try`/`switch`
-/// ([`tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] —
-/// shared with `xtask`'s `gen_tmlanguage_keywords` TextMate-grammar generator,
-/// so the two never drift on which clause words are real keywords) and the
-/// `TclOO` method-*body* helper commands
-/// ([`METHOD_BODY_HELPER_SUB_KEYWORDS`], specific to this crate). The
-/// standalone commands (`if`, `while`, `proc`, `when`, `oo::*`, …) come from
-/// the registry's `LANGUAGE_KEYWORD` trait.
-fn is_language_keyword_sub_keyword(name: &str) -> bool {
-    tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC.contains(&name)
-        || METHOD_BODY_HELPER_SUB_KEYWORDS.contains(&name)
-}
-
-/// Classify a command-head token name: a name is a `keyword`
-/// when it carries the registry's `LANGUAGE_KEYWORD` trait or is one
-/// of the non-command sub-keywords ([`is_language_keyword_sub_keyword`]); a
-/// `::`-qualified name is a `namespace`; everything else is a
-/// `function`.
-///
-/// The keyword / operator tests run against the head's *effective identity*
-/// (`resolved`), so `interp alias {} myforeach {} foreach` makes `myforeach` a
-/// keyword and a `rename foreach ""` stops the bare spelling being one.
-/// The `::`-qualified test stays on the written spelling: an imported
-/// bare `test` resolves to `tcltest::test` without becoming a namespace token.
-fn classify_command_head(head: CommandHead<'_>, registry: &CommandRegistry) -> TokenKind {
-    let CommandHead {
-        text: name,
-        resolved,
-        rebound,
-        ..
-    } = head;
-    // A head whose registry binding was provably taken over is an ordinary
-    // user command, whatever the built-in of the same spelling would have been.
-    if rebound {
-        return if name.contains("::") {
-            TokenKind::Namespace
-        } else {
-            TokenKind::Function
-        };
-    }
-    let is_keyword = registry.get(resolved).is_some_and(|s| {
-        s.traits
-            .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
-    }) || is_language_keyword_sub_keyword(name);
-    if is_keyword {
-        TokenKind::Keyword
-    } else if is_operator_command(resolved, registry) {
-        // A bare operator used as a command head (`+ 3 4`, `tcl::mathop`
-        // style).
-        TokenKind::Operator
-    } else if name.contains("::") {
-        TokenKind::Namespace
-    } else {
-        TokenKind::Function
-    }
-}
-
-/// `true` when `name` is one of the recognised `::tcl::mathop` operator
-/// command heads (`+`, `in`, `eq`, `lt`, …) — the registry's
-/// `Traits::OPERATOR_COMMAND` on `name`'s spec, already correctly and
-/// exhaustively populated for every mathop-shaped operator by
-/// `tcl_syntax::expr::operators`.  Registry data rather than a hand-typed
-/// symbol list (`+ - * / > >= < <= == !=`), which would miss every word-form
-/// operator (`eq`/`ne`/`in`/`ni`/`lt`/`le`/`gt`/`ge`) and every bitwise/shift
-/// symbol (`%`/`**`/`<<`/`>>`/`&`/`|`/`^`/`~`/`!`).
-fn is_operator_command(name: &str, registry: &CommandRegistry) -> bool {
-    registry.get(name).is_some_and(|spec| {
-        spec.traits
-            .contains(tcl_registry::prelude::Traits::OPERATOR_COMMAND)
-    })
-}
-
 /// Extra "this argument names a written variable" positions for commands the
 /// static [`CommandRegistry`] does not model — user procs whose parameters the
 /// analyser inferred to alias a caller variable (`upvar $param`), and
@@ -469,6 +370,38 @@ pub struct VarNameArgRoles {
     /// it, a name one file already dropped as ambiguous would silently be
     /// re-adopted from another file's unambiguous entry.
     ambiguous: RoleAmbiguity,
+    original: Vec<OriginalProcArgRoles>,
+}
+
+/// Retained byte publication and declaration identity for inferred assistance.
+/// These roles establish no actual variable binding or compiler preparation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalProcArgRoles {
+    name: tcl_compiler::signature_scan::scope::SignatureSourceCommand,
+    site: Option<tcl_compiler::command_binding::CommandAllocationSite>,
+    write: Vec<u32>,
+    read: Vec<u32>,
+    command: Vec<u32>,
+}
+
+impl OriginalProcArgRoles {
+    fn new(
+        name: &tcl_compiler::signature_scan::scope::SignatureSourceCommand,
+        site: Option<&tcl_compiler::command_binding::CommandAllocationSite>,
+        proc_def: &ProcDef,
+    ) -> Self {
+        Self {
+            name: name.clone(),
+            site: site.cloned(),
+            write: proc_var_write_indices(proc_def),
+            read: proc_var_read_indices(proc_def),
+            command: proc_command_indices(proc_def),
+        }
+    }
+
+    fn same_roles(&self, other: &Self) -> bool {
+        self.write == other.write && self.read == other.read && self.command == other.command
+    }
 }
 
 /// The per-direction abstention sets of a [`VarNameArgRoles`].
@@ -483,7 +416,42 @@ impl VarNameArgRoles {
     /// Infer the variable-name argument positions of every proc in `analysis`.
     #[must_use]
     pub fn from_analysis(analysis: &AnalysisResult) -> Self {
-        Self::from_procs(analysis.all_procs.values())
+        let mut result =
+            Self::from_original_declarations(analysis.original_procedure_declarations());
+        if analysis.allows_lexical_declaration_advice() {
+            let lexical = Self::from_procs(
+                analysis
+                    .all_procs
+                    .values()
+                    .filter(|proc_def| proc_def.source_name.is_none()),
+            );
+            result = Self::merge([&result, &lexical]);
+        }
+        result
+    }
+
+    /// Preserve original declarations even when their UI names collide.
+    #[must_use]
+    pub fn from_original_declarations<'a>(
+        declarations: impl IntoIterator<
+            Item = &'a tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+                ProcDef,
+            >,
+        >,
+    ) -> Self {
+        Self {
+            original: declarations
+                .into_iter()
+                .map(|record| {
+                    OriginalProcArgRoles::new(
+                        record.name(),
+                        Some(record.declaration_site()),
+                        record.metadata(),
+                    )
+                })
+                .collect(),
+            ..Self::default()
+        }
     }
 
     /// Infer from an iterator of proc definitions — a single file's, or a whole
@@ -500,13 +468,20 @@ impl VarNameArgRoles {
         let mut write = RoleMapBuilder::default();
         let mut read = RoleMapBuilder::default();
         let mut command = RoleMapBuilder::default();
+        let mut original = Vec::new();
         for proc in procs {
+            if let Some(name) = &proc.source_name {
+                original.push(OriginalProcArgRoles::new(name, None, proc));
+                continue;
+            }
             let keys = proc_name_keys(proc);
             write.insert(&keys, &proc_var_write_indices(proc));
             read.insert(&keys, &proc_var_read_indices(proc));
             command.insert(&keys, &proc_command_indices(proc));
         }
-        Self::from_builders(write, read, command)
+        let mut result = Self::from_builders(write, read, command);
+        result.original = original;
+        result
     }
 
     /// Fold per-file indexes into one project-wide index, applying the same
@@ -519,12 +494,16 @@ impl VarNameArgRoles {
         let mut write = RoleMapBuilder::default();
         let mut read = RoleMapBuilder::default();
         let mut command = RoleMapBuilder::default();
+        let mut original = Vec::new();
         for part in parts {
+            original.extend(part.original.iter().cloned());
             write.absorb(&part.write, &part.ambiguous.write);
             read.absorb(&part.read, &part.ambiguous.read);
             command.absorb(&part.command, &part.ambiguous.command);
         }
-        Self::from_builders(write, read, command)
+        let mut result = Self::from_builders(write, read, command);
+        result.original = original;
+        result
     }
 
     /// Close the three per-direction builders into an index, keeping each
@@ -537,6 +516,7 @@ impl VarNameArgRoles {
             write,
             read,
             command,
+            original: Vec::new(),
             ambiguous: RoleAmbiguity {
                 write: write_ambiguous,
                 read: read_ambiguous,
@@ -548,33 +528,76 @@ impl VarNameArgRoles {
     /// `true` when no command carries an inferred by-reference argument.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.write.is_empty() && self.read.is_empty() && self.command.is_empty()
+        self.write.is_empty()
+            && self.read.is_empty()
+            && self.command.is_empty()
+            && self.original.iter().all(|roles| {
+                roles.write.is_empty() && roles.read.is_empty() && roles.command.is_empty()
+            })
     }
 
-    /// Copy the write / read / command entries into the `out_*` maps without
-    /// overwriting a name already present (source-derived stub roles that
-    /// landed first win).
-    fn extend_into(
+    fn original_roles_at(
         &self,
-        out_write: &mut FxHashMap<String, Vec<u32>>,
-        out_read: &mut FxHashMap<String, Vec<u32>>,
-        out_command: &mut FxHashMap<String, Vec<u32>>,
-    ) {
-        for (name, indices) in &self.write {
-            out_write
-                .entry(name.clone())
-                .or_insert_with(|| indices.clone());
+        analysis: &AnalysisResult,
+        source: &str,
+        offset: u32,
+    ) -> Option<OriginalProcArgRoles> {
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.body_lexer_config?;
+        if !analysis.matches_original_source_image(&image, config) {
+            return None;
         }
-        for (name, indices) in &self.read {
-            out_read
-                .entry(name.clone())
-                .or_insert_with(|| indices.clone());
+        let invocation = crate::definition::invocation_reference_at(analysis, offset)?;
+        if invocation.range.start() != offset {
+            return None;
         }
-        for (name, indices) in &self.command {
-            out_command
-                .entry(name.clone())
-                .or_insert_with(|| indices.clone());
+        let input = invocation.original_name_input.as_ref()?;
+        let lookup = invocation
+            .original_lookup
+            .as_ref()
+            .filter(|lookup| lookup.name_input() == input)?;
+        if lookup.site().offset != offset || lookup.site().source.source_image() != &image {
+            return None;
         }
+        if let Some(reference) = &invocation.resolved_command_reference {
+            use tcl_compiler::command_binding::{BindingKind, SourceCommandReferenceBinding};
+            let kind = match reference.binding() {
+                SourceCommandReferenceBinding::Direct { kind, .. }
+                | SourceCommandReferenceBinding::Imported { kind, .. } => kind,
+            };
+            // Alias prefixes need an independent effective argument mapping.
+            if *kind != BindingKind::Proc {
+                return None;
+            }
+            let definition = reference
+                .linked_definition()
+                .or_else(|| reference.definition())?;
+            if let Some(proc_def) = analysis.proc_for_definition(definition, source) {
+                let name = proc_def.source_name.as_ref()?;
+                return Some(OriginalProcArgRoles::new(
+                    name,
+                    Some(&definition.allocation().site),
+                    proc_def,
+                ));
+            }
+            let mut selected = self
+                .original
+                .iter()
+                .filter(|roles| roles.site.as_ref() == Some(&definition.allocation().site));
+            let first = selected.next()?;
+            return selected
+                .all(|other| first.same_roles(other))
+                .then(|| first.clone());
+        }
+        // Declaration assistance only: all original lookup alternatives and
+        // all records at the selected byte publication must agree on roles.
+        let selected =
+            lookup.matching_publications(self.original.iter().map(|roles| (&roles.name, roles)))?;
+        let first = *selected.first()?;
+        selected
+            .iter()
+            .all(|other| first.same_roles(other))
+            .then(|| first.clone())
     }
 }
 
@@ -684,44 +707,6 @@ fn proc_name_keys(proc: &ProcDef) -> Vec<String> {
         keys.push(proc.qualified_name.clone());
     }
     keys
-}
-
-/// Add `# tcl-lsp: stub` by-reference argument positions from the document
-/// `source` to the `out_*` maps: `:var` (written) → `out_write`, `:var_read`
-/// (read) → `out_read`, and `:command_prefix` (a command) → `out_command`.
-/// Source-derived, so it applies on every token path (local and workspace)
-/// without threading.  Cheap-gated: the line scan runs only when the source
-/// mentions `stub`.
-fn add_stub_var_roles(
-    source: &str,
-    out_write: &mut FxHashMap<String, Vec<u32>>,
-    out_read: &mut FxHashMap<String, Vec<u32>>,
-    out_command: &mut FxHashMap<String, Vec<u32>>,
-) {
-    if !source.contains("stub") {
-        return;
-    }
-    let (stub_cmds, _exprs) = tcl_compiler::analyser::utils::scan_source_for_stubs(source);
-    let declared = tcl_compiler::analyser::types::build_declared_surface(&stub_cmds);
-    for (name, command) in declared.iter() {
-        for (role, out) in [
-            (tcl_registry::ArgRole::VarWrite, &mut *out_write),
-            (tcl_registry::ArgRole::VarRead, &mut *out_read),
-            (tcl_registry::ArgRole::CommandPrefix, &mut *out_command),
-        ] {
-            // The highlight index is a name-keyed table of *declaration*
-            // positions, applied at a call site by position, so it asks for
-            // the layout with every optional slot present.
-            let indices: Vec<u32> = command
-                .arg_indices_for_role(role, command.arguments.len())
-                .into_iter()
-                .filter_map(|index| u32::try_from(index).ok())
-                .collect();
-            if !indices.is_empty() {
-                out.entry(name.to_owned()).or_insert(indices);
-            }
-        }
-    }
 }
 
 /// Compute semantic tokens for the entire document.
@@ -1200,7 +1185,7 @@ pub fn range_with_cu_and_facts(
 type Entry = (u32, u32, u32, TokenKind, u32);
 
 /// The process-wide iRules command store, for the dialect-independent
-/// `when EVENT` overlay ([`special_arg_kinds`]) — the `f5-irules`
+/// retained `when EVENT` source roles — the `f5-irules`
 /// environment's registry generation, resolved through the one ingress seam
 /// and memoised so the per-command fallback lookup skips the generation
 /// cache's mutex.
@@ -1361,7 +1346,7 @@ enum ArgOverride {
     /// element (the body) is re-segmented as a script.  Reached either as
     /// the call's own argument or, indirectly, through the `[list apply
     /// {…} $x]` deferred-command idiom — see
-    /// [`insert_lambda_literal_overrides`].
+    /// the shared original produced-prefix owner.
     LambdaLiteral,
     /// A known subcommand word (arg index 1) → `Keyword` + `defaultLibrary`.
     SubcommandKeyword,
@@ -1375,7 +1360,7 @@ enum ArgOverride {
     /// [`CaseListSpec`] is registry data, so the walker names no command; the
     /// `bool` is whether *this call* put the list in regex mode
     /// (`switch -regexp`).
-    CaseList(&'static tcl_registry::CaseListSpec, bool),
+    CaseList(tcl_registry::CaseListSpec, bool),
     /// A structural keyword word at an argument position (`if`'s
     /// `then`/`elseif`/`else`, `try`'s `on`/`trap`/`finally`), carried
     /// by `ArgRole::Keyword` → highlighted as `Keyword` rather than a
@@ -1534,355 +1519,6 @@ fn push_regsub_subtokens(
     true
 }
 
-/// Per-command argument-token classification overrides, keyed by the
-/// representative token's start offset.  Two registry-driven cases:
-///
-/// * a `regexp` / `regsub` regex-pattern argument (the spec's
-///   `pattern_type == Regex`, option-skipped first positional) →
-///   [`ArgOverride::RegexPattern`] (sub-tokenised into ARE components);
-/// * a `when EVENT` event-name argument → [`TokenKind::Event`].
-///
-/// `arg_texts` holds the command's argument words (`seg.texts[1..]`, head
-/// excluded) borrowed as `&[&str]`.  The caller builds it once and shares it
-/// with the registry-role and OO-body override passes, so the hot path makes
-/// only a single bridging allocation per command.
-///
-/// `at_top_level` is traversal context rather than command knowledge. The
-/// registry remains the owner of whether a command has a valid iRules
-/// declaration *shape*; this walk owns the separate fact that the command is
-/// actually on the iRules file-level declaration boundary.
-#[allow(clippy::too_many_arguments)] // one override builder threading the whole per-command context
-fn special_arg_kinds(
-    source: &str,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    oo_grammar: Option<&'static DefinitionBodyGrammar>,
-    scoped_env: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
-    arg_texts: &[&str],
-    object_classes: &ObjectClassMap,
-    object_collections: &ObjectClassMap,
-    classes: Option<&ClassHierarchy>,
-    document_floor: Option<crate::document_floor::DocumentFloor<'_>>,
-    dialect: Option<SurfaceQuery<'_>>,
-    extra_var_write: &FxHashMap<String, Vec<u32>>,
-    extra_var_read: &FxHashMap<String, Vec<u32>>,
-    extra_command: &FxHashMap<String, Vec<u32>>,
-    at_top_level: bool,
-    deferred_role: bool,
-) -> FxHashMap<u32, ArgOverride> {
-    let mut overrides = FxHashMap::default();
-    let closed = tcl_registry::events::closed_braced_argument_words(
-        source,
-        seg.arg_tokens(),
-        seg.arg_single_token(),
-    );
-    let declaration_arguments = closed.as_deref().and_then(|closed| {
-        tcl_registry::events::IrulesDeclarationArguments::new(
-            arg_texts,
-            seg.arg_tokens(),
-            seg.arg_single_token(),
-            closed,
-        )
-    });
-    let irules_declaration = at_top_level
-        .then(|| {
-            declaration_arguments.and_then(|arguments| {
-                registry
-                    .irules_top_level_declaration_shape(head, arguments)
-                    .or_else(|| {
-                        irules_registry().irules_top_level_declaration_shape(head, arguments)
-                    })
-            })
-        })
-        .flatten();
-
-    // `when EVENT` — the literal event-name argument.  Event handlers come
-    // from the registry's `IS_EVENT_HANDLER` trait; the event name is the
-    // first argument, the same convention the completion provider's
-    // event-name surface uses for the trait.  The overlay is deliberately
-    // dialect-independent — iRules snippets are routinely opened in generic
-    // Tcl buffers, and `when EVENT` must colour as an event there too — so a
-    // head the document registry does not know is
-    // resolved against the cached iRules registry before giving up.
-    if registry
-        .get(head)
-        .or_else(|| irules_registry().get(head))
-        .is_some_and(|s| s.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER))
-        && matches!(
-            irules_declaration.as_ref(),
-            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
-        )
-        && let (Some(tok), Some(text)) = (seg.argv.get(1), seg.texts.get(1))
-        && matches!(tok.kind, TokenType::Esc)
-        && is_event_name(text)
-    {
-        overrides.insert(tok.span.start(), ArgOverride::Kind(TokenKind::Event));
-    }
-
-    insert_regex_overrides(seg, registry, head, dialect, &mut overrides);
-    insert_format_overrides(seg, registry, head, dialect, &mut overrides);
-
-    // `proc NAME …` — the name argument is a function definition.  Procedure
-    // definers come from the registry's `DEFINES_PROCEDURE` trait; a spec
-    // that also carries a `definition_body` grammar is a *class* definer
-    // (`oo::class` & co.), whose name argument is claimed by
-    // `insert_definer_class_name_override` instead.  The name position is
-    // the spec's `ArgRole::Name` argument.
-    if let Some(spec) = registry.get(head)
-        && spec
-            .traits
-            .contains(tcl_registry::Traits::DEFINES_PROCEDURE)
-        && spec.definition_body.is_none()
-        && (!surface_admits(SpecSurface::IRULES, dialect.as_ref())
-            || matches!(
-                irules_declaration.as_ref(),
-                Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
-            ))
-        && let Some(&name_idx) = registry
-            .arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::Name)
-            .first()
-        && let Some(tok) = seg.argv.get(name_idx + 1)
-    {
-        overrides
-            .entry(tok.span.start())
-            .or_insert(ArgOverride::ProcNameDef);
-    }
-
-    insert_option_and_subcommand_overrides(seg, registry, head, dialect, &mut overrides);
-    insert_object_method_overrides(
-        seg,
-        registry,
-        object_classes,
-        object_collections,
-        classes,
-        document_floor,
-        dialect,
-        &mut overrides,
-    );
-    insert_generic_option_overrides(seg, registry, head, &mut overrides);
-    // `insert_oo_define_keyword_overrides` must run before the generic enum
-    // pass below: `oo::define`'s inline definition word (`method`,
-    // `constructor`, …) is *also* one of `OO_DEFINE_SUBCOMMAND_VALUES`'
-    // completion/hover entries, and `overrides` is a first-writer-wins map
-    // (`.or_insert`) — the more specific inline-keyword classification must
-    // claim that span first, or the generic closed-set-value pass claims it
-    // as `EnumMember` instead (mirroring the `ArgRole::Keyword` carve-out in
-    // `insert_enum_value_overrides`, which does not model this dynamic
-    // `definition_body`-driven case).
-    insert_oo_define_keyword_overrides(seg, registry, dialect, &mut overrides);
-    insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
-    insert_definer_class_name_override(seg, registry, &mut overrides);
-    insert_lambda_literal_overrides(seg, registry, head, deferred_role, &mut overrides);
-    insert_case_list_override(seg, registry, head, dialect, &mut overrides);
-    insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
-    insert_oo_body_overrides(seg, oo_grammar, arg_texts, dialect, &mut overrides);
-    insert_scoped_subcommand_overrides(seg, scoped_env, head, &mut overrides);
-    insert_multiname_var_overrides(seg, registry, head, arg_texts, oo_grammar, &mut overrides);
-    insert_ref_var_overrides(seg, registry, head, &mut overrides);
-    insert_loop_var_overrides(seg, registry, head, arg_texts, &mut overrides);
-    insert_param_list_overrides(seg, registry, head, arg_texts, &mut overrides);
-    insert_var_role_overrides(
-        seg,
-        registry,
-        head,
-        extra_var_write,
-        extra_var_read,
-        &mut overrides,
-    );
-    insert_command_role_overrides(seg, registry, head, extra_command, &mut overrides);
-
-    overrides
-}
-
-/// Loop-variable specs → variable declarations.
-///
-/// Every position comes from the registry's [`ArgRole::LoopVarList`]
-/// ([`ArgOverride::LoopVarList`]'s [`collect_loop_var_list`] then emits each
-/// name — a bareword or the elements of a braced list — as a variable). That
-/// covers both the fixed shape (`dict for {k v} …`, `dict map {k v} …`) and
-/// the repeating one (`foreach v1 l1 ?v2 l2 …? body`, `lmap` likewise), whose
-/// stride and excluded trailing body are declared as a
-/// [`tcl_registry::RepeatedArgLayout`] on the spec rather than re-derived
-/// here from the command's name — so the explicitly global
-/// `::foreach` is covered too, and a same-named user proc is not.
-///
-/// Highlighting only: the loop bodies already resolve these reads via the
-/// analyser's scope tracking.
-fn insert_loop_var_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    arg_texts: &[&str],
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    // `i` indexes the argument words → `argv[i + 1]`.
-    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::LoopVarList) {
-        if let Some(tok) = seg.argv.get(i + 1)
-            && matches!(tok.kind, TokenType::Esc | TokenType::Str)
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::LoopVarList);
-        }
-    }
-}
-
-/// Procedure parameter lists → parameter declarations.  The registry's
-/// [`ArgRole::ParamList`] marks the braced `{a b {c default}}` word of `proc`,
-/// the iRules `proc`, and snit `method` / `typemethod`; it is tagged
-/// [`ArgOverride::ParamList`] so [`collect_param_list`] emits each parameter
-/// name as a `Parameter` declaration (and classifies any default value).
-fn insert_param_list_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    arg_texts: &[&str],
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::ParamList) {
-        // A braced literal list (`{a b}`) or a **bare** single-name list — Tcl
-        // accepts `proc unknown args {…}` / `proc auto_execok name {…}` without
-        // braces, and Tcl's own `init.tcl` / `word.tcl` use it.  That form is an
-        // unquoted `Esc` word, and skipping it would leave the parameter
-        // painted as a plain string.  A *quoted* list is not a literal name list, so it is
-        // still left alone.
-        let Some(tok) = seg.argv.get(i + 1) else {
-            continue;
-        };
-        let literal_list = match tok.kind {
-            TokenType::Str => true,
-            TokenType::Esc => !tok.in_quote && seg.single_token_word.get(i + 1) == Some(&true),
-            _ => false,
-        };
-        if literal_list {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::ParamList);
-        }
-    }
-}
-
-/// Highlight the local-variable names bound by `upvar`'s
-/// `?level? otherVar localVar ?otherVar localVar ...?` pair tail.
-///
-/// The sibling by-reference shapes — `namespace upvar ns o l ?o l?` and
-/// `dict update dictVar key varName ?key varName? body` — declare their pair
-/// tail as a [`tcl_registry::RepeatedArgLayout`] on their subcommand spec and
-/// are handled generically by [`insert_multiname_var_overrides`]'s
-/// `VarWrite` walk.
-///
-/// `upvar`'s own layout is not a [`tcl_registry::RepeatedArgLayout`] because
-/// the registry already models it more precisely: its
-/// [`tcl_registry::FrameEffectSpec`] declares
-/// [`FrameArgLayout::AliasPairs`] (other/local pairs) with
-/// [`FrameLevelWord::Upvar`], which selects the release-specific optional-level
-/// grammar. Tcl 8.4/8.5 probe the first word; Tcl 8.6 and newer, and Jim,
-/// use argument parity. The registry resolves these facts in the selected
-/// invocation context, including explicitly qualified command spellings.
-///
-/// Highlighting only: the analyser already scopes these locals.  A `$`-computed
-/// / array / quoted name is skipped.
-fn insert_ref_var_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    use tcl_registry::FrameArgLayout;
-    let Some(effect) = registry.get(head).and_then(|s| s.frame_effect) else {
-        return;
-    };
-    if effect.layout != FrameArgLayout::AliasPairs {
-        return;
-    }
-    let arguments: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
-    for index in registry.arg_indices_for_role(head, &arguments, tcl_registry::ArgRole::VarWrite) {
-        let pos = index + 1;
-        if let Some(tok) = seg.argv.get(pos)
-            && matches!(tok.kind, TokenType::Esc)
-            && !tok.in_quote
-            && is_plain_var_name(&seg.texts[pos])
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::VarDecl);
-        }
-    }
-}
-
-/// Highlight the name arguments of a multi-name variable-declaring command —
-/// `global name ?name ...?` (every argument), `variable name ?value name
-/// value ...?` at namespace level (every *even* argument; the interleaved
-/// values are left alone).
-///
-/// The stride is registry data: each spec declares a
-/// [`tcl_registry::RepeatedArgLayout`] for its `VarWrite` tail, so this reads
-/// [`ArgRole::VarWrite`] positions and never names a command or re-derives a
-/// stride.  That also makes the explicitly global spellings
-/// (`::global`, `::variable`) behave like the bare ones.
-///
-/// A `variable` *inside a definition body* is a grammar member handled by
-/// [`insert_oo_body_overrides`] (where `TclOO` declares every name and snit
-/// only the leading one), so this steps aside whenever a definition-body
-/// grammar is in force.
-///
-/// Highlighting only: the analyser already tracks every one of these names via
-/// the commands' lowering hooks, so no diagnostic depends on this.  An array
-/// element (`arr(x)`), a `$`-computed name, or a quoted word is skipped so its
-/// inner `$var` sub-tokens survive.
-fn insert_multiname_var_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    arg_texts: &[&str],
-    oo_grammar: Option<&'static DefinitionBodyGrammar>,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    if oo_grammar.is_some() {
-        return;
-    }
-    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::VarWrite) {
-        let pos = i + 1;
-        if let Some(tok) = seg.argv.get(pos)
-            && matches!(tok.kind, TokenType::Esc)
-            && !tok.in_quote
-            && seg.texts.get(pos).is_some_and(|t| is_plain_var_name(t))
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::VarDecl);
-        }
-    }
-}
-
-/// Colour the ensemble operation word of a scoped command as a subcommand
-/// keyword — the `set` / `enable` in `top set …` / `top enable` inside a
-/// `report::defstyle` style script.  Fires only when `head` is a command of the
-/// enclosing scoped environment and its op resolves against that command's
-/// operation set; the whole set is registry data (see [`tcl_registry::scoped`]).
-fn insert_scoped_subcommand_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    scoped_env: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
-    head: &str,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    let Some(env) = scoped_env else {
-        return;
-    };
-    let Some(cmd) = env.command(head) else {
-        return;
-    };
-    if let Some(op_text) = seg.texts.get(1)
-        && cmd.subcommand(op_text).is_some()
-        && let Some(tok) = seg.argv.get(1)
-    {
-        overrides
-            .entry(tok.span.start())
-            .or_insert(ArgOverride::SubcommandKeyword);
-    }
-}
-
 /// Apply the enclosing definition-body grammar to a member call: recurse its
 /// script bodies ([`ArgOverride::BodyScript`]), highlight its parameter list
 /// ([`ArgOverride::ParamList`]), and declare its variable names
@@ -2037,47 +1673,6 @@ fn insert_oo_member_overrides(
     }
 }
 
-/// Regex-pattern overrides for registry-declared pattern arguments.
-///
-/// [`CommandRegistry::pattern_args`] pairs the language and position for this
-/// concrete call, including `lsearch -regexp`'s option-selected grammar. The
-/// paired `regsub` replacement template is claimed by
-/// [`insert_format_overrides`] through its own `FormatType::Regsub` family.
-fn insert_regex_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    dialect: Option<SurfaceQuery<'_>>,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    // Sub-tokenise only the *literal* fragments of the pattern word as regex:
-    // in `"abc$var.*"` the `abc` / `.*` fragments are regex, but `$var` is
-    // variable interpolation Tcl resolves before `regexp` sees it (and
-    // `"[cmd]"` is command substitution, not a char class). Marking the
-    // literal fragments — not the whole word — leaves the `Var` / `Cmd`
-    // fragments to the default classifier, so they render as Tcl and never
-    // overlap the regex sub-tokens.
-    // Pattern positions are required registry data.  In particular, a
-    // consumer must not guess that `-start` has a value or that the first
-    // non-switch word is a pattern: those are command grammars owned by the
-    // declared `OptionSpec` and `arg_role_resolver`.
-    let source_args = segmented_command_arguments(seg);
-    for found in registry
-        .pattern_args_words_for_dialect(
-            head,
-            InvocationArguments::structured(&source_args),
-            dialect,
-        )
-        .into_iter()
-        .filter(|found| found.kind == tcl_registry::patterns::PatternType::Regex)
-    {
-        let idx = usize::from(found.index);
-        if let Some(tok) = seg.argv.get(idx + 1) {
-            mark_literal_fragments(seg, tok.span, ArgOverride::RegexPattern, overrides);
-        }
-    }
-}
-
 /// Tag each literal (`Str`/`Esc`) fragment of the word spanning `word_span`
 /// with `ov`, leaving `Var`/`Cmd` substitution fragments untouched (they fall
 /// through to the default classifier).  A single-fragment literal word (a
@@ -2120,59 +1715,9 @@ fn mark_regex_source_words(
     }
 }
 
-/// Conversion-string overrides for every format family the registry declares
-/// — sprintf (`format` / `scan`), `clock`'s field string (a fixed argument or
-/// the `-format` option value), `binary`'s cursor spec, and `regsub`'s
-/// replacement template.
-///
-/// Entirely registry-driven ([`CommandRegistry::format_string_args_words_for_dialect`]):
-/// the *position* comes from the [`tcl_registry::ArgRole::FormatString`] /
-/// `ScanFormat` roles the specs and resolvers declare, and the *family* from
-/// `format_string_type`. No command name appears here, so the explicitly
-/// global spellings (`::format`, `::clock`, …) resolve identically, and a
-/// same-named user proc or a dynamic head simply declares no family and is
-/// left alone.
-///
-/// The `Regsub` family marks only the word's *literal* fragments, matching
-/// how the regex pattern beside it is treated: a `$var` inside a replacement
-/// template is variable interpolation Tcl performs before `regsub` sees it,
-/// not part of the template.
-fn insert_format_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    dialect: Option<SurfaceQuery<'_>>,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    let source_args = segmented_command_arguments(seg);
-    for found in registry.format_string_args_words_for_dialect(
-        head,
-        InvocationArguments::structured(&source_args),
-        dialect,
-    ) {
-        let Some(tok) = seg.argv.get(found.index + 1) else {
-            continue;
-        };
-        match found.kind {
-            tcl_registry::FormatType::Sprintf => {
-                overrides.insert(tok.span.start(), ArgOverride::SprintfFormat);
-            }
-            tcl_registry::FormatType::Clock => {
-                overrides.insert(tok.span.start(), ArgOverride::ClockFormat);
-            }
-            tcl_registry::FormatType::Binary => {
-                overrides.insert(tok.span.start(), ArgOverride::BinaryFormat);
-            }
-            tcl_registry::FormatType::Regsub => {
-                mark_literal_fragments(seg, tok.span, ArgOverride::RegsubReplace, overrides);
-            }
-        }
-    }
-}
-
 /// Whether an option value's role is re-coloured by another semantic-token
 /// pass (`insert_role_overrides` for `Body`/`Expr`, `insert_var_decl_overrides`
-/// for `VarWrite`, `insert_format_overrides` for a conversion string).  Such
+/// for `VarWrite`, the retained format projection for a conversion string). Such
 /// values must not be claimed as `OptionValue` by the option pass, which would
 /// block the more specific role token.
 fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) -> bool {
@@ -2187,176 +1732,6 @@ fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) -> bool {
                 | ArgRole::ScanFormat
         )
     )
-}
-
-/// Resolve a `-word` against a command's declared option names, accepting a
-/// unique prefix (`-inc` ⇒ `-increasing`) the way Tcl's option parsing
-/// (`Tcl_GetIndexFromObj`) does.  An exact match always wins; an ambiguous
-/// prefix (two distinct options share it, e.g. `lsort -i`) or no match returns
-/// `None`.  A bare `-` never prefix-matches (only an exact-declared `-` /
-/// `--` option does).
-fn resolve_option_prefix<'a>(
-    word: &str,
-    names: &[&'a str],
-    prefix_matching: tcl_registry::abbrev::PrefixMatching,
-) -> Option<&'a str> {
-    if let Some(exact) = names.iter().copied().find(|n| *n == word) {
-        return Some(exact);
-    }
-    // Prefix matching needs at least one character past the leading dash.
-    if !prefix_matching.accepts_prefixes() || word.len() < 2 {
-        return None;
-    }
-    let mut matched: Option<&'a str> = None;
-    for &n in names {
-        if n.starts_with(word) {
-            match matched {
-                None => matched = Some(n),
-                Some(prev) if prev == n => {}
-                Some(_) => return None, // ambiguous: two distinct options
-            }
-        }
-    }
-    matched
-}
-
-/// Known `-option` switches → `Decorator` (only real options declared in
-/// the registry, so `puts -foo` stays a string); subcommand word at arg
-/// index 1 → keyword carrying `defaultLibrary`.  Both consult the command's
-/// registry spec.
-///
-/// The recognised-option set is [`OptionSpec`]-driven: rather than treat every
-/// `-`-prefixed word as an option — which would mishighlight a bare minus, a
-/// negative number, or a `-$var` substitution — exactly the switches the
-/// command declares are highlighted.  The set spans the command's flat
-/// [`CommandSpec::options`] *and* every [`CommandForm`]'s options (via
-/// [`CommandSpec::switch_names`]), plus — when arg 1 selects a known
-/// subcommand — that subcommand's own options (via
-/// [`SubCommand::switch_names`]).  That is what makes `file delete -force
-/// filename` light up: `-force` is declared on the `delete` subcommand, not on
-/// `file` itself.
-///
-/// Matching is against the literal word text, so `-$variable` /
-/// `-{$variable}` / `-[command]` — whose word text is not a declared option
-/// name — never match; only a literal `-force`-style word does.
-///
-/// [`OptionSpec`]: tcl_registry::OptionSpec
-fn insert_option_and_subcommand_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    dialect: Option<SurfaceQuery<'_>>,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    let Some(spec) = registry.get(head) else {
-        return;
-    };
-
-    // Command-level options — the flat `options` list plus every
-    // command-form's options.  Dialect-agnostic (`None`): a switch is still
-    // visually an option even when it was introduced in a later Tcl release.
-    let mut option_names = spec.switch_names(None);
-    let mut option_prefix_matching = spec.prefix_matching;
-
-    // Value-taking options whose value is a *generic* value — those get the
-    // distinct `OptionValue` colour.
-    // Options whose value carries an analysis role (a `-command` script, a
-    // `-textvariable` name, …) are deliberately excluded here so their value
-    // is claimed by the role/var-decl passes instead (`BodyScript`, `VarDecl`,
-    // …) — those run after this pass and would otherwise be blocked by the
-    // `OptionValue` override.  Keyed name/alias → spec so multi-value arity
-    // (`Fixed`/`Rest`) can colour every value word via `value_indices`.
-    let mut value_options: FxHashMap<&str, &'static tcl_registry::hover::OptionSpec> =
-        FxHashMap::default();
-    let mut collect_value_options = |opts: &'static [tcl_registry::hover::OptionSpec]| {
-        for opt in opts {
-            // Skip options whose value carries an analysis role (claimed by the
-            // role/var passes) or a declared enum set (claimed as `EnumMember`
-            // by `insert_enum_value_overrides`) — leave those for the more
-            // specific pass; only generic values get the `OptionValue` colour.
-            if opt.takes_value()
-                && !role_claimed_by_token_pass(opt.value_role())
-                && opt.value_values().is_empty()
-            {
-                value_options.insert(opt.name, opt);
-                for alias in opt.aliases {
-                    value_options.insert(alias, opt);
-                }
-            }
-        }
-    };
-    collect_value_options(spec.options);
-    for form in spec.command_forms {
-        collect_value_options(form.options);
-    }
-
-    // A known subcommand at arg index 1 is highlighted as a keyword, and its
-    // per-subcommand options (`file delete -force`, `file link -symbolic`)
-    // join the recognised set.  A unique-prefix abbreviation (`string le`)
-    // resolves like Tcl's ensemble dispatch.
-    if let Some(sub_text) = seg.texts.get(1)
-        && let Some(sub) = spec.resolve_subcommand_for_dialect(sub_text, dialect)
-    {
-        option_names.extend(sub.switch_names(None, spec.surface));
-        option_prefix_matching = sub.prefix_matching;
-        collect_value_options(sub.options);
-        if let Some(tok) = seg.argv.get(1) {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::SubcommandKeyword);
-        }
-
-        // Two-level ensembles (`info object <subcommand>`, `info class
-        // <subcommand>`): the word after the first-level subcommand is itself a
-        // subcommand keyword, not a string.  `is_sub_subcommand`
-        // accepts a unique prefix (`info object cl` ⇒ `class`) the way Tcl's
-        // ensemble dispatch does.  General over any registry-declared two-level
-        // ensemble, not just `info`.
-        if let Some(sub_sub_text) = seg.texts.get(2)
-            && sub
-                .resolve_sub_subcommand_for_dialect(sub_sub_text, dialect)
-                .is_some()
-            && let Some(tok) = seg.argv.get(2)
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::SubcommandKeyword);
-        }
-    }
-
-    for (i, text) in seg.texts.iter().enumerate().skip(1) {
-        // Resolve `-word` against the declared option set, accepting a unique
-        // prefix (`lsort -inc` ⇒ `-increasing`) the way Tcl's option parsing
-        // (`Tcl_GetIndexFromObj`) does; an ambiguous prefix (`lsort -i`) is not
-        // a recognised option.
-        if text.starts_with('-')
-            && let Some(canonical) =
-                resolve_option_prefix(text, &option_names, option_prefix_matching)
-            && let Some(tok) = seg.argv.get(i)
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::Decorator);
-
-            // The value word(s) this option consumes are re-coloured
-            // `OptionValue`.  Arity-aware (`value_indices` handles One / Fixed /
-            // Rest and stops at `--`); only *literal* values (`Esc`/`Str`) are
-            // re-coloured — a `$var` / `[cmd]` substitution keeps its own
-            // highlight, and a value that is itself a recognised option stays a
-            // `Decorator` (the `or_insert` above already claimed it).
-            if let Some(opt) = value_options.get(canonical) {
-                for vi in opt.value_indices(&seg.texts, i) {
-                    if let Some(val_tok) = seg.argv.get(vi)
-                        && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
-                    {
-                        overrides
-                            .entry(val_tok.span.start())
-                            .or_insert(ArgOverride::Kind(TokenKind::OptionValue));
-                    }
-                }
-            }
-        }
-    }
 }
 
 /// Whether a command's *head word* is a runtime-computed (non-static) command
@@ -2377,132 +1752,6 @@ fn head_is_computed(seg: &tcl_compiler::segmenter::SegmentedCommand) -> bool {
         || !seg.single_token_word.first().copied().unwrap_or(true)
 }
 
-/// Generic `-option` / option-value highlighting for a command with a
-/// *computed* head not resolved by the registry — a `$obj method …` object
-/// dispatch, a `[Class new] method …`, or a multi-fragment `chartV$node …`
-/// head.
-///
-/// A *registered* command's declared option set is authoritative — `puts -foo`
-/// stays a string because `puts` declares no `-foo`
-/// ([`insert_option_and_subcommand_overrides`]).  A plain bareword head is a
-/// (possibly user-defined) command name and is left to the registry too, so
-/// `mycmd -foo` stays a string.  Only a computed head — where the real option
-/// set lives on a method / ensemble the registry does not model — is treated as
-/// the overwhelmingly-common `-switch value` shape: those pairs are coloured
-/// like any built-in's.
-///
-/// A "clean option" is a single-token [`TokenType::Esc`] word for which
-/// [`is_generic_option_word`] holds — `-<letter>…`, excluding substitution
-/// forms, negative numbers (including the `-inf` / `-nan` special-float
-/// literals), a bare `-`, and `--`.  The single-token check is what excludes
-/// `-$var` / `-{$var}` / `-[cmd]`, which keep their variable / command
-/// highlight.
-///
-/// Tcl's `--` end-of-options marker is honoured: `--` itself is coloured as an
-/// option marker, and scanning stops there — every following word is a
-/// positional operand, even if it reads like `-foo` (`$obj cfg -- -literal`
-/// leaves `-literal` a plain string).
-///
-/// The word immediately following an option is recoloured [`TokenKind::OptionValue`]
-/// when it is a literal (`Esc`/`Str`) that is not itself an option and not
-/// `--` — a `$var` / `[cmd]` value keeps its own highlight, and a following
-/// option stays an option.  Arity is unknown for an undeclared command, so at
-/// most the single adjacent value word is claimed; a boolean option followed by
-/// another option therefore claims no value.
-fn insert_generic_option_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    // Only unknown heads — a registered command's declared option set is the
-    // authority, and a bare `-word` there (`puts -foo`) is deliberately a
-    // string.
-    if registry.get(head).is_some() {
-        return;
-    }
-    // Only a *computed* head — a `$var` / `[cmd]` substitution or a
-    // multi-fragment word (`chartV$node`) — is treated as a runtime dispatch
-    // (object handle, ensemble) whose `-switch value` pairs are options.  A
-    // plain single-token bareword head is a (possibly user-defined) command
-    // name; deferring to the registry there keeps a bareword call conservative
-    // — `mycmd -foo` stays a string, a user command's `test … -body …` is not
-    // mistaken for tcltest's, and an OO-body member (`property … -get {…}`)
-    // keeps its recursed bodies — exactly as `puts -foo` stays a string.
-    if !head_is_computed(seg) {
-        return;
-    }
-    // The single-token literal (`Esc`) text of word `i`, or `None` for a
-    // substitution / braced / multi-fragment word.
-    let literal_word = |i: usize| -> Option<&str> {
-        (seg.single_token_word.get(i).copied().unwrap_or(false)
-            && seg
-                .argv
-                .get(i)
-                .is_some_and(|t| matches!(t.kind, TokenType::Esc)))
-        .then(|| seg.texts.get(i).map(String::as_str))
-        .flatten()
-    };
-    let mut i = 1;
-    while i < seg.texts.len() {
-        let Some(text) = literal_word(i) else {
-            i += 1;
-            continue;
-        };
-        // `--` ends option processing (Tcl convention). Colour the marker, then
-        // stop — nothing after it is an option.
-        if text == "--" {
-            if let Some(tok) = seg.argv.get(i) {
-                overrides
-                    .entry(tok.span.start())
-                    .or_insert(ArgOverride::Decorator);
-            }
-            break;
-        }
-        if !is_generic_option_word(text) {
-            i += 1;
-            continue;
-        }
-        if let Some(tok) = seg.argv.get(i) {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::Decorator);
-        }
-        // The immediately-following literal word is this option's value when it
-        // is not itself an option and not the `--` marker.  A `$var` / `[cmd]`
-        // value falls through the `Esc | Str` check and keeps its own highlight.
-        let vi = i + 1;
-        if let Some(val_tok) = seg.argv.get(vi)
-            && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
-            && literal_word(vi).is_none_or(|w| w != "--" && !is_generic_option_word(w))
-        {
-            overrides
-                .entry(val_tok.span.start())
-                .or_insert(ArgOverride::Kind(TokenKind::OptionValue));
-        }
-        i += 1;
-    }
-}
-
-/// Whether a literal word reads as a generic `-option` switch on an unknown
-/// command head: a leading `-` then an ASCII letter, excluding the negative
-/// special-float literals Tcl's parser accepts as numbers (`-inf`, `-Inf`,
-/// `-infinity`, `-nan`, …).  A bare `-`, `--`, and ordinary negative numbers
-/// (`-5`, `-1.6`) are already excluded by the "letter after the dash" rule.
-fn is_generic_option_word(text: &str) -> bool {
-    let Some(rest) = text.strip_prefix('-') else {
-        return false;
-    };
-    if !rest.as_bytes().first().is_some_and(u8::is_ascii_alphabetic) {
-        return false;
-    }
-    // `-inf` / `-infinity` / `-nan` are negative floating-point values, not
-    // options — Tcl's `expr` and numeric commands parse them as numbers.
-    !(rest.eq_ignore_ascii_case("inf")
-        || rest.eq_ignore_ascii_case("infinity")
-        || rest.eq_ignore_ascii_case("nan"))
-}
-
 /// Object-handle → class-name map for the current document, keyed by the
 /// handle text a `$var method` dispatch presents (minus the leading `$`) —
 /// a scalar (`chart`) or array element (`arr(key)`).  Built once per document
@@ -2512,10 +1761,9 @@ type ObjectClassMap = std::collections::HashMap<String, std::collections::HashSe
 
 /// Bareword instance-command name → qualified class name,
 /// built from [`AnalysisResult::instance_classes`] gated on
-/// [`AnalysisResult::created_instance_commands`] — the same contract the
-/// LSP's `receiver_instance_class` uses.  Merged into [`ObjectClassMap`] by
-/// [`collect_entries`] so a `CLASS create NAME` object types exactly like a
-/// `set var [CLASS new]` one.
+/// [`AnalysisResult::created_instance_commands`]. Only positive Logical
+/// classification consumes this compatibility projection. Original source
+/// roles and positioned receiver identity retain their separate owners.
 pub type NamedInstanceMap = std::collections::HashMap<String, String>;
 
 /// The optional workspace-merged facts a semantic-tokens request can enrich
@@ -2561,7 +1809,7 @@ fn named_instances_from_analysis(analysis: &AnalysisResult) -> NamedInstanceMap 
 /// (`Decorator` for the switch, `EnumMember` for a closed-set value, else
 /// `OptionValue`).
 ///
-/// Runs before [`insert_generic_option_overrides`]: a recognised method's
+/// Recognised method roles precede generic source options: a method's
 /// options are claimed precisely first, and anything it leaves (an option not
 /// in the spec, an un-provenanced receiver) is picked up by the generic
 /// shape-based fallback.  A `$var` / `[cmd]` option value keeps its own
@@ -2882,84 +2130,6 @@ fn constructor_class_of_head<'r>(
     registry.object_class(&cmd).map(|c| c.class_name)
 }
 
-/// The class named by an OO definition-body head (`oo::class create NAME { … }`
-/// and the property-/instantiation-metaclasses at argv[2]; `oo::define NAME
-/// { … }` at argv[1]), sliced from `source` so it outlives the walk.  `None`
-/// when the head is not a body-bearing definer.
-fn definer_class_name<'s>(
-    head: &str,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    source: &'s str,
-    registry: &CommandRegistry,
-) -> Option<&'s str> {
-    let (name_idx, _) = definer_class_name_idx(head, seg, registry)?;
-    let tok = seg.argv.get(name_idx)?;
-    source.get(tok.span.start() as usize..tok.span.end() as usize)
-}
-
-/// The `argv` index of the class name at a definer head, and whether that
-/// definer *declares* the class (`oo::class create Shape`, `snit::type Name`)
-/// rather than merely referencing it (`oo::define Shape`).
-///
-/// Split out of [`definer_class_name`] so the token walk can type the name
-/// rather than letting it fall through to the default literal classification
-/// and paint as a plain `string`.
-fn definer_class_name_idx(
-    head: &str,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-) -> Option<(usize, bool)> {
-    let bare = head.strip_prefix("::").unwrap_or(head);
-    let declares = bare != "oo::define";
-    let name_idx = match bare {
-        "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton"
-            if seg.texts.get(1).map(String::as_str) == Some("create") =>
-        {
-            2
-        }
-        "oo::define" if seg.texts.len() >= 3 => 1,
-        // snit / itcl definers name the class directly at arg 1 and the body at
-        // arg 2 (`snit::type Name { … }`, `itcl::class Name { … }`) — so a
-        // `$self method …` / `$this method …` dispatch in the body resolves
-        // against the class, exactly as `my` does for `TclOO`.  Driven by the
-        // registry's definer-family grammar, not a hardcoded name list.
-        _ if seg.texts.len() >= 3
-            && matches!(
-                registry
-                    .get(head)
-                    .and_then(|s| s.definition_body)
-                    .map(|g| g.family),
-                Some(DefinerFamily::Snit | DefinerFamily::Itcl)
-            ) =>
-        {
-            1
-        }
-        _ => return None,
-    };
-    Some((name_idx, declares))
-}
-
-/// Mark the class name at a definer head so it emits as `Class` rather than a
-/// bare literal.
-fn insert_definer_class_name_override(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    let head = &seg.texts[0];
-    let Some((idx, declares)) = definer_class_name_idx(head, seg, registry) else {
-        return;
-    };
-    let Some(tok) = seg.argv.get(idx) else {
-        return;
-    };
-    overrides.entry(tok.span.start()).or_insert(if declares {
-        ArgOverride::ClassNameDef
-    } else {
-        ArgOverride::ClassNameRef
-    });
-}
-
 /// Resolve a class name *as written* at a definer head to a qualified key in
 /// `hierarchy` through retained root source receipts. Missing or ambiguous
 /// byte geometry withdraws the class identity.
@@ -3051,289 +2221,6 @@ fn user_constructor_class_of_head(
     resolve_class_in_hierarchy(hierarchy, &cmd)
 }
 
-/// Registry-known closed-set argument values → `EnumMember`.  The registry
-/// records the legal value set for a positional argument as
-/// [`CommandSpec::arg_values`] (keyed by 0-based index after the command
-/// name) and, for ensemble subcommands, [`SubCommand::arg_values`] (keyed by
-/// index after the subcommand word).  A literal word that matches one of the
-/// declared values is highlighted as an enum member — so `string is alnum`,
-/// `HTTP::respond 200 content`, or `when … timing enable` read as a fixed
-/// keyword-like token rather than an arbitrary string.  Matching is against
-/// the literal word text, so a `$var` / `[cmd]` at the same position is left
-/// to the default classifier.
-fn insert_enum_value_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    dialect: Option<SurfaceQuery<'_>>,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    let Some(spec) = registry.get(head) else {
-        return;
-    };
-    // A closed-set value that is *also* a `Keyword`-role argument — e.g.
-    // `control::do body while test`, whose `while`/`until` option is both a
-    // declared value and the loop sense-word — is highlighted as a keyword by
-    // `insert_role_overrides`, which is the more specific classification.  Skip
-    // those command-level positions so the enum override does not claim the
-    // token first.
-    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
-    let keyword_positions: rustc_hash::FxHashSet<usize> = registry
-        .arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::Keyword)
-        .into_iter()
-        .collect();
-    let mut mark = |pos: usize, values: &[tcl_registry::hover::ArgValue]| {
-        if let (Some(text), Some(tok)) = (seg.texts.get(pos), seg.argv.get(pos))
-            && values.iter().any(|v| v.value == text.as_str())
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::Kind(TokenKind::EnumMember));
-        }
-    };
-
-    // Command-level values: index is 0-based after the command name, so the
-    // word sits at `seg.texts[idx + 1]`.
-    for (idx, values) in spec.arg_values {
-        if keyword_positions.contains(&(*idx as usize)) {
-            continue;
-        }
-        mark(*idx as usize + 1, values);
-    }
-
-    // Subcommand-level values: index is 0-based after the subcommand word,
-    // so add one more for the command name (`seg.texts[idx + 2]`).  Resolve
-    // unique-prefix abbreviations like Tcl's ensemble dispatch.
-    if let Some(sub_text) = seg.texts.get(1)
-        && let Some(sub) = spec.resolve_subcommand_for_dialect(sub_text, dialect)
-    {
-        for (idx, values) in sub.arg_values {
-            mark(*idx as usize + 2, values);
-        }
-    }
-
-    // Option-value enum members — the value word(s) of a value-taking option
-    // that declares an enumerable set (`-relief raised`, `-anchor center`).
-    // Matched by name/alias, arity-aware via `value_indices`; a `$var`/`[cmd]`
-    // value falls through `mark`'s literal check.
-    let mut i = 1usize;
-    while i < seg.texts.len() {
-        let word = seg.texts[i].as_str();
-        if word == "--" {
-            break;
-        }
-        let opt = spec
-            .options
-            .iter()
-            .chain(spec.command_forms.iter().flat_map(|f| f.options.iter()))
-            .find(|o| o.matches(word));
-        if let Some(opt) = opt {
-            let vis = opt.value_indices(&seg.texts, i);
-            let values = opt.value_values();
-            if !values.is_empty() {
-                for &vi in &vis {
-                    mark(vi, values);
-                }
-            }
-            i += 1 + vis.len();
-            continue;
-        }
-        i += 1;
-    }
-}
-
-/// `oo::define` / `oo::objdefine` inline definition keywords → `Keyword`.
-///
-/// In the *script* form (`oo::define Cls { method … }`) the definition words
-/// are command heads inside the recursed body and are already highlighted by
-/// [`emit_command_head`]'s grammar-member check.  The *inline* form
-/// (`oo::define Cls method name args body`) puts the definition word at an
-/// argument position, where it would otherwise render as a plain string.  The
-/// target (class / object) sits at `seg.texts[1]`, so the definition keyword is
-/// `seg.texts[2]`; `self` introduces a second, inner keyword at `seg.texts[3]`.
-///
-/// Which words are members comes from the definer command's own
-/// `definition_body` grammar (`is_member`), not a hardcoded list — the same
-/// source of truth the script form uses.  The *set of commands* that accept
-/// inline member args (`oo::define` / `oo::objdefine`) is the outer-call shape,
-/// which the member grammar does not model, so it stays an explicit guard
-/// (`oo::class create Name …` puts a class name, not a member, at `texts[2]`).
-fn insert_oo_define_keyword_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    dialect: Option<SurfaceQuery<'_>>,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    let Some(spec) = registry.get(seg.texts[0].as_str()) else {
-        return;
-    };
-    // The *outer-call shape* — "argument 1 is the target, the member call
-    // starts at argument 2" — is what separates a definer-**extension**
-    // command from a definer that *creates* (`oo::class create Name ?body?`
-    // puts a class name at that position, not a member keyword). The
-    // registry already draws exactly that line with the `OoDefine` /
-    // `OoObjdefine` analyser hooks, so this dispatches on them rather than
-    // comparing spellings — which also means the
-    // explicitly-global `::oo::define` resolves like the bare form.
-    if !matches!(
-        spec.analyser_hook,
-        Some(
-            tcl_registry::hooks::AnalyserHookId::OoDefine
-                | tcl_registry::hooks::AnalyserHookId::OoObjdefine
-        )
-    ) {
-        return;
-    }
-    let Some(grammar) = spec.definition_body else {
-        return;
-    };
-    let mut mark_keyword = |pos: usize| {
-        if let Some(tok) = seg.argv.get(pos) {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::Kind(TokenKind::Keyword));
-        }
-    };
-    // The first definition word follows the class/object target
-    // (`seg.texts[1]`), so it is `seg.texts[2]`.
-    let Some(first) = seg.texts.get(2) else {
-        return;
-    };
-    if !grammar.is_member(first) {
-        return;
-    }
-    mark_keyword(2);
-    // `self` introduces the real definition keyword (`method`, `constructor`,
-    // …) at `seg.texts[3]`. This is the `oo::define` *definer-grammar*
-    // wrapper word, not the `TclOO` `self` introspection command — a
-    // different axis from `Traits::TCLOO_INTROSPECTION`, resolved through
-    // the definer grammar's own `MemberKind::Wrapper` modelling.
-    if first == "self" && seg.texts.get(3).is_some_and(|w| grammar.is_member(w)) {
-        mark_keyword(3);
-    }
-    // The one-liner definer form carries a whole member call inline —
-    // `oo::define C method m {a} {…}` / `oo::objdefine $obj method m {} {…}` —
-    // so run the *same* member handling the body form gets, anchored at the
-    // member keyword (argv 2).  Marking only the keyword would leave the
-    // method's name, parameters and body untouched: the name painting as a
-    // plain string and the body never recursed.
-    let member_args: Vec<&str> = seg.texts[3..].iter().map(String::as_str).collect();
-    let first = first.clone();
-    insert_oo_member_overrides(seg, grammar, &first, &member_args, 2, dialect, overrides);
-}
-
-/// `apply {params body ?ns?} …` — mark the braced lambda-literal argument
-/// (`ArgRole::LambdaLiteral`) so its body (the second list element) is
-/// re-segmented as a script.  Only a braced literal argument qualifies;
-/// `apply $lambda …` (a variable) is left alone.  Matches C Tcl, where
-/// `apply`'s first argument is a 2- or 3-element list `{argList body
-/// ?namespace?}`.
-///
-/// Two shapes are recognised, both registry-driven — no command name is
-/// compared anywhere in this function:
-///
-/// - **Direct**: `head` (this segmented command's own, already-resolved
-///   head) carries `ArgRole::LambdaLiteral` at some argument index `K` — the
-///   token at `argv[K + 1]` is the lambda literal.
-/// - **List-quoted**: `head` instead carries `Traits::BUILDS_COMMAND_PREFIX`
-///   (`list`) — the idiomatic way to build a deferred command around a
-///   dynamic value, e.g. a pkgIndex.tcl entry capturing the install
-///   directory: `package ifneeded name ver [list apply {dir {…}} $dir]`
-///   `list`'s own first *argument*, if a literal bareword, is
-///   resolved the same way any other command head is (registry `get`, which
-///   strips a leading `::`); if that resolves to a `LambdaLiteral`-bearing
-///   spec, the token at `argv[K + 2]` (shifted by one for `list` itself) is
-///   the lambda literal. A dynamic `list` argument (`$var`, `[cmd]`) can't be
-///   resolved statically and is left alone.
-///
-/// The list-quoted case is additionally gated on `deferred_role`: `list`
-/// itself never invokes anything — it only ever returns a value — so
-/// `[list apply {…} $x]` builds a real deferred invocation only when
-/// *its own* enclosing argument slot is one that's later invoked/sourced
-/// (`Body` / `LambdaLiteral` / `CommandPrefix`), e.g. `package ifneeded`'s
-/// script argument. Plain data such as `set data [list apply {x {puts $x}}
-/// value]` must not paint `x`/`puts`/`apply` as executable —
-/// `deferred_role` carries that enclosing-role check in
-/// from [`collect_script`], computed once per `[…]` substitution. The direct
-/// case needs no such gate: writing `apply {…}` literally *always* invokes
-/// `apply` when reached, regardless of what its caller does with the result.
-fn insert_lambda_literal_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    deferred_role: bool,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
-    let mark = |idx: usize, overrides: &mut FxHashMap<u32, ArgOverride>| {
-        if let Some(tok) = seg.argv.get(idx + 1)
-            && matches!(tok.kind, TokenType::Str)
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::LambdaLiteral);
-        }
-    };
-
-    let direct =
-        registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::LambdaLiteral);
-    if !direct.is_empty() {
-        for idx in direct {
-            mark(idx, overrides);
-        }
-        return;
-    }
-
-    if !deferred_role {
-        return;
-    }
-
-    if !registry.get(head).is_some_and(|s| {
-        s.traits
-            .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
-    }) {
-        return;
-    }
-    // `list`'s own arg 0 must be a literal, unquoted, single-token bareword
-    // to resolve statically — mirrors the bareword guard
-    // `command_prefix::extract_prefix_head` uses for the same reason.
-    let Some(inner_head_tok) = seg.argv.get(1) else {
-        return;
-    };
-    if !matches!(inner_head_tok.kind, TokenType::Esc)
-        || inner_head_tok.in_quote
-        || seg.single_token_word.get(1) != Some(&true)
-    {
-        return;
-    }
-    let inner_head = seg.texts[1].as_str();
-    let inner_arg_texts: Vec<&str> = seg.texts[2..].iter().map(String::as_str).collect();
-    let inner_roles = registry.arg_indices_for_role(
-        inner_head,
-        &inner_arg_texts,
-        tcl_registry::ArgRole::LambdaLiteral,
-    );
-    if inner_roles.is_empty() {
-        return;
-    }
-    for idx in inner_roles {
-        if let Some(tok) = seg.argv.get(idx + 2)
-            && matches!(tok.kind, TokenType::Str)
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::LambdaLiteral);
-        }
-    }
-    // The resolved command-name word itself (`apply` / `::apply`) is a real
-    // call-site reference, same as a `CommandPrefix` bareword head — paint it
-    // `Function` rather than leaving it to fall through to a plain string /
-    // namespace-word guess.
-    overrides
-        .entry(inner_head_tok.span.start())
-        .or_insert(ArgOverride::CommandRef);
-}
-
 /// Variable names a command declares / writes (`ArgRole::VarWrite`) →
 /// `Variable` + `declaration`.  The registry marks the write target of `set`
 /// / `incr` / `append` / `lappend` / `lassign` / `global` / `variable` / … ,
@@ -3343,7 +2230,7 @@ fn insert_lambda_literal_overrides(
 /// text, but from a declared role: the static registry `ArgRole::VarWrite` /
 /// `ArgRole::VarRead`, a `# tcl-lsp: stub … :var` / `:var_read` declaration, or
 /// a user-proc parameter the analyser inferred to alias a caller variable
-/// (`extra_var_write` / `extra_var_read`).  A **written** target retags as a
+/// through the selected procedure role index. A **written** target retags as a
 /// `Variable` declaration; a **read** reference as a plain `Variable` (it names
 /// an existing variable, not a new one).  The only remaining question is token
 /// geometry.  A word that lexes as a single unquoted [`TokenType::Esc`] token —
@@ -3352,120 +2239,75 @@ fn insert_lambda_literal_overrides(
 /// `$arr(key)` read highlights.  A word with an inner substitution
 /// (`arr($i)`, `$dynamic`) is multi-token (`single_token_word` is `false`), so
 /// it is left to the default classifier and its inner `$var` sub-tokens survive.
-fn insert_var_role_overrides(
+fn retag_variable_argument(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    extra_var_write: &FxHashMap<String, Vec<u32>>,
-    extra_var_read: &FxHashMap<String, Vec<u32>>,
+    i: usize,
+    ov: ArgOverride,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
-    // `i` is 0-based after the command name → word at index `i + 1`.  A word is
-    // retagged only when it is a single unquoted `Esc` token — the geometry that
-    // makes it safe to paint whole (scalars, literal array elements, namespaced
-    // names), while a substitution-bearing word stays multi-token.
-    let mut retag = |i: usize, ov: ArgOverride| {
-        let Some(word) = seg.argv.get(i + 1) else {
-            return;
-        };
-        if seg.single_token_word.get(i + 1) == Some(&true) {
-            // `Str` — a brace-quoted word — is a variable *name* here just as
-            // much as a bareword is: braces suppress every substitution, so
-            // `set {$n} 1` declares the variable literally called `$n` and
-            // `[set {$n}]` reads it (tclsh 9.0.4 / 8.6.14: `info exists {$n}`
-            // → 1 while `info exists n` → 0).  Falling through would paint the
-            // word as a plain `string`, hiding a declaration and inviting the
-            // reader to see the `$n` inside as a substitution.
-            // It is the quoting that makes such a name writable at all, so
-            // this is the *only* spelling those variables ever have.
-            if matches!(word.kind, TokenType::Esc | TokenType::Str) && !word.in_quote {
-                overrides.entry(word.span.start()).or_insert(ov);
-            }
-            return;
-        }
-        // A multi-token word in a variable-name position is an **array element
-        // whose index is a substitution** — `set env($lo)`, `unset
-        // UnknownPending($name)`, `set auto_index([foo])`.  A literal index
-        // (`env(PATH)`) is a single token and took the branch above; this one
-        // stays multi-token, and skipping it would let its literal fragments
-        // fall through to the default classification and paint as `string` —
-        // pervasive in Tcl's own `init.tcl` / `package.tcl`.
-        //
-        // The representative `argv` token spans the whole word (segmenter:
-        // `multi_token_word_argv_spans_full_word`), so paint every *literal*
-        // fragment of it — the array name and the parens — as the variable; the
-        // `$index` / `[cmd]` tokens inside classify themselves.
-        let text = seg.texts.get(i + 1).map_or("", String::as_str);
-        if word.in_quote || !text.contains('(') || !text.ends_with(')') {
-            return;
-        }
-        for t in &seg.all_tokens {
-            if matches!(t.kind, TokenType::Esc)
-                && t.span.start() >= word.span.start()
-                && t.span.end() <= word.span.end()
-            {
-                overrides.entry(t.span.start()).or_insert(ov);
-            }
-        }
+    let Some(word) = seg.argv.get(i + 1) else {
+        return;
     };
-    // Writes first: a declaration wins over a read reference at the same
-    // position (`dict with`'s arg 0 carries both roles).
-    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::VarWrite) {
-        retag(i, ArgOverride::VarDecl);
-    }
-    if let Some(indices) = extra_var_write.get(head) {
-        for &i in indices {
-            retag(i as usize, ArgOverride::VarDecl);
+    if seg.single_token_word.get(i + 1) == Some(&true) {
+        // `Str` — a brace-quoted word — is a variable *name* here just as
+        // much as a bareword is: braces suppress every substitution, so
+        // `set {$n} 1` declares the variable literally called `$n` and
+        // `[set {$n}]` reads it (tclsh 9.0.4 / 8.6.14: `info exists {$n}`
+        // → 1 while `info exists n` → 0).  Falling through would paint the
+        // word as a plain `string`, hiding a declaration and inviting the
+        // reader to see the `$n` inside as a substitution.
+        // It is the quoting that makes such a name writable at all, so
+        // this is the *only* spelling those variables ever have.
+        if matches!(word.kind, TokenType::Esc | TokenType::Str) && !word.in_quote {
+            overrides.entry(word.span.start()).or_insert(ov);
         }
+        return;
     }
-    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::VarRead) {
-        retag(i, ArgOverride::VarRef);
+    // A multi-token word in a variable-name position is an **array element
+    // whose index is a substitution** — `set env($lo)`, `unset
+    // UnknownPending($name)`, `set auto_index([foo])`.  A literal index
+    // (`env(PATH)`) is a single token and took the branch above; this one
+    // stays multi-token, and skipping it would let its literal fragments
+    // fall through to the default classification and paint as `string` —
+    // pervasive in Tcl's own `init.tcl` / `package.tcl`.
+    //
+    // The representative `argv` token spans the whole word (segmenter:
+    // `multi_token_word_argv_spans_full_word`), so paint every *literal*
+    // fragment of it — the array name and the parens — as the variable; the
+    // `$index` / `[cmd]` tokens inside classify themselves.
+    let text = seg.texts.get(i + 1).map_or("", String::as_str);
+    if word.in_quote || !text.contains('(') || !text.ends_with(')') {
+        return;
     }
-    if let Some(indices) = extra_var_read.get(head) {
-        for &i in indices {
-            retag(i as usize, ArgOverride::VarRef);
+    for t in &seg.all_tokens {
+        if matches!(t.kind, TokenType::Esc)
+            && t.span.start() >= word.span.start()
+            && t.span.end() <= word.span.end()
+        {
+            overrides.entry(t.span.start()).or_insert(ov);
         }
     }
 }
 
 /// A command name passed as an argument — the registry `CommandPrefix` role
 /// (`tk selection … -command`, a stub `:command_prefix`), or a proc parameter
-/// the analyser inferred to be a `Command` (`extra_command`: `$cmd` used as a
-/// head, or flowing into a command-name position).  Retag the literal at the
+/// the analyser inferred to be a `Command` (`$cmd` used as a head, or flowing
+/// into a command-name position).  Retag the literal at the
 /// call site as a `Function`, gated by the same single-token `Esc` geometry as
 /// the variable retag, so `dispatch mycmd …` paints `mycmd` as a command.
-fn insert_command_role_overrides(
+fn retag_command_argument(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    extra_command: &FxHashMap<String, Vec<u32>>,
+    i: usize,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
-    let mut retag = |i: usize| {
-        if let Some(tok) = seg.argv.get(i + 1)
-            && seg.single_token_word.get(i + 1) == Some(&true)
-            && matches!(tok.kind, TokenType::Esc)
-            && !tok.in_quote
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::CommandRef);
-        }
-    };
-    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::CommandPrefix) {
-        retag(i);
-    }
-    // A bare command name held as data (`info body PROC`, `namespace origin
-    // NAME`) is a command reference too, so paint it as a `Function`.
-    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::CommandName) {
-        retag(i);
-    }
-    if let Some(indices) = extra_command.get(head) {
-        for &i in indices {
-            retag(i as usize);
-        }
+    if let Some(tok) = seg.argv.get(i + 1)
+        && seg.single_token_word.get(i + 1) == Some(&true)
+        && matches!(tok.kind, TokenType::Esc)
+        && !tok.in_quote
+    {
+        overrides
+            .entry(tok.span.start())
+            .or_insert(ArgOverride::CommandRef);
     }
 }
 
@@ -3476,126 +2318,6 @@ fn is_plain_var_name(text: &str) -> bool {
     // braced words, and the stray `}` / `)` the degenerate empty-brace (`{}`)
     // span clamp can leave in sub-tokenised list content.
     !text.is_empty() && !text.contains(['(', ')', '$', '[', ']', '{', '}', '"', ' '])
-}
-
-/// `switch … { pat body … }` — the braced case list (the final word, when
-/// option-skipped past the mode flags / `--`) holds all the pattern/body
-/// pairs.  Tag it so `collect_script` pairs the elements and recurses each
-/// body as a script, rather than walking the whole list as one opaque body
-/// (which would leave the bodies unhighlighted).  `-regexp` mode additionally
-/// sub-tokenises the patterns as regexes.
-fn insert_case_list_override(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    resolved_head: &str,
-    dialect: Option<SurfaceQuery<'_>>,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    // The clause-list shape is registry data (`CommandSpec::case_list`), so this
-    // walker names no command: `switch … {pat body …}` and Expect's
-    // `expect {?-flags? pat body …}` are the same construct, and Expect's
-    // `expect_before` / `expect_after` / … come along for free.  Naming
-    // `switch` here instead would leave every Expect clause body unrecursed,
-    // rendering an entire `expect {…}` block as flat per-line `string` tokens.
-    let Some(spec) = registry.get(resolved_head).and_then(|s| s.case_list) else {
-        return;
-    };
-    // Where the list sits (and whether the command-level regex option was
-    // given) is `tcl_syntax`'s one implementation, shared with the reference
-    // scanner and the fold walk — three walkers that must agree about where an
-    // arm's body is or they disagree about what the code says.  The braced-list
-    // form only: the inline `pat body …` form leaves more than one trailing
-    // word and `clause_list_call` answers `None` for it.
-    let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
-    let Some((_, invocation)) = registry.case_invocation(resolved_head, &args, dialect) else {
-        return;
-    };
-    let Some(index) = invocation.clause_list_index else {
-        if let Some(start) = invocation.inline_clause_start
-            && let Some(clauses) = spec.inline_clauses(&args, start)
-        {
-            for clause in clauses {
-                for flag_index in clause.flag_indices {
-                    if let Some(tok) = seg.argv.get(flag_index + 1) {
-                        overrides.insert(tok.span.start(), ArgOverride::Decorator);
-                    }
-                }
-                if clause.mode == tcl_registry::spec::CaseMatchMode::Regexp
-                    && let Some(tok) = seg.argv.get(clause.pattern_index + 1)
-                {
-                    mark_literal_fragments(seg, tok.span, ArgOverride::RegexPattern, overrides);
-                }
-                if let Some(body_index) = clause.body_index
-                    && let Some(tok) = seg.argv.get(body_index + 1)
-                    && matches!(tok.kind, TokenType::Str)
-                {
-                    overrides.insert(tok.span.start(), ArgOverride::BodyScript);
-                }
-            }
-        }
-        return;
-    };
-    // `args` is 0-based post-command-name; `seg.texts` / `seg.argv` are 1-based.
-    if let Some(tok) = seg.argv.get(index + 1)
-        && matches!(tok.kind, TokenType::Str)
-    {
-        overrides.insert(
-            tok.span.start(),
-            ArgOverride::CaseList(
-                spec,
-                invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp,
-            ),
-        );
-    }
-}
-
-/// Registry-driven role overrides: body / expr braced arguments (recursed
-/// into rather than emitted opaque) and structural keyword words.  Added
-/// last with `or_insert` so the more specific regex/format overrides win.
-fn insert_role_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    arg_texts: &[&str],
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    // `if {expr} {body}`, `proc n a {body}`, `while {expr} {body}`,
-    // `expr {expr}`, … — keyed on each word's representative token
-    // (`argv[i + 1]`; `argv[0]` is the head).  Only braced (`Str`) words
-    // recurse; non-literal words fall through.
-    for (role, ov) in [
-        (tcl_registry::ArgRole::Body, ArgOverride::BodyScript),
-        (tcl_registry::ArgRole::Expr, ArgOverride::ExprScript),
-    ] {
-        for i in registry.arg_indices_for_role(head, arg_texts, role) {
-            if let Some(tok) = seg.argv.get(i + 1)
-                && matches!(tok.kind, TokenType::Str)
-            {
-                overrides.entry(tok.span.start()).or_insert(ov);
-            }
-        }
-    }
-
-    // Structural keyword words (`if`'s then/elseif/else, `try`'s
-    // on/trap/finally) sit at argument positions, not the command-name
-    // slot, so the default classifier would render them as strings.  The
-    // registry's `Keyword` role marks them; highlight as keywords.  Unlike
-    // body/expr these are bare (`Esc`) or quoted (`Str`) literal words, so
-    // no `Str`-only guard.
-    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::Keyword) {
-        if let Some(tok) = seg.argv.get(i + 1)
-            && matches!(tok.kind, TokenType::Esc | TokenType::Str)
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::KeywordArg);
-        }
-    }
-    // Note: recursing the body of a `method` / `constructor` / … keyword used
-    // as a command head inside a class-definition script is handled
-    // context-sensitively by `insert_oo_body_overrides`, which
-    // only fires inside an actual OO definition body — so a same-named user
-    // proc is never misclassified.
 }
 
 /// Sub-tokenise a `binary format`/`scan` field string into its
@@ -4282,6 +3004,13 @@ const MAX_TOKEN_RECURSION: tcl_core_types::RecursionLimit = tcl_core_types::Recu
 struct ScriptCtx<'a> {
     full_source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
+    config: tcl_lexer::LexerConfig,
+    context: &'a tcl_registry::model::ResolvedContext,
+    generation: &'a tcl_registry::model::ContextRegistry,
+    operand: Option<&'a crate::original_invocation::OriginalOperandSource>,
+    original_words: Option<&'a crate::original_invocation::OriginalRegistryWords>,
+    declared_words: Option<&'a tcl_compiler::command_binding::OriginalDeclaredCommandWords>,
+    lexical: bool,
     /// The dialect's numeric-literal grammar, resolved once from `dialect` so
     /// the per-word `Number` classification does not re-walk the profile
     /// catalogue for every token.  Decides which radix prefixes exist, whether a
@@ -4299,6 +3028,13 @@ struct ScriptCtx<'a> {
     /// highlight — see [`crate::oo_body`].  Outside one, a same-named user proc
     /// is never treated as a member.
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
+    /// Genuine source-only definition parent. Native source vocabulary does
+    /// not come from rendered head/argument strings or a nominal grammar.
+    original_definition_parent:
+        Option<&'a tcl_compiler::registry_invocation::OriginalSourceScriptBody>,
+    /// Complete original argv owner for this current definition-source region.
+    original_definition_members:
+        Option<&'a tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion>,
     /// The enclosing scoped command environment, or `None` outside any scoped
     /// body.  When `Some`, this script runs in a context (a `report::defstyle`
     /// style script) that exposes a curated command set (`top`, `data`,
@@ -4339,32 +3075,14 @@ struct ScriptCtx<'a> {
     /// The local analysis when this request has one, used only for document
     /// package floors on lifecycle-gated registry methods.
     analysis: Option<&'a AnalysisResult>,
+    original_roles: &'a original::OriginalTokenRoles,
+    proc_roles: Option<&'a VarNameArgRoles>,
     /// The class whose definition body we are currently inside (as written at
     /// the `oo::class create NAME` / `oo::define NAME` head), sliced from the
     /// source so it lives as long as the walk.  Lets a `my method …` self-call
     /// in a method body resolve against the enclosing class's MRO — the single
     /// most common `TclOO` dispatch form.  `None` outside any class body.
     enclosing_class: Option<&'a str>,
-    /// Extra variable-name (`ArgRole::VarWrite`) argument positions the static
-    /// registry doesn't model, keyed by command / proc name: source-derived
-    /// `# tcl-lsp: stub … :var` roles unioned with the analyser's inferred
-    /// user-proc parameter roles.  The `VarWrite` retag reads this alongside
-    /// the registry so a `myproc arr(key) …` call highlights its array-element
-    /// target.  Empty on the pure-segmentation path.
-    extra_var_write: &'a FxHashMap<String, Vec<u32>>,
-    /// Extra variable-name (`ArgRole::VarRead`) argument positions the static
-    /// registry doesn't model — the read-side counterpart of `extra_var_write`
-    /// (stub `:var_read` roles and inferred user-proc `VarRead` params).  These
-    /// retag as a plain `Variable` (no `declaration` modifier), since a read
-    /// references an existing variable.  Empty on the pure-segmentation path.
-    extra_var_read: &'a FxHashMap<String, Vec<u32>>,
-    /// Extra command-name (`ArgRole::CommandPrefix` / inferred
-    /// `ProcArgTrait::Command`) argument positions, keyed by command / proc
-    /// name: stub `:command_prefix` roles unioned with the analyser's inferred
-    /// user-proc `Command` params.  These retag as a `Function` so a literal
-    /// command name passed to a dispatcher highlights as a command.  Empty on
-    /// the pure-segmentation path.
-    extra_command: &'a FxHashMap<String, Vec<u32>>,
     /// Source offsets admitted by the shared iRules declaration-boundary
     /// owner. Empty outside the iRules overlay.
     irules_top_level_declaration_heads: &'a FxHashSet<u32>,
@@ -4380,7 +3098,7 @@ fn push_case_pattern(
     ctx: ScriptCtx<'_>,
     pat_tok: Token,
     text: &str,
-    spec: &'static tcl_registry::CaseListSpec,
+    spec: &tcl_registry::CaseListSpec,
     regexp: bool,
     entries: &mut Vec<Entry>,
 ) {
@@ -4416,9 +3134,24 @@ fn collect_case_list(
     tok: Token,
     entries: &mut Vec<Entry>,
     depth: u32,
-    spec: &'static tcl_registry::CaseListSpec,
+    spec: &tcl_registry::CaseListSpec,
     regexp: bool,
 ) {
+    if !ctx.lexical
+        && !ctx
+            .operand
+            .and_then(|operand| operand.word.as_ref())
+            .is_some_and(|word| {
+                word.group().kind == tcl_lexer::WordKind::Braced
+                    && word
+                        .tokens()
+                        .first()
+                        .is_some_and(|first| first.span == tok.span)
+            })
+    {
+        classify_and_push_if(true, ctx, tok, entries);
+        return;
+    }
     if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
@@ -4461,7 +3194,9 @@ fn collect_case_list(
         )
     };
 
-    for clause in tcl_syntax::case_list::split_case_list(inner, &shape) {
+    for clause in
+        tcl_syntax::case_list::split_case_list_with_syntax(inner, &shape, ctx.config.list_parse)
+    {
         let mut clause_regexp = regexp;
         for f in &clause.flags {
             let text = inner.get(f.start..f.end).unwrap_or_default();
@@ -4517,8 +3252,8 @@ fn collect_case_list(
 }
 
 /// Recurse the body of an `ArgRole::LambdaLiteral` `{params body ?ns?}`
-/// lambda literal (`apply`'s shape, reached directly or list-quoted — see
-/// [`insert_lambda_literal_overrides`]).
+/// lambda literal (`apply`'s shape, reached directly or through the shared original
+/// produced-prefix source receipt).
 ///
 /// The braced lambda is a Tcl list; its second element is the body script
 /// and is re-segmented so its commands / vars / strings tokenise like any
@@ -4537,57 +3272,7 @@ fn collect_case_list(
 /// `None` reset for the same recursion, and the same fresh-frame reasoning the
 /// interprocedural and param-trait passes apply).
 fn collect_lambda_literal(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth: u32) {
-    if MAX_TOKEN_RECURSION.exceeded(depth) {
-        return;
-    }
-    let full_source = ctx.full_source;
-    let line_index = ctx.line_index;
-    let Some((cstart, inner)) = subspec_content(full_source, tok) else {
-        // Not a braced literal (should not happen — the override only fires
-        // for `Str` tokens); fall back to a plain classification.
-        if let Some(kind) = classify_arg_token(tok, full_source, ctx.numbers) {
-            push_token(line_index, full_source, tok, kind, 0, entries);
-        }
-        return;
-    };
-    let lambda_ctx = ScriptCtx {
-        oo_grammar: None,
-        enclosing_class: None,
-        scoped_env: None,
-        ..ctx
-    };
-    // Flatten the lambda's list elements (params, body, ?ns?).
-    let mut words: Vec<Token> = Vec::new();
-    for seg in segment_commands_with_offset_and_config(
-        inner,
-        u32::try_from(cstart).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
-    ) {
-        words.extend(seg.argv.iter().copied());
-    }
-    for (idx, word_tok) in words.iter().enumerate() {
-        if idx == 0 {
-            // Element 0 is the parameter list — a braced `{a b}` list or a
-            // bare single name (`apply {dir {…}}`); `collect_param_list`
-            // emits its names as declarations either way, and leaves a
-            // computed (`$dynamic`) list to the default classifier.
-            collect_param_list(ctx, *word_tok, entries);
-        } else if idx == 1
-            && let Some((bstart, body)) = subspec_content(full_source, *word_tok)
-        {
-            // Element 1 is the body — recurse it as a script when braced.
-            collect_script(
-                lambda_ctx,
-                body,
-                u32::try_from(bstart).unwrap_or(0),
-                entries,
-                depth + 1,
-                false,
-            );
-        } else if let Some(kind) = classify_arg_token(*word_tok, full_source, ctx.numbers) {
-            push_token(line_index, full_source, *word_tok, kind, 0, entries);
-        }
-    }
+    original::collect_lambda(ctx, tok, entries, depth);
 }
 
 /// Emit the name(s) of a `foreach` / `lmap` / `dict for` variable spec as
@@ -4597,36 +3282,8 @@ fn collect_lambda_literal(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entr
 /// `string` classification so nothing is dropped and it does not masquerade as
 /// a variable.
 fn collect_loop_var_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) {
-    let full_source = ctx.full_source;
-    let line_index = ctx.line_index;
-    let Some((cstart, inner)) = subspec_content(full_source, tok) else {
-        if let Some(kind) = classify_arg_token(tok, full_source, ctx.numbers) {
-            push_token(line_index, full_source, tok, kind, 0, entries);
-        }
-        return;
-    };
-    let mut scan = 0usize;
-    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
-        if let Some(name) = inner.get(el.value.clone()) {
-            let (kind, mods) = if is_plain_var_name(name) {
-                (TokenKind::Variable, MOD_DECLARATION)
-            } else {
-                (TokenKind::String, 0)
-            };
-            push_span_entries(
-                full_source,
-                line_index,
-                cstart + el.value.start,
-                name,
-                kind,
-                mods,
-                entries,
-            );
-        }
-        if el.next <= scan {
-            break;
-        }
-        scan = el.next;
+    if !original::collect_loop_variables(ctx, tok, entries) {
+        classify_and_push_if(true, ctx, tok, entries);
     }
 }
 
@@ -4636,242 +3293,9 @@ fn collect_loop_var_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry
 /// words are classified (number / string).  A non-name element is left to the
 /// default classifier.
 fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) {
-    let full_source = ctx.full_source;
-    let line_index = ctx.line_index;
-    let Some((cstart, inner)) = subspec_content(full_source, tok) else {
-        // A bare (unbraced) argument list is a single-element list naming one
-        // parameter (`apply {dir {…}}`, `proc p x {…}`).  When it is a plain
-        // name, emit it as a `Parameter` declaration — matching the braced
-        // path — rather than letting it fall through to `string`.  A computed
-        // arg list (`$dynamic`) is not a plain name and keeps its default
-        // classification.
-        if full_source
-            .get(tok.span.start() as usize..tok.span.end() as usize)
-            .is_some_and(is_plain_var_name)
-        {
-            push_token(
-                line_index,
-                full_source,
-                tok,
-                TokenKind::Parameter,
-                MOD_DECLARATION,
-                entries,
-            );
-        } else if let Some(kind) = classify_arg_token(tok, full_source, ctx.numbers) {
-            push_token(line_index, full_source, tok, kind, 0, entries);
-        }
-        return;
-    };
-    let mut scan = 0usize;
-    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
-        let braced = el.value.start > 0 && inner.as_bytes().get(el.value.start - 1) == Some(&b'{');
-        if let Some(elem) = inner.get(el.value.clone()) {
-            let elem_abs = cstart + el.value.start;
-            if braced {
-                // `{name ?default...?}` — the first word is the parameter name.
-                emit_param_default_pair(ctx, elem_abs, elem, entries);
-            } else if is_plain_var_name(elem) {
-                push_span_entries(
-                    full_source,
-                    line_index,
-                    elem_abs,
-                    elem,
-                    TokenKind::Parameter,
-                    MOD_DECLARATION,
-                    entries,
-                );
-            }
-        }
-        if el.next <= scan {
-            break;
-        }
-        scan = el.next;
+    if !original::collect_parameter_fields(ctx, tok, entries) {
+        classify_and_push_if(true, ctx, tok, entries);
     }
-}
-
-/// Emit the name + default words of a `{name ?default...?}` parameter pair:
-/// the leading word as a `Parameter` declaration, each following word by its
-/// literal classification (number / string).
-fn emit_param_default_pair(ctx: ScriptCtx<'_>, abs: usize, text: &str, entries: &mut Vec<Entry>) {
-    let source = ctx.full_source;
-    let line_index = ctx.line_index;
-    let mut scan = 0usize;
-    let mut first = true;
-    while let Ok(Some(el)) = tcl_syntax::list::find_element(text, scan) {
-        if let Some(word) = text.get(el.value.clone()) {
-            let word_abs = abs + el.value.start;
-            let (kind, mods) = if first {
-                (TokenKind::Parameter, MOD_DECLARATION)
-            } else if is_number_literal(word, ctx.numbers) {
-                (TokenKind::Number, 0)
-            } else {
-                (TokenKind::String, 0)
-            };
-            if first && !is_plain_var_name(word) {
-                // Not a plain name — leave it (and the rest) to the default.
-            } else {
-                push_span_entries(source, line_index, word_abs, word, kind, mods, entries);
-            }
-            first = false;
-        }
-        if el.next <= scan {
-            break;
-        }
-        scan = el.next;
-    }
-}
-
-/// The lexical context a command head is classified in: the enclosing
-/// definition-body grammar and scoped command environment (both `None` at top
-/// level).  Bundled so [`emit_command_head`] keeps a small signature.
-#[derive(Clone, Copy)]
-struct HeadContext {
-    oo_grammar: Option<&'static DefinitionBodyGrammar>,
-    scoped_env: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
-}
-
-/// The command head being classified: its token, the source text, and the
-/// head's *effective command identity* — the registry name the spelling really
-/// resolves to at this point in the document (an imported bare name resolves
-/// to its qualified spec; a static `interp alias` / `rename` resolves to its
-/// target; a shadowed built-in resolves to nothing).  Bundled so
-/// [`emit_command_head`] keeps a small signature.
-#[derive(Clone, Copy)]
-struct CommandHead<'a> {
-    tok: Token,
-    text: &'a str,
-    /// The registry name to resolve grammar against — empty when the head was
-    /// rebound (see [`tcl_compiler::realm::RealmBinding::spec_name`]).
-    resolved: &'a str,
-    /// Whether the head's registry binding was provably taken over by a
-    /// `rename` / alias / shadowing `proc`.
-    rebound: bool,
-}
-
-fn emit_command_head(
-    line_index: &LineIndex,
-    full_source: &str,
-    head: CommandHead<'_>,
-    head_ctx: HeadContext,
-    registry: &CommandRegistry,
-    entries: &mut Vec<Entry>,
-) {
-    let CommandHead {
-        tok: head_tok,
-        text: head_text,
-        resolved: resolved_head,
-        rebound,
-    } = head;
-    let HeadContext {
-        oo_grammar,
-        scoped_env,
-    } = head_ctx;
-    // A member sub-keyword of the enclosing definition body (`method`,
-    // `typemethod`, `constructor`, …) is a keyword — context-sensitively, so a
-    // same-named user proc outside a definition body is unaffected.  This
-    // covers the snit-specific members (`typemethod`, `typeconstructor`,
-    // `onconfigure`, …) that [`is_language_keyword_sub_keyword`] does not cover.
-    if !head_text.contains("::")
-        && oo_grammar.is_some_and(|g| crate::oo_body::is_member(g, head_text))
-    {
-        push_token(
-            line_index,
-            full_source,
-            head_tok,
-            TokenKind::Keyword,
-            0,
-            entries,
-        );
-        return;
-    }
-    // A command of the enclosing scoped environment (`top`, `data`, `columns`
-    // inside a `report::defstyle` style script) highlights as a library
-    // function — context-sensitively, so a same-named command outside the scope
-    // is unaffected.  Registry data drives it (no command name here).
-    if !head_text.contains("::") && scoped_env.is_some_and(|e| e.is_command(head_text)) {
-        push_token(
-            line_index,
-            full_source,
-            head_tok,
-            TokenKind::Function,
-            MOD_DEFAULT_LIBRARY,
-            entries,
-        );
-        return;
-    }
-    let full_kind = classify_command_head(head, registry);
-    // Split any `…::name` head (namespace-qualified command or keyword) into a
-    // namespace prefix + final-segment command token.
-    if head_text.contains("::")
-        && let Some(idx) = head_text.rfind("::")
-    {
-        // Byte length of the `…::` prefix (head_text bytes == span bytes).
-        let prefix_len = u32::try_from(idx + 2).unwrap_or(0);
-        let start = head_tok.span.start();
-        // Namespace prefix token.  It carries `defaultLibrary` when the command
-        // it qualifies is a registry built-in (`tcl::mathop::+`, `tcl::tm::path`)
-        // — the prefix is as much part of the built-in's name as the tail, which
-        // already gets the modifier below, and a theme that dims stdlib names was
-        // otherwise dim only half of one.
-        // Resolved, not written: a `rename`d-away built-in must lose the
-        // modifier and a proven alias of one must gain it.
-        let builtin_mods = if registry.get(resolved_head).is_some() {
-            MOD_DEFAULT_LIBRARY
-        } else {
-            0
-        };
-        push_token(
-            line_index,
-            full_source,
-            Token {
-                span: tcl_lexer::Span::new(start, start + prefix_len),
-                ..head_tok
-            },
-            TokenKind::Namespace,
-            builtin_mods,
-            entries,
-        );
-        // Final-segment command token: keyword when the full name is a
-        // language keyword (TclOO `oo::class` etc.), else function;
-        // `defaultLibrary` when the full name is a registry built-in.
-        let tail = &head_text[idx + 2..];
-        let is_keyword = !rebound
-            && (registry.get(resolved_head).is_some_and(|s| {
-                s.traits
-                    .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
-            }) || is_language_keyword_sub_keyword(tail));
-        let kind = if is_keyword {
-            TokenKind::Keyword
-        } else {
-            TokenKind::Function
-        };
-        let mods = if kind == TokenKind::Function && registry.get(resolved_head).is_some() {
-            MOD_DEFAULT_LIBRARY
-        } else {
-            0
-        };
-        push_token(
-            line_index,
-            full_source,
-            Token {
-                span: tcl_lexer::Span::new(start + prefix_len, head_tok.span.end()),
-                ..head_tok
-            },
-            kind,
-            mods,
-            entries,
-        );
-        return;
-    }
-    // Use the resolved head for the built-in lookup: a bare name imported from
-    // an exported namespace (`namespace import tcltest::*` → `test`) resolves
-    // to its qualified registry spec, so it carries `defaultLibrary` too.
-    let mods = if full_kind == TokenKind::Function && registry.get(resolved_head).is_some() {
-        MOD_DEFAULT_LIBRARY
-    } else {
-        0
-    };
-    push_token(line_index, full_source, head_tok, full_kind, mods, entries);
 }
 
 /// The head's *effective command identity*, resolved once so every
@@ -4910,28 +3334,20 @@ fn realm_head_binding_of<'a>(
 fn emit_static_command_head(
     ctx: ScriptCtx<'_>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    identity: tcl_compiler::realm::RealmBinding<'_>,
     entries: &mut Vec<Entry>,
 ) {
     let Some(&head_tok) = seg.argv.first() else {
         return;
     };
-    emit_command_head(
-        ctx.line_index,
-        ctx.full_source,
-        CommandHead {
-            tok: head_tok,
-            text: &seg.texts[0],
-            resolved: identity.spec_name(),
-            rebound: identity.is_rebound(),
-        },
-        HeadContext {
-            oo_grammar: ctx.oo_grammar,
-            scoped_env: ctx.scoped_env,
-        },
-        ctx.registry,
-        entries,
-    );
+    let kind = if ctx.original_roles.is_class_head(head_tok.span.start()) {
+        TokenKind::Class
+    } else if original::definition_member_head(ctx, seg) {
+        TokenKind::Keyword
+    } else {
+        TokenKind::Function
+    };
+    // A missing source schema carries no built-in or namespace-name authority.
+    push_token(ctx.line_index, ctx.full_source, head_tok, kind, 0, entries);
 }
 
 /// Segment `text` (anchored at absolute byte `base_offset` within
@@ -4945,8 +3361,7 @@ fn emit_static_command_head(
 /// content of a `[…]` substitution whose own enclosing argument slot (in the
 /// command containing it) carries `Body` / `LambdaLiteral` / `CommandPrefix`
 /// — i.e. a position whose value is later invoked or sourced, not merely
-/// computed. It gates [`insert_lambda_literal_overrides`]'s list-quoted-lambda
-/// recognition and is otherwise `false`: every other recursion (the top-level
+/// computed. It gates the original produced-prefix projection and is otherwise `false`: every other recursion (the top-level
 /// script, a body, a lambda body, a case-list clause, an expression) processes
 /// source that is *itself* executed code, not a value that might or might not
 /// be invoked later, so list-quoted detection inside it is decided fresh at the
@@ -4964,11 +3379,20 @@ fn collect_script(
     }
     let full_source = ctx.full_source;
     let registry = ctx.registry;
-    for seg in segment_commands_with_offset_and_config(
-        text,
-        base_offset,
-        tcl_lexer::LexerConfig::for_file_grammar(ctx.dialect.grammar).at_depth(depth),
-    ) {
+    let definition_members = (!ctx.lexical)
+        .then(|| {
+            let parent = ctx.original_definition_parent?;
+            let end = base_offset.checked_add(u32::try_from(text.len()).ok()?)?;
+            parent.definition_member_region(ctx.generation, Span::new(base_offset, end))
+        })
+        .flatten();
+    let ctx = ScriptCtx {
+        original_definition_members: definition_members.as_ref(),
+        ..ctx
+    };
+    for seg in
+        segment_commands_with_offset_and_config(text, base_offset, ctx.config.at_depth(depth))
+    {
         if seg.argv.is_empty() {
             continue;
         }
@@ -4976,11 +3400,68 @@ fn collect_script(
         // built-in carries the `defaultLibrary` modifier.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
-        let identity = realm_head_binding_of(ctx, head_text, head_tok);
-        let resolved_head: &str = identity.spec_name();
-        let computed_head = head_is_computed(&seg);
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        // Source descriptors retain their independently selected domain. Logical
+        // advice uses the same original word/context owner as other source roles.
+        let original = ctx.analysis.and_then(|analysis| {
+            crate::original_invocation::source_registry_words(full_source, analysis, &seg)
+        });
+        let identity = if ctx.lexical {
+            realm_head_binding_of(ctx, head_text, head_tok)
+        } else {
+            tcl_compiler::realm::RealmBinding::Rebound
+        };
+        let resolved_head: &str = if ctx.lexical {
+            identity.spec_name()
+        } else {
+            original.as_ref().map_or("", |words| words.command.as_str())
+        };
+        let member_head = (!ctx.lexical)
+            .then(|| original::definition_member_head_word(ctx, &seg))
+            .flatten()
+            .and_then(|word| Some((word, word.content_span().ok()?)));
+        // A complete original member word can prove static spelling even when
+        // its physical escape tokens form several lexical fragments.
+        let computed_head = member_head.is_none()
+            && head_is_computed(&seg)
+            && !original
+                .as_ref()
+                .is_some_and(|words| original::original_logical_head(ctx, words).is_some());
+        let static_head_extent = member_head.map_or(head_tok.span, |(word, _)| word.word_span());
         if !computed_head {
-            emit_static_command_head(ctx, &seg, identity, entries);
+            if ctx.lexical && original.is_none() {
+                emit_static_command_head(ctx, &seg, entries);
+            } else if let Some((_, span)) = member_head {
+                push_token(
+                    ctx.line_index,
+                    full_source,
+                    Token { span, ..head_tok },
+                    TokenKind::Keyword,
+                    0,
+                    entries,
+                );
+            } else if ctx.original_roles.is_class_head(head_tok.span.start()) {
+                push_token(
+                    ctx.line_index,
+                    full_source,
+                    head_tok,
+                    TokenKind::Class,
+                    0,
+                    entries,
+                );
+            } else if let Some(words) = &original {
+                original::registry_head(ctx, &seg, words, entries);
+            } else {
+                push_token(
+                    ctx.line_index,
+                    full_source,
+                    head_tok,
+                    TokenKind::Function,
+                    0,
+                    entries,
+                );
+            }
         }
 
         // The command's argument words (head excluded), borrowed once as
@@ -4990,81 +3471,113 @@ fn collect_script(
         // hot path to a single bridging allocation per command.
         let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
 
-        let mut overrides = special_arg_kinds(
-            full_source,
-            &seg,
-            registry,
-            resolved_head,
-            ctx.oo_grammar,
-            ctx.scoped_env,
-            &arg_texts,
-            ctx.object_classes,
-            ctx.object_collections,
-            ctx.classes,
-            ctx.analysis
-                .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
-            Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
-            ctx.extra_var_write,
-            ctx.extra_var_read,
-            ctx.extra_command,
-            ctx.irules_top_level_declaration_heads
-                .contains(&seg.argv[0].span.start()),
-            deferred_role,
-        );
-        // A `[list HEAD …]` sitting in a deferred (script) slot *is* the
-        // command `HEAD …` — Tk's own `uplevel #0 [list upvar #0
-        // ::tk::Priv.$disp ::tk::Priv]`.  Overlay the overrides that command
-        // would get written literally, so its declarations highlight  `deferred_role` is what keeps inert data
-        // (`set x [list upvar 1 a b]`) out: `list` itself invokes nothing.
-        merge_list_quoted_command_overrides(&seg, ctx, registry, deferred_role, &mut overrides);
+        let member_bodies = (!ctx.lexical)
+            .then(|| original::definition_member_bodies(ctx, &seg))
+            .flatten();
+        let original_bodies = original
+            .as_ref()
+            .map_or_else(Vec::new, |words| words.source_script_bodies(ctx.generation));
+        let mut overrides = original.as_ref().map_or_else(FxHashMap::default, |words| {
+            original::registry_overrides(ctx, &seg, words)
+        });
+        for body in member_bodies.iter().flatten() {
+            if let [token] = body.original_container().tokens() {
+                overrides.insert(token.span.start(), ArgOverride::BodyScript);
+            }
+        }
+        if ctx.lexical {
+            insert_lexical_user_overrides(ctx, &seg, resolved_head, &arg_texts, &mut overrides);
+        }
+        let declared = ctx.analysis.and_then(|analysis| {
+            tcl_compiler::registry_invocation::source_structure::source_declared_command_words(
+                full_source,
+                analysis,
+                &seg,
+            )
+        });
+        if let Some(declared) = &declared {
+            overrides.extend(original::declared_overrides(&seg, declared));
+        }
+        let procedure_role_extents = insert_original_proc_role_overrides(ctx, &seg, &mut overrides);
+        // A deferred operand may retain the exact future source words of a
+        // selected original list builder. The shared receipt owns both parent
+        // and builder schemas; inert data has no deferred parent purpose.
+        let produced = deferred_role
+            .then(|| {
+                let analysis = ctx.analysis?;
+                crate::original_invocation::source_produced_command_prefix_words(
+                    full_source,
+                    analysis,
+                    &seg,
+                )
+            })
+            .flatten();
+        if let Some(produced) = &produced {
+            merge_list_quoted_command_overrides(&seg, ctx, produced, &mut overrides);
+        }
         // `my method …` inside a class body resolves against the enclosing
         // class's MRO (the most common `TclOO` dispatch form).
-        insert_self_method_overrides(
-            &seg,
-            ctx.classes,
-            registry,
-            ctx.enclosing_class,
-            &mut overrides,
-        );
+        if !ctx.original_roles.has_head(head_tok.span.start()) {
+            insert_self_method_overrides(
+                &seg,
+                ctx.classes,
+                registry,
+                ctx.enclosing_class,
+                &mut overrides,
+            );
+        }
+        ctx.original_roles
+            .insert_overrides(ctx, &seg, &mut overrides);
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.
-        mark_regex_source_words(&seg, ctx.regex_sources, &mut overrides);
+        if ctx.lexical {
+            mark_regex_source_words(&seg, ctx.regex_sources, &mut overrides);
+        }
 
-        // The definition-body grammar the recursion into THIS command's body
-        // arguments should carry: an outer definer body switches to its
-        // grammar, a member body (inside a definition body) switches off,
-        // everything else inherits.  `oo::define`/`oo::objdefine` only switch
-        // on for their bare script form, not their member (`method …`) forms —
-        // hence the args are consulted.  Command substitutions and expressions
-        // always run in ordinary (non-definition) context (see `plain_ctx`).
-        // The outer-definer lookup reads the *resolved* head; the member
-        // sub-keyword test reads the written one.
-        let head_words = crate::oo_body::HeadWords {
-            written: head_text,
-            resolved: resolved_head,
+        // Logical compatibility selects its own reported-string grammar. Native
+        // source bodies instead carry a genuine parent per original operand,
+        // through the shared source-body owner below.
+        let outer_grammar = original.as_ref().and_then(|words| {
+            words
+                .with_source_schema(ctx.generation, |schema| {
+                    schema.authored_source_definition_body_grammar()
+                })
+                .flatten()
+        });
+        let next_oo = if ctx.lexical {
+            next_original_definition_grammar(ctx, head_text, &arg_texts, outer_grammar)
+        } else {
+            None
         };
-        let next_oo = crate::oo_body::next_definition_grammar(
-            head_words,
-            &arg_texts,
-            ctx.oo_grammar,
-            registry,
-        );
         // The class whose body the recursion enters: a `oo::class create NAME`
         // (and the property-/instantiation-metaclasses) names it at argv[2], an
         // `oo::define NAME { … }` at argv[1].  Slice it from the source so it
         // outlives the walk; otherwise inherit the enclosing class (so a
         // `method …` body keeps its class).  Lets `my method …` in the body
         // resolve against that class.
-        let next_class =
-            definer_class_name(head_text, &seg, full_source, registry).or(ctx.enclosing_class);
+        let next_class = if ctx.lexical {
+            original
+                .as_ref()
+                .and_then(|words| original::definition_class_name(ctx, &seg, words))
+                .or(ctx.enclosing_class)
+        } else {
+            None
+        };
         // The scoped command environment the recursion into THIS command's body
         // should carry: a command whose spec declares a `body_scope` switches it
         // on (`report::defstyle`'s style script); otherwise it persists so the
         // scoped commands stay resolvable inside nested control-flow bodies and
         // `[…]` substitutions within the style script.
-        let next_scoped = registry
-            .get(resolved_head)
-            .and_then(|s| s.body_scope)
+        let next_scoped = ctx
+            .analysis
+            .and_then(|analysis| {
+                analysis.original_scoped_body_in_source(
+                    &tcl_lexer::SourceImage::document(full_source),
+                    ctx.config,
+                    seg.span.start(),
+                )
+            })
+            .map(|body| body.environment())
             .or(ctx.scoped_env);
         let body_ctx = ScriptCtx {
             oo_grammar: next_oo,
@@ -5073,30 +3586,99 @@ fn collect_script(
             ..ctx
         };
 
-        let deferred_role_starts =
-            deferred_role_arg_starts(&seg, registry, resolved_head, &arg_texts);
+        let mut deferred_role_starts = deferred_role_arg_starts(original.as_ref());
+        if let Some(declared) = &declared {
+            deferred_role_starts.extend(
+                declared
+                    .supplied_argument_roles()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|(_, role)| {
+                        matches!(
+                            role,
+                            tcl_registry::ArgRole::Body
+                                | tcl_registry::ArgRole::CommandPrefix
+                                | tcl_registry::ArgRole::LambdaLiteral
+                        )
+                    })
+                    .filter_map(|(ordinal, _)| {
+                        declared
+                            .argument_word(ordinal)?
+                            .tokens()
+                            .first()
+                            .map(|token| token.span.start())
+                    }),
+            );
+        }
 
+        let mut expanded_roles = original
+            .as_ref()
+            .map_or_else(Vec::new, |words| original::expanded_role_extents(words));
+        expanded_roles.extend(procedure_role_extents);
         for tok in &seg.all_tokens {
+            if original::emit_expanded_role_extents(ctx, *tok, &expanded_roles, entries) {
+                continue;
+            }
             // Skip every token that falls inside a *static* head word — not
             // just the exact head token.  Such a head is one word that
-            // `emit_command_head` already emitted as a single command token;
+            // `emit_static_command_head` already emitted as a single command token;
             // its sub-fragments (`ns::`, `cmd` for a `ns::cmd` head) also
             // appear in `all_tokens`, and emitting those would overlap the head
             // token (invalid — LSP clients reject overlapping semantic tokens).
             //
             // A *computed* head is deliberately NOT emitted by
-            // `emit_command_head` (see above), so its tokens must flow through
+            // `emit_static_command_head` (see above), so its tokens must flow through
             // the argument path here: the `[…]` head token recurses into its
             // inner script and the `$var` head token reads as a variable.
             if !computed_head
-                && tok.span.start() >= head_tok.span.start()
-                && tok.span.end() <= head_tok.span.end()
+                && tok.span.start() >= static_head_extent.start()
+                && tok.span.end() <= static_head_extent.end()
             {
                 continue;
             }
+            let token_ctx = ScriptCtx {
+                operand: produced
+                    .as_ref()
+                    .or(original.as_ref())
+                    .and_then(|words| {
+                        words
+                            .operands
+                            .iter()
+                            .filter_map(Option::as_ref)
+                            .find(|operand| operand.span == tok.span)
+                    })
+                    .or_else(|| ctx.original_roles.operand_at(tok.span)),
+                original_words: produced.as_ref().or(original.as_ref()),
+                declared_words: declared.as_ref(),
+                ..ctx
+            };
+            let definition_parent = if ctx.lexical {
+                None
+            } else if let Some(member_body) = member_bodies.iter().flatten().find(|body| {
+                body.original_container()
+                    .tokens()
+                    .iter()
+                    .any(|part| part.span == tok.span)
+            }) {
+                member_body.definition_parent().cloned()
+            } else if let Some(body) = original_bodies.iter().find(|body| {
+                body.original_container()
+                    .tokens()
+                    .iter()
+                    .any(|part| part.span == tok.span)
+            }) {
+                body.definition_parent_for(ctx.generation, ctx.original_definition_parent)
+            } else {
+                None
+            };
+            let token_body_ctx = ScriptCtx {
+                original_definition_parent: definition_parent.as_ref(),
+                original_definition_members: None,
+                ..body_ctx
+            };
             emit_arg_token(
-                ctx,
-                body_ctx,
+                token_ctx,
+                token_body_ctx,
                 *tok,
                 overrides.get(&tok.span.start()),
                 deferred_role_starts.contains(&tok.span.start()),
@@ -5107,68 +3689,216 @@ fn collect_script(
     }
 }
 
-/// Overlay the overrides a `[list HEAD word …]` build would get if the
-/// command it packs had been written literally.
-///
-/// `seg` is the substitution's *own* segmented content (`list upvar #0 A B`),
-/// which the walker reached by recursing into the `[…]`. When its enclosing
-/// slot is a deferred one ([`deferred_role_arg_starts`]) and the build is a
-/// literal one ([`tcl_compiler::script_arg::list_build_effective_command`]),
-/// the effective command `upvar #0 A B` is run through the same override
-/// builder and its results merged.  Every word keeps its real span, so an
-/// overlaid override lands on the user's own text.
-///
-/// First-writer-wins (`or_insert`), matching the rest of the map: an override
-/// the `list` view already claimed for a span is never displaced.
-///
-/// This is the highlighting half of the list-quoted-command rule — the
-/// analyser's half is [`tcl_compiler::analyser`]'s body gate, and both ask the
-/// *same* predicate so a shape that navigates cannot fail to highlight.
+/// User-procedure traits and entered OO source grammar are independent of
+/// builtin source descriptors. They cannot recover a refused builtin head.
+fn insert_lexical_user_overrides(
+    ctx: ScriptCtx<'_>,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    head: &str,
+    arguments: &[&str],
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    // naming.core.original-inlay-retained-context
+    // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+    insert_object_method_overrides(
+        command,
+        ctx.registry,
+        ctx.object_classes,
+        ctx.object_collections,
+        if ctx.original_roles.has_head(command.argv[0].span.start()) {
+            None
+        } else {
+            ctx.classes
+        },
+        ctx.analysis
+            .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
+        Some(ctx.context.authoring_query()),
+        overrides,
+    );
+    insert_oo_body_overrides(
+        command,
+        ctx.oo_grammar,
+        arguments,
+        Some(ctx.context.authoring_query()),
+        overrides,
+    );
+    let Some(procedure_roles) = ctx.proc_roles else {
+        return;
+    };
+    for (roles, kind) in [
+        (&procedure_roles.write, ArgOverride::VarDecl),
+        (&procedure_roles.read, ArgOverride::VarRef),
+    ] {
+        if let Some(indices) = roles.get(head) {
+            for &index in indices {
+                retag_variable_argument(command, index as usize, kind, overrides);
+            }
+        }
+    }
+    if let Some(indices) = procedure_roles.command.get(head) {
+        for &index in indices {
+            retag_command_argument(command, index as usize, overrides);
+        }
+    }
+}
+
+/// Retain only the actual selected outer source grammar and the independent
+/// enclosing member vocabulary. Member bodies leave definition context;
+/// the descriptor's wrapper-block form keeps the enclosing vocabulary.
+fn next_original_definition_grammar(
+    ctx: ScriptCtx<'_>,
+    head: &str,
+    arguments: &[&str],
+    outer: Option<&'static DefinitionBodyGrammar>,
+) -> Option<&'static DefinitionBodyGrammar> {
+    if let Some(grammar) = ctx
+        .oo_grammar
+        .and_then(|current| ctx.registry.authored_document_member_grammar(current, head))
+    {
+        return Some(grammar);
+    }
+    if outer.is_some() {
+        return outer;
+    }
+    if let Some(grammar) = ctx.oo_grammar
+        && let Some(member) = grammar.member(head)
+    {
+        return (member.wrapper_block_body
+            && arguments
+                .first()
+                .is_some_and(|inner| !grammar.is_member(inner)))
+        .then_some(grammar);
+    }
+    ctx.oo_grammar
+}
+
+fn insert_original_proc_role_overrides(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) -> Vec<(tcl_lexer::Span, TokenKind, u32)> {
+    use tcl_syntax::formal_params::FormalByteArgumentBinding;
+    let Some(analysis) = ctx.analysis.filter(|_| !ctx.lexical) else {
+        return Vec::new();
+    };
+    let Some(prototype) =
+        tcl_compiler::registry_invocation::source_structure::original_procedure_arguments(
+            ctx.full_source,
+            analysis,
+            seg,
+        )
+    else {
+        return Vec::new();
+    };
+    let declaration = prototype.declaration();
+    let roles = ctx
+        .proc_roles
+        .and_then(|index| {
+            index.original_roles_at(analysis, ctx.full_source, seg.argv.first()?.span.start())
+        })
+        .filter(|roles| {
+            roles.site.as_ref() == Some(declaration.declaration_site())
+                && roles.name == *declaration.name()
+        })
+        .unwrap_or_else(|| {
+            OriginalProcArgRoles::new(
+                declaration.name(),
+                Some(declaration.declaration_site()),
+                declaration.metadata(),
+            )
+        });
+    let mut extents = Vec::new();
+    for (parameters, kind, modifier, override_kind) in [
+        (
+            &roles.write,
+            TokenKind::Variable,
+            MOD_DECLARATION,
+            ArgOverride::VarDecl,
+        ),
+        (&roles.read, TokenKind::Variable, 0, ArgOverride::VarRef),
+        (
+            &roles.command,
+            TokenKind::Function,
+            0,
+            ArgOverride::CommandRef,
+        ),
+    ] {
+        for binding in prototype.bindings() {
+            let (parameter, argument) = match binding {
+                FormalByteArgumentBinding::Value {
+                    parameter,
+                    argument,
+                }
+                | FormalByteArgumentBinding::CallerLink {
+                    parameter,
+                    argument,
+                    ..
+                } => (*parameter, *argument),
+                FormalByteArgumentBinding::Default { .. }
+                | FormalByteArgumentBinding::Rest { .. } => continue,
+            };
+            if !u32::try_from(parameter)
+                .ok()
+                .is_some_and(|index| parameters.contains(&index))
+            {
+                continue;
+            }
+            let Some(operand) = prototype.operands().get(argument).and_then(Option::as_ref) else {
+                continue;
+            };
+            let Some(input) = operand.input() else {
+                continue;
+            };
+            if prototype
+                .arguments()
+                .get(argument)
+                .and_then(|value| value.literal_bytes())
+                != Some(input.bytes())
+            {
+                continue;
+            }
+            if let Some(word) = operand.word() {
+                if word
+                    .tokens()
+                    .iter()
+                    .any(|token| matches!(token.kind, TokenType::Cmd | TokenType::Var))
+                {
+                    continue;
+                }
+                let Some(token) = seg.argv.iter().find(|token| token.span == operand.span()) else {
+                    continue;
+                };
+                if matches!(token.kind, TokenType::Esc | TokenType::Str) {
+                    overrides.entry(token.span.start()).or_insert(override_kind);
+                }
+            } else {
+                extents.push((operand.span(), kind, modifier));
+            }
+        }
+    }
+    extents
+}
+
+/// Project the shared original produced prefix onto its own written operands.
+/// Captured values have no current anchor; the builder head stays its own call.
 fn merge_list_quoted_command_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     ctx: ScriptCtx<'_>,
-    registry: &CommandRegistry,
-    deferred_role: bool,
+    produced: &crate::original_invocation::OriginalRegistryWords,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    if !deferred_role {
-        return;
-    }
-    let Some(built) = tcl_compiler::script_arg::list_build_effective_command(registry, seg) else {
-        return;
-    };
-    let built_args: Vec<&str> = built.texts[1..].iter().map(String::as_str).collect();
-    let built_head = built.texts[0].as_str();
-    let overlay = special_arg_kinds(
-        ctx.full_source,
-        &built,
-        registry,
-        built_head,
-        // A built command runs as ordinary code, never as a definition-body
-        // member — `[list method foo {} {}]` is not an `oo::define` member
-        // word, so the enclosing grammar must not be applied to it.
-        None,
-        ctx.scoped_env,
-        &built_args,
-        ctx.object_classes,
-        ctx.object_collections,
-        ctx.classes,
-        ctx.analysis
-            .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
-        Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
-        ctx.extra_var_write,
-        ctx.extra_var_read,
-        ctx.extra_command,
-        // A command merely built by `[list ...]` is not a source-level iRules
-        // declaration, even when the surrounding `list` command is at the
-        // file boundary.
-        false,
-        // The built command is the invocation itself; nothing further defers
-        // it, so its own arguments are decided fresh at the next `[…]` hop.
-        false,
-    );
+    // naming.source.original-produced-command-prefix
+    // docs/design/analysis/name-resolution-proofs/original-produced-command-prefix.md
+    let overlay = original::registry_overrides(ctx, seg, produced);
     for (span_start, override_kind) in overlay {
         overrides.entry(span_start).or_insert(override_kind);
+    }
+    if let Some(head) = produced.head_source().and_then(|head| head.word())
+        && let Some(token) = head.tokens().first()
+    {
+        overrides
+            .entry(token.span.start())
+            .or_insert(ArgOverride::CommandRef);
     }
 }
 
@@ -5177,25 +3907,37 @@ fn merge_list_quoted_command_overrides(
 /// `CommandPrefix` — as the set of their representative tokens' start
 /// offsets. A `[…]` substitution occupying one of these slots recurses with
 /// `deferred_role = true` (see [`collect_script`]) so list-quoted-lambda
-/// detection ([`insert_lambda_literal_overrides`]) only fires for a
+/// source projection only fires for a
 /// genuinely deferred invocation (`package ifneeded … [list apply {…}
 /// $dir]`), never for inert data (`set x [list apply {…} value]`).
 fn deferred_role_arg_starts(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    head: &str,
-    arg_texts: &[&str],
+    words: Option<&crate::original_invocation::OriginalRegistryWords>,
 ) -> FxHashSet<u32> {
-    [
-        tcl_registry::ArgRole::Body,
-        tcl_registry::ArgRole::LambdaLiteral,
-        tcl_registry::ArgRole::CommandPrefix,
-    ]
-    .into_iter()
-    .flat_map(|role| registry.arg_indices_for_role(head, arg_texts, role))
-    .filter_map(|i| seg.argv.get(i + 1))
-    .map(|t| t.span.start())
-    .collect()
+    words
+        .into_iter()
+        .flat_map(|words| {
+            words
+                .roles
+                .as_deref()
+                .unwrap_or(&[])
+                .iter()
+                .filter(|(_, role)| {
+                    matches!(
+                        role,
+                        tcl_registry::ArgRole::Body
+                            | tcl_registry::ArgRole::CommandPrefix
+                            | tcl_registry::ArgRole::LambdaLiteral
+                    )
+                })
+                .filter_map(|(ordinal, _)| {
+                    words
+                        .operands
+                        .get(*ordinal)?
+                        .as_ref()
+                        .map(|operand| operand.span.start())
+                })
+        })
+        .collect()
 }
 
 /// Emit semantic-token entries for a single non-head argument token,
@@ -5242,10 +3984,13 @@ fn emit_arg_token(
     let full_source = ctx.full_source;
     let line_index = ctx.line_index;
     let tok = &tok;
-    // Command substitutions / expressions never run in a definition-body
-    // context, whatever the enclosing command is.
+    // Logical compatibility clears its nominal member grammar here. Original
+    // substitutions retain only the genuine same-source vocabulary parent;
+    // a fresh region issuer checks their whole argv independently.
     let plain_ctx = ScriptCtx {
         oo_grammar: None,
+        original_definition_members: None,
+        declared_words: None,
         ..ctx
     };
     // Overrides that emit their token verbatim collapse to one path.
@@ -5399,7 +4144,13 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
         return;
     };
     let math = tcl_lexer::expr_math_functions();
-    for et in tcl_lexer::tokenise_expr(inner, Some(ctx.dialect.name)) {
+    let (tokens, _) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
+        inner,
+        &ctx.config.grammar_over(ctx.dialect.grammar),
+        ctx.dialect.expr_grammar_base,
+        ctx.dialect.f5_core_expr_grammar(),
+    );
+    for et in tokens {
         use tcl_lexer::ExprTokenType as E;
         let abs_start = cstart + et.start as usize;
         match et.kind {
@@ -5420,10 +4171,23 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
             E::Function if !et.text.is_empty() && !et.text.contains('\n') => {
                 let pos = line_index
                     .position_at_utf16(u32::try_from(abs_start).unwrap_or(0), full_source);
-                let mods = if math.contains(et.text.as_str()) {
-                    MOD_DEFAULT_LIBRARY
+                let mods = if ctx.lexical {
+                    u32::from(math.contains(et.text.as_str())) * MOD_DEFAULT_LIBRARY
                 } else {
-                    0
+                    ctx.analysis
+                        .and_then(|analysis| {
+                            crate::math_function_symbol::at(
+                                full_source,
+                                analysis,
+                                u32::try_from(abs_start).ok()?,
+                            )
+                        })
+                        .and_then(|function| {
+                            function
+                                .selected_registry_spec(ctx.registry)
+                                .map(|_| MOD_DEFAULT_LIBRARY)
+                        })
+                        .unwrap_or(0)
                 };
                 entries.push((
                     pos.line,
@@ -5984,32 +4748,49 @@ fn collect_entries(
         named_instances,
         analysis,
     } = facts;
+    let fresh_analysis;
+    let analysis = if let Some(analysis) = analysis {
+        analysis
+    } else {
+        let context = tcl_registry::model::context_for_profile(dialect);
+        let context =
+            std::sync::Arc::new(context.with_command_store(registry.snapshot().shared_registry()));
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            dialect,
+            dialect,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
+        );
+        fresh_analysis = tcl_compiler::analyser::Analyser::new()
+            .structure_only()
+            .with_resolved_input(input)
+            .analyse(source, dialect.name);
+        &fresh_analysis
+    };
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+        return Vec::new();
+    }
+    let Some(registry) = analysis.resolved_registry() else {
+        return Vec::new();
+    };
+    let Some(dialect) = analysis.resolved_profile() else {
+        return Vec::new();
+    };
+    let Some(generation) = analysis
+        .resolved_input
+        .as_ref()
+        .map(|input| input.context_registry())
+    else {
+        return Vec::new();
+    };
+    let lexical = analysis.allows_lexical_declaration_advice();
+    let analysis = Some(analysis);
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
     let profile = dialect;
-
-    // Extra variable-name argument positions the static registry doesn't model,
-    // split by direction (written → `Variable` declaration, read → plain
-    // `Variable`): source-derived `# tcl-lsp: stub … :var` / `:var_read` roles
-    // (every path) unioned with the analyser's inferred user-proc roles
-    // (`proc_roles`, when the caller supplied an analysis / project index).
-    // Empty (and lookup-free) when neither source contributes.
-    let mut extra_var_write: FxHashMap<String, Vec<u32>> = FxHashMap::default();
-    let mut extra_var_read: FxHashMap<String, Vec<u32>> = FxHashMap::default();
-    let mut extra_command: FxHashMap<String, Vec<u32>> = FxHashMap::default();
-    add_stub_var_roles(
-        source,
-        &mut extra_var_write,
-        &mut extra_var_read,
-        &mut extra_command,
-    );
-    if let Some(roles) = proc_roles {
-        roles.extend_into(
-            &mut extra_var_write,
-            &mut extra_var_read,
-            &mut extra_command,
-        );
-    }
 
     // Regex-source spans: the def-site literal words (`set my_re ".*"`) whose
     // variable flows into a `regexp`/`regsub` pattern, keyed by word start so
@@ -6027,13 +4808,18 @@ fn collect_entries(
     // `test` = `tcltest::test`), plus every statically proven `interp alias` /
     // `rename` / built-in-shadowing `proc`.  Empty (no lookups)
     // unless the document actually binds something.
-    let head_identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
+    let Some(head_identities) = analysis.and_then(AnalysisResult::retained_command_realm) else {
+        return Vec::new();
+    };
 
     // The iRules declaration overlay uses the shared top-level boundary facts
     // (including offset-resolved command identity) rather than this walk's
     // recursive depth as its placement predicate.
-    let irules_top_level_declaration_heads =
-        irules_top_level_declaration_heads(source, registry, &head_identities);
+    let irules_top_level_declaration_heads = if lexical {
+        irules_top_level_declaration_heads(source, registry, head_identities)
+    } else {
+        FxHashSet::default()
+    };
 
     // Object-handle → class provenance (`set chart [ticklecharts::chart new]`
     // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's
@@ -6043,18 +4829,8 @@ fn collect_entries(
         tcl_compiler::object_types::object_handle_classes(cu, registry)
     });
 
-    // A bareword instance command bound by a *user*-class `CLASS create
-    // NAME` — the object-type lattice above only tracks `set`
-    // assignments and registry naming factories, never a plain `CLASS create
-    // NAME` statement, so a named instance's class comes from the analyser's
-    // `instance_classes` instead, gated on `created_instance_commands`
-    // exactly like the LSP's `receiver_instance_class` (hover / definition /
-    // completion already resolve this shape; this closes the same gap for
-    // the semantic-token / W308 dispatch resolver).  Merged into the same
-    // name-keyed map a registry naming factory (`ttk::treeview .t`) already
-    // populates, so `insert_object_method_overrides`'s bareword branch needs
-    // no new code path — see `object_types::harvest_unit`'s `Statement::Call`
-    // arm doc, which this mirrors for user classes.
+    // Logical object classification shares this compatibility handle map.
+    // Native source roles never recover receiver identity from its labels.
     if let Some(named) = named_instances {
         for (name, class) in named {
             object_classes
@@ -6079,19 +4855,31 @@ fn collect_entries(
     // where the loop is nested in a command substitution and the IR never
     // surfaces it as a loop — and feeds the value variable(s) into the handle
     // map (the SpiceGenTcl `allNodes` / `actOnParam` shape).
-    augment_loop_var_handles(source, dialect, &object_collections, &mut object_classes);
+    if lexical {
+        augment_loop_var_handles(source, dialect, &object_collections, &mut object_classes);
+    }
 
     // snit object-handle bindings the compiler CFG doesn't surface — `install
     // NAME using TYPE` components and `set NAME [Type inst]` bare constructors —
     // via a source scan, since snit method bodies (where these live) are not
     // lowered into the CFG `object_handle_classes` reads.
-    augment_snit_handles(source, dialect, classes, &mut object_classes);
+    if lexical {
+        augment_snit_handles(source, dialect, classes, &mut object_classes);
+    }
 
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
+    let original_roles = original::OriginalTokenRoles::capture(source, analysis);
     let ctx = ScriptCtx {
         full_source: source,
         dialect,
+        config,
+        context: generation.context(),
+        generation: &generation,
+        operand: None,
+        original_words: None,
+        declared_words: None,
+        lexical,
         numbers: profile.grammar.numbers,
         registry,
         line_index: &line_index,
@@ -6099,18 +4887,23 @@ fn collect_entries(
         // says so: a `.sslictcl` document's legal top-level words are exactly
         // its document grammar's members, painted from membership like every
         // level below. An ordinary Tcl document has no such grammar.
-        oo_grammar: registry.document_grammar(),
+        oo_grammar: if lexical {
+            registry.document_grammar()
+        } else {
+            None
+        },
+        original_definition_parent: None,
+        original_definition_members: None,
         scoped_env: None,
         regex_sources: &regex_sources,
-        head_identities: &head_identities,
+        head_identities,
         object_classes: &object_classes,
         object_collections: &object_collections,
         classes,
         analysis,
+        original_roles: &original_roles,
+        proc_roles,
         enclosing_class: None,
-        extra_var_write: &extra_var_write,
-        extra_var_read: &extra_var_read,
-        extra_command: &extra_command,
         irules_top_level_declaration_heads: &irules_top_level_declaration_heads,
     };
     collect_script(ctx, source, 0, &mut entries, 0, false);
@@ -6126,7 +4919,7 @@ fn collect_entries(
     // single-line body's enclosing `string` token) so the token stream
     // never carries overlaps.  Multi-line bodies aren't tokenised by the
     // main walk, so refs inside them surface cleanly.
-    if profile.is_irules() {
+    if lexical && profile.is_irules() {
         for span in crate::irules_object_refs::object_ref_spans(source, registry) {
             push_object_token(source, &line_index, span, &mut entries);
         }
@@ -6941,28 +5734,6 @@ mod tests {
     }
 
     #[test]
-    fn resolve_option_prefix_resolves_and_rejects() {
-        let names = ["-increasing", "-index", "-nocase", "-real"];
-        let prefix = tcl_registry::abbrev::PrefixMatching::Enabled;
-        assert_eq!(
-            resolve_option_prefix("-nocase", &names, prefix),
-            Some("-nocase")
-        ); // exact
-        assert_eq!(
-            resolve_option_prefix("-noc", &names, prefix),
-            Some("-nocase")
-        ); // unique prefix
-        assert_eq!(resolve_option_prefix("-r", &names, prefix), Some("-real")); // unique prefix
-        assert_eq!(resolve_option_prefix("-in", &names, prefix), None); // ambiguous
-        assert_eq!(resolve_option_prefix("-", &names, prefix), None); // bare dash
-        assert_eq!(resolve_option_prefix("-zzz", &names, prefix), None); // unknown
-        assert_eq!(
-            resolve_option_prefix("-noc", &names, tcl_registry::abbrev::PrefixMatching::Strict,),
-            None
-        );
-    }
-
-    #[test]
     fn subcommand_option_classified_as_decorator() {
         // `file delete -force filename`.  `-force`
         // is declared on the `delete` *subcommand* (not on `file` itself), so
@@ -7595,6 +6366,8 @@ mod tests {
 
     #[test]
     fn stub_var_arg_highlights_array_element() {
+        // naming.source.original-declared-command-word-contract
+        // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
         // A `# tcl-lsp: stub` with a `:var` argument marks that position a
         // variable-name spot, so a literal array element passed there
         // highlights like `set arr(key) …` — even on the registry-only path,
@@ -7615,6 +6388,8 @@ mod tests {
 
     #[test]
     fn stub_var_read_arg_highlights_as_reference() {
+        // naming.source.original-declared-command-word-contract
+        // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
         // A `# tcl-lsp: stub … :var_read` argument marks a read-position
         // variable name, so a literal array element there highlights as a plain
         // `Variable` reference (no `declaration` modifier).
@@ -9114,7 +7889,7 @@ mod tests {
 
     /// Decode a `SemanticTokens` value directly into
     /// `(line, col, len, kind, mods)` tuples.
-    fn decode_semantic(st: &SemanticTokens) -> Vec<(u32, u32, u32, u32, u32)> {
+    pub(super) fn decode_semantic(st: &SemanticTokens) -> Vec<(u32, u32, u32, u32, u32)> {
         let mut line = 0u32;
         let mut col = 0u32;
         let mut out = Vec::new();
@@ -9315,6 +8090,8 @@ mod tests {
     /// Body-role position), not special-cased to `package ifneeded`.
     #[test]
     fn list_quoted_apply_lambda_body_recurses() {
+        // naming.source.original-produced-command-prefix
+        // docs/design/analysis/name-resolution-proofs/original-produced-command-prefix.md
         let registry = reg();
 
         // The exact reported repro: a pkgIndex.tcl-style entry.
@@ -9366,6 +8143,8 @@ mod tests {
     /// must never be split as if they were an apply lambda.
     #[test]
     fn list_quoted_apply_lambda_false_positive_guards() {
+        // naming.source.original-produced-command-prefix
+        // docs/design/analysis/name-resolution-proofs/original-produced-command-prefix.md
         let registry = reg();
 
         // Ordinary data list: `list`'s own args stay whatever the default
@@ -10492,54 +9271,36 @@ mod tests {
         assert_eq!(comments, 41, "expected one token per comment line");
     }
 
-    /// A `CommandHead` for a head with nothing bound about it — the written
-    /// spelling is its own identity.
-    fn plain_head(name: &str) -> CommandHead<'_> {
-        CommandHead {
-            tok: Token {
-                kind: TokenType::Esc,
-                span: tcl_lexer::Span::new(0, u32::try_from(name.len()).unwrap_or(0)),
-                content_offset: 0,
-                in_quote: false,
-            },
-            text: name,
-            resolved: name,
-            rebound: false,
-        }
-    }
-
     #[test]
     fn classify_command_head_picks_namespace_for_qualified() {
-        assert_eq!(
-            classify_command_head(plain_head("::myns::greet"), &reg()),
-            TokenKind::Namespace,
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let rows = decode_words("::string equal A a\nunknown arg", &reg());
+        assert!(
+            rows.iter()
+                .any(|(_, _, _, kind, text)| *kind == TokenKind::Namespace as u32 && text == "::")
         );
-        assert_eq!(
-            classify_command_head(plain_head("greet"), &reg()),
-            TokenKind::Function
-        );
-        assert_eq!(
-            classify_command_head(plain_head("if"), &reg()),
-            TokenKind::Keyword
+        assert!(
+            rows.iter()
+                .any(|(_, _, _, kind, text)| *kind == TokenKind::Function as u32
+                    && text == "unknown")
         );
     }
 
-    /// The keyword / operator tests key off the head's *effective identity*,
-    /// so a proven alias of a keyword is a keyword and a rebound head is not.
     #[test]
     fn classify_command_head_follows_the_effective_identity() {
-        let r = reg();
-        let aliased = CommandHead {
-            resolved: "foreach",
-            ..plain_head("myforeach")
-        };
-        assert_eq!(classify_command_head(aliased, &r), TokenKind::Keyword);
-        let rebound = CommandHead {
-            resolved: "",
-            rebound: true,
-            ..plain_head("foreach")
-        };
-        assert_eq!(classify_command_head(rebound, &r), TokenKind::Function);
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source =
+            "interp alias {} each {} foreach\neach v {} {}\nproc foreach args {}\nforeach v {} {}";
+        let rows = decode_words(source, &reg());
+        assert!(
+            rows.iter()
+                .any(|(_, _, _, kind, text)| *kind == TokenKind::Keyword as u32 && text == "each")
+        );
+        assert!(!rows.iter().any(|(line, _, _, kind, text)| *line == 3
+            && *kind == TokenKind::Keyword as u32
+            && text == "foreach"));
     }
 
     // range variant
@@ -11314,5 +10075,373 @@ mod tests {
         }
 
         assert!(failures.is_empty(), "{}", failures.join("\n  "));
+    }
+}
+
+#[cfg(test)]
+mod original_proc_role_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared() {
+        let source = "proc p\\uD800 {v} {upvar 1 $v local; set local 1}\nproc p\\uD801 {v} {upvar 1 $v local; set local}\np\\uD800 written\np\\uD801 read\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let roles = VarNameArgRoles::from_analysis(&analysis);
+        assert_eq!(roles.original.len(), 2);
+        analysis.all_procs.clear();
+        analysis.superseded_procs.clear();
+        let write_at = u32::try_from(source.rfind("p\\uD800 written").unwrap()).unwrap();
+        let read_at = u32::try_from(source.rfind("p\\uD801 read").unwrap()).unwrap();
+        let write = roles
+            .original_roles_at(&analysis, source, write_at)
+            .unwrap();
+        let read = roles.original_roles_at(&analysis, source, read_at).unwrap();
+        assert_eq!(write.write, [0]);
+        assert_eq!(read.read, [0]);
+        assert!(read.write.is_empty());
+        assert_ne!(write.name.slot(), read.name.slot());
+        assert!(
+            roles
+                .original_roles_at(&analysis, &format!("{source} "), write_at)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_role_lookup_requires_current_full_source_and_own_head_input() {
+        let source = "proc p {value} {return $value}; p ordinary";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let roles = VarNameArgRoles::from_analysis(&analysis);
+        let offset = u32::try_from(source.rfind("p ordinary").unwrap()).unwrap();
+        assert!(roles.original_roles_at(&analysis, source, offset).is_some());
+        assert!(
+            roles
+                .original_roles_at(&analysis, &format!("{source} "), offset)
+                .is_none()
+        );
+        let invocation = analysis
+            .command_invocations
+            .iter_mut()
+            .find(|invocation| invocation.range.start() == offset)
+            .unwrap();
+        let input = invocation.original_name_input.take();
+        assert!(roles.original_roles_at(&analysis, source, offset).is_none());
+        analysis
+            .command_invocations
+            .iter_mut()
+            .find(|invocation| invocation.range.start() == offset)
+            .unwrap()
+            .original_name_input = input;
+        analysis.body_lexer_config = None;
+        assert!(roles.original_roles_at(&analysis, source, offset).is_none());
+    }
+
+    #[test]
+    fn original_role_lookup_respects_namespace_shadow_and_ordinary_arguments() {
+        let source = "proc touch {v} {upvar 1 $v local; set local 1}\nnamespace eval N {proc touch {v} {return $v}; touch ordinary}\ntouch declared\nputs touch\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let roles = VarNameArgRoles::from_analysis(&analysis);
+        let local_at = u32::try_from(source.find("touch ordinary").unwrap()).unwrap();
+        let global_at = u32::try_from(source.find("touch declared").unwrap()).unwrap();
+        assert!(
+            roles
+                .original_roles_at(&analysis, source, local_at)
+                .unwrap()
+                .write
+                .is_empty()
+        );
+        assert_eq!(
+            roles
+                .original_roles_at(&analysis, source, global_at)
+                .unwrap()
+                .write,
+            [0]
+        );
+        let data_at = u32::try_from(source.rfind("touch").unwrap()).unwrap();
+        assert!(
+            roles
+                .original_roles_at(&analysis, source, data_at)
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_procedure_topology_colour_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_procedure_colours_map_formal_roles_to_their_actual_expansion_children() {
+        // naming.source.original-procedure-argument-topology
+        // docs/design/analysis/name-resolution-proofs/original-procedure-argument-topology.md
+        for source in [
+            "proc target {fixed variable rest} {upvar 1 $variable local; set local 1}; target {*}{FIXED destination} ordinary",
+            "proc target {fixed variable rest} {upvar 1 $variable local; set local 1}; interp alias {} alias {} target FIXED; alias {*}{destination} ordinary",
+        ] {
+            let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+            let declaration = analysis.original_procedure_declarations().next().unwrap();
+            assert_eq!(
+                proc_var_write_indices(declaration.metadata()),
+                [1],
+                "independent original formal-role prerequisite"
+            );
+            analysis.all_procs.clear();
+            analysis.global_scope.procs.clear();
+            analysis.command_invocations.clear();
+            let tokens = tests::decode_semantic(&full_with_cu_and_analysis(
+                source,
+                analysis.resolved_profile().unwrap(),
+                analysis.resolved_registry().unwrap(),
+                None,
+                Some(&analysis),
+            ));
+            let index = LineIndex::new(source);
+            let expected = index.position_at_utf16(
+                u32::try_from(source.rfind("destination").unwrap()).unwrap(),
+                source,
+            );
+            assert!(
+                tokens
+                    .iter()
+                    .any(|&(line, column, _, kind, mods)| line == expected.line
+                        && column == expected.character.get()
+                        && kind == TokenKind::Variable as u32
+                        && mods == MOD_DECLARATION)
+            );
+            let ordinary = index.position_at_utf16(
+                u32::try_from(source.rfind("ordinary").unwrap()).unwrap(),
+                source,
+            );
+            assert!(
+                !tokens
+                    .iter()
+                    .any(|&(line, column, _, kind, mods)| line == ordinary.line
+                        && column == ordinary.character.get()
+                        && kind == TokenKind::Variable as u32
+                        && mods == MOD_DECLARATION)
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_realm_consumer_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_semantic_consumer_declines_missing_realm_without_nominal_recapture() {
+        // naming.core.original-command-source-schema
+        // docs/design/analysis/name-resolution-proofs/original-command-source-schema.md
+        let source = "set value 1; proc p {} {return $value}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let profile = analysis.resolved_profile().unwrap();
+        let registry = analysis.resolved_registry().unwrap();
+        let entries = collect_entries(
+            source,
+            profile,
+            registry,
+            None,
+            WorkspaceTokenFacts {
+                analysis: Some(&analysis),
+                ..WorkspaceTokenFacts::default()
+            },
+        );
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.3 == TokenKind::Variable && entry.4 & MOD_DECLARATION != 0)
+        );
+        let mut unowned = AnalysisResult::default();
+        unowned.resolved_input = analysis.resolved_input.clone();
+        unowned.body_lexer_config = analysis.body_lexer_config;
+        unowned.all_procs.clone_from(&analysis.all_procs);
+        unowned.all_variables.clone_from(&analysis.all_variables);
+        assert!(unowned.retained_command_realm().is_none());
+        assert!(
+            collect_entries(
+                source,
+                profile,
+                registry,
+                None,
+                WorkspaceTokenFacts {
+                    analysis: Some(&unowned),
+                    ..WorkspaceTokenFacts::default()
+                }
+            )
+            .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_definition_vocabulary_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn retained_tokens(source: &str, dialect: &str) -> Vec<(u32, u32, u32, u32, u32)> {
+        let analysis = Analyser::new().analyse(source, dialect);
+        tests::decode_semantic(&full_with_cu_and_analysis(
+            source,
+            analysis.resolved_profile().unwrap(),
+            analysis.resolved_registry().unwrap(),
+            None,
+            Some(&analysis),
+        ))
+    }
+
+    fn token_kind_at(
+        source: &str,
+        tokens: &[(u32, u32, u32, u32, u32)],
+        offset: usize,
+    ) -> Option<u32> {
+        let position =
+            LineIndex::new(source).position_at_utf16(u32::try_from(offset).unwrap(), source);
+        tokens.iter().find_map(|&(line, column, _, kind, _)| {
+            (line == position.line && column == position.character.get()).then_some(kind)
+        })
+    }
+
+    #[test]
+    fn original_definition_colours_use_genuine_wrappers_and_clear_ordinary_bodies() {
+        // naming.core.original-command-source-schema
+        // docs/design/analysis/name-resolution-proofs/original-command-source-schema.md
+        let source = "oo::class create C {\nself self {method café {} {puts wrapper}}\nif 1 {method café {} {puts immediate}}\nmethod plain {} {method ordinary {} {puts inert}}\nproc p {} {method ordinary {} {puts inert}}\napply {{} {method ordinary {} {puts inert}}}\n}";
+        let tokens = retained_tokens(source, "tcl8.6");
+        for (offset, _) in source.match_indices("method café") {
+            assert_eq!(
+                token_kind_at(source, &tokens, offset),
+                Some(TokenKind::Keyword as u32)
+            );
+        }
+        for word in ["puts wrapper", "puts immediate"] {
+            assert_eq!(
+                token_kind_at(source, &tokens, source.find(word).unwrap()),
+                Some(TokenKind::Function as u32),
+                "{word}: {tokens:?}"
+            );
+        }
+        for (offset, _) in source.match_indices("method ordinary") {
+            assert_eq!(
+                token_kind_at(source, &tokens, offset),
+                Some(TokenKind::Function as u32)
+            );
+        }
+        for (offset, _) in source.match_indices("puts inert") {
+            assert_ne!(
+                token_kind_at(source, &tokens, offset),
+                Some(TokenKind::Function as u32)
+            );
+        }
+    }
+
+    #[test]
+    fn original_definition_keyword_colours_preserve_whole_escaped_source_extent() {
+        // naming.core.original-command-source-schema
+        // docs/design/analysis/name-resolution-proofs/original-command-source-schema.md
+        let source = r"oo::class create C {metho\u0064 café {} {puts visible}}";
+        let tokens = retained_tokens(source, "tcl8.6");
+        let start = source.find("metho").unwrap();
+        let position =
+            LineIndex::new(source).position_at_utf16(u32::try_from(start).unwrap(), source);
+        let head = tokens
+            .iter()
+            .find(|&&(line, column, _, kind, _)| {
+                line == position.line
+                    && column == position.character.get()
+                    && kind == TokenKind::Keyword as u32
+            })
+            .unwrap();
+        assert_eq!(
+            head.2, 11,
+            "the raw escape stays within the one original word"
+        );
+        assert_eq!(
+            token_kind_at(source, &tokens, source.find("puts").unwrap()),
+            Some(TokenKind::Function as u32)
+        );
+        assert!(
+            !tokens
+                .iter()
+                .any(|&(line, column, _, _, _)| line == position.line
+                    && position.character.get() < column
+                    && column < position.character.get() + head.2)
+        );
+    }
+
+    #[test]
+    fn original_definition_colours_keep_keyword_body_and_release_applicability_separate() {
+        // naming.core.original-command-source-schema
+        // docs/design/analysis/name-resolution-proofs/original-command-source-schema.md
+        for (source, dialect, keyword, body) in [
+            (
+                "oo::class create C {method café $params {puts hidden}}",
+                "tcl8.6",
+                true,
+                false,
+            ),
+            (
+                "oo::class create C {method café -private {} {puts visible}}",
+                "tcl9.0",
+                true,
+                true,
+            ),
+            (
+                "oo::class create C {method café -private {} {puts hidden}}",
+                "tcl8.6",
+                true,
+                false,
+            ),
+            (
+                r#"oo::class create C {method café {} "\u0070uts hidden"}"#,
+                "tcl8.6",
+                true,
+                false,
+            ),
+            (
+                "oo::class create C {property p -get {puts hidden}}",
+                "tcl8.6",
+                false,
+                false,
+            ),
+            (
+                "oo::class create C {property p -get {puts visible}}",
+                "tcl9.1",
+                true,
+                true,
+            ),
+        ] {
+            let tokens = retained_tokens(source, dialect);
+            let offset = source
+                .find("method")
+                .or_else(|| source.find("property"))
+                .unwrap();
+            assert_eq!(
+                token_kind_at(source, &tokens, offset) == Some(TokenKind::Keyword as u32),
+                keyword,
+                "{dialect}: {source}: {tokens:?}"
+            );
+            if let Some(offset) = source.find("puts") {
+                assert_eq!(
+                    token_kind_at(source, &tokens, offset) == Some(TokenKind::Function as u32),
+                    body,
+                    "{dialect}: {source}: {tokens:?}"
+                );
+            } else {
+                assert!(
+                    !tokens.iter().any(|&(line, column, _, kind, _)| {
+                        let begin = source.find("\\u0070uts").unwrap();
+                        let position = LineIndex::new(source)
+                            .position_at_utf16(u32::try_from(begin).unwrap(), source);
+                        line == position.line
+                            && column == position.character.get()
+                            && kind == TokenKind::Function as u32
+                    }),
+                    "cooked source has no original executable body extent"
+                );
+            }
+        }
     }
 }

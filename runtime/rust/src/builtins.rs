@@ -27,7 +27,7 @@
 //! `argv[0]` is the command name (Tcl's `objv` convention).
 
 use crate::frame::VarError;
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::{obj_bytes, Code, Interp};
 // The transient `1` of a tower `incr` is the only fresh object left to drop
 // by hand; every other path now stores through `store_var_result`.
 use crate::interp::drop_fresh;
@@ -594,21 +594,46 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// requested substitutions on `string` (default: all three). Errors from an
 /// unset variable or a failing command substitution propagate.
 fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    const USAGE: &[u8] = b"subst ?-nobackslashes? ?-nocommands? ?-novariables? string";
+    use tcl_registry::substitution::{NativeSubstitutionOptions, SubstitutionOptionError};
+    let Some(options) = NativeSubstitutionOptions::select(interp.native_invocation_dialect())
+    else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Subst option declaration is unavailable",
+            )
+            .into(),
+        );
+    };
     if argv.len() < 2 {
-        return interp.wrong_args(USAGE);
+        return interp.wrong_args(options.usage().as_bytes());
     }
-    // Every argument before the last is an option (C's `TclSubstOptions` over
-    // `objv[1 .. objc-1]`), matched with Tcl's unambiguous-prefix rule.
-    let mut flags = crate::subst::SubstFlags::default();
+    let table = tcl_cmd_core::prefix::OptionTable::abbreviating(options.noun(), options.names());
+    let mut selected = Vec::with_capacity(argv.len() - 2);
     for &opt in &argv[1..argv.len() - 1] {
-        match SUBST_OPTIONS.index_of(&obj_bytes(opt)) {
-            Ok(0) => flags.backslashes = false,
-            Ok(1) => flags.cmds = false,
-            Ok(_) => flags.vars = false,
-            Err(m) => return interp.set_error(&m),
+        match table.index_of_original(interp, &opt) {
+            Ok(index) => selected.push(index),
+            Err(error) => return interp.report_cmd_error(error),
         }
     }
+    let kinds = match options.kinds(&selected) {
+        Ok(kinds) => kinds,
+        Err(SubstitutionOptionError::MixedFamilies) => {
+            return interp.set_error(b"cannot combine positive and negative options");
+        }
+        Err(SubstitutionOptionError::UnknownOption) => {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "foreign Subst option ordinal",
+                )
+                .into(),
+            );
+        }
+    };
+    let flags = crate::subst::SubstFlags {
+        backslashes: kinds.backslashes,
+        cmds: kinds.commands,
+        vars: kinds.variables,
+    };
     let last = argv[argv.len() - 1];
     if interp
         .native_invocation_dialect()
@@ -627,6 +652,23 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Err(code) => code,
         };
     }
+    if matches!(
+        interp.native_invocation_dialect().tcl_version,
+        Some(
+            tcl_dialect::TclVersion::V8_6
+                | tcl_dialect::TclVersion::V9_0
+                | tcl_dialect::TclVersion::V9_1
+        )
+    ) {
+        return interp.substitute_original_c_template(
+            last,
+            tcl_runtime_api::native_substitution::NativeSubstitutionFlags::new(
+                flags.backslashes,
+                flags.cmds,
+                flags.vars,
+            ),
+        );
+    }
     let src = obj_bytes(last);
     // TIP 280: a `[...]` inside the substituted string reports the line it sits
     // on, derived from the argument word's recorded source location.
@@ -639,16 +681,6 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(code) => code, // the failing sub already set the result
     }
 }
-
-/// `subst`'s option words. C's `TclSubstOptions` (`tclCmdMZ.c:3341`) resolves
-/// them with `Tcl_GetIndexFromObj` at flags `0`, so abbreviations match and the
-/// *empty* word — which prefixes all three entries — is `ambiguous`, not `bad`.
-/// Shared with the bytecode VM through the one `tcl-cmd-core::prefix` matcher.
-const SUBST_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating(
-        "option",
-        &[b"-nobackslashes", b"-nocommands", b"-novariables"],
-    );
 
 // helpers
 
@@ -1435,7 +1467,9 @@ mod tests {
     #[cfg(have_tommath)]
     #[test]
     fn measured_bare_matches_runtime_requires_independent_authored_policy() {
-        use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+        use tcl_registry::invocation_words::{
+            LogicalExpressionParseProvider, LogicalSourceWordProvider,
+        };
         let fixture =
             include_str!("../../../rust/tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv");
         leak_free(|interp| {
@@ -1445,12 +1479,20 @@ mod tests {
                 LogicalExpressionParseProvider::Tcl84CoreSimulation,
                 crate::environment::profile_for_dialect("tcl9.0"),
             ));
+            // Quoted operands retain their independently installed source-word
+            // interpretation; the expression parser cannot supply that policy.
+            assert!(interp.source_string_protocol().is_none());
+            assert!(interp.set_logical_source_word_provider(
+                LogicalSourceWordProvider::Tcl84CoreSimulation,
+                crate::environment::profile_for_dialect("tcl9.0"),
+            ));
             for row in fixture.lines().take(6) {
                 let fields = row.split('\t').collect::<Vec<_>>();
                 assert_eq!(
                     super::eval_expr_prepared_source(interp, None, fields[0].as_bytes()),
                     Code::Ok,
-                    "{row}"
+                    "{row}: {:?}",
+                    interp.result_bytes()
                 );
                 assert_eq!(interp.result_bytes(), fields[2].as_bytes(), "{row}");
             }
@@ -1534,14 +1576,12 @@ mod tests {
                 .expect("explicit logical parsing");
             let dialect = interp.native_invocation_dialect();
             assert!(crate::expr::cached_expr(object.as_ptr(), dialect, None).is_none());
-            assert!(
-                crate::expr::cached_expr(
-                    object.as_ptr(),
-                    dialect,
-                    interp.logical_expression_parse_policy()
-                )
-                .is_some()
-            );
+            assert!(crate::expr::cached_expr(
+                object.as_ptr(),
+                dialect,
+                interp.logical_expression_parse_policy()
+            )
+            .is_some());
             assert_eq!(crate::interp::obj_bytes(object.as_ptr()), b"{\xff\0tail}");
             assert!(dialect.execution_point().is_none());
         });
@@ -1590,11 +1630,9 @@ mod tests {
                 &reparsed,
                 &crate::expr::cached_expr(pointer, dialect, current_policy).unwrap(),
             ));
-            assert!(
-                interp
-                    .native_compiler_cache_epochs(crate::namespace::GLOBAL)
-                    .is_none()
-            );
+            assert!(interp
+                .native_compiler_cache_epochs(crate::namespace::GLOBAL)
+                .is_none());
         });
     }
 
@@ -1618,14 +1656,12 @@ mod tests {
             super::parse_runtime_expr_cached(interp, Some(object.as_ptr()), b"IGNORED")
                 .expect("actual host byte-array materialisation and logical syntax");
             assert_eq!(crate::obj::bytes_of(object.as_ptr()), b"1+2");
-            assert!(
-                crate::expr::cached_expr(
-                    object.as_ptr(),
-                    interp.native_invocation_dialect(),
-                    interp.logical_expression_parse_policy()
-                )
-                .is_some()
-            );
+            assert!(crate::expr::cached_expr(
+                object.as_ptr(),
+                interp.native_invocation_dialect(),
+                interp.logical_expression_parse_policy()
+            )
+            .is_some());
         });
     }
 
@@ -1835,12 +1871,10 @@ mod tests {
                 interp.do_expression_subst(br"\u0000", false),
                 Ok(vec![0xc0, 0x80])
             );
-            assert!(
-                interp
-                    .native_invocation_dialect()
-                    .execution_point()
-                    .is_none()
-            );
+            assert!(interp
+                .native_invocation_dialect()
+                .execution_point()
+                .is_none());
         });
     }
 
@@ -2381,3 +2415,6 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+mod native_subst_operand_tests;

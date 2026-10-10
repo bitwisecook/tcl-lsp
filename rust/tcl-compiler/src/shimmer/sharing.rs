@@ -106,7 +106,6 @@ use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, Version};
-use crate::value_shapes::is_pure_var_ref;
 
 use super::SharingWarning;
 use super::graph::build_successors;
@@ -125,12 +124,8 @@ struct CopyPair {
 /// The effective command, subcommand, form, target position, and arity floor
 /// are all registry data. Unknown or dynamic shapes abstain.
 ///
-fn mutation_target(stmt: &Statement, registry: &CommandRegistry) -> Option<String> {
-    let context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-    let invocation =
-        crate::registry_invocation::normal_statement_representation(registry, context, stmt)?;
+fn mutation_target(stmt: &Statement, context: super::ShimmerContext<'_>) -> Option<String> {
+    let invocation = context.statement(stmt)?;
     let offset = invocation.argument_offset();
     let effective_count = invocation.argument_count().checked_sub(offset)?;
     let index = invocation
@@ -142,6 +137,7 @@ fn mutation_target(stmt: &Statement, registry: &CommandRegistry) -> Option<Strin
 /// Function-wide inputs and memos threaded through the walk.
 struct SharingCtx<'a> {
     registry: &'a CommandRegistry,
+    context: super::ShimmerContext<'a>,
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
     def_use: &'a DefUseResult,
@@ -179,6 +175,7 @@ impl SharingCtx<'_> {
 /// instance variables), mirroring the S102 pass's parameter of the same
 /// name.
 #[must_use]
+#[cfg(test)]
 pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -187,13 +184,38 @@ pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<SharingWarning> {
+    find_sharing_warnings_with_context(
+        cfg,
+        ssa,
+        def_use,
+        executable_blocks,
+        super::ShimmerContext::standalone(registry),
+        extra_scope_aliases,
+    )
+}
+
+pub(crate) fn find_sharing_warnings_with_context<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    def_use: &DefUseResult,
+    executable_blocks: &HashSet<BlockId>,
+    context: super::ShimmerContext<'_>,
+    extra_scope_aliases: Option<&HashSet<String, S>>,
+) -> Vec<SharingWarning> {
+    let registry = context.registry();
     let mut excluded_names =
-        crate::var_observability::analyse_var_observability(cfg, registry).escaping_var_names();
+        crate::var_observability::analyse_var_observability_with_metadata_context(
+            cfg,
+            registry,
+            context.metadata(),
+        )
+        .escaping_var_names();
     if let Some(extra) = extra_scope_aliases {
         excluded_names.extend(extra.iter().cloned());
     }
     let mut ctx = SharingCtx {
         registry,
+        context,
         cfg,
         ssa,
         def_use,
@@ -255,24 +277,12 @@ fn copy_pair(
     source: crate::ssa::SsaSourceView<'_>,
     ss: &crate::ssa::SsaStatement,
     name: &str,
-    value: &str,
+    _value: &str,
     span: Span,
 ) -> Option<CopyPair> {
-    if !is_pure_var_ref(value) {
-        return None;
-    }
     let dst_name = normalise_var_name(name);
-    let src_name = normalise_var_name(value);
     let dst_sym = source.symbol(dst_name)?;
-    let context = ctx
-        .registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-    let invocation = crate::registry_invocation::normal_statement_representation(
-        ctx.registry,
-        context,
-        &ss.statement,
-    )?;
+    let invocation = ctx.context.statement(&ss.statement)?;
     let word = invocation.effective_words().words.get(2)?;
     let place = source.read_word_place(word, ctx.registry)?;
     if matches!(
@@ -283,6 +293,13 @@ fn copy_pair(
     }
     let read = source.read_word(word)?;
     let src_sym = read.symbol;
+    let (spelling, _) = word.sole_variable_substitution()?;
+    let root = tcl_syntax::naming::variable_reference_root_bytes(
+        spelling.as_bytes(),
+        ctx.context.config(),
+    )
+    .ok()??;
+    let src_name = core::str::from_utf8(root).ok()?;
     if dst_sym == src_sym || ctx.excluded(dst_name, dst_sym) || ctx.excluded(src_name, src_sym) {
         return None;
     }
@@ -309,7 +326,7 @@ fn mutation_warning(
     stmt: &Statement,
     pairs: &[CopyPair],
 ) -> Option<SharingWarning> {
-    let target = mutation_target(stmt, ctx.registry)?;
+    let target = mutation_target(stmt, ctx.context)?;
     let target_name = normalise_var_name(&target);
     let target_sym = ctx
         .ssa

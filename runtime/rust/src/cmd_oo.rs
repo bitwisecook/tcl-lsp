@@ -45,6 +45,7 @@
 mod native_context;
 pub(crate) mod native_method_cache;
 mod native_object_info;
+pub(crate) mod native_variables;
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -52,16 +53,15 @@ use std::rc::Rc;
 
 use tcl_core_types::{OoId, RecursionLimit};
 use tcl_registry::commands::tcl::{
-    info_oo_subcommands, resolve_info_oo_properties_option, resolve_tcloo_property_kind,
-    resolve_tcloo_property_option, InfoOoEnsembleKind, InfoOoPropertiesOption, TclOoPropertyKind,
-    TclOoPropertyOption,
+    InfoOoEnsembleKind, InfoOoPropertiesOption, TclOoPropertyOption, info_oo_subcommands,
+    resolve_info_oo_properties_option_original,
 };
 
 use crate::interp::{
-    obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
+    CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame, obj_bytes,
 };
 use crate::list;
-use crate::namespace::{NsId, GLOBAL};
+use crate::namespace::{GLOBAL, NsId};
 use crate::obj::{self, TclObj};
 use tcl_syntax::value::ValueOps;
 
@@ -287,6 +287,13 @@ enum DefTarget {
     Object(OoId),
 }
 
+/// Actual publication geometry; its report is retained separately by the OO identity.
+struct ObjectPublication {
+    namespace: NsId,
+    simple: Vec<u8>,
+    report: Vec<u8>,
+}
+
 /// The interpreter's TclOO state.
 #[derive(Default)]
 pub struct OoState {
@@ -333,7 +340,7 @@ pub struct OoState {
     /// for an in-progress unknown-method miss, captured at the original
     /// invocation so the `unknown`-handler frame does not mask it. Lets the
     /// unknown-method error list the in-scope private methods (TIP 500).
-    unknown_scope: Option<OoId>,
+    unknown_scope: Option<(OoId, bool)>,
     /// Whether the unknown-method miss originated from an external (`$obj m`)
     /// call. An internal (`my m`) miss lists the unexported methods and the
     /// `oo::object` built-ins too; an external one lists only public methods.
@@ -448,7 +455,7 @@ pub struct OoExec {
     call_stack: Vec<OoFrame>,
     private_depth: usize,
     def_rewrite: Option<Vec<u8>>,
-    unknown_scope: Option<OoId>,
+    unknown_scope: Option<(OoId, bool)>,
     unknown_external: bool,
 }
 
@@ -671,6 +678,31 @@ fn register_define_ns_commands(interp: &mut Interp) {
 /// (for `configure`) and resolves `property` in the configurableclass /
 /// configurableobject definition namespaces.
 fn install_configurable(interp: &mut Interp) {
+    // naming.tcloo.original-configurable-factory-support
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-configurable-factory-support.md
+    let registry = crate::environment::store_for_profile(interp.dialect_profile());
+    if let Some(support) = registry
+        .native_class_factory_recipe(
+            "::oo::configurable",
+            interp.native_invocation_dialect(),
+            tcl_dialect::model::InvocationRealm::default(),
+        )
+        .and_then(tcl_registry::native_tcloo_bootstrap::NativeClassFactoryRecipe::support)
+    {
+        for receiver in [
+            tcl_registry::definer::DefinitionReceiver::Instance,
+            tcl_registry::definer::DefinitionReceiver::Class,
+        ] {
+            let namespace =
+                interp.ensure_namespace(support.definition_namespace(receiver).as_bytes());
+            let path = support
+                .definition_path(receiver)
+                .iter()
+                .map(|name| interp.ensure_namespace(name.as_bytes()))
+                .collect();
+            interp.namespaces_mut().set_path(namespace, path);
+        }
+    }
     // The two definition namespaces hold the `property` command (class /
     // instance variants), reached via TIP 524 definition-namespace resolution.
     let _ = interp.eval_str(
@@ -773,6 +805,17 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
         Ok(t) => t,
         Err(code) => return code,
     };
+    let Some(recipe) = interp
+        .native_invocation_dialect()
+        .native_property_name_protocol()
+    else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native property name protocol",
+            )
+            .into(),
+        );
+    };
     let mut i = 1;
     while i < argv.len() {
         let original_property = argv[i];
@@ -781,64 +824,22 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
             Err(error) => return interp.report_cmd_error(error.into()),
         };
         i += 1;
-        // Validate the property name (C's TclOOInstallStdPropertyImpls). Order
-        // matters: the `-` check precedes the simple-word check.
-
-        let bad = if prop.first() == Some(&b'-') {
-            Some(&b"must not begin with -"[..])
-        } else if prop.is_empty() || prop.iter().any(|c| c.is_ascii_whitespace()) {
-            Some(&b"must be a simple word"[..])
-        } else if prop.windows(2).any(|w| w == b"::") {
-            Some(&b"must not contain namespace separators"[..])
-        } else if prop.contains(&b'(') || prop.contains(&b')') {
-            Some(&b"must not contain parentheses"[..])
-        } else {
-            None
-        };
-        if let Some(reason) = bad.filter(|_| {
-            interp
-                .native_invocation_dialect()
-                .native_property_lookup_protocol()
-                .is_none()
-        }) {
-            let mut m = b"bad property name \"".to_vec();
-            m.extend_from_slice(&prop);
-            m.extend_from_slice(b"\": ");
-            m.extend_from_slice(reason);
-            return interp.error_with_code(&m, b"TCL OO PROPERTY_FORMAT");
-        }
         // Parse the property's options.
         let (mut kind_ro, mut kind_wo) = (false, false);
         let mut getter: Option<Vec<u8>> = None;
         let mut setter: Option<Vec<u8>> = None;
         while i < argv.len() && obj_bytes(argv[i]).first() == Some(&b'-') {
-            let opt_word = obj_bytes(argv[i]);
-            let selected = if let Some(recipe) = interp
-                .native_invocation_dialect()
-                .native_property_lookup_protocol()
-            {
-                match interp.native_index_operand(
-                    argv[i],
-                    &recipe.definition_options(),
-                    false,
-                    "option",
-                ) {
-                    Ok(0) => Ok(TclOoPropertyOption::Get),
-                    Ok(1) => Ok(TclOoPropertyOption::Kind),
-                    Ok(2) => Ok(TclOoPropertyOption::Set),
-                    Ok(_) => unreachable!("closed property option roster"),
-                    Err(error) => return interp.report_cmd_error(error),
-                }
-            } else {
-                resolve_tcloo_property_option(&opt_word)
-            };
-            let option = match selected {
-                Ok(option) => option,
-                Err(message) => {
-                    let mut code = b"TCL LOOKUP INDEX option ".to_vec();
-                    code.extend_from_slice(&opt_word);
-                    return interp.error_with_code(&message, &code);
-                }
+            let option = match interp.native_index_operand(
+                argv[i],
+                &recipe.definition_options(),
+                false,
+                "option",
+            ) {
+                Ok(0) => TclOoPropertyOption::Get,
+                Ok(1) => TclOoPropertyOption::Kind,
+                Ok(2) => TclOoPropertyOption::Set,
+                Ok(_) => unreachable!("closed property option roster"),
+                Err(error) => return interp.report_cmd_error(error),
             };
             if i + 1 >= argv.len() {
                 let what: &[u8] = if option == TclOoPropertyOption::Kind {
@@ -854,86 +855,54 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                 return interp.error_with_code(&m, b"TCL WRONGARGS");
             }
             let original_value = argv[i + 1];
-            let val = obj_bytes(original_value);
             i += 2;
             match option {
-                TclOoPropertyOption::Get => getter = Some(val),
-                TclOoPropertyOption::Set => setter = Some(val),
-                TclOoPropertyOption::Kind => match if let Some(recipe) = interp
-                    .native_invocation_dialect()
-                    .native_property_lookup_protocol()
-                {
+                TclOoPropertyOption::Get => getter = Some(obj_bytes(original_value)),
+                TclOoPropertyOption::Set => setter = Some(obj_bytes(original_value)),
+                TclOoPropertyOption::Kind => {
                     match interp.native_index_operand(
                         original_value,
                         &recipe.definition_kinds(),
                         false,
                         "kind",
                     ) {
-                        Ok(0) => Ok(TclOoPropertyKind::Readable),
-                        Ok(1) => Ok(TclOoPropertyKind::ReadWrite),
-                        Ok(2) => Ok(TclOoPropertyKind::Writable),
+                        Ok(0) => {
+                            kind_ro = true;
+                            kind_wo = false;
+                        }
+                        Ok(1) => {
+                            kind_ro = false;
+                            kind_wo = false;
+                        }
+                        Ok(2) => {
+                            kind_ro = false;
+                            kind_wo = true;
+                        }
                         Ok(_) => unreachable!("closed property kind roster"),
                         Err(error) => return interp.report_cmd_error(error),
                     }
-                } else {
-                    resolve_tcloo_property_kind(&val)
-                } {
-                    Ok(TclOoPropertyKind::Readable) => {
-                        kind_ro = true;
-                        kind_wo = false;
-                    }
-                    Ok(TclOoPropertyKind::Writable) => {
-                        kind_wo = true;
-                        kind_ro = false;
-                    }
-                    Ok(TclOoPropertyKind::ReadWrite) => {
-                        kind_ro = false;
-                        kind_wo = false;
-                    }
-                    Err(message) => {
-                        let mut code = b"TCL LOOKUP INDEX kind ".to_vec();
-                        code.extend_from_slice(&val);
-                        return interp.error_with_code(&message, &code);
-                    }
-                },
+                }
             }
         }
-        if let Some(recipe) = interp
-            .native_invocation_dialect()
-            .native_property_lookup_protocol()
-        {
-            if let Err(message) = recipe.validate_declaration(&prop) {
-                return interp.report_cmd_error(
-                    tcl_cmd_core::CmdError::with_error_code_bytes(
-                        message,
-                        b"TCL OO PROPERTY_FORMAT".to_vec(),
-                    )
-                    .with_native_string_result(recipe.strings()),
-                );
-            }
+
+        if let Err(message) = recipe.validate_declaration(&prop) {
+            return interp.report_cmd_error(
+                tcl_cmd_core::CmdError::with_error_code_bytes(
+                    message,
+                    b"TCL OO PROPERTY_FORMAT".to_vec(),
+                )
+                .with_native_string_result(recipe.strings()),
+            );
         }
-        let prop = if interp
-            .native_invocation_dialect()
-            .native_property_lookup_protocol()
-            .is_some()
-        {
-            tcl_core_types::c_string_extent(&prop).to_vec()
-        } else {
-            prop
-        };
+        let prop = tcl_core_types::c_string_extent(&prop).to_vec();
         let readable = !kind_wo;
         let writable = !kind_ro;
         // Install the accessor methods (`<ReadProp-name>` / `<WriteProp-name>`),
         // unexported (their `<…>` names are non-lowercase). Default impls read /
         // write the like-named instance variable.
         if readable {
-            let mname = property_method_name(b"<ReadProp-", &prop);
-            let code = if getter.is_none()
-                && interp
-                    .native_invocation_dialect()
-                    .native_property_lookup_protocol()
-                    .is_some()
-            {
+            let mname = recipe.accessor_names(&prop).0;
+            let code = if getter.is_none() {
                 install_method_vis(
                     interp,
                     mname,
@@ -944,7 +913,7 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                     MethodVis::Unexported,
                 )
             } else {
-                let body = getter.clone().unwrap_or_else(|| std_getter_body(&prop));
+                let body = getter.clone().expect("selected custom property getter");
                 install_property_method(interp, &mname, &[], &body)
             };
             if code != Code::Ok {
@@ -952,13 +921,8 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
             }
         }
         if writable {
-            let mname = property_method_name(b"<WriteProp-", &prop);
-            let code = if setter.is_none()
-                && interp
-                    .native_invocation_dialect()
-                    .native_property_lookup_protocol()
-                    .is_some()
-            {
+            let mname = recipe.accessor_names(&prop).1;
+            let code = if setter.is_none() {
                 install_method_vis(
                     interp,
                     mname,
@@ -969,7 +933,7 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                     MethodVis::Unexported,
                 )
             } else {
-                let body = setter.clone().unwrap_or_else(|| std_setter_body(&prop));
+                let body = setter.clone().expect("selected custom property setter");
                 install_property_method(interp, &mname, b"value", &body)
             };
             if code != Code::Ok {
@@ -1002,33 +966,6 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
     }
     interp.set_result_bytes(b"");
     Code::Ok
-}
-
-fn property_method_name(prefix: &[u8], prop: &[u8]) -> Vec<u8> {
-    let mut m = prefix.to_vec();
-    m.extend_from_slice(prop);
-    m.push(b'>');
-    m
-}
-
-/// The default getter body: read the like-named instance variable.
-fn std_getter_body(prop: &[u8]) -> Vec<u8> {
-    let mut b = b"::variable ".to_vec();
-    b.extend_from_slice(prop);
-    b.extend_from_slice(b"; return [::set ");
-    b.extend_from_slice(prop);
-    b.push(b']');
-    b
-}
-
-/// The default setter body: write the like-named instance variable.
-fn std_setter_body(prop: &[u8]) -> Vec<u8> {
-    let mut b = b"::variable ".to_vec();
-    b.extend_from_slice(prop);
-    b.extend_from_slice(b"; ::set ");
-    b.extend_from_slice(prop);
-    b.extend_from_slice(b" $value");
-    b
 }
 
 fn native_method_body(
@@ -1134,13 +1071,23 @@ fn oo_configure(interp: &mut Interp, obj: OoId, args: &[*mut TclObj]) -> Code {
 /// A `break`/`continue` from the getter is turned into an error (C's
 /// ReadProperty).
 fn read_property(interp: &mut Interp, obj: OoId, prop_hyph: &[u8]) -> Code {
-    let mname = property_method_name(b"<ReadProp", prop_hyph);
+    let mname = interp
+        .native_invocation_dialect()
+        .native_property_name_protocol()
+        .expect("selected property name")
+        .accessor_names(prop_hyph.strip_prefix(b"-").unwrap_or(prop_hyph))
+        .0;
     let code = interp.oo_invoke(obj, &mname, &[], false, None);
     property_loopword_error(interp, code, b"getter", prop_hyph)
 }
 
 fn write_property(interp: &mut Interp, obj: OoId, prop_hyph: &[u8], value: *mut TclObj) -> Code {
-    let mname = property_method_name(b"<WriteProp", prop_hyph);
+    let mname = interp
+        .native_invocation_dialect()
+        .native_property_name_protocol()
+        .expect("selected property name")
+        .accessor_names(prop_hyph.strip_prefix(b"-").unwrap_or(prop_hyph))
+        .1;
     let code = interp.oo_invoke(obj, &mname, &[value], false, None);
     property_loopword_error(interp, code, b"setter", prop_hyph)
 }
@@ -1172,34 +1119,47 @@ fn get_property_name(
     _table: &mut Option<obj::Owned>,
     _retain_table: bool,
 ) -> Result<Vec<u8>, Code> {
-    let given = obj_bytes(given);
-    let cands = interp.object_property_list(obj, writable, true);
-    // C's `oo::configuresupport` reaches this through
-    // `tcl::prefix match -message property`, so an abbreviation resolves
-    // (`-ye` → `-yellow`) and a word prefixing several — `""` and a lone `-`
-    // included — is `ambiguous property`. This matched exactly and hand-joined
-    // the enumeration beside the owner that already words both verdicts.
-    let miss = match tcl_cmd_core::prefix::OptionTable::abbreviating("property", &cands)
-        .index_of(&given)
-    {
-        Ok(index) => return Ok(cands[index].clone()),
+    let Some(recipe) = interp
+        .native_invocation_dialect()
+        .native_property_name_protocol()
+    else {
+        return Err(interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native property name protocol",
+            )
+            .into(),
+        ));
+    };
+    let given = match interp.native_object_string_bytes(given) {
+        Ok(bytes) => bytes,
+        Err(error) => return Err(interp.report_cmd_error(error.into())),
+    };
+    let candidates = interp.object_property_list(obj, writable, true);
+    let names: Vec<_> = candidates.iter().map(Vec::as_slice).collect();
+    let miss = match recipe.lookup(&given, &names) {
+        Ok(index) => return Ok(candidates[index].clone()),
         Err(message) => message,
     };
-    // Accessible the other way? Report read-only / write-only.
     let other = interp.object_property_list(obj, !writable, true);
-    if tcl_cmd_core::prefix::OptionTable::abbreviating("property", &other)
-        .index_of(&given)
-        .is_ok()
-    {
-        let mut m = b"property \"".to_vec();
-        m.extend_from_slice(&given);
-        m.extend_from_slice(b"\" is ");
-        m.extend_from_slice(if writable { b"read" } else { b"write" });
-        m.extend_from_slice(b" only");
-        return Err(interp.set_error(&m));
+    let names: Vec<_> = other.iter().map(Vec::as_slice).collect();
+    let mut message = miss;
+    if let Ok(index) = recipe.lookup(&given, &names) {
+        message = b"property \"".to_vec();
+        message.extend_from_slice(tcl_core_types::c_string_extent(names[index]));
+        message.extend_from_slice(if writable {
+            b"\" is read only"
+        } else {
+            b"\" is write only"
+        });
     }
-    let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"INDEX", b"property", &given]);
-    Err(interp.error_with_code(&miss, &code))
+    Err(interp.report_cmd_error(
+        tcl_cmd_core::CmdError::lookup_index_bytes(
+            message,
+            b"property",
+            tcl_core_types::c_string_extent(&given),
+        )
+        .with_native_string_result(recipe.strings()),
+    ))
 }
 
 /// Parse the `info … properties` option flags (`-all`, `-readable` [default],
@@ -1207,16 +1167,11 @@ fn get_property_name(
 fn parse_property_opts(interp: &mut Interp, opts: &[*mut TclObj]) -> Result<(bool, bool), Code> {
     let (mut all, mut writable) = (false, false);
     for &a in opts {
-        let word = obj_bytes(a);
-        match resolve_info_oo_properties_option(&word) {
+        match resolve_info_oo_properties_option_original(interp, &a) {
             Ok(InfoOoPropertiesOption::All) => all = true,
             Ok(InfoOoPropertiesOption::Readable) => writable = false,
             Ok(InfoOoPropertiesOption::Writable) => writable = true,
-            Err(message) => {
-                let mut code = b"TCL LOOKUP INDEX option ".to_vec();
-                code.extend_from_slice(&word);
-                return Err(interp.error_with_code(&message, &code));
-            }
+            Err(error) => return Err(interp.report_cmd_error(error)),
         }
     }
     Ok((all, writable))
@@ -1705,10 +1660,45 @@ fn slot_inst_set(interp: &mut Interp, slot: OoId, args: &[*mut TclObj]) -> Code 
             .first()
             .map(|&a| parse_list(&obj_bytes(a)))
             .unwrap_or_default();
+        if let Err(code) = validate_slot_class_references(interp, &slot_name, &list) {
+            return code;
+        }
         slot_field_write(interp, &slot_name, &target, list);
     }
     interp.set_result_bytes(b"");
     Code::Ok
+}
+
+fn validate_slot_class_references(
+    interp: &mut Interp,
+    slot: &[u8],
+    names: &[Vec<u8>],
+) -> Result<(), Code> {
+    let noun = match slot {
+        b"::oo::define::superclass" => b"superclass".as_slice(),
+        b"::oo::define::mixin" | b"::oo::objdefine::mixin" => b"mixin".as_slice(),
+        _ => return Ok(()),
+    };
+    for name in names {
+        let object = interp.oo_resolve_object(name);
+        let state = interp.oo.borrow();
+        let exists = state.objects.contains_key(&object);
+        let is_class = state.classes.contains_key(&object);
+        drop(state);
+        if !exists {
+            let mut message = name.clone();
+            message.extend_from_slice(b" does not refer to an object");
+            let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"OBJECT", name]);
+            return Err(interp.error_with_code(&message, &code));
+        }
+        if !is_class {
+            let mut message = b"only a class can be a ".to_vec();
+            message.extend_from_slice(noun);
+            let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"CLASS", name]);
+            return Err(interp.error_with_code(&message, &code));
+        }
+    }
+    Ok(())
 }
 
 /// A class-reference slot's `Resolve` method (C's `Slot_ResolveClass`): resolve
@@ -1840,9 +1830,8 @@ impl Interp {
         // `unknown` handler's own frame must not mask it; TIP 500). From
         // non-method code there is no scope, so none are listed.
         let caller_scope = self.oo.borrow().unknown_scope;
-        for p in self.method_chain(obj) {
-            let is_object = p == obj;
-            let in_scope = caller_scope == Some(p);
+        for (p, is_object) in self.method_chain_faceted(obj) {
+            let in_scope = caller_scope == Some((p, is_object));
             let oo = self.oo.borrow();
             if is_object {
                 if let Some(o) = oo.objects.get(&p) {
@@ -1969,15 +1958,19 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(error) => return interp.report_cmd_error(error.into()),
     };
     // An empty (or omitted) target name auto-generates an anonymous name.
-    let dst = match argv.get(2).map(|&a| obj_bytes(a)) {
-        Some(ref n) if !n.is_empty() => interp.fqn_for(n),
+    let original_dst = match argv.get(2).map(|&a| obj_bytes(a)) {
+        Some(n) if !n.is_empty() => n,
         _ => {
             let n = interp.oo.borrow().counter;
             interp.oo.borrow_mut().counter += 1;
             format!("::oo::Obj{n}").into_bytes()
         }
     };
-    interp.retire_gate_hidden_object_root(&dst);
+    let publication = match interp.oo_publication(&original_dst) {
+        Ok(publication) => publication,
+        Err(code) => return code,
+    };
+    let dst = publication.report.clone();
     // If the source is also a class, clone the class definition too, so the
     // copy is a working class (TclOO copies both the object and class facets).
     let mut src_cls = interp.oo.borrow().classes.get(&src).cloned();
@@ -2003,13 +1996,15 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Some(ref ns) if !ns.is_empty() => {
             // The target namespace is *created*; an existing one is an error
             // (C's `TclOO_Copy`; oo-15.12).
-            if interp.resolve_namespace_name(ns).is_some() {
+            if interp
+                .resolve_namespace_name(tcl_core_types::c_string_extent(ns))
+                .is_some()
+            {
                 let mut m = ns.clone();
                 m.extend_from_slice(b" refers to an existing namespace");
                 return err(interp, &m);
             }
-            let ns = interp.fqn_for(ns);
-            interp.ensure_namespace(&ns)
+            interp.ensure_namespace(tcl_core_types::c_string_extent(ns))
         }
         _ => interp.fresh_native_oo_namespace(),
     };
@@ -2040,7 +2035,11 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if let Some(cls) = src_cls {
         interp.oo.borrow_mut().classes.insert(dst_id, cls);
     }
-    interp.ns_register(&dst, Command::OoObject(dst_id));
+    interp.bind_command_replacement(
+        publication.namespace,
+        &publication.simple,
+        Command::OoObject(dst_id),
+    );
     interp.oo_register_my(dst_id);
     // Run the `<cloned>` method (a user override first, then oo::object's native
     // implementation via `next`) to copy the instance namespace's procedures
@@ -2107,12 +2106,15 @@ fn install_method(interp: &mut Interp, name: Vec<u8>, m: Method) -> Code {
 
 /// Default visibility for a method name in the current definition context.
 fn default_vis(interp: &Interp, name: &[u8]) -> MethodVis {
-    if interp.oo.borrow().private_depth > 0 {
-        MethodVis::Private
-    } else if exported_by_default(name) {
-        MethodVis::Public
-    } else {
-        MethodVis::Unexported
+    use tcl_registry::native_tcloo_method_definition::{
+        NativeTclooMethodDefinitionProtocol, NativeTclooMethodVisibility,
+    };
+    let selected = NativeTclooMethodDefinitionProtocol::select(interp.native_invocation_dialect())
+        .expect("registered native TclOO definition release");
+    match selected.default_visibility(name, interp.oo.borrow().private_depth > 0) {
+        NativeTclooMethodVisibility::Public => MethodVis::Public,
+        NativeTclooMethodVisibility::Unexported => MethodVis::Unexported,
+        NativeTclooMethodVisibility::Private => MethodVis::Private,
     }
 }
 
@@ -2172,18 +2174,28 @@ fn install_method_vis(interp: &mut Interp, name: Vec<u8>, m: Method, vis: Method
 /// `private cmd ?arg ...?` / `private { script }` — a definition modifier that
 /// marks the methods/variables it defines as private (`my`-only). TIP 500.
 fn def_private(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // naming.tcloo.private-definition-mode
+    // docs/design/analysis/name-resolution-proofs/private-definition-mode.md
+    if interp.active_def_target().is_none() {
+        return native_context::monkey_business(interp);
+    }
     if argv.len() < 2 {
-        return wrong_args(interp, b"private cmd ?arg ...?");
+        let private = interp.oo.borrow().private_depth > 0;
+        interp.set_result_bytes(if private { b"1" } else { b"0" });
+        return Code::Ok;
     }
     interp.oo.borrow_mut().private_depth += 1;
     let code = if argv.len() == 2 {
-        interp.eval_str(&obj_bytes(argv[1]))
+        interp.eval_generic_control_body(argv[1])
     } else {
         interp.dispatch(&argv[1..])
     };
     interp.oo.borrow_mut().private_depth -= 1;
     code
 }
+
+#[cfg(test)]
+mod native_private_tests;
 
 /// `deletemethod name ?name ...?` — remove method(s) from the current target.
 fn def_deletemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -2385,7 +2397,7 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let stored = if ns_arg.is_empty() {
         None
     } else {
-        match interp.resolve_namespace_name(&ns_arg) {
+        match interp.oo_outer_namespace_name(&ns_arg) {
             Some(qn) => Some(qn),
             None => {
                 let mut m = b"namespace \"".to_vec();
@@ -2412,43 +2424,48 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 const DEFINITION_KINDS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
     tcl_cmd_core::prefix::OptionTable::abbreviating("kind", &[b"-class", b"-instance"]);
 
-/// `oo::define … method`'s TIP 500 export flag (`tclOODefineCmds.c`), resolved
-/// with `Tcl_GetIndexFromObj(…, "export flag", 0)`: `-e`/`-p`/`-u` abbreviate.
-const EXPORT_FLAGS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating(
-        "export flag",
-        &[b"-export", b"-private", b"-unexport"],
-    );
-
 fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // `method name ?-export|-unexport|-private? args body` (TIP 500 flags).
-    let name = obj_bytes(argv[1]);
-    let (flag_vis, rest): (Option<MethodVis>, &[*mut TclObj]) =
-        match argv.get(2).map(|&a| obj_bytes(a)) {
-            Some(f) if f.starts_with(b"-") => match interp.native_static_option_index(
-                argv[2],
-                EXPORT_FLAGS.names(),
-                false,
-                "export flag",
-            ) {
-                Ok(0) => (Some(MethodVis::Public), &argv[3..]),
-                Ok(1) => (Some(MethodVis::Private), &argv[3..]),
-                Ok(_) => (Some(MethodVis::Unexported), &argv[3..]),
-                Err(m) => return interp.report_cmd_error(m),
-            },
-            _ => (None, &argv[2..]),
+    use tcl_registry::native_tcloo_method_definition::{
+        NativeTclooMethodDefinitionProtocol, NativeTclooMethodVisibility,
+    };
+    let Some(selected) =
+        NativeTclooMethodDefinitionProtocol::select(interp.native_invocation_dialect())
+    else {
+        return interp.set_error(b"native method declaration policy is unavailable");
+    };
+    let Some(layout) = selected.layout(argv.len().saturating_sub(1)) else {
+        return wrong_args(interp, selected.usage().as_bytes());
+    };
+    let name = obj_bytes(argv[layout.name + 1]);
+    let flag_vis = if let Some(index) = layout.option {
+        let index = match interp.native_static_string_option_index(
+            argv[index + 1],
+            selected.export_modes().unwrap(),
+            false,
+            "export flag",
+        ) {
+            Ok(index) => index,
+            Err(error) => return interp.report_cmd_error(error),
         };
-    if rest.len() != 2 {
-        return wrong_args(interp, b"method name ?option? args body");
-    }
-    let chosen = match interp.choose_original_procedure_body(rest[1]) {
+        selected
+            .option_visibility(index)
+            .map(|visibility| match visibility {
+                NativeTclooMethodVisibility::Public => MethodVis::Public,
+                NativeTclooMethodVisibility::Unexported => MethodVis::Unexported,
+                NativeTclooMethodVisibility::Private => MethodVis::Private,
+            })
+    } else {
+        None
+    };
+    let chosen = match interp.choose_original_procedure_body(argv[layout.body + 1]) {
         Ok(chosen) => chosen,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
-    let params = match crate::cmd_proc::parse_params_object(interp, rest[0], b"") {
-        Ok(p) => p,
-        Err(error) => return interp.report_cmd_error(error),
-    };
+    let params =
+        match crate::cmd_proc::parse_params_object(interp, argv[layout.parameters + 1], b"") {
+            Ok(p) => p,
+            Err(error) => return interp.report_cmd_error(error),
+        };
     let vis = flag_vis.unwrap_or_else(|| default_vis(interp, &name));
     // Source provenance for `info frame` (TIP 280): the body word is the last
     // argument; its file-absolute line (minus one) is the body's line base.
@@ -2464,12 +2481,6 @@ fn method_body_src(interp: &Interp, body_idx: usize) -> Option<(Rc<[u8]>, u32)> 
     interp
         .current_source_file()
         .map(|f| (f, interp.arg_line(body_idx).saturating_sub(1)))
-}
-
-/// A method/forward is exported by default only when its name begins with an
-/// ASCII lowercase letter (TclOO's naming convention).
-fn exported_by_default(name: &[u8]) -> bool {
-    name.first().is_some_and(u8::is_ascii_lowercase)
 }
 
 /// `forward name cmdPrefix ?arg ...?` — a method that calls a command prefix.
@@ -2840,6 +2851,13 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 return Code::Ok;
             }
             if argv.len() == 1 {
+                if tcl_registry::native_tcloo_bootstrap::class_definition_self_returns_name(
+                    interp.native_invocation_dialect(),
+                ) == Some(true)
+                {
+                    interp.set_result(interp.oo_original_name(tfqn));
+                    return Code::Ok;
+                }
                 return wrong_args(interp, b"self arg ?arg ...?");
             }
             let creation_id = interp.oo.borrow().objects.get(&tfqn).map(|o| o.creation_id);
@@ -3265,6 +3283,50 @@ fn classvariable_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // info object / info class (called from cmd_info)
 
+fn variable_info_options(
+    interp: &mut Interp,
+    kind: InfoOoEnsembleKind,
+    rest: &[*mut TclObj],
+) -> Result<bool, Code> {
+    let selected = tcl_registry::native_tcloo_info::NativeTclooVariableInfoProtocol::select(
+        interp.native_invocation_dialect(),
+    )
+    .ok_or_else(|| {
+        interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("TclOO variable info").into(),
+        )
+    })?;
+    if !selected.accepts_count(rest.len()) {
+        return Err(wrong_args(interp, selected.usage(kind).as_bytes()));
+    }
+    let Some(option) = rest.get(1) else {
+        return Ok(false);
+    };
+    let original = interp
+        .native_string_bytes(option)
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    selected
+        .private_option(&original)
+        .map_err(|error| interp.report_cmd_error(error))
+}
+
+fn method_info_options(
+    interp: &mut Interp,
+    extra: &[*mut TclObj],
+) -> Result<tcl_registry::native_tcloo_info::NativeTclooMethodInfoSelection, Code> {
+    let Some(selected) = tcl_registry::native_tcloo_info::NativeTclooMethodInfoProtocol::select(
+        interp.native_invocation_dialect(),
+    ) else {
+        return Err(interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("TclOO method info options")
+                .into(),
+        ));
+    };
+    selected
+        .parse_original(interp, extra)
+        .map_err(|error| interp.report_cmd_error(error))
+}
+
 /// `info object subcommand object ?arg?`.
 pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
@@ -3291,7 +3353,24 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if sub == b"isa" && argv.len() < 5 {
         return wrong_args(interp, b"info object isa category objName ?arg ...?");
     }
+    let private_variables = if sub == b"variables" {
+        match variable_info_options(interp, InfoOoEnsembleKind::Object, &argv[3..]) {
+            Ok(private) => private,
+            Err(code) => return code,
+        }
+    } else {
+        false
+    };
     if argv.len() < 4 {
+        if sub == b"methods" {
+            return wrong_args(
+                interp,
+                tcl_registry::native_tcloo_info::NativeTclooMethodInfoProtocol::usage(
+                    InfoOoEnsembleKind::Object,
+                )
+                .as_bytes(),
+            );
+        }
         return wrong_args(interp, b"info object subcommand objName ?arg ...?");
     }
     if let Some(code) = native_object_info::selected_object_info_handler(interp, sub, argv) {
@@ -3420,11 +3499,8 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"variables" => {
-            // `info object variables obj ?-private?` — `-private` lists the
-            // TIP 500 private instance variables instead of the public ones.
-            let private = argv.get(4).map(|&a| obj_bytes(a)).as_deref() == Some(b"-private");
             let v = interp.oo.borrow().objects.get(&obj).map(|o| {
-                if private {
+                if private_variables {
                     o.private_variables.clone()
                 } else {
                     o.variables.clone()
@@ -3482,17 +3558,13 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if !interp.oo.borrow().objects.contains_key(&obj) {
                 return not_object(interp, &obj_bytes(argv[3]));
             }
-            let all = argv[4..].iter().any(|&a| obj_bytes(a) == b"-all");
-            let private = argv[4..].iter().any(|&a| obj_bytes(a) == b"-private");
-            // `-scope public|unexported|private` (TIP 500) selects exactly one
-            // visibility class (and ignores `-all`).
-            let scope: Option<Vec<u8>> = argv[4..]
-                .iter()
-                .position(|&a| obj_bytes(a) == b"-scope")
-                .and_then(|p| argv.get(4 + p + 1).map(|&a| obj_bytes(a)));
+            let selected = match method_info_options(interp, &argv[4..]) {
+                Ok(selected) => selected,
+                Err(code) => return code,
+            };
             let mut names: Vec<Vec<u8>> = Vec::new();
             // The object's own methods, plus (with `-all`, no `-scope`) the chain.
-            let chain = if all && scope.is_none() {
+            let chain = if selected.recurse() {
                 interp.method_chain(obj)
             } else {
                 vec![obj]
@@ -3511,19 +3583,11 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 };
                 if let Some((methods, unexp, priv_set)) = entry {
                     for n in methods.keys() {
-                        let show = if let Some(sc) = &scope {
-                            let s: &[u8] = if priv_set.contains(n) {
-                                b"private"
-                            } else if unexp.contains(n) {
-                                b"unexported"
-                            } else {
-                                b"public"
-                            };
-                            s == sc.as_slice()
-                        } else if private {
-                            !priv_set.contains(n)
+                        let public = !unexp.contains(n);
+                        let show = if selected.recurse() {
+                            !priv_set.contains(n) && (selected.includes_unexported() || public)
                         } else {
-                            !unexp.contains(n)
+                            selected.matches_local(public, false, priv_set.contains(n))
                         };
                         if show && !names.contains(n) {
                             names.push(n.clone());
@@ -3534,7 +3598,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // `-all` also surfaces the inherited `oo::object` built-in methods,
             // honouring any `export`/`unexport` applied to them (but `-scope`
             // restricts to the object's own methods).
-            if all && scope.is_none() {
+            if selected.recurse() {
                 for b in [
                     b"<cloned>".as_slice(),
                     b"destroy",
@@ -3546,7 +3610,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     let (exp, unexp, priv_) = interp.method_visibility_flags(obj, b);
                     // `destroy` is exported by default; the rest are unexported.
                     let eff_unexp = !exp && (unexp || b != b"destroy");
-                    let show = if private { !priv_ } else { !eff_unexp };
+                    let show = !priv_ && (selected.includes_unexported() || !eff_unexp);
                     if show && !names.iter().any(|n| n == b) {
                         names.push(b.to_vec());
                     }
@@ -3942,7 +4006,24 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if sub == b"call" && argv.len() != 5 {
         return wrong_args(interp, b"info class call className methodName");
     }
+    let private_variables = if sub == b"variables" {
+        match variable_info_options(interp, InfoOoEnsembleKind::Class, &argv[3..]) {
+            Ok(private) => private,
+            Err(code) => return code,
+        }
+    } else {
+        false
+    };
     if argv.len() < 4 {
+        if sub == b"methods" {
+            return wrong_args(
+                interp,
+                tcl_registry::native_tcloo_info::NativeTclooMethodInfoProtocol::usage(
+                    InfoOoEnsembleKind::Class,
+                )
+                .as_bytes(),
+            );
+        }
         return wrong_args(interp, b"info class subcommand className ?arg ...?");
     }
     let cls = interp.oo_resolve_object(&obj_bytes(argv[3]));
@@ -3970,10 +4051,8 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"variables" | b"variable" => {
-            // `-private` lists the TIP 500 private instance variables.
-            let private = argv.get(4).map(|&a| obj_bytes(a)).as_deref() == Some(b"-private");
             let cl = interp.oo.borrow();
-            let v = if private {
+            let v = if private_variables {
                 cl.classes[&cls].private_variables.clone()
             } else {
                 cl.classes[&cls].variables.clone()
@@ -4054,19 +4133,15 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"methods" => {
-            let all = argv[4..].iter().any(|&a| obj_bytes(a) == b"-all");
-            let private = argv[4..].iter().any(|&a| obj_bytes(a) == b"-private");
-            // `-scope public|unexported|private` (TIP 500) selects exactly one
-            // visibility class.
-            let scope: Option<Vec<u8>> = argv[4..]
-                .iter()
-                .position(|&a| obj_bytes(a) == b"-scope")
-                .and_then(|p| argv.get(4 + p + 1).map(|&a| obj_bytes(a)));
+            let selected = match method_info_options(interp, &argv[4..]) {
+                Ok(selected) => selected,
+                Err(code) => return code,
+            };
             let mut names: Vec<Vec<u8>> = Vec::new();
             // `-all` traverses the class's full precedence (its mixins and the
             // mixins of its superclasses too), not just the superclass MRO
             // (oo-35.5).
-            let chain = if all {
+            let chain = if selected.recurse() {
                 interp.class_precedence(cls)
             } else {
                 vec![cls]
@@ -4074,21 +4149,11 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             for c in &chain {
                 if let Some(cl) = interp.oo.borrow().classes.get(c) {
                     for n in cl.methods.keys() {
-                        let show = if let Some(sc) = &scope {
-                            let s: &[u8] = if cl.private.contains(n) {
-                                b"private"
-                            } else if cl.unexported.contains(n) {
-                                b"unexported"
-                            } else {
-                                b"public"
-                            };
-                            s == sc.as_slice()
-                        } else if private {
-                            // `-private` lists unexported methods too, but never
-                            // the TIP-500 private ones; default lists exported.
-                            !cl.private.contains(n)
+                        let public = !cl.unexported.contains(n);
+                        let show = if selected.recurse() {
+                            !cl.private.contains(n) && (selected.includes_unexported() || public)
                         } else {
-                            !cl.unexported.contains(n)
+                            selected.matches_local(public, false, cl.private.contains(n))
                         };
                         if show && !names.contains(n) {
                             names.push(n.clone());
@@ -4099,7 +4164,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // `-all` reaches oo::object's built-ins: `destroy` (public, unless
             // unexported in the chain), plus the unexported set under `-private`
             // (oo-17.9, oo-17.10).
-            if all {
+            if selected.recurse() {
                 let add = |n: &[u8], names: &mut Vec<Vec<u8>>| {
                     if !names.iter().any(|x| x == n) {
                         names.push(n.to_vec());
@@ -4113,10 +4178,10 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         .get(c)
                         .is_some_and(|cl| cl.unexported.contains(b"destroy".as_slice()))
                 });
-                if private || !destroy_unexported {
+                if selected.includes_unexported() || !destroy_unexported {
                     add(b"destroy", &mut names);
                 }
-                if private {
+                if selected.includes_unexported() {
                     for b in [
                         &b"<cloned>"[..],
                         b"eval",
@@ -4321,23 +4386,58 @@ impl Interp {
         oo.objects.is_empty() && oo.classes.is_empty()
     }
 
-    /// Create class `fqn` (running its optional definition script).
-    fn oo_make_class(&mut self, fqn: &[u8], display: &[u8], script: Option<*mut TclObj>) -> Code {
-        self.retire_gate_hidden_object_root(fqn);
-        let existing = self.oo_resolve_object(fqn);
-        let taken = self.oo.borrow().classes.contains_key(&existing)
-            || self.oo.borrow().objects.contains_key(&existing);
-        // A root this release does not have is not a collision: the engine
-        // seeds the 9.0 metaclasses unconditionally and lets the gate hide
-        // them, so on an 8.6 surface the name is the script's to take.
-        if taken && !self.is_gate_hidden_object_root(fqn) {
-            // C reports `object` (creation funnels through object creation) and
-            // the name *as written*, not the resolved FQN.
-            let mut m = b"can't create object \"".to_vec();
-            m.extend_from_slice(display);
-            m.extend_from_slice(b"\": command already exists with that name");
-            return self.error(&m);
+    /// Select and validate one actual object-command publication before allocation.
+    fn oo_publication(&mut self, original: &[u8]) -> Result<ObjectPublication, Code> {
+        let current = self.current_ns();
+        let Some((namespace, simple)) = self
+            .namespaces_mut()
+            .oo_object_publication_at(current, original)
+        else {
+            return Err(self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "TclOO original object publication",
+                )
+                .into(),
+            ));
+        };
+        self.retire_gate_hidden_object_in_slot(namespace, &simple);
+        if self.namespaces().command_in(namespace, &simple).is_some() {
+            let Some(protocol) = self.name_policy_protocol() else {
+                return Err(self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "TclOO object collision naming issuer",
+                    )
+                    .into(),
+                ));
+            };
+            let message = match protocol.recipe().oo_object_collision_message(original) {
+                Ok(message) => message,
+                Err(_) => {
+                    return Err(self.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "TclOO object collision report",
+                        )
+                        .into(),
+                    ));
+                }
+            };
+            return Err(self.error(&message));
         }
+        let report = self.namespaces().command_fqn_at(namespace, &simple);
+        Ok(ObjectPublication {
+            namespace,
+            simple,
+            report,
+        })
+    }
+
+    /// Create a class at its selected slot, running its optional definition script.
+    fn oo_make_class(
+        &mut self,
+        publication: ObjectPublication,
+        script: Option<*mut TclObj>,
+    ) -> Code {
+        let fqn = &publication.report;
         let object = self.oo.borrow_mut().allocate(fqn.to_vec());
         let (object_root, class_root) = {
             let oo = self.oo.borrow();
@@ -4364,7 +4464,11 @@ impl Interp {
                 creation_id,
             ),
         );
-        self.ns_register(fqn, Command::OoObject(object));
+        self.bind_command_replacement(
+            publication.namespace,
+            &publication.simple,
+            Command::OoObject(object),
+        );
         self.oo_register_my(object);
         if let Some(script) = script {
             let code = self.oo_define_body(DefTarget::Class(object), script, None);
@@ -4374,7 +4478,7 @@ impl Interp {
                 self.oo.borrow_mut().classes.remove(&object);
                 self.oo.borrow_mut().retire_native_properties(object);
                 self.oo.borrow_mut().objects.remove(&object);
-                self.delete_command(fqn);
+                self.retire_oo_command_identity(object);
                 self.oo.borrow_mut().names.remove(&object);
                 return code;
             }
@@ -4587,7 +4691,7 @@ impl Interp {
             }
         };
         match method {
-            b"new" if !is_meta && new_ok => Some(self.oo_new(class, None, b"", args, invocation())),
+            b"new" if !is_meta && new_ok => Some(self.oo_new(class, None, args, invocation())),
             b"createWithNamespace" if cwn_ok => {
                 if args.len() < 2 {
                     let mut u = cmd.to_vec();
@@ -4598,17 +4702,23 @@ impl Interp {
                 if raw.is_empty() {
                     return Some(self.error(b"object name must not be empty"));
                 }
-                let name = self.fqn_for(&raw);
+                let publication = match self.oo_publication(&raw) {
+                    Ok(publication) => publication,
+                    Err(code) => return Some(code),
+                };
                 let ns_raw = obj_bytes(args[1]);
                 // The namespace is *created*; an existing one is an error.
-                if self.resolve_namespace_name(&ns_raw).is_some() {
+                if self
+                    .resolve_namespace_name(tcl_core_types::c_string_extent(&ns_raw))
+                    .is_some()
+                {
                     let mut m = b"can't create namespace \"".to_vec();
                     m.extend_from_slice(&ns_raw);
                     m.extend_from_slice(b"\": already exists");
                     return Some(self.error(&m));
                 }
-                let ns = self.fqn_for(&ns_raw);
-                Some(self.oo_new_ns(class, Some(name), &raw, Some(ns), &args[2..], invocation()))
+                let ns = self.ensure_namespace(tcl_core_types::c_string_extent(&ns_raw));
+                Some(self.oo_new_ns(class, Some(publication), Some(ns), &args[2..], invocation()))
             }
             b"create" if cre_ok => {
                 if args.is_empty() {
@@ -4620,11 +4730,14 @@ impl Interp {
                 if raw.is_empty() {
                     return Some(self.error(b"object name must not be empty"));
                 }
-                let name = self.fqn_for(&raw);
+                let publication = match self.oo_publication(&raw) {
+                    Ok(publication) => publication,
+                    Err(code) => return Some(code),
+                };
                 Some(if is_meta {
-                    self.oo_make_class(&name, &raw, args.get(1).copied())
+                    self.oo_make_class(publication, args.get(1).copied())
                 } else {
-                    self.oo_new(class, Some(name), &raw, &args[1..], invocation())
+                    self.oo_new(class, Some(publication), &args[1..], invocation())
                 })
             }
             _ => None,
@@ -4742,17 +4855,15 @@ impl Interp {
     fn oo_new(
         &mut self,
         class: OoId,
-        name: Option<Vec<u8>>,
-        display: &[u8],
+        publication: Option<ObjectPublication>,
         args: &[*mut TclObj],
         invocation: MethodInvocation,
     ) -> Code {
-        self.oo_new_ns(class, name, display, None, args, invocation)
+        self.oo_new_ns(class, publication, None, args, invocation)
     }
 
     /// `oo_new` with an optional explicit instance-variable namespace
     /// (`createWithNamespace`); `None` allocates the native hidden namespace.
-    /// `display` is the object name *as written* (for the dup error).
     fn fresh_native_oo_namespace(&mut self) -> NsId {
         let name = {
             let mut oo = self.oo.borrow_mut();
@@ -4766,34 +4877,29 @@ impl Interp {
     fn oo_new_ns(
         &mut self,
         class: OoId,
-        name: Option<Vec<u8>>,
-        display: &[u8],
-        ns_override: Option<Vec<u8>>,
+        publication: Option<ObjectPublication>,
+        ns_override: Option<NsId>,
         args: &[*mut TclObj],
         invocation: MethodInvocation,
     ) -> Code {
-        let anonymous = name.is_none();
-        let fqn = name.unwrap_or_else(|| {
-            let n = format!("::oo::Obj{}", self.oo.borrow().counter);
-            self.oo.borrow_mut().counter += 1;
-            n.into_bytes()
-        });
-        self.retire_gate_hidden_object_root(&fqn);
-        let existing = self.oo_resolve_object(&fqn);
-        let taken = self.oo.borrow().objects.contains_key(&existing)
-            || self.oo.borrow().classes.contains_key(&existing);
-        // A root this release does not have is not a collision: the engine
-        // seeds the 9.0 metaclasses unconditionally and lets the gate hide
-        // them, so on an 8.6 surface the name is the script's to take.
-        if taken && !self.is_gate_hidden_object_root(&fqn) {
-            let mut m = b"can't create object \"".to_vec();
-            m.extend_from_slice(display);
-            m.extend_from_slice(b"\": command already exists with that name");
-            return self.error(&m);
-        }
+        let anonymous = publication.is_none();
+        let publication = match publication {
+            Some(publication) => publication,
+            None => {
+                let name = format!("::oo::Obj{}", self.oo.borrow().counter);
+                self.oo.borrow_mut().counter += 1;
+                match self.oo_publication(name.as_bytes()) {
+                    Ok(publication) => publication,
+                    Err(code) => return code,
+                }
+            }
+        };
+        let fqn = publication.report.clone();
         let var_ns = match ns_override {
-            Some(ns) => self.ensure_namespace(&ns),
-            None if anonymous => self.ensure_command_owned_namespace(&fqn),
+            Some(ns) => ns,
+            None if anonymous => self
+                .namespaces_mut()
+                .ensure_command_owned_namespace_in_slot(publication.namespace, &publication.simple),
             None => self.fresh_native_oo_namespace(),
         };
         native_context::install_object_helpers(self, var_ns);
@@ -4839,7 +4945,11 @@ impl Interp {
                 },
             );
         }
-        self.ns_register(&fqn, Command::OoObject(object));
+        self.bind_command_replacement(
+            publication.namespace,
+            &publication.simple,
+            Command::OoObject(object),
+        );
         self.oo_register_my(object);
 
         // Constructor dispatch runs along the *class* MRO (objects can't define
@@ -4875,7 +4985,7 @@ impl Interp {
                 self.oo.borrow_mut().retire_native_properties(object);
                 self.oo.borrow_mut().objects.remove(&object);
                 self.oo.borrow_mut().classes.remove(&object);
-                self.delete_command(&fqn);
+                self.retire_oo_command_identity(object);
                 self.oo.borrow_mut().names.remove(&object);
                 self.error_restore(snap);
                 return Code::Error;
@@ -4937,9 +5047,8 @@ impl Interp {
             code.extend_from_slice(method);
             return self.error_with_code(&m, &code);
         }
-        // TIP 500: a private (unexported) method is still visible to an external
-        // call that originates from *within the same object* (e.g. `[self]
-        // priv`), since the caller belongs to the object.
+        // True-private scope is independent of public visibility. An external
+        // same-object call still cannot select a merely unexported method.
         let caller_context = {
             let activation = self.frames.borrow().current_activation();
             self.oo
@@ -4948,15 +5057,15 @@ impl Interp {
                 .iter()
                 .rev()
                 .find(|frame| frame.activation == Some(activation))
-                .map(|frame| {
-                    (
-                        frame.object,
-                        frame.chain.get(frame.index).map(|step| step.provider),
-                    )
+                .and_then(|frame| {
+                    frame
+                        .chain
+                        .get(frame.index)
+                        .map(|step| (frame.object, step.provider, step.is_object))
                 })
         };
-        let caller_is_self = caller_context.is_some_and(|(caller, _)| caller == obj);
-        let enforce = external && !caller_is_self;
+        let caller_is_self = caller_context.is_some_and(|(caller, _, _)| caller == obj);
+        let enforce = external;
         let providers = self.method_chain_faceted(obj);
         // Native class hierarchies containing true-private methods never stash a chain.
         let cache_original = original_argv
@@ -4996,7 +5105,9 @@ impl Interp {
         // declaring entity of the currently-running method — is that same
         // provider. From non-method (external) code there is no scope, so all
         // private methods are invisible.
-        let caller_scope = caller_context.and_then(|(_, provider)| provider);
+        let caller_scope = caller_context.and_then(|(caller, provider, is_object)| {
+            (!is_object || caller == obj).then_some((provider, is_object))
+        });
         // The target-method steps: every provider that defines `method`. For an
         // external call, skip steps the provider unexports (unless overridden by
         // an export) — so a public override still runs while a private one is
@@ -5010,7 +5121,7 @@ impl Interp {
                 }
                 // A private method is in scope only from its own declarer.
                 if self.method_is_private(*p, method, is_obj) {
-                    return caller_scope == Some(*p);
+                    return caller_scope == Some((*p, is_obj));
                 }
                 !(enforce && !exported_anywhere && self.method_unexported(*p, method, is_obj))
             })
@@ -5023,16 +5134,11 @@ impl Interp {
             .collect();
         // A caller-scope private shadows any public override further down the
         // chain, so move it to the front (it is the most-specific step).
-        if !external {
-            if let Some(c) = caller_scope {
-                let is_obj = c == obj;
-                if self.oo_has_method(c, method, is_obj)
-                    && self.method_is_private(c, method, is_obj)
-                {
-                    if let Some(pos) = steps.iter().position(|s| s.provider == c) {
-                        let s = steps.remove(pos);
-                        steps.insert(0, s);
-                    }
+        if let Some((c, is_obj)) = caller_scope {
+            if self.oo_has_method(c, method, is_obj) && self.method_is_private(c, method, is_obj) {
+                if let Some(pos) = steps.iter().position(|s| s.provider == c) {
+                    let s = steps.remove(pos);
+                    steps.insert(0, s);
                 }
             }
         }
@@ -5117,9 +5223,16 @@ impl Interp {
                     .iter()
                     .any(|(p, is_obj)| self.oo_has_method(*p, b"unknown", *is_obj))
             {
-                let head = obj::new_string_bytes(method);
-                unsafe { obj::incr_ref_count(head) };
-                let mut uargs: Vec<*mut TclObj> = vec![head];
+                // The missed selector is an original value, including slot
+                // data whose String bytes are not its object identity.
+                let head = original_argv
+                    .and_then(|words| words.get(1).copied())
+                    .filter(|&word| obj_bytes(word) == method)
+                    .map_or_else(
+                        || obj::Owned::fresh(obj::new_string_bytes(method)),
+                        obj::Owned::retain,
+                    );
+                let mut uargs: Vec<*mut TclObj> = vec![head.as_ptr()];
                 for &a in args {
                     unsafe { obj::incr_ref_count(a) };
                     uargs.push(a);
@@ -5134,7 +5247,7 @@ impl Interp {
                     None,
                     original_argv,
                 );
-                for a in uargs {
+                for &a in &uargs[1..] {
                     unsafe { obj::decr_ref_count(a) };
                 }
                 code
@@ -5210,53 +5323,89 @@ impl Interp {
         match method {
             // Link each named instance variable into the calling method frame.
             b"variable" => {
-                for &a in args {
-                    let name = obj_bytes(a);
-                    if name.windows(2).any(|w| w == b"::") {
-                        let mut m = b"variable name \"".to_vec();
-                        m.extend_from_slice(&name);
-                        m.extend_from_slice(b"\" illegal: must not contain namespace separator");
-                        return Some(self.error(&m));
-                    }
-                    // An array-element name is rejected (C: `can't define "X":
-                    // name refers to an element in an array`).
-                    if name.last() == Some(&b')') && name.contains(&b'(') {
-                        let mut m = b"can't define \"".to_vec();
-                        m.extend_from_slice(&name);
-                        m.extend_from_slice(b"\": name refers to an element in an array");
-                        return Some(self.error(&m));
-                    }
-                    // A private variable of the caller's scope links to its
-                    // mangled storage (TIP 500; oo-38.5).
-                    match self.private_storage_name(&name) {
-                        Some(storage) => self.make_variable_mapped(var_ns, &name, &storage),
-                        None => self.make_variable(var_ns, &name),
+                let Some(protocol) = self.native_c_variable_name_protocol() else {
+                    return Some(
+                        self.report_cmd_error(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "actual TclOO variable names",
+                            )
+                            .into(),
+                        ),
+                    );
+                };
+                for &original in args {
+                    let bytes = match self.native_string_bytes(&original) {
+                        Ok(bytes) => bytes.to_vec(),
+                        Err(error) => return Some(self.report_cmd_error(error.into())),
+                    };
+                    let local = match tcl_syntax::naming::native_oo_explicit_variable_local_name(
+                        tcl_syntax::naming::NativeNameProtocol::C(protocol.version()),
+                        &bytes,
+                    ) {
+                        Ok(Ok(local)) => local.to_vec(),
+                        Ok(Err(error)) => {
+                            let words = error
+                                .error_code
+                                .iter()
+                                .map(Vec::as_slice)
+                                .collect::<Vec<_>>();
+                            return Some(
+                                self.report_cmd_error(
+                                    tcl_cmd_core::CmdError::with_error_code_bytes(
+                                        error.message,
+                                        crate::interp::error_code_list(&words),
+                                    )
+                                    .with_native_string_result(
+                                        tcl_syntax::native_string::NativeStringProtocol::C(
+                                            protocol.version(),
+                                        ),
+                                    ),
+                                ),
+                            );
+                        }
+                        Err(_) => {
+                            return Some(
+                                self.report_cmd_error(
+                                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                        "TclOO variable local name",
+                                    )
+                                    .into(),
+                                ),
+                            );
+                        }
+                    };
+                    let storage = self.private_storage_name(
+                        &bytes,
+                        tcl_syntax::naming::NativeOoPrivateVariablePurpose::ExplicitLink,
+                    );
+                    let mapped = storage
+                        .as_ref()
+                        .map(|storage| obj::Owned::fresh(obj::new_string_bytes(storage)));
+                    let target = mapped.as_ref().map_or(original, obj::Owned::as_ptr);
+                    let code = self.link_original_c_oo_variable(target, var_ns, &local);
+                    if code != Code::Ok {
+                        return Some(code);
                     }
                 }
                 self.set_result_bytes(b"");
                 Some(Code::Ok)
             }
-            // The fully-qualified name of one of the object's variables.
+            // Varname creates the selected cell and follows its actual link.
             b"varname" => {
                 if args.len() != 1 {
                     return Some(wrong_args(self, b"my varname varName"));
                 }
-                // A private variable of the *calling* method's declaring scope
-                // maps to its mangled storage name (TIP 500; oo-38.3).
-                let want = obj_bytes(args[0]);
-                let storage = self.private_storage_name(&want).unwrap_or(want);
-                // Follow links to the real variable the name points at, so a
-                // `namespace upvar`'d / linked name reports its target (oo-19.5).
-                let full = self
-                    .resolved_var_full_name(var_ns, &storage)
-                    .unwrap_or_else(|| {
-                        let mut f = self.namespaces().qualified_name(var_ns);
-                        f.extend_from_slice(b"::");
-                        f.extend_from_slice(&storage);
-                        f
-                    });
-                self.set_result(obj::new_string_bytes(&full));
-                Some(Code::Ok)
+                let bytes = match self.native_string_bytes(&args[0]) {
+                    Ok(bytes) => bytes.to_vec(),
+                    Err(error) => return Some(self.report_cmd_error(error.into())),
+                };
+                let storage = self
+                    .private_storage_name(
+                        &bytes,
+                        tcl_syntax::naming::NativeOoPrivateVariablePurpose::Varname,
+                    )
+                    .unwrap_or(bytes);
+                Some(self.original_c_oo_varname(args[0], var_ns, &storage))
             }
             // Evaluate a script in the object's namespace (concatenating multiple
             // arguments with spaces, as `Tcl_ConcatObj` does).
@@ -5264,22 +5413,16 @@ impl Interp {
                 if args.is_empty() {
                     return Some(wrong_args(self, b"my eval arg ?arg ...?"));
                 }
-                let script = if args.len() == 1 {
-                    obj_bytes(args[0])
+                let concatenated;
+                let script = if let [original] = args {
+                    *original
                 } else {
-                    let mut out: Vec<u8> = Vec::new();
-                    for &a in args {
-                        let b = obj_bytes(a);
-                        let Some(start) = b.iter().position(|&c| !c.is_ascii_whitespace()) else {
-                            continue;
-                        };
-                        let end = b.iter().rposition(|&c| !c.is_ascii_whitespace()).unwrap() + 1;
-                        if !out.is_empty() {
-                            out.push(b' ');
-                        }
-                        out.extend_from_slice(&b[start..end]);
-                    }
-                    out
+                    let script = match tcl_cmd_core::list::concat_selected(self, args) {
+                        Ok(script) => script,
+                        Err(error) => return Some(self.report_cmd_error(error)),
+                    };
+                    concatenated = obj::Owned::fresh(script);
+                    concatenated.as_ptr()
                 };
                 let caller = self.current_ns();
                 self.set_current_ns(var_ns);
@@ -5316,7 +5459,7 @@ impl Interp {
                     target: Vec::new(),
                     external,
                 });
-                let code = self.eval_str(&script);
+                let code = self.eval_generic_control_body(script);
                 self.oo.borrow_mut().call_stack.pop();
                 let popped = self.pop_native_call_frame();
                 self.set_current_ns(caller);
@@ -5444,7 +5587,14 @@ impl Interp {
     /// method's declaring scope, its mangled storage name (`"<creationEpoch> :
     /// name"`); otherwise `None`. The scope is the provider of the call-stack's
     /// top frame (the method that invoked the built-in).
-    fn private_storage_name(&self, name: &[u8]) -> Option<Vec<u8>> {
+    fn private_storage_name(
+        &self,
+        name: &[u8],
+        purpose: tcl_syntax::naming::NativeOoPrivateVariablePurpose,
+    ) -> Option<Vec<u8>> {
+        let protocol = tcl_syntax::naming::NativeNameProtocol::C(
+            self.native_c_variable_name_protocol()?.version(),
+        );
         let oo = self.oo.borrow();
         let frame =
             oo.call_stack.iter().rev().find(|frame| {
@@ -5452,21 +5602,22 @@ impl Interp {
             })?;
         let prov = frame.chain.get(frame.index)?.provider;
         let is_object = prov == frame.object;
-        let is_private = if is_object {
-            oo.objects
-                .get(&prov)
-                .is_some_and(|o| o.private_variables.iter().any(|v| v.name == name))
+        let declared = if is_object {
+            &oo.objects.get(&prov)?.private_variables
         } else {
-            oo.classes
-                .get(&prov)
-                .is_some_and(|c| c.private_variables.iter().any(|v| v.name == name))
+            &oo.classes.get(&prov)?.private_variables
         };
-        if !is_private {
-            return None;
-        }
-        let epoch = oo.objects.get(&prov).map(|o| o.creation_id).unwrap_or(0);
+        let declaration = declared.iter().find(|variable| {
+            tcl_syntax::naming::native_oo_private_variable_matches(
+                protocol,
+                purpose,
+                &variable.name,
+                name,
+            ) == Ok(true)
+        })?;
+        let epoch = oo.objects.get(&prov)?.creation_id;
         let mut s = format!("{epoch} : ").into_bytes();
-        s.extend_from_slice(name);
+        s.extend_from_slice(&declaration.name);
         Some(s)
     }
 
@@ -5483,11 +5634,7 @@ impl Interp {
         // The destination namespace's FQN, for re-pointing copied procs.
         let dst_qual = {
             let q = self.namespaces().qualified_name(dst_ns);
-            if q == b"::" {
-                Vec::new()
-            } else {
-                q
-            }
+            if q == b"::" { Vec::new() } else { q }
         };
         for n in &names {
             // Bind the resolved command before borrowing mutably (the `Ref` from
@@ -6229,6 +6376,9 @@ impl Interp {
                 source,
                 body_line_base,
                 link_vars: &vars,
+                oo_variable_resolver: Some(native_variables::NativeOoVariableResolver::new(
+                    &self.oo, prov, is_object, var_ns,
+                )),
                 // Property accessors propagate break/continue to `configure`.
                 keep_loop_codes: method.starts_with(b"<ReadProp-")
                     || method.starts_with(b"<WriteProp-"),
@@ -6537,11 +6687,7 @@ fn c3_merge(mut seqs: Vec<Vec<OoId>>) -> Vec<OoId> {
             let in_tail = seqs
                 .iter()
                 .any(|t| t.len() > 1 && t[1..].iter().any(|x| x == h));
-            if in_tail {
-                None
-            } else {
-                Some(*h)
-            }
+            if in_tail { None } else { Some(*h) }
         });
         let head = match head {
             Some(h) => h,
@@ -6558,8 +6704,11 @@ fn c3_merge(mut seqs: Vec<Vec<OoId>>) -> Vec<OoId> {
 }
 
 #[cfg(test)]
+mod native_eval_tests;
+
+#[cfg(test)]
 mod tests {
-    use crate::interp::{obj_bytes, Code, Interp, Param};
+    use crate::interp::{Code, Interp, Param, obj_bytes};
     use crate::{counters, list, obj};
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
@@ -7292,7 +7441,7 @@ mod tests {
             // b inherits y=1 and its own foo (operating on b's y).
             assert_eq!(ok(i, b"b eval foo"), b"2"); // b.y 1->2
             assert_eq!(ok(i, b"b eval foo"), b"3"); // b.y 2->3
-                                                    // a's y is untouched by b's foo.
+            // a's y is untouched by b's foo.
             assert_eq!(ok(i, b"a eval {set y}"), b"1");
             assert_eq!(ok(i, b"a eval foo"), b"2"); // a.y 1->2
         });
@@ -7448,7 +7597,17 @@ mod tests {
 
     #[test]
     fn variable_declaration_introspection_retains_original_counted_object() {
-        leak_free(|interp| {
+        // Native proof naming.tcloo.original-counted-variable-header:
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-counted-variable-header.md
+        // Direct declaration/query retains the original counted input object;
+        // byte-equal reconstructed values cannot supply this header identity.
+        for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(version),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
             assert_eq!(interp.eval_str(b"oo::class create C"), Code::Ok);
             let original = obj::Owned::fresh(obj::new_string_bytes(b"a\0z"));
             let mut declaration = vec![
@@ -7469,9 +7628,38 @@ mod tests {
             let words: Vec<_> = query.iter().map(obj::Owned::as_ptr).collect();
             assert_eq!(interp.dispatch(&words), Code::Ok);
             let listed = list::list_elements(interp.result_obj()).unwrap();
-            assert_eq!(listed, vec![original.as_ptr()]);
-            assert_eq!(obj_bytes(listed[0]), b"a\0z");
-        });
+            assert_eq!(listed, vec![original.as_ptr()], "{version}");
+            assert_eq!(obj_bytes(listed[0]), b"a\0z", "{version}");
+        }
+    }
+
+    #[test]
+    fn unknown_method_preserves_original_selector_for_returned_slot_data() {
+        // naming.tcloo.original-counted-variable-header
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-counted-variable-header.md
+        // This Rust control isolates the dispatcher before the native proof's
+        // direct declaration/query boundary; it claims no extra native observer.
+        for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(version),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert_eq!(interp.eval_str(b"oo::object create O; oo::objdefine O method unknown {requested args} {return $requested}"), Code::Ok);
+            let selector = obj::Owned::fresh(obj::new_string_bytes(b"a\0z"));
+            let head = obj::Owned::fresh(obj::new_string_bytes(b"O"));
+            assert_eq!(
+                interp.dispatch(&[head.as_ptr(), selector.as_ptr()]),
+                Code::Ok,
+                "{version}"
+            );
+            assert!(
+                interp.result_obj() == selector.as_ptr(),
+                "{version}: original selector header"
+            );
+            assert_eq!(interp.result_bytes(), b"a\0z", "{version}");
+        }
     }
 
     #[test]
@@ -7504,6 +7692,8 @@ mod tests {
 
     #[test]
     fn define_context_self_arity() {
+        // naming.tcloo.original-definition-context-self
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-definition-context-self.md
         leak_free(|i| {
             ok(i, b"oo::class create Cls");
             ok(i, b"Cls create obj");
@@ -7581,7 +7771,9 @@ mod tests {
             ok(i, b"set o [C new]");
             ok(i, b"$o s hi");
             assert_eq!(ok(i, b"$o g"), b"hi");
-            assert_eq!(ok(i, b"$o vn"), b"::oo::Obj0::x");
+            let mut variable = ok(i, b"info object namespace $o");
+            variable.extend_from_slice(b"::x");
+            assert_eq!(ok(i, b"$o vn"), variable);
             assert_eq!(ok(i, b"$o e"), b"9");
             // Built-ins are unexported: an external call is an unknown method.
             assert_eq!(i.eval_str(b"$o variable x"), Code::Error);
@@ -7936,6 +8128,8 @@ mod tests {
 
     #[test]
     fn definitionnamespace_semantics() {
+        // naming.tcloo.original-definitionnamespace-source-control
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-definitionnamespace-source-control.md
         leak_free(|i| {
             // TIP 524: a metaclass's -class definition namespace becomes the
             // resolution scope when defining its instances (classes).
@@ -8494,7 +8688,80 @@ mod tests {
     }
 
     #[test]
+    fn original_renamed_definition_matches_native_source_and_raw_return_boundaries() {
+        // naming.class.original-renamed-definition-error-context
+        // docs/design/analysis/name-resolution-proofs/class-original-renamed-definition-error-context.md
+        // Whole public completion/errorInfo only; no private class/header
+        // identity follows. C8.4/8.5 stock TclOO is unavailable: their C API
+        // settles top-level return to OK, while this raw evaluator retains RETURN.
+        macro_rules! provider {
+            ($engine:literal, $version:literal, $raw_return:literal) => {
+                (
+                    $engine,
+                    $raw_return,
+                    include_str!(concat!(
+                        "../../../rust/tcl-registry/tests/data/native_oo_renamed_definition321/",
+                        $version,
+                        "/renamed-definition/stdout"
+                    )),
+                )
+            };
+        }
+        let source = include_bytes!(
+            "../../../rust/tcl-registry/tests/data/native_oo_renamed_definition321/source.tcl"
+        );
+        for (engine, raw_return, stdout) in [
+            provider!("tcl8.4", "8.4.20", true),
+            provider!("tcl8.5", "8.5.19", true),
+            provider!("tcl8.6", "8.6.18", false),
+            provider!("tcl9.0", "9.0.4", false),
+            provider!("tcl9.1", "9.1.0", false),
+            provider!("jim", "jim", false),
+        ] {
+            let (expected_code, original) = stdout
+                .lines()
+                .find_map(|line| line.strip_prefix("ORIGINAL|"))
+                .unwrap()
+                .split_once('|')
+                .unwrap();
+            let expected: Vec<u8> = original
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect();
+            counters::reset();
+            {
+                let mut interp = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    crate::environment::profile_for_dialect(engine),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                // The native provider starts with its distribution extensions loaded.
+                crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+                let code = interp.eval_str(source);
+                assert!(
+                    !interp.host_refusal_pending(),
+                    "{engine}: {:?}",
+                    interp.native_access_refusal()
+                );
+                if raw_return {
+                    assert_eq!(expected_code, "0", "{engine}: native embedding boundary");
+                    assert_eq!(code, Code::Return, "{engine}: raw evaluator boundary");
+                } else {
+                    assert_eq!(code.as_int().to_string(), expected_code, "{engine}");
+                }
+                assert_eq!(interp.result_bytes(), expected, "{engine}");
+            }
+            assert_eq!(counters::finalize(), 0, "{engine}");
+            assert_eq!(counters::double_free_count(), 0, "{engine}");
+        }
+    }
+
+    #[test]
     fn define_script_errorinfo_and_super_mixin_messages() {
+        // naming.tcloo.original-nonclass-superclass-mixin-errors
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-nonclass-superclass-mixin-errors.md
         leak_free(|i| {
             // superclass/mixin: not-an-object vs not-a-class messages (as-written
             // name; matches C's Tcl_GetObjectFromObj + ClassSuperSet/MixinSet).
@@ -8518,7 +8785,9 @@ mod tests {
                 i.eval_str(b"oo::class create c4 { mixin anobj }"),
                 Code::Error
             );
-            assert_eq!(i.result_bytes(), b"may only mix in classes");
+            assert_eq!(i.result_bytes(), b"only a class can be a mixin");
+            // naming.class.original-renamed-definition-error-context
+            // docs/design/analysis/name-resolution-proofs/class-original-renamed-definition-error-context.md
             // The define-script errorInfo frame uses the *current* (renamed) name.
             ok(i, b"oo::class create base");
             assert_eq!(
@@ -8527,9 +8796,9 @@ mod tests {
             );
             let ei = ok(i, b"set errorInfo");
             assert!(
-                ei.windows(b"class \"::def\"".len())
-                    .any(|w| w == b"class \"::def\""),
-                "errorInfo should name the renamed class ::def, got {ei:?}"
+                ei.windows(b"class \"::oo::define::def\"".len())
+                    .any(|w| w == b"class \"::oo::define::def\""),
+                "errorInfo should name the renamed class ::oo::define::def, got {ei:?}"
             );
         });
     }
@@ -8678,7 +8947,8 @@ mod tests {
             // info introspection
             assert_eq!(ok(i, b"info object class $o"), b"::Base");
             assert_eq!(ok(i, b"info object isa object $o"), b"1");
-            assert_eq!(ok(i, b"info class instances Base"), b"::oo::Obj0");
+            let object = ok(i, b"set o");
+            assert_eq!(ok(i, b"info class instances Base"), object);
         });
     }
 
@@ -9102,9 +9372,11 @@ mod original_call_argv_tests {
                     .map(|pair| list::list_elements_native_checked(pair[1], protocol).unwrap())
                     .collect();
                 assert_eq!(calls.len(), 2);
-                assert!(calls
-                    .iter()
-                    .all(|call| call.last() == Some(&argument.as_ptr())));
+                assert!(
+                    calls
+                        .iter()
+                        .all(|call| call.last() == Some(&argument.as_ptr()))
+                );
                 assert_eq!(
                     calls.last().unwrap(),
                     &vec![head.as_ptr(), method.as_ptr(), argument.as_ptr()]
@@ -9207,11 +9479,28 @@ mod original_call_argv_tests {
                 .unwrap();
             let stack = interp.original_error_stack_value();
             let parts = list::list_elements_native_checked(stack.as_ptr(), protocol).unwrap();
-            assert!(!parts
-                .chunks_exact(2)
-                .any(|pair| obj::bytes_of(pair[0]) == b"CALL"));
+            assert!(
+                !parts
+                    .chunks_exact(2)
+                    .any(|pair| obj::bytes_of(pair[0]) == b"CALL")
+            );
         }
     }
 }
 
 mod native_properties;
+
+#[cfg(test)]
+mod native_info_option_tests;
+
+#[cfg(test)]
+mod native_explicit_variable_tests;
+
+#[cfg(test)]
+mod native_method_info_tests;
+
+#[cfg(test)]
+mod native_property_counted_tests;
+
+#[cfg(test)]
+mod native_original_holder_tests;

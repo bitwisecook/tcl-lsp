@@ -10,6 +10,81 @@ use tcl_syntax::native_jim_lookup::NativeJimLinkTargetInput;
 use tcl_syntax::value::ValueOps;
 
 impl Interp {
+    pub(crate) fn bind_original_jim_alias_local(
+        &mut self,
+        original: Option<*mut TclObj>,
+        local: &[u8],
+        local_key: &[u8],
+        link: Link,
+    ) -> Code {
+        use tcl_syntax::native_jim_lookup::NativeJimAliasFailure as Failure;
+        let protocol = self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .expect("actual Jim alias binder");
+        let reject = |interp: &mut Interp, failure| {
+            interp.report_cmd_error(tcl_cmd_core::var::native_jim_alias_error(
+                protocol, failure, local,
+            ))
+        };
+        let Some(names) = self.name_policy_protocol() else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "actual Jim local alias names",
+                )
+                .into(),
+            );
+        };
+        if names
+            .recipe()
+            .combined_variable_input(local)
+            .element()
+            .is_some()
+        {
+            return reject(self, Failure::LocalElement);
+        }
+        let defined = crate::vars::jim_alias_local_is_defined(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            local,
+        );
+        match defined {
+            Ok(true) => return reject(self, Failure::Exists),
+            Ok(false) => (),
+            Err(_) => {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "actual Jim local alias slot",
+                    )
+                    .into(),
+                );
+            }
+        }
+        if self.upvar_would_invert(&link, local) {
+            return reject(self, Failure::Inverted);
+        }
+        if self.variable_is_qualified(local) {
+            let Some((namespace, tail)) = self.resolve_var_target(self.current_ns(), local) else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "actual Jim local alias frame",
+                    )
+                    .into(),
+                );
+            };
+            self.make_upvar_in(namespace, &tail, link);
+        } else {
+            self.make_upvar(link, local_key);
+        }
+        if let Some(original) = original {
+            if let Err(error) = self.retain_original_jim_link_local(original, local) {
+                return self.report_cmd_error(error.into());
+            }
+        }
+        Code::Ok
+    }
+
     pub(crate) fn retain_original_jim_link_target(
         &self,
         link: &mut Link,
@@ -29,7 +104,7 @@ impl Interp {
                 (0, Owned::fresh(obj::new_string_bytes(tail)))
             }
         };
-        let frame = self.frames.borrow().jim_link_birth(level).ok_or(
+        let frame = self.frames.borrow().jim_link_storage(level).ok_or(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "actual Jim alias target frame",
             ),
@@ -115,7 +190,16 @@ impl Interp {
             .map_err(|error| crate::builtins::var_error(self, &bytes, error))?;
         Ok(match element {
             Some(element) => self.var_unset_elem(&root, &element),
-            None => self.var_unset(&root),
+            None => {
+                // naming.procedure-static.jim-primary-table-unset
+                // docs/design/analysis/name-resolution-proofs/procedure-static-jim-primary-table-unset.md
+                crate::vars::unset_jim_primary_variable(
+                    &mut self.frames.borrow_mut(),
+                    &mut self.namespaces.borrow_mut(),
+                    self.current_ns.get(),
+                    &root,
+                )
+            }
         })
     }
     pub(super) fn read_original_jim_link(
@@ -236,6 +320,8 @@ mod tests {
             .collect()
     }
 
+    // Native proof: naming.variable.alias-target-read-diagnostic-and-completion
+    // docs/design/analysis/name-resolution-proofs/variable.alias-target-read-diagnostic-and-completion.md
     #[test]
     fn original_alias_read_errors_match_thirty_six_native_results() {
         let cases =

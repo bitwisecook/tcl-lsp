@@ -16,27 +16,23 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Canonical argument-count arity for a proc/method parameter list.
+//! Descriptive argument counts over the shared selected formal grammar.
 //!
-//! Tcl's argument binding is strictly positional: a call's actual words
-//! bind to formals left-to-right, and a formal's default is only used
-//! when the actuals run out *at that position* — it is never "skipped
-//! over" to reach a later required formal.  So a required parameter
-//! positioned after a defaulted one does not lower the minimum arity by
-//! the defaulted ones ahead of it; it *raises* the minimum to its own
-//! position, since every position up to and including it must be
-//! supplied.  Confirmed against real `tclsh` 9.0.4:
-//! `proc opt {a {b 5} c} {}` accepts exactly 3 arguments always — `opt 1
-//! 2` fails with `wrong # args` even though only `a` and `c` lack
-//! defaults, because supplying a value for `c` requires also supplying
-//! one for `b`.
+//! Original source consumers retain `SignatureSourceFormalParameters` and
+//! project its `argument_count_shape` through `arity_from_count_shape`. They
+//! never reconstruct count from reporting parameter names. Declaration records
+//! retain `SourceFormalCount`; incremental headers copy only its body-free
+//! `SourceFormalCountProjection`, which cannot recreate source or binding rights.
 //!
-//! A trailing parameter literally named `args` collects every remaining
-//! actual argument into a list and makes the arity unbounded above; any
-//! default text written on that slot (`{args ignored}`) is parsed but
-//! never consulted, since the slot is never "missing" — it is simply
-//! empty when there is nothing left. `args` used anywhere but last is an
-//! ordinary parameter name.
+//! C Tcl and Jim use different count grammars. C Tcl binds positions in order:
+//! a required formal after a default requires every preceding position, and
+//! only final `args` is variadic. Jim counts required formals independently and
+//! permits its rest formal among other parameters. `arity_of_in` is explicit
+//! authored metadata under a selected grammar; `arity_of` is its C Tcl form.
+//! Neither function establishes an original formal producer or entered frame.
+//! The finite native matrix in `procedure-original-formal-count-shape.md` covers seven
+//! ASCII definitions and caught argument counts zero through five. Larger
+//! registry count limits are representation constraints, not native acceptance.
 
 use tcl_registry::Arity;
 
@@ -46,26 +42,43 @@ use super::types::ParamDef;
 /// parsed parameter list.
 #[must_use]
 pub fn arity_of(params: &[ParamDef]) -> Arity {
-    let has_args = params.last().is_some_and(|p| p.name == "args");
-    let counted = if has_args {
-        &params[..params.len() - 1]
-    } else {
+    arity_of_in(params, tcl_dialect::ParameterGrammar::Tcl)
+}
+
+/// Descriptive count shape under an independently selected formal grammar.
+/// Decoded names/defaults share the same owner as native argument binding.
+#[must_use]
+pub fn arity_of_in(params: &[ParamDef], grammar: tcl_dialect::ParameterGrammar) -> Arity {
+    let shape = tcl_syntax::formal_params::formal_argument_count_shape(
         params
+            .iter()
+            .map(|parameter| (parameter.name == "args", parameter.has_default)),
+        grammar,
+    );
+    arity_from_count_shape(shape).unwrap_or_else(Arity::any)
+}
+
+/// Checked projection of the shared count owner. A finite count cannot borrow
+/// the registry's unbounded sentinel; unrepresentable bounds remain unknown.
+#[must_use]
+pub fn arity_from_count_shape(
+    shape: tcl_syntax::formal_params::FormalArgumentCountShape,
+) -> Option<Arity> {
+    let min = u16::try_from(shape.minimum).ok()?;
+    if min == Arity::UNLIMITED {
+        return None;
+    }
+    let max = match shape.maximum {
+        Some(maximum) => {
+            let max = u16::try_from(maximum).ok()?;
+            if max == Arity::UNLIMITED {
+                return None;
+            }
+            max
+        }
+        None => Arity::UNLIMITED,
     };
-    // The minimum is the 1-based position of the *last* required
-    // (non-default) parameter — not a count of required parameters —
-    // since every position up to it must be supplied positionally.
-    let min = counted
-        .iter()
-        .rposition(|p| !p.has_default)
-        .map_or(0, |i| i + 1);
-    let min = u16::try_from(min).unwrap_or(Arity::UNLIMITED);
-    let max = if has_args {
-        Arity::UNLIMITED
-    } else {
-        u16::try_from(counted.len()).unwrap_or(Arity::UNLIMITED)
-    };
-    Arity::new(min, max)
+    Some(Arity::new(min, max))
 }
 
 #[cfg(test)]
@@ -81,6 +94,50 @@ mod tests {
                 default_value: default.map(str::to_owned),
             })
             .collect()
+    }
+
+    #[test]
+    fn finite_source_count_bounds_cannot_borrow_unlimited_sentinel() {
+        // naming.procedure.original-formal-count-shape
+        // docs/design/analysis/name-resolution-proofs/procedure-original-formal-count-shape.md
+        // Registry metadata representability only; the native proof observes
+        // argv counts 0..5 and does not establish these large-count boundaries.
+        use tcl_syntax::formal_params::FormalArgumentCountShape as Shape;
+        let sentinel = usize::from(Arity::UNLIMITED);
+        for shape in [
+            Shape {
+                minimum: sentinel,
+                maximum: None,
+            },
+            Shape {
+                minimum: 0,
+                maximum: Some(sentinel),
+            },
+            Shape {
+                minimum: sentinel + 1,
+                maximum: None,
+            },
+            Shape {
+                minimum: 0,
+                maximum: Some(sentinel + 1),
+            },
+        ] {
+            assert!(arity_from_count_shape(shape).is_none());
+        }
+        assert_eq!(
+            arity_from_count_shape(Shape {
+                minimum: sentinel - 1,
+                maximum: Some(sentinel - 1)
+            }),
+            Some(Arity::exact(Arity::UNLIMITED - 1))
+        );
+        assert_eq!(
+            arity_from_count_shape(Shape {
+                minimum: 1,
+                maximum: None
+            }),
+            Some(Arity::at_least(1))
+        );
     }
 
     #[test]

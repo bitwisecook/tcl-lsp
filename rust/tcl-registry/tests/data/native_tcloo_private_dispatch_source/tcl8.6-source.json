@@ -1,0 +1,50 @@
+{
+  "source_only": true,
+  "windows": [
+    {
+      "id": "object-private-command",
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c",
+      "function": "AllocObject",
+      "lines": [
+        766,
+        768
+      ],
+      "source_sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "snippet_sha256": "5934644d7c8378e6b3728d210d9f64f3f8401bc0a6fab6d9824a67991b69b0b0",
+      "snippet": "    oPtr->myCommand = TclNRCreateCommandInNs(interp, \"my\", oPtr->namespacePtr,\n\tPrivateObjectCmd, PrivateNRObjectCmd, oPtr, MyDeleted);\n    return oPtr;\n"
+    },
+    {
+      "id": "nre-wrapper",
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+      "function": "TclNRCreateCommandInNs",
+      "lines": [
+        8296,
+        8311
+      ],
+      "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "snippet_sha256": "23861938456c0832182861cecee3e0ca7556e2e1a11dfd393479eb23542e3ab4",
+      "snippet": "TclNRCreateCommandInNs(\n    Tcl_Interp *interp,\n    const char *cmdName,\n    Tcl_Namespace *nsPtr,\n    Tcl_ObjCmdProc *proc,\n    Tcl_ObjCmdProc *nreProc,\n    ClientData clientData,\n    Tcl_CmdDeleteProc *deleteProc)\n{\n    Command *cmdPtr = (Command *)\n\t    TclCreateObjCommandInNs(interp, cmdName, nsPtr, proc, clientData,\n\t\t    deleteProc);\n\n    cmdPtr->nreProc = nreProc;\n    return (Tcl_Command) cmdPtr;\n}\n"
+    },
+    {
+      "id": "new-object-command",
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+      "function": "TclCreateObjCommandInNs",
+      "lines": [
+        2458,
+        2477
+      ],
+      "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "snippet_sha256": "471928c30ee7dc3243c1069bda8d21eefc981794360c989af1a4781bf319363f",
+      "snippet": "    }\n    cmdPtr = (Command *)ckalloc(sizeof(Command));\n    Tcl_SetHashValue(hPtr, cmdPtr);\n    cmdPtr->hPtr = hPtr;\n    cmdPtr->nsPtr = nsPtr;\n    cmdPtr->refCount = 1;\n    cmdPtr->cmdEpoch = 0;\n    cmdPtr->compileProc = NULL;\n    cmdPtr->objProc = proc;\n    cmdPtr->objClientData = clientData;\n    cmdPtr->proc = TclInvokeObjectCommand;\n    cmdPtr->clientData = cmdPtr;\n    cmdPtr->deleteProc = deleteProc;\n    cmdPtr->deleteData = clientData;\n    cmdPtr->flags = 0;\n    cmdPtr->importRefPtr = NULL;\n    cmdPtr->tracePtr = NULL;\n    cmdPtr->nreProc = NULL;\n\n    /*\n"
+    }
+  ]
+}

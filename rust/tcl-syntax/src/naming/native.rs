@@ -6,7 +6,10 @@
 //! closure, command generation, compiler permission or observer proof.
 
 use super::{ends_with_separator, is_qualified, qualifier_segments, written_command_tail};
+
+mod routing;
 use crate::native_string::NativeStringProtocol;
+pub use routing::{NativeCommandNamespaceRoute, NativeCommandSlotProjection};
 use std::borrow::Cow;
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes, c_string_extent};
 use tcl_dialect::{
@@ -19,6 +22,17 @@ use tcl_dialect::{
 pub enum NativeNameProtocol {
     C(TclVersion),
     Jim084,
+}
+
+/// Selected direct namespace text result path, without a live object capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeNamespaceTextResult<'a> {
+    /// Jim's unchanged input object, preserving its actual header and identity.
+    Original,
+    /// C8.4 appends the selected bytes to the fresh interpreter result.
+    Append(&'a [u8]),
+    /// A fresh counted byte object selected by C8.5+ or Jim.
+    Counted(&'a [u8]),
 }
 
 /// The issuer of a pure naming policy, distinct from live native attestation.
@@ -130,11 +144,15 @@ pub fn report_native_dictionary_missing_key(
 pub enum NativeNamePurpose {
     CommandLookup,
     CommandPublication,
+    /// Coroutine declaration in an existing current-namespace holder.
+    CoroutinePublication,
     CommandCApiPublication,
     RenameSource,
     RenameDestination,
     AliasPublication,
     NamespaceAddress,
+    /// C lambda namespace object construction before namespace lookup.
+    LambdaNamespace,
     /// Jim helper canonicalisation before flat command enumeration.
     JimNamespaceCanonical,
     /// Namespace ensemble command publication, independently of proc creation.
@@ -143,6 +161,8 @@ pub enum NativeNamePurpose {
     NamespaceSubcommand,
     /// Interpreter dispatch table index, separate from its command operand.
     InterpreterSubcommand,
+    /// A C interpreter child-table key; colon bytes are ordinary name bytes.
+    InterpreterChild,
     /// Native namespace-variable query extent, independent of scalar lookup.
     NamespaceVariableQuery,
     VariableRoot,
@@ -154,6 +174,8 @@ pub enum NativeNamePurpose {
     VariableTraceQuery,
     PackageName,
     FormalEnumeration,
+    /// Formal declaration list splitting, independently of decoded name storage.
+    FormalParameterList,
     FormalStorage,
     NamespaceUpvarLocal,
     NamespaceExportPattern,
@@ -162,6 +184,8 @@ pub enum NativeNamePurpose {
     HiddenToken,
     /// `TclOO` counted method-table key, separate from command publication.
     OoMethod,
+    /// Formatted configurable property option, separate from counted names.
+    OoPropertyOption,
     /// `TclOO` object command declaration in its actual namespace context.
     OoObjectPublication,
 }
@@ -290,6 +314,15 @@ impl<'a> NativeNameProjection<'a> {
     pub fn selected(&self) -> &[u8] {
         &self.selected
     }
+    /// Borrowed selected extent of the original input. A projection that
+    /// constructs new bytes cannot supply original operand geometry.
+    #[must_use]
+    pub fn borrowed_selected(&self) -> Option<&'a [u8]> {
+        match &self.selected {
+            Cow::Borrowed(bytes) => Some(*bytes),
+            Cow::Owned(_) => None,
+        }
+    }
     #[must_use]
     pub const fn protocol(&self) -> NativeNameProtocol {
         self.protocol
@@ -317,15 +350,8 @@ impl<'a> NativeNameProjection<'a> {
     /// available separately in `selected`, including redundant root markers.
     #[must_use]
     pub fn jim_flat_key(&self) -> Option<&[u8]> {
-        (self.protocol == NativeNameProtocol::Jim084 && is_command_purpose(self.purpose)).then(
-            || {
-                if self.purpose == NativeNamePurpose::AliasPublication {
-                    self.selected.as_ref()
-                } else {
-                    strip_jim_root(&self.selected)
-                }
-            },
-        )
+        (self.protocol == NativeNameProtocol::Jim084 && is_command_purpose(self.purpose))
+            .then(|| strip_jim_root(&self.selected))
     }
 }
 
@@ -386,11 +412,48 @@ impl NativeNameProtocol {
         )
     }
 
+    /// C child-interpreter tables use the `CString` extent of an independently
+    /// decoded path element. This supplies no interpreter existence or command
+    /// publication; Jim's handle factory has a separate protocol.
+    ///
+    /// # Errors
+    /// Returns an unavailable purpose for Jim's different interpreter API.
+    pub fn interpreter_child_input(
+        self,
+        original: &[u8],
+    ) -> Result<NativeNameProjection<'_>, NameProjectionUnavailable> {
+        if self.is_jim084() {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        Ok(projection(
+            self,
+            NativeNamePurpose::InterpreterChild,
+            original,
+            Cow::Borrowed(c_string_extent(original)),
+            None,
+        ))
+    }
+
     /// Pure recipe selection; does not authenticate a native command or object.
     #[must_use]
     pub const fn for_tcl_version(version: TclVersion) -> Self {
         Self::C(version)
     }
+    /// Pure C command-table teardown order for this selected name policy.
+    /// Jim has no C namespace command-table recipe; no holder is issued here.
+    #[must_use]
+    pub const fn namespace_command_teardown(
+        self,
+    ) -> Option<crate::native_namespace_name::NativeNamespaceCommandTeardown> {
+        match self.tcl_version() {
+            Some(version) => Some(
+                crate::native_namespace_name::NativeNamespaceNameRecipe::for_tcl_version(version)
+                    .command_teardown(),
+            ),
+            None => None,
+        }
+    }
+
     /// Select actual engine/build identity; vendors and unknown points abstain.
     #[must_use]
     pub fn for_point(point: DialectPoint) -> Option<Self> {
@@ -512,7 +575,8 @@ impl NativeNameProtocol {
         context: NativeNameContext<'_>,
         original: &[u8],
     ) -> Result<ByteCommandSlot, NameProjectionUnavailable> {
-        slot_for_projection(&self.rename_destination_input(context, original)?)
+        self.rename_destination_projection(context, original)
+            .map(NativeCommandSlotProjection::into_slot)
     }
     ///
     /// # Errors
@@ -543,8 +607,8 @@ impl NativeNameProtocol {
 
     /// Alias commands publish separately from procedure declarations. C keeps
     /// an unqualified name global and retains the current holder for relative
-    /// qualified names. Jim registers the complete original object at its flat
-    /// global table, including any original leading root marker.
+    /// qualified names. Jim retains the complete original naming object at its
+    /// global table, while shared table comparison strips leading root colons.
     ///
     /// # Errors
     /// Refuses an unsupported native publication projection.
@@ -553,13 +617,8 @@ impl NativeNameProtocol {
         context: NativeNameContext<'_>,
         original: &[u8],
     ) -> Result<ByteCommandSlot, NameProjectionUnavailable> {
-        if self.is_jim084() {
-            return Ok(ByteCommandSlot::new(
-                ByteNamespacePath::root(),
-                original.into(),
-            ));
-        }
-        slot_for_projection(&self.alias_publication_input(context, original)?)
+        self.alias_publication_projection(context, original)
+            .map(NativeCommandSlotProjection::into_slot)
     }
 
     fn command_input<'a>(
@@ -594,20 +653,77 @@ impl NativeNameProtocol {
         context: NativeNameContext<'_>,
         original: &[u8],
     ) -> Result<ByteCommandSlot, NameProjectionUnavailable> {
-        let slot = slot_for_projection(&self.command_publication_input(context, original)?)?;
-        if matches!(self, Self::C(version) if version <= TclVersion::V8_5) {
-            // TclProcObjCmd resolves its holder, renders holder->fullName plus
-            // the simple name, then calls Tcl_CreateObjCommand. That C API
-            // parses the constructed spelling again in these releases.
-            let mut full_name = Vec::from(b"::".as_slice());
-            for component in slot.namespace.as_segments() {
-                full_name.extend_from_slice(component.as_bytes());
-                full_name.extend_from_slice(b"::");
-            }
-            full_name.extend_from_slice(slot.simple.as_bytes());
-            return self.command_c_api_publication_slot(NativeNameContext::root(), &full_name);
+        self.command_publication_projection(context, original)
+            .map(NativeCommandSlotProjection::into_slot)
+    }
+
+    /// Publication geometry of Jim's factory-generated two-word commands.
+    /// The provider interpolates the original counted class-name value, one
+    /// space and the selected member units before the independently selected
+    /// procedure or alias publication. This
+    /// pure slot grants no class identity, installed command or live method.
+    ///
+    /// # Errors
+    /// Refuses other engines, unsupported publication purposes and a missing
+    /// actual Jim namespace object for procedure publication.
+    pub fn jim_two_word_member_publication_slot(
+        self,
+        context: NativeNameContext<'_>,
+        class_name: &[u8],
+        member: &[u8],
+        purpose: NativeNamePurpose,
+    ) -> Result<ByteCommandSlot, NameProjectionUnavailable> {
+        if !self.is_jim084() {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
         }
-        Ok(slot)
+        let mut name = class_name.to_vec();
+        name.push(b' ');
+        name.extend_from_slice(member);
+        match purpose {
+            NativeNamePurpose::CommandPublication => self.command_publication_slot(context, &name),
+            NativeNamePurpose::AliasPublication => self.alias_publication_slot(context, &name),
+            _ => Err(NameProjectionUnavailable::PurposeNotModelled),
+        }
+    }
+
+    /// Coroutine publication selects a `CString` command name in the actual
+    /// current holder. Runtime traversal must refuse missing qualifiers and
+    /// retain exact namespace tokens; this pure slot creates no namespace.
+    /// Empty names and trailing separators select the holder's empty command.
+    ///
+    /// # Errors
+    /// Refuses releases without the audited C coroutine command.
+    pub fn coroutine_publication_slot(
+        self,
+        context: NativeNameContext<'_>,
+        original: &[u8],
+    ) -> Result<ByteCommandSlot, NameProjectionUnavailable> {
+        if !matches!(self, Self::C(version) if version >= TclVersion::V8_6) {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        self.coroutine_publication_projection(context, original)
+            .map(NativeCommandSlotProjection::into_slot)
+    }
+
+    /// Report refusal of a coroutine's missing qualifier namespace, retaining
+    /// the original name separately from the native formatter's `CString`.
+    ///
+    /// # Errors
+    /// Refuses releases without the audited C coroutine command.
+    pub fn coroutine_unknown_namespace_error(
+        self,
+        original: &[u8],
+    ) -> Result<NativeNamespaceLookupError, NameProjectionUnavailable> {
+        if !matches!(self, Self::C(version) if version >= TclVersion::V8_6) {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        let mut message = b"can't create procedure \"".to_vec();
+        message.extend_from_slice(c_string_extent(original));
+        message.extend_from_slice(b"\": unknown namespace");
+        Ok(NativeNamespaceLookupError {
+            message,
+            error_code: b"TCL LOOKUP NAMESPACE".to_vec(),
+        })
     }
 
     /// `TclOO` object commands select their `CString` name against the actual
@@ -624,11 +740,26 @@ impl NativeNameProtocol {
         if !matches!(self, Self::C(version) if version >= TclVersion::V8_6) {
             return Err(NameProjectionUnavailable::PurposeNotModelled);
         }
-        slot_for_projection(&self.command_input(
-            context,
-            original,
-            NativeNamePurpose::OoObjectPublication,
-        )?)
+        self.oo_object_publication_projection(context, original)
+            .map(NativeCommandSlotProjection::into_slot)
+    }
+
+    /// Public collision message for an original TclOO object publication.
+    /// The caller independently supplies the actual occupied slot and result producer.
+    ///
+    /// # Errors
+    /// Refuses engines without audited TclOO object publication.
+    pub fn oo_object_collision_message(
+        self,
+        original: &[u8],
+    ) -> Result<Vec<u8>, NameProjectionUnavailable> {
+        if !matches!(self, Self::C(version) if version >= TclVersion::V8_6) {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        let mut message = b"can't create object \"".to_vec();
+        message.extend_from_slice(c_string_extent(original));
+        message.extend_from_slice(b"\": command already exists with that name");
+        Ok(message)
     }
 
     /// Select a namespace ensemble command slot. The default names the actual
@@ -642,34 +773,10 @@ impl NativeNameProtocol {
         context: NativeNameContext<'_>,
         explicit: Option<&[u8]>,
     ) -> Result<ByteCommandSlot, NameProjectionUnavailable> {
-        if let Some(original) = explicit {
-            return self.command_publication_slot(context, original);
-        }
-        if self.is_jim084() {
-            let original = context
-                .jim_namespace_object
-                .ok_or(NameProjectionUnavailable::MissingJimNamespaceObject)?;
-            return Ok(ByteCommandSlot::new(
-                ByteNamespacePath::root(),
-                NameBytes::from(original),
-            ));
-        }
-        if matches!(self, Self::C(version) if version < TclVersion::V8_5) {
-            return Err(NameProjectionUnavailable::PurposeNotModelled);
-        }
-        if self == Self::C(TclVersion::V8_5) {
-            let mut written = b"::".to_vec();
-            for (index, component) in context.namespace.as_segments().iter().enumerate() {
-                if index != 0 {
-                    written.extend_from_slice(b"::");
-                }
-                written.extend_from_slice(component.as_bytes());
-            }
-            return self.command_c_api_publication_slot(NativeNameContext::root(), &written);
-        }
         let mut parent = context.namespace.clone();
-        let simple = parent.pop().unwrap_or_default();
-        Ok(ByteCommandSlot::new(parent, simple))
+        parent.pop();
+        self.ensemble_publication_projection(context, explicit, Some(&parent))
+            .map(NativeCommandSlotProjection::into_slot)
     }
     /// First C lookup candidate in the actual retained namespace context.
     /// Namespace-path and global fallback traversal remain runtime operations;
@@ -685,7 +792,8 @@ impl NativeNameProtocol {
         if self.is_jim084() {
             return Err(NameProjectionUnavailable::PurposeNotModelled);
         }
-        slot_for_projection(&self.command_lookup_input(context, original)?)
+        self.command_lookup_projection(context, original)
+            .map(NativeCommandSlotProjection::into_slot)
     }
     ///
     /// # Errors
@@ -695,7 +803,8 @@ impl NativeNameProtocol {
         context: NativeNameContext<'_>,
         original: &[u8],
     ) -> Result<ByteCommandSlot, NameProjectionUnavailable> {
-        slot_for_projection(&self.command_c_api_publication_input(context, original)?)
+        self.command_c_api_publication_projection(context, original)
+            .map(NativeCommandSlotProjection::into_slot)
     }
     /// Jim's current-namespace candidate and independent global fallback key.
     ///
@@ -753,6 +862,49 @@ impl NativeNameProtocol {
             selected,
             Some(context),
         ))
+    }
+
+    /// Original C lambda namespace object bytes. An unrooted value receives
+    /// an exact :: prefix before lookup; its counted suffix remains retained.
+    /// Namespace lookup applies its independent C-string extent afterwards.
+    /// This recipe supplies no object, namespace existence or entered frame.
+    ///
+    /// # Errors
+    /// C Tcl 8.4 has no Apply entry; Jim requires its own original object owner.
+    pub fn lambda_namespace_input(
+        self,
+        original: &[u8],
+    ) -> Result<NativeNameProjection<'_>, NameProjectionUnavailable> {
+        if !matches!(self, Self::C(version) if version >= TclVersion::V8_5) {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        let selected = if original.starts_with(b"::") {
+            Cow::Borrowed(original)
+        } else {
+            let mut rooted = Vec::from(b"::".as_slice());
+            rooted.extend_from_slice(original);
+            Cow::Owned(rooted)
+        };
+        Ok(projection(
+            self,
+            NativeNamePurpose::LambdaNamespace,
+            original,
+            selected,
+            Some(NativeNameContext::root()),
+        ))
+    }
+
+    /// C lambda namespace address after its own object-construction recipe.
+    /// The original counted input remains separate from the lookup extent.
+    ///
+    /// # Errors
+    /// Refuses providers without the audited C lambda namespace recipe.
+    pub fn lambda_namespace_path(
+        self,
+        original: &[u8],
+    ) -> Result<ByteNamespacePath, NameProjectionUnavailable> {
+        let input = self.lambda_namespace_input(original)?;
+        self.namespace_address_path(NativeNameContext::root(), input.selected())
     }
 
     /// Select a C namespace address using retained context components.
@@ -873,13 +1025,49 @@ impl NativeNameProtocol {
     /// and returns the complete original object when that colon is not paired.
     #[must_use]
     pub fn namespace_tail_bytes(self, original: &[u8]) -> &[u8] {
-        let prefix = c_string_extent(original);
-        if !self.is_jim084() {
-            return written_command_tail(prefix);
+        match self.namespace_text_result(original, true) {
+            NativeNamespaceTextResult::Original => original,
+            NativeNamespaceTextResult::Append(bytes)
+            | NativeNamespaceTextResult::Counted(bytes) => bytes,
         }
-        match prefix.iter().rposition(|byte| *byte == b':') {
-            Some(last) if last > 0 && prefix[last - 1] == b':' => &prefix[last + 1..],
-            _ => original,
+    }
+
+    /// Direct worker result production, separate from compiled Unicode arithmetic.
+    /// C8.4 uses counted append; later C releases use a fresh byte object. Jim's
+    /// unpaired Tail returns the original object and never reconstructs it.
+    #[must_use]
+    // Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
+    // docs/design/analysis/name-resolution-proofs/original-counted-tail-compiler-and-runtime.md
+    pub fn namespace_text_result(
+        self,
+        original: &[u8],
+        tail: bool,
+    ) -> NativeNamespaceTextResult<'_> {
+        let bytes = if tail {
+            let prefix = c_string_extent(original);
+            if self.is_jim084() {
+                let Some(last) = prefix.iter().rposition(|byte| *byte == b':') else {
+                    return NativeNamespaceTextResult::Original;
+                };
+                if last == 0 || prefix[last - 1] != b':' {
+                    return NativeNamespaceTextResult::Original;
+                }
+                &prefix[last + 1..]
+            } else {
+                written_command_tail(prefix)
+            }
+        } else {
+            self.namespace_qualifier_bytes(original)
+        };
+        let append_reached = if tail {
+            !c_string_extent(original).is_empty()
+        } else {
+            !bytes.is_empty()
+        };
+        if self == Self::C(TclVersion::V8_4) && append_reached {
+            NativeNamespaceTextResult::Append(bytes)
+        } else {
+            NativeNamespaceTextResult::Counted(bytes)
         }
     }
     /// Native namespace-qualifier reporting, independent of namespace lookup.
@@ -1094,7 +1282,7 @@ impl NativeNameProtocol {
             )
         } else {
             input.context = Some(context);
-            let slot = slot_for_projection(&input)?;
+            let slot = routing::command_slot_projection(&input)?.into_slot();
             (
                 Some(NativeNamespacePatternSource::C(slot.namespace)),
                 slot.simple,
@@ -1203,6 +1391,24 @@ impl NativeNameProtocol {
             None,
         )
     }
+    /// Input to each formal declaration list level. C8.4/8.5 split a
+    /// `CString`; modern C and Jim retain counted list objects. This pure
+    /// extent recipe grants neither successful parsing nor an activation.
+    #[must_use]
+    pub fn formal_parameter_list_input(self, original: &[u8]) -> NativeNameProjection<'_> {
+        let selected = if matches!(self, Self::C(version) if version <= TclVersion::V8_5) {
+            c_string_extent(original)
+        } else {
+            original
+        };
+        projection(
+            self,
+            NativeNamePurpose::FormalParameterList,
+            original,
+            Cow::Borrowed(selected),
+            None,
+        )
+    }
     /// Formal storage after the caller has parsed the native argument-list
     /// representation. C8.4/8.5 declarations use `CString` list splitting;
     /// C8.6+ and Jim retain the complete selected formal bytes.
@@ -1267,6 +1473,30 @@ impl NativeNameProtocol {
         ))
     }
 
+    /// C9 property declarations form their option name with `"-%s"` from
+    /// the declaration's C string. The original counted name stays separate.
+    /// This recipe grants no property installation, accessor or lookup cache.
+    ///
+    /// # Errors
+    /// Returns an unavailable purpose outside the audited C9 property releases.
+    pub fn oo_property_option_name(
+        self,
+        original: &[u8],
+    ) -> Result<NativeNameProjection<'_>, NameProjectionUnavailable> {
+        if !matches!(self, Self::C(version) if version >= TclVersion::V9_0) {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        let mut option = vec![b'-'];
+        option.extend_from_slice(c_string_extent(original));
+        Ok(projection(
+            self,
+            NativeNamePurpose::OoPropertyOption,
+            original,
+            Cow::Owned(option),
+            None,
+        ))
+    }
+
     /// C hidden-table tokens use their own `CString` namespace, without qualifiers.
     ///
     /// # Errors
@@ -1299,9 +1529,11 @@ fn projection<'a>(
         purpose,
         NativeNamePurpose::PackageName
             | NativeNamePurpose::FormalEnumeration
+            | NativeNamePurpose::FormalParameterList
             | NativeNamePurpose::FormalStorage
             | NativeNamePurpose::NamespaceUpvarLocal
             | NativeNamePurpose::HiddenToken
+            | NativeNamePurpose::InterpreterChild
             | NativeNamePurpose::ArrayElementCombined
             | NativeNamePurpose::ArrayElementSeparated
     ) {
@@ -1350,43 +1582,13 @@ fn is_command_purpose(purpose: NativeNamePurpose) -> bool {
         purpose,
         NativeNamePurpose::CommandLookup
             | NativeNamePurpose::CommandPublication
+            | NativeNamePurpose::CoroutinePublication
             | NativeNamePurpose::CommandCApiPublication
             | NativeNamePurpose::RenameSource
             | NativeNamePurpose::RenameDestination
             | NativeNamePurpose::AliasPublication
             | NativeNamePurpose::OoObjectPublication
     )
-}
-fn slot_for_projection(
-    input: &NativeNameProjection<'_>,
-) -> Result<ByteCommandSlot, NameProjectionUnavailable> {
-    if let Some(key) = input.jim_flat_key() {
-        return Ok(ByteCommandSlot::new(
-            ByteNamespacePath::root(),
-            NameBytes::from(key),
-        ));
-    }
-    let context = input
-        .context
-        .ok_or(NameProjectionUnavailable::PurposeNotModelled)?;
-    let mut path = if input.qualification == NativeNameQualification::Absolute {
-        ByteNamespacePath::root()
-    } else {
-        context.namespace.clone()
-    };
-    let segments = qualifier_segments(input.selected());
-    let qualifier_count = if ends_with_separator(input.selected()) {
-        segments.len()
-    } else {
-        segments.len().saturating_sub(1)
-    };
-    for segment in &segments[..qualifier_count] {
-        path.push(*segment);
-    }
-    Ok(ByteCommandSlot::new(
-        path,
-        NameBytes::from(written_command_tail(input.selected())),
-    ))
 }
 
 /// Native namespace lookup failure, with a complete current-context report.
@@ -1584,6 +1786,34 @@ pub struct NativeVariableDiagnosticProjection {
     pub missing_lookup_root: Option<Vec<u8>>,
 }
 
+/// Original operand name for a reached C variable value access. Combined
+/// inputs retain their original diagnostic extent; separate operands retain
+/// their own extents before parentheses are added for presentation only.
+/// This selects no variable cell, alias or native execution capability.
+///
+/// # Errors
+/// Returns `PurposeNotModelled` for a non-C protocol.
+pub fn report_native_c_variable_value_name(
+    protocol: NativeNameProtocol,
+    input: NativeVariableInputForm<'_>,
+) -> Result<Vec<u8>, NameProjectionUnavailable> {
+    if !matches!(protocol, NativeNameProtocol::C(_)) {
+        return Err(NameProjectionUnavailable::PurposeNotModelled);
+    }
+    Ok(match input {
+        NativeVariableInputForm::Combined(original) => c_string_extent(original).to_vec(),
+        NativeVariableInputForm::Separate { root, element } => {
+            let mut name = c_string_extent(root).to_vec();
+            if let Some(element) = element {
+                name.push(b'(');
+                name.extend_from_slice(c_string_extent(element));
+                name.push(b')');
+            }
+            name
+        }
+    })
+}
+
 /// Report a failure occurring while selecting a variable name-table binding.
 /// Late cell reads/writes must use [`report_native_variable_diagnostic_at`].
 ///
@@ -1724,9 +1954,10 @@ fn native_variable_failure_code(
                 &[b"TCL", b"READ", b"VARNAME"]
             }
             (ValueWrite, Constant) if operation == Increment => &[b"TCL", b"WRITE", b"CONST"],
-            (ValueWrite, NoSuchVariable | Constant | DetachedElement | RetiredNamespace) => {
-                &[b"TCL", b"WRITE", b"VARNAME"]
-            }
+            (
+                ValueWrite,
+                NoSuchVariable | IsArray | Constant | DetachedElement | RetiredNamespace,
+            ) => &[b"TCL", b"WRITE", b"VARNAME"],
             (ValueUnset, Constant) if matches!(protocol, NativeNameProtocol::C(version) if version >= TclVersion::V9_0) => {
                 &[b"TCL", b"UNSET", b"CONST"]
             }
@@ -1822,10 +2053,7 @@ pub fn report_native_variable_diagnostic_at(
             },
         }
     } else if matches!(site, ValueRead | ValueWrite) {
-        match input {
-            NativeVariableInputForm::Combined(original) => c_string_extent(original).to_vec(),
-            NativeVariableInputForm::Separate { .. } => reconstructed(),
-        }
+        report_native_c_variable_value_name(protocol, input)?
     } else {
         reconstructed()
     };
@@ -2008,17 +2236,75 @@ pub fn native_command_source_spelling(
     lookup_agrees.then_some(spelling)
 }
 
+/// One callable original source word for an exact structured slot. Reporting
+/// bytes are only a candidate: publication and lookup must independently select
+/// the same slot before the source-channel renderer can preserve their value.
+/// This supplies no command existence, compiler preparation or edit geometry.
+#[must_use]
+pub fn native_command_source_word(
+    protocol: NativeNameProtocol,
+    slot: &ByteCommandSlot,
+    channel: tcl_lexer::SourceChannel,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let value = native_command_full_name_bytes(slot);
+    if protocol
+        .command_publication_slot(NativeNameContext::root(), &value)
+        .ok()?
+        != *slot
+    {
+        return None;
+    }
+    if protocol.is_jim084() {
+        if !slot.namespace.is_root()
+            || protocol
+                .jim_command_lookup_keys(NativeNameContext::root(), &value)
+                .ok()?
+                .as_slice()
+                != std::slice::from_ref(&slot.simple)
+        {
+            return None;
+        }
+    } else if protocol
+        .command_lookup_slot(NativeNameContext::root(), &value)
+        .ok()?
+        != *slot
+    {
+        return None;
+    }
+    crate::backslash::native_literal_source_word(
+        &value,
+        channel,
+        config,
+        protocol.string_protocol(),
+    )
+}
+
 /// `TclGetCommandFullName` reporting bytes from an already selected native slot.
 /// Literal colons and non-text bytes remain data; this projection supplies no
 /// source spelling, lookup key or command identity.
 #[must_use]
 pub fn native_command_full_name_bytes(slot: &ByteCommandSlot) -> Vec<u8> {
-    let mut report = b"::".to_vec();
-    for component in slot.namespace.as_segments() {
-        report.extend_from_slice(component.as_bytes());
+    let mut report = native_namespace_full_name_bytes(&slot.namespace);
+    if !slot.namespace.is_root() {
         report.extend_from_slice(b"::");
     }
     report.extend_from_slice(slot.simple.as_bytes());
+    report
+}
+
+/// Counted full-name bytes of an already constructed C namespace path.
+/// Component boundaries remain owned by the path; this reporting projection
+/// supplies no written address, namespace existence or native token.
+#[must_use]
+pub fn native_namespace_full_name_bytes(path: &ByteNamespacePath) -> Vec<u8> {
+    let mut report = b"::".to_vec();
+    for (index, component) in path.as_segments().iter().enumerate() {
+        if index != 0 {
+            report.extend_from_slice(b"::");
+        }
+        report.extend_from_slice(component.as_bytes());
+    }
     report
 }
 
@@ -2068,6 +2354,46 @@ mod tests {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ];
+
+    #[test]
+    fn trace_subject_registration_keeps_escaped_zero_distinct_from_raw_zero() {
+        // Native proof: naming.variable.trace-subject-counted-zero-address
+        // docs/design/analysis/name-resolution-proofs/trace-subject-counted-zero-address.md
+        let raw = b"v\0tail(k)";
+        let escaped = b"v\xc0\x80tail(k)";
+        for version in VERSIONS {
+            let protocol = NativeNameProtocol::C(version);
+            assert_eq!(
+                protocol.trace_registration_input(raw).unwrap().selected(),
+                b"v"
+            );
+            assert_eq!(protocol.trace_query_input(raw).unwrap().selected(), b"v");
+            assert_eq!(
+                protocol
+                    .trace_registration_input(escaped)
+                    .unwrap()
+                    .selected(),
+                escaped,
+            );
+            assert_eq!(
+                protocol.trace_query_input(escaped).unwrap().selected(),
+                escaped,
+            );
+            assert_eq!(
+                protocol.variable_root_input(raw).selected(),
+                if version == TclVersion::V8_4 {
+                    b"v".as_slice()
+                } else {
+                    raw
+                },
+            );
+        }
+        assert!(
+            NativeNameProtocol::Jim084
+                .trace_registration_input(raw)
+                .is_err()
+        );
+    }
 
     #[test]
     fn command_variable_trace_package_formal_and_hidden_extents_are_distinct() {
@@ -2170,6 +2496,17 @@ mod tests {
             assert_eq!(
                 protocol.formal_storage_name_input(b"k\xc0\x80z").selected(),
                 b"k\xc0\x80z"
+            );
+            let list = protocol.formal_parameter_list_input(b"k\0z second");
+            assert_eq!(list.purpose(), NativeNamePurpose::FormalParameterList);
+            assert_eq!(list.original(), b"k\0z second");
+            assert_eq!(
+                list.selected(),
+                if version <= TclVersion::V8_5 {
+                    b"k".as_slice()
+                } else {
+                    b"k\0z second"
+                }
             );
             if version == TclVersion::V8_4 {
                 assert!(protocol.namespace_upvar_local_input(b"a\0z").is_err());
@@ -2476,6 +2813,41 @@ mod tests {
     }
 
     #[test]
+    fn c_array_root_write_failure_uses_the_measured_value_store_tuple() {
+        // Native proof: naming.variable.original-array-root-write-diagnostic
+        // docs/design/analysis/name-resolution-proofs/variable-original-array-root-write-diagnostic.md
+        // The source observations identify output; this checks the selected Rust site.
+        use NativeVariableDiagnosticOperation::{Read, Write};
+        use NativeVariableDiagnosticReason::IsArray;
+        use NativeVariableFailureSite::{NameLookup, ValueWrite};
+        let input = NativeVariableInputForm::Combined(b"a");
+        for version in VERSIONS {
+            let protocol = NativeNameProtocol::C(version);
+            let projection =
+                report_native_variable_diagnostic_at(protocol, Write, IsArray, ValueWrite, input)
+                    .unwrap();
+            assert_eq!(projection.name, b"a");
+            assert_eq!(projection.reason, IsArray);
+            let code = (version >= TclVersion::V8_6)
+                .then(|| vec![b"TCL".to_vec(), b"WRITE".to_vec(), b"VARNAME".to_vec()]);
+            assert_eq!(projection.error_code, code);
+            assert!(projection.missing_lookup_root.is_none());
+            assert!(
+                report_native_variable_diagnostic_at(protocol, Read, IsArray, ValueWrite, input)
+                    .is_err()
+            );
+            if version >= TclVersion::V8_6 {
+                assert!(
+                    report_native_variable_diagnostic_at(
+                        protocol, Write, IsArray, NameLookup, input
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn jim_evaluated_element_read_failures_keep_the_selected_root_and_key() {
         use NativeVariableDiagnosticOperation::{Read, Write};
         use NativeVariableDiagnosticReason::{NoSuchElement, NoSuchVariable, NotArray};
@@ -2766,6 +3138,81 @@ mod tests {
                 .element()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn original_lambda_namespace_preserves_counted_object_and_lookup_purposes() {
+        // naming.procedure.original-root-and-colon-holder-publication
+        // docs/design/analysis/name-resolution-proofs/procedure-original-root-and-colon-holder-publication.md
+        // naming.lambda.original-namespace-constructor-and-getter
+        // docs/design/analysis/name-resolution-proofs/lambda-original-namespace-constructor-and-getter.md
+        // SDK raw String00 and ByteArray materialised C080 remain independent.
+        // These projections retain selected getter bytes without claiming an
+        // original object header or namespace existence from the byte recipe.
+        for version in [
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let recipe = NativeNameProtocol::C(version);
+            for (original, selected, components) in [
+                (
+                    b":ns".as_slice(),
+                    b":::ns".as_slice(),
+                    vec![b"ns".as_slice()],
+                ),
+                (b":::ns", b":::ns", vec![b"ns".as_slice()]),
+                (b"", b"::", vec![]),
+                (b":ns\0suffix", b":::ns\0suffix", vec![b"ns".as_slice()]),
+                (b"::ns\0suffix", b"::ns\0suffix", vec![b"ns".as_slice()]),
+                (
+                    b"\xc0\x80ns",
+                    b"::\xc0\x80ns",
+                    vec![b"\xc0\x80ns".as_slice()],
+                ),
+            ] {
+                let input = recipe.lambda_namespace_input(original).unwrap();
+                assert_eq!(input.original(), original);
+                assert_eq!(input.selected(), selected);
+                assert_eq!(input.purpose(), NativeNamePurpose::LambdaNamespace);
+                assert_eq!(
+                    recipe.lambda_namespace_path(original).unwrap(),
+                    ByteNamespacePath::from_segments(components)
+                );
+            }
+        }
+        for recipe in [
+            NativeNameProtocol::C(TclVersion::V8_4),
+            NativeNameProtocol::Jim084,
+        ] {
+            assert!(recipe.lambda_namespace_input(b":ns").is_err());
+            assert!(recipe.lambda_namespace_path(b":ns").is_err());
+        }
+    }
+
+    #[test]
+    fn original_root_procedure_publication_preserves_a_literal_colon() {
+        // naming.procedure.original-root-and-colon-holder-publication
+        // docs/design/analysis/name-resolution-proofs/procedure-original-root-and-colon-holder-publication.md
+        // C84/85 TclProcObjCmd only prepends a non-global holder's fullName.
+        // CLI source observations are independent of these pure slot assertions.
+        for version in VERSIONS {
+            let recipe = NativeNameProtocol::C(version);
+            let context = NativeNameContext::root();
+            assert_eq!(
+                recipe
+                    .command_publication_slot(context, b":source")
+                    .unwrap(),
+                ByteCommandSlot::new(ByteNamespacePath::root(), NameBytes::from(":source"))
+            );
+            assert_eq!(
+                recipe
+                    .command_publication_slot(context, b":::source")
+                    .unwrap(),
+                ByteCommandSlot::new(ByteNamespacePath::root(), NameBytes::from("source"))
+            );
+        }
     }
 
     #[test]
@@ -3079,6 +3526,10 @@ fn native_oo_counted_method_and_cstring_object_publication_are_distinct() {
 
 #[test]
 fn alias_publication_retains_its_distinct_native_entry_point() {
+    // naming.class.jim-source-rooted-factory-initialiser-replacement
+    // docs/design/analysis/name-resolution-proofs/class-jim-source-rooted-factory-initialiser-replacement.md
+    // Native rooted factory observations motivate table-key comparison; extent
+    // controls preserve original/reporting producer bytes independently.
     let namespace = ByteNamespacePath::from_segments(["n"]);
     let context = NativeNameContext::new(&namespace);
     for version in TclVersion::ALL {
@@ -3120,13 +3571,11 @@ fn alias_publication_retains_its_distinct_native_entry_point() {
     for name in [b"x".as_slice(), b"q::x", b"::q::x", b"x\0z", b"x\xff"] {
         let slot = jim.alias_publication_slot(context, name).unwrap();
         assert!(slot.namespace.is_root());
-        assert_eq!(slot.simple.as_bytes(), name);
-        assert_eq!(
-            jim.alias_publication_input(context, name)
-                .unwrap()
-                .jim_flat_key(),
-            Some(name)
-        );
+        assert_eq!(slot.simple.as_bytes(), strip_jim_root(name));
+        let publication = jim.alias_publication_input(context, name).unwrap();
+        assert_eq!(publication.original(), name);
+        assert_eq!(publication.selected(), name);
+        assert_eq!(publication.jim_flat_key(), Some(strip_jim_root(name)));
     }
 }
 
@@ -3212,4 +3661,299 @@ fn empty_relative_namespace_address_does_not_select_nonroot_caller() {
             parent
         );
     }
+}
+
+#[cfg(test)]
+mod command_source_word_tests {
+    use super::*;
+
+    #[test]
+    fn command_source_word_preserves_opaque_slots_and_original_channel() {
+        let config = tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(
+            Some("tcl8.6"),
+        ));
+        let protocol = NativeNameProtocol::C(TclVersion::V8_6);
+        let first =
+            ByteCommandSlot::new(ByteNamespacePath::root(), NameBytes::from(b"p\xed\xa0\x80"));
+        let second =
+            ByteCommandSlot::new(ByteNamespacePath::root(), NameBytes::from(b"p\xed\xa0\x81"));
+        let first_word = native_command_source_word(
+            protocol,
+            &first,
+            tcl_lexer::SourceChannel::Document,
+            config,
+        )
+        .unwrap();
+        let second_word = native_command_source_word(
+            protocol,
+            &second,
+            tcl_lexer::SourceChannel::Document,
+            config,
+        )
+        .unwrap();
+        assert_ne!(first_word, second_word);
+        for (slot, word) in [(first, first_word), (second, second_word)] {
+            let produced = crate::backslash::native_source_string_bytes_channel_in(
+                &word.as_bytes()[1..word.len() - 1],
+                tcl_lexer::SourceChannel::Document,
+                config.escapes,
+                protocol.string_protocol(),
+            )
+            .unwrap();
+            assert_eq!(
+                protocol
+                    .command_lookup_slot(NativeNameContext::root(), &produced)
+                    .unwrap(),
+                slot
+            );
+        }
+        let raw_zero =
+            ByteCommandSlot::new(ByteNamespacePath::root(), NameBytes::from(b"p\0suffix"));
+        assert!(
+            native_command_source_word(
+                protocol,
+                &raw_zero,
+                tcl_lexer::SourceChannel::NativeValue,
+                config
+            )
+            .is_none()
+        );
+        let ambiguous_colon = ByteCommandSlot::new(
+            ByteNamespacePath::from_segments([b"a:".as_slice()]),
+            NameBytes::from(b"p"),
+        );
+        assert!(
+            native_command_source_word(
+                protocol,
+                &ambiguous_colon,
+                tcl_lexer::SourceChannel::Document,
+                config
+            )
+            .is_none()
+        );
+    }
+}
+
+#[test]
+fn original_property_option_extent_is_separate_from_counted_declaration_names() {
+    // Implementation contract: naming.tcloo.original-property-accessor-source-advice
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-property-accessor-source-advice.md
+    for version in [TclVersion::V9_0, TclVersion::V9_1] {
+        let recipe = NativeNameProtocol::C(version);
+        for (original, expected) in [
+            (b"p\0tail".as_slice(), b"-p".as_slice()),
+            (b"p\xc0\x80tail", b"-p\xc0\x80tail"),
+            (b"p\xed\xa0\x80", b"-p\xed\xa0\x80"),
+        ] {
+            let option = recipe.oo_property_option_name(original).unwrap();
+            assert_eq!(option.original(), original);
+            assert_eq!(option.selected(), expected);
+            assert_eq!(option.purpose(), NativeNamePurpose::OoPropertyOption);
+            assert_eq!(
+                recipe.oo_method_input(original).unwrap().selected(),
+                original
+            );
+        }
+    }
+    for recipe in [
+        NativeNameProtocol::C(TclVersion::V8_4),
+        NativeNameProtocol::C(TclVersion::V8_5),
+        NativeNameProtocol::C(TclVersion::V8_6),
+        NativeNameProtocol::Jim084,
+    ] {
+        assert!(recipe.oo_property_option_name(b"p").is_err());
+    }
+}
+
+#[cfg(test)]
+mod coroutine_publication_tests {
+    use super::*;
+
+    type CoroutinePublicationCase<'a> = (&'a [u8], &'a [&'a [u8]], &'a [u8]);
+
+    #[test]
+    fn coroutine_slots_keep_current_holders_and_native_byte_extents() {
+        // Native proof: naming.coroutine.original-publication-boundaries
+        // docs/design/analysis/name-resolution-proofs/coroutine-original-publication-boundaries.md
+        let current = ByteNamespacePath::from_segments([b"N".as_slice()]);
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let protocol = NativeNameProtocol::C(version);
+            let cases: &[CoroutinePublicationCase<'_>] = &[
+                (b"c\0::Missing::tail", &[b"N"], b"c"),
+                (b"c\xc0\x80z", &[b"N"], b"c\xc0\x80z"),
+                (b"c\xffz", &[b"N"], b"c\xffz"),
+                (b"c\xed\xa0\x80z", &[b"N"], b"c\xed\xa0\x80z"),
+                (b"Q::c", &[b"N", b"Q"], b"c"),
+                (b"::Q::c", &[b"Q"], b"c"),
+                (b"", &[b"N"], b""),
+                (b"::", &[], b""),
+                (b"Q::", &[b"N", b"Q"], b""),
+            ];
+            for &(original, holders, simple) in cases {
+                let slot = protocol
+                    .coroutine_publication_slot(NativeNameContext::new(&current), original)
+                    .unwrap();
+                assert_eq!(
+                    slot.namespace,
+                    ByteNamespacePath::from_segments(holders.iter().copied())
+                );
+                assert_eq!(slot.simple.as_bytes(), simple);
+            }
+            let error = protocol
+                .coroutine_unknown_namespace_error(b"Missing::c\0z")
+                .unwrap();
+            assert_eq!(
+                error.message,
+                b"can't create procedure \"Missing::c\": unknown namespace"
+            );
+            assert_eq!(error.error_code, b"TCL LOOKUP NAMESPACE");
+        }
+        for protocol in [
+            NativeNameProtocol::C(TclVersion::V8_4),
+            NativeNameProtocol::C(TclVersion::V8_5),
+            NativeNameProtocol::Jim084,
+        ] {
+            assert_eq!(
+                protocol
+                    .coroutine_publication_slot(NativeNameContext::new(&current), b"c")
+                    .unwrap_err(),
+                NameProjectionUnavailable::PurposeNotModelled
+            );
+        }
+    }
+    #[test]
+    fn c_value_report_name_keeps_original_compound_parts() {
+        // Native proof: naming.variable.recreated-element-independent-read-trace
+        // docs/design/analysis/name-resolution-proofs/variable-recreated-element-independent-read-trace.md
+        // The native source proves the ::a(k) name; extent controls are Rust ownership coverage.
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let protocol = NativeNameProtocol::C(version);
+            assert_eq!(
+                report_native_c_variable_value_name(
+                    protocol,
+                    NativeVariableInputForm::Separate {
+                        root: b"::a",
+                        element: Some(b"k")
+                    }
+                )
+                .unwrap(),
+                b"::a(k)"
+            );
+            let input = NativeVariableInputForm::Separate {
+                root: b"a\0tail",
+                element: Some(b"k\0tail"),
+            };
+            let name = report_native_c_variable_value_name(protocol, input).unwrap();
+            assert_eq!(name, b"a(k)");
+            assert_eq!(
+                report_native_variable_diagnostic_at(
+                    protocol,
+                    NativeVariableDiagnosticOperation::Read,
+                    NativeVariableDiagnosticReason::NoSuchElement,
+                    NativeVariableFailureSite::ValueRead,
+                    input
+                )
+                .unwrap()
+                .name,
+                name
+            );
+            assert_eq!(
+                report_native_c_variable_value_name(
+                    protocol,
+                    NativeVariableInputForm::Combined(b"a\0(k)")
+                )
+                .unwrap(),
+                b"a"
+            );
+        }
+        assert_eq!(
+            report_native_c_variable_value_name(
+                NativeNameProtocol::Jim084,
+                NativeVariableInputForm::Separate {
+                    root: b"a",
+                    element: Some(b"k")
+                }
+            ),
+            Err(NameProjectionUnavailable::PurposeNotModelled)
+        );
+    }
+}
+
+#[test]
+fn jim_two_word_factory_publication_uses_original_units_and_existing_publication_recipe() {
+    // naming.source.original-class-reference
+    // docs/design/analysis/name-resolution-proofs/source-original-class-reference.md
+    // Extent cases are pure owner coverage, not additional native probe claims.
+    let jim = NativeNameProtocol::Jim084;
+    for (class, member, expected) in [
+        (b"C".as_slice(), b"get".as_slice(), b"C get".as_slice()),
+        (b"::C", b"method", b"C method"),
+        (b"C extra", b"get", b"C extra get"),
+        (b"C\0tail", b"get", b"C\0tail get"),
+    ] {
+        let slot = jim
+            .jim_two_word_member_publication_slot(
+                NativeNameContext::root(),
+                class,
+                member,
+                NativeNamePurpose::CommandPublication,
+            )
+            .unwrap();
+        assert!(slot.namespace.is_root());
+        assert_eq!(slot.simple.as_bytes(), expected);
+    }
+    assert_eq!(
+        jim.jim_two_word_member_publication_slot(
+            NativeNameContext::new(&ByteNamespacePath::root()),
+            b"C",
+            b"get",
+            NativeNamePurpose::CommandPublication,
+        )
+        .unwrap_err(),
+        NameProjectionUnavailable::MissingJimNamespaceObject
+    );
+    for version in [
+        TclVersion::V8_4,
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        assert_eq!(
+            NativeNameProtocol::C(version)
+                .jim_two_word_member_publication_slot(
+                    NativeNameContext::root(),
+                    b"C",
+                    b"get",
+                    NativeNamePurpose::CommandPublication
+                )
+                .unwrap_err(),
+            NameProjectionUnavailable::PurposeNotModelled
+        );
+    }
+    let alias = jim
+        .jim_two_word_member_publication_slot(
+            NativeNameContext::root(),
+            b"::C",
+            b"constructor",
+            NativeNamePurpose::AliasPublication,
+        )
+        .unwrap();
+    assert_eq!(alias.simple.as_bytes(), b"C constructor");
+    assert_eq!(
+        jim.jim_two_word_member_publication_slot(
+            NativeNameContext::root(),
+            b"C",
+            b"get",
+            NativeNamePurpose::CommandLookup
+        )
+        .unwrap_err(),
+        NameProjectionUnavailable::PurposeNotModelled
+    );
 }

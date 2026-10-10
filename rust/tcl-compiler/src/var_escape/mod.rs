@@ -42,6 +42,7 @@ pub mod helpers;
 pub mod info_subcommands;
 pub mod interprocedural;
 pub mod known_names;
+pub mod original_slots;
 pub mod slot_resolution;
 pub mod state;
 pub mod types;

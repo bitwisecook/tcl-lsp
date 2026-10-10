@@ -1,0 +1,8 @@
+exported-distinct-source-units 0 {FIRST SECOND}
+export-filter-keeps-distinct-units 0 {1 0}
+import-source-move-identity 0 HELD
+forget-local-distinct-units 0 {0 SECOND}
+forget-renamed-import-by-origin 0 0
+import-invalid-no-source 1 {no namespace specified in import pattern "local"}
+import-missing-source 1 {unknown namespace in import pattern "::NoScope88::p"}
+import-same-namespace 1 {import pattern "::Scope88A::p

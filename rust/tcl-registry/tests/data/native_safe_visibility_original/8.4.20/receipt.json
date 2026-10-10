@@ -1,0 +1,37 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/native-safe-visibility157/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.006957853009225801,
+  "reported_version": "8.4.20",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "aa9cc598b853d1dd72bc20bc8c1f0fb6b48e99fc554a295366d909114c48b96f",
+  "runner_sha256": "936eb374440ed5fa52dc9622a512869074c8690e5ee3d8de0253297103a7d3a9",
+  "stdout_sha256": "fb39dba0ddabe333845bd73b6c450299c02b6ef651571dacffe3d891cf435a7f",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a"
+  },
+  "rows": [
+    "PATCHLEVEL 8.4.20",
+    "OBSERVATION safe_colon_and_namespace 0 30207b736f75726365203a736f75726365204c49544552414c5f434f4c4f4e20434f4c4f4e5f4e414d4553504143457d",
+    "OBSERVATION safe_global_qualification 0 31207b696e76616c696420636f6d6d616e64206e616d652022736f75726365227d2031207b696e76616c696420636f6d6d616e64206e616d6520223a3a736f75726365227d2031207b696e76616c696420636f6d6d616e64206e616d6520223a3a3a3a736f75726365227d",
+    "OBSERVATION hide_distinct_token_and_colon_exposure 0 30207b746f6b656e2031207b696e76616c696420636f6d6d616e64206e616d65202268656c64227d204f524947494e414c207b7d7d",
+    "OBSERVATION hide_default_qualified_token 0 31207b63616e6e6f7420757365206e616d657370616365207175616c69666965727320696e2068696464656e20636f6d6d616e6420746f6b656e202872656e616d65297d204f524947494e414c",
+    "OBSERVATION hide_namespace_source 0 31207b63616e206f6e6c79206869646520676c6f62616c206e616d65737061636520636f6d6d616e647320287573652072656e616d65207468656e2068696465297d204e414d45535041434544",
+    "OBSERVATION hidden_and_new_visible_allocations 0 31207b68696464656e20636f6d6d616e64206e616d65642022746f6b656e2220616c7265616479206578697374737d2031207b6578706f73656420636f6d6d616e64202268656c642220616c7265616479206578697374737d205245444546494e4544204f524947494e414c",
+    "OBSERVATION hide_literal_colon 0 31207b696e76616c696420636f6d6d616e64206e616d6520223a68656c64227d20504c41494e204c49544552414c5f434f4c4f4e",
+    "OBSERVATION counted_binary_command_boundary 0 30207b7d203020434f554e544544"
+  ],
+  "input_channel": "ASCII LF source-file CLI; independent owned child interpreter command visibility tests",
+  "boundary": "Eight labelled command visibility cases with scoped names, exact hide/expose tokens, allocation collisions and binary-produced counted NUL. No physical object/header/cache or Native child-entry proof is inferred from CLI results."
+}

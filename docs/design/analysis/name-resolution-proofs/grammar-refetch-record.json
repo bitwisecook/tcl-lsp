@@ -1,0 +1,109 @@
+[
+  {
+    "id": "naming.jim-switch-body-refetch",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/jim-switch-body-refetch.md",
+    "problem_statement": "A switch dispatcher may retain an old body object yet fetch a distinct new body after callback work. Keeping the old object alive does not prove it is still the selected execution body.",
+    "question": "Can a Jim switch callback refetch a body after the original retained body changes representation or callback completion?",
+    "conclusion": "The twelve retained Jim rows record old-body lease and refetched-body distinctions on success, guest Error and noninteger OK. The original refetch probe source is absent, so the immutable capture is retained with this replay limitation; it supplies no new callback or body execution owner.",
+    "scope": "Pinned Jim original object rows/refetch.tsv and build/source digests in refetch-manifest.json; original source hash is retained but source bytes are not recovered.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded by the refetch observer",
+        "build": "probe SHA-256 889374c48febda50eee65d5ec91dd04f447b84b4a9e89773da251554d1019e11; linked libjim.a SHA-256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+        "input_channel": "original host object probe; original source bytes unavailable",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "The twelve retained rows include three BEFORE/AFTER_SHIMMER/AFTER_SWITCH/RESULT groups. The old body remains live under a host lease while a distinct refetched object is selected on success (MATCH), guest Error (FAILED) and noninteger OK (empty result). These are retained object-window observations; the absent original probe source prevents independent replay and does not establish arbitrary callback semantics.",
+        "evidence": [
+          "receipt-0",
+          "artifact-8"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "receipt-0",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_jim_switch/refetch-manifest.json",
+        "sha256": "df559cb3ee9f02165f24e4a325faf32b4b0a4d60f0e25db265a158f557ac767e",
+        "description": "Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations."
+      },
+      {
+        "id": "artifact-8",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_jim_switch/refetch.tsv",
+        "sha256": "beb0bb0b0f9115f5e12aacee61efc0384080fe8bf4e0a9b6b0951a3ada3012ed",
+        "description": "Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "Original producer code/inputs and captured invocation metadata are pinned above. Restore the exact named provider build and run the original probe with its matching public/private headers and library, preserving its observer order and the60-second/two-slot limits. Historical absolute executable/output paths are metadata, not usable current paths. Original host probes absent from a corpus remain unreplayable; no source is reconstructed from a digest. Maintained source-only replay instructions are supplied separately where available."
+    }
+  }
+]

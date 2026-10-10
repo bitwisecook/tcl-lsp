@@ -1,0 +1,8 @@
+
+running 3 tests
+test registry_invocation::logical_formals::tests::logical_formal_alpha_closure_keeps_observers_aliases_and_unknowns_outside ... ok
+test registry_invocation::logical_formals::tests::logical_formal_bindings_retain_general_fields_and_original_reads ... ok
+test registry_invocation::logical_formals::tests::logical_formal_inventory_keeps_variadic_and_native_domains_separate ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 8158 filtered out; finished in 10.06s
+

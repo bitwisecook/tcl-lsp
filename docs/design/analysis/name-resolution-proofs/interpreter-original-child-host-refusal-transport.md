@@ -1,0 +1,85 @@
+# naming.interpreter.original-child-host-refusal-transport
+
+Kind: `implementation-contract`
+
+## Problem statement
+
+A child evaluation can reach a host-only typed failure. Transporting it as a guest result/options pair would lose its cause and can overwrite the parent result despite having no guest completion receipt.
+
+## Question
+
+How does original child evaluation retain a reached typed host refusal and the existing parent result without manufacturing guest return options or cross-interpreter value/lookup identity?
+
+## Conclusion
+
+child_eval_original evaluates the selected original body in the actual child. Before guest completion capture it checks host_refusal_pending. A reached child refusal transports the actual admission/access failure fields through transport_host_refusal_from and returns Error without publishing a guest result/options pair. An existing parent refusal remains authoritative for each corresponding field; both interpreter states remain retained. The parent result stays unchanged. The fixed authored host-worker control demonstrates typed access-cause transport and prior-parent precedence, not a native child interpreter, guest error-options equivalence, value allocation, lookup identity or successful command execution.
+
+## Scope
+
+One fixed Runtime source/API control uses an explicit authored host worker in a created model child, with and without an existing parent refusal. It compares the actual retained typed cause in both states and unchanged parent result. All seven native providers are not tested; no external process or native object/header/frame observation answers this API question.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### tcl8.5
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### tcl8.6
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### tcl9.0
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### tcl9.1
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### jim
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### bigip
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+## Exact evidence
+
+- `naming-interpreter-original-child-host-refusal-transport-native_children.rs` (implementation): [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs). SHA-256 `8c881f13d44ad4f867fb1a888f488d2ad471a46d299332175dc43aa0c4fd4635`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-interpreter-original-child-host-refusal-transport-native_compilation.rs` (implementation): [runtime/rust/src/interp/native_compilation.rs](../../../../runtime/rust/src/interp/native_compilation.rs). SHA-256 `78abdaf067bb75527a8a4236e1582f702bb717d6a087c649d823350188af8ff9`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+
+## Source inspection
+
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+
+## Consumer bindings
+
+- [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `Interp::child_eval_original`: Keep original child body selection and detect actual retained host-only refusal before guest completion capture.
+- [runtime/rust/src/interp/native_compilation.rs](../../../../runtime/rust/src/interp/native_compilation.rs), `Interp::transport_host_refusal_from`: Transport reached typed child failure fields while preserving prior parent fields and parent result; no guest options or value identity.
+- [runtime/rust/src/interp/native_compilation.rs](../../../../runtime/rust/src/interp/native_compilation.rs), `Interp::host_refusal_pending`: Keep retained admission/access refusal separate from guest completion.
+- [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `interp::native_children::tests::child_host_failure_keeps_its_typed_cause_and_parent_result` (linked): Explicit authored child host worker keeps its typed access failure and prior-parent precedence with unchanged parent result; no native execution observation.
+
+A named test is a coverage binding, not a claim that it executed.
+
+## Replay
+
+Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.

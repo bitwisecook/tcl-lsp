@@ -179,6 +179,16 @@ impl CompileService for OptimisedOnlyCompilerSvc {
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.0.compile_script_bytes_for_profile(target, profile)
     }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
     fn compile_script_bytes_with_entry(
         &self,
         target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
@@ -283,6 +293,16 @@ impl CompileService for DishonestPlainCompilerSvc {
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.0.compile_script_bytes_for_profile(target, profile)
     }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
     fn compile_script_bytes_with_entry(
         &self,
         target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
@@ -412,6 +432,16 @@ impl CompileService for ScriptOnlyCompilerSvc {
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.0.compile_script_bytes_for_profile(target, profile)
     }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
     fn compile_script_bytes_with_entry(
         &self,
         target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
@@ -536,6 +566,16 @@ impl CompileService for InliningCompilerSvc {
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, registry))
     }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        BytecodeCompileService::for_profile(profile)
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
     fn compile_script_bytes_with_entry(
         &self,
         target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
@@ -736,6 +776,17 @@ impl CompileService for CountingCompilerSvc {
         self.fast_calls.set(self.fast_calls.get() + 1);
         self.inner.compile_script_bytes_for_profile(target, profile)
     }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.fast_calls.set(self.fast_calls.get() + 1);
+        self.inner
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
     fn compile_script_bytes_with_entry(
         &self,
         target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,

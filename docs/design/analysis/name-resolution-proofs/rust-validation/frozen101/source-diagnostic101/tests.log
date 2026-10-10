@@ -1,0 +1,18 @@
+    Finished `test` profile [unoptimized] target(s) in 0.23s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_core-f816994f92f0f9f0)
+
+running 1 test
+test code_actions::diagnostic_context::tests::original_source_diagnostic_advice_shares_guarded_schema_and_whole_word_geometry ... 
+thread 'code_actions::diagnostic_context::tests::original_source_diagnostic_advice_shares_guarded_schema_and_whole_word_geometry' (418819) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:625:13:
+known source cell barrier: rename HTTP::respond {}; when HTTP_REQUEST {HTTP::respond 200 content ok}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    code_actions::diagnostic_context::tests::original_source_diagnostic_advice_shares_guarded_schema_and_whole_word_geometry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2564 filtered out; finished in 0.59s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

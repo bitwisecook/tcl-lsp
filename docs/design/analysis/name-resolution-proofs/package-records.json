@@ -1,0 +1,600 @@
+[
+  {
+    "id": "naming.package.error-publication-bad-member",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/package-error-publication-bad-member.md",
+    "problem_statement": "A prior global errorCode value is seeded before an invalid package subcommand. Preserving SEED, publishing NONE, and publishing a structured lookup error are competing outcomes that affect callback/error consumers.",
+    "question": "What result and errorCode does the exact caught package bad program publish?",
+    "conclusion": "The captured family-specific results replace SEED. Tcl8.4 and Jim publish NONE; Tcl8.5/8.6/9.0/9.1 publish TCL LOOKUP INDEX option bad, with release-specific command usage text. This is only the recorded program and provider artifacts.",
+    "scope": "Only the exact script strings, seeded global errorCode, captured selected executable/header/library artifacts, result/exit/stderr rows in this retained manifest. Full linked release versions and launch channel were not queried here; no BIG-IP or unlisted provider branch is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.4",
+        "build": "Executable SHA-256 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package bad} m; list $m $::errorCode\"\n\nCaptured result: {bad option \"bad\": must be forget, ifneeded, names, present, provide, require, unknown, vcompare, versions, or vsatisfies} NONE\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-0"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.5",
+        "build": "Executable SHA-256 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package bad} m; list $m $::errorCode\"\n\nCaptured result: {bad option \"bad\": must be forget, ifneeded, names, prefer, present, provide, require, unknown, vcompare, versions, or vsatisfies} {TCL LOOKUP INDEX option bad}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-4"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.6",
+        "build": "Executable SHA-256 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package bad} m; list $m $::errorCode\"\n\nCaptured result: {bad option \"bad\": must be forget, ifneeded, names, prefer, present, provide, require, unknown, vcompare, versions, or vsatisfies} {TCL LOOKUP INDEX option bad}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-8"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "Full linked version not queried in this capture; recorded profile tcl9.0",
+        "build": "Executable SHA-256 cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package bad} m; list $m $::errorCode\"\n\nCaptured result: {bad option \"bad\": must be files, forget, ifneeded, names, prefer, present, provide, require, unknown, vcompare, versions, or vsatisfies} {TCL LOOKUP INDEX option bad}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-12"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "Full linked version not queried in this capture; recorded profile tcl9.1",
+        "build": "Executable SHA-256 d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package bad} m; list $m $::errorCode\"\n\nCaptured result: {bad option \"bad\": must be files, forget, ifneeded, names, prefer, present, provide, require, unknown, vcompare, versions, or vsatisfies} {TCL LOOKUP INDEX option bad}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-16"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Full linked version not queried in this capture; recorded profile jim",
+        "build": "Executable SHA-256 d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package bad} m; list $m $::errorCode\"\n\nCaptured result: {package, unknown command \"bad\": should be forget, names, provide, require} NONE\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-20"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "row-0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/0",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/4",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-8",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/8",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-12",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/12",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-16",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/16",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-20",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/20",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/cmd_package.rs",
+        "selector": "tests::package_error_publication_matches_all_21_original_native_controls",
+        "assertion": "Compares this question's original source/result rows within the complete 21-window fixture; the independent native captures remain the language evidence. No executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "The exact program strings and original provider/build/result rows are retained. No permanent standalone runner is attached here, and no new native execution is claimed. Reconfirmation must retain actual selected versions, input channel and separate status/streams."
+    }
+  },
+  {
+    "id": "naming.package.error-publication-bad-preference",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/package-error-publication-bad-preference.md",
+    "problem_statement": "An invalid preference can fail because the prefer command door is absent or because its argument fails validation. The stage changes the diagnostic and errorCode, so consumers cannot borrow the later-release validation result.",
+    "question": "What result and errorCode does the exact caught package prefer bad program publish?",
+    "conclusion": "Tcl8.4 rejects the prefer subcommand and publishes NONE. The captured Tcl8.5/8.6/9.0/9.1 preference-validation rows publish TCL LOOKUP INDEX preference bad. No Jim preference row was captured.",
+    "scope": "Only the exact script strings, seeded global errorCode, captured selected executable/header/library artifacts, result/exit/stderr rows in this retained manifest. Full linked release versions and launch channel were not queried here; no BIG-IP or unlisted provider branch is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.4",
+        "build": "Executable SHA-256 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package prefer bad} m; list $m $::errorCode\"\n\nCaptured result: {bad option \"prefer\": must be forget, ifneeded, names, present, provide, require, unknown, vcompare, versions, or vsatisfies} NONE\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-1"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.5",
+        "build": "Executable SHA-256 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package prefer bad} m; list $m $::errorCode\"\n\nCaptured result: {bad preference \"bad\": must be latest or stable} {TCL LOOKUP INDEX preference bad}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.6",
+        "build": "Executable SHA-256 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package prefer bad} m; list $m $::errorCode\"\n\nCaptured result: {bad preference \"bad\": must be latest or stable} {TCL LOOKUP INDEX preference bad}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-9"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "Full linked version not queried in this capture; recorded profile tcl9.0",
+        "build": "Executable SHA-256 cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package prefer bad} m; list $m $::errorCode\"\n\nCaptured result: {bad preference \"bad\": must be latest or stable} {TCL LOOKUP INDEX preference bad}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-13"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "Full linked version not queried in this capture; recorded profile tcl9.1",
+        "build": "Executable SHA-256 d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package prefer bad} m; list $m $::errorCode\"\n\nCaptured result: {bad preference \"bad\": must be latest or stable} {TCL LOOKUP INDEX preference bad}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-17"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "row-1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/1",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/5",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-9",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/9",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-13",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/13",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-17",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/17",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/cmd_package.rs",
+        "selector": "tests::package_error_publication_matches_all_21_original_native_controls",
+        "assertion": "Compares this question's original source/result rows within the complete 21-window fixture; the independent native captures remain the language evidence. No executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "The exact program strings and original provider/build/result rows are retained. No permanent standalone runner is attached here, and no new native execution is claimed. Reconfirmation must retain actual selected versions, input channel and separate status/streams."
+    }
+  },
+  {
+    "id": "naming.package.error-publication-unknown-completion",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/package-error-publication-unknown-completion.md",
+    "problem_statement": "A package unknown callback returns break rather than normal completion. The package consumer may reject that callback and overwrite an existing errorCode in a release-specific way. Callback completion is separate from package publication.",
+    "question": "What result and errorCode follow the exact unknown callback returning break?",
+    "conclusion": "All five captured C families reject the callback with bad return code3. Tcl8.4/8.5 publish NONE; Tcl8.6/9.0/9.1 publish TCL PACKAGE BADRESULT. No Jim callback row was captured, and this does not certify a source loader or normal callback receipt.",
+    "scope": "Only the exact script strings, seeded global errorCode, captured selected executable/header/library artifacts, result/exit/stderr rows in this retained manifest. Full linked release versions and launch channel were not queried here; no BIG-IP or unlisted provider branch is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.4",
+        "build": "Executable SHA-256 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {proc discover args {return -code break CALLBACK}; package unknown discover; package require missing} m; list $m $::errorCode\"\n\nCaptured result: {bad return code: 3} NONE\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-2"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.5",
+        "build": "Executable SHA-256 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {proc discover args {return -code break CALLBACK}; package unknown discover; package require missing} m; list $m $::errorCode\"\n\nCaptured result: {bad return code: 3} NONE\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-6"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.6",
+        "build": "Executable SHA-256 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {proc discover args {return -code break CALLBACK}; package unknown discover; package require missing} m; list $m $::errorCode\"\n\nCaptured result: {bad return code: 3} {TCL PACKAGE BADRESULT}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-10"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "Full linked version not queried in this capture; recorded profile tcl9.0",
+        "build": "Executable SHA-256 cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {proc discover args {return -code break CALLBACK}; package unknown discover; package require missing} m; list $m $::errorCode\"\n\nCaptured result: {bad return code: 3} {TCL PACKAGE BADRESULT}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-14"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "Full linked version not queried in this capture; recorded profile tcl9.1",
+        "build": "Executable SHA-256 d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {proc discover args {return -code break CALLBACK}; package unknown discover; package require missing} m; list $m $::errorCode\"\n\nCaptured result: {bad return code: 3} {TCL PACKAGE BADRESULT}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-18"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "row-2",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/2",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/6",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-10",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/10",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-14",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/14",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-18",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/18",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/cmd_package.rs",
+        "selector": "tests::package_error_publication_matches_all_21_original_native_controls",
+        "assertion": "Compares this question's original source/result rows within the complete 21-window fixture; the independent native captures remain the language evidence. No executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "The exact program strings and original provider/build/result rows are retained. No permanent standalone runner is attached here, and no new native execution is claimed. Reconfirmation must retain actual selected versions, input channel and separate status/streams."
+    }
+  },
+  {
+    "id": "naming.package.error-publication-loader-completion",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/package-error-publication-loader-completion.md",
+    "problem_statement": "An ifneeded script returns an abrupt completion while require expects package provision. Treating it as a successful loader or borrowing unknown-callback completion would change wrapper error and errorCode publication.",
+    "question": "What result and errorCode follow the exact ifneeded loader returning break during require?",
+    "conclusion": "The five captured C families retain the loader-failure wrapper with bad return code2. Tcl8.4/8.5 publish NONE; Tcl8.6/9.0/9.1 publish TCL PACKAGE BADRESULT. No Jim loader row was captured and no successful package execution/provision is proved.",
+    "scope": "Only the exact script strings, seeded global errorCode, captured selected executable/header/library artifacts, result/exit/stderr rows in this retained manifest. Full linked release versions and launch channel were not queried here; no BIG-IP or unlisted provider branch is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.4",
+        "build": "Executable SHA-256 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package ifneeded probe 1 {return -code break CALLBACK}; package require probe} m; list $m $::errorCode\"\n\nCaptured result: {attempt to provide package probe 1 failed: bad return code: 2} NONE\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-3"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.5",
+        "build": "Executable SHA-256 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package ifneeded probe 1 {return -code break CALLBACK}; package require probe} m; list $m $::errorCode\"\n\nCaptured result: {attempt to provide package probe 1 failed: bad return code: 2} NONE\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-7"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "Full linked version not queried in this capture; recorded profile tcl8.6",
+        "build": "Executable SHA-256 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package ifneeded probe 1 {return -code break CALLBACK}; package require probe} m; list $m $::errorCode\"\n\nCaptured result: {attempt to provide package probe 1 failed: bad return code: 2} {TCL PACKAGE BADRESULT}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-11"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "Full linked version not queried in this capture; recorded profile tcl9.0",
+        "build": "Executable SHA-256 cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package ifneeded probe 1 {return -code break CALLBACK}; package require probe} m; list $m $::errorCode\"\n\nCaptured result: {attempt to provide package probe 1 failed: bad return code: 2} {TCL PACKAGE BADRESULT}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-15"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "Full linked version not queried in this capture; recorded profile tcl9.1",
+        "build": "Executable SHA-256 d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; original header/library provenance remains in this row.",
+        "input_channel": "Exact script value retained; launch channel not recorded in this manifest.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exact script: \"set ::errorCode SEED; catch {package ifneeded probe 1 {return -code break CALLBACK}; package require probe} m; list $m $::errorCode\"\n\nCaptured result: {attempt to provide package probe 1 failed: bad return code: 2} {TCL PACKAGE BADRESULT}\n\nOriginal process exit: 0; stderr: \"\".",
+        "evidence": [
+          "row-19"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "row-3",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/3",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-7",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/7",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-11",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/11",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-15",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/15",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      },
+      {
+        "id": "row-19",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",
+        "sha256": "1df5ba7ea8159bebc91afd0858fecb198ea6083152b56e408a1cf2aca1a7a437",
+        "json_pointer": "/observations/19",
+        "description": "Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/cmd_package.rs",
+        "selector": "tests::package_error_publication_matches_all_21_original_native_controls",
+        "assertion": "Compares this question's original source/result rows within the complete 21-window fixture; the independent native captures remain the language evidence. No executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "The exact program strings and original provider/build/result rows are retained. No permanent standalone runner is attached here, and no new native execution is claimed. Reconfirmation must retain actual selected versions, input channel and separate status/streams."
+    }
+  }
+]

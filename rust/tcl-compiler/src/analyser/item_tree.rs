@@ -52,6 +52,7 @@ use std::collections::{BTreeSet, HashSet};
 
 use tcl_lexer::Span;
 
+use crate::signature_scan::formal_count::{SourceFormalCount, SourceFormalCountProjection};
 use crate::signature_scan::types::ParamDef;
 
 use super::types::{AnalysisResult, Scope, ScopeKind};
@@ -98,12 +99,105 @@ impl ItemId {
     }
 }
 
+/// Body-free projection of an independently retained source declaration.
+/// Exact publication geometry remains distinct from the UI item identifier.
+/// This header supplies no command existence or temporal installation proof.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceDeclarationSignature {
+    kind: ItemKind,
+    name: crate::signature_scan::scope::SignatureSourceCommand,
+    declaration_offset: u32,
+    name_span: Span,
+    params: Vec<ParamDef>,
+    params_computed: bool,
+    formal_count: SourceFormalCountProjection,
+}
+
+impl SourceDeclarationSignature {
+    /// Project the independently retained original procedure declaration.
+    /// The header grants neither installed identity nor entered arguments.
+    #[must_use]
+    pub fn from_original_procedure(
+        record: &crate::signature_scan::original_name::SourceDeclarationMetadata<
+            super::types::ProcDef,
+        >,
+    ) -> Self {
+        let metadata = record.metadata();
+        Self {
+            kind: ItemKind::Proc,
+            name: record.name().clone(),
+            declaration_offset: record.declaration_site().offset,
+            name_span: metadata.name_span,
+            params: metadata.params.clone(),
+            params_computed: metadata.params_computed,
+            formal_count: metadata.formal_count_projection(),
+        }
+    }
+
+    fn class(
+        record: &crate::signature_scan::original_name::SourceDeclarationMetadata<
+            super::types::ClassDef,
+        >,
+    ) -> Self {
+        Self {
+            kind: ItemKind::Class,
+            name: record.name().clone(),
+            declaration_offset: record.declaration_site().offset,
+            name_span: record.metadata().name_span,
+            params: Vec::new(),
+            params_computed: false,
+            formal_count: SourceFormalCount::Unknown.projection(&[], false),
+        }
+    }
+
+    /// Source declaration category, independently of a displayed label.
+    #[must_use]
+    pub fn kind(&self) -> ItemKind {
+        self.kind
+    }
+    /// Retained selected publication bytes and complete policy.
+    #[must_use]
+    pub fn name(&self) -> &crate::signature_scan::scope::SignatureSourceCommand {
+        &self.name
+    }
+    /// Original declaration offset, without an identity or edit grant.
+    #[must_use]
+    pub fn declaration_offset(&self) -> u32 {
+        self.declaration_offset
+    }
+    /// Original reported name extent, without an edit grant.
+    #[must_use]
+    pub fn name_span(&self) -> Span {
+        self.name_span
+    }
+    /// Parameter advice; native formal binding has its separate typed owner.
+    #[must_use]
+    pub fn params(&self) -> &[ParamDef] {
+        &self.params
+    }
+    /// Whether the parameter advice is unknown rather than empty.
+    #[must_use]
+    pub fn params_computed(&self) -> bool {
+        self.params_computed
+    }
+    /// Frozen count metadata from the declaration's actual formal owner.
+    /// It carries no source image, activation or argument-binding capability.
+    #[must_use]
+    pub const fn formal_count_projection(&self) -> SourceFormalCountProjection {
+        // naming.database.original-formal-count-header
+        // docs/design/analysis/name-resolution-proofs/database-original-formal-count-header.md
+        self.formal_count
+    }
+}
+
 /// An item's signature — the cross-item-relevant header, with no body.
 ///
 /// A body-only edit leaves every `ItemSig` byte-identical, which is what lets
 /// the cross-item aggregate queries early-cutoff.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemSig {
+    /// Authentic body-free source header; advisory UI records have none.
+    pub original_declaration: Option<SourceDeclarationSignature>,
     /// Retained authored command geometry; report keys supply no native identity.
     pub source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
     /// Stable identity.
@@ -124,6 +218,8 @@ pub struct ItemSig {
     /// an empty parameter list, i.e. "takes no arguments", and every call to it
     /// from another file would draw a false `E003`.
     pub params_computed: bool,
+    /// Body-free count and grammar projected by the genuine formal owner.
+    pub formal_count: SourceFormalCountProjection,
     /// Source span of the name token (`Span::new(0, 0)` when the analyser
     /// record carries no name span — e.g. aliases / ensembles).
     pub name_span: Span,
@@ -164,6 +260,9 @@ pub struct ItemTree {
 /// "signature side". Built from [`ItemSig`]s; deterministic via `BTreeSet`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FileDecls {
+    /// Every independently retained original procedure/class header. Equal
+    /// display names and repeated publications remain distinct records.
+    pub original_declarations: Vec<SourceDeclarationSignature>,
     /// Qualified names of every `proc`.
     pub procs: BTreeSet<String>,
     /// Qualified names of every class.
@@ -215,61 +314,56 @@ impl ItemTree {
     /// the result). See the module docs for why the tree anchors to `analyse`.
     #[must_use]
     pub fn from_analysis(result: &AnalysisResult, ensembles: &HashSet<String>) -> Self {
+        // naming.database.original-formal-count-header
+        // docs/design/analysis/name-resolution-proofs/database-original-formal-count-header.md
         let mut items: Vec<Item> = Vec::new();
 
-        for (qualified, proc) in &result.all_procs {
+        let original_procs = result.original_procedure_declarations().map(|record| {
+            (
+                &record.metadata().qualified_name,
+                record.metadata(),
+                Some(SourceDeclarationSignature::from_original_procedure(record)),
+            )
+        });
+        // Full metadata equality only suppresses the duplicate UI projection.
+        // It does not issue original provenance for an advisory record.
+        let advisory_procs = result
+            .all_procs
+            .iter()
+            .filter(|(_, metadata)| {
+                !result
+                    .original_procedure_declarations()
+                    .any(|record| record.metadata() == *metadata)
+            })
+            .map(|(qualified, metadata)| (qualified, metadata, None));
+        for (qualified, proc, original_declaration) in original_procs.chain(advisory_procs) {
             items.push(Item {
                 sig: ItemSig {
+                    original_declaration,
                     source_name: proc.source_name.clone(),
                     id: ItemId::new(ItemKind::Proc, qualified.clone()),
                     namespace: enclosing_namespace(qualified),
                     params: proc.params.clone(),
                     params_computed: proc.params_computed,
+                    formal_count: proc.formal_count_projection(),
                     name_span: proc.name_span,
                 },
                 body_span: Some(proc.body_span),
             });
         }
 
-        for (qualified, class) in &result.all_classes {
-            items.push(Item {
-                sig: ItemSig {
-                    source_name: None,
-                    id: ItemId::new(ItemKind::Class, qualified.clone()),
-                    namespace: enclosing_namespace(qualified),
-                    params: Vec::new(),
-                    params_computed: false,
-                    name_span: class.name_span,
-                },
-                body_span: Some(class.body_span),
-            });
-            let mut push_method =
-                |key: String, name_span: Span, body_span: Span, params: Vec<ParamDef>| {
-                    items.push(Item {
-                        sig: ItemSig {
-                    source_name: None,
-                            id: ItemId::new(ItemKind::Method, key),
-                            namespace: qualified.clone(),
-                            params,
-                            params_computed: false,
-                            name_span,
-                        },
-                        body_span: Some(body_span),
-                    });
-                };
-            for m in result_methods(class) {
-                push_method(m.key, m.name_span, m.body_span, m.params);
-            }
-        }
+        Self::push_class_items(result, &mut items);
 
         for qualified in result.command_aliases.keys() {
             items.push(Item {
                 sig: ItemSig {
+                    original_declaration: None,
                     source_name: None,
                     id: ItemId::new(ItemKind::Alias, qualified.clone()),
                     namespace: enclosing_namespace(qualified),
                     params: Vec::new(),
                     params_computed: false,
+                    formal_count: SourceFormalCount::Unknown.projection(&[], false),
                     name_span: Span::new(0, 0),
                 },
                 body_span: None,
@@ -279,39 +373,104 @@ impl ItemTree {
         for ns in ensembles {
             items.push(Item {
                 sig: ItemSig {
+                    original_declaration: None,
                     source_name: None,
                     id: ItemId::new(ItemKind::Ensemble, ns.clone()),
                     namespace: ns.clone(),
                     params: Vec::new(),
                     params_computed: false,
+                    formal_count: SourceFormalCount::Unknown.projection(&[], false),
                     name_span: Span::new(0, 0),
                 },
                 body_span: None,
             });
         }
 
+        Self::push_namespace_items(result, &mut items);
+
+        // Deterministic order so `ItemTree` value-equality is stable across the
+        // analyser's non-deterministic `HashMap` iteration order.
+        items.sort_by(|a, b| {
+            a.sig
+                .id
+                .cmp(&b.sig.id)
+                .then(a.sig.name_span.start().cmp(&b.sig.name_span.start()))
+                .then(a.sig.name_span.end().cmp(&b.sig.name_span.end()))
+        });
+        Self {
+            items,
+            class_factories: std::sync::Arc::new(result.class_factories()),
+        }
+    }
+
+    fn push_class_items(result: &AnalysisResult, items: &mut Vec<Item>) {
+        let original_classes = result.original_class_declarations().map(|record| {
+            (
+                &record.metadata().qualified_name,
+                record.metadata(),
+                Some(SourceDeclarationSignature::class(record)),
+            )
+        });
+        let advisory_classes = result
+            .all_classes
+            .iter()
+            .filter(|(_, metadata)| {
+                !result
+                    .original_class_declarations()
+                    .any(|record| record.metadata() == *metadata)
+            })
+            .map(|(qualified, metadata)| (qualified, metadata, None));
+        for (qualified, class, original_declaration) in original_classes.chain(advisory_classes) {
+            items.push(Item {
+                sig: ItemSig {
+                    source_name: original_declaration
+                        .as_ref()
+                        .map(|header| header.name().clone()),
+                    original_declaration,
+                    id: ItemId::new(ItemKind::Class, qualified.clone()),
+                    namespace: enclosing_namespace(qualified),
+                    params: Vec::new(),
+                    params_computed: false,
+                    formal_count: SourceFormalCount::Unknown.projection(&[], false),
+                    name_span: class.name_span,
+                },
+                body_span: Some(class.body_span),
+            });
+            for method in result_methods(class) {
+                items.push(Item {
+                    sig: ItemSig {
+                        original_declaration: None,
+                        source_name: None,
+                        id: ItemId::new(ItemKind::Method, method.key),
+                        namespace: qualified.clone(),
+                        params: method.params,
+                        params_computed: method.params_computed,
+                        formal_count: method.formal_count,
+                        name_span: method.name_span,
+                    },
+                    body_span: Some(method.body_span),
+                });
+            }
+        }
+    }
+
+    fn push_namespace_items(result: &AnalysisResult, items: &mut Vec<Item>) {
         let mut namespaces = BTreeSet::new();
         collect_namespaces(&result.global_scope, "::", &mut namespaces);
         for ns in &namespaces {
             items.push(Item {
                 sig: ItemSig {
+                    original_declaration: None,
                     source_name: None,
                     id: ItemId::new(ItemKind::Namespace, ns.clone()),
                     namespace: enclosing_namespace(ns),
                     params: Vec::new(),
                     params_computed: false,
+                    formal_count: SourceFormalCount::Unknown.projection(&[], false),
                     name_span: Span::new(0, 0),
                 },
                 body_span: None,
             });
-        }
-
-        // Deterministic order so `ItemTree` value-equality is stable across the
-        // analyser's non-deterministic `HashMap` iteration order.
-        items.sort_by(|a, b| a.sig.id.cmp(&b.sig.id));
-        Self {
-            items,
-            class_factories: std::sync::Arc::new(result.class_factories()),
         }
     }
 
@@ -337,6 +496,9 @@ impl FileDecls {
     pub fn from_sigs<'a>(sigs: impl IntoIterator<Item = &'a ItemSig>) -> Self {
         let mut decls = FileDecls::default();
         for sig in sigs {
+            if let Some(header) = &sig.original_declaration {
+                decls.original_declarations.push(header.clone());
+            }
             match sig.id.kind {
                 ItemKind::Proc => {
                     decls.procs.insert(sig.id.key.clone());
@@ -367,6 +529,8 @@ struct FlatMethod {
     name_span: Span,
     body_span: Span,
     params: Vec<ParamDef>,
+    params_computed: bool,
+    formal_count: SourceFormalCountProjection,
 }
 
 /// Flatten a class's methods into stable-keyed [`FlatMethod`]s. Constructors
@@ -380,6 +544,8 @@ fn result_methods(class: &super::types::ClassDef) -> Vec<FlatMethod> {
             name_span: m.name_span,
             body_span: m.body_span,
             params: m.params.clone(),
+            params_computed: m.params_computed,
+            formal_count: m.formal_count_projection(),
         });
     }
     for (name, m) in &class.class_methods {
@@ -388,6 +554,8 @@ fn result_methods(class: &super::types::ClassDef) -> Vec<FlatMethod> {
             name_span: m.name_span,
             body_span: m.body_span,
             params: m.params.clone(),
+            params_computed: m.params_computed,
+            formal_count: m.formal_count_projection(),
         });
     }
     for (i, m) in class.constructors.iter().enumerate() {
@@ -396,6 +564,8 @@ fn result_methods(class: &super::types::ClassDef) -> Vec<FlatMethod> {
             name_span: m.name_span,
             body_span: m.body_span,
             params: m.params.clone(),
+            params_computed: m.params_computed,
+            formal_count: m.formal_count_projection(),
         });
     }
     if let Some(m) = &class.destructor {
@@ -404,6 +574,8 @@ fn result_methods(class: &super::types::ClassDef) -> Vec<FlatMethod> {
             name_span: m.name_span,
             body_span: m.body_span,
             params: m.params.clone(),
+            params_computed: m.params_computed,
+            formal_count: m.formal_count_projection(),
         });
     }
     out
@@ -473,6 +645,46 @@ mod tests {
     }
 
     #[test]
+    fn original_item_headers_survive_display_collision_and_cleared_ui_maps() {
+        let mut analyser = Analyser::new();
+        let mut result = analyser.analyse(
+            r"proc p\uD800 {} {}; proc p\uD801 {} {}; oo::class create C\uD800 {}; oo::class create C\uD801 {}",
+            "tcl8.6",
+        );
+        assert_eq!(result.original_procedure_declarations().count(), 2);
+        assert_eq!(result.original_class_declarations().count(), 2);
+        result.all_procs.clear();
+        result.all_classes.clear();
+        let tree = ItemTree::from_analysis(&result, &analyser.ensemble_namespaces);
+        let decls = FileDecls::from_sigs(tree.sigs().iter());
+        assert_eq!(decls.original_declarations.len(), 4);
+        let names = decls
+            .original_declarations
+            .iter()
+            .map(|header| {
+                (
+                    header.kind(),
+                    header.name().slot().simple.as_bytes().to_vec(),
+                )
+            })
+            .collect::<HashSet<_>>();
+        assert!(names.contains(&(ItemKind::Proc, b"p\xed\xa0\x80".to_vec())));
+        assert!(names.contains(&(ItemKind::Proc, b"p\xed\xa0\x81".to_vec())));
+        assert!(names.contains(&(ItemKind::Class, b"C\xed\xa0\x80".to_vec())));
+        assert!(names.contains(&(ItemKind::Class, b"C\xed\xa0\x81".to_vec())));
+    }
+
+    #[test]
+    fn original_item_header_excludes_body_source_and_length() {
+        let (before, before_decls) = build("proc p {a} { return 1 }");
+        let (after, after_decls) = build("proc p {a} { return LONGER }");
+        assert_eq!(before.sigs(), after.sigs());
+        assert_eq!(before_decls, after_decls);
+        assert_eq!(before_decls.original_declarations.len(), 1);
+        assert_ne!(before.items[0].body_span, after.items[0].body_span);
+    }
+
+    #[test]
     fn file_decls_match_analysis_decl_sets() {
         // The contract the corpus gate enforces at scale: file_decls equals the
         // analyser's own decl maps. True by construction while the tree is built
@@ -490,5 +702,78 @@ mod tests {
         assert_eq!(decls.classes, want_classes);
         assert_eq!(decls.aliases, want_aliases);
         assert_eq!(decls.ensembles, want_ensembles);
+    }
+
+    #[test]
+    fn formal_count_headers_retain_c_and_jim_grammar_without_body_bytes() {
+        // naming.database.original-formal-count-header
+        // docs/design/analysis/name-resolution-proofs/database-original-formal-count-header.md
+        use crate::signature_scan::formal_count::SourceFormalCountOrigin;
+        for (dialect, minimum, grammar) in [
+            ("tcl8.4", 3, tcl_dialect::ParameterGrammar::Tcl),
+            ("tcl8.5", 3, tcl_dialect::ParameterGrammar::Tcl),
+            ("tcl8.6", 3, tcl_dialect::ParameterGrammar::Tcl),
+            ("tcl9.0", 3, tcl_dialect::ParameterGrammar::Tcl),
+            ("tcl9.1", 3, tcl_dialect::ParameterGrammar::Tcl),
+            ("jim", 2, tcl_dialect::ParameterGrammar::Jim),
+        ] {
+            let analyse = |source: &str| {
+                let mut analyser = Analyser::new();
+                let result = analyser.analyse(source, dialect);
+                ItemTree::from_analysis(&result, &analyser.ensemble_namespaces)
+            };
+            let before = analyse("proc mixed {a {b B} c} {return FIRST}");
+            let after = analyse("proc mixed {a {b B} c} {return A_LONGER_BODY}");
+            let count = before.items[0].sig.formal_count;
+            assert_eq!(
+                count.arity(),
+                tcl_registry::Arity::new(minimum, 3),
+                "{dialect}"
+            );
+            assert_eq!(
+                count.origin(),
+                SourceFormalCountOrigin::OriginalSource,
+                "{dialect}"
+            );
+            assert_eq!(count.parameter_grammar(), Some(grammar), "{dialect}");
+            assert_eq!(before.sigs(), after.sigs(), "{dialect}");
+            assert_eq!(before.file_decls(), after.file_decls(), "{dialect}");
+            assert_eq!(
+                before.items[0]
+                    .sig
+                    .original_declaration
+                    .as_ref()
+                    .unwrap()
+                    .formal_count_projection(),
+                count
+            );
+        }
+    }
+
+    #[test]
+    fn original_formal_count_header_ignores_reported_parameter_labels() {
+        // naming.database.original-formal-count-header
+        // docs/design/analysis/name-resolution-proofs/database-original-formal-count-header.md
+        let mut analyser = Analyser::new();
+        let mut result = analyser.analyse("proc p {a args} {}", "tcl8.6");
+        let original = result.all_procs["::p"].formal_count_projection();
+        let metadata = result.all_procs.get_mut("::p").unwrap();
+        metadata.params.clear();
+        assert_eq!(metadata.formal_count_projection(), original);
+        result.all_procs.clear();
+        let tree = ItemTree::from_analysis(&result, &analyser.ensemble_namespaces);
+        assert_eq!(tree.items.len(), 1);
+        assert_eq!(tree.items[0].sig.formal_count, original);
+        assert_eq!(
+            original.arity(),
+            tcl_registry::Arity::new(1, tcl_registry::Arity::UNLIMITED)
+        );
+        let unknown = SourceFormalCount::Unknown.projection(&[], false);
+        assert_eq!(
+            unknown.origin(),
+            crate::signature_scan::formal_count::SourceFormalCountOrigin::Unknown
+        );
+        assert_eq!(unknown.arity(), tcl_registry::Arity::any());
+        assert_eq!(unknown.parameter_grammar(), None);
     }
 }

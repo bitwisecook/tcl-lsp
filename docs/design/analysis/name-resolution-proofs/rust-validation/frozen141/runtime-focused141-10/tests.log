@@ -1,0 +1,24 @@
+
+running 1 test
+test cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries ... ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe6047c54a0
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe6044dae80
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe6044a3200
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe6044d4260
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604574720
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604760dc0
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604845f60
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604840e10
+ADMISSION140 control physical=Some(V9_0) in_proc=true list_dispatch=false compiles=true namespace=0 original=0x7fe60484e080
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604c5e570
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604c16ad0
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604c3db90
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604c262e0
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604c3d6f0
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604c548e0
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604bbce00
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fe604c3e980
+ADMISSION140 control physical=Some(V9_1) in_proc=true list_dispatch=false compiles=true namespace=0 original=0x7fe604c8c300
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1218 filtered out; finished in 3.03s
+

@@ -1,0 +1,10 @@
+
+running 5 tests
+test word_rules::original_metadata_tests::decoded_ascii_boundaries_refuse_channel_mismatch_and_non_ascii_units ... ok
+test word_rules::original_metadata_tests::lexical_metadata_word_uses_full_document_grammar_without_native_policy ... ok
+test word_rules::original_metadata_tests::static_ascii_boundaries_keep_aggregated_escapes_and_original_literal_tails ... ok
+test word_rules::original_metadata_tests::static_ascii_boundaries_keep_original_literal_and_escape_components ... ok
+test word_rules::original_metadata_tests::static_ascii_boundaries_keep_selected_grammar_and_refuse_other_value_domains ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 590 filtered out; finished in 0.00s
+

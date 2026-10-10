@@ -26,10 +26,14 @@ pub enum NativeNameGlobPurpose {
     ImportSearch,
     /// Command enumeration uses exact lookup for trivial patterns.
     InfoCommandsSearch,
+    /// Tcl 8.4 math function enumeration scans its fixed table as C strings.
+    InfoFunctions84Scan,
     /// Array glob enumeration uses full object keys for trivial C8.5+ patterns.
     ArrayNamesSearch,
     /// An already selected variable-enumeration scan, excluding lookup selection.
     InfoVariablesScan,
+    /// Namespace variable enumeration selects original object keys for trivial patterns.
+    InfoVariablesSearch,
     /// Forget matches a local imported name, with trivial lookup in C8.5+.
     ForgetOwnSearch,
     /// Qualified forget always scans the original source tail in C.
@@ -259,6 +263,11 @@ pub fn match_native_name_pattern(
     pattern: &[u8],
     candidate: &[u8],
 ) -> Result<bool, NativeGlobUnavailable> {
+    if purpose == NativeNameGlobPurpose::InfoFunctions84Scan
+        && protocol != NativeNameProtocol::C(TclVersion::V8_4)
+    {
+        return Err(NativeGlobUnavailable::PurposeUnavailable);
+    }
     if matches!(
         purpose,
         NativeNameGlobPurpose::OoObjectNamesSearch
@@ -281,11 +290,14 @@ pub fn match_native_name_pattern(
         return Ok(true);
     }
     let full_object = matches!(purpose, NativeNameGlobPurpose::ArrayNamesSearch)
+        || (purpose == NativeNameGlobPurpose::InfoVariablesSearch
+            && protocol != NativeNameProtocol::C(TclVersion::V8_4))
         || (protocol == NativeNameProtocol::Jim084
             && matches!(
                 purpose,
                 NativeNameGlobPurpose::InfoCommandsSearch
                     | NativeNameGlobPurpose::InfoVariablesScan
+                    | NativeNameGlobPurpose::InfoVariablesSearch
             ));
     let selected_pattern = if full_object {
         pattern
@@ -320,6 +332,7 @@ pub fn name_pattern_uses_exact_lookup(
 ) -> bool {
     let applies = match purpose {
         NativeNameGlobPurpose::InfoCommandsSearch => true,
+        NativeNameGlobPurpose::InfoVariablesSearch => !protocol.is_jim084(),
         NativeNameGlobPurpose::ImportSearch => protocol != NativeNameProtocol::C(TclVersion::V8_4),
         NativeNameGlobPurpose::ArrayNamesSearch
         | NativeNameGlobPurpose::ForgetOwnSearch
@@ -327,6 +340,7 @@ pub fn name_pattern_uses_exact_lookup(
             matches!(protocol, NativeNameProtocol::C(version) if version >= TclVersion::V8_5)
         }
         NativeNameGlobPurpose::ExportFilter
+        | NativeNameGlobPurpose::InfoFunctions84Scan
         | NativeNameGlobPurpose::InfoVariablesScan
         | NativeNameGlobPurpose::ForgetOriginFilter
         | NativeNameGlobPurpose::OoObjectNamesSearch

@@ -1,0 +1,362 @@
+[
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/manifest.json",
+    "provider": "8.4.20",
+    "projected_path": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/8.4.20.tsv",
+    "projected_sha256": "9c213d188f515f0d8958928b58225d2c6d3a91fb029346065d429a76a2557a0b",
+    "rows": 40,
+    "original_raw_log_sha256": "350db1dcc0e4fb8c607fe3120dbc486f8bbbc94f5dc58b59c2dbfa2e20cff3d7",
+    "original_raw_jsonl_retained": false,
+    "source_sha256": "1824431d75ce9f200d33848417a993a4ffd03bc8c8671fbf24276be94016a6ce",
+    "body_matches_source_literal": true,
+    "names_match_source_inputs": true,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/manifest.json",
+    "provider": "8.5.19",
+    "projected_path": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/8.5.19.tsv",
+    "projected_sha256": "11d24c1eeeab0c83452a1d1a830e0bd9d41605bc7368b60ef5f09a76cc41bb0d",
+    "rows": 40,
+    "original_raw_log_sha256": "024cf2c99c9651a2da728e12e95b51dc6069c1e97ab8333e199befcb8870d7d2",
+    "original_raw_jsonl_retained": false,
+    "source_sha256": "1824431d75ce9f200d33848417a993a4ffd03bc8c8671fbf24276be94016a6ce",
+    "body_matches_source_literal": true,
+    "names_match_source_inputs": true,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/manifest.json",
+    "provider": "8.6.18",
+    "projected_path": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/8.6.18.tsv",
+    "projected_sha256": "6e51bb39da264cb4dce4cb8d464a993fed31b67ecac143197644a7ecac60f59e",
+    "rows": 40,
+    "original_raw_log_sha256": "10c6e1f5ceb576ea62d8f72453d2284d20be7e4fe8be000eac76e662600cb21f",
+    "original_raw_jsonl_retained": false,
+    "source_sha256": "1824431d75ce9f200d33848417a993a4ffd03bc8c8671fbf24276be94016a6ce",
+    "body_matches_source_literal": true,
+    "names_match_source_inputs": true,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/manifest.json",
+    "provider": "9.0.4",
+    "projected_path": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/9.0.4.tsv",
+    "projected_sha256": "6e51bb39da264cb4dce4cb8d464a993fed31b67ecac143197644a7ecac60f59e",
+    "rows": 40,
+    "original_raw_log_sha256": "10c6e1f5ceb576ea62d8f72453d2284d20be7e4fe8be000eac76e662600cb21f",
+    "original_raw_jsonl_retained": false,
+    "source_sha256": "1824431d75ce9f200d33848417a993a4ffd03bc8c8671fbf24276be94016a6ce",
+    "body_matches_source_literal": true,
+    "names_match_source_inputs": true,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/manifest.json",
+    "provider": "9.1.0",
+    "projected_path": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/9.1.0.tsv",
+    "projected_sha256": "4d73b2772e7a1ef1e24271e3af390fb9515dea7cfa753f2b5820f144a50158a0",
+    "rows": 40,
+    "original_raw_log_sha256": "210034439e14607a47ec2cce45177cb9afc062d896f16434f9905fdb4d55e86b",
+    "original_raw_jsonl_retained": false,
+    "source_sha256": "1824431d75ce9f200d33848417a993a4ffd03bc8c8671fbf24276be94016a6ce",
+    "body_matches_source_literal": true,
+    "names_match_source_inputs": true,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/manifest.json",
+    "provider": "Jim",
+    "projected_path": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/Jim.tsv",
+    "projected_sha256": "aa68708b44799da09ad4b9de6a68e88982e03cefdfede24378eabf3eb01d1c5b",
+    "rows": 40,
+    "original_raw_log_sha256": "cc6aaa2648ba276c3e6cc986be2dfc6258e9bf56b92e797937065b74fdc84a3d",
+    "original_raw_jsonl_retained": false,
+    "source_sha256": "1824431d75ce9f200d33848417a993a4ffd03bc8c8671fbf24276be94016a6ce",
+    "body_matches_source_literal": true,
+    "names_match_source_inputs": true,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json",
+    "provider": "8.4.20",
+    "original_stdout_sha256_checked": true,
+    "rows": 10,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json",
+    "provider": "8.5.19",
+    "original_stdout_sha256_checked": true,
+    "rows": 10,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json",
+    "provider": "8.6.18",
+    "original_stdout_sha256_checked": true,
+    "rows": 10,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json",
+    "provider": "9.0.4",
+    "original_stdout_sha256_checked": true,
+    "rows": 10,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json",
+    "provider": "9.1.0",
+    "original_stdout_sha256_checked": true,
+    "rows": 10,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json",
+    "provider": "Jim",
+    "original_stdout_sha256_checked": true,
+    "rows": 8,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_activation/manifest.json",
+    "provider": "8.4",
+    "inline_stdout_equals_retained": true,
+    "rows": 7,
+    "process_exit": 0,
+    "original_source_sha256_checked": true
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_activation/manifest.json",
+    "provider": "8.5",
+    "inline_stdout_equals_retained": true,
+    "rows": 7,
+    "process_exit": 0,
+    "original_source_sha256_checked": true
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_activation/manifest.json",
+    "provider": "8.6",
+    "inline_stdout_equals_retained": true,
+    "rows": 7,
+    "process_exit": 0,
+    "original_source_sha256_checked": true
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_activation/manifest.json",
+    "provider": "9.0",
+    "inline_stdout_equals_retained": true,
+    "rows": 7,
+    "process_exit": 0,
+    "original_source_sha256_checked": true
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_activation/manifest.json",
+    "provider": "9.1",
+    "inline_stdout_equals_retained": true,
+    "rows": 7,
+    "process_exit": 0,
+    "original_source_sha256_checked": true
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_activation/manifest.json",
+    "provider": "Jim",
+    "inline_stdout_equals_retained": true,
+    "rows": 7,
+    "process_exit": 0,
+    "original_source_sha256_checked": true
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.4.20",
+    "mode": 0,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 4,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.4.20",
+    "mode": 1,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 6,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.4.20",
+    "mode": 2,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 6,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.4.20",
+    "mode": 3,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 4,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.5.19",
+    "mode": 0,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 4,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.5.19",
+    "mode": 1,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 6,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.5.19",
+    "mode": 2,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 6,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.5.19",
+    "mode": 3,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 4,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.6.18",
+    "mode": 0,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 4,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.6.18",
+    "mode": 1,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 6,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.6.18",
+    "mode": 2,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 6,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "8.6.18",
+    "mode": 3,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 4,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "9.0.4",
+    "mode": 0,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 4,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "9.0.4",
+    "mode": 1,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 6,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "9.0.4",
+    "mode": 2,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 6,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "9.0.4",
+    "mode": 3,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 4,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "9.1.0",
+    "mode": 0,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 4,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "9.1.0",
+    "mode": 1,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 6,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "9.1.0",
+    "mode": 2,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 6,
+    "completions": 2,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "provider": "9.1.0",
+    "mode": 3,
+    "original_stdout_sha256_checked": true,
+    "snapshots": 4,
+    "completions": 2,
+    "process_exit": 0
+  }
+]

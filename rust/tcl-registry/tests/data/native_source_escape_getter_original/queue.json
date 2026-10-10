@@ -1,0 +1,31 @@
+{
+  "question": "naming.tcloo.original-forward-registration-prefix",
+  "source_sha256": "71991ac7c7f845f3d8ca4bb177cb6e66861f7cc739fc47fa3c9b21b5eb84cfc5",
+  "input_channel": "C SDK evaluates thirteen ASCII source strings in fresh initialized interpreters; direct counted native result string getter",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "rows": [
+    "VERSION",
+    "AVAILABILITY",
+    "MISSING_REGISTER",
+    "MISSING_INVOKE",
+    "PREFIX_CAPTURE",
+    "NO_TARGET_CALL",
+    "SCRIPT_REPLACED",
+    "FORWARD_REPLACED",
+    "EMPTY_TARGET_REGISTER",
+    "PREFIX_REQUIRED",
+    "SUPER_FORWARD"
+  ],
+  "scope": "Fresh selected stock class instance forward registration, captured prefix values, replacement by script/forward, missing and empty command target deferred until invocation. No native source-preflight, opaque name storage, custom deletion callback, observer closure, OO object creation Normal or arbitrary target dispatch claim. Unavailable providers execute only startup and availability. Result pointer bit always 0; no pointer claim.",
+  "process_limit_seconds": 30,
+  "native_launch_status": "not-launched",
+  "question_id": "naming.source.original-static-escape-values",
+  "boundary": "Raw Tcl_GetStringFromObj/Jim_GetString bytes after successful source assignment. Every pointer comparison input is NULL so same=0 has no identity meaning. This independently distinguishes source string bytes from CLI binary scan H* projection, including NUL representation; no private header/cache, name lookup or compiler admission is inferred."
+}

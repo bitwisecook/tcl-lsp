@@ -287,9 +287,7 @@ impl ModuleCommandBindings {
         let Some(slot) = super::runtime_entry::native_command_key(entry, worker) else {
             return false;
         };
-        let bindings = self.bindings.get(&slot).cloned().unwrap_or_else(|| {
-            Self::unmodified_bindings(&slot, self.baseline.semantics.binding_names())
-        });
+        let bindings = self.binding_alternatives(&slot);
         let mut targets = bindings.iter();
         let Some(super::MayBinding::Target(target)) = targets.next() else {
             return false;

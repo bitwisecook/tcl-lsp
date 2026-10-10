@@ -1,0 +1,17 @@
+
+running 1 test
+test command::native_apply_original_tests::original_lambda_namespace_objects_match_constructor_and_getter_controls ... 
+thread 'command::native_apply_original_tests::original_lambda_namespace_objects_match_constructor_and_getter_controls' (635666) panicked at rust/tcl-vm/src/command/native_apply_original_tests.rs:303:17:
+assertion `left == right` failed: jimtcl/RAW_STRING_ABSOLUTE_APPLY
+  left: [58, 58, 110, 115]
+ right: [58, 58, 58, 58, 110, 115]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command::native_apply_original_tests::original_lambda_namespace_objects_match_constructor_and_getter_controls
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 672 filtered out; finished in 106.55s
+

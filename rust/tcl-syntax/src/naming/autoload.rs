@@ -105,6 +105,14 @@ mod tests {
 
     #[test]
     fn native_autoload_keys_follow_original_regsub_rebuilding() {
+        // Native proof: naming.autoload.separator-rebuild-opaque
+        // docs/design/analysis/name-resolution-proofs/autoload-separator-rebuild-opaque.md
+        // Native proof: naming.autoload.separator-rebuild-zero
+        // docs/design/analysis/name-resolution-proofs/autoload-separator-rebuild-zero.md
+        // Native proof: naming.autoload.root-prefix-rebuild-zero
+        // docs/design/analysis/name-resolution-proofs/autoload-root-prefix-rebuild-zero.md
+        // Native proof: naming.autoload.unqualified-opaque-preservation
+        // docs/design/analysis/name-resolution-proofs/autoload-unqualified-opaque-preservation.md
         let fixtures = [
             include_str!("../../tests/data/native_autoload_keys/8.4.20.tsv"),
             include_str!("../../tests/data/native_autoload_keys/8.5.19.tsv"),

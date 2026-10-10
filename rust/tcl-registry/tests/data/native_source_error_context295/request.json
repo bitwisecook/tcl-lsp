@@ -1,0 +1,12 @@
+{
+  "original_request_directory": "/workspace/.proofs/native-source-error-context295",
+  "driver_sha256": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+  "cases": [
+    {
+      "id": "source-error-context",
+      "source_file": "source.tcl",
+      "source_sha256": "f45133624091c7f1e1f7450d2abff682e14af522381b47ba15118ce8c482617f"
+    }
+  ],
+  "scope": "Exactly requested original counted source under independently pinned fresh fullInit CAPI observer, public completions/stdout only, no private objects or frames. Unavailable features retain observed errors."
+}

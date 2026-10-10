@@ -1,0 +1,58 @@
+{
+  "question": "naming.tcloo.original-forward-registration-prefix",
+  "provider": "9.1.0",
+  "input_channel": "C SDK evaluates thirteen ASCII source strings in fresh initialized interpreters; direct counted native result string getter",
+  "scope": "Fresh selected stock class instance forward registration, captured prefix values, replacement by script/forward, missing and empty command target deferred until invocation. No native source-preflight, opaque name storage, custom deletion callback, observer closure, OO object creation Normal or arbitrary target dispatch claim. Unavailable providers execute only startup and availability. Result pointer bit always 0; no pointer claim.",
+  "source_sha256": "71991ac7c7f845f3d8ca4bb177cb6e66861f7cc739fc47fa3c9b21b5eb84cfc5",
+  "queue_sha256": "723b693411e2310159ae83c2ebe5735a46042283c6f792300cb492783c439b74",
+  "runner_sha256": "c203dace948bb8b2bd2388a1d41130164bd6fe1b84f6fa49ee39a13aac5a17d6",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+    "/workspace/.proofs/current-native-source-escape-getter173/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/current-native-source-escape-getter173/output/9.1.0/probe"
+  ],
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 0,
+  "executable_sha256": "d1daf1aa67b934092984585f4277a996e38ec64b0919e262b5fb4f6242a8bc57",
+  "stdout_sha256": "9d6249389b9a3b4f42e69ba2a64200c26185328e7393b25ef753483fd4a406dd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "9.1.0",
+  "rows": [
+    "VERSION|0|0|392e312e30",
+    "bare-x25b|0|0|2562",
+    "quoted-x25b|0|0|2562",
+    "braced-x25b|0|0|5c78323562",
+    "bare-x25-ub|0|0|2562",
+    "quoted-x25-ub|0|0|2562",
+    "braced-x25-ub|0|0|5c7832355c7530303632",
+    "bare-x4142|0|0|413432",
+    "quoted-x4142|0|0|413432",
+    "bare-x25z|0|0|257a",
+    "bare-x25-upper|0|0|2542",
+    "bare-x0|0|0|c080",
+    "bare-cu|0|0|6375",
+    "braced-cu|0|0|635c7530303735"
+  ],
+  "seconds": 0.1571838569943793
+}

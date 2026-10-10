@@ -1,0 +1,28 @@
+
+running 23 tests
+test minify::original::tests::lexical_case_shape_retains_dynamic_subject_and_expansion_uncertainty ... ok
+test minify::original::tests::lexical_complete_heads_preserve_computed_body_data ... ok
+test minify::original::tests::lexical_complete_static_heads_keep_selected_body_roles ... ok
+test minify::original::tests::lexical_context_refusal_retains_source_for_every_tier ... ok
+test minify::original::tests::lexical_custom_configuration_refuses_every_tier_without_fallback ... ok
+test minify::original::tests::lexical_head_value_checks_whole_image_config_and_tokens ... ok
+test minify::original::tests::lexical_head_value_keeps_expansion_and_opaque_units_unavailable ... ok
+test minify::original::tests::lexical_intermediate_source_retains_actual_input_generation ... ok
+test minify::original::tests::lexical_minifier_keeps_explicit_authoring_compaction_separate ... ok
+test minify::original::tests::lexical_roles_use_retained_context_instead_of_heterogeneous_last_spec ... ok
+test minify::original::tests::lexical_source_header_checks_retained_input_source_and_configuration ... ok
+test minify::original::tests::lexical_source_headers_keep_runtime_and_metadata_separate ... ok
+test minify::original::tests::lexical_source_headers_refuse_dynamic_argv_and_prior_mutations ... ok
+test minify::original::tests::original_hosted_minifier_keeps_source_syntax_without_native_alpha_permission ... ok
+test minify::original::tests::original_hosted_syntax_compaction_preserves_zero_gap_word_and_bracket_boundaries ... ok
+test minify::original::tests::original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail ... ok
+test minify::original::tests::original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label ... ok
+test minify::original::tests::original_minifier_refuses_naming_insertion_and_keywords_without_promoting_isolation ... ok
+test minify::original::tests::original_recursive_minification_uses_only_current_authenticated_script_regions ... ok
+test minify::original::tests::original_scalar_minification_declines_observers_stores_and_open_source ... ok
+test minify::original::tests::original_scalar_minification_keeps_isolation_and_other_pass_permissions_separate ... ok
+test minify::original::tests::original_scalar_minification_requires_equivalence_and_complete_edit_geometry ... ok
+test minify::original::tests::original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 2582 filtered out; finished in 56.59s
+

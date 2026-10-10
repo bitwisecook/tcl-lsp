@@ -156,22 +156,13 @@ pub fn compile_native_list_operation(
     version: TclVersion,
     kind: NativeListOperationKind,
 ) -> Result<NativeListOperationInstruction, NativeListOperationUnavailable> {
-    use NativeListOperationUnavailable as U;
-    let projected = project_native_compiler_words(words, version).map_err(|_| U::Source)?;
-    let operands = projected
-        .get(operand_from..)
-        .filter(|_| operand_from > 0)
-        .ok_or(U::Geometry)?;
-    if operands
-        .iter()
-        .any(|w| w.shape == crate::native_compilation::NativeCompilationWordShape::Expanded)
-    {
-        return Err(U::Geometry);
-    }
     use NativeListOperationInstruction as Plan;
+    use NativeListOperationUnavailable as U;
+    let projected = original_list_operation_words(words, operand_from, version)?;
+    let operands = &projected[operand_from..];
     Ok(match kind {
         NativeListOperationKind::Range => {
-            let [list, first, last] = operands else {
+            let [source_list, first, last] = operands else {
                 return Err(U::Geometry);
             };
             if version < TclVersion::V8_6 {
@@ -191,7 +182,7 @@ pub fn compile_native_list_operation(
                 return Err(U::Geometry);
             }
             Plan::Range {
-                list: list.operand.clone(),
+                list: source_list.operand.clone(),
                 first,
                 last: bound(last, version, -1, -2)?,
             }
@@ -215,6 +206,16 @@ pub fn compile_native_list_operation(
                     },
                 }
             };
+            // C8.6 validates the compile-known index first, then emits
+            // LIST_RANGE_IMM 0,end for the no-element listiness check.
+            // C9 retains its separate runtime-index insertion recipe.
+            if version == TclVersion::V8_6 && elements.is_empty() {
+                return Ok(Plan::Range {
+                    list: list.operand.clone(),
+                    first: NativeCompiledListIndex::from_encoded(0),
+                    last: NativeCompiledListIndex::from_encoded(-2),
+                });
+            }
             Plan::Insert {
                 list: list.operand.clone(),
                 index,
@@ -250,6 +251,29 @@ pub fn compile_native_list_operation(
             }
         }
     })
+}
+
+fn original_list_operation_words(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: TclVersion,
+) -> Result<
+    Vec<crate::native_compiler_word_projection::NativeProjectedCompilerWord>,
+    NativeListOperationUnavailable,
+> {
+    use NativeListOperationUnavailable as U;
+    let projected = project_native_compiler_words(words, version).map_err(|_| U::Source)?;
+    let operands = projected
+        .get(operand_from..)
+        .filter(|_| operand_from > 0)
+        .ok_or(U::Geometry)?;
+    if operands
+        .iter()
+        .any(|word| word.shape == crate::native_compilation::NativeCompilationWordShape::Expanded)
+    {
+        return Err(U::Geometry);
+    }
+    Ok(projected)
 }
 
 fn bound(
@@ -324,6 +348,18 @@ mod tests {
     }
     #[test]
     fn original_list_operations_match_150_native_compile_windows() {
+        // Native proof: naming.list.original-set-objects-and-instructions
+        // docs/design/analysis/name-resolution-proofs/list.original-set-objects-and-instructions.md
+
+        // Native proof: naming.list.original-assign-objects-and-instructions
+        // docs/design/analysis/name-resolution-proofs/list.original-assign-objects-and-instructions.md
+
+        // Native proof: naming.list.original-insert-objects-and-instructions
+        // docs/design/analysis/name-resolution-proofs/list.original-insert-objects-and-instructions.md
+
+        // Native proof: naming.list.original-range-objects-and-instructions
+        // docs/design/analysis/name-resolution-proofs/list.original-range-objects-and-instructions.md
+
         let mut count = 0;
         for (version, rows) in [
             (
@@ -356,7 +392,9 @@ mod tests {
                 } else if source.starts_with("linsert") {
                     (
                         NativeListOperationKind::Insert,
-                        if version < TclVersion::V9_0 {
+                        if version == TclVersion::V8_6 && case == 10 {
+                            "listRangeImm"
+                        } else if version < TclVersion::V9_0 {
                             "list"
                         } else if version == TclVersion::V9_0 {
                             NativeListInsertionInstruction::ReplaceFour.opcode_name()
@@ -381,6 +419,11 @@ mod tests {
                     }),
                     "{version:?}/{case}"
                 );
+                if version == TclVersion::V8_6 && case == 10 {
+                    assert!(
+                        matches!(recipe(source.as_bytes(), version, kind), Ok(NativeListOperationInstruction::Range { first, last, .. }) if first.encoded() == 0 && last.encoded() == -2)
+                    );
+                }
                 count += 1;
             }
         }
@@ -388,6 +431,9 @@ mod tests {
     }
     #[test]
     fn list_assignment_retains_interleaved_original_target_geometry() {
+        // Native proof: naming.list.assignment-interleaved-target-effects
+        // docs/design/analysis/name-resolution-proofs/list.assignment-interleaved-target-effects.md
+
         let NativeListOperationInstruction::Assign { list, targets } = recipe(
             b"lassign $list [first] a([second])",
             TclVersion::V8_6,

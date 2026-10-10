@@ -287,7 +287,10 @@ pub struct ProcEscapeSummary {
     /// eligibility check.  Empty when the proc isn't eligible at
     /// all (dynamic eval body, `has_fallback`, etc.) or when no
     /// local survives the per-name checks.  Populated by
-    /// [`super::slot_resolution::populate_local_slots`].
+    /// [`super::slot_resolution::populate_local_slots`]. These are authored
+    /// analysis ordinals; they do not authenticate original byte cells or
+    /// physical compiled locals. A native consumer requires its independent
+    /// exact byte/frame/layout receipt before selecting indexed storage.
     pub local_slots: BTreeMap<String, u32>,
     /// Recorded barrier triggers.  Each barrier carries its kind +
     /// detail + source range so callers (codegen, compiler

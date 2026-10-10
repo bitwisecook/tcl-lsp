@@ -1,0 +1,31 @@
+{
+  "original_receipt_sha256": "1f032d641892798fd998a64db400285a4b2487a5f2699b80c7a2690a02b02bb8",
+  "probe_sha256": "f8183395c8b9ce7d2602a62c8fd67bd33e4698122592863a5bc47cb34e754c87",
+  "providers": [
+    {
+      "associated_version": "8.6.18",
+      "reported_version_query": "PROVIDER 8.6.18 8.6",
+      "exit": 0,
+      "binary_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "stdout_sha256": "29668c20e5d19ff4694f84937d4fa5ff89170e453eaf70dc693ed1d71353369d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "associated_version": "9.0.4",
+      "reported_version_query": "PROVIDER 9.0.4 9.0",
+      "exit": 0,
+      "binary_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "stdout_sha256": "4ca15c39f2af5d89227af7785878f742753ef3906f625a87dad669d4e80bf80a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "associated_version": "9.1.0",
+      "reported_version_query": "PROVIDER 9.1.0 9.1",
+      "exit": 0,
+      "binary_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "stdout_sha256": "aabb2775485d430c29816c1e2737adb1c004aa879efa3f8aee19634aac547f40",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "scope": "Separate version query on exactly the same fresh interpreter binary hashes as native-oo-destroy104; original artifacts preserved."
+}

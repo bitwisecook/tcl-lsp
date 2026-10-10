@@ -56,16 +56,17 @@ const OPTIONS: &[OptionSpec] = &[
 /// multi-word body representation, so it intentionally abstains there (the
 /// same rule as `after` and `uplevel`). `--` terminates option processing but
 /// is not part of the remote command.
-fn send_command_start(args: &[&str]) -> (usize, bool) {
+fn send_command_start(args: crate::InvocationArguments<'_>) -> Option<(usize, bool)> {
+    let count = args.exact_argv_len()?;
     let mut index = 0usize;
     let mut asynchronous = false;
-    while index < args.len() {
-        match args[index] {
+    while index < count {
+        match args.literal_at(index)? {
             "-async" => {
                 asynchronous = true;
                 index += 1;
             }
-            "-displayof" if index + 1 < args.len() => index += 2,
+            "-displayof" if index + 1 < count => index += 2,
             "--" => {
                 index += 1;
                 break;
@@ -73,11 +74,13 @@ fn send_command_start(args: &[&str]) -> (usize, bool) {
             _ => break,
         }
     }
-    (index, asynchronous)
+    Some((index, asynchronous))
 }
 
 pub(crate) fn send_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let (index, _) = send_command_start(args);
+    let Some((index, _)) = send_command_start(crate::InvocationArguments::literals(args)) else {
+        return Vec::new();
+    };
     match args.len().saturating_sub(index) {
         0 => Vec::new(),
         1 => u8::try_from(index)
@@ -95,9 +98,14 @@ pub(crate) fn send_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     }
 }
 
-fn send_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    let (index, asynchronous) = send_command_start(args);
-    if args.len().saturating_sub(index) != 2 {
+fn send_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some((index, asynchronous)) = send_command_start(args) else {
+        return Vec::new();
+    };
+    if args
+        .exact_argv_len()
+        .is_none_or(|count| count.saturating_sub(index) != 2)
+    {
         return Vec::new();
     }
     u8::try_from(index + 1)

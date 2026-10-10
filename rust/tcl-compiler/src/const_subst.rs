@@ -120,12 +120,13 @@ impl ConstSubstCtx<'_> {
     /// Fold one original substitution using its retained execution identity and
     /// effective argv. Every nested result comes from the same complete source
     /// inventory; textual command trust is not used by this entry point.
-    pub(crate) fn fold_retained_call(
+    pub(crate) fn fold_retained_call_with_metadata_context(
         &self,
         call: &crate::word_subst::LiftedCall,
         calls: &[crate::word_subst::LiftedCall],
+        context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<String> {
-        self.fold_retained_at_depth(call, calls, 0)
+        self.fold_retained_at_depth(call, calls, 0, context)
     }
 
     fn fold_retained_at_depth(
@@ -133,6 +134,7 @@ impl ConstSubstCtx<'_> {
         call: &crate::word_subst::LiftedCall,
         calls: &[crate::word_subst::LiftedCall],
         depth: u32,
+        context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<String> {
         if depth > MAX_CONST_SUBST_DEPTH {
             return None;
@@ -143,7 +145,11 @@ impl ConstSubstCtx<'_> {
             .proved_execution_target()
             .filter(|target| target.registry_backed)?;
         let invocation =
-            crate::registry_invocation::resolved_handler_invocation(self.registry, None, tokens)?;
+            crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                self.registry,
+                Some(context),
+                tokens,
+            )?;
         let dialect = invocation.dialect?;
         if invocation.facts.effects.requires_world_barrier() {
             return None;
@@ -155,11 +161,11 @@ impl ConstSubstCtx<'_> {
         {
             return None;
         }
-        let args = self.retained_arguments_at_depth(call, calls, depth)?;
+        let args = self.retained_arguments_at_depth(call, calls, depth, context)?;
         let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
         let spec = self.registry.get_for_surface(
             &invocation.facts.canonical_command,
-            Some(dialect.authoring_query()?),
+            Some(context.context().authoring_query()),
         )?;
         if let Some(class) = self.defining_class
             && let Some(value) = oo_context_fact_fold(spec, &args, class)
@@ -177,12 +183,24 @@ impl ConstSubstCtx<'_> {
 
     /// Original argument values whose evaluation has independently closed
     /// effects. Known child contents do not erase its actual invocation.
-    pub(crate) fn retained_arguments(
+    pub(crate) fn retained_arguments_with_metadata_context(
         &self,
         call: &crate::word_subst::LiftedCall,
         calls: &[crate::word_subst::LiftedCall],
+        context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<Vec<String>> {
-        self.retained_arguments_at_depth(call, calls, 0)
+        self.retained_arguments_at_depth(call, calls, 0, context)
+    }
+
+    /// Closed values from genuine whole original argv, without a fabricated
+    /// command-substitution occurrence or a projected word range.
+    pub(crate) fn retained_token_arguments_with_metadata_context(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        calls: &[crate::word_subst::LiftedCall],
+        context: crate::registry_invocation::InvocationMetadataContext<'_>,
+    ) -> Option<Vec<String>> {
+        self.retained_token_arguments_at_depth(tokens, calls, 0, context)
     }
 
     fn retained_arguments_at_depth(
@@ -190,8 +208,21 @@ impl ConstSubstCtx<'_> {
         call: &crate::word_subst::LiftedCall,
         calls: &[crate::word_subst::LiftedCall],
         depth: u32,
+        context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<Vec<String>> {
-        let tokens = call.tokens.as_ref()?;
+        self.retained_token_arguments_at_depth(call.tokens.as_ref()?, calls, depth, context)
+    }
+
+    fn retained_token_arguments_at_depth(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        calls: &[crate::word_subst::LiftedCall],
+        depth: u32,
+        context: crate::registry_invocation::InvocationMetadataContext<'_>,
+    ) -> Option<Vec<String>> {
+        if !context.matches_registry(self.registry) {
+            return None;
+        }
         let binding = tokens.source_binding.as_ref()?;
         let target = binding.proved_execution_target().or_else(|| {
             binding
@@ -268,7 +299,7 @@ impl ConstSubstCtx<'_> {
                         if selected.next().is_some() {
                             return None;
                         }
-                        self.fold_retained_at_depth(child, calls, depth + 1)
+                        self.fold_retained_at_depth(child, calls, depth + 1, context)
                     }
                     _ => None,
                 }

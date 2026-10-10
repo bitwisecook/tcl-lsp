@@ -282,34 +282,36 @@ fn comparison_steps(
     let count = operands.len();
     let mut steps = Vec::new();
     let literal = |value: &str| S::Literal(value.as_bytes().to_vec());
-    if count < 2 {
-        steps.push(literal("1"));
-    } else if count == 2 {
-        steps.extend(operands.iter().map(|word| S::Word(word.operand.clone())));
-        steps.push(S::Primitive(operator));
-    } else {
-        steps.push(S::DeclareTemporary);
-        steps.push(S::Word(operands[0].operand.clone()));
-        steps.push(S::Word(operands[1].operand.clone()));
-        steps.push(S::StoreTemporary);
-        steps.push(S::Primitive(operator));
-        for (index, word) in operands.iter().enumerate().skip(2) {
-            steps.push(S::LoadTemporary);
-            steps.push(S::Word(word.operand.clone()));
-            if index + 1 < count {
-                steps.push(S::StoreTemporary);
-            }
+    match count {
+        0 | 1 => steps.push(literal("1")),
+        2 => {
+            steps.extend(operands.iter().map(|word| S::Word(word.operand.clone())));
             steps.push(S::Primitive(operator));
         }
-        for _ in 2..count {
-            steps.push(S::Primitive(NativeMathOperator::BitAnd));
-        }
-        if version == TclVersion::V8_5 {
-            steps.push(literal(""));
+        _ => {
+            steps.push(S::DeclareTemporary);
+            steps.push(S::Word(operands[0].operand.clone()));
+            steps.push(S::Word(operands[1].operand.clone()));
             steps.push(S::StoreTemporary);
-            steps.push(S::Pop);
-        } else {
-            steps.push(S::UnsetTemporary);
+            steps.push(S::Primitive(operator));
+            for (index, word) in operands.iter().enumerate().skip(2) {
+                steps.push(S::LoadTemporary);
+                steps.push(S::Word(word.operand.clone()));
+                if index + 1 < count {
+                    steps.push(S::StoreTemporary);
+                }
+                steps.push(S::Primitive(operator));
+            }
+            for _ in 2..count {
+                steps.push(S::Primitive(NativeMathOperator::BitAnd));
+            }
+            if version == TclVersion::V8_5 {
+                steps.push(literal(""));
+                steps.push(S::StoreTemporary);
+                steps.push(S::Pop);
+            } else {
+                steps.push(S::UnsetTemporary);
+            }
         }
     }
     steps

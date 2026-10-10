@@ -1,0 +1,33 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/consumer-variable-array-write156/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.013027784007135779,
+  "reported_version": "9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "abd07fc77cfe05018d6fa00f25ccae83c169eee4ad60d552fc88f3bf4c41de67",
+  "runner_sha256": "5da55717a7144d067717056524ec6d5a7ee560d68e75ca06a8f36db0a41825db",
+  "stdout_sha256": "fa8f1183992072b1150b0918ed65f9a091ce3e1b52531cd6e3778c6b984be91c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "rows": [
+    "PATCHLEVEL 9.1.0",
+    "RESULT literal_array_write 1 {can't set \"a\": variable is array} {TCL WRITE VARNAME} 1",
+    "RESULT dynamic_array_write 1 {can't set \"a\": variable is array} {TCL WRITE VARNAME} 1",
+    "RESULT procedure_array_write 1 {can't set \"a\": variable is array} {TCL WRITE VARNAME} 1"
+  ],
+  "input_channel": "ASCII LF source-file CLI; three existing-array root variable write cases",
+  "boundary": "Three labelled existing-array root variable write cases across literal, dynamic and procedure source entries. Full native result and error outcomes are retained independently by provider. No physical object/header/cache or compiler admission proof is inferred from CLI results."
+}

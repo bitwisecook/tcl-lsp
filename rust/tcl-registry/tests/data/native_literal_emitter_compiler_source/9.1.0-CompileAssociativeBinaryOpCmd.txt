@@ -1,0 +1,36 @@
+CompileAssociativeBinaryOpCmd(
+    Tcl_Interp *interp,
+    Tcl_Parse *parsePtr,
+    const char *identity,
+    int instruction,
+    CompileEnv *envPtr)
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr = parsePtr->tokenPtr;
+    Tcl_Size words;
+
+    /* TODO: Consider support for compiling expanded args. */
+    if (OutOfUintRange(parsePtr->numWords)) {
+	return TCL_ERROR;
+    }
+    for (words=1 ; words<parsePtr->numWords ; words++) {
+	tokenPtr = TokenAfter(tokenPtr);
+	PUSH_TOKEN(		tokenPtr, words);
+    }
+    if (parsePtr->numWords <= 2) {
+	PUSH_STRING(		identity);
+	words++;
+    }
+    if (words > 3) {
+	/*
+	 * Reverse order of arguments to get precise agreement with [expr] in
+	 * calculations, including roundoff errors.
+	 */
+
+	OP4(			REVERSE, words - 1);
+    }
+    while (--words > 1) {
+	TclEmitOpcode(instruction, envPtr);
+    }
+    return TCL_OK;
+}

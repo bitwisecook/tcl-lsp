@@ -6,12 +6,12 @@ use super::*;
 use crate::command_binding::{SourceAnalysisOptions, SourceNamespaceKey};
 use crate::var_resolve::{ResolveContext, VariableExecutionFrame};
 
-fn native_bindings(source: &str) -> SourceCommandBindings {
+fn native_bindings(source: &str) -> (tcl_vm::Vm, SourceCommandBindings) {
     let owner = tcl_registry::model::ingress::static_context_for("tcl8.6");
     let registry = owner.commands();
     let profile = registry.profile().unwrap();
-    let entry = crate::environment_ingress::captured_native_entry(profile);
-    SourceCommandBindings::analyse_with_options(
+    let (runtime, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+    let bindings = SourceCommandBindings::analyse_with_options(
         source,
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         registry,
@@ -26,13 +26,14 @@ fn native_bindings(source: &str) -> SourceCommandBindings {
             },
             ..Default::default()
         },
-    )
+    );
+    (runtime, bindings)
 }
 
 #[test]
 fn conditional_native_body_scope_matches_original_declaration_context() {
     let source = "namespace eval N {proc :f {} {set local 1}}";
-    let bindings = native_bindings(source);
+    let (_owner, bindings) = native_bindings(source);
     let offset = u32::try_from(source.find("set local").unwrap()).unwrap();
     let origin = bindings.source_origin().unwrap();
     let entry = bindings.conditional_body_entry_at(origin, offset).unwrap();
@@ -57,7 +58,7 @@ fn conditional_native_body_scope_matches_original_declaration_context() {
 fn conditional_native_body_context_rejects_equal_display_incarnation() {
     let source = "namespace eval a: {namespace eval b {proc p {} {set local FIRST}}}; \
         namespace eval a {namespace eval :b {proc p {} {set local SECOND}}}";
-    let bindings = native_bindings(source);
+    let (_owner, bindings) = native_bindings(source);
     let origin = bindings.source_origin().unwrap();
     let entries = ["set local FIRST", "set local SECOND"].map(|text| {
         bindings
@@ -78,7 +79,7 @@ fn conditional_native_body_context_rejects_equal_display_incarnation() {
 #[test]
 fn receiver_declaration_key_does_not_supply_runtime_namespace() {
     let source = "namespace eval N {oo::class create C {method p {} {set local 1}}}";
-    let bindings = native_bindings(source);
+    let (_owner, bindings) = native_bindings(source);
     let offset = u32::try_from(source.find("set local").unwrap()).unwrap();
     let origin = bindings.source_origin().unwrap();
     let entry = bindings
@@ -114,7 +115,7 @@ fn receiver_declaration_key_does_not_supply_runtime_namespace() {
 
 #[test]
 fn root_declaration_scope_requires_actual_retained_global_context() {
-    let bindings = native_bindings("set x 1");
+    let (_owner, bindings) = native_bindings("set x 1");
     let root = bindings.final_state.source_root_namespace_key().unwrap();
     let mut state = bindings.final_state.as_ref().clone();
     state.variable_frame = VariableExecutionFrame::Global.with_namespace_identity(root.clone());
@@ -174,7 +175,7 @@ fn restored_body_receipts_stay_in_original_namespace_context() {
 fn lambda_original_namespace_overrides_callers_context_key() {
     let source = "namespace eval other {proc helper {} {return OTHER}}; \
         proc helper {} {return ROOT}; apply {{} {helper} ::other}";
-    let bindings = native_bindings(source);
+    let (_owner, bindings) = native_bindings(source);
     let offset = u32::try_from(source.find("apply").unwrap()).unwrap();
     let invocation = bindings.invocation_at_source("apply", offset);
     let site = invocation.invocation_site().unwrap();

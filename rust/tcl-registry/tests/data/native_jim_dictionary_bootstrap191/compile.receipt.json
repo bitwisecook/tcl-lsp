@@ -1,0 +1,42 @@
+{
+  "command": [
+    "cc",
+    "-std=c99",
+    "-I",
+    "/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/native-jim-dictionary-bootstrap191/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/native-jim-dictionary-bootstrap191/probe.elf"
+  ],
+  "exit": 0,
+  "seconds": 0.44307892899087165,
+  "environment": {},
+  "input_sha256": "e74ee5e45b0b9f4f30bfaac4521339b2728fdb466c52fb62682be7b467760b8f",
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "/workspace/.proofs/native-providers/jimtcl/stdlib.tcl": "3597b76b785f697242a5354816792ad5fa538dd0a41b3973bdcbcb5edbb8893a",
+    "/workspace/.proofs/native-providers/jimtcl/_stdlib.c": "593b57426539e77ab00efb961a77c1f8a3845ce0c82f29943516f30db4142751",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh.c": "a0db99e0d9d562dbbc7ed97813669e6039547548c7e9612a1dc5503b6860668c"
+  },
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "version_pin_receipt": "/workspace/.proofs/native-jim-class-initialisers271/jim/receipt.json",
+  "version_pin_receipt_sha256": "ed3e08891bafdf1de830c539a445598c02c083f8e9bbc9119fd47ea6f28c644b",
+  "reported_version_row_association": "version 0.84-9-g5bac7c9 initial_class class",
+  "channel": "Compiled C API probe: original Jim_CreateInterp then Jim_RegisterCoreCommands, original Jim_Eval ASCII source, explicit Jim_stdlibInit, same original Jim_Eval ASCII source. Each result reports guest code and counted hex bytes; initialization return is distinct. No full jimsh/optional extension roster or private frame/header claim.",
+  "executable_sha256": "010d4349935240584eeac37a237bdd2907250fe78a72d47412c10f4485d3de1b"
+}

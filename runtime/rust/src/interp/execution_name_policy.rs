@@ -274,6 +274,22 @@ impl Interp {
             .or_else(|_| self.observed_refusal())
     }
 
+    /// Complete original substitution names use the same measured current
+    /// receiver. Separate root/index inputs and actual observers stay refused.
+    pub(super) fn observed_substitution_receiver(
+        &self,
+        name: &[u8],
+        index: Option<&[u8]>,
+    ) -> Result<Option<*mut TclObj>, VarError> {
+        // naming.variable.observed-original-substitution-receiver
+        // docs/design/analysis/name-resolution-proofs/variable-observed-original-substitution-receiver.md
+        if index.is_some() {
+            return self.observed_refusal();
+        }
+        let level = self.frames.borrow().current_level();
+        self.observed_variable_get(name, level)
+    }
+
     pub(crate) fn observed_variable_exists(
         &self,
         name: &[u8],
@@ -378,7 +394,7 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tcl_registry::f5::{BigIpExecutionContext, evidence::BigIpBuild, naming::BigIpNameEvent};
+    use tcl_registry::f5::{evidence::BigIpBuild, naming::BigIpNameEvent, BigIpExecutionContext};
 
     fn select(interp: &mut Interp) -> AuthoredObservedFrameStorageContext {
         assert!(interp.set_observed_bigip_name_policy(
@@ -441,15 +457,116 @@ mod tests {
     }
 
     #[test]
+    fn original_object_assignments_use_the_current_observed_receiver() {
+        // naming.variable.observed-original-object-assignment
+        // docs/design/analysis/name-resolution-proofs/variable-observed-original-object-assignment.md
+        for (prefix, spelling) in [
+            (b"A".as_slice(), b"A\0B".as_slice()),
+            (b"R(k)".as_slice(), b"R\0T(k)".as_slice()),
+        ] {
+            let mut interp = Interp::new();
+            let context = select(&mut interp);
+            let plain = crate::obj::Owned::fresh(super::super::new_string(b"PLAIN"));
+            let counted = crate::obj::Owned::fresh(super::super::new_string(b"COUNTED"));
+            let prefix = crate::obj::Owned::fresh(super::super::new_string(prefix));
+            let original = crate::obj::Owned::fresh(super::super::new_string(spelling));
+            interp
+                .with_observed_event_frame(context, |interp| {
+                    interp.set_result_bytes(b"before");
+                    interp
+                        .assign_original_named_variable(prefix.as_ptr(), plain.as_ptr())
+                        .unwrap();
+                    interp
+                        .assign_original_named_variable(original.as_ptr(), counted.as_ptr())
+                        .unwrap();
+                    assert_eq!(interp.result_bytes(), b"before");
+                    assert_eq!(
+                        interp
+                            .read_original_named_variable(original.as_ptr())
+                            .unwrap(),
+                        counted.as_ptr(),
+                    );
+                    assert_eq!(
+                        interp
+                            .read_original_named_variable(prefix.as_ptr())
+                            .unwrap(),
+                        plain.as_ptr(),
+                    );
+                    interp
+                        .store_original_named_variable(original.as_ptr(), counted.as_ptr())
+                        .unwrap();
+                    assert_eq!(interp.result_bytes(), b"COUNTED");
+                    assert!(interp.native_c_variable_name_protocol().is_none());
+                })
+                .unwrap();
+            assert!(
+                interp
+                    .assign_original_named_variable(original.as_ptr(), counted.as_ptr())
+                    .is_err(),
+                "the retired event frame cannot supply an original receiver",
+            );
+            assert_eq!(interp.frames.borrow().current_level(), 0);
+        }
+    }
+
+    #[test]
     fn counted_array_root_and_scalar_queries_use_normal_source_dispatch() {
         let mut interp = Interp::new();
         let context = select(&mut interp);
         interp.with_observed_event_frame(context, |interp| {
-            assert_eq!(interp.eval_str(b"set {R\0T(k)} element; list [array exists {R\0T}] [array size {R\0T}] [array names {R\0T}] [info exists {R\0T(k)}] [info exists {R\0T(missing)}]"), super::super::Code::Ok);
+            let source = b"set {R\0T(k)} element; list [array exists {R\0T}] [array size {R\0T}] [array names {R\0T}] [info exists {R\0T(k)}] [info exists {R\0T(missing)}]";
+            let code = interp.eval_str(source);
+            assert_eq!(code, super::super::Code::Ok, "source={source:?} result={:?} admission={:?} refusal={:?}", interp.result_bytes(), interp.native_compilation_admission_error(), interp.native_access_refusal());
             assert_eq!(interp.result_bytes(), b"1 1 k 1 0");
-            assert_eq!(interp.eval_str(b"set {S\0T} scalar; set copied ${S\0T}; unset {S\0T}; list $copied [info exists {S\0T}]"), super::super::Code::Ok);
+            let source = b"set {S\0T} scalar; set copied ${S\0T}; unset {S\0T}; list $copied [info exists {S\0T}]";
+            let code = interp.eval_str(source);
+            assert_eq!(code, super::super::Code::Ok, "source={source:?} result={:?} admission={:?} refusal={:?}", interp.result_bytes(), interp.native_compilation_admission_error(), interp.native_access_refusal());
             assert_eq!(interp.result_bytes(), b"scalar 0");
         }).unwrap();
+    }
+
+    #[test]
+    fn original_observed_substitutions_keep_counted_cells_and_input_forms_separate() {
+        // naming.variable.observed-original-substitution-receiver
+        // docs/design/analysis/name-resolution-proofs/variable-observed-original-substitution-receiver.md
+        let mut interp = Interp::new();
+        let context = select(&mut interp);
+        interp
+            .with_observed_event_frame(context, |interp| {
+                for source in [
+                    b"set S prefix; set {S\0T} counted; list $S ${S\0T}".as_slice(),
+                    b"set S prefix; set {S\0T} counted; list x${S\0T}x".as_slice(),
+                ] {
+                    assert_eq!(
+                        interp.eval_str(source),
+                        super::super::Code::Ok,
+                        "source={source:?} result={:?} refusal={:?}",
+                        interp.result_bytes(),
+                        interp.native_access_refusal()
+                    );
+                    let expected = if source.ends_with(b"${S\0T}") {
+                        b"prefix counted".as_slice()
+                    } else {
+                        b"xcountedx".as_slice()
+                    };
+                    assert_eq!(interp.result_bytes(), expected);
+                    assert!(interp.native_c_variable_name_protocol().is_none());
+                }
+                assert_eq!(interp.fire_read_trace(b"S\0T", None), None);
+                assert_eq!(interp.read_var(b"S\0T", None), Some(b"counted".to_vec()));
+                assert_eq!(
+                    interp.fire_read_trace(b"S\0T", Some(b"k")),
+                    Some(super::super::Code::Error)
+                );
+                assert!(interp.native_access_refusal().is_some());
+                assert!(interp.read_var(b"S\0T", Some(b"k")).is_none());
+            })
+            .unwrap();
+        assert_eq!(
+            interp.fire_read_trace(b"S\0T", None),
+            Some(super::super::Code::Error)
+        );
+        assert!(interp.read_var(b"S\0T", None).is_none());
     }
 
     #[test]
@@ -474,15 +591,9 @@ mod tests {
                 interp
                     .observed_variable_set(b"A\0B", level, super::super::new_string(b"counted"))
                     .unwrap();
-                assert!(
-                    interp
-                        .observed_variable_set(
-                            b"A",
-                            level,
-                            super::super::new_string(b"replacement")
-                        )
-                        .is_err()
-                );
+                assert!(interp
+                    .observed_variable_set(b"A", level, super::super::new_string(b"replacement"))
+                    .is_err());
                 let frames = interp.frames.borrow();
                 let Some(slot) = frames.compiled_slot_var(0) else {
                     panic!("retained formal cell")
@@ -540,11 +651,9 @@ mod tests {
             .with_observed_frame_storage(context, |interp| {
                 interp.frames.borrow_mut().pop();
                 let level = interp.frames.borrow_mut().push(crate::namespace::GLOBAL);
-                assert!(
-                    interp
-                        .observed_variable_get(b"__tcl_lsp_2286_r2286m_nul_A", level)
-                        .is_err()
-                );
+                assert!(interp
+                    .observed_variable_get(b"__tcl_lsp_2286_r2286m_nul_A", level)
+                    .is_err());
             })
             .unwrap();
         interp.frames.borrow_mut().pop();

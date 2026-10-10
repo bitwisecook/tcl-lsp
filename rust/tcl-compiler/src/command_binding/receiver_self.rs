@@ -39,6 +39,22 @@ impl SourceReceiverBuiltinCandidates {
     }
 }
 
+/// Actual call selection keeps the declaring provider and receiver axis
+/// separate. A class-object method does not inherit its own class's instance
+/// variable declarations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CalledBodyReceiver {
+    Instance,
+    ClassObject,
+    OwnObject,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct CalledBodyTarget<'a> {
+    pub(super) target: &'a super::SourceCommandTarget,
+    pub(super) receiver: Option<CalledBodyReceiver>,
+}
+
 impl ModuleCommandBindings {
     // TclOO auto-links declared instance variables on actual entry. Formal
     // cells take precedence, and missing receiver metadata cannot prove that
@@ -47,9 +63,17 @@ impl ModuleCommandBindings {
         &self,
         called: &mut crate::var_resolve::ResolveContext,
         body: &super::DeferredSourceBody,
+        declaring_provider: &super::SourceCommandTarget,
+        receiver_kind: Option<CalledBodyReceiver>,
         registry: &tcl_registry::CommandRegistry,
     ) {
         if !body.receiver_method {
+            return;
+        }
+        if receiver_kind != Some(CalledBodyReceiver::Instance) {
+            // No actual class-object or own-object variable inventory is
+            // retained here. A class instance inventory cannot supply it.
+            called.activation_contents_world = Some(crate::var_resolve::ContentsWorld::Unknown);
             return;
         }
         let selected = called
@@ -59,21 +83,24 @@ impl ModuleCommandBindings {
             .and_then(|receiver| {
                 let definition = self
                     .class_definitions
-                    .get(receiver.class_target().identity.as_ref()?)?;
+                    .get(declaring_provider.identity.as_ref()?)?;
+                if !self.retained_target_is_current(declaring_provider)
+                    || !self.class_definition_dependencies_hold(definition)
+                {
+                    return None;
+                }
                 Some((receiver, definition.instance_variables.as_ref()?))
             });
         let Some((receiver, variables)) = selected else {
             called.activation_contents_world = Some(crate::var_resolve::ContentsWorld::Unknown);
             return;
         };
-        let names = variables
-            .iter()
-            .filter(|name| !body.parameters.iter().any(|formal| &formal.name == *name))
-            .cloned()
-            .map(Some)
-            .collect::<Vec<_>>();
-        if called.link_allocated_instance_variables(receiver.allocation(), &names, registry)
-            != crate::allocated_instance::AllocatedInstanceLinkOutcome::Linked
+        if called.link_original_instance_declarations(
+            receiver.allocation(),
+            variables,
+            body.original_parameters.as_ref(),
+            registry,
+        ) != crate::allocated_instance::AllocatedInstanceLinkOutcome::Linked
         {
             called.activation_contents_world = Some(crate::var_resolve::ContentsWorld::Unknown);
         }
@@ -153,6 +180,10 @@ impl ModuleCommandBindings {
     pub(super) fn receiver_allocation_is_current(&self, proof: &SourceObjectInstanceProof) -> bool {
         !self.opaque_domain
             && self.object_instances.generation == Some(proof.dispatch_generation())
+            && self
+                .object_instances
+                .own_method_generation(proof.allocation())
+                == Some(proof.own_method_generation)
             && self.retained_target_is_current(proof.class_target())
             && proof
                 .class_target()
@@ -160,6 +191,90 @@ impl ModuleCommandBindings {
                 .as_ref()
                 .and_then(|identity| self.class_definitions.get(identity))
                 .is_some_and(|definition| self.class_definition_dependencies_hold(definition))
+    }
+
+    pub(super) fn retained_instance_method_entry(
+        &self,
+        receiver: &SourceObjectInstanceProof,
+        bytes: &[u8],
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<&super::SourceReceiverMethodEntry> {
+        // naming.tcloo.original-forward-registration-prefix
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-forward-registration-prefix.md
+        if !self.receiver_allocation_is_current(receiver) {
+            return None;
+        }
+        policy.recipe().oo_method_input(bytes).ok()?;
+        if self.baseline.execution_name_policy?.native_recipe()? != policy {
+            return None;
+        }
+        let name = tcl_core_types::NameBytes::from(bytes);
+        if let Some(table) = self
+            .object_instances
+            .own_methods
+            .iter()
+            .find(|table| &table.allocation == receiver.allocation())
+            && let Some(entry) = table
+                .entries
+                .get(&(super::SourceMethodReceiver::Class, name.clone()))
+        {
+            return (entry.original_name_input().policy() == policy
+                && entry.declaring_object() == Some(receiver.allocation()))
+            .then_some(entry);
+        }
+        let definition = self
+            .class_definitions
+            .get(receiver.class_target().identity.as_ref()?)?;
+        if definition.forward_method_entries.contains_key(&name) {
+            return None;
+        }
+        let entry = definition
+            .receiver_method_entries
+            .get(&(super::SourceMethodReceiver::Instance, name))?;
+        (entry.original_name_input().policy() == policy).then_some(entry)
+    }
+
+    fn retained_instance_method_override(
+        &self,
+        receiver: &SourceObjectInstanceProof,
+        bytes: &[u8],
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<bool> {
+        // naming.tcloo.original-forward-registration-prefix
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-forward-registration-prefix.md
+        if !self.receiver_allocation_is_current(receiver)
+            || self.baseline.execution_name_policy?.native_recipe()? != policy
+        {
+            return None;
+        }
+        policy.recipe().oo_method_input(bytes).ok()?;
+        let name = tcl_core_types::NameBytes::from(bytes);
+        if let Some(table) = self
+            .object_instances
+            .own_methods
+            .iter()
+            .find(|table| &table.allocation == receiver.allocation())
+            && let Some(entry) = table
+                .entries
+                .get(&(super::SourceMethodReceiver::Class, name.clone()))
+        {
+            return (entry.original_name_input().policy() == policy
+                && entry.declaring_object() == Some(receiver.allocation()))
+            .then_some(true);
+        }
+        let definition = self
+            .class_definitions
+            .get(receiver.class_target().identity.as_ref()?)?;
+        if let Some(forward) = definition.forward_method_entries.get(&name) {
+            return forward.closed_for_policy(policy).then_some(true);
+        }
+        if let Some(entry) = definition
+            .receiver_method_entries
+            .get(&(super::SourceMethodReceiver::Instance, name))
+        {
+            return (entry.original_name_input().policy() == policy).then_some(true);
+        }
+        Some(false)
     }
 
     pub(super) fn active_method_receiver(
@@ -213,11 +328,7 @@ impl SourceInvocationBinding {
         {
             return Vec::new();
         }
-        let Some(method) = self
-            .evaluated_argument_values
-            .first()
-            .and_then(Option::as_deref)
-        else {
+        let Some(method) = self.original_retained_written_name_input(1) else {
             return Vec::new();
         };
         state
@@ -231,9 +342,11 @@ impl SourceInvocationBinding {
                     .filter_map(|((kind, _), owner)| {
                         (owner.frame() == &self.variable_frame)
                             .then(|| {
-                                definition
-                                    .receiver_method_entries
-                                    .get(&(*kind, method.to_owned()))
+                                super::SourceReceiverMethodEntry::for_original_input(
+                                    &definition.receiver_method_entries,
+                                    *kind,
+                                    &method,
+                                )
                             })
                             .flatten()
                     })
@@ -270,13 +383,9 @@ impl SourceInvocationBinding {
             return None;
         }
         let receiver = state.active_method_receiver(&self.variable_frame)?;
-        let method = self.evaluated_argument_values.first()?.as_ref()?;
-        let definition = state
-            .class_definitions
-            .get(receiver.class_target().identity.as_ref()?)?;
-        let entry = definition
-            .receiver_method_entries
-            .get(&(super::SourceMethodReceiver::Instance, method.clone()))?;
+        let method = self.original_retained_written_name_input(1)?;
+        let entry =
+            state.retained_instance_method_entry(receiver, method.bytes(), method.policy())?;
         Some((
             receiver.class_target(),
             entry,
@@ -296,28 +405,10 @@ impl SourceInvocationBinding {
         &super::SourceReceiverMethodEntry,
         u64,
     )> {
-        let frozen = self.frozen_head_object.as_ref()?;
-        let proof = &frozen.object;
+        let proof = self.frozen_object_instance_at_dispatch(head)?;
         let state = &self.lookup_state.as_ref()?.state;
-        if head != &frozen.word
-            || head.source().span.start() != self.dispatch_site.as_ref()?.offset
-            || self.entered_execution_observer.observed()
-            || state.source_step_observed()
-            || state.source_execution_observed(None)
-            || !state.receiver_allocation_is_current(proof)
-            || proof.receiver_dispatcher_generation.is_none()
-            || proof.receiver_dispatcher_generation
-                != state.object_instances.receiver_dispatcher_generation
-        {
-            return None;
-        }
-        let method = self.evaluated_argument_values.first()?.as_ref()?;
-        let definition = state
-            .class_definitions
-            .get(proof.class_target().identity.as_ref()?)?;
-        let entry = definition
-            .receiver_method_entries
-            .get(&(super::SourceMethodReceiver::Instance, method.clone()))?;
+        let method = self.original_retained_written_name_input(1)?;
+        let entry = state.retained_instance_method_entry(proof, method.bytes(), method.policy())?;
         Some((proof.class_target(), entry, proof.dispatch_generation()))
     }
 
@@ -375,9 +466,23 @@ impl SourceInvocationBinding {
         if !state.class_definition_dependencies_hold(definition) {
             return None;
         }
-        let overridden = definition
-            .receiver_method_entries
-            .contains_key(&(receiver_kind, method.to_owned()));
+        let forwarded = receiver_kind == super::SourceMethodReceiver::Instance
+            && definition
+                .forward_method_entries
+                .contains_key(&tcl_core_types::NameBytes::from(method.as_bytes()));
+        let overridden = if let Some(receiver) = reached {
+            state.retained_instance_method_override(
+                receiver,
+                method.as_bytes(),
+                state.baseline.execution_name_policy?.native_recipe()?,
+            )?
+        } else {
+            forwarded
+                || definition.receiver_method_entries.contains_key(&(
+                    receiver_kind,
+                    tcl_core_types::NameBytes::from(method.as_bytes()),
+                ))
+        };
         Some(SourceReceiverBuiltinCandidates {
             operation: (!overridden).then_some(operation),
             unknown: reached.is_none(),
@@ -440,13 +545,11 @@ impl SourceCommandBindings {
             MethodReach::SelfDispatch,
             state.baseline.dialect?,
         )?;
-        let definition = state
-            .class_definitions
-            .get(receiver.class_target().identity.as_ref()?)?;
-        if definition
-            .receiver_method_entries
-            .contains_key(&(super::SourceMethodReceiver::Instance, method.to_owned()))
-        {
+        if state.retained_instance_method_override(
+            &receiver,
+            method.as_bytes(),
+            state.baseline.execution_name_policy?.native_recipe()?,
+        )? {
             return None;
         }
         let names = effective
@@ -470,17 +573,21 @@ impl SourceCommandBindings {
         })
     }
 
-    /// Enter an original plain method on an actual object or native class
-    /// delegate. This supplies no opcode or method navigation grant.
+    /// Enter an original plain method on an actual instance, own class-object
+    /// table or native classmethod delegate. This supplies no opcode or method
+    /// navigation grant.
     pub(super) fn walk_retained_receiver_method(
         &mut self,
         site: u32,
+        words: &[crate::ir::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceOutcomes> {
-        let (receiver, entry) = selected_plain_method(effective, state, context)?;
-        let target = entry.declaring_class()?.clone();
+        let head =
+            super::original_name_value::original_command_head_input(words, site, state, context);
+        let (receiver, entry) = selected_plain_method(effective, state, context, head.as_ref())?;
+        let target = entry.body_context_provider()?.clone();
         let body = self
             .deferred
             .values()
@@ -503,6 +610,13 @@ impl SourceCommandBindings {
             &body,
             site,
         );
+        let receiver_kind = if entry.declaring_object().is_some() {
+            CalledBodyReceiver::OwnObject
+        } else if receiver.is_some() {
+            CalledBodyReceiver::Instance
+        } else {
+            CalledBodyReceiver::ClassObject
+        };
         if let Some(receiver) = receiver {
             Arc::make_mut(&mut state.object_instances)
                 .receivers
@@ -515,11 +629,17 @@ impl SourceCommandBindings {
             site,
             &arguments,
             state,
-            &target,
+            CalledBodyTarget {
+                target: &target,
+                receiver: Some(receiver_kind),
+            },
             &body,
             SourceExecutionContext {
                 written_arguments: context.written_arguments.and_then(|values| values.get(1..)),
                 written_values: context.written_values.and_then(|values| values.get(1..)),
+                written_name_values: context
+                    .written_name_values
+                    .and_then(|values| values.get(1..)),
                 written_representations: context
                     .written_representations
                     .and_then(|values| values.get(1..)),
@@ -553,19 +673,24 @@ fn selected_plain_method(
     effective: &[crate::registry_invocation::EffectiveInvocationWord],
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
+    head: Option<&crate::signature_scan::scope::SignatureSourceNameInput>,
 ) -> Option<(
     Option<Arc<SourceObjectInstanceProof>>,
     super::SourceReceiverMethodEntry,
 )> {
-    let method = effective.get(1)?.as_registry_word().literal()?;
-    if let Some((receiver, self_dispatch)) = selected_receiver(effective, state, context) {
-        let definition = state
-            .class_definitions
-            .get(receiver.class_target().identity.as_ref()?)?;
-        let entry = definition
-            .receiver_method_entries
-            .get(&(super::SourceMethodReceiver::Instance, method.to_owned()))?;
-        return (self_dispatch || entry.is_exported()).then(|| (Some(receiver), entry.clone()));
+    let method = effective.get(1)?.literal_bytes()?;
+    let policy = state
+        .source_variables
+        .execution_name_policy?
+        .native_recipe()?;
+    policy.recipe().oo_method_input(method).ok()?;
+    if let Some((receiver, self_dispatch)) =
+        selected_receiver_for_input(effective, state, context, head)
+    {
+        let entry = state.retained_instance_method_entry(&receiver, method, policy)?;
+        return (entry.original_name_input().policy() == policy
+            && (self_dispatch || entry.is_exported()))
+        .then(|| (Some(receiver), entry.clone()));
     }
     if state.source_step_observed()
         || state.source_execution_observed(None)
@@ -579,22 +704,33 @@ fn selected_plain_method(
     {
         return None;
     }
-    let head = effective.first()?.as_registry_word().literal()?;
-    let binding = super::source_binding(state, head, &context.namespace_identity());
+    let binding =
+        super::source_binding_from_original_input(state, head?, &context.namespace_identity())?;
     let target = binding.proved_target()?;
     let definition = state.class_definitions.get(target.identity.as_ref()?)?;
-    let entry = definition
-        .receiver_method_entries
-        .get(&(super::SourceMethodReceiver::Class, method.to_owned()))?;
-    state
-        .native_class_delegate_entry_is_current(target, entry)
-        .then(|| (None, entry.clone()))
+    let entry = definition.receiver_method_entries.get(&(
+        super::SourceMethodReceiver::Class,
+        tcl_core_types::NameBytes::from(method),
+    ))?;
+    (entry.original_name_input().policy() == policy
+        && (state.own_class_object_method_entry_is_current(target, entry)
+            || state.native_class_delegate_entry_is_current(target, entry)))
+    .then(|| (None, entry.clone()))
 }
 
 fn selected_receiver(
     effective: &[crate::registry_invocation::EffectiveInvocationWord],
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
+) -> Option<(Arc<SourceObjectInstanceProof>, bool)> {
+    selected_receiver_for_input(effective, state, context, None)
+}
+
+fn selected_receiver_for_input(
+    effective: &[crate::registry_invocation::EffectiveInvocationWord],
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    input: Option<&crate::signature_scan::scope::SignatureSourceNameInput>,
 ) -> Option<(Arc<SourceObjectInstanceProof>, bool)> {
     if state.source_step_observed()
         || state.source_execution_observed(None)
@@ -623,7 +759,11 @@ fn selected_receiver(
     {
         Arc::clone(proof)
     } else {
-        let binding = super::source_binding(state, head?, &context.namespace_identity());
+        let binding = super::source_binding_from_original_input(
+            state,
+            input?,
+            &context.namespace_identity(),
+        )?;
         let target = binding.proved_target()?;
         if !target.prepended.is_empty() {
             return None;
@@ -771,6 +911,71 @@ mod tests {
     }
 
     #[test]
+    fn own_class_object_methods_keep_the_current_table_without_a_delegate_allocation() {
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let source = r"oo::class create C {self {method p\uD800 {} {return A}; method p\uD801 {} {return B}}}; C p\uD800; C p\uD801";
+            let (bindings, _) = analyse_for_profile(source, dialect);
+            for spelling in [r"p\uD800", r"p\uD801"] {
+                let offset =
+                    u32::try_from(source.rfind(&format!("C {spelling}")).unwrap()).unwrap();
+                let binding = bindings.invocation_at_source("C", offset);
+                let (target, entry) = binding.class_definition_method_entry().expect(dialect);
+                let state = &binding.lookup_state.as_ref().unwrap().state;
+                assert!(
+                    state.own_class_object_method_entry_is_current(target, entry),
+                    "{dialect}: {spelling}"
+                );
+                assert!(!state.native_class_delegate_entry_is_current(target, entry));
+                assert!(!entry.is_native_class_delegate());
+            }
+            for mutation in [
+                "oo::objdefine C {method p {} {return OTHER}}",
+                "rename C {}; oo::class create C {}",
+            ] {
+                let source = format!(
+                    "oo::class create C {{self {{method p {{}} {{return FIRST}}}}}}; C p; {mutation}; C p"
+                );
+                let (bindings, _) = analyse_for_profile(&source, dialect);
+                let before = bindings
+                    .invocation_at_source("C", u32::try_from(source.find("C p").unwrap()).unwrap());
+                let (target, entry) = before.class_definition_method_entry().unwrap();
+                let after = bindings.invocation_at_source(
+                    "C",
+                    u32::try_from(source.rfind("C p").unwrap()).unwrap(),
+                );
+                let state = &after.lookup_state.as_ref().unwrap().state;
+                assert!(
+                    !state.own_class_object_method_entry_is_current(target, entry),
+                    "{dialect}: {mutation}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn class_object_method_entry_does_not_borrow_instance_variable_links() {
+        let source =
+            "oo::class create C {variable x; self {method probe {} {::info exists x}}}; C probe";
+        let (bindings, registry) = analyse(source);
+        let offset = u32::try_from(source.find("::info exists x").unwrap()).unwrap();
+        let binding = bindings.invocation_at_source("::info", offset);
+        let context = &binding.variable_context;
+        let place = crate::var_resolve::resolve_literal_place("x", context, false, &registry);
+        assert!(!matches!(
+            place.cell.as_ref().map(|cell| &cell.owner),
+            Some(crate::place::CellOwner::AllocatedInstance(_))
+        ));
+        assert_eq!(
+            context.activation_contents_world,
+            Some(crate::var_resolve::ContentsWorld::Unknown)
+        );
+        assert!(matches!(
+            binding.variable_frame.layout(),
+            VariableExecutionFrame::ReceiverMethod { .. }
+        ));
+    }
+
+    #[test]
     fn native_class_delegate_body_preserves_later_original_method_selection() {
         for dialect in ["tcl9.0", "tcl9.1"] {
             let source = "oo::class create ActiveRecord {classmethod find {args} {return FOUND}}; oo::class create Table {superclass ActiveRecord}; Table find foo bar; ActiveRecord find foo bar";
@@ -787,7 +992,7 @@ mod tests {
                         .class_definition_method_entries()
                         .is_some_and(|(_, entries)| entries.contains_key(&(
                             super::super::SourceMethodReceiver::Class,
-                            "find".to_owned()
+                            tcl_core_types::NameBytes::from(b"find".as_slice())
                         ))),
                     "{dialect}: {head}"
                 );
@@ -873,6 +1078,32 @@ mod tests {
                 .expect(&source);
             assert_eq!(candidate.operation().is_some(), builtin, "{source}");
             assert!(!candidate.unknown(), "{source}");
+        }
+    }
+
+    #[test]
+    fn original_forward_override_cannot_select_the_stock_receiver_linker() {
+        // naming.tcloo.original-forward-registration-prefix
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-forward-registration-prefix.md
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for tail in ["", "; C create receiver; receiver probe"] {
+                let source = format!(
+                    "oo::class create C {{forward variable ::later; method probe {{}} {{my variable x}}}}{tail}"
+                );
+                let (bindings, registry) = analyse_for_profile(&source, dialect);
+                let offset = u32::try_from(source.find("my variable").unwrap()).unwrap();
+                let binding = bindings.invocation_at_source("my", offset);
+                let candidate = binding.receiver_self_builtin_candidates(&registry).unwrap();
+                assert!(candidate.operation().is_none(), "{dialect}: {tail}");
+                if tail.is_empty() {
+                    assert!(bindings.original_completed_command_world().is_some());
+                } else {
+                    assert!(
+                        bindings.original_completed_command_world().is_none(),
+                        "unproved forward call supplies neither stock variable links nor Normal"
+                    );
+                }
+            }
         }
     }
 
@@ -983,7 +1214,11 @@ mod tests {
         let helper = state.source_keys_checked("self", namespace).unwrap();
         assert_eq!(helper.len(), 1);
         assert_eq!(helper[0].holder().native_context().unwrap().token, 9);
-        assert_eq!(helper[0].simple_utf8(), Some("self"));
+        assert!(matches!(
+            &helper[0],
+            super::super::SourceCommandKey::Slot { simple, .. }
+                if simple.as_bytes() == b"self"
+        ));
         // A genuine global callback on the same live receiver must not borrow
         // its method-local Helpers path.
         let root = state.source_root_namespace_key().unwrap();

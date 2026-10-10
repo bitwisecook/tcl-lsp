@@ -131,6 +131,17 @@ impl NativeFrameLevelProtocol {
         self.version
     }
 
+    /// Original C frame-error append/format String producer. Jim's error
+    /// constructor supplies no C String primary. This retains result birth,
+    /// independently of selector spelling, error codes and getter caches.
+    #[must_use]
+    pub fn bad_level_string_result(
+        self,
+    ) -> Option<tcl_syntax::native_string::NativeStringProtocol> {
+        self.version
+            .map(tcl_syntax::native_string::NativeStringProtocol::C)
+    }
+
     /// Whether this original level-reference cache belongs to the native recipe.
     /// Cache validity does not imply the selected call frame exists.
     #[must_use]
@@ -652,6 +663,26 @@ impl FrameEffectSpec {
             level_word_len: width,
             level,
         }
+    }
+
+    /// Consensus of the existing authored Tcl frame grammars for a separate
+    /// Logical source-role question. The same values and cardinality remain;
+    /// this does not select a Native frame grammar or establish a frame effect.
+    pub(crate) fn logical_source_layout(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> FrameArgumentResolution {
+        let source = match arguments {
+            crate::InvocationArguments::Literals(words)
+            | crate::InvocationArguments::ContextualLiterals(words, _) => {
+                crate::InvocationArguments::Literals(words)
+            }
+            crate::InvocationArguments::Structured(words)
+            | crate::InvocationArguments::ContextualStructured(words, _) => {
+                crate::InvocationArguments::Structured(words)
+            }
+        };
+        self.resolve_arguments(source)
     }
 
     /// Project argument layout after a successful native invocation.

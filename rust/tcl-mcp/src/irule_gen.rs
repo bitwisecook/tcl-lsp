@@ -37,8 +37,8 @@ use tcl_registry::events::EventRegistry;
 use tcl_syntax::list::list_element;
 
 /// The prose emitted for `multi_tmm_hint` when multi-TMM patterns are detected.
-const MULTI_TMM_HINT: &str = "This iRule uses patterns that behave differently across TMMs \
-     (static:: writes in hot events, counters, or shared table state). \
+const MULTI_TMM_HINT: &str = "Source patterns suggest checking behavior across TMMs \
+     (possible static:: writes, counters, or shared table state). \
      The generated test includes a multi-TMM scenario using fakeCMP \
      distribution.  Use ::orch::fakecmp_suggest_sources to plan which \
      client addresses hit which TMMs.";
@@ -100,32 +100,34 @@ struct Variables {
 
 /// MCP tool entry point: analyse the `source` argument and return the
 /// `generate_irule_test` wire shape (the `test_script` is a
-/// functionally-equivalent runnable Tcl scaffold).
+/// conditional source scaffold with independently supplied outcome obligations).
 #[must_use]
 pub fn generate_irule_test(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
 
-    // Discover handlers once at the request boundary. Lower-level registry
-    // code only orders these owner-derived names and never re-scans source.
-    let when_blocks = tcl_irules::when_blocks(source);
+    let registry = crate::environment::store_for_dialect("f5-irules");
+    let source_context = tcl_irules::OriginalIrulesSourceContext::capture(source, registry);
     let event_registry = EventRegistry::build();
     let mut seen_events = BTreeSet::new();
-    let event_names: Vec<String> = when_blocks
-        .iter()
-        .map(|block| block.event.clone())
-        .filter(|event| event_registry.is_known(event))
-        .filter(|event| seen_events.insert(event.clone()))
-        .collect();
+    let event_names = source_context.as_ref().map_or_else(Vec::new, |context| {
+        context
+            .events()
+            .iter()
+            .map(|event| event.event().to_owned())
+            .filter(|event| seen_events.insert(event.clone()))
+            .collect::<Vec<_>>()
+    });
     let ordered_events = event_registry.order_events(&event_names);
     let profiles = infer_profiles(&ordered_events);
-    let registry = crate::environment::store_for_dialect("f5-irules");
-    // Build the event-rooted executable closure once for this request.  Every
-    // execution-sensitive output below consumes this exact proof of liveness;
-    // re-building it for object references could make setup disagree with the
-    // command/static/multi-TMM inventory after either walker evolves.
-    let closure = tcl_irules::irules_executable_commands(source, registry);
+    let closure = source_context
+        .as_ref()
+        .map_or_else(Vec::new, |context| context.presentation_commands(source));
     let commands_used = extract_irule_commands(&closure);
-    let objects = extract_object_refs(source, registry, &closure);
+    let objects = source_context
+        .as_ref()
+        .map_or_else(ObjectRefs::default, |context| {
+            extract_object_refs(source, context)
+        });
     let variables = extract_variables(&closure);
 
     let cfg_paths = crate::irule_test::cfg_paths_json(source);
@@ -146,6 +148,9 @@ pub fn generate_irule_test(args: &Value) -> Value {
 
     json!({
         "test_script": test_script,
+        "analysis_kind": "conditional-source",
+        "outcome_assertions_verified": false,
+        "obligations": ["handler-applicability", "event-reachability", "observed-terminal-outcome"],
         "events": ordered_events,
         "profiles": profiles,
         "commands_used": commands_used,
@@ -158,9 +163,9 @@ pub fn generate_irule_test(args: &Value) -> Value {
             Value::Null
         } else {
             json!(format!(
-                "CFG analysis found {} unique paths to terminal actions. \
-                 The generated test includes a test case per path. Use \
-                 irule_cfg_paths to inspect paths individually for deeper analysis.",
+                "Source analysis found {} candidate paths to terminal actions. \
+                 Generated scenarios require independently observed expectations. Use \
+                 irule_cfg_paths to inspect their source and outcome obligations.",
                 cfg_paths.len()
             ))
         },
@@ -169,7 +174,7 @@ pub fn generate_irule_test(args: &Value) -> Value {
 
 // ── Extractors ────────────────────────────────────────────────────────
 
-/// Extract executable iRule command identities, sorted and deduplicated.
+/// Sort and deduplicate actual source-schema labels for presentation.
 fn extract_irule_commands(commands: &[tcl_irules::IrulesExecutableCommand]) -> Vec<String> {
     commands
         .iter()
@@ -179,21 +184,15 @@ fn extract_irule_commands(commands: &[tcl_irules::IrulesExecutableCommand]) -> V
         .collect()
 }
 
-/// Extract pool / data-group references from this request's executable closure.
+/// Retain literal configuration-reference candidates from the same source owner.
 fn extract_object_refs(
     source: &str,
-    registry: &tcl_registry::CommandRegistry,
-    closure: &[tcl_irules::IrulesExecutableCommand],
+    context: &tcl_irules::OriginalIrulesSourceContext,
 ) -> ObjectRefs {
     let mut pools: BTreeSet<String> = BTreeSet::new();
     let mut datagroups: BTreeSet<String> = BTreeSet::new();
-    // The shared reference owner consumes the event-rooted executable closure
-    // itself, so invalid top-level/nested declarations and dormant procedures
-    // cannot seed test setup.  Do not reclassify reachability by checking
-    // whether a reference happens to sit inside a handler's physical body:
-    // reached helper procedures live outside that body.
     for reference in
-        tcl_irules::extract_irules_object_references_in_closure(source, None, registry, closure)
+        tcl_irules::extract_original_irules_source_object_references(source, context, None)
     {
         if reference.category == tcl_irules::IrulesObjectReferenceCategory::Pool {
             pools.insert(reference.name);
@@ -250,7 +249,7 @@ fn infer_profiles(events: &[String]) -> Vec<String> {
     profiles
 }
 
-/// Detect whether an iRule should be tested in multi-TMM mode
+/// Suggest an independently observed multi-TMM scenario from source patterns
 /// (`_needs_multi_tmm`).
 fn needs_multi_tmm(
     commands: &[tcl_irules::IrulesExecutableCommand],
@@ -342,9 +341,7 @@ fn build_test_script(ctx: &ScriptContext) -> String {
     out.push_str("# \u{2500}\u{2500} Configure test defaults \u{2500}\u{2500}\n\n");
     out.push_str("::orch::configure_tests \\\n");
     let _ = writeln!(out, "    -profiles {{{}}} \\", ctx.profiles.join(" "));
-    out.push_str("    -irule {\n");
-    push_indented(&mut out, ctx.source.trim(), 8);
-    out.push_str("    }\n");
+    let _ = writeln!(out, "    -irule {}", list_element(ctx.source));
 
     let setup_lines = build_setup_lines(ctx.objects, ctx.variables);
     if !setup_lines.is_empty() {
@@ -358,7 +355,7 @@ fn build_test_script(ctx: &ScriptContext) -> String {
 
     out.push('\n');
     for block in build_all_test_blocks(test_name, ctx) {
-        out.push_str(&block);
+        out.push_str(&unverified_generated_assertions(&block));
         out.push_str("\n\n");
     }
 
@@ -372,18 +369,23 @@ fn build_test_script(ctx: &ScriptContext) -> String {
     out
 }
 
-/// Append `text`, prefixing every line with `n` spaces (empty lines stay empty).
-fn push_indented(out: &mut String, text: &str, n: usize) {
-    let pad = " ".repeat(n);
-    for line in text.split('\n') {
-        if line.is_empty() {
-            out.push('\n');
+// Generated guesses remain comments. Original user source is never processed.
+fn unverified_generated_assertions(block: &str) -> String {
+    let mut output = String::new();
+    for line in block.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("::orch::assert_that ") || trimmed.starts_with("::orch::assert ") {
+            let indent = &line[..line.len() - trimmed.len()];
+            let _ = writeln!(
+                output,
+                "{indent}# Outcome obligation: supply an independently observed expectation."
+            );
+            let _ = writeln!(output, "{indent}# {trimmed}");
         } else {
-            out.push_str(&pad);
-            out.push_str(line);
-            out.push('\n');
+            let _ = writeln!(output, "{line}");
         }
     }
+    output
 }
 
 /// Build the shared `-setup` body lines (`_build_setup_lines`).
@@ -391,16 +393,23 @@ fn build_setup_lines(objects: &ObjectRefs, variables: &Variables) -> Vec<String>
     let mut lines = Vec::new();
     for pool in &objects.pools {
         lines.push(format!(
-            "    ::orch::add_pool {pool} {{{{10.0.0.1:80}} {{10.0.0.2:80}}}}"
+            "    ::orch::add_pool {} {{{{10.0.0.1:80}} {{10.0.0.2:80}}}}",
+            list_element(pool)
         ));
     }
     for dg in &objects.datagroups {
-        lines.push(format!("    ::orch::add_datagroup {dg} string {{"));
+        lines.push(format!(
+            "    ::orch::add_datagroup {} string {{",
+            list_element(dg)
+        ));
         lines.push("        \"example_key\" \"example_value\"".to_owned());
         lines.push("    }".to_owned());
     }
     for var in &variables.static_vars {
-        lines.push(format!("    ::orch::configure_static {var} \"\""));
+        lines.push(format!(
+            "    ::orch::configure_static {} \"\"",
+            list_element(var)
+        ));
     }
     lines
 }
@@ -582,34 +591,15 @@ fn build_test_body(event_name: &str, path: &Value) -> Vec<String> {
     body
 }
 
-/// Build assertion lines for a terminal action (`_build_assertion`).
+/// Source action labels are questions, never predicted observed outcomes.
 fn build_assertion(cmd: &str, args: &[String]) -> Vec<String> {
-    match cmd {
-        "pool" if !args.is_empty() => {
-            vec![format!(
-                "::orch::assert_that pool_selected equals \"{}\"",
-                args[0]
-            )]
-        }
-        "reject" => vec!["::orch::assert_that decision connection reject was_called".to_owned()],
-        "drop" | "discard" => {
-            vec![format!(
-                "::orch::assert_that decision connection {cmd} was_called"
-            )]
-        }
-        "HTTP::redirect" => {
-            vec!["::orch::assert_that decision http redirect was_called".to_owned()]
-        }
-        "HTTP::respond" => vec![
-            "# Verify HTTP::respond was called".to_owned(),
-            "::orch::assert_that decision http respond was_called".to_owned(),
-        ],
-        "node" if !args.is_empty() => vec![
-            format!("# Verify node selection: {}", args.join(" ")),
-            format!("::orch::assert_that node_selected equals \"{}\"", args[0]),
-        ],
-        _ => vec![format!("# Verify: {cmd} {}", args.join(" "))],
-    }
+    let label = format!("{cmd} {}", args.join(" "))
+        .replace('\r', "\\r")
+        .replace('\n', "\\n");
+    vec![
+        "# Outcome obligation: observe this scenario before adding an assertion.".to_owned(),
+        format!("# Source candidate: {label}"),
+    ]
 }
 
 /// Build request-setup lines based on path conditions (`_build_request_setup`).
@@ -928,24 +918,23 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
     let mut out = String::new();
     out.push_str("# \u{2500}\u{2500} Multi-TMM tests (fakeCMP distribution) \u{2500}\u{2500}\n");
     out.push_str("#\n");
-    out.push_str("# The iRule uses patterns that behave differently across TMMs.\n");
-    out.push_str("# These tests verify correctness with 4 simulated TMMs.\n");
+    out.push_str("# Source patterns suggest a multi-TMM scenario; worker effects are unproved.\n");
+    out.push_str("# Independently observe expected outcomes in 4 simulated TMMs.\n");
     out.push_str("# fakeCMP hashes (src_ip, src_port, dst_ip, dst_port) to pick TMM.\n\n");
 
     out.push_str("::orch::configure_tests \\\n");
     out.push_str("    -tmm_count 4 \\\n");
     out.push_str("    -tmm_select auto \\\n");
     let _ = writeln!(out, "    -profiles {{{}}} \\", ctx.profiles.join(" "));
-    out.push_str("    -irule {\n");
-    push_indented(&mut out, ctx.source.trim(), 8);
-    out.push_str("    }\n");
+    let _ = writeln!(out, "    -irule {}", list_element(ctx.source));
 
     if !ctx.objects.pools.is_empty() {
         out.push_str("\n::orch::configure_tests -setup {\n");
         for pool in &ctx.objects.pools {
             let _ = writeln!(
                 out,
-                "    ::orch::add_pool {pool} {{{{10.0.0.1:80}} {{10.0.0.2:80}}}}"
+                "    ::orch::add_pool {} {{{{10.0.0.1:80}} {{10.0.0.2:80}}}}",
+                list_element(pool)
             );
         }
         out.push_str("}\n");
@@ -965,13 +954,14 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
     out.push_str("            ::orch::run_http_request -host app.example.com\n");
     out.push_str("        }\n");
     out.push_str("    }\n\n");
-    out.push_str("    # Verify all TMMs received traffic\n");
+    out.push_str("    # Observe mock per-worker state; source metadata does not predict it.\n");
     out.push_str("    set active 0\n");
     out.push_str("    foreach tmm_id [::orch::tmm_ids] {\n");
     if let Some(var) = check_var {
         let _ = writeln!(
             out,
-            "        set val [::orch::tmm_get_static $tmm_id {var}]"
+            "        set val [::orch::tmm_get_static $tmm_id {}]",
+            list_element(var)
         );
         out.push_str("        if {$val ne \"\"} { incr active }\n");
     } else {
@@ -979,10 +969,12 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
         out.push_str("        incr active\n");
     }
     out.push_str("    }\n");
-    out.push_str("    ::orch::assert {$active >= 2} \\\n");
+    out.push_str(
+        "    # Outcome obligation: independently observe per-worker state before asserting it.\n",
+    );
     let _ = writeln!(
         out,
-        "        \"{test_name}-multi-1.0: only $active TMMs got traffic\""
+        "        # Observation candidate: {test_name}-multi-1.0; $active mock TMMs have visible state"
     );
     out.push('}');
     out
@@ -1009,8 +1001,8 @@ mod tests {
     }
 
     fn object_refs(src: &str) -> ObjectRefs {
-        let closure = executable(src);
-        extract_object_refs(src, registry(), &closure)
+        let context = tcl_irules::OriginalIrulesSourceContext::capture(src, registry()).unwrap();
+        extract_object_refs(src, &context)
     }
 
     fn if_cond(condition: &str) -> Value {
@@ -1309,8 +1301,8 @@ mod tests {
     #[test]
     fn generator_builds_one_request_closure_for_every_execution_sensitive_output() {
         let src = concat!(
-            "proc ::rooted_helper {} { pool helper_pool; call chain_helper }\n",
-            "proc chain_helper {} { set selected [class match [HTTP::uri] equals helper_dg]; call ::rooted_helper }\n",
+            "proc rooted_helper {} { pool helper_pool; call chain_helper }\n",
+            "proc chain_helper {} { set selected [class match [HTTP::uri] equals helper_dg]; call rooted_helper }\n",
             "proc dormant {} { pool dormant_pool; set static::dormant 1; table incr dormant }\n",
             "when HTTP_REQUEST { pool first_pool; set static::hits 0; call rooted_helper; dormant; apply {{} { pool lambda_pool; set static::lambda 1 }}; when CLIENT_DATA { pool nested_other_event_pool; set static::nested 1 } }\n",
             "when http_request { pool second_pool; incr static::hits }\n",
@@ -1424,6 +1416,40 @@ mod tests {
         assert!(
             !script.contains("::orch::add_pool /Common/logging "),
             "{script}"
+        );
+    }
+    #[test]
+    fn original_irule_scaffolds_keep_source_candidates_without_predicted_outcomes() {
+        // Implementation contract: naming.mcp.original-irule-test-source-obligations
+        // docs/design/analysis/name-resolution-proofs/original-irule-test-source-obligations.md
+        // Implementation contract: naming.consumer.original-irules-source-context
+        // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
+        let source = "when HTTP_REQUEST {pool /Common/candidate; HTTP::respond 503}";
+        let generated = generate_irule_test(&json!({"source": source}));
+        assert_eq!(generated["analysis_kind"], "conditional-source");
+        assert_eq!(generated["outcome_assertions_verified"], false);
+        let script = generated["test_script"].as_str().unwrap();
+        assert!(script.contains("Outcome obligation"));
+        assert!(
+            !script
+                .lines()
+                .any(|line| line.trim_start().starts_with("::orch::assert_that "))
+        );
+        assert!(
+            generated["pools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "/Common/candidate")
+        );
+        let custom = generate_irule_test(
+            &json!({"source":"proc when args {}; when HTTP_REQUEST {pool fake}"}),
+        );
+        assert!(custom["events"].as_array().unwrap().is_empty());
+        assert!(custom["pools"].as_array().unwrap().is_empty());
+        assert_eq!(
+            build_assertion("pool", &["target\nset forged 1".to_owned()])[1],
+            "# Source candidate: pool target\\nset forged 1"
         );
     }
 }

@@ -159,21 +159,20 @@ fn original_control_carrier_rejects_changed_words_and_absent_compiler_entry() {
 fn renamed_or_aliased_control_has_no_original_stock_compiler_carrier() {
     let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
     let entry = crate::environment_ingress::captured_native_entry(profile);
-    for source in ["interp alias {} conditional {} if; conditional 1 {set x YES}"] {
-        let module = native_control_module(source, profile, Some(&entry));
-        let statement = module.top_level.statements.last().unwrap();
-        assert!(statement.tokens().is_some());
-        assert!(
-            statement
-                .tokens()
-                .and_then(|tokens| tokens
-                    .source_binding
-                    .as_ref()?
-                    .original_structured_compilation(tokens))
-                .is_none(),
-            "{source}"
-        );
-    }
+    let source = "interp alias {} conditional {} if; conditional 1 {set x YES}";
+    let module = native_control_module(source, profile, Some(&entry));
+    let statement = module.top_level.statements.last().unwrap();
+    assert!(statement.tokens().is_some());
+    assert!(
+        statement
+            .tokens()
+            .and_then(|tokens| tokens
+                .source_binding
+                .as_ref()?
+                .original_structured_compilation(tokens))
+            .is_none(),
+        "{source}"
+    );
 }
 
 #[test]

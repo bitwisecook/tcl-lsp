@@ -240,7 +240,7 @@ impl Interp {
         let found = self.array_exists_original_opcode(slot, &evaluated.root, original)?;
         if operation.recipe.command == Command::Exists {
             let result = self
-                .native_execution_boolean_constant(found)
+                .array_existence_result(found)
                 .map_err(|error| self.report_cmd_error(error.into()))?;
             self.set_result(result);
             return Ok(Code::Ok);
@@ -267,7 +267,7 @@ impl Interp {
                     tcl_syntax::native_string::NativeStringProtocol::C(artifact.stamp.physical);
                 let length = ValueOps::list_len(self, &values.as_ptr())
                     .map_err(|error| self.report_cmd_error(error.into()))?;
-                if !length.is_multiple_of(2) {
+                if length % 2 != 0 {
                     let literals = operation.parity_error.ok_or_else(|| {
                         self.report_cmd_error(
                             unavailable("native known even Array list changed").into(),

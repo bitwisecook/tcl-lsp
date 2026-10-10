@@ -100,14 +100,17 @@ mod tests {
         ] {
             let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
             let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+            let (_native_owner, entry) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
             let module = service
-                .compile_procedure_for_profile(
+                .compile_procedure_with_entry(
                     tcl_runtime_api::ProcedureCompileTarget {
                         source,
                         namespace: "::",
                         parameters: &[],
                     },
                     profile,
+                    &entry,
                     tcl_runtime_api::ProcedureDispatch::Optimised,
                 )
                 .unwrap();
@@ -174,15 +177,18 @@ mod tests {
     fn private_array_worker_maps_its_original_local_operand() {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+        let (_native_owner, entry) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
         let parameters = [];
         let module = service
-            .compile_procedure_for_profile(
+            .compile_procedure_with_entry(
                 tcl_runtime_api::ProcedureCompileTarget {
                     source: "return [::tcl::array::exists a]",
                     namespace: "::",
                     parameters: &parameters,
                 },
                 profile,
+                &entry,
                 tcl_runtime_api::ProcedureDispatch::Optimised,
             )
             .unwrap();

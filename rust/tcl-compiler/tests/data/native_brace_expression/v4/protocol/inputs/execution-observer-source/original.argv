@@ -1,0 +1,1 @@
+proc observe {command op} {set ::seen $command}; trace add execution expr enter observe; __argv "1 + 2"

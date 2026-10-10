@@ -2432,6 +2432,16 @@ mod compiler {
 
     impl CompileService for SeededProcCompileService {
         type Module = ModuleAsm;
+        fn compile_substitution_with_entry(
+            &self,
+            target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_substitution_with_entry(target, profile, entry)
+        }
+
         fn compile_script_bytes_for_profile(
             &self,
             target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,

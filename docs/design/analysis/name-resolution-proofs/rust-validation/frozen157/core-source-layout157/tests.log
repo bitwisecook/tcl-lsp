@@ -1,0 +1,28 @@
+
+running 14 tests
+test semantic_tokens::original::original_source_schema_tests::logical_format_colours_keep_actual_context_and_original_alias_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_pattern_colours_keep_actual_context_over_a_profiled_store ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_pattern_colours_keep_nested_and_alias_original_operand_anchors ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_qualified_head_colours_keep_original_decoded_boundaries ... 
+thread 'semantic_tokens::original::original_source_schema_tests::logical_qualified_head_colours_keep_original_decoded_boundaries' (615334) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:1339:13:
+\u003a\u003aformat {%d} 7: "schema=true original=Some(NativeWord { arena: ExecutablePartArena { image: SourceImage { bytes: [92, 117, 48, 48, 51, 97, 92, 117, 48, 48, 51, 97, 102, 111, 114, 109, 97, 116, 32, 123, 37, 100, 125, 32, 55], channel: Document, byte_hash: 13793144689677804676 }, config: LexerConfig { expand_syntax: false, irules_brace_separator: true, brace_line_continuation: Continues, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl84, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }, variables: WrittenWord, lists: [[SpannedExecutablePart { part: Text(Decoded([58, 58, 102, 111, 114, 109, 97, 116])), span: Span { start: 0, end: 18 }, source_span: Span { start: 0, end: 18 }, error_term: None }]] }, config: LexerConfig { expand_syntax: false, irules_brace_separator: true, brace_line_continuation: Continues, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl84, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }, group: WordSpan { kind: Bare, expand: false, tokens: 0..1, span: Span { start: 0, end: 18 }, welded_after_close: false, welded_after_close_quote: false }, tokens: [Token { kind: Esc, span: Span { start: 0, end: 18 }, content_offset: 0, in_quote: false }], written: Span { start: 0, end: 18 }, operand: Span { start: 0, end: 18 } }) value=Some([58, 58, 102, 111, 114, 109, 97, 116]) boundaries=Some([Some(0), None, Some(18)]) tokens=[(0, 0, 18, 1, 8), (0, 20, 1, 16, 0), (0, 21, 1, 17, 0), (0, 24, 1, 4, 0)]"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test semantic_tokens::original::original_source_schema_tests::original_expression_colours_require_actual_source_roles_and_lambda_parent_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::original_format_colours_keep_selected_availability_and_generation ... ok
+test semantic_tokens::original::original_source_schema_tests::original_pattern_colours_keep_alias_written_operands_and_captured_refusal ... ok
+test semantic_tokens::original::original_source_schema_tests::original_pattern_colours_keep_selected_availability_and_generation ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_method_roles_keep_canonical_worker_words ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_roles_decline_custom_and_deleted_command_cells ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_source_grammar_and_hosted_object_roles_remain_independent ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_source_roles_survive_reporting_map_erasure ... ok
+test semantic_tokens::original::original_source_schema_tests::retained_head_colours_keep_the_selected_full_context_descriptor_traits ... ok
+
+failures:
+
+failures:
+    semantic_tokens::original::original_source_schema_tests::logical_qualified_head_colours_keep_original_decoded_boundaries
+
+test result: FAILED. 13 passed; 1 failed; 0 ignored; 0 measured; 2637 filtered out; finished in 17.07s
+

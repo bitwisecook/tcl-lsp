@@ -1,0 +1,603 @@
+[
+  {
+    "id": "naming.grammar.checked-expression-substitution-context",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/checked-expression-substitution-context.md",
+    "problem_statement": "A retained expression may use Jim variable-name grammar or Tcl 9 comments while its native expression operator syntax comes from another selected context. Reconstructing the lexer from a baseline profile shortens Unicode roots or treats inert comment brackets as commands. Array indices also need the original scanner boundaries, including empty indices; an equal foreign byte buffer supplies no original geometry.",
+    "question": "Does the checked expression substitution bridge retain the complete supplied grammar and original lexical boundaries without claiming lazy-branch execution or reads inside a command script?",
+    "conclusion": "The bridge parses under ExprParseContext, retains its full lexer grammar, and uses scan_var_ref for index boundaries. Rejected syntax returns None. It inventories both lazy branches and stops at each command-script boundary; the caller must separately prove reads, conversions, handler selection and completion.",
+    "scope": "Rust implementation contract under the explicit contexts used by the linked tests. This record makes no C Tcl, Jim or BIG-IP observation claim, no Native entry claim and no successful evaluation claim.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/expr/substitution.rs",
+        "selector": "expr::substitution::tests::checked_substitutions_retain_overridden_variable_and_comment_grammar",
+        "assertion": "Retain overridden Jim root/index and Tcl 9 comment grammar; reject mismatching baseline and malformed syntax.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-syntax/src/expr/substitution.rs",
+        "selector": "expr::substitution::tests::checked_substitutions_keep_command_script_ownership_separate",
+        "assertion": "Inventory index reads and outer command spans while excluding variables inside the returned scripts.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-lexer/src/word_parts.rs",
+        "selector": "word_parts::tests::raw_index_geometry_keeps_empty_and_foreign_source_distinct",
+        "assertion": "Preserve the exact empty index extent and reject equal bytes from a foreign allocation.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/expr/substitution.rs",
+        "symbol": "checked_expression_substitutions",
+        "purpose": "Own checked original lexical substitution topology under the retained context."
+      },
+      {
+        "path": "rust/tcl-lexer/src/word_parts.rs",
+        "symbol": "index_range_in",
+        "purpose": "Project only an actual scanner-owned index into its supplied original byte image."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "expr::substitution::tests::checked_substitutions_retain_overridden_variable_and_comment_grammar"
+      ],
+      "limitations": "Run each listed selector in its owning crate; the argument vector shows the first selector. A coverage binding is not a recorded test execution. Native interpreter measurements are separate records."
+    }
+  },
+  {
+    "id": "naming.invocation.effective-transition-operands",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/effective-transition-operands.md",
+    "problem_statement": "Two effective operands can have equal literal values while originating from different written words or captured prefix positions. A private ensemble worker also removes prepended subcommand words. Dropping a known operand ordinal or shifting only the top-level argument offset can select the wrong producer for a state mutation.",
+    "question": "Do known and unknown transition subjects preserve their effective post-head ordinals through complete nested argv projection, while explicit authored values remain without source provenance?",
+    "conclusion": "LocatedLiteral and Unknown retain exact effective ordinals; Literal remains explicitly authored. The central projection visits every nested subject and preserves literal facets, unknown kinds, fact order and completion commits. Any unmappable ordinal withdraws the whole projection. A transformed value facet still requires its independently selected Registry purpose.",
+    "scope": "Rust implementation contract under the explicit contexts used by the linked tests. This record makes no C Tcl, Jim or BIG-IP observation claim, no Native entry claim and no successful evaluation claim.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/state_transition.rs",
+        "selector": "state_transition::tests::known_equal_operands_retain_distinct_effective_ordinals",
+        "assertion": "Equal known values at distinct ordinals remain distinct; authored values do not acquire an ordinal.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-registry/src/state_transition.rs",
+        "selector": "state_transition::tests::argv_projection_retains_nested_operands_order_and_completion_commits",
+        "assertion": "Project nested alias/frame subjects in order, retain abrupt-edge applicability and reject underflow.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-registry/src/registry.rs",
+        "selector": "registry::tests::private_registration_facts_keep_actual_operand_indices",
+        "assertion": "A selected private namespace path worker keeps argument zero for both known and dynamic operands.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/state_transition.rs",
+        "symbol": "project_argument_indices",
+        "purpose": "Own complete nested effective argv projection without equality heuristics."
+      },
+      {
+        "path": "rust/tcl-registry/src/state_transition.rs",
+        "symbol": "argument_index",
+        "purpose": "Expose source ordinal only for independently located invocation operands."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "state_transition::tests::known_equal_operands_retain_distinct_effective_ordinals"
+      ],
+      "limitations": "Run each listed selector in its owning crate; the argument vector shows the first selector. A coverage binding is not a recorded test execution. Native interpreter measurements are separate records."
+    }
+  },
+  {
+    "id": "naming.package.selected-native-unit-key",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/selected-native-unit-package-key.md",
+    "problem_statement": "A package name can contain raw zero, modified UTF zero, opaque units or a non-ASCII spelling. Using a display string or the caller source grammar as package identity can clip, collapse or reencode names under the wrong operation. Diagnostic required-package metadata also has an explicit authored producer rather than a source-word receipt.",
+    "question": "Does NativePackageNameKey apply only the package extent selected by its retained naming policy and preserve native units and producer-policy identity?",
+    "conclusion": "NativePackageNameKey stores the selected package bytes and complete NamePolicyProtocol. Its constructor accepts native units, applies the existing package purpose, and supplies no source geometry, physical package entry or successful-operation proof. ASCII Registry metadata matching is exact and case-sensitive.",
+    "scope": "Rust implementation contract under the explicit contexts used by the linked tests. This record makes no C Tcl, Jim or BIG-IP observation claim, no Native entry claim and no successful evaluation claim.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_package.rs",
+        "selector": "native_package::tests::package_name_keys_keep_native_units_and_package_extent_separate",
+        "assertion": "Keep raw-zero extent separate from modified zero, opaque units and distinct producer policies.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_package.rs",
+        "symbol": "from_native_units",
+        "purpose": "Project package identity through the independently retained package naming recipe."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_package.rs",
+        "symbol": "matches_ascii",
+        "purpose": "Match explicitly authored ASCII Registry metadata without a display conversion."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "native_package::tests::package_name_keys_keep_native_units_and_package_extent_separate"
+      ],
+      "limitations": "Run each listed selector in its owning crate; the argument vector shows the first selector. A coverage binding is not a recorded test execution. Native interpreter measurements are separate records."
+    }
+  },
+  {
+    "id": "naming.studio.source-word-role-projection",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/studio-source-word-role-projection.md",
+    "problem_statement": "The Studio sample view previously passed decoded strings to role and option queries. A computed selector, expansion or dynamic command head could therefore resemble an authored literal and receive a body role or option explanation. Clicking the sample must use the same source topology and Registry selection as other consumers.",
+    "question": "Does Studio query roles and selected option occurrences from genuine structured source words and preserve uncertainty for computed selectors and expansion?",
+    "conclusion": "Studio retains CommandTokens and independent effective value facets, queries structured Registry role and option APIs, and obtains braced body closers from the shared range owner. Computed heads and uncertain selectors or expansion remain unknown. Literal escapes and fixed-width dynamic option values keep their selected metadata; this view issues no runtime execution grant.",
+    "scope": "Rust implementation contract under the explicit contexts used by the linked tests. This record makes no C Tcl, Jim or BIG-IP observation claim, no Native entry claim and no successful evaluation claim.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-spec-studio/src/sample.rs",
+        "selector": "sample::tests::computed_selectors_and_expansion_keep_source_roles_unknown",
+        "assertion": "Computed selector, expanded definition and computed head do not gain role or recursive-body authority.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-spec-studio/src/sample.rs",
+        "selector": "sample::tests::literal_escapes_and_dynamic_value_words_share_the_registry_owner",
+        "assertion": "Escaped literal selectors and dynamic non-selector words use the Registry owner while rendering original source.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "selector": "resolved_invocation::tests::structured_option_boundary_shares_alias_abbreviation_and_value_span_rules",
+        "assertion": "Selected option occurrence ranges preserve aliases, abbreviation, fixed value widths and terminator boundaries; computed selectors decline.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "symbol": "prefix_occurrences",
+        "purpose": "Own selected prefix option/value projection using the same boundary and option resolver."
+      },
+      {
+        "path": "rust/tcl-spec-studio/src/sample.rs",
+        "symbol": "provenance",
+        "purpose": "Explain structured Registry selection without a local string option scanner."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "sample::tests::computed_selectors_and_expansion_keep_source_roles_unknown"
+      ],
+      "limitations": "Run each listed selector in its owning crate; the argument vector shows the first selector. A coverage binding is not a recorded test execution. Native interpreter measurements are separate records."
+    }
+  },
+  {
+    "id": "naming.dsl.incomplete-effect-descriptors",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/dsl-incomplete-effect-descriptors.md",
+    "problem_statement": "A SpecTcl block may contain a recognized outer semantic field with inner rows the loader cannot represent. Dropping these rows and returning an empty descriptor tells analysis that no effect occurs, even though the declared effect was never loaded. The loader and Studio renderer need to expose this parity gap truthfully.",
+    "question": "Do unsupported semantic rows and invalid composition values withdraw strong command admission instead of becoming an empty effect or transition descriptor?",
+    "conclusion": "Unsupported world_effects/state_transitions rows and invalid composition values mark the descriptor incomplete and exclude the command from strong analysis. Supported composition-only blocks and explicit world_effects none remain valid. Studio records these inner typed rows as a representational gap; unknown data is not silently promoted to EMPTY.",
+    "scope": "Rust implementation contract under the explicit contexts used by the linked tests. This record makes no C Tcl, Jim or BIG-IP observation claim, no Native entry claim and no successful evaluation claim.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation invariant; no native-language observation for this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-spectcl/src/loader.rs",
+        "selector": "loader::tests::incomplete_effect_and_transition_blocks_cannot_claim_empty_semantics",
+        "assertion": "Reject unsupported transition/world rows and invalid composition, while retaining valid composition and explicit empty world effects.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-spectcl/src/loader.rs",
+        "symbol": "state_transitions_value",
+        "purpose": "Own semantic completeness before admission."
+      },
+      {
+        "path": "rust/tcl-spectcl/src/loader.rs",
+        "symbol": "world_effects_value",
+        "purpose": "Keep incomplete data separate from explicit empty semantics."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "loader::tests::incomplete_effect_and_transition_blocks_cannot_claim_empty_semantics"
+      ],
+      "limitations": "Run each listed selector in its owning crate; the argument vector shows the first selector. A coverage binding is not a recorded test execution. Native interpreter measurements are separate records."
+    }
+  }
+]

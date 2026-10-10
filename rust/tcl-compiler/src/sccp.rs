@@ -487,6 +487,7 @@ pub struct SemanticValueProjection {
 
 #[derive(Debug, Clone, PartialEq)]
 struct OwnedValueFactInputs {
+    source_metadata_input: Option<crate::analyser::ResolvedAnalysisInput>,
     registry: tcl_registry::RegistrySnapshot,
     policy: FoldPolicy,
     param_constants: Option<HashMap<(String, crate::ssa::Version), LatticeValue>>,
@@ -519,6 +520,7 @@ impl SemanticValueProjection {
         let folds = inputs.folds;
         Self {
             inputs: Some(OwnedValueFactInputs {
+                source_metadata_input: inputs.trace.source_metadata_input.cloned(),
                 registry: inputs.trace.registry.snapshot(),
                 policy: inputs.policy,
                 param_constants: inputs.param_constants.cloned(),
@@ -549,11 +551,13 @@ impl SemanticValueProjection {
                     policy: input.policy,
                     extra_escaping: &input.extra_escaping,
                     trace: TraceInputs {
+                        source_metadata_input: input.source_metadata_input.as_ref(),
                         registry,
                         traced_variables: &input.traced_variables,
                         has_dynamic_variable_trace: input.has_dynamic_variable_trace,
                     },
                     folds: input.mutations.as_ref().map(|mutations| BuiltinFoldInputs {
+                        source_metadata_input: input.source_metadata_input.as_ref(),
                         registry,
                         mutations,
                         dialect: input.dialect,
@@ -667,6 +671,8 @@ pub fn sccp(
 /// that does hold one also gets the registry `const_fold` engine.
 #[derive(Clone, Copy)]
 pub struct BuiltinFoldInputs<'a> {
+    /// Actual immutable source availability; absent input cannot be reconstructed.
+    pub source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     /// Command / subcommand specs — the fold callbacks live here. Carried
     /// here (as well as on [`TraceInputs`]) so the statement-evaluation
     /// helpers need only this one bundle.
@@ -723,6 +729,8 @@ pub enum FoldTrust {
 /// under the clippy `too_many_arguments` ceiling.
 #[derive(Clone, Copy)]
 pub struct TraceInputs<'a> {
+    /// Complete source generation retained for observability replay.
+    pub source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     /// Resolves the variable-trace grammar for the intra-procedural
     /// [`crate::var_observability`] lattice `sccp` builds internally.
     pub registry: &'a CommandRegistry,
@@ -977,8 +985,17 @@ fn compatibility_escaping(
     if ssa.point_contexts.is_some() {
         return HashSet::new();
     }
-    let mut names = crate::var_observability::analyse_var_observability(cfg, trace.registry)
-        .escaping_var_names();
+    let metadata = trace.source_metadata_input.and_then(|input| {
+        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(trace.registry, input)
+    });
+    // No completed alias query exists without actual metadata. A tokenless
+    // compatibility graph therefore treats every named value as observable.
+    let Some(metadata) = metadata else {
+        return ssa.var_names().iter().cloned().collect();
+    };
+    let mut names = crate::var_observability::analyse_var_observability_with_metadata_context(
+        cfg, trace.registry, Some(metadata),
+    ).escaping_var_names();
     names.extend(extra.iter().cloned());
     names.extend(trace.traced_variables.iter().cloned());
     names
@@ -1642,6 +1659,15 @@ pub struct ExistenceFrame<'a> {
     pub initial_global: bool,
 }
 
+/// Command store and exact availability for variable-presence source queries.
+#[derive(Clone, Copy)]
+pub struct ExistenceMetadataInputs<'a> {
+    /// Actual graph command store.
+    pub registry: &'a CommandRegistry,
+    /// Supplied availability; absence and foreign stores refuse folding.
+    pub context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+}
+
 /// Existence folds from exact invocation and contents-presence proofs.
 /// Both optimiser rewrites and diagnostics consume this positioned entry point.
 /// Missing nested dispatch or uncertain presence declines without a name scan.
@@ -1653,11 +1679,31 @@ pub fn existence_constant_branches_with_ssa(
     config: tcl_lexer::LexerConfig,
     ssa: &SsaFunction,
 ) -> Vec<ConstantBranch> {
+    let metadata = ExistenceMetadataInputs {
+        registry,
+        context: registry.profile().map(tcl_registry::model::semantic::SemanticContext::for_profile).map(Into::into),
+    };
+    existence_constant_branches_with_ssa_with_metadata_context(cfg, frame, metadata, config, ssa)
+}
+
+/// Existence query under the supplied actual availability generation.
+#[must_use]
+pub fn existence_constant_branches_with_ssa_with_metadata_context(
+    cfg: &CfgFunction,
+    frame: ExistenceFrame<'_>,
+    metadata: ExistenceMetadataInputs<'_>,
+    config: tcl_lexer::LexerConfig,
+    ssa: &SsaFunction,
+) -> Vec<ConstantBranch> {
+    let registry = metadata.registry;
+    let Some(context) = metadata.context.filter(|context| context.matches_registry(registry)) else {
+        return Vec::new();
+    };
     let Some(points) = &ssa.point_contexts else {
-        return existence_constant_branches(
+        return existence_constant_branches_with_metadata_context(
             cfg,
             frame,
-            registry,
+            metadata,
             crate::dynamic_names::dynamic_name_barrier(cfg, registry, config),
             config,
         );
@@ -1677,7 +1723,7 @@ pub fn existence_constant_branches_with_ssa(
             };
             let tokens = points.source_tokens_at(id, usize::MAX)?;
             let (query, context) =
-                crate::existence_query::in_expr_at(condition, *base, tokens, registry, config)?;
+                crate::existence_query::in_expr_at_with_metadata_context(condition, *base, tokens, registry, config, Some(context))?;
             let place =
                 crate::var_resolve::resolve_literal_place(&query.var, &context, false, registry);
             let exists = match context.contents_presence(&place) {
@@ -1832,6 +1878,26 @@ pub fn existence_constant_branches(
     dynamic_names: crate::dynamic_names::DynamicNameBarrier,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<ConstantBranch> {
+    let metadata = ExistenceMetadataInputs {
+        registry,
+        context: registry.profile().map(tcl_registry::model::semantic::SemanticContext::for_profile).map(Into::into),
+    };
+    existence_constant_branches_with_metadata_context(cfg, frame, metadata, dynamic_names, config)
+}
+
+/// Existence query under the supplied actual availability generation.
+#[must_use]
+pub fn existence_constant_branches_with_metadata_context(
+    cfg: &CfgFunction,
+    frame: ExistenceFrame<'_>,
+    metadata: ExistenceMetadataInputs<'_>,
+    dynamic_names: crate::dynamic_names::DynamicNameBarrier,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<ConstantBranch> {
+    let registry = metadata.registry;
+    let Some(context) = metadata.context.filter(|context| context.matches_registry(registry)) else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
     if cfg.blocks.values().any(|b| {
         b.statements.iter().any(|s| {
@@ -1857,7 +1923,7 @@ pub fn existence_constant_branches(
     // `::safe::CheckInterp` guard shape (safe.tcl:109).  The scanner also
     // returns `trace` targets, which only widens the skip — conservative,
     // never a false fold.
-    let mut aliased = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
+    let mut aliased = crate::optimiser::elimination::scan_scope_aliases_with_metadata_context(cfg, registry, Some(context));
     // Object state is aliased the same way, minus a visible binding command:
     // `TclOO` links every class-level `variable` declaration into each method
     // frame at entry, so the body's own command scan cannot see it.
@@ -1912,7 +1978,7 @@ pub fn existence_constant_branches(
     if frame.initial_global {
         aliased.extend(
             tcl_registry::special_vars::special_vars_for_dialect(Some(
-                tcl_registry::special_vars::surface_query_for_profile(registry.profile()),
+                context.context().authoring_query(),
             ))
             .map(|spec| spec.name.to_owned()),
         );
@@ -1929,7 +1995,7 @@ pub fn existence_constant_branches(
             continue;
         };
         let Some(crate::existence_query::ExistenceQuery { var, negated, kind }) =
-            crate::existence_query::in_expr(condition, registry, config)
+            crate::existence_query::in_expr_with_metadata_context(condition, registry, config, Some(context))
         else {
             continue;
         };
@@ -2542,6 +2608,7 @@ fn evaluate_def_with_math<S: std::hash::BuildHasher>(
 
 #[derive(Clone, Copy)]
 struct RetainedExpressionFoldInputs<'a> {
+    source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     registry: &'a CommandRegistry,
     policy: FoldPolicy,
     math: Option<MathFoldContext<'a>>,
@@ -2555,14 +2622,14 @@ fn fold_retained_assignment_expression<S: std::hash::BuildHasher>(
     folds: Option<BuiltinFoldInputs<'_>>,
     math: Option<MathFoldContext<'_>>,
 ) -> Option<LatticeValue> {
-    let registry = folds?.registry;
+    let inputs = folds?;
+    let registry = inputs.registry;
+    let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+        registry, inputs.source_metadata_input?,
+    )?;
     let tokens = statement.statement.tokens()?;
-    let invocation = crate::registry_invocation::normal_transfer_invocation(
-        registry,
-        registry
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-        tokens,
+    let invocation = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry, Some(metadata), tokens,
     )?;
     let (_, word) = invocation
         .stored_value_operand(&tokens.source_binding.as_ref()?.variable_context, registry)?;
@@ -2573,6 +2640,7 @@ fn fold_retained_assignment_expression<S: std::hash::BuildHasher>(
         values,
         source,
         RetainedExpressionFoldInputs {
+            source_metadata_input: inputs.source_metadata_input,
             registry,
             policy,
             math,
@@ -2589,6 +2657,11 @@ fn fold_retained_expression_word<S: std::hash::BuildHasher>(
     inputs: RetainedExpressionFoldInputs<'_>,
 ) -> Option<LatticeValue> {
     let (spelling, site) = word.sole_command_substitution()?;
+    if let Some(value) = fold_original_substitution_value(
+        tokens, site, &statement.uses, values, source, inputs,
+    ) {
+        return Some(LatticeValue::Const(parse_literal_value(&value)));
+    }
     if inputs
         .math?
         .dependencies
@@ -2597,7 +2670,13 @@ fn fold_retained_expression_word<S: std::hash::BuildHasher>(
     {
         return Some(value);
     }
-    let expressions = crate::word_subst::lifted_source_expressions(Some(tokens), inputs.registry);
+    let input = inputs.source_metadata_input?;
+    let context = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(inputs.registry, input)?;
+    let mut parser = tcl_syntax::expr::parser::ExprParseContext::for_profile(input.unit_profile());
+    parser.lexer_grammar = input.lexer_config().grammar_over(parser.lexer_grammar);
+    let expressions = crate::word_subst::lifted_source_expressions_with_metadata_context(
+        Some(tokens), inputs.registry, Some(context), input.lexer_config(), parser,
+    );
     let mut matching = expressions
         .iter()
         .filter(|expression| expression.span == site.span);
@@ -2620,6 +2699,37 @@ fn fold_retained_expression_word<S: std::hash::BuildHasher>(
     .map_or(Some(LatticeValue::Overdefined), |value| {
         Some(LatticeValue::Const(value.into_const()))
     })
+}
+
+/// A selected original substitution and its complete child inventory.
+/// Missing actual input or handler identity never falls back to written names.
+fn fold_original_substitution_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+    tokens: &crate::ir::CommandTokens,
+    site: &crate::ir::SourceSite,
+    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
+    values: &HashMap<ValueKey, LatticeValue, S2>,
+    source: SsaSourceView<'_>,
+    inputs: RetainedExpressionFoldInputs<'_>,
+) -> Option<String> {
+    let input = inputs.source_metadata_input?;
+    let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(inputs.registry, input)?;
+    let calls = crate::word_subst::checked_lifted_calls(tokens, input.lexer_config().nested())?;
+    let mut selected = calls.iter().filter(|call| call.span == site.span);
+    let call = selected.next()?;
+    if selected.next().is_some() {
+        return None;
+    }
+    let lookup = |name: &str| lattice_const_text(name, uses, values, source, inputs.policy);
+    let trust = |_name: &str| false;
+    crate::const_subst::ConstSubstCtx {
+        registry: inputs.registry,
+        resolution_namespace: "::",
+        namespace_context: None,
+        version: input.unit_profile().const_fold_version(),
+        defining_class: None,
+        trusts: &trust,
+        lookup_var: &lookup,
+    }.fold_retained_call_with_metadata_context(call, &calls, metadata)
 }
 
 fn fold_prepared_invocation_expression(
@@ -2716,14 +2826,14 @@ fn fold_normal_store_value<S: std::hash::BuildHasher>(
     folds: Option<BuiltinFoldInputs<'_>>,
     math: Option<MathFoldContext<'_>>,
 ) -> Option<LatticeValue> {
-    let registry = folds?.registry;
+    let inputs = folds?;
+    let registry = inputs.registry;
+    let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+        registry, inputs.source_metadata_input?,
+    )?;
     let binding = tokens.source_binding.as_ref()?;
-    let invocation = crate::registry_invocation::normal_transfer_invocation(
-        registry,
-        registry
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-        tokens,
+    let invocation = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry, Some(metadata), tokens,
     )?;
     let (spelling, word) = invocation.stored_value_operand(&binding.variable_context, registry)?;
     if let Some(value) = fold_retained_expression_word(
@@ -2733,6 +2843,7 @@ fn fold_normal_store_value<S: std::hash::BuildHasher>(
         values,
         source,
         RetainedExpressionFoldInputs {
+            source_metadata_input: inputs.source_metadata_input,
             registry,
             policy,
             math,
@@ -3337,6 +3448,38 @@ fn fold_assign_value<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>
                 values.get(&key).cloned().unwrap_or(LatticeValue::Unknown)
             });
     }
+    if let Some(tokens) = ssa.source_tokens() {
+        let Some(inputs) = folds else {
+            return LatticeValue::Overdefined;
+        };
+        let Some(metadata) = inputs.source_metadata_input.and_then(|input| {
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(inputs.registry, input)
+        }) else {
+            return LatticeValue::Overdefined;
+        };
+        let Some(invocation) = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+            inputs.registry, Some(metadata), tokens,
+        ) else {
+            return LatticeValue::Overdefined;
+        };
+        let Some((_, word)) = tokens.source_binding.as_ref().and_then(|binding| {
+            invocation.stored_value_operand(&binding.variable_context, inputs.registry)
+        }) else {
+            return LatticeValue::Overdefined;
+        };
+        let Some((_, site)) = word.sole_command_substitution() else {
+            return LatticeValue::Overdefined;
+        };
+        return fold_original_substitution_value(
+            tokens, site, uses, values, ssa,
+            RetainedExpressionFoldInputs {
+                source_metadata_input: inputs.source_metadata_input,
+                registry: inputs.registry,
+                policy,
+                math: None,
+            },
+        ).map_or(LatticeValue::Overdefined, |value| LatticeValue::Const(parse_literal_value(&value)));
+    }
     // Legacy tokenless callers retain the unique-binding compatibility view.
     if let Some(resolved) = resolve_simple_var_ref(stripped, uses, values, ssa) {
         return resolved;
@@ -3807,11 +3950,13 @@ mod tests {
                 policy: FoldPolicy::from_registry(registry),
                 extra_escaping: &HashSet::new(),
                 trace: TraceInputs {
+                    source_metadata_input: unit.ir_module.source_metadata_input.as_ref(),
                     registry,
                     traced_variables: &unit.ir_module.traced_variables,
                     has_dynamic_variable_trace: unit.ir_module.has_dynamic_variable_trace,
                 },
                 folds: Some(BuiltinFoldInputs {
+                    source_metadata_input: unit.ir_module.source_metadata_input.as_ref(),
                     registry,
                     mutations: &unit.command_mutations,
                     dialect: registry.profile(),
@@ -4018,6 +4163,7 @@ mod tests {
             ssa,
             policy,
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry: &registry(),
                 mutations: &crate::command_binding::ModuleCommandMutations::default(),
                 dialect: None,
@@ -4043,6 +4189,7 @@ mod tests {
             param_constants,
             policy,
             TraceInputs {
+                source_metadata_input: None,
                 registry: &registry(),
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
@@ -5400,6 +5547,7 @@ mod tests {
             ssa,
             FoldPolicy::default(),
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry,
                 mutations,
                 dialect: None,
@@ -5475,6 +5623,7 @@ mod tests {
             ssa,
             FoldPolicy::default(),
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry,
                 mutations,
                 dialect: None,

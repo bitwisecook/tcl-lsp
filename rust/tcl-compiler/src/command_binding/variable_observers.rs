@@ -33,10 +33,12 @@ struct CapturedStorePublication {
 }
 
 /// The selected original opcode supplies this physical store, not a synthetic invocation.
+#[derive(Clone, Copy)]
 pub(super) struct OriginalOpcodeStore<'a> {
     pub receiver: &'a Place,
     pub reference: Option<&'a str>,
     pub value: Option<&'a str>,
+    pub name_value: Option<&'a super::original_name_value::OriginalProducedNameValue>,
     pub offset: u32,
 }
 
@@ -51,6 +53,7 @@ impl SourceCommandBindings {
             receiver,
             reference,
             value,
+            name_value,
             offset,
         } = store;
         if state.source_variables.store_would_error(receiver) {
@@ -71,6 +74,13 @@ impl SourceCommandBindings {
         Arc::make_mut(&mut state.source_variables)
             .set_contents_write_source(state.current_source_origin.clone());
         Arc::make_mut(&mut state.source_variables).publish_captured_store(&receiver, value, offset);
+        if let Some(value) = name_value {
+            Arc::make_mut(&mut state.source_variables).retain_original_name_value(
+                &receiver,
+                value,
+                context.registry,
+            );
+        }
         let outcomes = self.walk_variable_observers(
             offset,
             &receiver,
@@ -120,6 +130,7 @@ impl SourceCommandBindings {
             facts,
             &state.source_variables,
             context.registry,
+            native.original_variable_operands,
         )?;
         let receiver = &receiver;
         if reads.iter().all(|read| !read.observed)
@@ -208,21 +219,23 @@ impl SourceCommandBindings {
             return None;
         };
         if !closed_variable_effects(facts)
-            || !crate::variable_bindings::source_variable_write_places(
+            || !crate::variable_bindings::source_variable_write_places_with_original_operands(
                 facts,
                 native.invocation.arguments(),
                 &state.source_variables,
                 context.registry,
+                native.original_variable_operands,
             )
             .is_empty()
         {
             return None;
         }
-        let reads = crate::variable_bindings::source_variable_read_places(
+        let reads = crate::variable_bindings::source_variable_read_places_with_original_operands(
             facts,
             native.invocation.arguments(),
             &state.source_variables,
             context.registry,
+            native.original_variable_operands,
         );
         let [receiver] = reads.as_slice() else {
             return None;
@@ -442,7 +455,12 @@ impl SourceCommandBindings {
         Arc::make_mut(&mut state.source_variables)
             .set_contents_write_source(state.current_source_origin.clone());
         let before_store = state.clone();
-        state.record_provider_state_writes(facts, *native.invocation, context.registry);
+        state.record_provider_state_writes(
+            facts,
+            *native.invocation,
+            context.registry,
+            native.original_variable_operands,
+        );
         Arc::make_mut(&mut state.source_variables).publish_captured_store(
             &receiver,
             value.as_deref(),
@@ -495,7 +513,6 @@ impl SourceCommandBindings {
         if !closed_variable_effects(facts) {
             return None;
         }
-        let arguments = native.invocation.arguments();
         let roles: Vec<_> = facts
             .arg_roles
             .iter()
@@ -504,19 +521,27 @@ impl SourceCommandBindings {
         let [(index, _)] = roles.as_slice() else {
             return None;
         };
-        let name = arguments.literal_at(facts.argument_offset + usize::from(*index))?;
-        if state
-            .source_variables
-            .raw_static_unset_error(name, context.registry)
+        let index = facts.argument_offset + usize::from(*index);
+        if native
+            .original_variable_operands
+            .raw_unset_slot(index, &state.source_variables, context.registry)
+            .is_some_and(|slot| state.source_variables.raw_static_unset_error_at_slot(&slot))
         {
             return None;
         }
-        let receiver = crate::var_resolve::resolve_literal_access(
-            name,
+        let name = std::str::from_utf8(
+            native
+                .original_variable_operands
+                .input(index, &state.source_variables)?
+                .bytes(),
+        )
+        .ok()?;
+        let receiver = native.original_variable_operands.access(
+            index,
             &state.source_variables,
-            false,
             context.registry,
             TraceOperation::Unset,
+            false,
         );
         if let Some(plan) = Arc::make_mut(&mut state.source_variables).begin_array_destruction(
             &receiver,
@@ -671,9 +696,9 @@ impl SourceCommandBindings {
                 index_argument,
                 crate::registry_invocation::EffectiveInvocationWord::Literal(name.to_owned()),
             ];
-            let mut delivered = self.walk_reached_callback_prefix(
+            let mut delivered = self.walk_reached_variable_callback_prefix(
                 site,
-                Some(&callback.prefix),
+                &callback.prefix,
                 &arguments,
                 state,
                 context,
@@ -701,7 +726,7 @@ impl SourceCommandBindings {
     fn possible_observers_are_neutral(
         &mut self,
         request: (u32, &Place, Option<&str>, TraceOperation),
-        prefixes: &[String],
+        prefixes: &[crate::var_resolve::VariableTracePrefix],
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> bool {
@@ -726,9 +751,9 @@ impl SourceCommandBindings {
                     operation_name.to_owned(),
                 ),
             ];
-            let mut delivered = self.walk_reached_callback_prefix(
+            let mut delivered = self.walk_reached_variable_callback_prefix(
                 site,
-                Some(prefix),
+                prefix,
                 &arguments,
                 &mut possible,
                 context,
@@ -746,6 +771,29 @@ impl SourceCommandBindings {
             }
         }
         true
+    }
+
+    fn walk_reached_variable_callback_prefix(
+        &mut self,
+        site: u32,
+        prefix: &crate::var_resolve::VariableTracePrefix,
+        arguments: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        match prefix {
+            crate::var_resolve::VariableTracePrefix::Authored(prefix) => {
+                self.walk_reached_callback_prefix(site, Some(prefix), arguments, state, context)
+            }
+            crate::var_resolve::VariableTracePrefix::Original(prefix) => self
+                .walk_reached_original_callback_prefix(
+                    site,
+                    Some(prefix.input()),
+                    arguments,
+                    state,
+                    context,
+                ),
+        }
     }
 }
 
@@ -786,6 +834,13 @@ fn captured_read_result(
                 &state.source_variables,
             )
             .map(Arc::new);
+    }
+    if let Some(read) = state
+        .source_variables
+        .original_name_read_result(&receiver, registry)
+        && read.is_current(&state.source_variables, registry)
+    {
+        outcomes.normal_name_value = Some(Arc::new(read.value().clone()));
     }
     if let Some(value) = state
         .source_variables
@@ -864,14 +919,17 @@ fn captured_native_receiver(
     facts: &tcl_registry::InvocationFacts,
     state: &crate::var_resolve::ResolveContext,
     registry: &tcl_registry::CommandRegistry,
+    operands: &crate::variable_bindings::OriginalVariableInvocation,
 ) -> Option<(Place, Vec<Place>)> {
-    let writes =
-        crate::variable_bindings::source_variable_write_places(facts, arguments, state, registry);
+    let writes = crate::variable_bindings::source_variable_write_places_with_original_operands(
+        facts, arguments, state, registry, operands,
+    );
     let [receiver] = writes.as_slice() else {
         return None;
     };
-    let reads =
-        crate::variable_bindings::source_variable_read_places(facts, arguments, state, registry);
+    let reads = crate::variable_bindings::source_variable_read_places_with_original_operands(
+        facts, arguments, state, registry, operands,
+    );
     Some((receiver.clone(), reads))
 }
 
@@ -1012,7 +1070,8 @@ fn observer_name_arguments(
             .index
             .as_ref()
             .filter(|index| index.kind == crate::place::IndexKind::Literal)
-            .map_or(Dynamic, |index| Literal(index.value.clone()))
+            .and_then(|index| index.value.try_utf8().ok())
+            .map_or(Dynamic, |index| Literal(index.to_owned()))
     };
     (Literal(root.to_owned()), index)
 }
@@ -1082,6 +1141,44 @@ mod tests {
                 ..Default::default()
             },
         )
+    }
+
+    fn original_constant_at(
+        context: &crate::var_resolve::ResolveContext,
+        source: &str,
+        receiver_offset: usize,
+    ) -> Option<String> {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let word = plan
+            .commands
+            .iter()
+            .flat_map(|command| &command.words)
+            .find(|word| usize::try_from(word.span().start()).unwrap() == receiver_offset)?;
+        let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+            crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                context.execution_name_policy?.native_recipe()?,
+            )?,
+        );
+        let receiver = crate::var_resolve::resolve_original_name_input(
+            &input,
+            context,
+            &registry,
+            false,
+            tcl_registry::TraceOperation::Write,
+        );
+        let key = crate::var_resolve::canonical_binding_value_key(&receiver)?;
+        context.constant_values.get(&key).cloned()
     }
 
     fn original_length_at(bindings: &SourceCommandBindings, source: &str) -> bool {
@@ -1172,11 +1269,12 @@ mod tests {
         );
         assert!(original_length_at(&bindings, source));
         assert_eq!(
-            final_call
-                .variable_context
-                .constant_values
-                .get("::a")
-                .map(String::as_str),
+            original_constant_at(
+                &final_call.variable_context,
+                source,
+                source.find("a 10").unwrap()
+            )
+            .as_deref(),
             Some("101")
         );
     }
@@ -1216,19 +1314,21 @@ mod tests {
         );
         assert!(original_length_at(&bindings, source));
         assert_eq!(
-            final_call
-                .variable_context
-                .constant_values
-                .get("::a")
-                .map(String::as_str),
+            original_constant_at(
+                &final_call.variable_context,
+                source,
+                source.find("a 10").unwrap()
+            )
+            .as_deref(),
             Some("11")
         );
         assert_eq!(
-            final_call
-                .variable_context
-                .constant_values
-                .get("::b")
-                .map(String::as_str),
+            original_constant_at(
+                &final_call.variable_context,
+                source,
+                source.find("b 100").unwrap()
+            )
+            .as_deref(),
             Some("100")
         );
         assert_eq!(
@@ -1279,11 +1379,12 @@ mod tests {
             u32::try_from(source.rfind("llength").unwrap()).unwrap(),
         );
         assert_eq!(
-            final_call
-                .variable_context
-                .constant_values
-                .get("::a")
-                .map(String::as_str),
+            original_constant_at(
+                &final_call.variable_context,
+                source,
+                source.find("a; llength").unwrap()
+            )
+            .as_deref(),
             Some("21")
         );
     }
@@ -1297,11 +1398,12 @@ mod tests {
             u32::try_from(source.rfind("llength").unwrap()).unwrap(),
         );
         assert_eq!(
-            final_call
-                .variable_context
-                .constant_values
-                .get("::copy")
-                .map(String::as_str),
+            original_constant_at(
+                &final_call.variable_context,
+                source,
+                source.find("copy $a").unwrap()
+            )
+            .as_deref(),
             Some("100")
         );
     }
@@ -1316,11 +1418,12 @@ mod tests {
             u32::try_from(source.rfind("llength").unwrap()).unwrap(),
         );
         assert_eq!(
-            final_call
-                .variable_context
-                .constant_values
-                .get("::copy")
-                .map(String::as_str),
+            original_constant_at(
+                &final_call.variable_context,
+                source,
+                source.find("copy [set a]").unwrap()
+            )
+            .as_deref(),
             Some("100")
         );
     }

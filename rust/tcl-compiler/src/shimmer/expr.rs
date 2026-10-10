@@ -60,6 +60,7 @@ use super::hints::is_uncommitted_first_conversion;
 ///    the retained actual source reference, including changes performed by
 ///    an earlier substitution in the same expression.
 #[must_use]
+#[cfg(test)]
 pub(crate) fn find_expr_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -69,10 +70,32 @@ pub(crate) fn find_expr_shimmers(
     registry: &tcl_registry::CommandRegistry,
     facts: &super::ShimmerFacts,
 ) -> Vec<ShimmerWarning> {
+    find_expr_shimmers_with_context(
+        cfg,
+        ssa,
+        types,
+        executable_blocks,
+        values,
+        super::ShimmerContext::standalone(registry),
+        facts,
+    )
+}
+
+pub(crate) fn find_expr_shimmers_with_context(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    types: &HashMap<ValueKey, TypeLattice>,
+    executable_blocks: &HashSet<BlockId>,
+    values: &HashMap<ValueKey, LatticeValue>,
+    context: super::ShimmerContext<'_>,
+    facts: &super::ShimmerFacts,
+) -> Vec<ShimmerWarning> {
+    let registry = context.registry();
     let mut out = Vec::new();
     let loop_blocks = &facts.loop_blocks;
     let commit_ctx = super::commit::CommitCtx {
         registry,
+        context,
         ssa,
         source: crate::ssa::SsaSourceView::unpositioned(ssa),
         types,
@@ -145,17 +168,10 @@ pub(crate) fn find_expr_shimmers(
                 // lowerer already made it the `AssignExpr` above — so the two
                 // arms cannot both report the same expression.
                 Statement::Call { tokens, .. } | Statement::AssignValue { tokens, .. } => {
-                    let mut expressions = crate::word_subst::lifted_representation_expressions(
-                        tokens.as_ref(),
-                        registry,
-                    );
+                    let mut expressions = context.lifted_expressions(tokens.as_ref());
                     if matches!(ss.statement, Statement::Call { .. })
                         && let Some(tokens) = tokens
-                        && let Some(expression) = crate::word_subst::representation_expression_at(
-                            tokens,
-                            registry,
-                            ss.statement.span(),
-                        )
+                        && let Some(expression) = context.expression(tokens, ss.statement.span())
                     {
                         expressions.push(expression);
                     }
@@ -338,15 +354,7 @@ impl ExprShimmerCtx<'_> {
                 .map_or(self.stmt_span, |(_, source)| source.span);
         }
         if let Some(base) = self.expr_base
-            && let Some(dialect) = self
-                .source
-                .source_tokens()
-                .and_then(|tokens| tokens.source_binding.as_ref())
-                .and_then(|binding| binding.variable_context.invocation_dialect)
-            && let Some(span) = node.variable_source_span(
-                base,
-                tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-            )
+            && let Some(span) = node.variable_source_span(base, self.commit.config())
         {
             return span;
         }
@@ -792,6 +800,7 @@ mod tests {
     ) -> Vec<ShimmerWarning> {
         let ctx = super::super::commit::CommitCtx {
             registry,
+            context: crate::shimmer::ShimmerContext::standalone(registry),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
@@ -835,6 +844,7 @@ mod tests {
         let fu = cu.function("::top").unwrap();
         let cctx = super::super::commit::CommitCtx {
             registry: &r,
+            context: crate::shimmer::ShimmerContext::standalone(&r),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,

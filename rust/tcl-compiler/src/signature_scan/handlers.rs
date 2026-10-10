@@ -177,19 +177,23 @@ pub(super) fn handle_proc(
     if texts.len() <= name_at.max(params_at).max(body_at) {
         return;
     }
-    if !super::params::param_word_is_literal(
-        argv[name_at].kind,
-        single_token_word.get(name_at).copied().unwrap_or(false),
-    ) {
+    if ctx.original_name_key(argv[name_at].span).is_none()
+        && !super::params::param_word_is_literal(
+            argv[name_at].kind,
+            single_token_word.get(name_at).copied().unwrap_or(false),
+        )
+    {
         return;
     }
     let raw_name = &texts[name_at];
     let Some(scope) = ctx.current_namespace(ns_prefix) else {
         return;
     };
-    let Some((qualified, simple, body_scope, source_name)) =
-        ctx.procedure_name_in_context(&scope, raw_name)
-    else {
+    let Some((qualified, simple, body_scope, source_name)) = ctx.procedure_name_in_context(
+        &scope,
+        raw_name,
+        ctx.original_name_key(argv[name_at].span).as_ref(),
+    ) else {
         return;
     };
     let name_range = argv[name_at].span;
@@ -211,6 +215,7 @@ pub(super) fn handle_proc(
         body_namespace: body_scope.clone(),
         params,
         params_computed,
+        formal_count: ctx.formal_count(argv[params_at].span),
         name_range,
         body_range,
     });
@@ -263,9 +268,11 @@ pub(super) fn handle_opt_proc(
     let Some(scope) = ctx.current_namespace(ns_prefix) else {
         return;
     };
-    let Some((qualified, simple, body_scope, source_name)) =
-        ctx.procedure_name_in_context(&scope, raw_name)
-    else {
+    let Some((qualified, simple, body_scope, source_name)) = ctx.procedure_name_in_context(
+        &scope,
+        raw_name,
+        ctx.original_name_key(argv[1].span).as_ref(),
+    ) else {
         return;
     };
     let name_range = argv[1].span;
@@ -285,6 +292,9 @@ pub(super) fn handle_opt_proc(
         // The `opt` runtime always installs a plain literal `args`
         // catch-all, so the recorded formals are known, not computed.
         params_computed: false,
+        formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+            tcl_dialect::ParameterGrammar::Tcl,
+        ),
         name_range,
         body_range,
     });
@@ -322,7 +332,7 @@ pub(super) fn handle_namespace_eval(
         return;
     }
     let raw_ns = &texts[2];
-    let Some(scope) = ctx.namespace_context(ns_prefix, raw_ns) else {
+    let Some(scope) = ctx.namespace_context(ns_prefix, raw_ns, argv[2].span) else {
         return;
     };
     if argv[3].kind == TokenType::Str {
@@ -363,7 +373,10 @@ pub(super) fn handle_namespace_forget_in_context(
             continue;
         }
         let Some(parts) = selected_namespace_pattern(
-            &forgetting_ns, raw, policy, namespace,
+            &forgetting_ns,
+            raw,
+            policy,
+            namespace,
             tcl_syntax::naming::NativeNamePurpose::NamespaceForgetPattern,
         ) else {
             i += 1;
@@ -418,7 +431,10 @@ pub(super) fn handle_namespace_import_in_context(
             continue;
         }
         let Some(parts) = selected_namespace_pattern(
-            &importing_ns, pattern_raw, policy, namespace,
+            &importing_ns,
+            pattern_raw,
+            policy,
+            namespace,
             tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
         ) else {
             i += 1;
@@ -450,31 +466,56 @@ fn selected_namespace_pattern(
 ) -> Option<tcl_syntax::naming::NativeNamespacePatternParts> {
     let policy = policy?;
     match namespace {
-        Some(namespace) => policy.recipe().namespace_pattern_parts(
-            namespace.context()?, written.as_bytes(), purpose,
-        ).ok(),
-        None => SignatureNamespaceImportSource::pattern_parts_with_policy(current, written, policy, purpose),
+        Some(namespace) => policy
+            .recipe()
+            .namespace_pattern_parts(namespace.context()?, written.as_bytes(), purpose)
+            .ok(),
+        None => SignatureNamespaceImportSource::pattern_parts_with_policy(
+            current, written, policy, purpose,
+        ),
     }
 }
 
 #[cfg(test)]
 fn handle_namespace_import(
-    texts: &[String], argv: &[Token], ns_prefix: &str,
-    sub_spec: Option<&tcl_registry::SubCommand>, result: &mut SignatureScanResult,
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    sub_spec: Option<&tcl_registry::SubCommand>,
+    result: &mut SignatureScanResult,
 ) {
-    handle_namespace_import_in_context(texts, argv, ns_prefix,
-        Some(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6)),
-        None, sub_spec, result);
+    handle_namespace_import_in_context(
+        texts,
+        argv,
+        ns_prefix,
+        Some(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(
+            tcl_dialect::TclVersion::V8_6,
+        )),
+        None,
+        sub_spec,
+        result,
+    );
 }
 
 #[cfg(test)]
 fn handle_namespace_forget(
-    texts: &[String], argv: &[Token], ns_prefix: &str,
-    sub_spec: Option<&tcl_registry::SubCommand>, result: &mut SignatureScanResult,
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    sub_spec: Option<&tcl_registry::SubCommand>,
+    result: &mut SignatureScanResult,
 ) {
-    handle_namespace_forget_in_context(texts, argv, ns_prefix,
-        Some(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6)),
-        None, sub_spec, result);
+    handle_namespace_forget_in_context(
+        texts,
+        argv,
+        ns_prefix,
+        Some(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(
+            tcl_dialect::TclVersion::V8_6,
+        )),
+        None,
+        sub_spec,
+        result,
+    );
 }
 
 /// Handler for `package require ?-exact? NAME ?requirement ...?`.
@@ -506,6 +547,8 @@ pub(super) fn handle_package_require(
     let requirements = texts[idx + 1..].to_vec();
     let version = requirements.first().cloned();
     result.package_requires.push(SignaturePackageRequire {
+        original_name: None,
+        original_requirements: vec![None; requirements.len()],
         name: pkg_name,
         version,
         requirements,
@@ -552,6 +595,7 @@ pub(super) fn handle_source(
     let raw = texts[idx].clone();
     let is_literal = !raw.contains('$') && !raw.contains('[');
     result.source_targets.push(SignatureSource {
+        original_interpreter_source_load: None,
         raw_path: raw,
         range: argv[idx].span,
         is_literal,
@@ -710,6 +754,8 @@ pub(super) fn maybe_record_factory_candidate(
         return;
     }
     ctx.candidates.push(FactoryCandidate {
+        original_head: ctx.original_name_key(argv[0].span),
+        original_name: ctx.original_name_key(argv[1].span),
         head: head.to_string(),
         name: name.clone(),
         name_tok: argv[1],

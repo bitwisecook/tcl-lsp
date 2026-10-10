@@ -18,10 +18,13 @@
 
 //! `trace` — monitor variable accesses, command usages and executions.
 use crate::prelude::*;
+use crate::resolved_invocation::VariableReceiverOperandForm;
 use crate::world_effect::{
     EffectAccess, EffectAccessMode, EffectFootprint, InterpreterScope, NamespaceScope, SubjectScope,
 };
-use tcl_cmd_core::trace::{TraceKind, parse_legacy_variable_ops, parse_ops, resolve_type};
+use tcl_cmd_core::trace::{
+    TraceKind, parse_legacy_variable_ops, parse_ops, resolve_type, resolve_type_bytes,
+};
 use tcl_dialect::model::Family;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::surface;
@@ -60,10 +63,10 @@ fn validate_modern_trace_operations(
     if arguments.exact_argv_len() != Some(5) {
         return LiteralArgumentValidation::Abstain(LiteralValidationDecline::IncompleteInvocation);
     }
-    let Some(type_word) = arguments.literal_at(1) else {
+    if arguments.literal_at(1).is_none() && arguments.native_bytes_at(1).is_none() {
         return LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument);
-    };
-    let Ok(kind) = resolve_type(type_word) else {
+    }
+    let Some(kind) = resolve_trace_type_at(arguments, 1) else {
         return LiteralArgumentValidation::Abstain(LiteralValidationDecline::InvalidDiscriminator);
     };
     let Some(op_list) = arguments.literal_at(3) else {
@@ -501,13 +504,17 @@ fn trace_operation(operation: &str) -> Option<TraceOperation> {
 
 fn trace_operations(kind: TraceKind, op_list: TransitionSubject) -> Option<TraceOperationSet> {
     match op_list {
-        TransitionSubject::Literal(op_list) => parse_ops(op_list.as_bytes(), kind)
-            .ok()?
-            .into_iter()
-            .map(trace_operation)
-            .collect::<Option<Vec<_>>>()
-            .map(TraceOperationSet::Known),
-        unknown @ TransitionSubject::Unknown { .. } => Some(TraceOperationSet::Unknown(unknown)),
+        TransitionSubject::Literal(op_list)
+        | TransitionSubject::LocatedLiteral { value: op_list, .. } => {
+            parse_ops(op_list.as_bytes(), kind)
+                .ok()?
+                .into_iter()
+                .map(trace_operation)
+                .collect::<Option<Vec<_>>>()
+                .map(TraceOperationSet::Known)
+        }
+        unknown @ (TransitionSubject::LocatedNativeBytes { .. }
+        | TransitionSubject::Unknown { .. }) => Some(TraceOperationSet::Unknown(unknown)),
     }
 }
 
@@ -519,7 +526,7 @@ fn trace_state_transition(
     if arguments.exact_argv_len() != Some(5) {
         return transitions;
     }
-    let Some(kind) = arguments.literal_at(1).and_then(resolve_trace_type) else {
+    let Some(kind) = resolve_trace_type_at(arguments, 1) else {
         return transitions;
     };
     let (Some(target), Some(op_list), Some(prefix)) = (
@@ -562,7 +569,10 @@ fn trace_remove_state_transitions(arguments: InvocationArguments<'_>) -> StateTr
 
 fn legacy_trace_operations(op_string: TransitionSubject) -> Option<TraceOperationSet> {
     match op_string {
-        TransitionSubject::Literal(op_string) => {
+        TransitionSubject::Literal(op_string)
+        | TransitionSubject::LocatedLiteral {
+            value: op_string, ..
+        } => {
             // The legacy parser already yields the same canonical set the
             // modern one does, so both spellings model identically.
             parse_legacy_variable_ops(op_string.as_bytes())
@@ -572,7 +582,8 @@ fn legacy_trace_operations(op_string: TransitionSubject) -> Option<TraceOperatio
                 .collect::<Option<Vec<_>>>()
                 .map(TraceOperationSet::Known)
         }
-        unknown @ TransitionSubject::Unknown { .. } => Some(TraceOperationSet::Unknown(unknown)),
+        unknown @ (TransitionSubject::LocatedNativeBytes { .. }
+        | TransitionSubject::Unknown { .. }) => Some(TraceOperationSet::Unknown(unknown)),
     }
 }
 
@@ -643,7 +654,7 @@ fn trace_world_effects(
     vivifies_variable: bool,
 ) -> EffectFootprint {
     let mut footprint = EffectFootprint::default();
-    let Some(kind) = arguments.literal_at(1).and_then(resolve_trace_type) else {
+    let Some(kind) = resolve_trace_type_at(arguments, 1) else {
         return footprint;
     };
     let Some(target) = arguments.literal_at(2) else {
@@ -760,6 +771,14 @@ fn resolve_trace_type(word: &str) -> Option<TraceKind> {
     resolve_type(word).ok()
 }
 
+fn resolve_trace_type_at(arguments: InvocationArguments<'_>, index: usize) -> Option<TraceKind> {
+    if let Some(original) = arguments.native_bytes_at(index) {
+        let protocol = arguments.dialect()?.native_index_lookup_protocol()?;
+        return resolve_type_bytes(protocol.selected_input(original)).ok();
+    }
+    arguments.literal_at(index).and_then(resolve_trace_type)
+}
+
 /// Arg-role resolver for `trace add`.
 ///
 /// `trace add variable name ops commandPrefix` writes to `name` —
@@ -770,34 +789,35 @@ fn resolve_trace_type(word: &str) -> Option<TraceKind> {
 /// unique-prefix abbreviation of it, e.g. `var`/`v`) so
 /// `trace add execution` and `trace add command` (which take a
 /// command name, not a variable) don't appear as SSA defs.
-fn trace_add_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() < 2 {
-        return Vec::new();
-    }
-    match args.first().and_then(|w| resolve_trace_type(w)) {
-        // The traced variable can be rewritten by the handler, so SSA must see
-        // `name` as a definition site.
-        Some(TraceKind::Variable) => vec![(1, ArgRole::VarWrite)],
-        // `command` / `execution` trace a command by name — a reference
-        // navigation follows to the named command (not invoked here; the
-        // handler prefix that follows is a separate `CommandPrefix`).
-        Some(TraceKind::Command | TraceKind::Execution) => vec![(1, ArgRole::CommandName)],
-        _ => Vec::new(),
-    }
+/// Only the type selector chooses a subject role. The subject and callback
+/// may be counted byte objects without an analytical Unicode spelling.
+fn trace_subject_layout_roles(
+    arguments: InvocationArguments<'_>,
+    variable_role: ArgRole,
+    count: usize,
+) -> Option<Vec<(u8, ArgRole)>> {
+    (arguments.exact_argv_len() == Some(count)).then_some(())?;
+    let kind = resolve_trace_type_at(arguments, 0)?;
+    Some(match kind {
+        TraceKind::Variable => vec![(1, variable_role)],
+        TraceKind::Command | TraceKind::Execution => vec![(1, ArgRole::CommandName)],
+    })
 }
 
-/// Same arg-role pattern for `trace remove variable` — keeps
-/// registry consistency with `trace add variable` so consumers can
-/// query both spellings via the same `ArgRole::VarWrite` lookup.
-fn trace_remove_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() < 2 {
-        return Vec::new();
-    }
-    match args.first().and_then(|w| resolve_trace_type(w)) {
-        Some(TraceKind::Variable) => vec![(1, ArgRole::VarWrite)],
-        Some(TraceKind::Command | TraceKind::Execution) => vec![(1, ArgRole::CommandName)],
-        _ => Vec::new(),
-    }
+fn trace_mutation_layout_roles(
+    arguments: InvocationArguments<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    // A trace callback can rewrite the subject. Existing SSA/effect roles
+    // retain VarWrite; source naming consumers treat TraceSubject as a reference.
+    trace_subject_layout_roles(arguments, ArgRole::VarWrite, 4)
+}
+
+fn trace_info_layout_roles(
+    arguments: InvocationArguments<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    trace_subject_layout_roles(arguments, ArgRole::VarRead, 2)
 }
 
 /// The invoked arity of a `trace add/remove <type> name ops cmdPrefix`
@@ -822,7 +842,7 @@ fn trace_type_command_prefix(
         return Vec::new();
     }
     let arity = if installing {
-        let Some(kind) = args.literal_at(0).and_then(resolve_trace_type) else {
+        let Some(kind) = resolve_trace_type_at(args.words(), 0) else {
             return vec![(3, AppendedArity::Unknown)];
         };
         let Some(operation_list) = args.literal_at(2) else {
@@ -866,8 +886,11 @@ fn trace_add_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, Appe
     trace_type_command_prefix(args, true)
 }
 
-fn trace_add_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() > 3)
+fn trace_add_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count > 3)
         .then_some((3, ScriptTiming::Deferred))
         .into_iter()
         .collect()
@@ -877,8 +900,11 @@ fn trace_remove_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, A
     trace_type_command_prefix(args, false)
 }
 
-fn trace_remove_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() > 3)
+fn trace_remove_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count > 3)
         .then_some((3, ScriptTiming::ReferenceOnly))
         .into_iter()
         .collect()
@@ -907,8 +933,11 @@ fn trace_variable_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8,
     trace_legacy_command_prefix(args, true)
 }
 
-fn trace_variable_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() > 2)
+fn trace_variable_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count > 2)
         .then_some((2, ScriptTiming::Deferred))
         .into_iter()
         .collect()
@@ -918,8 +947,11 @@ fn trace_vdelete_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, 
     trace_legacy_command_prefix(args, false)
 }
 
-fn trace_vdelete_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() > 2)
+fn trace_vdelete_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count > 2)
         .then_some((2, ScriptTiming::ReferenceOnly))
         .into_iter()
         .collect()
@@ -1051,18 +1083,13 @@ const TRACE_LEGACY_OPS_VALUES: &[ArgValue] = &[
     },
 ];
 
-/// Arg-role resolver for the deprecated `trace variable name ops
-/// command` / `trace vdelete name ops command` legacy forms — the
-/// variable name is the word immediately after the subcommand
-/// (relative index 0), mirroring [`trace_add_arg_roles`] for the
-/// modern `trace add variable` spelling so SSA sees the same
-/// definition-site behaviour regardless of which form the source
-/// uses.
-fn trace_legacy_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.is_empty() {
-        return Vec::new();
+/// Legacy variable trace names occupy the first exact argv position.
+fn trace_legacy_count_roles(count: usize) -> Vec<(u8, ArgRole)> {
+    if count == 3 {
+        vec![(0, ArgRole::VarWrite)]
+    } else {
+        Vec::new()
     }
-    vec![(0, ArgRole::VarWrite)]
 }
 
 static SUBCOMMANDS: &[SubCommand] = &[
@@ -1079,7 +1106,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "trace add type name ops commandPrefix",
         return_type: Some(TclType::String),
         mutator: true,
-        arg_role_resolver: Some(trace_add_arg_roles),
+        variable_receivers: Some(&[(1, VariableReceiverOperandForm::TraceSubject)]),
+        arg_role_layout_resolver: Some(trace_mutation_layout_roles),
         arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::CommandName],
         command_prefix_resolver: Some(trace_add_command_prefixes),
         script_timing_resolver: Some(trace_add_script_timing),
@@ -1112,6 +1140,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return a list of the traces currently set on the command or variable name, one element per trace, each itself a two-element {opList commandPrefix} list, or an empty list if none are set. For type command or execution, a nonexistent name throws an error; for type variable, a nonexistent name likewise just yields an empty list.",
         synopsis: "trace info type name",
+        variable_receivers: Some(&[(1, VariableReceiverOperandForm::TraceSubject)]),
+        arg_role_layout_resolver: Some(trace_info_layout_roles),
+        arg_role_resolver_roles: &[ArgRole::VarRead, ArgRole::CommandName],
         pure: true,
         return_type: Some(TclType::List),
         result_stability: Some(ResultStability::ReadsVersionedWorld(
@@ -1143,7 +1174,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "trace remove type name opList commandPrefix",
         return_type: Some(TclType::String),
         mutator: true,
-        arg_role_resolver: Some(trace_remove_arg_roles),
+        variable_receivers: Some(&[(1, VariableReceiverOperandForm::TraceSubject)]),
+        arg_role_layout_resolver: Some(trace_mutation_layout_roles),
         arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::CommandName],
         command_prefix_resolver: Some(trace_remove_command_prefixes),
         script_timing_resolver: Some(trace_remove_script_timing),
@@ -1173,7 +1205,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "trace variable name ops command",
         return_type: Some(TclType::String),
         mutator: true,
-        arg_role_resolver: Some(trace_legacy_arg_roles),
+        variable_receivers: Some(&[(0, VariableReceiverOperandForm::TraceSubject)]),
+        arg_role_count_resolver: Some(trace_legacy_count_roles),
         arg_role_resolver_roles: &[ArgRole::VarWrite],
         command_prefix_resolver: Some(trace_variable_command_prefixes),
         script_timing_resolver: Some(trace_variable_script_timing),
@@ -1212,7 +1245,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "trace vdelete name ops command",
         return_type: Some(TclType::String),
         mutator: true,
-        arg_role_resolver: Some(trace_legacy_arg_roles),
+        variable_receivers: Some(&[(0, VariableReceiverOperandForm::TraceSubject)]),
+        arg_role_count_resolver: Some(trace_legacy_count_roles),
         arg_role_resolver_roles: &[ArgRole::VarWrite],
         command_prefix_resolver: Some(trace_vdelete_command_prefixes),
         script_timing_resolver: Some(trace_vdelete_script_timing),
@@ -1242,6 +1276,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return trace information for the given variable: one element per trace, each a two-element {ops command} list. Unlike trace info variable, whose first element is a word list, ops here is the legacy single-letter string (a/r/w/u), rendered in the fixed order r, w, u, a — so a trace on reads and writes reports rw. Covers traces added by either spelling. Deprecated throughout 8.4-8.6; removed in Tcl 9.0.",
         synopsis: "trace vinfo name",
+        variable_receivers: Some(&[(0, VariableReceiverOperandForm::TraceSubject)]),
+        arg_roles: &[(0, ArgRole::VarRead)],
         pure: true,
         return_type: Some(TclType::List),
         result_stability: Some(ResultStability::ReadsVersionedWorld(&[
@@ -1296,6 +1332,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "trace",
+        script_lookup_scope: Some(crate::ScriptLookupScope::TriggerFrame),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
@@ -1351,6 +1388,72 @@ mod tests {
         CommandRegistry, InvocationWord, InvocationWordKind, StateTransitionFact,
         StateTransitionWidening,
     };
+
+    #[test]
+    fn original_trace_type_roles_use_selected_native_index_extent_without_cache_authority() {
+        // Implementation contract: naming.variable.trace-source-receiver-purpose
+        // docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            for (bytes, kind) in [
+                (b"var\0\xff".as_slice(), Some(TraceKind::Variable)),
+                (b"comm\0\xff".as_slice(), Some(TraceKind::Command)),
+                (b"exec\0\xff".as_slice(), Some(TraceKind::Execution)),
+                (b"var\xc0\x80\xff".as_slice(), None),
+                (b"\0variable".as_slice(), None),
+                (b"variableX".as_slice(), None),
+            ] {
+                let words = [
+                    InvocationWord::KnownBytes(bytes),
+                    InvocationWord::KnownBytes(b"v\0tail(k)"),
+                ];
+                let arguments = InvocationArguments::structured(&words).with_dialect(dialect);
+                assert!(resolve_trace_type_at(arguments, 0) == kind, "{version:?}");
+                let roles = trace_subject_layout_roles(arguments, ArgRole::VarRead, 2);
+                assert_eq!(
+                    roles,
+                    kind.map(|kind| vec![(
+                        1,
+                        if kind == TraceKind::Variable {
+                            ArgRole::VarRead
+                        } else {
+                            ArgRole::CommandName
+                        }
+                    )])
+                );
+                assert!(
+                    resolve_trace_type_at(InvocationArguments::structured(&words), 0).is_none()
+                );
+            }
+            let expanded = [
+                InvocationWord::KnownBytes(b"variable"),
+                InvocationWord::Expanded,
+            ];
+            assert!(
+                trace_subject_layout_roles(
+                    InvocationArguments::structured(&expanded).with_dialect(dialect),
+                    ArgRole::VarRead,
+                    2
+                )
+                .is_none()
+            );
+        }
+        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        let words = [
+            InvocationWord::KnownBytes(b"variable"),
+            InvocationWord::Literal("v"),
+        ];
+        assert!(
+            trace_subject_layout_roles(
+                InvocationArguments::structured(&words).with_dialect(jim),
+                ArgRole::VarRead,
+                2
+            )
+            .is_none()
+        );
+    }
 
     #[test]
     fn registry_validates_each_modern_operation_domain_and_builds_a_list_value_fix() {
@@ -1573,7 +1676,10 @@ mod tests {
             transitions.facts(),
             &[StateTransitionFact {
                 transition: StateTransition::Trace(TraceTransition::Add {
-                    target: TraceTarget::Variable(TransitionSubject::Literal("item".to_owned())),
+                    target: TraceTarget::Variable(TransitionSubject::LocatedLiteral {
+                        value: "item".to_owned(),
+                        argument_index: 2
+                    }),
                     // The canonical order is C's `trace info` render order
                     // (`array read write unset`), not the `opStrings[]` table
                     // order the bad-operation error enumerates.
@@ -1582,7 +1688,10 @@ mod tests {
                         TraceOperation::Write,
                         TraceOperation::Unset,
                     ]),
-                    prefix: TransitionSubject::Literal("{callback one}".to_owned()),
+                    prefix: TransitionSubject::LocatedLiteral {
+                        value: "{callback one}".to_owned(),
+                        argument_index: 4
+                    },
                 }),
                 commit: StateTransitionCommit::OnOkOnly,
             }]
@@ -1604,7 +1713,7 @@ mod tests {
             transitions.facts(),
             [StateTransitionFact {
                 transition: StateTransition::Trace(TraceTransition::Add {
-                    target: TraceTarget::Command(TransitionSubject::Literal(target)),
+                    target: TraceTarget::Command(TransitionSubject::LocatedLiteral { value: target, .. }),
                     operations: TraceOperationSet::Unknown(TransitionSubject::Unknown {
                         argument_index: 3,
                         word_kind: InvocationWordKind::Dynamic,
@@ -1845,7 +1954,7 @@ mod tests {
                     declared.facts(),
                     [StateTransitionFact {
                         transition: StateTransition::Trace(TraceTransition::Add {
-                            target: TraceTarget::Variable(TransitionSubject::Literal(target)),
+                            target: TraceTarget::Variable(TransitionSubject::LocatedLiteral { value: target, .. }),
                             operations: TraceOperationSet::Known(operations),
                             ..
                         }),
@@ -1859,7 +1968,7 @@ mod tests {
                     declared.facts(),
                     [StateTransitionFact {
                         transition: StateTransition::Trace(TraceTransition::Remove {
-                            target: TraceTarget::Variable(TransitionSubject::Literal(target)),
+                            target: TraceTarget::Variable(TransitionSubject::LocatedLiteral { value: target, .. }),
                             operations: TraceOperationSet::Known(operations),
                             ..
                         }),

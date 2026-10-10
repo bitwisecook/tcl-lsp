@@ -61,6 +61,7 @@ use super::{ShimmerWarning, type_name};
 /// [`ShimmerWarning`] for each type mismatch where the variable's known
 /// type differs from what the command requires.
 #[must_use]
+#[cfg(test)]
 pub(crate) fn find_use_site_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -70,11 +71,32 @@ pub(crate) fn find_use_site_shimmers(
     values: &HashMap<ValueKey, LatticeValue>,
     facts: &super::ShimmerFacts,
 ) -> Vec<ShimmerWarning> {
+    find_use_site_shimmers_with_context(
+        cfg,
+        ssa,
+        types,
+        executable_blocks,
+        super::ShimmerContext::standalone(registry),
+        values,
+        facts,
+    )
+}
+
+pub(crate) fn find_use_site_shimmers_with_context(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    types: &HashMap<ValueKey, TypeLattice>,
+    executable_blocks: &HashSet<BlockId>,
+    context: super::ShimmerContext<'_>,
+    values: &HashMap<ValueKey, LatticeValue>,
+    facts: &super::ShimmerFacts,
+) -> Vec<ShimmerWarning> {
+    let registry = context.registry();
     let loop_blocks = &facts.loop_blocks;
     let def_map = def_range_map(ssa);
     // Loop-invariance facts for the S101→S100 downgrade — only needed when
     // the function has at least one loop block.
-    let loop_facts = LoopFacts::compute(cfg, ssa, loop_blocks, registry);
+    let loop_facts = LoopFacts::compute(cfg, ssa, loop_blocks, context);
     // Array-base symbols are excluded (FP-SH-13): `normalise_var_name` strips
     // the `(key)` suffix, so `arr(a)` and `arr(b)` share one symbol / version
     // chain. Two individually-stable but different elements then look, at a
@@ -84,6 +106,7 @@ pub(crate) fn find_use_site_shimmers(
     let array_syms = super::thunking::array_element_symbols(cfg, ssa);
     let commit_ctx = super::commit::CommitCtx {
         registry,
+        context,
         ssa,
         source: crate::ssa::SsaSourceView::unpositioned(ssa),
         types,
@@ -112,6 +135,7 @@ pub(crate) fn find_use_site_shimmers(
             let mut ctx = UseSiteCtx {
                 types,
                 registry,
+                context,
                 def_map: &def_map,
                 values,
                 loop_facts: &loop_facts,
@@ -137,6 +161,7 @@ pub(crate) fn find_use_site_shimmers(
 struct UseSiteCtx<'a> {
     types: &'a HashMap<ValueKey, TypeLattice>,
     registry: &'a CommandRegistry,
+    context: super::ShimmerContext<'a>,
     def_map: &'a HashMap<ValueKey, Span>,
     values: &'a HashMap<ValueKey, LatticeValue>,
     loop_facts: &'a LoopFacts,
@@ -176,7 +201,7 @@ impl LoopFacts {
         cfg: &CfgFunction,
         ssa: &SsaFunction,
         loop_blocks: &HashSet<String>,
-        registry: &CommandRegistry,
+        context: super::ShimmerContext<'_>,
     ) -> Self {
         let mut facts = Self::default();
         if loop_blocks.is_empty() {
@@ -198,7 +223,7 @@ impl LoopFacts {
                 for (index, stmt) in cb.statements.iter().enumerate() {
                     facts.record_use_targets(
                         stmt,
-                        registry,
+                        context,
                         crate::ssa::SsaSourceView::at_statement(ssa, id, index),
                     );
                 }
@@ -235,15 +260,11 @@ impl LoopFacts {
     fn record_use_targets(
         &mut self,
         stmt: &Statement,
-        registry: &CommandRegistry,
+        context: super::ShimmerContext<'_>,
         source: crate::ssa::SsaSourceView<'_>,
     ) {
-        let context = registry
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-        if let Some(invocation) =
-            crate::registry_invocation::normal_statement_representation(registry, context, stmt)
-        {
+        let registry = context.registry();
+        if let Some(invocation) = context.statement(stmt) {
             let inert = super::hints::inert_effective_args(registry, &invocation);
             self.record_invocation(&invocation, &inert, source, registry);
         }
@@ -253,15 +274,9 @@ impl LoopFacts {
             }
             _ => return,
         };
-        for lifted in crate::word_subst::lifted_calls(
-            tokens,
-            tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        ) {
+        for lifted in crate::word_subst::lifted_calls(tokens, context.config()) {
             if let Some(tokens) = &lifted.tokens
-                && let Some(invocation) =
-                    crate::registry_invocation::normal_representation_invocation(
-                        registry, context, tokens,
-                    )
+                && let Some(invocation) = context.invocation(tokens)
             {
                 let inert = super::hints::inert_effective_args(registry, &invocation);
                 self.record_invocation(&invocation, &inert, source, registry);
@@ -636,20 +651,12 @@ fn check_lifted_calls(
     tokens: Option<&crate::ir::CommandTokens>,
     fallback_span: Span,
 ) {
-    let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
+    let config = ctx.context.config();
     for lifted in crate::word_subst::lifted_calls(tokens, config) {
         let Some(tokens) = &lifted.tokens else {
             continue;
         };
-        let context = ctx
-            .registry
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-        let Some(invocation) = crate::registry_invocation::normal_representation_invocation(
-            ctx.registry,
-            context,
-            tokens,
-        ) else {
+        let Some(invocation) = ctx.context.invocation(tokens) else {
             continue;
         };
         let inert = super::hints::inert_effective_args(ctx.registry, &invocation);
@@ -684,16 +691,7 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
             // before the outer command either way — so check it as the
             // invocation it is.
             check_lifted_calls(ctx, tokens.as_ref(), stmt.span());
-
-            let context = ctx
-                .registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-            let Some(invocation) = crate::registry_invocation::normal_statement_representation(
-                ctx.registry,
-                context,
-                stmt,
-            ) else {
+            let Some(invocation) = ctx.context.statement(stmt) else {
                 return;
             };
             let inert = super::hints::inert_effective_args(ctx.registry, &invocation);
@@ -1050,6 +1048,7 @@ mod tests {
     ) -> Vec<ShimmerWarning> {
         let ctx = super::super::commit::CommitCtx {
             registry,
+            context: crate::shimmer::ShimmerContext::standalone(registry),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,

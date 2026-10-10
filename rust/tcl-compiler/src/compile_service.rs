@@ -475,6 +475,16 @@ impl Default for BytecodeCompileService {
 impl CompileService for BytecodeCompileService {
     type Module = tcl_bytecode::ModuleAsm;
 
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, CompileError> {
+        let registry = self.registry.registry_for_profile(profile);
+        crate::codegen::native_substitution::compile(target, profile, entry, registry.as_ref())
+    }
+
     fn compile(&self, source: &str) -> Result<Self::Module, CompileError> {
         self.compile_target(source, false)
     }
@@ -1195,6 +1205,7 @@ mod tests {
             compiled_variable_protocol:
                 tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(point),
             compiled_local_layout: None,
+            oo_classes: None,
             ensemble_target_objects: None,
             source_string_protocol: tcl_registry::InvocationDialect::of_profile(profile)
                 .native_source_string_protocol(),
@@ -1204,6 +1215,7 @@ mod tests {
             namespace_variable_tables: None,
             empty_literal_world: None,
             compiler_pass_environment: None,
+            command_resolvers: None,
             variable_observers:
                 tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
             math_functions: None,
@@ -1407,16 +1419,15 @@ mod tests {
         );
     }
 
-    #[test]
-    fn runtime_entry_selects_actual_namespace_and_keeps_custom_shadow_generic() {
+    fn opaque_set_namespace_entry(
+        profile: &tcl_dialect::DialectProfile,
+        namespace: tcl_core_types::ByteNamespacePath,
+    ) -> tcl_runtime_api::native_compilation::NativeCompilationEntry {
         use tcl_runtime_api::native_compilation::{
             NativeCommandImplementation, NativeCompilationBinding, NativeCompilationEntry,
             NativeCompilationFrame, NativeCompilationNamespace, NativeInterpreterIdentity,
         };
-        let profile =
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
-        let namespace = tcl_core_types::ByteNamespacePath::from_segments(["N"]);
-        let entry = NativeCompilationEntry {
+        NativeCompilationEntry {
             interpreter: NativeInterpreterIdentity {
                 owner: 31,
                 interpreter: 0,
@@ -1433,6 +1444,7 @@ mod tests {
             compiled_variable_protocol: tcl_registry::InvocationDialect::of_profile(profile)
                 .native_compiled_variable_protocol(),
             compiled_local_layout: None,
+            oo_classes: None,
             ensemble_target_objects: None,
             source_string_protocol: tcl_registry::InvocationDialect::of_profile(profile)
                 .native_source_string_protocol(),
@@ -1442,6 +1454,7 @@ mod tests {
             namespace_variable_tables: None,
             empty_literal_world: None,
             compiler_pass_environment: None,
+            command_resolvers: None,
             variable_observers:
                 tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
             math_functions: None,
@@ -1469,7 +1482,15 @@ mod tests {
             }],
             current_namespace: 1,
             frame: NativeCompilationFrame::Namespace,
-        };
+        }
+    }
+
+    #[test]
+    fn runtime_entry_selects_actual_namespace_and_keeps_custom_shadow_generic() {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let namespace = tcl_core_types::ByteNamespacePath::from_segments(["N"]);
+        let entry = opaque_set_namespace_entry(profile, namespace);
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let ir = lower_script_module_for_bytecode_with_options(
             "set x 1",

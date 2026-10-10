@@ -1,0 +1,26 @@
+
+running 8 tests
+test command_binding::source_transition_advice::source_class::tests::original_class_constructor_call_keeps_alias_prefix_move_and_canonical_declaration ... ok
+test command_binding::source_transition_advice::source_class::tests::original_class_constructor_call_preserves_expansion_and_refuses_private_or_overridden_makers ... ok
+test command_binding::source_transition_advice::source_class::tests::original_class_constructor_call_refuses_known_factory_or_class_replacement_and_cycles ... ok
+test command_binding::source_transition_advice::source_class::tests::original_constructor_substitution_keeps_whole_child_words_and_selected_body ... ok
+test command_binding::source_transition_advice::source_class::tests::original_constructor_substitution_refuses_compound_words_and_multiple_commands ... ok
+test command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies ... 
+thread 'command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies' (661367) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:726:78:
+oo::class create C {}; proc p {} {set o [C new value]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::source_transition_advice::source_class::tests::original_snit_constructor_call_retains_explicit_and_bare_provider_layouts ... ok
+test command_binding::source_transition_advice::source_class::tests::original_source_class_family_uses_selected_definer_not_metaclass_reporting_label ... 
+thread 'command_binding::source_transition_advice::source_class::tests::original_source_class_family_uses_selected_definer_not_metaclass_reporting_label' (661370) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:802:68:
+called `Option::unwrap()` on a `None` value
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies
+    command_binding::source_transition_advice::source_class::tests::original_source_class_family_uses_selected_definer_not_metaclass_reporting_label
+
+test result: FAILED. 6 passed; 2 failed; 0 ignored; 0 measured; 8291 filtered out; finished in 15.34s
+

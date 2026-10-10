@@ -1,0 +1,59 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-created-handle-move183/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.021962158993119374,
+  "reported_version": "9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "0e567db2ed35848ccdb44149ca1d7823804456eeef32c6e305572e027719dade",
+  "runner_sha256": "0b9313058968be3dfc16ed00cd96f61739f16c06bcde14012d6cb302153466f3",
+  "stdout_sha256": "96c29ce1607e55a37939969a1edcde7fb379f88af3b7991f39b516e28ccaa0cb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "rows": [
+    "version 9.1.0",
+    "observation create status 0 result s errorCode {}",
+    "observation original-parent-command status 0 result s errorCode {}",
+    "observation move status 0 result {} errorCode {}",
+    "observation old-parent-command status 0 result {} errorCode {}",
+    "observation moved-parent-command status 0 result moved errorCode {}",
+    "observation old-parent-call status 1 result {invalid command name \"s\"} errorCode {TCL LOOKUP COMMAND s}",
+    "observation moved-parent-value status 0 result moved errorCode {}",
+    "observation original-child-path-value status 0 result moved errorCode {}",
+    "observation original-child-path-exists status 0 result 1 errorCode {}",
+    "observation moved-child-path-exists status 0 result 0 errorCode {}",
+    "observation move-again status 0 result {} errorCode {}",
+    "observation first-moved-parent-command status 0 result {} errorCode {}",
+    "observation second-moved-parent-value status 0 result moved errorCode {}",
+    "observation original-child-path-after-second-move status 0 result moved errorCode {}",
+    "observation delete-original-child-path status 0 result {} errorCode {}",
+    "observation second-moved-parent-after-child-delete status 0 result {} errorCode {}",
+    "observation second-moved-call-after-child-delete status 1 result {invalid command name \"moved_again\"} errorCode {TCL LOOKUP COMMAND moved_again}",
+    "observation create-delete-by-parent status 0 result d errorCode {}",
+    "observation move-delete-by-parent status 0 result {} errorCode {}",
+    "observation delete-moved-parent status 0 result {} errorCode {}",
+    "observation child-after-parent-delete status 0 result 0 errorCode {}",
+    "observation child-call-after-parent-delete status 1 result {could not find interpreter \"d\"} errorCode {TCL LOOKUP INTERP d}",
+    "observation create-qualified-parent status 0 result q errorCode {}",
+    "observation create-parent-namespace status 0 result {} errorCode {}",
+    "observation move-qualified-parent status 0 result {} errorCode {}",
+    "observation qualified-parent-value status 0 result qualified errorCode {}",
+    "observation original-qualified-child-path-value status 0 result qualified errorCode {}",
+    "observation delete-qualified-child-path status 0 result {} errorCode {}",
+    "observation qualified-parent-after-child-delete status 0 result {} errorCode {}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; independent created-parent move and child-path observations",
+  "boundary": "Question: does renaming a created parent command preserve its child interpreter path and eval semantics, and which parent command disappears after deleting the original child path or moved command? Sequential catch observations retain actual unsupported outcomes. No arbitrary constructor Normal, entered frame, runtime handle token or compiler admission is inferred."
+}

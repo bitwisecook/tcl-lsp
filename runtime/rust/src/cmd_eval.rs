@@ -131,23 +131,7 @@ impl NativeFrameLevelObject for OriginalLevel {
 }
 
 fn frame_failure(interp: &mut Interp, failure: NativeFrameLevelFailure) -> Code {
-    match failure {
-        NativeFrameLevelFailure::Primitive(record) => {
-            interp.report_cmd_error(ValueError::NativeScalarGetter(record).into())
-        }
-        NativeFrameLevelFailure::BadLevel { name, lookup_code } => {
-            let mut message = b"bad level \"".to_vec();
-            message.extend_from_slice(&name);
-            message.push(b'"');
-            if lookup_code {
-                let mut code = b"TCL LOOKUP LEVEL".to_vec();
-                tcl_syntax::list::append_list_element(&mut code, &name, false);
-                interp.error_with_code(&message, &code)
-            } else {
-                interp.error(&message)
-            }
-        }
-    }
+    interp.report_cmd_error(tcl_cmd_core::native_frame_error::present(failure))
 }
 
 pub(crate) fn select_frame(
@@ -171,6 +155,7 @@ pub(crate) fn select_frame(
                     interp,
                     NativeFrameLevelFailure::BadLevel {
                         name: b"1".to_vec(),
+                        string_result: protocol.bad_level_string_result(),
                         lookup_code: protocol
                             .tcl_version()
                             .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6),
@@ -194,7 +179,7 @@ pub(crate) fn select_frame(
         match crate::list::list_elements_native_checked(original, string) {
             Ok(elements) if elements.len() > 1 => return default(interp),
             Err(error) if error.native_access_refusal().is_some() => {
-                return Err(interp.report_cmd_error(error.into()))
+                return Err(interp.report_cmd_error(error.into()));
             }
             _ => {}
         }
@@ -204,7 +189,7 @@ pub(crate) fn select_frame(
         dialect,
     };
     let result = if width == Some(1) {
-        protocol.resolve_object(current, &mut operand)
+        protocol.resolve_required_object(current, &mut operand)
     } else {
         protocol.resolve_leading_object(current, &mut operand)
     };

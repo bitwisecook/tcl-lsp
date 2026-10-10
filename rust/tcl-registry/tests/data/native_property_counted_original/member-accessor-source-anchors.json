@@ -1,0 +1,16 @@
+{
+  "source_anchors": [
+    {
+      "function": "GetImplNamesForProperty",
+      "original_path": "tmp/tcl9.1.0/generic/tclOOProp.c",
+      "original_sha256": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+      "lines": [
+        165,
+        184
+      ],
+      "snippet": "static PropertyName *\nGetImplNamesForProperty(\n    Tcl_Obj *objPtr)\n{\n    Tcl_ObjInternalRep *irPtr = TclFetchInternalRep(objPtr, &propNameType);\n    if (irPtr) {\n\treturn GET_PROPERTY_NAME(irPtr);\n    }\n\n    // No cached version; make it\n\n    const char *propName = TclGetString(objPtr);\n    PropertyName *namePtr = (PropertyName *) Tcl_Alloc(sizeof(PropertyName));\n    namePtr->readerName = Tcl_ObjPrintf(\"<ReadProp%s>\", propName);\n    namePtr->writerName = Tcl_ObjPrintf(\"<WriteProp%s>\", propName);\n    Tcl_IncrRefCount(namePtr->readerName);\n    Tcl_IncrRefCount(namePtr->writerName);\n    SET_PROPERTY_NAME(objPtr, namePtr);\n    return namePtr;\n}\n",
+      "snippet_sha256": "9eabc989c950132cb543ccca7e8398951a6ec94dff2a82b40093503f94e7531a",
+      "purpose": "Cached configuration member already contains its dash; formatted accessor CString children add none."
+    }
+  ]
+}

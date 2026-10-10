@@ -1,0 +1,45 @@
+
+running 9 tests
+test cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows ... 
+thread 'cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows' (715449) panicked at rust/tcl-vm/src/cmd_control/native_each_loop_tests.rs:277:9:
+assertion `left == right` failed: tcl8.4/4/shimmer=false
+  left: "S\t4\t1\tafter\tlist,1,1,-1\tnone,1,1,-1\tnone,1,1,-1\tabsent,-1,0,-1\tnone,1,1,-1\tabsent,-1,0,-1\t0\tnone,1,1,-1"
+ right: "S\t4\t1\tafter\tlist,1,1,-1\tnone,1,1,-1\tnone,1,1,-1\tabsent,-1,0,-1\tnone,1,1,-1\tabsent,-1,0,-1\t0\tstring,1,1,-1"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_matches_329_complete_native_processes ... 
+thread 'cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_matches_329_complete_native_processes' (715450) panicked at rust/tcl-vm/src/cmd_dict.rs:1409:9:
+assertion `left == right` failed: tcl8.5/compiled-update-dict-write-error
+  left: [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 100, 34, 58, 32, 87, 82, 73, 84, 69, 125, 32, 48, 32, 123, 107, 32, 66, 65, 83, 69, 125]
+ right: [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 100, 34, 58, 32, 87, 82, 73, 84, 69, 125, 32, 48, 32, 123, 45, 99, 111, 100, 101, 32, 48, 32, 45, 108, 101, 118, 101, 108, 32, 48, 125]
+FAILED
+test cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes ... 
+thread 'cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes' (715614) panicked at rust/tcl-vm/src/value.rs:4989:18:
+selected compound updater requires checked child storage: StringUpdater
+FAILED
+test cmd_dict::scripted_tests::native_jim_scripted_dictionary_completion_and_forwarding_observations ... 
+thread 'cmd_dict::scripted_tests::native_jim_scripted_dictionary_completion_and_forwarding_observations' (716160) panicked at rust/tcl-vm/src/cmd_dict/scripted_tests.rs:96:37:
+append: HostCommandRefusal(NativeHostCommandRefusal { reason: "native dictionary initial lookup is unavailable", source_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [], help_terms: [] }, native_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [], help_terms: [] }, interpreter: NativeInterpreterIdentity { owner: 208, interpreter: 0 }, frame: 1, namespace: "", namespace_token: 0 })
+FAILED
+test cmd_dict::scripted_tests::original_jim_dictionary_library_bodies_and_formals_are_real_procedures ... 
+thread 'cmd_dict::scripted_tests::original_jim_dictionary_library_bodies_and_formals_are_real_procedures' (716161) panicked at rust/tcl-vm/src/cmd_dict/scripted_tests.rs:79:13:
+assertion `left == right` failed: replace/args
+  left: [100, 105, 99, 116, 105, 111, 110, 97, 114, 121, 32, 97, 114, 103, 115]
+ right: [100, 105, 99, 116, 105, 111, 110, 97, 114, 121, 32, 123, 97, 114, 103, 115, 32, 123, 107, 101, 121, 32, 118, 97, 108, 117, 101, 125, 125]
+FAILED
+test native_list_backing::tests::lifetime_views_do_not_own_native_headers_or_member_references ... ok
+test native_list_backing::tests::range_headers_retain_one_store_and_original_member_owners ... ok
+test native_list_backing::tests::repeated_member_slots_each_own_one_native_reference ... ok
+test native_list_backing::tests::replacing_a_shared_span_copies_only_selected_original_members ... ok
+
+failures:
+
+failures:
+    cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows
+    cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_matches_329_complete_native_processes
+    cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes
+    cmd_dict::scripted_tests::native_jim_scripted_dictionary_completion_and_forwarding_observations
+    cmd_dict::scripted_tests::original_jim_dictionary_library_bodies_and_formals_are_real_procedures
+
+test result: FAILED. 4 passed; 5 failed; 0 ignored; 0 measured; 667 filtered out; finished in 128.87s
+

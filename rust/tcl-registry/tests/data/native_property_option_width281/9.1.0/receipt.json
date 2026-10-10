@@ -1,0 +1,46 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-property-option-width281/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.01106979999167379,
+  "reported_version_row": "META patchlevel 9.1.0 configurable_command 1",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "13d2f4227bc951e627b081da1f5212a1dc4777fce27d273f36e8001fa5cf5d43",
+  "stdout_sha256": "9e2c40331686339e5744e8f2b122a5b8c717ca2c94c07e3f536fe185fcb42bec",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOProp.c": "43f16f2b596af56b27320ff5e735c3073e081dbf183b05b5aa785ff7a2b57789",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf"
+  },
+  "rows": [
+    "META patchlevel 9.1.0 configurable_command 1",
+    "DEFINITION label option_like_getter method <ReadProp-p> code 0 definition {{} -set}",
+    "DEFINITION label option_like_getter method <WriteProp-p> code 0 definition {value {set ::property_width_seen $value}}",
+    "CALL label option_like_getter operation read code 0 result getter_option_value",
+    "CALL label option_like_getter operation write code 0 result {} seen setter_value",
+    "DEFINITION label multiple_names_abbreviations method <ReadProp-p> code 0 definition {{} -set}",
+    "DEFINITION label multiple_names_abbreviations method <ReadProp-q> code 1 definition {definition not available for this kind of method}",
+    "DEFINITION label multiple_names_abbreviations method <WriteProp-q> code 0 definition {value {set ::property_width_q $value}}",
+    "DEFINITION label repeated_getter method <ReadProp-p> code 0 definition {{} -set}",
+    "DEFINITION label repeated_getter method <WriteProp-p> code 0 definition {value {set ::property_width_repeat_seen $value}}",
+    "DECL label missing_value code 1 result {missing body to go with -get option} errorCode {TCL WRONGARGS}",
+    "DECL label unknown_option code 1 result {bad option \"-unknown\": must be -get, -kind, or -set} errorCode {TCL LOOKUP INDEX option -unknown}",
+    "DECL label ambiguous_option code 1 result {ambiguous option \"-\": must be -get, -kind, or -set} errorCode {TCL LOOKUP INDEX option -}",
+    "DECL label invalid_kind code 1 result {ambiguous kind \"r\": must be readable, readwrite, or writable} errorCode {TCL LOOKUP INDEX kind r}"
+  ],
+  "input_channel": "Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured.",
+  "question": "naming.tcloo.property-option-value-boundary"
+}

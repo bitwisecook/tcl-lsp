@@ -1,0 +1,13 @@
+{
+  "source_cases": [
+    {
+      "label": "SAME_NESTED",
+      "script": "set x SAME; set log {}; after 0 {set x SAME; lappend log SAME; after 0 {set x NEXT; lappend log NEXT}}; vwait x; set log"
+    },
+    {
+      "label": "ARRAY_NESTED",
+      "script": "array set a {k OLD}; after 0 {set a(k) OLD; after 0 {set a(k) NEW}}; vwait a(k); set a(k)"
+    }
+  ],
+  "channel": "ASCII counted source; nested zero timer generation, no wall-clock deadline discriminator"
+}

@@ -1,0 +1,6 @@
+{
+  "scope": "Exact current pending candidate JSONs grouped by agreed owner and retained corpus. Ownership is not classification or question equivalence; every exact candidate remains inventoried.",
+  "pending_candidates": 0,
+  "owners": {},
+  "clusters": []
+}

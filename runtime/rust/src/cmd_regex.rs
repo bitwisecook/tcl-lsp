@@ -1012,6 +1012,10 @@ mod original_object_tests {
 
     #[test]
     fn jim_original_regexp_cache_ranges_and_unsafe_lifecycles_match_native_controls() {
+        // Native proof: naming.regex.jim-original-regexp-range
+        // docs/design/analysis/name-resolution-proofs/regex-jim-original-regexp-range.md
+        // Native proof: naming.regex.jim-compiled-pattern-lifetime
+        // docs/design/analysis/name-resolution-proofs/regex-jim-compiled-pattern-lifetime.md
         use core_re::NativeRegexObjects;
         let mut interp = actual("jim");
         for bytes in [b"a".as_slice(), b"\xff", b"\xc0\x80", b"\xf0\x9f\x98\x80"] {
@@ -1086,6 +1090,8 @@ mod original_object_tests {
     }
     #[test]
     fn jim_regsub_original_objects_match_all_nine_completed_native_controls() {
+        // Native proof: naming.regex.jim-regsub-original-operands
+        // docs/design/analysis/name-resolution-proofs/regex-jim-regsub-original-operands.md
         let rows = include_str!("../tests/data/native_regexp_jim_regsub/rows.txt");
         let patterns: [&[u8]; 9] = [
             b"a",
@@ -1262,6 +1268,8 @@ mod original_object_tests {
 
     #[test]
     fn native_regexp_cache_hit_precedes_getter_and_duplicate_keeps_artifact() {
+        // Native proof: naming.regex.c-compiled-pattern-cache-lifetime
+        // docs/design/analysis/name-resolution-proofs/regex-c-compiled-pattern-cache-lifetime.md
         use std::rc::Rc;
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut interp = actual(environment);
@@ -1341,6 +1349,8 @@ mod original_object_tests {
 
     #[test]
     fn native_regexp_ranges_preserve_selected_original_units_and_storage() {
+        // Native proof: naming.regex.c-original-range-native-units
+        // docs/design/analysis/name-resolution-proofs/regex-c-original-range-native-units.md
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for input in [b"a".as_slice(), b"\xff", b"\xc0\x80", b"\xf0\x9f\x98\x80"] {
                 let mut interp = actual(environment);
@@ -1385,6 +1395,8 @@ mod original_object_tests {
 
     #[test]
     fn native_regsub_mapping_and_regexp_keep_distinct_original_primaries() {
+        // Native proof: naming.regex.c-regsub-primary-path-selection
+        // docs/design/analysis/name-resolution-proofs/regex-c-regsub-primary-path-selection.md
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for (pattern, replacement, expected, mapping, same) in [
                 (
@@ -1434,6 +1446,8 @@ mod original_object_tests {
 
     #[test]
     fn original_regexp_each_match_and_first_failure_match_native_controls() {
+        // Native proof: naming.regex.c-match-capture-store-frontiers
+        // docs/design/analysis/name-resolution-proofs/regex-c-match-capture-store-frontiers.md
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut interp = actual(environment);
             let trace = if environment.starts_with("tcl9") {
@@ -1476,6 +1490,10 @@ mod original_object_tests {
 
     #[test]
     fn original_regex_unmatched_target_and_quiet_write_match_native_controls() {
+        // Native proof: naming.regex.c-substitution-result-variable-error
+        // docs/design/analysis/name-resolution-proofs/regex-c-substitution-result-variable-error.md
+        // Native proof: naming.regex.c-no-match-original-output-name
+        // docs/design/analysis/name-resolution-proofs/regex-c-no-match-original-output-name.md
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut interp = actual(environment);
             let member = Owned::fresh(obj::new_string_bytes(b"untouched"));
@@ -1554,6 +1572,8 @@ mod original_object_tests {
 
     #[test]
     fn original_regsub_prefix_and_unicode_arguments_match_native_c9_controls() {
+        // Native proof: naming.regex.c-command-prefix-object-arguments
+        // docs/design/analysis/name-resolution-proofs/regex-c-command-prefix-object-arguments.md
         for environment in ["tcl9.0", "tcl9.1"] {
             let mut interp = actual(environment);
             interp.register_builtin(b"keep", keep);

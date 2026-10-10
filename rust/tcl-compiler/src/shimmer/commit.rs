@@ -306,6 +306,7 @@ impl CommitFacts {
         CommitWalker {
             state: self.block_entry.get(&block_id).cloned().unwrap_or_default(),
             registry: ctx.registry,
+            context: ctx.context,
             ssa: ctx.ssa,
             types: ctx.types,
             values: ctx.values,
@@ -336,6 +337,8 @@ impl CommitFacts {
 pub struct CommitCtx<'a> {
     /// Command registry, for `arg_types` shimmer hints and foreach headers.
     pub registry: &'a CommandRegistry,
+    /// Retained metadata and lexical policy for every replayed read.
+    pub context: super::ShimmerContext<'a>,
     /// SSA form, for variable symbols and per-statement use versions.
     pub ssa: &'a SsaFunction,
     /// Source-name projection at the actual read; value keys remain cell identities.
@@ -347,8 +350,8 @@ pub struct CommitCtx<'a> {
 }
 
 impl CommitCtx<'_> {
-    /// The numeral grammar of the release being analysed, from the registry's
-    /// loaded dialect profile.
+    /// The numeral grammar of the release being analysed, from the
+    /// retained compilation profile.
     ///
     /// Whether a constant is a valid instance of a numeric type is
     /// release-dependent — `08` and `1_0` are numbers from 9.0 and not before —
@@ -356,15 +359,14 @@ impl CommitCtx<'_> {
     /// rather than whatever grammar this process was built for.
     #[must_use]
     pub fn numbers(&self) -> tcl_syntax::number::NumberSyntax {
-        self.registry.numbers()
+        self.context.numbers()
     }
 
-    /// The document's word-value rules, from the same loaded profile
-    /// [`Self::numbers`] reads — whether a constant is a valid list/dict is a
+    /// The document's word-value rules, from the retained lexical configuration — whether a constant is a valid list/dict is a
     /// list-grammar question, and Jim's parser answers it differently.
     #[must_use]
     pub fn word_rules(&self) -> tcl_syntax::word_rules::WordValueRules {
-        tcl_syntax::word_rules::WordValueRules::of_profile(self.registry.profile())
+        self.context.word_rules()
     }
 }
 
@@ -374,6 +376,7 @@ impl CommitCtx<'_> {
 pub struct CommitWalker<'a> {
     state: HashMap<ValueKey, CommitState>,
     registry: &'a CommandRegistry,
+    context: super::ShimmerContext<'a>,
     ssa: &'a SsaFunction,
     types: &'a HashMap<ValueKey, TypeLattice>,
     values: &'a HashMap<ValueKey, LatticeValue>,
@@ -485,15 +488,18 @@ impl CommitWalker<'_> {
     /// [`CommitCtx::numbers`].
     #[must_use]
     pub fn numbers(&self) -> tcl_syntax::number::NumberSyntax {
-        self.registry.numbers()
+        self.context.numbers()
     }
 
-    /// The document's word-value rules, from the same loaded profile
-    /// [`Self::numbers`] reads — whether a constant is a valid list/dict is a
+    /// The document's word-value rules, from the retained lexical configuration — whether a constant is a valid list/dict is a
     /// list-grammar question, and Jim's parser answers it differently.
     #[must_use]
     pub fn word_rules(&self) -> tcl_syntax::word_rules::WordValueRules {
-        tcl_syntax::word_rules::WordValueRules::of_profile(self.registry.profile())
+        self.context.word_rules()
+    }
+
+    pub(super) fn config(&self) -> tcl_lexer::LexerConfig {
+        self.context.config()
     }
 
     /// Raw replay state, for transfer and commitment reporting. Detectors must
@@ -508,6 +514,7 @@ impl CommitWalker<'_> {
         }
         let ctx = CommitCtx {
             registry: self.registry,
+            context: self.context,
             ssa: self.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(self.ssa),
             types: self.types,
@@ -520,6 +527,7 @@ impl CommitWalker<'_> {
     pub fn step(&mut self, stmt: &Statement, uses: &HashMap<Symbol, u32>) {
         let ctx = CommitCtx {
             registry: self.registry,
+            context: self.context,
             ssa: self.ssa,
             source: crate::ssa::SsaSourceView::at_statement(self.ssa, self.block, self.index),
             types: self.types,
@@ -762,24 +770,11 @@ fn typed_reads_of_statement(
             // variable: `puts [lindex $x 0]` converts `x` to a list just as
             // surely as a bare `lindex $x 0` does.
             push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span());
-
-            let context = ctx
-                .registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-            let Some(invocation) = crate::registry_invocation::normal_statement_representation(
-                ctx.registry,
-                context,
-                stmt,
-            ) else {
+            let Some(invocation) = ctx.context.statement(stmt) else {
                 return out;
             };
             if let Some(tokens) = tokens
-                && let Some(expression) = crate::word_subst::representation_expression_at(
-                    tokens,
-                    ctx.registry,
-                    stmt.span(),
-                )
+                && let Some(expression) = ctx.context.expression(tokens, stmt.span())
             {
                 out.extend(typed_reads_of_executed_expr(ctx, &expression, stmt.span()));
                 return out;
@@ -869,25 +864,15 @@ fn push_lifted_reads(
     tokens: Option<&crate::ir::CommandTokens>,
     span: Span,
 ) {
-    let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
+    let config = ctx.context.config();
     for lifted in crate::word_subst::lifted_calls(tokens, config) {
         let Some(tokens) = &lifted.tokens else {
             continue;
         };
-        let context = ctx
-            .registry
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-        let Some(invocation) = crate::registry_invocation::normal_representation_invocation(
-            ctx.registry,
-            context,
-            tokens,
-        ) else {
+        let Some(invocation) = ctx.context.invocation(tokens) else {
             continue;
         };
-        if let Some(expression) =
-            crate::word_subst::representation_expression_at(tokens, ctx.registry, lifted.span)
-        {
+        if let Some(expression) = ctx.context.expression(tokens, lifted.span) {
             out.extend(typed_reads_of_executed_expr(ctx, &expression, span));
             continue;
         }
@@ -1201,6 +1186,7 @@ mod tests {
         let fu = cu.function(func).unwrap();
         let ctx = CommitCtx {
             registry,
+            context: crate::shimmer::ShimmerContext::standalone(registry),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
@@ -1232,6 +1218,7 @@ mod tests {
         let fu = cu.function("::top").unwrap();
         let ctx = CommitCtx {
             registry: &r,
+            context: crate::shimmer::ShimmerContext::standalone(&r),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
@@ -1287,6 +1274,7 @@ mod tests {
         let fu = cu.function("::top").unwrap();
         let ctx = CommitCtx {
             registry: &r,
+            context: crate::shimmer::ShimmerContext::standalone(&r),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
@@ -1319,6 +1307,7 @@ mod tests {
         let (facts, fu) = facts_for(&cu, &r, "::top");
         let ctx = CommitCtx {
             registry: &r,
+            context: crate::shimmer::ShimmerContext::standalone(&r),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
@@ -1361,6 +1350,7 @@ mod tests {
         let (facts, fu) = facts_for(&cu, r, "::f");
         let ctx = CommitCtx {
             registry: r,
+            context: crate::shimmer::ShimmerContext::standalone(r),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
@@ -1406,6 +1396,7 @@ mod tests {
         let (facts, fu) = facts_for(&cu, r, "::top");
         let ctx = CommitCtx {
             registry: r,
+            context: crate::shimmer::ShimmerContext::standalone(r),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
@@ -1450,6 +1441,7 @@ mod tests {
             let (facts, function) = facts_for(&unit, registry, "::top");
             let context = CommitCtx {
                 registry,
+                context: crate::shimmer::ShimmerContext::standalone(registry),
                 ssa: &function.ssa,
                 source: crate::ssa::SsaSourceView::unpositioned(&function.ssa),
                 types: &function.types,
@@ -1498,6 +1490,7 @@ mod tests {
         let (facts, fu) = facts_for(&cu, r, "::f");
         let ctx = CommitCtx {
             registry: r,
+            context: crate::shimmer::ShimmerContext::standalone(r),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
@@ -1546,6 +1539,7 @@ mod tests {
         let (facts, fu) = facts_for(&cu, &r, "::top");
         let ctx = CommitCtx {
             registry: &r,
+            context: crate::shimmer::ShimmerContext::standalone(&r),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
@@ -1569,6 +1563,7 @@ mod tests {
         let (facts, fu) = facts_for(&cu, &r, "::top");
         let ctx = CommitCtx {
             registry: &r,
+            context: crate::shimmer::ShimmerContext::standalone(&r),
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,

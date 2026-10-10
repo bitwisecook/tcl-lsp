@@ -33,6 +33,7 @@ use std::rc::Rc;
 
 mod native_list_storage;
 mod native_namespace_name;
+mod native_retirement;
 
 use tcl_cmd_core::namespace::TclStringHashOrder;
 use tcl_core_types::RecursionLimit;
@@ -151,9 +152,7 @@ impl Drop for Value {
     fn drop(&mut self) {
         if self.1 == NativeValueHandleOwnership::LifetimeOnly {
             self.release_native_lifetime_pin();
-        } else if self.0.lifetime_pins.get() != 0
-            && Rc::strong_count(&self.0) == self.0.lifetime_pins.get() + 1
-        {
+        } else if Rc::strong_count(&self.0) == self.0.lifetime_pins.get() + 1 {
             self.retire_native_header();
         }
     }
@@ -416,10 +415,11 @@ pub(crate) struct JimExpressionInstall<'a> {
 }
 
 /// Actual compiler context retained with the original executable source.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NativeBytecodeContext {
     Script,
     Procedure,
+    Substitution(tcl_runtime_api::native_substitution::NativeSubstitutionFlags),
 }
 
 /// Original admitted executable body, retained independently of activation pins.
@@ -427,6 +427,10 @@ pub(crate) enum NativeBytecodeContext {
 pub(crate) struct NativeBytecodeCache {
     pub(crate) version: tcl_dialect::TclVersion,
     pub(crate) context: NativeBytecodeContext,
+    /// Actual borrowed local cache at Subst compilation, independent of procPtr.
+    pub(crate) substitution_layout:
+        Option<tcl_runtime_api::native_compilation::NativeCompiledLocalLayout>,
+    pub(crate) substitution_table: Option<Rc<crate::literal_pool::NativeLocalNameTable>>,
     pub(crate) unit: crate::compiled::CompiledUnit,
     /// Native ByteCode.procPtr is nonowning and never adds a Proc reference.
     pub(crate) procedure: RefCell<std::rc::Weak<crate::command::ProcDef>>,
@@ -1033,7 +1037,13 @@ impl Value {
         let format = self.0.double_format.replace(None);
         let location = self.0.source_location.replace(None);
         let context = self.0.jim_context.replace(None);
-        drop((primary, string, format, location, context));
+        native_retirement::release(native_retirement::RetiredNativeHeader {
+            primary,
+            string,
+            format,
+            location,
+            context,
+        });
     }
 
     /// Ordinary native release, distinct from Subst's deliberate no-free undo.
@@ -2623,10 +2633,66 @@ impl Value {
     /// Inspect the original admitted executable, without granting cache validity.
     pub(crate) fn native_bytecode_cache(&self) -> Option<Rc<NativeBytecodeCache>> {
         match &*self.0.intrep.borrow() {
-            IntRep::NativeBytecode(cache) => Some(Rc::clone(cache)),
+            IntRep::NativeBytecode(cache)
+                if !matches!(cache.context, NativeBytecodeContext::Substitution(_)) =>
+            {
+                Some(Rc::clone(cache))
+            }
             _ => None,
         }
     }
+    pub(crate) fn native_substitution_cache(&self) -> Option<Rc<NativeBytecodeCache>> {
+        match &*self.0.intrep.borrow() {
+            IntRep::NativeBytecode(cache)
+                if matches!(cache.context, NativeBytecodeContext::Substitution(_)) =>
+            {
+                Some(Rc::clone(cache))
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn retire_native_substitution_cache(&self) {
+        if matches!(&*self.0.intrep.borrow(), IntRep::NativeBytecode(cache) if matches!(cache.context, NativeBytecodeContext::Substitution(_)))
+        {
+            self.replace_primary(IntRep::Str);
+        }
+    }
+
+    pub(crate) fn install_native_substitution_cache(
+        &self,
+        version: tcl_dialect::TclVersion,
+        flags: tcl_runtime_api::native_substitution::NativeSubstitutionFlags,
+        layout: Option<tcl_runtime_api::native_compilation::NativeCompiledLocalLayout>,
+        table: Option<Rc<crate::literal_pool::NativeLocalNameTable>>,
+        unit: crate::compiled::CompiledUnit,
+    ) -> Result<(), ValueError> {
+        if !matches!(
+            version,
+            tcl_dialect::TclVersion::V8_6
+                | tcl_dialect::TclVersion::V9_0
+                | tcl_dialect::TclVersion::V9_1
+        ) || self.resident_string_bytes().is_none()
+            || unit.native_cache.is_none()
+            || unit.jim_script.is_some()
+            || unit.fatal_tail.is_some()
+            || unit.asm.validate_native_compilation_entry().is_err()
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original C substitution cache",
+            ));
+        }
+        self.replace_primary(IntRep::NativeBytecode(Rc::new(NativeBytecodeCache {
+            version,
+            context: NativeBytecodeContext::Substitution(flags),
+            substitution_layout: layout,
+            substitution_table: table,
+            unit,
+            procedure: RefCell::new(std::rc::Weak::new()),
+        })));
+        Ok(())
+    }
+
     /// Publish only a genuine compiler-produced C artifact on resident source.
     pub(crate) fn install_native_bytecode_cache(
         &self,
@@ -2648,6 +2714,8 @@ impl Value {
         self.replace_primary(IntRep::NativeBytecode(Rc::new(NativeBytecodeCache {
             version,
             context,
+            substitution_layout: None,
+            substitution_table: None,
             unit,
             procedure: RefCell::new(std::rc::Weak::new()),
         })));
@@ -2692,7 +2760,13 @@ impl Value {
             IntRep::List { .. } => "list",
             IntRep::Dict(_) => "dict",
             IntRep::ByteArray(_) => "bytearray",
-            IntRep::NativeBytecode(_) => "bytecode",
+            IntRep::NativeBytecode(cache) => {
+                if matches!(cache.context, NativeBytecodeContext::Substitution(_)) {
+                    "substcode"
+                } else {
+                    "bytecode"
+                }
+            }
             IntRep::NativeRegexp(_) | IntRep::JimRegexp(_) => "regexp",
             IntRep::JimIndex(_) => "index",
             IntRep::NativeEndOffset(_) => "end-offset",
@@ -2986,9 +3060,15 @@ impl Value {
                 version: cache.version(),
                 resolved: cache.namespace().is_some(),
             },
-            IntRep::NativeBytecode(cache) => Cache::Bytecode {
-                version: cache.version,
-            },
+            IntRep::NativeBytecode(cache) => {
+                if matches!(cache.context, NativeBytecodeContext::Substitution(_)) {
+                    Cache::Other
+                } else {
+                    Cache::Bytecode {
+                        version: cache.version,
+                    }
+                }
+            }
             IntRep::JimScript(header) => Cache::JimScript {
                 flags: header.0.storage.flags(),
                 tokens: header.0.storage.len(),
@@ -3662,8 +3742,8 @@ impl Value {
             }
             IntRep::NativeParsedVariableName(_) => Class::ParsedVariableName,
             IntRep::NativeLocalVariableName(_) => Class::LocalVariableName,
-            IntRep::JimSource(_)
-            | IntRep::JimScript(_)
+            IntRep::JimSource(_) => Class::JimSource,
+            IntRep::JimScript(_)
             | IntRep::JimDictionarySubstitution { .. }
             | IntRep::JimInterpolated(_)
             | IntRep::JimScriptLine { .. }

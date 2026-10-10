@@ -1,0 +1,43 @@
+
+running 13 tests
+test formatting::engine::tests::case_list_alias_formatting_uses_the_binding_at_each_call_position ... ok
+test formatting::engine::tests::case_list_rename_formatting_uses_the_binding_at_each_call_position ... ok
+test formatting::engine::tests::expect_case_list_formatter_preserves_descriptor_fields_and_formats_only_actions ... ok
+test formatting::engine::tests::incomplete_case_list_recovery_is_presentation_only_and_idempotent ... ok
+test formatting::engine::tests::rooted_and_namespaced_case_list_aliases_format_at_their_positions ... 
+thread 'formatting::engine::tests::rooted_and_namespaced_case_list_aliases_format_at_their_positions' (515742) panicked at rust/tcl-lsp-core/src/formatting/engine.rs:3617:13:
+qualified switch alias did not format namespaced_alias:
+::root_pick subject {default {puts before_root}}
+::case_alias::pick subject {default {puts before_namespace}}
+namespace eval ::case_alias {}
+interp alias {} ::root_pick {} ::switch
+interp alias {} ::case_alias::pick {} switch
+::root_pick subject {
+    default {
+        puts rooted_alias
+    }
+}
+::case_alias::pick subject {default {puts namespaced_alias}}
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test formatting::engine::tests::switch_case_list_formatter_follows_release_matrix ... ok
+test minify::tests::switch_dynamic_case_list_not_treated_as_case_list ... ok
+test minify::tests::switch_odd_length_case_list_preserved_verbatim ... ok
+test references::tests::case_list_aliases_use_positioned_resolved_registry_identity ... ok
+test references::tests::deleted_or_rebound_case_list_aliases_do_not_expose_clause_bodies ... ok
+test references::tests::rooted_and_namespaced_case_list_aliases_expose_clause_bodies ... 
+thread 'references::tests::rooted_and_namespaced_case_list_aliases_expose_clause_bodies' (515760) panicked at rust/tcl-lsp-core/src/references.rs:7672:13:
+rooted/namespaced alias must use its resolved switch grammar: rooted_alias; []
+FAILED
+test semantic_tokens::tests::renamed_away_expect_spelling_gets_no_case_list_overrides ... ok
+test source_style::tests::w115_reaches_a_switch_case_list_arm_in_a_command_substitution ... ok
+
+failures:
+
+failures:
+    formatting::engine::tests::rooted_and_namespaced_case_list_aliases_format_at_their_positions
+    references::tests::rooted_and_namespaced_case_list_aliases_expose_clause_bodies
+
+test result: FAILED. 11 passed; 2 failed; 0 ignored; 0 measured; 2601 filtered out; finished in 19.58s
+

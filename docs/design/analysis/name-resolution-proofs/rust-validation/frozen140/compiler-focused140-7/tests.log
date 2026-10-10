@@ -1,0 +1,21 @@
+
+running 3 tests
+test analyser::types::original_member_context::tests::original_lexical_member_keeps_colons_lifecycle_and_source_ownership_separate ... ok
+test analyser::types::original_member_context::tests::original_lexical_next_declines_relative_targets_and_occupied_forward_routes ... 
+thread 'analyser::types::original_member_context::tests::original_lexical_next_declines_relative_targets_and_occupied_forward_routes' (554967) panicked at rust/tcl-compiler/src/analyser/types/original_member_context.rs:634:18:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::types::original_member_context::tests::original_lexical_next_uses_counted_member_and_complete_source_mro ... 
+thread 'analyser::types::original_member_context::tests::original_lexical_next_uses_counted_member_and_complete_source_mro' (554972) panicked at rust/tcl-compiler/src/analyser/types/original_member_context.rs:599:18:
+called `Option::unwrap()` on a `None` value
+FAILED
+
+failures:
+
+failures:
+    analyser::types::original_member_context::tests::original_lexical_next_declines_relative_targets_and_occupied_forward_routes
+    analyser::types::original_member_context::tests::original_lexical_next_uses_counted_member_and_complete_source_mro
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 8149 filtered out; finished in 5.95s
+

@@ -1,0 +1,10 @@
+{"row":"startup","patchlevel_hex":"302e38342d392d6735626163376339"}
+{"case":"simple","code":0,"result_hex":"4649525354"}
+{"case":"duplicate-last","code":0,"result_hex":"4c415354"}
+{"case":"raw-zero","code":0,"result_hex":"524157"}
+{"case":"modified-zero","code":0,"result_hex":"4d4f44"}
+{"case":"surrogate","code":0,"result_hex":"535552"}
+{"case":"colon","code":0,"result_hex":"434f4c4f4e"}
+{"case":"odd","code":1,"result_hex":"63616e27742072656164202261286b29223a207661726961626c652069736e2774206172726179"}
+{"case":"missing","code":1,"result_hex":"63616e27742072656164202261286f7468657229223a206e6f207375636820656c656d656e7420696e206172726179"}
+{"case":"mutated","code":0,"result_hex":"4c415354"}

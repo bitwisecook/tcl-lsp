@@ -1,0 +1,64 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+    "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.regex.c-match-capture-store-frontiers",
+      "naming.regex.c-substitution-result-variable-error",
+      "naming.regex.c-no-match-original-output-name",
+      "naming.regex.c-command-prefix-object-arguments"
+    ],
+    "reason": "Inspected the exact retained probe and original selected case outputs, build/source digests and process statuses. Each input/capture maps to its distinct measured question; completed guest errors and abnormal process exits remain separate, without a fresh replay or Rust execution claim."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+    "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.regex.c-compiled-pattern-cache-lifetime",
+      "naming.regex.c-malformed-pattern-installation",
+      "naming.regex.c-original-range-native-units",
+      "naming.regex.c-regsub-primary-path-selection"
+    ],
+    "reason": "Inspected the exact retained probe and original selected case outputs, build/source digests and process statuses. Each input/capture maps to its distinct measured question; completed guest errors and abnormal process exits remain separate, without a fresh replay or Rust execution claim."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+    "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.regex.jim-original-regexp-range",
+      "naming.regex.jim-compiled-pattern-lifetime"
+    ],
+    "reason": "Inspected the exact retained probe and original selected case outputs, build/source digests and process statuses. Each input/capture maps to its distinct measured question; completed guest errors and abnormal process exits remain separate, without a fresh replay or Rust execution claim."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+    "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.regex.jim-regsub-original-operands",
+      "naming.regex.jim-regsub-precompiled-cleanup"
+    ],
+    "reason": "Inspected the exact retained probe and original selected case outputs, build/source digests and process statuses. Each input/capture maps to its distinct measured question; completed guest errors and abnormal process exits remain separate, without a fresh replay or Rust execution claim."
+  },
+  {
+    "path": "rust/tcl-regex/tests/data/native_jim_regexp/manifest.json",
+    "sha256": "2a623a8e4d6ba5827cc0f8d9c1347406b01895a9e420eec7d06f6d31ca29ccbf",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.regex.jim-engine-program-range-matrix"
+    ],
+    "reason": "Inspected the exact retained probe and original selected case outputs, build/source digests and process statuses. Each input/capture maps to its distinct measured question; completed guest errors and abnormal process exits remain separate, without a fresh replay or Rust execution claim."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_regexp_glob/manifest.json",
+    "sha256": "c948a2263a22c072d9377ed90ee814482e5a06577a2e17ad97f475d16fab37bc",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.regex.c-equivalent-glob-counted-conversion"
+    ],
+    "reason": "Inspected the exact retained probe and original selected case outputs, build/source digests and process statuses. Each input/capture maps to its distinct measured question; completed guest errors and abnormal process exits remain separate, without a fresh replay or Rust execution claim."
+  }
+]

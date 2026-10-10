@@ -179,6 +179,18 @@ impl NativeCompiledVariableProtocol {
         self.recipe.compiled_local_names_equal(existing, requested)
     }
 
+    /// Whether a compiler match necessarily retains these exact requested
+    /// bytes. C's count plus `CString` comparison has that property before any
+    /// raw NUL; Jim's counted comparator has it for every name. This is a
+    /// comparison-purpose fact, not a global name admission restriction.
+    #[must_use]
+    pub fn compiled_local_name_is_byte_unique(self, requested: &[u8]) -> bool {
+        match self.recipe {
+            NativeCompiledVariableRecipe::C(_) => !requested.contains(&0),
+            NativeCompiledVariableRecipe::Jim084 => true,
+        }
+    }
+
     /// Apply the independent dynamic frame-local comparison for this engine.
     #[must_use]
     pub fn dynamic_local_names_equal(self, existing: &[u8], requested: &[u8]) -> bool {
@@ -273,6 +285,8 @@ mod tests {
     use super::*;
 
     #[test]
+    // Native proof: naming.variable.compiled-versus-runtime-root-purpose
+    // docs/design/analysis/name-resolution-proofs/variable.compiled-versus-runtime-root-purpose.md
     fn compiler_and_dynamic_frame_comparisons_keep_separate_extents() {
         let controls: &[(&[u8], &[u8], bool, bool)] = &[
             (b"k\0a", b"k\0b", true, true),

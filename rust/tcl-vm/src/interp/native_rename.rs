@@ -2,8 +2,8 @@
 //! Original native rename operands select actual slots and procedure holders.
 
 use super::{CommandSlot, NativeCommandLookupUnavailable, ROOT_NS, Vm};
-use tcl_core_types::{ByteCommandSlot, NameBytes};
-use tcl_syntax::naming::NativeNameContext;
+use tcl_core_types::NameBytes;
+use tcl_syntax::naming::{NativeCommandSlotProjection, NativeNameContext};
 
 impl Vm {
     pub(crate) fn native_rename_reported_operand(
@@ -28,7 +28,7 @@ impl Vm {
     pub(super) fn native_rename_destination_slot(
         &self,
         original: &[u8],
-    ) -> Result<ByteCommandSlot, NativeCommandLookupUnavailable> {
+    ) -> Result<NativeCommandSlotProjection, NativeCommandLookupUnavailable> {
         let policy = self
             .name_policy_protocol()
             .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?;
@@ -46,7 +46,7 @@ impl Vm {
         };
         policy
             .recipe()
-            .rename_destination_slot(context, original)
+            .rename_destination_projection(context, original)
             .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)
     }
 

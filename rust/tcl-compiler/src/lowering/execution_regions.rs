@@ -500,13 +500,14 @@ impl Lowerer<'_> {
         if !target.registry_backed {
             return None;
         }
-        let context = self
-            .dialect
-            .or_else(|| self.registry.profile())
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        let context = self.invocation_metadata_context()?;
         let crate::registry_invocation::RegistryInvocationResolution::Resolved(facts) =
-            crate::registry_invocation::resolve_command_tokens(self.registry, context, tokens)
-                .ok()?
+            crate::registry_invocation::resolve_command_tokens_with_metadata_context(
+                self.registry,
+                Some(context),
+                tokens,
+            )
+            .ok()?
         else {
             return None;
         };
@@ -1187,6 +1188,14 @@ mod tests {
             );
         }
         let advice = advice.expect("pre-argument stock lookup can supply lexical layout");
+        assert!(
+            binding.invocation_site().is_none(),
+            "this command never entered at runtime"
+        );
+        assert_eq!(
+            binding.original_lexer_config_for_tokens(tokens),
+            Some(config)
+        );
         assert!(!advice.targets().is_empty());
         assert!(
             binding.execution_is_unknown(),
@@ -1271,6 +1280,80 @@ mod tests {
             cfg.top_level.analysis_edges,
             [] as [(crate::cfg::BlockId, crate::cfg::BlockId); 0]
         );
+    }
+
+    #[test]
+    fn captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Held original source binding and explicit stock loader; no physical
+        // package load, execution or future lifecycle is observed by this test.
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut commands = baseline.commands().project_for_profile(profile);
+        let mut test = commands.get("tcltest::test").unwrap().clone();
+        test.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        commands.insert(test);
+        let context =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(commands)));
+        let loaders = [stock_body_provider_loader(
+            tcl_registry::body_execution::TCLTEST_STOCK_PROVIDER,
+            Some("2.5.11"),
+        )
+        .unwrap()];
+        let mut lowerer = Lowerer::with_config(
+            context.commands(),
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        )
+        .with_context_registry(std::sync::Arc::clone(&context));
+        lowerer.set_source_analysis_options(SourceAnalysisOptions {
+            trusted_package_loaders: &loaders,
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..SourceAnalysisOptions::default()
+        });
+        let source = "package require tcltest; tcltest::test n d -body {return OK}";
+        let tokens = lowerer
+            .lower(source)
+            .top_level
+            .statements
+            .last()
+            .unwrap()
+            .tokens()
+            .unwrap()
+            .clone();
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, lowerer.config)
+                .pop()
+                .unwrap();
+        // This is the same completed source owner, restored for its read-only
+        // selected-provider query after lower() has unwound its lexical walk.
+        lowerer.source_bindings = lowerer
+            .module_source_bindings
+            .take()
+            .map(|bindings| *bindings);
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .proved_execution_target()
+                .is_some()
+        );
+        assert!(lowerer.selected_body_provider(&segment, &tokens).is_some());
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(context.commands())),
+        );
+        let foreign = tcl_registry::model::ingress::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+        );
+        for unavailable in [Some(older), Some(foreign), None] {
+            lowerer.dialect_context = unavailable;
+            assert!(lowerer.selected_body_provider(&segment, &tokens).is_none());
+        }
+        lowerer.dialect_context = Some(context);
+        assert!(lowerer.selected_body_provider(&segment, &tokens).is_some());
     }
 
     #[test]

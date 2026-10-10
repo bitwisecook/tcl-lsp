@@ -52,6 +52,12 @@ fn unhex(value: &str) -> Vec<u8> {
 }
 #[test]
 fn original_compiled_list_index_preserves_95_native_headers_and_completions() {
+    // Native proof naming.list-index.literal-native-instruction-coordinates:
+    // docs/design/analysis/name-resolution-proofs/list-index-literal-native-instruction-coordinates.md
+    // Native proof naming.list-index.multi-path-and-empty-validation:
+    // docs/design/analysis/name-resolution-proofs/list-index-multi-path-and-empty-validation.md
+    // Native proof naming.list-index.expansion-and-abrupt-child-boundaries:
+    // docs/design/analysis/name-resolution-proofs/list-index-expansion-and-abrupt-child-boundaries.md
     let mut windows = 0;
     for &(engine, table) in TABLES {
         let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
@@ -158,6 +164,10 @@ mod original_objects {
     ];
     #[test]
     fn original_index_getters_match_45_native_header_and_result_windows() {
+        // Native proof naming.list-index.original-integer-and-end-offset-headers:
+        // docs/design/analysis/name-resolution-proofs/list-index-original-integer-and-end-offset-headers.md
+        // Native proof naming.list-index.original-list-path-and-invalid-conversion:
+        // docs/design/analysis/name-resolution-proofs/list-index-original-list-path-and-invalid-conversion.md
         let mut count = 0;
         for &(engine, table) in TABLES {
             let profile = tcl_dialect::DialectProfile::find(engine).unwrap();

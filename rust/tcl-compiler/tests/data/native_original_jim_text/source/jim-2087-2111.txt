@@ -1,0 +1,25 @@
+static Jim_Obj *JimParserGetTokenObj(Jim_Interp *interp, struct JimParserCtx *pc)
+{
+    const char *start, *end;
+    char *token;
+    int len;
+
+    start = pc->tstart;
+    end = pc->tend;
+    len = (end - start) + 1;
+    if (len < 0) {
+        len = 0;
+    }
+    token = Jim_Alloc(len + 1);
+    if (pc->tt != JIM_TT_ESC) {
+        /* No escape conversion needed? Just copy it. */
+        memcpy(token, start, len);
+        token[len] = '\0';
+    }
+    else {
+        /* Else convert the escape chars. */
+        len = JimEscape(token, start, len);
+    }
+
+    return Jim_NewStringObjNoAlloc(interp, token, len);
+}

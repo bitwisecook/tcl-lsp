@@ -26,7 +26,7 @@
 
 use tcl_cmd_core::list as list_core;
 
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, obj_bytes};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -209,8 +209,14 @@ fn lrange(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args(b"lrange list first last");
     }
-    let r = list_core::lrange(interp, &argv[1], &argv[2], &argv[3]);
-    adapt(interp, r)
+    match interp.original_list_range(argv[1], argv[2], argv[3]) {
+        Ok(result) => {
+            // SAFETY: the owned original result remains live; the result slot retains it.
+            unsafe { interp.set_obj_result(result.as_ptr()) };
+            Code::Ok
+        }
+        Err(error) => interp.report_cmd_error(error),
+    }
 }
 
 /// `lreverse list`.
@@ -262,14 +268,29 @@ fn split(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `lassign list ?varName ...?` — assign successive elements to the vars
 /// (missing → empty string); return the unassigned tail as a list.
 fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 {
-        return interp.wrong_args(b"lassign list ?varName ...?");
+    let Some(grammar) = interp
+        .native_invocation_dialect()
+        .list_assignment_invocation()
+    else {
+        return interp.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "list-assignment invocation grammar",
+            ),
+        );
+    };
+    let Some((_, arguments)) = argv.split_first() else {
+        return interp.wrong_args(grammar.usage().as_bytes());
+    };
+    if !grammar.accepts(arguments.len()) {
+        return interp.wrong_args(grammar.usage().as_bytes());
     }
-    let elems = match list::list_elements(argv[1]) {
+    let Some((list, vars)) = arguments.split_first() else {
+        return interp.wrong_args(grammar.usage().as_bytes());
+    };
+    let elems = match list::list_elements(*list) {
         Ok(e) => e,
         Err(e) => return interp.report_cmd_error(e.into()),
     };
-    let vars = &argv[2..];
     for (i, &var) in vars.iter().enumerate() {
         let name = obj_bytes(var);
         // `arr(a)` writes the array *element*, not a literal scalar named
@@ -573,8 +594,8 @@ fn lpop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .filter_map(|(i, e)| (i != idx).then_some(*e))
         .collect();
     let newlist = interp.new_list_object(&out); // retains survivors
-                                                // Retain `removed` (via the result) *before* the store releases the old
-                                                // list, so it survives to be returned.
+    // Retain `removed` (via the result) *before* the store releases the old
+    // list, so it survives to be returned.
     interp.set_result(removed);
     let stored = match &elem {
         Some(k) => interp.var_set_elem(&base, k, newlist),
@@ -810,7 +831,7 @@ fn parse_wide(b: &[u8]) -> Option<i128> {
 /// the core; `-command` is split (the core prepares, this adapter runs the merge
 /// sort over the user comparator via `lsort_cmd_compare`, then the core builds).
 fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    use tcl_cmd_core::lsort::{build_command, prepare, sort_command, Lsort};
+    use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
     let job = match prepare(interp, &argv[1..]) {
         Ok(Lsort::Done(v)) => {
             interp.set_result(v);
@@ -1128,11 +1149,17 @@ mod tests {
 
     #[test]
     fn native_concat_preserves_selected_engine_and_object_representation() {
+        // Native proof: naming.list.original-jim-source-length-conversion
+        // docs/design/analysis/name-resolution-proofs/list-original-jim-source-length-conversion.md
+        // These three source channels share one interpreter, as in the native driver.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             leak_free(|interp| {
-                interp.set_dialect_profile(
-                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
-                );
+                *interp = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    crate::environment::profile_for_dialect(dialect),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .expect("actual original native object constructor");
                 assert_eq!(interp.eval_str(b"concat word {}"), Code::Ok);
                 assert_eq!(
                     interp.result_bytes(),
@@ -1147,9 +1174,26 @@ mod tests {
                     Code::Ok
                 );
                 assert_eq!(interp.result_bytes(), b"A  B C");
+                let storage = [b"first".as_slice(), b"second".as_slice()].map(|name| {
+                    interp.var_get(name).map(|value| {
+                        (
+                            crate::obj::stock_list_input_class(value),
+                            crate::obj::native_object_snapshot(value),
+                            core::ptr::eq(
+                                crate::obj::obj_type_ptr(value),
+                                &crate::native_source::JIM_SOURCE_TYPE,
+                            ),
+                        )
+                    })
+                });
+                let code =
+                    interp.eval_str(b"llength $first; llength $second; concat $first $second");
                 assert_eq!(
-                    interp.eval_str(b"llength $first; llength $second; concat $first $second"),
-                    Code::Ok
+                    code,
+                    Code::Ok,
+                    "{dialect}: result={:?}, access={:?}, original storage={storage:?}",
+                    interp.result_bytes(),
+                    interp.native_access_refusal()
                 );
                 assert_eq!(
                     interp.result_bytes(),
@@ -1200,7 +1244,7 @@ mod tests {
         assert_eq!(ok(b"set x {a b c}; lset x 1 Z; set x"), b"a Z c");
         assert_eq!(ok(b"set x {a b c}; lset x end Z"), b"a b Z");
         assert_eq!(ok(b"set x {a b c}; lset x 3 Z"), b"a b c Z"); // append at len
-                                                                  // No index → whole-list replace (lset is set).
+        // No index → whole-list replace (lset is set).
         assert_eq!(ok(b"set x {a b c}; lset x Z"), b"Z");
         assert_eq!(ok(b"set x {a b}; lset x {} Z"), b"Z");
         // Nested: a lone arg is an index path; multiple args each an index.
@@ -1252,7 +1296,7 @@ mod tests {
         assert_eq!(ok(b"set l {1 2 3}; ledit l 1 0 x y; set l"), b"1 x y 2 3"); // first>last
         assert_eq!(ok(b"set l {a b c d}; ledit l end-1 end Z"), b"a b Z");
         assert_eq!(ok(b"set l {a b}; ledit l end+1 end+1 c"), b"a b c"); // append
-                                                                         // Array-element addressing, like `lappend a(k)`.
+        // Array-element addressing, like `lappend a(k)`.
         assert_eq!(
             ok(b"set a(k) {1 2 3}; ledit a(k) 0 0 X; set a(k)"),
             b"X 2 3"

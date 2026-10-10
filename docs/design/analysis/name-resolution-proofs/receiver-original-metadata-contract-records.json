@@ -1,0 +1,398 @@
+[
+  {
+    "id": "naming.tcloo.original-configuration-allocation-join-contract",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/tcloo-original-configuration-allocation-join-contract.md",
+    "problem_statement": "Two original class names can share a reporting label, and renaming a class changes its public slot while preserving its implementation allocation. An OO extension joined by a display QName can therefore update the wrong class, lose a moved class, or promote an alias or ordinary object into a class. The configuration target and its own member delta need independent provenance.",
+    "question": "Does original OO configuration metadata retain its actual target operand and point, join local class metadata by the full implementation allocation site, and keep receiver sides and unresolved targets separate?",
+    "conclusion": "The shared target issuer requires the original full command vector, Registry-selected configuration operand and axis, unanimous reaching rows, and independent operand-effect closure. A local member/relation delta joins original creation metadata only by its full allocation site. Proven local absence remains an external obligation. Aliases and unowned computed targets cannot supply a class join; unowned targets withdraw effective own views while birth declarations survive. These records supply source metadata, not entered worker behavior, manufacture, native compiler permission or call-point temporal MRO.",
+    "scope": "Current Compiler implementation contract for static original OO configuration operands and unchanged literal bodies or inline members. The named regressions distinguish opaque surrogate-unit class names, moved source allocations, external target obligations, aliases/computed targets and instance versus class-object tables. No native execution or Rust test outcome is claimed. Computed body mapping and later dispatch currency remain independent obligations.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "owner-0",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/command_binding/original_class_configuration.rs",
+        "sha256": "64ba63984099a3e16ca7f317ca5b56984ddb789b9bd4767d6e624c7c69e8abec",
+        "description": "Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome."
+      },
+      {
+        "id": "owner-1",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/analyser/types/original_configurations.rs",
+        "sha256": "498fa20a09e17c9d962be2fd4b44e4712c95ed567277ee3f7682e63cb9f2088e",
+        "description": "Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome."
+      },
+      {
+        "id": "owner-2",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/analyser/original_members.rs",
+        "sha256": "6c5be879ccd0cb82b1b19c440886c1e097199b6a80ffa73e2078c888c92e06f4",
+        "description": "Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/analyser/original_members.rs",
+        "selector": "analyser::original_members::tests::original_class_configuration_joins_opaque_target_allocation_and_own_delta",
+        "assertion": "Checks the independently retained original inputs and allocation/provider/receiver-axis boundary stated in this contract.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/original_members.rs",
+        "selector": "analyser::original_members::tests::original_class_configuration_preserves_moved_identity_and_external_obligation",
+        "assertion": "Checks the independently retained original inputs and allocation/provider/receiver-axis boundary stated in this contract.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/original_members.rs",
+        "selector": "analyser::original_members::tests::original_class_configuration_does_not_promote_alias_or_computed_target",
+        "assertion": "Checks the independently retained original inputs and allocation/provider/receiver-axis boundary stated in this contract.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/original_members.rs",
+        "selector": "analyser::original_members::tests::original_object_configuration_keeps_class_object_and_instance_tables_separate",
+        "assertion": "Checks the independently retained original inputs and allocation/provider/receiver-axis boundary stated in this contract.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_class_configuration.rs",
+        "symbol": "original_class_configuration_target",
+        "purpose": "Authenticates the configuration operand and original point independently of a reporting label or external class join."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Execute the named selectors under the coherent Rust workspace before claiming a passing result. No native replay is attached to this implementation contract; source changes require evidence reissue."
+    }
+  },
+  {
+    "id": "naming.tcloo.original-relation-provider-fold-contract",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/tcloo-original-relation-provider-fold-contract.md",
+    "problem_statement": "Superclass and mixin operands can contain opaque counted units, and different operand spellings can select the same class provider. Folding names as Strings before provider lookup can collapse distinct classes or fail removal through another spelling. Class-object mixins must also remain independent of instance inheritance.",
+    "question": "Does the original class relation ledger retain counted operands and caller lookup scope, then fold joined provider identities through one Registry slot owner on the selected receiver axis?",
+    "conclusion": "OriginalSourceClassRelationLedger retains the original operand input, lookup geometry, full operation site, selected receiver side and ordered effect. Its resolve callback joins every operand before SlotSpec applies the operation to provider identities. Unknown operands or flags withdraw the affected list until an exact replacement or clear renews it. Instance superclass/mixins and class-object mixins remain separate. The ledger supplies source metadata and cannot prove provider existence, successful TclOO execution or native MRO.",
+    "scope": "Current Compiler/Registry implementation contract for original TclOO source relation operands. The regressions distinguish two opaque surrogate-unit names in a namespace, instance versus class-object mixins, different spellings joined to one provider, and replacement after an unresolved operand. Rust execution status is unverified here; no C Tcl, Jim or BIG-IP execution is claimed by this record.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "owner-0",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/analyser/types/original_relations.rs",
+        "sha256": "2af4ce37663a459061e11126010e05d614c3dde386474da379e7c218714646ee",
+        "description": "Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome."
+      },
+      {
+        "id": "owner-1",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/analyser/original_members.rs",
+        "sha256": "6c5be879ccd0cb82b1b19c440886c1e097199b6a80ffa73e2078c888c92e06f4",
+        "description": "Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome."
+      },
+      {
+        "id": "owner-2",
+        "role": "implementation",
+        "path": "rust/tcl-registry/src/definer.rs",
+        "sha256": "3b92e404d765529848fb0eeec9a58d12173fa5314aab274cd9e20961405e2ac9",
+        "description": "Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/analyser/original_members.rs",
+        "selector": "analyser::original_members::tests::original_relations_preserve_opaque_operands_caller_scope_and_receiver_side",
+        "assertion": "Checks the independently retained original inputs and allocation/provider/receiver-axis boundary stated in this contract.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/original_members.rs",
+        "selector": "analyser::original_members::tests::original_relation_removal_compares_joined_providers_and_renews_after_unknown",
+        "assertion": "Checks the independently retained original inputs and allocation/provider/receiver-axis boundary stated in this contract.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/analyser/types/original_relations.rs",
+        "symbol": "OriginalSourceClassRelationLedger::resolve",
+        "purpose": "Joins independently selected providers before the shared Registry slot fold; it supplies no provider or execution grant."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Execute the named selectors under the coherent Rust workspace before claiming a passing result. No native replay is attached to this implementation contract; source changes require evidence reissue."
+    }
+  },
+  {
+    "id": "naming.alias.captured-prefix-allocation-contract",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/alias-captured-prefix-allocation-contract.md",
+    "problem_statement": "An interpreter alias captures argument objects when installed. A later write to the source variable must not replace those captured values, while replacing the alias allocation must replace its capture. Reconstructing the prefix from displayed strings or treating it as a written argument loses its provenance and can donate incorrect compiler-local geometry.",
+    "question": "Does original alias traversal transport captured prefix inputs only with the actual alias allocation at every hop, preserving held values independently of current source variable contents?",
+    "conclusion": "The canonical command table joins each alias hop to the retained current publication and implementation allocation before appending its original captured inputs. SourceCommandTarget retains those inputs separately from effective words, and the shared argument owner marks them BindingPrefix rather than Written. Known later cell writes do not substitute new objects into the old capture; replacement selects the new alias capture. Missing lineage or disagreeing paths refuse the facet. This supplies original effective operand provenance, not writable source words, compiler preparation or normal completion.",
+    "scope": "Current Compiler implementation contract for same-interpreter original alias captures and nested aliases. The regression distinguishes a held prefix across a known scalar write and a replaced alias allocation. Unknown content/observer effects, cross-interpreter aliases, native compilation and actual guest object identity remain independent and are not claimed. No Rust test outcome or native execution is claimed.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "owner-0",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+        "sha256": "849a48bae53c0cd389f227b342efd2ca5e9d62d45701e40ad1fe2088580a99c6",
+        "description": "Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome."
+      },
+      {
+        "id": "owner-1",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "sha256": "efac70f728d1d88f2cc83702554b52bb8c27845459e500e080fdf269c5f8f18e",
+        "description": "Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome."
+      },
+      {
+        "id": "owner-2",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+        "sha256": "2959d3909763c4d8e0b627fec9abf5ce5a74449df958cd1450a65264459f5320",
+        "description": "Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+        "selector": "command_binding::source_command_world::tests::original_alias_prefix_inputs_follow_actual_allocations_and_held_values",
+        "assertion": "Checks the independently retained original inputs and allocation/provider/receiver-axis boundary stated in this contract.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+        "symbol": "original_targets_for_input",
+        "purpose": "Traverses the actual canonical table and alias allocation while retaining exact captured input lineage."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Execute the named selectors under the coherent Rust workspace before claiming a passing result. No native replay is attached to this implementation contract; source changes require evidence reissue."
+    }
+  }
+]

@@ -40,7 +40,10 @@ mod native_array;
 mod native_compiler_pass;
 mod native_introspection;
 mod native_mathop;
+mod native_namespace_string;
 mod native_scalar;
+use native_namespace_string::NamespaceStringOperation;
+mod native_substitution;
 use native_array::ArrayOperation;
 use native_introspection::IntrospectionOperation;
 use native_mathop::MathopOperation;
@@ -129,9 +132,10 @@ struct SyntaxInstruction {
     options: usize,
 }
 struct CommandInstruction {
-    span: Span,
+    source_extent: Span,
     words: Vec<WordInstruction>,
     operation: Operation,
+    guard: Option<tcl_registry::native_compilation::NativeCompilationGuard>,
 }
 struct WordInstruction {
     original: NativeWord,
@@ -143,7 +147,10 @@ struct ArenaInstruction {
     texts: HashMap<Span, usize>,
     locals: HashMap<Span, usize>,
     roots: HashMap<Span, usize>,
+    syntax: HashMap<Span, (usize, usize)>,
 }
+type RetainedBodyLocalTable = Rc<tcl_runtime_api::native_literal::NativeLocalNameTable<obj::Owned>>;
+
 type NativeArenaFrame = (
     PartListId,
     usize,
@@ -153,6 +160,7 @@ type NativeArenaFrame = (
 
 enum Operation {
     Scalar(ScalarOperation),
+    NamespaceString(NamespaceStringOperation),
     MathOperator(MathopOperation),
     Introspection(IntrospectionOperation),
     Array(Box<ArrayOperation>),
@@ -308,6 +316,31 @@ impl Builder<'_> {
         self.compilation_failure = Some(failure);
         unavailable("native registered compiler rejected original source")
     }
+    fn report_compilation_error(&mut self, error: ValueError) -> Code {
+        if let Some(failure) = self.compilation_failure.take() {
+            return self
+                .interp
+                .report_cmd_error(tcl_cmd_core::CmdError::from_byte_details(
+                    tcl_cmd_core::CmdErrorDetails {
+                        message: failure.message.unwrap_or_default().into_bytes(),
+                        string_result: None,
+                        error_code: tcl_cmd_core::CmdErrorCodeUpdate::Set(
+                            failure
+                                .error_code
+                                .unwrap_or_else(|| "NONE".to_owned())
+                                .into_bytes(),
+                        ),
+                        error_info: failure.error_info.map(String::into_bytes),
+                        error_line: None,
+                        primitive_getter: None,
+                    },
+                ));
+        }
+        if let Some(fatal) = self.parse_failure.take() {
+            return self.interp.error(fatal.cut.message.as_bytes());
+        }
+        self.interp.report_cmd_error(error.into())
+    }
     fn original_literal(&mut self, original: obj::Owned) -> usize {
         let index = self.literals.register_private_original();
         self.private_objects.insert(index, original);
@@ -317,6 +350,17 @@ impl Builder<'_> {
         &mut self,
         cut: tcl_lexer::NativeScriptWordCut,
     ) -> Result<SyntaxInstruction, ValueError> {
+        let (message, options) = self.syntax_literal_objects(cut.cut.message.as_bytes())?;
+        Ok(SyntaxInstruction {
+            cut,
+            message,
+            options,
+        })
+    }
+    fn syntax_literal_objects(
+        &mut self,
+        message_bytes: &[u8],
+    ) -> Result<(usize, usize), ValueError> {
         use tcl_registry::native_return_options::{
             NativeReturnOptionsApplication::Syntax, NativeSyntaxMessageAllocation,
         };
@@ -325,16 +369,16 @@ impl Builder<'_> {
             .native_invocation_dialect()
             .native_return_options_application(Syntax)
             .ok_or_else(|| unavailable("native syntax instruction producer"))?;
-        self.interp.error(cut.cut.message.as_bytes());
+        self.interp.error(message_bytes);
         let message = match protocol
             .syntax_message_allocation()
             .ok_or_else(|| unavailable("native syntax message allocation"))?
         {
             NativeSyntaxMessageAllocation::UnsharedString => {
-                self.literals.register_unshared(cut.cut.message.as_bytes())
+                self.literals.register_unshared(message_bytes)
             }
             NativeSyntaxMessageAllocation::RegisteredString => {
-                self.literals.intern_bytes(cut.cut.message.as_bytes())
+                self.literals.intern_bytes(message_bytes)
             }
             NativeSyntaxMessageAllocation::OriginalObject => {
                 self.original_literal(obj::Owned::retain(self.interp.result_obj()))
@@ -345,11 +389,7 @@ impl Builder<'_> {
         if !protocol.syntax_retains_error_stack() {
             self.interp.reset_original_c_compiler_result()?;
         }
-        Ok(SyntaxInstruction {
-            cut,
-            message,
-            options,
-        })
+        Ok((message, options))
     }
     fn command_literal(
         &mut self,
@@ -541,6 +581,15 @@ impl Builder<'_> {
         original: &ExecutablePartArena,
         depth: u32,
     ) -> Result<ArenaInstruction, ValueError> {
+        self.arena_in(original, depth, false)
+    }
+    fn arena_in(
+        &mut self,
+        original: &ExecutablePartArena,
+        depth: u32,
+        template: bool,
+    ) -> Result<ArenaInstruction, ValueError> {
+        let mut syntax = HashMap::new();
         let mut texts = HashMap::new();
         let mut locals = HashMap::new();
         let mut roots = HashMap::new();
@@ -582,8 +631,14 @@ impl Builder<'_> {
                         "native body expression-sugar compiler instruction",
                     ));
                 }
-                ExecutablePart::ParseError(_) => {
-                    return Err(unavailable("native body complete word parse ownership"));
+                ExecutablePart::ParseError(message) => {
+                    if !template {
+                        return Err(unavailable("native body complete word parse ownership"));
+                    }
+                    syntax.insert(
+                        component.span,
+                        self.syntax_literal_objects(message.as_bytes())?,
+                    );
                 }
             }
         }
@@ -592,6 +647,7 @@ impl Builder<'_> {
             texts,
             locals,
             roots,
+            syntax,
         })
     }
 
@@ -655,11 +711,12 @@ impl Builder<'_> {
         let Some(head) = captured.literal(0) else {
             return Ok(Some(Operation::Invoke));
         };
+        // A release-hidden installed root is absent from the real callable
+        // surface. Its retained stock compiler metadata cannot select a hook.
         let generation = self
             .interp
-            .namespaces
-            .borrow()
-            .resolve_generation(self.stamp.namespace, head);
+            .resolve_dispatchable_with_generation(self.stamp.namespace, head)
+            .and_then(|(_, generation)| generation);
         let Some(generation) = generation else {
             return Ok(Some(Operation::Invoke));
         };
@@ -985,6 +1042,9 @@ impl Builder<'_> {
             },
         };
         Ok(Some(match plan {
+            NativeInstructionPlan::NamespaceString(recipe) => Operation::NamespaceString(
+                self.namespace_string_operation(&captured, recipe, depth)?,
+            ),
             NativeInstructionPlan::Upvar(recipe) => {
                 Operation::Upvar(self.upvar_operation(&captured, recipe, depth)?)
             }
@@ -1076,16 +1136,19 @@ impl Builder<'_> {
             NativeInstructionPlan::Unset(recipe) => {
                 Operation::Unset(self.unset_operation(&captured, recipe, depth)?)
             }
-            NativeInstructionPlan::Load { target } => Operation::Load(self.target(target, depth)?),
-            NativeInstructionPlan::Store { target, value_word } => {
-                Operation::Store(self.target(target, depth)?, value_word)
+            NativeInstructionPlan::Load { target, .. } => {
+                Operation::Load(self.target(target, depth)?)
             }
+            NativeInstructionPlan::Store {
+                target, value_word, ..
+            } => Operation::Store(self.target(target, depth)?, value_word),
             NativeInstructionPlan::Increment {
                 target,
                 amount_word,
                 immediate,
+                ..
             } => Operation::Increment(self.target(target, depth)?, amount_word, immediate),
-            NativeInstructionPlan::Append { target, recipe } => {
+            NativeInstructionPlan::Append { target, recipe, .. } => {
                 Operation::Append(self.target(target, depth)?, recipe)
             }
             NativeInstructionPlan::List(recipe) => {
@@ -1182,6 +1245,7 @@ impl Builder<'_> {
                 texts: HashMap::new(),
                 locals: HashMap::new(),
                 roots: HashMap::new(),
+                syntax: HashMap::new(),
             }
         };
         Ok(WordInstruction {
@@ -1454,6 +1518,12 @@ impl Builder<'_> {
                         continue;
                     }
                 }
+                if let Operation::NamespaceString(recipe) = &mut operation {
+                    if let Some(word) = recipe.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
                 if let Operation::Scalar(scalar) = &mut operation {
                     if let Some(word) = scalar.prepared_words.remove(&index) {
                         words.push(word);
@@ -1501,7 +1571,7 @@ impl Builder<'_> {
                 let emitted = match &operation {
                     Operation::StringMatch(_) | Operation::StringTrim(_) => false,
                     Operation::ListIndex(_) | Operation::ListOperations(_) => false,
-                    Operation::MathOperator(_) | Operation::Scalar(_) | Operation::Introspection(_) | Operation::Array(_) => false,
+                    Operation::NamespaceString(_) | Operation::MathOperator(_) | Operation::Scalar(_) | Operation::Introspection(_) | Operation::Array(_) => false,
                     Operation::Upvar(_) | Operation::InfoExists(_) => false,
                     Operation::Error(_) | Operation::Coroutine(_) | Operation::DictionaryLookup(_) | Operation::DictionaryScope(_) | Operation::DictionaryMutation(_) | Operation::Unset(_) => false,
                     Operation::TclOoHelper(tcl_registry::native_tcloo_compilation::NativeTclOoInstruction::Next{words,..},_)=>words.iter().any(|word|matches!(word,tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(original) if index==*original)),
@@ -1566,6 +1636,7 @@ impl Builder<'_> {
                         texts: HashMap::new(),
                         locals: HashMap::new(),
                         roots: HashMap::new(),
+                        syntax: HashMap::new(),
                     }
                 };
                 words.push(WordInstruction {
@@ -1597,8 +1668,24 @@ impl Builder<'_> {
                 }
             }
             commands.push(CommandInstruction {
-                span: command.span,
+                source_extent: command
+                    .source_extent
+                    .ok_or_else(|| unavailable("native C original command source extent"))?,
                 words,
+                guard: (!matches!(
+                    operation,
+                    Operation::Invoke
+                        | Operation::NamespaceBindings(NamespaceOperation {
+                            generic: Some(_),
+                            ..
+                        })
+                ))
+                .then(|| {
+                    tcl_registry::native_compilation::NativeCompilationGuard::for_native_dialect(
+                        self.interp.native_invocation_dialect(),
+                    )
+                })
+                .flatten(),
                 operation,
             });
         }
@@ -1701,6 +1788,54 @@ impl Interp {
         })
     }
 
+    fn native_body_local_table(
+        &mut self,
+        stamp: &CacheStamp,
+        names: &[tcl_runtime_api::NameBytes],
+    ) -> Result<(LocalVarTable, Option<RetainedBodyLocalTable>), Code> {
+        let borrowed_table = if stamp.borrowed_table.is_some() {
+            self.frames.borrow().native_local_name_table().cloned()
+        } else {
+            None
+        };
+        let borrowed_names = borrowed_table
+            .as_ref()
+            .map(|table| {
+                table
+                    .names
+                    .iter()
+                    .map(|name| {
+                        name.as_ref()
+                            .map(|name| {
+                                ValueOps::native_string_bytes(self, &name.as_ptr())
+                                    .map(|bytes| tcl_runtime_api::NameBytes::from(bytes.as_ref()))
+                            })
+                            .transpose()
+                    })
+                    .collect::<Result<Vec<_>, ValueError>>()
+            })
+            .transpose()
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        // Canonical name materialisation may call a native updater. The same
+        // table and physical compiler context must still own the compilation.
+        if stamp.borrowed_table.is_some()
+            && self.native_body_stamp(stamp.namespace, None).as_ref() != Some(stamp)
+        {
+            return Err(
+                self.report_cmd_error(unavailable("native body borrowed table changed").into())
+            );
+        }
+        let mut lvt = borrowed_names.as_ref().map_or_else(
+            || LocalVarTable::from_native_names(names),
+            |names| LocalVarTable::from_native_slot_names(names),
+        );
+        lvt.set_native_protocol(
+            self.native_invocation_dialect()
+                .native_compiled_variable_protocol(),
+        );
+        Ok((lvt, borrowed_table))
+    }
+
     /// Prepare a complete executable artifact before installing its native
     /// primary. Unsupported registered instructions preserve the interpreter's
     /// existing uncached path; unavailable geometry is a typed host refusal.
@@ -1781,44 +1916,7 @@ impl Interp {
                 .map(|param| tcl_runtime_api::NameBytes::from(param.name.as_slice()))
                 .collect()
         });
-        let borrowed_table = if stamp.borrowed_table.is_some() {
-            self.frames.borrow().native_local_name_table().cloned()
-        } else {
-            None
-        };
-        let borrowed_names = borrowed_table
-            .as_ref()
-            .map(|table| {
-                table
-                    .names
-                    .iter()
-                    .map(|name| {
-                        name.as_ref()
-                            .map(|name| {
-                                ValueOps::native_string_bytes(self, &name.as_ptr())
-                                    .map(|bytes| tcl_runtime_api::NameBytes::from(bytes.as_ref()))
-                            })
-                            .transpose()
-                    })
-                    .collect::<Result<Vec<_>, ValueError>>()
-            })
-            .transpose()
-            .map_err(|error| self.report_cmd_error(error.into()))?;
-        // Canonical name materialisation may call a native updater. The same
-        // table and physical compiler context must still own the compilation.
-        if self.native_body_stamp(namespace, procedure).as_ref() != Some(&stamp) {
-            return Err(
-                self.report_cmd_error(unavailable("native body borrowed table changed").into())
-            );
-        }
-        let mut lvt = borrowed_names.as_ref().map_or_else(
-            || LocalVarTable::from_native_names(&names),
-            |names| LocalVarTable::from_native_slot_names(names),
-        );
-        lvt.set_native_protocol(
-            self.native_invocation_dialect()
-                .native_compiled_variable_protocol(),
-        );
+        let (lvt, borrowed_table) = self.native_body_local_table(&stamp, &names)?;
         let mut builder = Builder {
             interp: self,
             image: image.clone(),
@@ -1838,25 +1936,8 @@ impl Interp {
         let literals = match compilation {
             Ok(literals) => literals,
             Err(error) => {
-                if let Some(failure) = builder.compilation_failure {
-                    return Err(builder.interp.report_cmd_error(
-                        tcl_cmd_core::CmdError::from_byte_details(tcl_cmd_core::CmdErrorDetails {
-                            message: failure.message.unwrap_or_default().into_bytes(),
-                            string_result: None,
-                            error_code: tcl_cmd_core::CmdErrorCodeUpdate::Set(
-                                failure
-                                    .error_code
-                                    .unwrap_or_else(|| "NONE".to_owned())
-                                    .into_bytes(),
-                            ),
-                            error_info: failure.error_info.map(String::into_bytes),
-                            error_line: None,
-                            primitive_getter: None,
-                        }),
-                    ));
-                }
-                if let Some(fatal) = builder.parse_failure {
-                    return Err(builder.interp.error(fatal.cut.message.as_bytes()));
+                if builder.compilation_failure.is_some() || builder.parse_failure.is_some() {
+                    return Err(builder.report_compilation_error(error));
                 }
                 if matches!(
                     &error,
@@ -1951,10 +2032,16 @@ impl Interp {
             );
         }
         for command in &script.commands {
+            if !self.evaluation_is_live() {
+                return Code::Error;
+            }
             if let Some(frame) = self.cmd_frames.borrow_mut().last_mut() {
                 frame.line = frame.line_base
-                    + line_of(artifact.image.bytes(), command.span.start() as usize);
-                frame.cmd = artifact.image.bytes()[command.span.as_range()].to_vec();
+                    + line_of(
+                        artifact.image.bytes(),
+                        command.source_extent.start() as usize,
+                    );
+                frame.cmd = artifact.image.bytes()[command.source_extent.as_range()].to_vec();
                 frame.original_command = None;
             }
             let code = self.execute_body_instruction(artifact, command, execution);
@@ -1964,8 +2051,11 @@ impl Interp {
             if code != Code::Ok || self.host_refusal_pending() {
                 if code == Code::Error && !self.host_refusal_pending() {
                     self.log_command_bytes(
-                        line_of(artifact.image.bytes(), command.span.start() as usize),
-                        &artifact.image.bytes()[command.span.as_range()],
+                        line_of(
+                            artifact.image.bytes(),
+                            command.source_extent.start() as usize,
+                        ),
+                        &artifact.image.bytes()[command.source_extent.as_range()],
                     );
                 }
                 return if self.host_refusal_pending() {
@@ -2060,36 +2150,39 @@ impl Interp {
         arena: &ArenaInstruction,
         execution: &mut BodyExecution,
     ) -> Result<obj::Owned, Code> {
+        let end = arena.original.list(arena.original.root()).len();
+        self.body_arena_range(artifact, arena, execution, 0..end)
+    }
+    fn body_arena_range(
+        &mut self,
+        artifact: &NativeBodyArtifact,
+        arena: &ArenaInstruction,
+        execution: &mut BodyExecution,
+        range: std::ops::Range<usize>,
+    ) -> Result<obj::Owned, Code> {
         // One component passes its actual object through; concatenation reaches
         // the native getter only when multiple components require bytes.
-        let mut pending: Vec<NativeArenaFrame> = vec![(arena.original.root(), 0, Vec::new(), None)];
+        let mut pending: Vec<NativeArenaFrame> =
+            vec![(arena.original.root(), range.start, Vec::new(), None)];
         loop {
+            let root = pending.len() == 1;
             let frame = pending.last_mut().expect("native word root");
-            let Some(component) = arena.original.list(frame.0).get(frame.1) else {
+            let Some(component) = arena
+                .original
+                .list(frame.0)
+                .get(frame.1)
+                .filter(|_| !root || frame.1 < range.end)
+            else {
                 let (_, _, values, _) = pending.pop().expect("completed native operand");
                 let value = self.concatenate_body_values(values)?;
                 let Some(parent) = pending.last_mut() else {
                     return Ok(value);
                 };
                 let (name, slot) = parent.3.take().expect("actual array index owner");
-                let root = arena.original.bytes(name).expect("retained variable root");
-                let read = self.body_read_original_parts(
-                    &EvaluatedTarget {
-                        root: root.to_vec(),
-                        element: None,
-                        original_name: arena.roots.get(&name).map(|index| {
-                            obj::Owned::retain(
-                                artifact
-                                    .literals
-                                    .original(*index)
-                                    .expect("emitted variable base"),
-                            )
-                        }),
-                        original_index: Some(value),
-                        combined: false,
-                    },
-                    slot,
-                )?;
+                let mut evaluated = self.body_variable_substitution_target(artifact, arena, name);
+                evaluated.original_index = Some(value);
+                evaluated.combined = false;
+                let read = self.body_read_original_parts(&evaluated, slot)?;
                 parent.2.push(read);
                 continue;
             };
@@ -2115,24 +2208,7 @@ impl Interp {
                     continue;
                 }
                 ExecutablePart::Variable { name, index: None } => self.body_read_original_parts(
-                    &EvaluatedTarget {
-                        root: arena
-                            .original
-                            .bytes(*name)
-                            .expect("retained variable root")
-                            .to_vec(),
-                        element: None,
-                        original_name: arena.roots.get(name).map(|index| {
-                            obj::Owned::retain(
-                                artifact
-                                    .literals
-                                    .original(*index)
-                                    .expect("emitted variable name"),
-                            )
-                        }),
-                        original_index: None,
-                        combined: true,
-                    },
+                    &self.body_variable_substitution_target(artifact, arena, *name),
                     arena.locals.get(name).copied(),
                 )?,
                 ExecutablePart::Command { body } => {
@@ -2156,25 +2232,117 @@ impl Interp {
                     }
                     obj::Owned::retain(self.result_obj())
                 }
-                ExecutablePart::ParseError(message) => return Err(self.error(message.as_bytes())),
+                ExecutablePart::ParseError(message) => {
+                    if let Some(&(message, options)) = arena.syntax.get(&component.span) {
+                        return Err(self.execute_body_syntax_objects(artifact, message, options));
+                    }
+                    return Err(self.error(message.as_bytes()));
+                }
                 ExecutablePart::Expression { .. } => unreachable!("unadmitted expression sugar"),
             };
             frame.2.push(value);
         }
     }
 
+    fn body_variable_substitution_target(
+        &self,
+        artifact: &NativeBodyArtifact,
+        arena: &ArenaInstruction,
+        name: Span,
+    ) -> EvaluatedTarget {
+        let frames = self.frames.borrow();
+        let slot = arena.locals.get(&name).copied();
+        let root = slot.map_or_else(
+            || arena.original.bytes(name).expect("retained variable root"),
+            |slot| {
+                frames
+                    .compiled_slot_name(slot)
+                    .expect("actual compiled local")
+            },
+        );
+        // Indexed instructions report their selected canonical local. C8.4
+        // owns its counted declaration bytes; later releases own name headers.
+        let original_name = if let Some(slot) = slot {
+            frames
+                .native_local_name_table()
+                .and_then(|table| table.names.get(slot))
+                .and_then(Option::as_ref)
+                .cloned()
+        } else {
+            arena.roots.get(&name).map(|index| {
+                obj::Owned::retain(
+                    artifact
+                        .literals
+                        .original(*index)
+                        .expect("emitted variable name"),
+                )
+            })
+        };
+        EvaluatedTarget {
+            root: root.to_vec(),
+            element: None,
+            original_name,
+            original_index: None,
+            combined: slot.is_none(),
+        }
+    }
+
+    fn execute_body_syntax_objects(
+        &mut self,
+        artifact: &NativeBodyArtifact,
+        message: usize,
+        options: usize,
+    ) -> Code {
+        let options = artifact
+            .literals
+            .original(options)
+            .expect("original syntax options");
+        let code = match self.process_original_c_return_options(
+            tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+            1,
+            0,
+            options,
+        ) {
+            Ok(code) => code,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        self.set_result(
+            artifact
+                .literals
+                .original(message)
+                .expect("original syntax message"),
+        );
+        self.clear_error_logged();
+        code
+    }
+
     fn concatenate_body_values(&mut self, mut values: Vec<obj::Owned>) -> Result<obj::Owned, Code> {
         if values.len() == 1 {
             return Ok(values.pop().expect("sole component"));
         }
-        let mut bytes = Vec::new();
-        for value in values {
-            bytes.extend_from_slice(
-                &ValueOps::native_string_bytes(self, &value.as_ptr())
-                    .map_err(|error| self.report_cmd_error(error.into()))?,
-            );
-        }
-        Ok(obj::Owned::fresh(obj::new_string_bytes(&bytes)))
+        let dialect = self.native_invocation_dialect();
+        let protocol = dialect
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or_else(|| {
+                self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "C original body word concatenation issuer",
+                    )
+                    .into(),
+                )
+            })?;
+        let objects = crate::value_ops::RuntimeAppendObjects {
+            dialect,
+            binary_recipe: dialect.byte_array_string_recipe(None),
+        };
+        let originals = values
+            .iter()
+            .map(|value| crate::value_ops::RuntimeAppendValue::borrowed(value.as_ptr()))
+            .collect::<Vec<_>>();
+        let result = tcl_cmd_core::native_cat::concatenate_compiled(&objects, protocol, &originals)
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        Ok(obj::Owned::retain(result.as_ptr()))
     }
 
     fn body_target(
@@ -2251,6 +2419,15 @@ impl Interp {
         slot: Option<usize>,
         creates: bool,
     ) -> Result<super::native_variable_names::OriginalCVariableCapture, Code> {
+        use tcl_syntax::naming::{
+            NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
+        };
+        use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
+        let purpose = if creates {
+            Purpose::Write
+        } else {
+            Purpose::Read
+        };
         let root = evaluated.root.as_slice();
         if let Some(slot) = slot {
             // The original PUSH operands are materialised only when the
@@ -2271,8 +2448,16 @@ impl Interp {
                 creates,
             );
             let captured = captured
-                .map_err(|error| crate::builtins::var_error(self, root, error))?
-                .ok_or_else(|| self.no_such_variable(root, element.as_deref()))?;
+                .map_err(|error| {
+                    self.body_variable_receiver_error(evaluated, purpose, Site::NameLookup, error)
+                })?
+                .ok_or_else(|| {
+                    if creates {
+                    self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("compiled created variable receiver"))
+                } else {
+                    self.body_variable_missing_value(evaluated, Reason::NoSuchVariable)
+                }
+                })?;
             if creates
                 && self
                     .native_invocation_dialect()
@@ -2290,7 +2475,6 @@ impl Interp {
                 element,
             })
         } else {
-            use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
             if evaluated.combined {
                 return self
                     .capture_original_c_variable_report(
@@ -2305,7 +2489,13 @@ impl Interp {
                             Purpose::Read
                         },
                     )?
-                    .ok_or_else(|| self.no_such_variable(root, evaluated.element.as_deref()));
+                    .ok_or_else(|| {
+                        if creates {
+                    self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("compiled created variable receiver"))
+                } else {
+                    self.body_variable_missing_value(evaluated, Reason::NoSuchVariable)
+                }
+                    });
             }
             self.capture_original_c_parts_report(
                 evaluated
@@ -2320,8 +2510,63 @@ impl Interp {
                     Purpose::Read
                 },
             )?
-            .ok_or_else(|| self.no_such_variable(root, evaluated.element.as_deref()))
+            .ok_or_else(|| if creates {
+                    self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("compiled created variable receiver"))
+                } else {
+                    self.body_variable_missing_value(evaluated, Reason::NoSuchVariable)
+                })
         }
+    }
+
+    fn body_variable_reporting_input(
+        &mut self,
+        evaluated: &EvaluatedTarget,
+    ) -> Result<super::native_variable_names::OriginalCVariableReportingInput, Code> {
+        self.original_c_variable_reporting_input(
+            (&evaluated.root, evaluated.element.as_deref()),
+            (
+                evaluated.original_name.as_ref().map(obj::Owned::as_ptr),
+                evaluated.original_index.as_ref().map(obj::Owned::as_ptr),
+                evaluated.combined,
+            ),
+        )
+    }
+
+    fn body_variable_receiver_error(
+        &mut self,
+        evaluated: &EvaluatedTarget,
+        purpose: tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose,
+        site: tcl_syntax::naming::NativeVariableFailureSite,
+        error: crate::frame::VarError,
+    ) -> Code {
+        if self.host_refusal_pending() {
+            return Code::Error;
+        }
+        let input = match self.body_variable_reporting_input(evaluated) {
+            Ok(input) => input,
+            Err(code) => return code,
+        };
+        self.original_c_variable_receiver_error(input.input(), purpose, error, Some(site))
+    }
+
+    fn body_variable_missing_value(
+        &mut self,
+        evaluated: &EvaluatedTarget,
+        reason: tcl_syntax::naming::NativeVariableDiagnosticReason,
+    ) -> Code {
+        if self.host_refusal_pending() {
+            return Code::Error;
+        }
+        let input = match self.body_variable_reporting_input(evaluated) {
+            Ok(input) => input,
+            Err(code) => return code,
+        };
+        self.original_c_variable_failure_input(
+            input.input(),
+            tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose::Read,
+            reason,
+            tcl_syntax::naming::NativeVariableFailureSite::ValueRead,
+        )
     }
 
     fn body_read_original_parts(
@@ -2329,6 +2574,10 @@ impl Interp {
         evaluated: &EvaluatedTarget,
         slot: Option<usize>,
     ) -> Result<obj::Owned, Code> {
+        use tcl_syntax::naming::{
+            NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
+        };
+        use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
         let capture = self.body_capture_target(evaluated, slot, false)?;
         let root = capture.root.as_slice();
         let element = capture.element.as_deref();
@@ -2337,9 +2586,10 @@ impl Interp {
         if self.has_variable_traces() {
             let access = self.trace_access(root, root, element, &home, false);
             if self.fire_var_trace_resolved(&home, &access, b"read") {
-                return Err(crate::builtins::var_error(
-                    self,
-                    root,
+                return Err(self.body_variable_receiver_error(
+                    evaluated,
+                    Purpose::Read,
+                    Site::ValueRead,
                     crate::frame::VarError::TraceError,
                 ));
             }
@@ -2349,8 +2599,19 @@ impl Interp {
         }
         let value = receiver
             .read()
-            .map_err(|error| crate::builtins::var_error(self, root, error))?
-            .ok_or_else(|| self.no_such_variable(root, element))?;
+            .map_err(|error| {
+                self.body_variable_receiver_error(evaluated, Purpose::Read, Site::ValueRead, error)
+            })?
+            .ok_or_else(|| {
+                self.body_variable_missing_value(
+                    evaluated,
+                    if element.is_some() && receiver.is_array() {
+                        Reason::NoSuchElement
+                    } else {
+                        Reason::NoSuchVariable
+                    },
+                )
+            })?;
         Ok(obj::Owned::retain(value))
     }
 
@@ -2379,23 +2640,28 @@ impl Interp {
         slot: Option<usize>,
         value: &obj::Owned,
     ) -> Result<Option<obj::Owned>, Code> {
-        let capture = match self.body_capture_target(evaluated, slot, true) {
-            Ok(captured) => captured,
-            Err(code) => return Err(code),
-        };
+        use tcl_syntax::naming::NativeVariableFailureSite as Site;
+        use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
+        let capture = self.body_capture_target(evaluated, slot, true)?;
         let root = capture.root.as_slice();
         let element = capture.element.as_deref();
         let receiver = capture.receiver;
         let home = capture.home;
         if let Err(error) = receiver.store(value.as_ptr()) {
-            return Err(crate::builtins::var_error(self, root, error));
+            return Err(self.body_variable_receiver_error(
+                evaluated,
+                Purpose::Write,
+                Site::ValueWrite,
+                error,
+            ));
         }
         if self.has_variable_traces() {
             let access = self.trace_access(root, root, element, &home, false);
             if self.fire_var_trace_resolved(&home, &access, b"write") {
-                return Err(crate::builtins::var_error(
-                    self,
-                    root,
+                return Err(self.body_variable_receiver_error(
+                    evaluated,
+                    Purpose::Write,
+                    Site::ValueWrite,
                     crate::frame::VarError::TraceError,
                 ));
             }
@@ -2619,656 +2885,711 @@ impl Interp {
         command: &CommandInstruction,
         execution: &mut BodyExecution,
     ) -> Code {
-        let result = (|| -> Result<Code, Code> {
-            match &command.operation {
-                Operation::Upvar(upvar) => {
-                    self.execute_body_upvar(artifact, command, upvar, execution)
+        // Complete currency inspection before entering any recursive callback.
+        // Error construction and source re-evaluation have separate frames.
+        match self.body_instruction_source_is_current(artifact, command) {
+            Ok(true) => {}
+            Ok(false) => return self.execute_body_revalidated_source(artifact, command),
+            Err(code) => return code,
+        }
+        // A generic callback can evaluate another original body synchronously.
+        // Select its small dispatch frame before entering the opcode executor.
+        let result = if matches!(
+            command.operation,
+            Operation::Invoke
+                | Operation::NamespaceBindings(NamespaceOperation {
+                    generic: Some(_),
+                    ..
+                })
+        ) {
+            self.execute_body_generic_invocation(artifact, command, execution)
+        } else {
+            self.execute_body_opcode(artifact, command, execution)
+        };
+        result.unwrap_or_else(|code| code)
+    }
+
+    // This check must unwind before argument evaluation or nested invocation.
+    // Keep its error temporaries outside the recursive command dispatch frame.
+    #[inline(never)]
+    fn body_instruction_source_is_current(
+        &mut self,
+        artifact: &NativeBodyArtifact,
+        command: &CommandInstruction,
+    ) -> Result<bool, Code> {
+        // naming.command.native-command-entry-currency
+        // docs/design/analysis/name-resolution-proofs/command-native-command-entry-currency.md
+        // C's START_CMD checks compiler/resolver currency before arguments.
+        // The selected operation remains captured during those arguments.
+        let Some(guard) = command.guard else {
+            return Ok(true);
+        };
+        if !guard.requires_current_epochs() {
+            return Ok(true);
+        }
+        let Some(current) = self.native_compiler_cache_epochs(artifact.stamp.namespace) else {
+            return Err(
+                self.report_cmd_error(unavailable("native original command-entry epochs").into())
+            );
+        };
+        Ok(!guard.revalidate_source(artifact.stamp.epochs, current))
+    }
+
+    // The stale-source path evaluates the exact command through the ordinary
+    // interpreter entry, without enlarging every current opcode's dispatch frame.
+    #[inline(never)]
+    fn execute_body_revalidated_source(
+        &mut self,
+        artifact: &NativeBodyArtifact,
+        command: &CommandInstruction,
+    ) -> Code {
+        self.eval_script_mode_unpublished(
+            &artifact.image.bytes()[command.source_extent.as_range()],
+            None,
+            false,
+        )
+    }
+
+    fn execute_body_generic_invocation(
+        &mut self,
+        artifact: &NativeBodyArtifact,
+        command: &CommandInstruction,
+        execution: &mut BodyExecution,
+    ) -> Result<Code, Code> {
+        let mut values = Vec::new();
+        let mut original_words = Vec::new();
+        let written;
+        let operands = if let Operation::NamespaceBindings(NamespaceOperation {
+            generic: Some(operands),
+            ..
+        }) = &command.operation
+        {
+            operands.as_slice()
+        } else {
+            written = (0..command.words.len())
+                .map(NamespaceOperand::Original)
+                .collect::<Vec<_>>();
+            written.as_slice()
+        };
+        for operand in operands {
+            let word = match operand {
+                NamespaceOperand::Original(index) => Some(&command.words[*index]),
+                NamespaceOperand::Literal(_) => None,
+            };
+            let value = self.body_namespace_operand(artifact, command, operand, execution)?;
+            if execution.done {
+                return Ok(Code::Ok);
+            }
+            if word.is_some_and(|word| word.original.group().expand) {
+                let members = crate::list::list_elements_native_checked(
+                    value.as_ptr(),
+                    artifact.stamp.source_protocol,
+                )
+                .map_err(|error| self.report_cmd_error(error.into()))?;
+                original_words.extend(std::iter::repeat_n(None, members.len()));
+                values.extend(members.into_iter().map(obj::Owned::retain));
+            } else {
+                original_words.push(word);
+                values.push(value);
+            }
+        }
+        if values.is_empty() {
+            self.set_result_bytes(b"");
+            return Ok(Code::Ok);
+        }
+        let argv: Vec<_> = values.iter().map(obj::Owned::as_ptr).collect();
+        let file = self
+            .cmd_frames
+            .borrow()
+            .last()
+            .and_then(|frame| frame.file.clone());
+        let mut added = 0;
+        if file.is_some() {
+            for (word, value) in original_words.iter().zip(&values) {
+                if let Some(word) = word.filter(|word| word.literal.is_some()) {
+                    let line = self
+                        .cmd_frames
+                        .borrow()
+                        .last()
+                        .map_or(0, |frame| frame.line_base)
+                        + line_of(
+                            artifact.image.bytes(),
+                            word.original.span().start() as usize,
+                        );
+                    self.arg_locs
+                        .borrow_mut()
+                        .push((value.as_ptr(), file.clone(), line));
+                    added += 1;
                 }
-                Operation::InfoExists(exists) => {
-                    self.execute_body_info_exists(artifact, command, exists, execution)
+            }
+        }
+        let code = self.dispatch(&argv);
+        if added != 0 {
+            let mut locations = self.arg_locs.borrow_mut();
+            let length = locations.len() - added;
+            locations.truncate(length);
+        }
+        Ok(code)
+    }
+
+    fn execute_body_opcode(
+        &mut self,
+        artifact: &NativeBodyArtifact,
+        command: &CommandInstruction,
+        execution: &mut BodyExecution,
+    ) -> Result<Code, Code> {
+        match &command.operation {
+            Operation::Upvar(upvar) => self.execute_body_upvar(artifact, command, upvar, execution),
+            Operation::InfoExists(exists) => {
+                self.execute_body_info_exists(artifact, command, exists, execution)
+            }
+            Operation::Array(recipe) => {
+                self.execute_body_array(artifact, command, recipe, execution)
+            }
+            Operation::Introspection(recipe) => {
+                self.execute_body_introspection(artifact, command, recipe, execution)
+            }
+            Operation::MathOperator(mathop) => {
+                self.execute_body_mathop(artifact, command, mathop, execution)
+            }
+            Operation::NamespaceString(recipe) => {
+                self.execute_body_namespace_string(artifact, command, recipe, execution)
+            }
+            Operation::Scalar(scalar) => {
+                self.execute_body_scalar(artifact, command, scalar, execution)
+            }
+            Operation::ListOperations(list) => {
+                self.execute_body_list_operation(artifact, command, list, execution)
+            }
+            Operation::ListIndex(index) => {
+                self.execute_body_list_index(artifact, command, index, execution)
+            }
+            Operation::StringTrim(trim) => {
+                self.execute_body_string_trim(artifact, command, trim, execution)
+            }
+            Operation::StringMatch(matcher) => {
+                self.execute_body_string_match(artifact, command, matcher, execution)
+            }
+            Operation::Coroutine(coroutine) => {
+                self.execute_body_coroutine(artifact, command, coroutine, execution)
+            }
+            Operation::Error(error) => self.execute_body_error(artifact, command, error, execution),
+            Operation::DictionaryScope(dictionary) => {
+                self.execute_body_dictionary_scope(artifact, command, dictionary, execution)
+            }
+            Operation::DictionaryMutation(dictionary) => {
+                self.execute_body_dictionary_mutation(artifact, command, dictionary, execution)
+            }
+            Operation::DictionaryLookup(dictionary) => {
+                self.execute_body_dictionary_lookup(artifact, command, dictionary, execution)
+            }
+            Operation::NamedInvocation(named) => {
+                self.execute_body_named(artifact, command, named, execution)
+            }
+            Operation::Uplevel(recipe, default) => {
+                let level = match recipe.level_word {
+                    Some(index) => self.body_word(artifact, &command.words[index], execution)?,
+                    None => obj::Owned::retain(
+                        artifact
+                            .literals
+                            .original(default.expect("implicit uplevel level"))
+                            .expect("original level literal"),
+                    ),
+                };
+                let mut fragments = command.words[recipe.script_words.clone()]
+                    .iter()
+                    .map(|word| self.body_word(artifact, word, execution))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let script = if fragments.len() == 1 {
+                    fragments.pop().expect("original sole uplevel script")
+                } else {
+                    let originals = fragments.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                    let value = tcl_cmd_core::list::concat_selected(self, &originals)
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    obj::Owned::fresh(value)
+                };
+                let target = crate::cmd_eval::select_compiled_uplevel_frame(self, level.as_ptr())?;
+                let location = if recipe.script_words.len() == 1 {
+                    command.words[recipe.script_words.start]
+                        .literal
+                        .and_then(|_| {
+                            let frames = self.cmd_frames.borrow();
+                            let frame = frames.last()?;
+                            let file = frame.file.clone()?;
+                            Some((
+                                Some(file),
+                                frame.line_base
+                                    + line_of(
+                                        artifact.image.bytes(),
+                                        command.words[recipe.script_words.start]
+                                            .original
+                                            .span()
+                                            .start()
+                                            as usize,
+                                    ),
+                            ))
+                        })
+                } else {
+                    None
+                };
+                if let Some((file, line)) = location.as_ref() {
+                    self.arg_locs
+                        .borrow_mut()
+                        .push((script.as_ptr(), file.clone(), *line));
                 }
-                Operation::Array(recipe) => {
-                    self.execute_body_array(artifact, command, recipe, execution)
+                let code = self.eval_uplevel_obj(target, script.as_ptr());
+                if location.is_some() {
+                    self.arg_locs.borrow_mut().pop();
                 }
-                Operation::Introspection(recipe) => {
-                    self.execute_body_introspection(artifact, command, recipe, execution)
+                if code == Code::Error {
+                    self.append_body_frame(b"uplevel");
                 }
-                Operation::MathOperator(mathop) => {
-                    self.execute_body_mathop(artifact, command, mathop, execution)
-                }
-                Operation::Scalar(scalar) => {
-                    self.execute_body_scalar(artifact, command, scalar, execution)
-                }
-                Operation::ListOperations(list) => {
-                    self.execute_body_list_operation(artifact, command, list, execution)
-                }
-                Operation::ListIndex(index) => {
-                    self.execute_body_list_index(artifact, command, index, execution)
-                }
-                Operation::StringTrim(trim) => {
-                    self.execute_body_string_trim(artifact, command, trim, execution)
-                }
-                Operation::StringMatch(matcher) => {
-                    self.execute_body_string_match(artifact, command, matcher, execution)
-                }
-                Operation::Coroutine(coroutine) => {
-                    self.execute_body_coroutine(artifact, command, coroutine, execution)
-                }
-                Operation::Error(error) => {
-                    self.execute_body_error(artifact, command, error, execution)
-                }
-                Operation::DictionaryScope(dictionary) => {
-                    self.execute_body_dictionary_scope(artifact, command, dictionary, execution)
-                }
-                Operation::DictionaryMutation(dictionary) => {
-                    self.execute_body_dictionary_mutation(artifact, command, dictionary, execution)
-                }
-                Operation::DictionaryLookup(dictionary) => {
-                    self.execute_body_dictionary_lookup(artifact, command, dictionary, execution)
-                }
-                Operation::NamedInvocation(named) => {
-                    self.execute_body_named(artifact, command, named, execution)
-                }
-                Operation::Uplevel(recipe, default) => {
-                    let level = match recipe.level_word {
-                        Some(index) => {
-                            self.body_word(artifact, &command.words[index], execution)?
-                        }
-                        None => obj::Owned::retain(
-                            artifact
-                                .literals
-                                .original(default.expect("implicit uplevel level"))
-                                .expect("original level literal"),
-                        ),
-                    };
-                    let mut fragments = command.words[recipe.script_words.clone()]
-                        .iter()
-                        .map(|word| self.body_word(artifact, word, execution))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let script = if fragments.len() == 1 {
-                        fragments.pop().expect("original sole uplevel script")
-                    } else {
-                        let originals =
-                            fragments.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-                        let value = tcl_cmd_core::list::concat_selected(self, &originals)
-                            .map_err(|error| self.report_cmd_error(error))?;
-                        obj::Owned::fresh(value)
-                    };
-                    let target =
-                        crate::cmd_eval::select_compiled_uplevel_frame(self, level.as_ptr())?;
-                    let location = if recipe.script_words.len() == 1 {
-                        command.words[recipe.script_words.start]
-                            .literal
-                            .and_then(|_| {
-                                let frames = self.cmd_frames.borrow();
-                                let frame = frames.last()?;
-                                let file = frame.file.clone()?;
-                                Some((
-                                    Some(file),
-                                    frame.line_base
-                                        + line_of(
-                                            artifact.image.bytes(),
-                                            command.words[recipe.script_words.start]
-                                                .original
-                                                .span()
-                                                .start()
-                                                as usize,
-                                        ),
-                                ))
-                            })
-                    } else {
-                        None
-                    };
-                    if let Some((file, line)) = location.as_ref() {
-                        self.arg_locs
-                            .borrow_mut()
-                            .push((script.as_ptr(), file.clone(), *line));
+                Ok(code)
+            }
+            Operation::Expression(expression) => {
+                self.execute_body_expression_instruction(artifact, command, expression, execution)
+            }
+            Operation::Try(operation) => {
+                self.execute_body_try(artifact, command, operation, execution)
+            }
+            Operation::Break => Ok(Code::Break),
+            Operation::Continue => Ok(Code::Continue),
+            Operation::Control(control) => {
+                self.execute_body_control(artifact, command, control, execution)
+            }
+            Operation::Each(each) => self.execute_body_each(artifact, command, each, execution),
+            Operation::Switch(switch) => {
+                self.execute_body_switch(artifact, command, switch, execution)
+            }
+            Operation::TclOoHelper(recipe, literal_slots) => {
+                use tcl_registry::native_tcloo_compilation::NativeTclOoInstruction as Helper;
+                let code = match recipe {
+                    Helper::SelfObject | Helper::SelfNamespace => {
+                        self.execute_native_oo_self(matches!(recipe, Helper::SelfNamespace))
                     }
-                    let code = self.eval_uplevel_obj(target, script.as_ptr());
-                    if location.is_some() {
-                        self.arg_locs.borrow_mut().pop();
+                    Helper::ObjectInfo { operation, operand } => {
+                        let original = self.body_helper_operand(
+                            artifact,
+                            command,
+                            std::slice::from_ref(operand),
+                            literal_slots,
+                            0,
+                            execution,
+                        )?;
+                        self.execute_native_oo_object_info(*operation, original.as_ptr())
                     }
-                    if code == Code::Error {
-                        self.append_body_frame(b"uplevel");
-                    }
-                    Ok(code)
-                }
-                Operation::Expression(expression) => self
-                    .execute_body_expression_instruction(artifact, command, expression, execution),
-                Operation::Try(operation) => {
-                    self.execute_body_try(artifact, command, operation, execution)
-                }
-                Operation::Break => Ok(Code::Break),
-                Operation::Continue => Ok(Code::Continue),
-                Operation::Control(control) => {
-                    self.execute_body_control(artifact, command, control, execution)
-                }
-                Operation::Each(each) => self.execute_body_each(artifact, command, each, execution),
-                Operation::Switch(switch) => {
-                    self.execute_body_switch(artifact, command, switch, execution)
-                }
-                Operation::TclOoHelper(recipe, literal_slots) => {
-                    use tcl_registry::native_tcloo_compilation::NativeTclOoInstruction as Helper;
-                    let code = match recipe {
-                        Helper::SelfObject | Helper::SelfNamespace => {
-                            self.execute_native_oo_self(matches!(recipe, Helper::SelfNamespace))
-                        }
-                        Helper::ObjectInfo { operation, operand } => {
-                            let original = self.body_helper_operand(
-                                artifact,
-                                command,
-                                std::slice::from_ref(operand),
-                                literal_slots,
-                                0,
-                                execution,
-                            )?;
-                            self.execute_native_oo_object_info(*operation, original.as_ptr())
-                        }
-                        Helper::Next { class, words, list } => {
-                            let mut stack = Vec::<obj::Owned>::new();
-                            if let Some(steps) = list {
-                                for step in steps {
-                                    match *step {
-                                        NativeArgumentListStep::Word(index) => {
-                                            stack.push(self.body_helper_operand(
-                                                artifact,
-                                                command,
-                                                words,
-                                                literal_slots,
-                                                index,
-                                                execution,
-                                            )?)
-                                        }
-                                        NativeArgumentListStep::List(count) => {
-                                            let operands = stack.split_off(stack.len() - count);
-                                            let members = operands
-                                                .iter()
-                                                .map(obj::Owned::as_ptr)
-                                                .collect::<Vec<_>>();
-                                            stack.push(obj::Owned::fresh(
-                                                crate::list::new_list_obj_native(
-                                                    &members,
-                                                    artifact.stamp.source_protocol,
-                                                ),
-                                            ));
-                                        }
-                                        NativeArgumentListStep::Concat => {
-                                            let source = stack.pop().expect("helper List source");
-                                            let target = stack.pop().expect("helper List target");
-                                            stack.push(
-                                                crate::list::concatenate_native_lists(
-                                                    target.as_ptr(),
-                                                    source.as_ptr(),
-                                                    artifact.stamp.source_protocol,
-                                                )
-                                                .map_err(|error| {
-                                                    self.report_cmd_error(error.into())
-                                                })?,
-                                            );
-                                        }
+                    Helper::Next { class, words, list } => {
+                        let mut stack = Vec::<obj::Owned>::new();
+                        if let Some(steps) = list {
+                            for step in steps {
+                                match *step {
+                                    NativeArgumentListStep::Word(index) => {
+                                        stack.push(self.body_helper_operand(
+                                            artifact,
+                                            command,
+                                            words,
+                                            literal_slots,
+                                            index,
+                                            execution,
+                                        )?)
+                                    }
+                                    NativeArgumentListStep::List(count) => {
+                                        let operands = stack.split_off(stack.len() - count);
+                                        let members = operands
+                                            .iter()
+                                            .map(obj::Owned::as_ptr)
+                                            .collect::<Vec<_>>();
+                                        stack.push(obj::Owned::fresh(
+                                            crate::list::new_list_obj_native(
+                                                &members,
+                                                artifact.stamp.source_protocol,
+                                            ),
+                                        ));
+                                    }
+                                    NativeArgumentListStep::Concat => {
+                                        let source = stack.pop().expect("helper List source");
+                                        let target = stack.pop().expect("helper List target");
+                                        stack.push(
+                                            crate::list::concatenate_native_lists(
+                                                target.as_ptr(),
+                                                source.as_ptr(),
+                                                artifact.stamp.source_protocol,
+                                            )
+                                            .map_err(|error| self.report_cmd_error(error.into()))?,
+                                        );
                                     }
                                 }
-                            } else {
-                                for index in 0..words.len() {
-                                    stack.push(self.body_helper_operand(
-                                        artifact,
-                                        command,
-                                        words,
-                                        literal_slots,
-                                        index,
-                                        execution,
-                                    )?);
-                                }
                             }
-                            let arguments = if list.is_some() {
-                                // Keep the genuine parent List alive through the reached call.
-                                crate::list::list_elements_native_checked(
-                                    stack[0].as_ptr(),
-                                    artifact.stamp.source_protocol,
-                                )
-                                .map_err(|error| self.report_cmd_error(error.into()))?
-                            } else {
-                                stack.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>()
-                            };
-                            if arguments.len() < if *class { 2 } else { 1 } {
-                                return Err(self.report_cmd_error(
-                                    unavailable(
-                                        "native TclOO invocation List has insufficient words",
-                                    )
-                                    .into(),
-                                ));
+                        } else {
+                            for index in 0..words.len() {
+                                stack.push(self.body_helper_operand(
+                                    artifact,
+                                    command,
+                                    words,
+                                    literal_slots,
+                                    index,
+                                    execution,
+                                )?);
                             }
-                            self.execute_native_oo_next(&arguments, *class, artifact.stamp.physical)
                         }
-                    };
-                    Ok(code)
-                }
-
-                Operation::Invoke
-                | Operation::NamespaceBindings(NamespaceOperation {
-                    generic: Some(_), ..
-                }) => {
-                    let mut values = Vec::new();
-                    let mut original_words = Vec::new();
-                    let written;
-                    let operands = if let Operation::NamespaceBindings(NamespaceOperation {
-                        generic: Some(operands),
-                        ..
-                    }) = &command.operation
-                    {
-                        operands.as_slice()
-                    } else {
-                        written = (0..command.words.len())
-                            .map(NamespaceOperand::Original)
-                            .collect::<Vec<_>>();
-                        written.as_slice()
-                    };
-                    for operand in operands {
-                        let word = match operand {
-                            NamespaceOperand::Original(index) => Some(&command.words[*index]),
-                            NamespaceOperand::Literal(_) => None,
+                        let arguments = if list.is_some() {
+                            // Keep the genuine parent List alive through the reached call.
+                            crate::list::list_elements_native_checked(
+                                stack[0].as_ptr(),
+                                artifact.stamp.source_protocol,
+                            )
+                            .map_err(|error| self.report_cmd_error(error.into()))?
+                        } else {
+                            stack.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>()
                         };
+                        if arguments.len() < if *class { 2 } else { 1 } {
+                            return Err(self.report_cmd_error(
+                                unavailable("native TclOO invocation List has insufficient words")
+                                    .into(),
+                            ));
+                        }
+                        self.execute_native_oo_next(&arguments, *class, artifact.stamp.physical)
+                    }
+                };
+                Ok(code)
+            }
+
+            Operation::Invoke
+            | Operation::NamespaceBindings(NamespaceOperation {
+                generic: Some(_), ..
+            }) => self.execute_body_generic_invocation(artifact, command, execution),
+            Operation::NamespaceBindings(scope) => {
+                use tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingKind;
+                let prefix = scope.prefix.map(|index| {
+                    obj::Owned::retain(
+                        artifact
+                            .literals
+                            .original(index)
+                            .expect("pooled root namespace operand"),
+                    )
+                });
+                let namespace_object = scope
+                    .namespace
+                    .as_ref()
+                    .map(|operand| {
+                        self.body_namespace_operand(artifact, command, operand, execution)
+                    })
+                    .transpose()?;
+                if execution.done {
+                    return Ok(Code::Ok);
+                }
+                for binding in &scope.bindings {
+                    let name =
+                        self.body_namespace_operand(artifact, command, &binding.name, execution)?;
+                    if execution.done {
+                        return Ok(Code::Ok);
+                    }
+                    let namespace = if scope.kind == NativeNamespaceBindingKind::Global {
+                        let prefix = prefix.as_ref().expect("original root namespace operand");
+                        self.native_namespace_object_lookup(prefix.as_ptr())
+                            .map_err(|error| self.report_cmd_error(error.into()))?
+                            .ok_or_else(|| {
+                                self.report_cmd_error(
+                                    unavailable("compiled root namespace operand lookup").into(),
+                                )
+                            })?
+                    } else if scope.kind == NativeNamespaceBindingKind::Upvar {
+                        let original = namespace_object
+                            .as_ref()
+                            .expect("original namespace upvar operand");
+                        match self.native_namespace_object_lookup(original.as_ptr()) {
+                            Ok(Some(namespace)) => namespace,
+                            Ok(None) => return Ok(crate::cmd_namespace::ns_operation_not_found(
+                                self,
+                                original.as_ptr(),
+                                tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
+                            )),
+                            Err(error) => return Ok(self.report_cmd_error(error.into())),
+                        }
+                    } else {
+                        let frames = self.frames.borrow();
+                        frames.frame_ns(frames.current_level())
+                    };
+                    let code = self.link_original_compiled_namespace_variable(
+                        name.as_ptr(),
+                        namespace,
+                        binding.slot,
+                        scope.kind == NativeNamespaceBindingKind::Variable,
+                    );
+                    if code != Code::Ok || self.host_refusal_pending() {
+                        return Ok(code);
+                    }
+                    drop(name);
+                    if let Some(operand) = &binding.value {
                         let value =
                             self.body_namespace_operand(artifact, command, operand, execution)?;
                         if execution.done {
                             return Ok(Code::Ok);
                         }
-                        if word.is_some_and(|word| word.original.group().expand) {
-                            let members = crate::list::list_elements_native_checked(
-                                value.as_ptr(),
-                                artifact.stamp.source_protocol,
-                            )
-                            .map_err(|error| self.report_cmd_error(error.into()))?;
-                            original_words.extend(std::iter::repeat_n(None, members.len()));
-                            values.extend(members.into_iter().map(obj::Owned::retain));
-                        } else {
-                            original_words.push(word);
-                            values.push(value);
-                        }
-                    }
-                    if values.is_empty() {
-                        self.set_result_bytes(b"");
-                        return Ok(Code::Ok);
-                    }
-                    let argv: Vec<_> = values.iter().map(obj::Owned::as_ptr).collect();
-                    let file = self
-                        .cmd_frames
-                        .borrow()
-                        .last()
-                        .and_then(|frame| frame.file.clone());
-                    let mut added = 0;
-                    if file.is_some() {
-                        for (word, value) in original_words.iter().zip(&values) {
-                            if let Some(word) = word.filter(|word| word.literal.is_some()) {
-                                let line = self
-                                    .cmd_frames
-                                    .borrow()
-                                    .last()
-                                    .map_or(0, |frame| frame.line_base)
-                                    + line_of(
-                                        artifact.image.bytes(),
-                                        word.original.span().start() as usize,
-                                    );
-                                self.arg_locs.borrow_mut().push((
-                                    value.as_ptr(),
-                                    file.clone(),
-                                    line,
-                                ));
-                                added += 1;
-                            }
-                        }
-                    }
-                    let code = self.dispatch(&argv);
-                    if added != 0 {
-                        let mut locations = self.arg_locs.borrow_mut();
-                        let length = locations.len() - added;
-                        locations.truncate(length);
-                    }
-                    Ok(code)
-                }
-                Operation::NamespaceBindings(scope) => {
-                    use tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingKind;
-                    let prefix = scope.prefix.map(|index| {
-                        obj::Owned::retain(
-                            artifact
-                                .literals
-                                .original(index)
-                                .expect("pooled root namespace operand"),
-                        )
-                    });
-                    let namespace_object = scope
-                        .namespace
-                        .as_ref()
-                        .map(|operand| {
-                            self.body_namespace_operand(artifact, command, operand, execution)
-                        })
-                        .transpose()?;
-                    if execution.done {
-                        return Ok(Code::Ok);
-                    }
-                    for binding in &scope.bindings {
-                        let name = self.body_namespace_operand(
-                            artifact,
-                            command,
-                            &binding.name,
-                            execution,
-                        )?;
-                        if execution.done {
-                            return Ok(Code::Ok);
-                        }
-                        let namespace = if scope.kind == NativeNamespaceBindingKind::Global {
-                            let prefix = prefix.as_ref().expect("original root namespace operand");
-                            self.native_namespace_object_lookup(prefix.as_ptr())
-                                .map_err(|error| self.report_cmd_error(error.into()))?
-                                .ok_or_else(|| {
-                                    self.report_cmd_error(
-                                        unavailable("compiled root namespace operand lookup")
-                                            .into(),
-                                    )
-                                })?
-                        } else if scope.kind == NativeNamespaceBindingKind::Upvar {
-                            let original = namespace_object
-                                .as_ref()
-                                .expect("original namespace upvar operand");
-                            match self.native_namespace_object_lookup(original.as_ptr()) {
-                                Ok(Some(namespace)) => namespace,
-                                Ok(None) => return Ok(crate::cmd_namespace::ns_operation_not_found(
-                                    self, original.as_ptr(), tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
-                                )),
-                                Err(error) => return Ok(self.report_cmd_error(error.into())),
-                            }
-                        } else {
-                            let frames = self.frames.borrow();
-                            frames.frame_ns(frames.current_level())
-                        };
-                        let code = self.link_original_compiled_namespace_variable(
-                            name.as_ptr(),
-                            namespace,
-                            binding.slot,
-                            scope.kind == NativeNamespaceBindingKind::Variable,
+                        let code = self.body_store(
+                            &EvaluatedTarget {
+                                root: binding.local.clone(),
+                                element: None,
+                                original_name: None,
+                                original_index: None,
+                                combined: false,
+                            },
+                            Some(binding.slot),
+                            &value,
                         );
                         if code != Code::Ok || self.host_refusal_pending() {
                             return Ok(code);
                         }
-                        drop(name);
-                        if let Some(operand) = &binding.value {
-                            let value =
-                                self.body_namespace_operand(artifact, command, operand, execution)?;
-                            if execution.done {
-                                return Ok(Code::Ok);
-                            }
-                            let code = self.body_store(
-                                &EvaluatedTarget {
-                                    root: binding.local.clone(),
-                                    element: None,
-                                    original_name: None,
-                                    original_index: None,
-                                    combined: false,
-                                },
-                                Some(binding.slot),
-                                &value,
-                            );
-                            if code != Code::Ok || self.host_refusal_pending() {
-                                return Ok(code);
-                            }
-                        }
                     }
-                    drop(prefix);
-                    self.set_result(
-                        artifact
-                            .literals
-                            .original(scope.empty.expect("namespace empty result"))
-                            .expect("pooled namespace empty result"),
-                    );
-                    Ok(Code::Ok)
                 }
-                Operation::Unset(unset) => {
-                    self.execute_body_unset(artifact, command, unset, execution)
-                }
-                Operation::Load(target) => {
-                    let evaluated = self.body_target(artifact, command, target, execution)?;
-                    let value = if evaluated.combined {
-                        obj::Owned::retain(
-                            self.read_original_c_variable(
-                                evaluated
-                                    .original_name
-                                    .as_ref()
-                                    .expect("original dynamic name")
-                                    .as_ptr(),
-                            )?,
-                        )
-                    } else {
-                        self.body_read_original_parts(&evaluated, target.slot)?
-                    };
-                    self.set_result(value.as_ptr());
-                    Ok(Code::Ok)
-                }
-                Operation::Store(target, value) => {
-                    let evaluated = self.body_target(artifact, command, target, execution)?;
-                    let value = self.body_word(artifact, &command.words[*value], execution)?;
-                    if evaluated.combined {
-                        self.store_original_c_variable(
+                drop(prefix);
+                self.set_result(
+                    artifact
+                        .literals
+                        .original(scope.empty.expect("namespace empty result"))
+                        .expect("pooled namespace empty result"),
+                );
+                Ok(Code::Ok)
+            }
+            Operation::Unset(unset) => self.execute_body_unset(artifact, command, unset, execution),
+            Operation::Load(target) => {
+                let evaluated = self.body_target(artifact, command, target, execution)?;
+                let value = if evaluated.combined {
+                    obj::Owned::retain(
+                        self.read_original_c_variable(
                             evaluated
                                 .original_name
                                 .as_ref()
                                 .expect("original dynamic name")
                                 .as_ptr(),
-                            value.as_ptr(),
-                        )?;
-                        return Ok(Code::Ok);
-                    }
-                    Ok(self.body_store(&evaluated, target.slot, &value))
-                }
-                Operation::Increment(target, amount, immediate) => {
-                    let evaluated = self.body_target(artifact, command, target, execution)?;
-                    let value = if let Some(immediate) = immediate {
-                        obj::Owned::fresh(obj::new_wide_int_obj(i64::from(*immediate)))
-                    } else {
-                        self.body_word(
-                            artifact,
-                            &command.words[amount.expect("explicit nonimmediate amount")],
-                            execution,
-                        )?
-                    };
-                    Ok(self.increment_original_compiled_target(
-                        &evaluated.root,
-                        evaluated.element.as_deref(),
-                        target.slot,
-                        (
-                            evaluated.original_name.as_ref().map(obj::Owned::as_ptr),
-                            evaluated.original_index.as_ref().map(obj::Owned::as_ptr),
-                            evaluated.combined,
-                        ),
+                        )?,
+                    )
+                } else {
+                    self.body_read_original_parts(&evaluated, target.slot)?
+                };
+                self.set_result(value.as_ptr());
+                Ok(Code::Ok)
+            }
+            Operation::Store(target, value) => {
+                let evaluated = self.body_target(artifact, command, target, execution)?;
+                let value = self.body_word(artifact, &command.words[*value], execution)?;
+                if evaluated.combined {
+                    self.store_original_c_variable(
+                        evaluated
+                            .original_name
+                            .as_ref()
+                            .expect("original dynamic name")
+                            .as_ptr(),
                         value.as_ptr(),
-                    ))
+                    )?;
+                    return Ok(Code::Ok);
                 }
-                Operation::Append(target, recipe) => {
-                    let evaluated = self.body_target(artifact, command, target, execution)?;
-                    match &recipe.operands {
-                        NativeAppendOperands::StringObjects => {
-                            // Native multi-append evaluates every value before
-                            // its first append, then publishes each in order.
-                            let values = command.words[recipe.values.clone()]
-                                .iter()
-                                .map(|word| self.body_word(artifact, word, execution))
-                                .collect::<Result<Vec<_>, _>>()?;
-                            for value in values {
-                                let capture =
-                                    self.body_capture_target(&evaluated, target.slot, true)?;
-                                let code = self.append_native_captured(capture, &[value.as_ptr()]);
-                                if code != Code::Ok {
-                                    return Ok(code);
-                                }
-                            }
-                            Ok(Code::Ok)
-                        }
-                        NativeAppendOperands::ListElement => {
-                            let value = self.body_word(
-                                artifact,
-                                &command.words[recipe.values.start],
-                                execution,
-                            )?;
-                            let capture =
-                                self.body_capture_target(&evaluated, target.slot, true)?;
-                            Ok(self.body_append_list_element(
-                                capture,
-                                value.as_ptr(),
-                                artifact.stamp.source_protocol,
-                            ))
-                        }
-                        NativeAppendOperands::ListElements {
-                            steps,
-                            strip_single_expanded,
-                        } => {
-                            let value = self.body_argument_list(
-                                artifact,
-                                command,
-                                steps,
-                                *strip_single_expanded,
-                                execution,
-                            )?;
-                            Ok(self.body_append_list_values(
-                                &evaluated,
-                                target.slot,
-                                value.as_ptr(),
-                                artifact.stamp.source_protocol,
-                            ))
-                        }
-                    }
-                }
-                Operation::List(recipe, index) => {
-                    let value = if let Some(index) = index {
-                        obj::Owned::retain(
-                            artifact
-                                .literals
-                                .original(*index)
-                                .expect("actual compiler List literal"),
-                        )
-                    } else {
-                        debug_assert!(matches!(recipe, NativeCompiledListRecipe::DynamicElements));
-                        let values = command.words[1..]
+                Ok(self.body_store(&evaluated, target.slot, &value))
+            }
+            Operation::Increment(target, amount, immediate) => {
+                let evaluated = self.body_target(artifact, command, target, execution)?;
+                let value = if let Some(immediate) = immediate {
+                    obj::Owned::fresh(obj::new_wide_int_obj(i64::from(*immediate)))
+                } else {
+                    self.body_word(
+                        artifact,
+                        &command.words[amount.expect("explicit nonimmediate amount")],
+                        execution,
+                    )?
+                };
+                Ok(self.increment_original_compiled_target(
+                    &evaluated.root,
+                    evaluated.element.as_deref(),
+                    target.slot,
+                    (
+                        evaluated.original_name.as_ref().map(obj::Owned::as_ptr),
+                        evaluated.original_index.as_ref().map(obj::Owned::as_ptr),
+                        evaluated.combined,
+                    ),
+                    value.as_ptr(),
+                ))
+            }
+            Operation::Append(target, recipe) => {
+                let evaluated = self.body_target(artifact, command, target, execution)?;
+                match &recipe.operands {
+                    NativeAppendOperands::StringObjects => {
+                        // Native multi-append evaluates every value before
+                        // its first append, then publishes each in order.
+                        let values = command.words[recipe.values.clone()]
                             .iter()
                             .map(|word| self.body_word(artifact, word, execution))
                             .collect::<Result<Vec<_>, _>>()?;
-                        let members: Vec<_> = values.iter().map(obj::Owned::as_ptr).collect();
-                        obj::Owned::fresh(crate::list::new_list_obj_native(
-                            &members,
+                        for value in values {
+                            let capture =
+                                self.body_capture_target(&evaluated, target.slot, true)?;
+                            let code = self.append_native_captured(capture, &[value.as_ptr()]);
+                            if code != Code::Ok {
+                                return Ok(code);
+                            }
+                        }
+                        Ok(Code::Ok)
+                    }
+                    NativeAppendOperands::ListElement => {
+                        let value = self.body_word(
+                            artifact,
+                            &command.words[recipe.values.start],
+                            execution,
+                        )?;
+                        let capture = self.body_capture_target(&evaluated, target.slot, true)?;
+                        Ok(self.body_append_list_element(
+                            capture,
+                            value.as_ptr(),
                             artifact.stamp.source_protocol,
                         ))
-                    };
-                    self.set_result(value.as_ptr());
-                    Ok(Code::Ok)
-                }
-                Operation::Concat {
-                    literal, operands, ..
-                } => {
-                    let value = if let Some(index) = literal {
-                        obj::Owned::retain(
-                            artifact
-                                .literals
-                                .original(*index)
-                                .expect("original concat literal"),
-                        )
-                    } else {
-                        let originals = operands
-                            .iter()
-                            .map(|operand| {
-                                self.body_namespace_operand(artifact, command, operand, execution)
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let pointers = originals.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-                        obj::Owned::fresh(
-                            tcl_cmd_core::list::concat_selected(self, &pointers)
-                                .map_err(|error| self.report_cmd_error(error))?,
-                        )
-                    };
-                    self.set_result(value.as_ptr());
-                    Ok(Code::Ok)
-                }
-                Operation::SelectedReturn(recipe, empty, options) => {
-                    use tcl_registry::native_return_compilation::{
-                        NativeReturnExit as Exit, NativeReturnOptionsOperand as Options,
-                    };
-                    let stack_options = match &recipe.options {
-                        Options::StackWord(index) => {
-                            Some(self.body_word(artifact, &command.words[*index], execution)?)
-                        }
-                        Options::StackPairs(range) => {
-                            let originals = command.words[range.clone()]
-                                .iter()
-                                .map(|word| self.body_word(artifact, word, execution))
-                                .collect::<Result<Vec<_>, _>>()?;
-                            let members =
-                                originals.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-                            Some(obj::Owned::fresh(crate::list::new_list_obj_native(
-                                &members,
-                                artifact.stamp.source_protocol,
-                            )))
-                        }
-                        Options::Static(_) => None,
-                    };
-                    let value = match recipe.value_word {
-                        Some(index) => {
-                            self.body_word(artifact, &command.words[index], execution)?
-                        }
-                        None => obj::Owned::retain(
-                            artifact
-                                .literals
-                                .original(empty.expect("implicit return result"))
-                                .expect("empty literal"),
-                        ),
-                    };
-                    if recipe.exit == Exit::Done {
-                        self.set_result(value.as_ptr());
-                        execution.done = true;
-                        Ok(Code::Return)
-                    } else if recipe.exit == Exit::Fallthrough {
-                        self.set_result(value.as_ptr());
-                        Ok(Code::Ok)
-                    } else {
-                        let merged;
-                        let (code, level, original) = if recipe.exit == Exit::Stack {
-                            let options = stack_options.as_ref().expect("stack original options");
-                            let (mut ops, protocol) =
-                                crate::return_options::NativeReturnOps::selected(self)
-                                    .map_err(|error| self.report_cmd_error(error))?;
-                            merged = tcl_cmd_core::native_return_merge::merge_stack(
-                                &mut ops, protocol, options,
-                            )
-                            .map_err(|error| self.report_cmd_error(error))?;
-                            (
-                                merged.code,
-                                i64::from(merged.level),
-                                merged.options.as_ptr(),
-                            )
-                        } else {
-                            let Options::Static(literal) = &recipe.options else {
-                                unreachable!()
-                            };
-                            (
-                                literal.code,
-                                i64::from(literal.level),
-                                artifact
-                                    .literals
-                                    .original(options.expect("private Return slot"))
-                                    .expect("private Return original"),
-                            )
-                        };
-                        let code=self.process_original_c_return_options(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,code,level,original).map_err(|error|self.report_cmd_error(error.into()))?;
-                        self.set_result(value.as_ptr());
-                        if code == Code::Error && recipe.exit == Exit::Immediate {
-                            self.capture_original_return_instruction_context(
-                                tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
-                                value.as_ptr(),
-                                original,
-                            );
-                        }
-                        Ok(code)
+                    }
+                    NativeAppendOperands::ListElements {
+                        steps,
+                        strip_single_expanded,
+                    } => {
+                        let value = self.body_argument_list(
+                            artifact,
+                            command,
+                            steps,
+                            *strip_single_expanded,
+                            execution,
+                        )?;
+                        Ok(self.body_append_list_values(
+                            &evaluated,
+                            target.slot,
+                            value.as_ptr(),
+                            artifact.stamp.source_protocol,
+                        ))
                     }
                 }
             }
-        })();
-        result.unwrap_or_else(|code| code)
+            Operation::List(recipe, index) => {
+                let value = if let Some(index) = index {
+                    obj::Owned::retain(
+                        artifact
+                            .literals
+                            .original(*index)
+                            .expect("actual compiler List literal"),
+                    )
+                } else {
+                    debug_assert!(matches!(recipe, NativeCompiledListRecipe::DynamicElements));
+                    let values = command.words[1..]
+                        .iter()
+                        .map(|word| self.body_word(artifact, word, execution))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let members: Vec<_> = values.iter().map(obj::Owned::as_ptr).collect();
+                    obj::Owned::fresh(crate::list::new_list_obj_native(
+                        &members,
+                        artifact.stamp.source_protocol,
+                    ))
+                };
+                self.set_result(value.as_ptr());
+                Ok(Code::Ok)
+            }
+            Operation::Concat {
+                literal, operands, ..
+            } => {
+                let value = if let Some(index) = literal {
+                    obj::Owned::retain(
+                        artifact
+                            .literals
+                            .original(*index)
+                            .expect("original concat literal"),
+                    )
+                } else {
+                    let originals = operands
+                        .iter()
+                        .map(|operand| {
+                            self.body_namespace_operand(artifact, command, operand, execution)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let pointers = originals.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                    obj::Owned::fresh(
+                        tcl_cmd_core::list::concat_selected(self, &pointers)
+                            .map_err(|error| self.report_cmd_error(error))?,
+                    )
+                };
+                self.set_result(value.as_ptr());
+                Ok(Code::Ok)
+            }
+            Operation::SelectedReturn(recipe, empty, options) => {
+                use tcl_registry::native_return_compilation::{
+                    NativeReturnExit as Exit, NativeReturnOptionsOperand as Options,
+                };
+                let stack_options = match &recipe.options {
+                    Options::StackWord(index) => {
+                        Some(self.body_word(artifact, &command.words[*index], execution)?)
+                    }
+                    Options::StackPairs(range) => {
+                        let originals = command.words[range.clone()]
+                            .iter()
+                            .map(|word| self.body_word(artifact, word, execution))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let members = originals.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                        Some(obj::Owned::fresh(crate::list::new_list_obj_native(
+                            &members,
+                            artifact.stamp.source_protocol,
+                        )))
+                    }
+                    Options::Static(_) => None,
+                };
+                let value = match recipe.value_word {
+                    Some(index) => self.body_word(artifact, &command.words[index], execution)?,
+                    None => obj::Owned::retain(
+                        artifact
+                            .literals
+                            .original(empty.expect("implicit return result"))
+                            .expect("empty literal"),
+                    ),
+                };
+                if recipe.exit == Exit::Done {
+                    self.set_result(value.as_ptr());
+                    execution.done = true;
+                    Ok(Code::Return)
+                } else if recipe.exit == Exit::Fallthrough {
+                    self.set_result(value.as_ptr());
+                    Ok(Code::Ok)
+                } else {
+                    let merged;
+                    let (code, level, original) = if recipe.exit == Exit::Stack {
+                        let options = stack_options.as_ref().expect("stack original options");
+                        let (mut ops, protocol) =
+                            crate::return_options::NativeReturnOps::selected(self)
+                                .map_err(|error| self.report_cmd_error(error))?;
+                        merged = tcl_cmd_core::native_return_merge::merge_stack(
+                            &mut ops, protocol, options,
+                        )
+                        .map_err(|error| self.report_cmd_error(error))?;
+                        (
+                            merged.code,
+                            i64::from(merged.level),
+                            merged.options.as_ptr(),
+                        )
+                    } else {
+                        let Options::Static(literal) = &recipe.options else {
+                            unreachable!()
+                        };
+                        (
+                            literal.code,
+                            i64::from(literal.level),
+                            artifact
+                                .literals
+                                .original(options.expect("private Return slot"))
+                                .expect("private Return original"),
+                        )
+                    };
+                    let code=self.process_original_c_return_options(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,code,level,original).map_err(|error|self.report_cmd_error(error.into()))?;
+                    self.set_result(value.as_ptr());
+                    if code == Code::Error && recipe.exit == Exit::Immediate {
+                        self.capture_original_return_instruction_context(
+                            tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+                            value.as_ptr(),
+                            original,
+                        );
+                    }
+                    Ok(code)
+                }
+            }
+        }
     }
 }
 
@@ -3289,6 +3610,116 @@ mod object_info_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_body_word_parts_match_native_concatenation_windows() {
+        // Native proof: naming.word-and-subst.original-concatenation
+        // docs/design/analysis/name-resolution-proofs/word-and-subst-original-concatenation.md
+        use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+        fn primary(value: *mut TclObj) -> &'static str {
+            match obj::native_object_snapshot(value).unwrap().cache {
+                Cache::None => "none",
+                Cache::String { .. } => "string",
+                Cache::ByteArray { .. } => "bytearray",
+                Cache::List { .. } => "list",
+                Cache::Numeric(tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                    tcl_syntax::number::Number::Double(_),
+                )) => "double",
+                other => panic!("unexpected original primary {other:?}"),
+            }
+        }
+        let rows = include_str!(
+            "../../../../rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/observations.tsv"
+        );
+        for (engine, version) in [
+            ("tcl8.4", "8.4.20"),
+            ("tcl8.5", "8.5.19"),
+            ("tcl8.6", "8.6.18"),
+            ("tcl9.0", "9.0.4"),
+            ("tcl9.1", "9.1.0"),
+        ] {
+            for kind in 0..8 {
+                let mut interp = interpreter(engine);
+                let dialect = interp.native_invocation_dialect();
+                let protocol = dialect.native_string_protocol().unwrap();
+                let binary = dialect.byte_array_string_recipe(None).unwrap();
+                let x = obj::Owned::fresh(match kind {
+                    0 => obj::new_string_bytes(b"A"),
+                    1 => obj::new_native_unicode_obj(Rc::from([0, 0xd800]), dialect).unwrap(),
+                    2 => obj::new_string_bytes(b"A\0B"),
+                    3 => crate::bytearray::new_byte_array(b"\0\xff", binary),
+                    4 => obj::new_string_bytes(b"\xff\xed\xa0\x80"),
+                    5 => crate::list::new_list_obj_native(&[], protocol),
+                    6 => obj::new_double_obj(1.5),
+                    7 => obj::new_string_bytes(b""),
+                    _ => unreachable!(),
+                });
+                let y = obj::Owned::fresh(match kind {
+                    1 => obj::new_string_bytes(b""),
+                    3 => crate::bytearray::new_byte_array(b"\0\xff", binary),
+                    _ => obj::new_string_bytes(b"A"),
+                });
+                for repetition in 0..2 {
+                    let expected = rows
+                        .lines()
+                        .skip(1)
+                        .map(|row| row.split('\t').collect::<Vec<_>>())
+                        .find(|row| {
+                            row[0] == version
+                                && row[1] == kind.to_string()
+                                && row[2] == "0"
+                                && row[3] == repetition.to_string()
+                        })
+                        .unwrap();
+                    let context = format!("{engine}/{kind}/{repetition}");
+                    assert_eq!(primary(x.as_ptr()), expected[6], "{context} x before");
+                    assert_eq!(
+                        usize::from(obj::has_string_rep(x.as_ptr())).to_string(),
+                        expected[7],
+                        "{context} x before storage"
+                    );
+                    let result = interp
+                        .concatenate_body_values(vec![
+                            obj::Owned::retain(x.as_ptr()),
+                            obj::Owned::retain(y.as_ptr()),
+                        ])
+                        .unwrap();
+                    assert_eq!(
+                        primary(result.as_ptr()),
+                        expected[10],
+                        "{context} result primary"
+                    );
+                    assert_eq!(
+                        usize::from(obj::has_string_rep(result.as_ptr())).to_string(),
+                        expected[11],
+                        "{context} result storage"
+                    );
+                    assert_eq!(
+                        usize::from(result.as_ptr() == x.as_ptr()).to_string(),
+                        expected[12],
+                        "{context} x identity"
+                    );
+                    assert_eq!(
+                        usize::from(result.as_ptr() == y.as_ptr()).to_string(),
+                        expected[13],
+                        "{context} y identity"
+                    );
+                    assert_eq!(primary(x.as_ptr()), expected[14], "{context} x after");
+                    assert_eq!(
+                        usize::from(obj::has_string_rep(x.as_ptr())).to_string(),
+                        expected[15],
+                        "{context} x after storage"
+                    );
+                    let bytes = interp.native_object_string_bytes(result.as_ptr()).unwrap();
+                    let hex = bytes
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>();
+                    assert_eq!(hex, expected[18], "{context} value");
+                }
+            }
+        }
+    }
 
     #[test]
     fn original_c91_uplevel_artifact_selects_frame_then_enters_original_script() {
@@ -3338,15 +3769,20 @@ mod tests {
                 default_library: None,
             },
         )
-        .expect("authenticated original C constructor");
-        assert!(
-            interp.native_compiler_cache_epochs(GLOBAL).is_some(),
-            "{profile}: actual compiler epochs"
-        );
-        assert!(
-            interp.source_string_protocol().is_some(),
-            "{profile}: selected original source protocol"
-        );
+        .expect("authenticated original core constructor");
+        let protocol = interp
+            .source_string_protocol()
+            .unwrap_or_else(|| panic!("{profile}: selected original source protocol"));
+        match protocol {
+            tcl_syntax::native_string::NativeStringProtocol::C(_) => assert!(
+                interp.native_compiler_cache_epochs(GLOBAL).is_some(),
+                "{profile}: actual C compiler epochs"
+            ),
+            tcl_syntax::native_string::NativeStringProtocol::Jim084 => assert!(
+                interp.native_compiler_cache_epochs(GLOBAL).is_none(),
+                "{profile}: Jim has no C compiler epoch"
+            ),
+        }
         interp
     }
 

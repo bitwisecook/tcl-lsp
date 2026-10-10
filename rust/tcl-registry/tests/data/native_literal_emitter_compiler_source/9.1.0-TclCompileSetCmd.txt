@@ -1,0 +1,77 @@
+TclCompileSetCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr, *valueTokenPtr;
+    int isAssignment, isScalar;
+    Tcl_Size numWords = parsePtr->numWords;
+    Tcl_LVTIndex localIndex;
+
+    if ((numWords != 2) && (numWords != 3)) {
+	return TCL_ERROR;
+    }
+    isAssignment = (numWords == 3);
+
+    /*
+     * Decide if we can use a frame slot for the var/array name or if we need
+     * to emit code to compute and push the name at runtime. We use a frame
+     * slot (entry in the array of local vars) if we are compiling a procedure
+     * body and if the name is simple text that does not include namespace
+     * qualifiers.
+     */
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    PushVarNameWord(varTokenPtr, 0, &localIndex, &isScalar, 1);
+    if (OutOfUintRangeUpper(localIndex)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * If we are doing an assignment, push the new value.
+     */
+
+    if (isAssignment) {
+	valueTokenPtr = TokenAfter(varTokenPtr);
+	PUSH_TOKEN(		valueTokenPtr, 2);
+    }
+
+    /*
+     * Emit instructions to set/get the variable.
+     */
+
+    if (isScalar) {
+	if (localIndex < 0) {
+	    if (isAssignment) {
+		OP(		STORE_STK);
+	    } else {
+		OP(		LOAD_STK);
+	    }
+	} else {
+	    if (isAssignment) {
+		OP4(		STORE_SCALAR, localIndex);
+	    } else {
+		OP4(		LOAD_SCALAR, localIndex);
+	    }
+	}
+    } else {
+	if (localIndex < 0) {
+	    if (isAssignment) {
+		OP(		STORE_ARRAY_STK);
+	    } else {
+		OP(		LOAD_ARRAY_STK);
+	    }
+	} else {
+	    if (isAssignment) {
+		OP4(		STORE_ARRAY, localIndex);
+	    } else {
+		OP4(		LOAD_ARRAY, localIndex);
+	    }
+	}
+    }
+
+    return TCL_OK;
+}

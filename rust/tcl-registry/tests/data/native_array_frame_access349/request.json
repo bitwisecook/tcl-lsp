@@ -1,0 +1,26 @@
+{
+  "question_id": "naming.variable.original-frame-array-trace-caller-access",
+  "question": "After an actual C procedure frame leaves the variable stack, what does upvar 1 from its root/member unset callback access when the caller owns a same-spelled array, and can changes to that caller registration list donate callbacks to the retiring original members?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Two independent unchanged ASCII originals, fresh fullInit interpreter/process per case with existing counted original CAPI driver. Modern trace APIs. Ordinary proc caller owns same-spelled a(x)/a(y). The departing owner returns its own successful reads before teardown. Callback upvar 1 observes the public caller frame; no global alias to C procedure cells is constructed, no low-level observer or substituted API.",
+  "observation": "Whole original completion/public result and full log. Before pair/triple retains positive owner read plus unchanged caller member values; root case includes caller trace info. Final log includes subsequent caller teardown. No private frame/cell/registration identity equivalence inferred. Keep six exact provider/source pins and complete build/process/stdout/stderr receipts, actual Jim trace failure separate. Prior347 bad-level and348 inverted-alias errors remain limited negatives, no C frame chronology inferred from them.",
+  "cases": [
+    {
+      "id": "frame-root-access",
+      "source_file": "frame-root-access.tcl",
+      "source_sha256": "e0d1cb0917e30e101388dba0d90dd321d818e6791148b639ab42f24f08cb95d1"
+    },
+    {
+      "id": "frame-member-access",
+      "source_file": "frame-member-access.tcl",
+      "source_sha256": "026368bcd461a18c15d74420d2bfd690c2c6a2763c3e51cbe8736bb5e9db7e83"
+    }
+  ]
+}

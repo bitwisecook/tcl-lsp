@@ -18,6 +18,15 @@ pub enum NativeScalarGetterErrorCode {
     Set(Vec<u8>),
 }
 
+/// Result object producer of a reached primitive error, independently of bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeScalarGetterResultProducer {
+    /// A fresh string-byte object without the native String primary.
+    FreshString,
+    /// Appending or formatting establishes the native String primary.
+    AppendString,
+}
+
 /// Exact primitive failure and its independently measured propagation stage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeScalarGetterError {
@@ -46,6 +55,29 @@ impl NativeScalarGetterError {
     #[must_use]
     pub const fn failure_origin(&self) -> Failure {
         self.failure
+    }
+
+    /// Original C integer getter result producer. Unsupported getter/failure
+    /// combinations and Jim have no C producer receipt. This pure recipe grants
+    /// neither an original result header nor interpreter execution authority.
+    #[must_use]
+    pub const fn integer_result_producer(&self) -> Option<NativeScalarGetterResultProducer> {
+        use NativeScalarGetterResultProducer::{AppendString, FreshString};
+        let Some(version) = self.protocol.tcl_version() else {
+            return None;
+        };
+        if !matches!(self.kind, Kind::Int | Kind::Long | Kind::Wide) {
+            return None;
+        }
+        match self.failure {
+            Failure::IntWidthOverflow => Some(FreshString),
+            Failure::IntegerOverflow if matches!(version, TclVersion::V8_4) => Some(AppendString),
+            Failure::IntegerOverflow => Some(FreshString),
+            Failure::Invalid | Failure::InvalidOctal | Failure::CachedNonInteger => {
+                Some(AppendString)
+            }
+            _ => None,
+        }
     }
 
     /// Primitive result bytes before an interpreter dispatch propagates them.

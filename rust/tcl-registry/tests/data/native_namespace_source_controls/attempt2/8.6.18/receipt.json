@@ -1,0 +1,19 @@
+{
+  "provider": "8.6.18",
+  "channel": "ASCII source-file shell ingress; result string length/index and scan %c are reported as decimal units in an ASCII-only row. No raw counted NativeString NUL, binary byte projection or physical object cache claim.",
+  "input_sha256": "e744d3ba4b9237b459549aecc16d80cd1cc65dfd02f2f4dcf857af37dfaf05c4",
+  "runner_sha256": "7cbc9896b77e4075d092e6d2a6a27571dc09059acc75205b1f959fdf256cf29d",
+  "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+  "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+  "command": [
+    "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "/workspace/.proofs/current-namespace-byte-controls88-v2/cases.tcl"
+  ],
+  "reported_version": "8.6.18",
+  "version_exit": 0,
+  "exit": 0,
+  "stdout_sha256": "ca0598f895a7ea46763967273bb1ee66d77c09a1e457aed4d878915ad69d4d7d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": 11,
+  "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+}

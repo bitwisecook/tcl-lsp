@@ -43,6 +43,12 @@ impl WeakJimVariableCell {
     }
 }
 impl VarTable {
+    /// Jim_UnsetVariable removes a frame's primary table, never its static fallback.
+    pub(crate) fn remove_jim_primary(&mut self, name: &[u8]) -> bool {
+        // naming.procedure-static.jim-primary-table-unset
+        // docs/design/analysis/name-resolution-proofs/procedure-static-jim-primary-table-unset.md
+        self.slots.contains_key(name) && self.remove(name)
+    }
     pub(crate) fn weak_jim_cell(&self, name: &[u8]) -> Option<WeakJimVariableCell> {
         let cell = self.contents(name)?;
         cell.borrow().var.as_ref()?;

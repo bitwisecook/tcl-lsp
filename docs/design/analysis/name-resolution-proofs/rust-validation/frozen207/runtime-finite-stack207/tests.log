@@ -1,0 +1,195 @@
+
+running 82 tests
+test cmd_alias::native_option_tables::interp_subcommand_words_resolve_like_original_native_option_tables ... ok
+test cmd_alias::tests::c_child_constructor_refusal_keeps_owner_cause_without_success_result ... ok
+test cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis ... ok
+test cmd_alias::tests::jim_child_constructor_refusal_preserves_typed_cause_and_parent_result ... ok
+test cmd_alias::tests::jim_child_counted_crossings_match_original_native_public_rows ... ok
+test cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion ... ok
+test cmd_alias::tests::jim_interpreter_handle_isolation ... ok
+test cmd_array::tests::original_array_set_declines_without_a_genuine_c_variable_issuer ... ok
+test cmd_array::tests::original_array_set_default_engine_keeps_its_actual_variable_recipe ... ok
+test cmd_array::tests::original_array_set_name_and_values_keep_their_genuine_headers ... ok
+test cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results ... FAILED
+test cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls ... ok
+test cmd_coro::native_injection_tests::original_injection_order_and_error_continuation_match_native_callbacks ... ok
+test cmd_coro::native_original_holder_tests::original_coroutine_holder_lifecycle_matches_all_native_public_results ... ok
+test cmd_coro::original_operand_tests::coroutine_name_lookup_preserves_native_missing_and_unavailable_boundaries ... FAILED
+test cmd_coro::tests::coroinject_runs_on_next_resume ... ok
+test cmd_coro::tests::original_injection_public_completions_match_both_c9_releases ... ok
+test cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns ... FAILED
+test cmd_info::tests::info_consts_includes_only_tcloo_instance_links ... FAILED
+test cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation ... ok
+test cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release ... ok
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... FAILED
+test cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers ... FAILED
+test cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers ... ok
+test cmd_namespace::native_holder_routing::original_jim_ensemble_sources_match_all_native_rooted_public_results ... ok
+test cmd_namespace::native_holder_routing::original_jim_namespace_library_sources_match_all_native_provider_results ... ok
+test cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy ... ok
+test cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results ... FAILED
+test cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls ... ok
+test cmd_oo::tests::define_context_self_arity ... ok
+test cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages ... ok
+test cmd_oo::tests::definitionnamespace_semantics ... ok
+test cmd_oo::tests::objdefine_forward_mixin_unexport_copy ... ok
+test cmd_oo::tests::object_builtin_variable_varname_eval ... ok
+test cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries ... FAILED
+test cmd_oo::tests::unknown_method_preserves_original_selector_for_returned_slot_data ... ok
+test cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object ... ok
+test cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries ... ok
+test cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces ... ok
+test cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies ... ok
+test cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x ... ok
+test cmd_var::tests::original_array_read_destruction_matches_six_native_source_results ... ok
+test cmd_var::tests::original_upvar_error_publication_matches_all_six_native_sources ... ok
+test cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes ... FAILED
+test codegen_abi::tests::a_declining_entry_falls_back_to_the_source_body_observably_unchanged ... ok
+test codegen_abi::tests::a_logged_statement_site_preserves_the_source_trace_without_instruction_identity ... ok
+test codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read ... ok
+test codegen_abi::tests::invoke_argv_reports_unknown_error_with_options ... ok
+test dict::tests::actual_c84_updater_retains_original_long_and_wide_minimum_cache ... ok
+test expr::reference_root_tests::original_expression_source_matches_48_public_reference_boundaries ... FAILED
+test frame::native_inventory_tests::trace_member_identity_selects_original_duplicate_root_allocations ... ok
+test interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows ... ok
+test interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows ... ok
+test interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs ... FAILED
+test interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally ... ok
+test interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers ... FAILED
+test interp::native_children::tests::child_host_failure_keeps_its_typed_cause_and_parent_result ... ok
+test interp::native_children::tests::jim_child_bootstrap_copies_global_variable_extents_without_parent_object_sharing ... ok
+test interp::native_children::tests::jim_child_crossing_copies_counted_strings_and_preserves_original_context_refusal ... ok
+test interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics ... ok
+test interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver ... ok
+test interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results ... ok
+test interp::native_precision::tests::original_precision_unset_matches_all_six_native_sources ... ok
+test interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache ... ok
+test interp::native_variable_names::tests::legacy_existence_preserves_original_name_caches_and_object_reads_still_adopt_them ... ok
+test interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch ... ok
+test interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit ... ok
+test interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards ... ok
+test interp::tests::missing_arity_protocol_refuses_before_guest_state_changes ... ok
+test interp::tests::native_wrong_arguments_string_result_requires_the_structured_presenter ... ok
+test interp::tests::unchanged_primitive_projection_preserves_the_original_string_result ... ok
+test list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow ... ok
+test namespace::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources ... FAILED
+test native_arithseries::tests::finite_arithmetic_index_paths_preserve_or_convert_the_original_primary ... ok
+test native_arithseries::tests::multiple_index_path_reports_the_host_materialisation_limit ... ok
+test native_arithseries::tests::public_arithmetic_length_and_single_index_do_not_materialize_huge_series ... ok
+test native_source::tests::original_jim_source_length_preserves_resident_bytes_and_child_source ... ok
+test obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings ... ok
+test value_ops::tests::original_value_append_does_not_rebuild_after_unavailable_storage ... ok
+test value_ops::tests::original_value_append_preserves_storage_for_the_next_native_mutation ... ok
+test vars::tests::selected_member_trace_home_requires_original_root_correspondence ... ok
+test vars::tests::selected_scalar_trace_home_retains_the_actual_undefined_root_binding ... ok
+
+failures:
+
+---- cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results stdout ----
+
+thread 'cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results' (780405) panicked at src/cmd_array.rs:570:9:
+assertion `left == right` failed: eval "proc mutate {n e op} {if {$e eq {k}} {set ::heldArray(j) CALLBACK}}; trace variable ::heldArray w mutate; set name ::heldArray; array set $name {k FIRST j LAST}; list $::heldArray(k) $::heldArray(j)"; result [99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 58, 58, 104, 101, 108, 100, 65, 114, 114, 97, 121, 40, 107, 41, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 110, 39, 116, 32, 97, 114, 114, 97, 121]; refusal None
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- cmd_coro::original_operand_tests::coroutine_name_lookup_preserves_native_missing_and_unavailable_boundaries stdout ----
+
+thread 'cmd_coro::original_operand_tests::coroutine_name_lookup_preserves_native_missing_and_unavailable_boundaries' (780473) panicked at src/cmd_coro.rs:1458:9:
+assertion failed: default.resolve_original_command_generation(missing.as_ptr()).is_err()
+
+---- cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns stdout ----
+
+thread 'cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns' (780493) panicked at src/cmd_info/native_jim_inventory_tests.rs:242:13:
+assertion `left == right` failed: tcl8.6/native_jim_info_command_inventory254/original-all-option-current-namespace
+  left: [49, 32, 123, 119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 58, 58, 116, 99, 108, 58, 58, 105, 110, 102, 111, 58, 58, 99, 111, 109, 109, 97, 110, 100, 115, 32, 63, 112, 97, 116, 116, 101, 114, 110, 63, 34, 125]
+ right: [49, 32, 123, 119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 105, 110, 102, 111, 32, 99, 111, 109, 109, 97, 110, 100, 115, 32, 63, 112, 97, 116, 116, 101, 114, 110, 63, 34, 125]
+
+---- cmd_info::tests::info_consts_includes_only_tcloo_instance_links stdout ----
+
+thread 'cmd_info::tests::info_consts_includes_only_tcloo_instance_links' (780494) panicked at src/cmd_info.rs:985:9:
+assertion `left == right` failed: eval "const G 9; oo::class create C {variable X; constructor {} {const X 1}; method inspect {} {global G; upvar #0 ::G U; list [info consts] [info constant G] [info constant U]}; method retarget {} {upvar #0 ::G X; list [info consts] [info constant X]}; method shadow {X} {list $X [info consts]}}; set o [C new]; oo::object create O; oo::objdefine O {variable P; method init {} {const P 2}; method inspect {} {info consts}}; O init; oo::class create CA {variable X; method inspect {} {list [info consts] [info constant X] $X}}; set oa [CA new]; namespace eval [info object namespace $oa] {namespace upvar :: G X}; oo::class create CP {method inspect {} {info consts}}; CP create op; oo::objdefine op {variable Q; method init {} {const Q 3}}; op init; list [$o inspect] [$o retarget] [$o shadow formal] [O inspect] [$oa inspect] [op inspect] [info constant [info object namespace op]::Q]": result [99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 88, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 118, 97, 114, 105, 97, 98, 108, 101], admission None, native access None
+  left: Error
+ right: Ok
+
+---- cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls stdout ----
+
+thread 'cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls' (780497) panicked at src/cmd_mathop.rs:166:13:
+assertion `left == right` failed: jim/0
+  left: 1
+ right: 0
+
+---- cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers stdout ----
+
+thread 'cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers' (780521) panicked at src/cmd_namespace/native_holder_routing.rs:114:5:
+assertion `left == right` failed: jim/0/ORIGINAL
+  left: [105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 105, 110, 102, 111, 34]
+ right: [110, 97, 109, 101, 115, 112, 97, 99, 101, 44, 32, 117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 109, 109, 97, 110, 100, 32, 34, 101, 120, 105, 115, 116, 115, 34, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 99, 97, 110, 111, 110, 105, 99, 97, 108, 44, 32, 99, 111, 100, 101, 44, 32, 99, 117, 114, 114, 101, 110, 116, 44, 32, 100, 101, 108, 101, 116, 101, 44, 32, 101, 110, 115, 101, 109, 98, 108, 101, 44, 32, 101, 118, 97, 108, 44, 32, 101, 120, 112, 111, 114, 116, 44, 32, 105, 109, 112, 111, 114, 116, 44, 32, 105, 110, 115, 99, 111, 112, 101, 44, 32, 111, 114, 105, 103, 105, 110, 44, 32, 112, 97, 114, 101, 110, 116, 44, 32, 113, 117, 97, 108, 105, 102, 105, 101, 114, 115, 44, 32, 116, 97, 105, 108, 44, 32, 117, 112, 118, 97, 114, 44, 32, 119, 104, 105, 99, 104]
+
+---- cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results stdout ----
+
+thread 'cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results' (780526) panicked at src/cmd_oo/native_original_holder_tests.rs:112:13:
+assertion `left == right` failed: jim/bare-create-current-colon-holder: [105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 105, 110, 102, 111, 34]
+  left: 1
+ right: 0
+
+---- cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries stdout ----
+
+thread 'cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries' (780533) panicked at src/cmd_oo.rs:8750:21:
+assertion `left == right` failed: jim
+  left: "1"
+ right: "2"
+
+---- cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes stdout ----
+
+thread 'cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes' (780574) panicked at src/cmd_var.rs:641:21:
+assertion `left == right` failed: V8_4: variable_array_unset_root_changes_original_member_trace_via_alias
+  left: [48, 32, 79, 76, 68]
+ right: [48, 32, 78, 69, 87]
+
+---- expr::reference_root_tests::original_expression_source_matches_48_public_reference_boundaries stdout ----
+
+thread 'expr::reference_root_tests::original_expression_source_matches_48_public_reference_boundaries' (780609) panicked at src/expr_reference_tests.rs:117:13:
+assertion `left == right` failed: tcl8.5: public expr rows
+  left: ["EXPR label unmatched_scalar_open expression_hex 247b7363616c6172286f70656e7d code 0 result_hex 3131", "EXPR label scalar_parenthesis_tail expression_hex 247b7363616c6172286f70656e297461696c7d code 0 result_hex 3132", "EXPR label combined_closed_element expression_hex 247b617272286b6579297d code 0 result_hex 3231", "EXPR label separate_closed_element expression_hex 24617272286b657929 code 0 result_hex 3231", "EXPR label combined_multiple_parentheses expression_hex 247b61727228696e6e657229286b6579297d code 0 result_hex 3232", "EXPR label first_close_reference expression_hex 247b617b627d code 0 result_hex 3331", "EXPR label nested_close_reference expression_hex 247b617b627d637d code 1 result_hex 696e76616c69642063686172616374657220227d220a696e2065787072657373696f6e2022247b617b627d637d22", "EXPR label literal_dollar_scalar expression_hex 247b63617368246e616d657d code 0 result_hex 3431"]
+ right: ["EXPR label unmatched_scalar_open expression_hex 247b7363616c6172286f70656e7d code 0 result_hex 3131", "EXPR label scalar_parenthesis_tail expression_hex 247b7363616c6172286f70656e297461696c7d code 0 result_hex 3132", "EXPR label combined_closed_element expression_hex 247b617272286b6579297d code 0 result_hex 3231", "EXPR label separate_closed_element expression_hex 24617272286b657929 code 0 result_hex 3231", "EXPR label combined_multiple_parentheses expression_hex 247b61727228696e6e657229286b6579297d code 0 result_hex 3232", "EXPR label first_close_reference expression_hex 247b617b627d code 0 result_hex 3331", "EXPR label nested_close_reference expression_hex 247b617b627d637d code 1 result_hex 696e76616c69642062617265776f7264202263220a696e2065787072657373696f6e2022247b617b627d637d223b0a73686f756c642062652022246322206f7220227b637d22206f72202263282e2e2e2922206f72202e2e2e", "EXPR label literal_dollar_scalar expression_hex 247b63617368246e616d657d code 0 result_hex 3431"]
+
+---- interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs stdout ----
+
+thread 'interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs' (780613) panicked at src/interp/native_body_artifact/native_list_operations.rs:282:9:
+assertion `left == right` failed: tcl9.0/lrange $name end+10 end: result header
+  left: ["none", "1", "1"]
+ right: ["list", "0", "1"]
+
+---- interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers stdout ----
+
+thread 'interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers' (780615) panicked at src/interp/native_body_artifact/native_upvar_info_exists_tests.rs:175:13:
+assertion `left == right` failed: tcl8.6/11 primary
+  left: "none"
+ right: "string"
+
+---- namespace::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources stdout ----
+
+thread 'namespace::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources' (780632) panicked at src/namespace/jim_table_key_tests.rs:68:13:
+assertion `left == right` failed: jim/root-replacement: [105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 97, 108, 105, 97, 115, 34]; host=None
+  left: 1
+ right: 0
+
+
+failures:
+    cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results
+    cmd_coro::original_operand_tests::coroutine_name_lookup_preserves_native_missing_and_unavailable_boundaries
+    cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns
+    cmd_info::tests::info_consts_includes_only_tcloo_instance_links
+    cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls
+    cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers
+    cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results
+    cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries
+    cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes
+    expr::reference_root_tests::original_expression_source_matches_48_public_reference_boundaries
+    interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs
+    interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers
+    namespace::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources
+
+test result: FAILED. 69 passed; 13 failed; 0 ignored; 0 measured; 1192 filtered out; finished in 40.13s
+

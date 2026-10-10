@@ -29,9 +29,10 @@ pub struct SourceObjectInstanceProof {
     allocation: SourceObjectAllocation,
     class: SourceCommandTarget,
     dispatch_generation: u64,
+    pub(super) own_method_generation: u64,
     pub(super) receiver_dispatcher_generation: Option<u64>,
     pub(super) receiver_namespace_path: Option<&'static [&'static str]>,
-    instance_methods: Option<Arc<super::BTreeSet<String>>>,
+    instance_methods: Option<Arc<super::BTreeSet<tcl_core_types::NameBytes>>>,
 }
 
 impl SourceObjectInstanceProof {
@@ -52,7 +53,7 @@ impl SourceObjectInstanceProof {
     /// name cannot be supplied by this closed class definition. It does not
     /// license method execution, visibility, arity or constructor effects.
     #[must_use]
-    pub fn instance_method_names(&self) -> Option<&super::BTreeSet<String>> {
+    pub fn instance_method_names(&self) -> Option<&super::BTreeSet<tcl_core_types::NameBytes>> {
         self.instance_methods.as_deref()
     }
 
@@ -64,6 +65,32 @@ impl SourceObjectInstanceProof {
 }
 
 impl SourceInvocationBinding {
+    /// Current identity-bearing object frozen in this exact written head.
+    /// Selector absence does not erase its independently retained allocation;
+    /// argument effects and dispatcher currency remain mandatory.
+    #[must_use]
+    pub fn frozen_object_instance_at_dispatch(
+        &self,
+        head: &crate::ir::WordExpr,
+    ) -> Option<&SourceObjectInstanceProof> {
+        let frozen = self.frozen_head_object.as_ref()?;
+        let proof = &frozen.object;
+        let state = &self.lookup_state.as_ref()?.state;
+        if head != &frozen.word
+            || head.source().span.start() != self.dispatch_site.as_ref()?.offset
+            || self.entered_execution_observer.observed()
+            || state.source_step_observed()
+            || state.source_execution_observed(None)
+            || !state.receiver_allocation_is_current(proof)
+            || proof.receiver_dispatcher_generation.is_none()
+            || proof.receiver_dispatcher_generation
+                != state.object_instances.receiver_dispatcher_generation
+        {
+            return None;
+        }
+        Some(proof)
+    }
+
     /// Possible manufacturers from exact retained class allocations and their
     /// original declaration grammar. Unknown lookup and absence remain in this
     /// binding; candidates grant no constructor completion or instance proof.
@@ -143,24 +170,9 @@ impl SourceInvocationBinding {
             return None;
         }
         let proof = access.proved_object_instance()?;
-        let method = self.evaluated_argument_values.first()?.as_ref()?;
-        let definition = self
-            .lookup_state
-            .as_ref()?
-            .state
-            .class_definitions
-            .get(proof.class_target().identity.as_ref()?)?;
-        if !self
-            .lookup_state
-            .as_ref()?
-            .state
-            .class_definition_dependencies_hold(definition)
-        {
-            return None;
-        }
-        let entry = definition
-            .receiver_method_entries
-            .get(&(super::SourceMethodReceiver::Instance, method.clone()))?;
+        let method = self.original_retained_written_name_input(1)?;
+        let state = &self.lookup_state.as_ref()?.state;
+        let entry = state.retained_instance_method_entry(proof, method.bytes(), method.policy())?;
         Some((proof.class_target(), entry, proof.dispatch_generation()))
     }
 
@@ -185,8 +197,7 @@ impl SourceInvocationBinding {
         if identity.allocation.as_ref().is_none_or(|allocation| {
             allocation.site != proof.allocation.site
                 || allocation.incarnation != proof.allocation.incarnation
-        }) || state.object_instances.generation != Some(proof.dispatch_generation)
-            || !state.retained_target_is_current(&proof.class)
+        }) || !state.receiver_allocation_is_current(proof)
         {
             return None;
         }
@@ -200,25 +211,45 @@ impl SourceInvocationBinding {
         &self,
     ) -> Option<(&SourceCommandTarget, &super::SourceReceiverMethodEntry, u64)> {
         let proof = self.named_object_instance_at_dispatch()?;
-        let method = self.evaluated_argument_values.first()?.as_ref()?;
-        let definition = self
-            .lookup_state
-            .as_ref()?
-            .state
-            .class_definitions
-            .get(proof.class.identity.as_ref()?)?;
-        if !self
-            .lookup_state
-            .as_ref()?
-            .state
-            .class_definition_dependencies_hold(definition)
+        let method = self.original_retained_written_name_input(1)?;
+        let state = &self.lookup_state.as_ref()?.state;
+        let entry = state.retained_instance_method_entry(proof, method.bytes(), method.policy())?;
+        Some((&proof.class, entry, proof.dispatch_generation))
+    }
+
+    /// Current own-object method entries at this original post-argv head.
+    /// The exact object and own-table generation are retained independently of
+    /// its class's instance or class-object declaration inventories.
+    #[must_use]
+    pub fn own_object_method_entries_at_dispatch(
+        &self,
+    ) -> Option<(
+        &SourceObjectInstanceProof,
+        &super::SourceReceiverMethodEntries,
+    )> {
+        let state = &self.lookup_state.as_ref()?.state;
+        let receiver = self
+            .frozen_head_object
+            .as_ref()
+            .and_then(|frozen| self.frozen_object_instance_at_dispatch(&frozen.word))
+            .or_else(|| self.named_object_instance_at_dispatch())?;
+        if !state.receiver_allocation_is_current(receiver) {
+            return None;
+        }
+        let table = state
+            .object_instances
+            .own_methods
+            .iter()
+            .find(|table| &table.allocation == receiver.allocation())?;
+        if table.generation != Some(receiver.own_method_generation)
+            || table
+                .entries
+                .values()
+                .any(|entry| entry.declaring_object() != Some(receiver.allocation()))
         {
             return None;
         }
-        let entry = definition
-            .receiver_method_entries
-            .get(&(super::SourceMethodReceiver::Instance, method.clone()))?;
-        Some((&proof.class, entry, proof.dispatch_generation))
+        Some((receiver, &table.entries))
     }
 
     /// Method declaration inventory of the exact live class selected after
@@ -228,6 +259,18 @@ impl SourceInvocationBinding {
     pub fn class_definition_method_entries(
         &self,
     ) -> Option<(&SourceCommandTarget, &super::SourceReceiverMethodEntries)> {
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_OO_METHOD_TABLE offset={:?} factory={} target_kind={:?} unknown={} absent={} reach={:?}",
+                self.invocation_site().map(|site| site.offset),
+                self.proved_class_definition_factory().is_some(),
+                self.proved_target().map(|target| target.kind),
+                self.unknown,
+                self.may_be_absent,
+                self.runtime_reachability()
+            );
+        }
         let (_, target) = self.proved_class_definition_factory()?;
         let definition = self
             .lookup_state
@@ -236,6 +279,22 @@ impl SourceInvocationBinding {
             .class_definitions
             .get(target.identity.as_ref()?)?;
         Some((target, &definition.receiver_method_entries))
+    }
+
+    /// Exact class-object selector at its actual post-argument point. The
+    /// original selector input cannot be replaced by its display spelling.
+    #[must_use]
+    pub fn class_definition_method_entry(
+        &self,
+    ) -> Option<(&SourceCommandTarget, &super::SourceReceiverMethodEntry)> {
+        let input = self.original_retained_written_name_input(1)?;
+        let (target, entries) = self.class_definition_method_entries()?;
+        let entry = super::SourceReceiverMethodEntry::for_original_input(
+            entries,
+            super::SourceMethodReceiver::Class,
+            &input,
+        )?;
+        Some((target, entry))
     }
 
     /// Validate an actual frozen argument's instance receipt at the later
@@ -253,8 +312,7 @@ impl SourceInvocationBinding {
         };
         access.owner.is_argument_evaluation_of(site)
             && !snapshot.state.opaque_domain
-            && snapshot.state.object_instances.generation == Some(proof.dispatch_generation)
-            && snapshot.state.retained_target_is_current(&proof.class)
+            && snapshot.state.receiver_allocation_is_current(proof)
     }
 }
 
@@ -269,6 +327,7 @@ struct ObjectStore {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct SourceObjectState {
     pub(super) generation: Option<u64>,
+    pub(super) own_methods: Vec<OwnObjectMethodTable>,
     pub(super) class_delegate_generation: Option<u64>,
     pub(super) receiver_dispatcher_generation: Option<u64>,
     allocations: Vec<(
@@ -287,6 +346,7 @@ impl Default for SourceObjectState {
     fn default() -> Self {
         Self {
             generation: Some(0),
+            own_methods: Vec::new(),
             class_delegate_generation: Some(0),
             receiver_dispatcher_generation: Some(0),
             allocations: Vec::new(),
@@ -298,7 +358,94 @@ impl Default for SourceObjectState {
     }
 }
 
+/// Own methods of one independently allocated object. The generation is
+/// advanced only by the same represented configuration transfer. A missing
+/// generation retains an explicit conflicting or unknown object residual.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(super) struct OwnObjectMethodTable {
+    pub(super) allocation: SourceObjectAllocation,
+    pub(super) generation: Option<u64>,
+    pub(super) configurations:
+        Vec<super::own_object_configuration::OriginalOwnObjectMethodConfiguration>,
+    pub(super) entries: Arc<super::SourceReceiverMethodEntries>,
+}
+
 impl SourceObjectState {
+    pub(super) fn own_method_generation(&self, allocation: &SourceObjectAllocation) -> Option<u64> {
+        self.own_methods
+            .iter()
+            .find(|table| &table.allocation == allocation)
+            .map_or(Some(0), |table| table.generation)
+    }
+
+    pub(super) fn install_own_method_configuration(
+        &mut self,
+        configuration: super::own_object_configuration::OriginalOwnObjectMethodConfiguration,
+        entries: super::SourceReceiverMethodEntries,
+    ) -> Option<Arc<SourceObjectInstanceProof>> {
+        let allocation = configuration.receiver().allocation().clone();
+        let mut successor = Arc::new(configuration.receiver().clone());
+        let previous = self.own_method_generation(&allocation)?;
+        if previous != configuration.receiver().own_method_generation {
+            return None;
+        }
+        let generation = if entries.is_empty() {
+            previous
+        } else {
+            previous.checked_add(1)?
+        };
+        let index = self
+            .own_methods
+            .iter()
+            .position(|table| table.allocation == allocation);
+        let mut table = index.map_or_else(
+            || OwnObjectMethodTable {
+                allocation: allocation.clone(),
+                generation: Some(0),
+                configurations: Vec::new(),
+                entries: Arc::default(),
+            },
+            |index| self.own_methods[index].clone(),
+        );
+        for (name, entry) in entries {
+            Arc::make_mut(&mut table.entries).insert(name, entry);
+        }
+        table.generation = Some(generation);
+        table.configurations.push(configuration);
+        let names = table
+            .entries
+            .keys()
+            .map(|(_, name)| name.clone())
+            .collect::<Vec<_>>();
+        if let Some(index) = index {
+            self.own_methods[index] = table;
+        } else {
+            self.own_methods.push(table);
+        }
+        let restamp = |proof: &mut Arc<SourceObjectInstanceProof>| {
+            if proof.allocation() == &allocation && proof.own_method_generation == previous {
+                let proof = Arc::make_mut(proof);
+                proof.own_method_generation = generation;
+                if let Some(methods) = &mut proof.instance_methods {
+                    Arc::make_mut(methods).extend(names.iter().cloned());
+                }
+            }
+        };
+        for store in self.stores.values_mut() {
+            restamp(&mut store.proof);
+        }
+        for proof in self.named.values_mut() {
+            restamp(proof);
+        }
+        for proof in self.receivers.values_mut() {
+            restamp(proof);
+        }
+        restamp(&mut successor);
+        // Captured prefixes keep their original selector/provider receipt.
+        // Their old receiver generation will independently cease to match.
+        Some(successor)
+    }
+
     pub(super) fn invalidate_class_delegates(&mut self, opaque: bool) {
         self.class_delegate_generation = if opaque {
             None
@@ -326,6 +473,7 @@ impl SourceObjectState {
         } else {
             self.generation.and_then(|n| n.checked_add(1))
         };
+        self.own_methods.clear();
         self.stores.clear();
         self.prefix_stores.clear();
         self.named.clear();
@@ -354,6 +502,42 @@ impl SourceObjectState {
     }
 
     pub(super) fn join(&mut self, other: &Self) {
+        let mut allocations = self
+            .own_methods
+            .iter()
+            .map(|table| table.allocation.clone())
+            .collect::<Vec<_>>();
+        for table in &other.own_methods {
+            if !allocations.contains(&table.allocation) {
+                allocations.push(table.allocation.clone());
+            }
+        }
+        let mut common = Vec::new();
+        for allocation in allocations {
+            let left = self
+                .own_methods
+                .iter()
+                .find(|table| table.allocation == allocation);
+            let right = other
+                .own_methods
+                .iter()
+                .find(|table| table.allocation == allocation);
+            if let (Some(left), Some(right)) = (left, right)
+                && left == right
+            {
+                common.push(left.clone());
+                continue;
+            }
+            // A branch with a changed own table cannot become the initial
+            // empty table merely because its publication did not survive.
+            common.push(OwnObjectMethodTable {
+                allocation,
+                generation: None,
+                configurations: Vec::new(),
+                entries: Arc::default(),
+            });
+        }
+        self.own_methods = common;
         if self.class_delegate_generation != other.class_delegate_generation {
             self.class_delegate_generation = None;
         }
@@ -390,21 +574,10 @@ impl ModuleCommandBindings {
         &self,
         proof: &SourceObjectInstanceProof,
     ) -> Option<String> {
-        let mut slots = self.bindings.iter().filter_map(|(slot, bindings)| {
-            let mut bindings = bindings.iter();
-            let Some(super::MayBinding::Target(target)) = bindings.next() else {
-                return None;
-            };
-            if bindings.next().is_some() || !target.prepended.is_empty() {
-                return None;
-            }
-            let receiver = self.object_instances.named.get(target.token.as_ref()?)?;
-            (receiver.allocation() == proof.allocation())
-                .then(|| self.callable_spelling_for_key(slot))
-                .flatten()
-        });
-        let original = slots.next()?;
-        slots.next().is_none().then_some(original)
+        let key = self.constructed_command_key(proof)?;
+        let policy = self.baseline.execution_name_policy?.native_recipe()?;
+        let slot = self.original_byte_slot_for_key(key, policy)?;
+        String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(&slot)).ok()
     }
 
     pub(super) fn remove_constructed_command(&mut self, proof: &SourceObjectInstanceProof) {
@@ -501,119 +674,11 @@ impl ModuleCommandBindings {
                 .is_some_and(|source| !self.source_variables.contents_have_source(place, source))
             || self.source_variables.contents_presence(place)
                 != crate::var_resolve::ContentsPresence::Defined
-            || self.object_instances.generation != Some(store.proof.dispatch_generation)
-            || !self.retained_target_is_current(&store.proof.class)
+            || !self.receiver_allocation_is_current(&store.proof)
         {
             return None;
         }
         Some(Arc::clone(&store.proof))
-    }
-
-    pub(super) fn retain_named_manufacture(
-        &mut self,
-        proof: &mut Arc<SourceObjectInstanceProof>,
-        arguments: &[crate::registry_invocation::EffectiveInvocationWord],
-        context: SourceExecutionContext<'_>,
-    ) {
-        let Some(grammar) = proof
-            .class
-            .identity
-            .as_ref()
-            .and_then(|identity| self.class_definitions.get(identity))
-            .and_then(|definition| {
-                context.registry.native_default_construction_grammar(
-                    &definition.factory,
-                    self.baseline.dialect?,
-                    context.realm,
-                )
-            })
-        else {
-            return;
-        };
-        let Some(name_at) = arguments
-            .first()
-            .and_then(|word| word.as_registry_word().literal())
-            .and_then(|name| grammar.manufacturer(name))
-            .and_then(|member| member.names_instance_at)
-        else {
-            return;
-        };
-        let Some(name) = arguments
-            .get(usize::from(name_at))
-            .and_then(|word| word.as_registry_word().literal())
-        else {
-            return;
-        };
-        if !self.source_variables.namespace_known || self.opaque_domain {
-            return;
-        }
-        let slot = super::qualify_execution_name(
-            &crate::ir_helpers::ExecutionNamespace::exact(context.namespace),
-            name,
-        );
-        let Some(slot) = slot else {
-            return;
-        };
-        let Some(target) = self.closed_installed_instance(&slot) else {
-            return;
-        };
-        let allocation = super::CommandAllocation {
-            site: proof.allocation.site.clone(),
-            incarnation: proof.allocation.incarnation,
-            command: slot.clone(),
-            namespace: context.namespace_identity(),
-        };
-        let identity = super::CommandIdentity {
-            runtime: None,
-            origin: slot.clone(),
-            declaration: proof.allocation.site.offset,
-            allocation: Some(allocation.clone()),
-        };
-        let previous = target.token.clone();
-        let mut installed = target;
-        installed.token = Some(identity.clone());
-        installed.implementation_generation = proof.allocation.site.offset;
-        installed.implementation_allocation = Some(allocation);
-        if let Some(previous) = previous {
-            Arc::make_mut(&mut self.objects).remove(&previous);
-        }
-        let implementation = super::MayBinding::Target(installed);
-        Arc::make_mut(&mut self.objects).insert(
-            identity.clone(),
-            super::BTreeSet::from([implementation.clone()]),
-        );
-        let dispatcher_generation = self.object_instances.receiver_dispatcher_generation;
-        let receivers = self.object_instances.receivers.clone();
-        self.replace(slot, super::BTreeSet::from([implementation]));
-        // Restamping an already installed allocation is not an interpreter
-        // mutation, so it cannot retire other objects' private dispatchers.
-        let objects = Arc::make_mut(&mut self.object_instances);
-        objects.receiver_dispatcher_generation = dispatcher_generation;
-        objects.receivers = receivers;
-        Arc::make_mut(proof).receiver_dispatcher_generation = dispatcher_generation;
-        Arc::make_mut(&mut self.object_instances)
-            .named
-            .insert(identity, Arc::clone(proof));
-    }
-
-    fn closed_installed_instance(&self, slot: &str) -> Option<super::ResolvedCommandTarget> {
-        let bindings = self
-            .bindings
-            .get(slot)
-            .filter(|bindings| bindings.len() == 1)?;
-        match bindings.iter().next()? {
-            super::MayBinding::Target(target)
-                if target.kind == super::BindingKind::Command
-                    && !target.registry_backed
-                    && target.prepended.is_empty() =>
-            {
-                Some(target.clone())
-            }
-            super::MayBinding::Target(_)
-            | super::MayBinding::Imported(_)
-            | super::MayBinding::Missing
-            | super::MayBinding::Unknown => None,
-        }
     }
 
     pub(super) fn manufacture_object_proof(
@@ -689,6 +754,7 @@ impl ModuleCommandBindings {
             allocation,
             class: class.clone(),
             dispatch_generation: generation,
+            own_method_generation: 0,
             receiver_dispatcher_generation: objects.receiver_dispatcher_generation,
             receiver_namespace_path,
             instance_methods,
@@ -741,7 +807,7 @@ pub(super) fn retain_object_store(
     if receiver.dynamic
         || receiver.observed
         || normal.opaque_domain
-        || normal.object_instances.generation != Some(proof.dispatch_generation)
+        || !normal.receiver_allocation_is_current(proof)
         || normal.source_variables.contents_presence(&receiver)
             != crate::var_resolve::ContentsPresence::Defined
         || normal
@@ -783,6 +849,9 @@ pub(super) fn retain_value_formals(
                     word,
                     crate::registry_invocation::EffectiveInvocationWord::Expanded
                         | crate::registry_invocation::EffectiveInvocationWord::KnownExpansion(_)
+                        | crate::registry_invocation::EffectiveInvocationWord::KnownByteExpansion(
+                            _
+                        )
                 )
             })
         })
@@ -961,8 +1030,8 @@ mod tests {
                 let methods = proof
                     .instance_method_names()
                     .expect("closed method inventory");
-                assert!(methods.contains("valid"));
-                assert!(!methods.contains("bogus"));
+                assert!(methods.contains(b"valid".as_slice()));
+                assert!(!methods.contains(b"bogus".as_slice()));
                 assert_eq!(proof.allocation().incarnation, AllocationIncarnation::First);
                 assert_eq!(
                     proof.allocation().site.offset,

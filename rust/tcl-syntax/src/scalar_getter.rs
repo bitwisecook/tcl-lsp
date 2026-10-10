@@ -18,7 +18,9 @@ mod errors;
 mod float;
 #[path = "scalar_getter/number.rs"]
 mod number_getter;
-pub use errors::{NativeScalarGetterError, NativeScalarGetterErrorCode};
+pub use errors::{
+    NativeScalarGetterError, NativeScalarGetterErrorCode, NativeScalarGetterResultProducer,
+};
 pub use number_getter::{NativeNumberGetterConversion, NativeNumberGetterKind};
 
 /// C8.4 compiler's counted `TclLooksLikeInt`/`TclParseInteger` prefix predicate.
@@ -110,13 +112,22 @@ pub enum JimExpressionNumber {
     Double(f64),
 }
 
-/// Parse a complete Jim expression numeric token for fresh term construction.
+/// Parse a complete pinned Jim 0.84 expression token for fresh term construction.
 /// Numeric cache conversion, errno-sensitive getters and diagnostic state are
 /// separate operations. NUL or incomplete spellings remain String terms.
 #[must_use]
 pub fn jim_expression_number(token: &[u8]) -> Option<JimExpressionNumber> {
-    let scanned =
-        tcl_dialect::scan_jim_expression_number(token, 0, tcl_dialect::NumberSyntax::Jim)?;
+    jim_expression_number_for_syntax(token, tcl_dialect::NumberSyntax::Jim080)
+}
+
+/// Construct a complete fresh numeric term under the selected Jim numeral grammar.
+/// The scanner retains release-specific prefixes; a C grammar supplies no Jim term.
+#[must_use]
+pub fn jim_expression_number_for_syntax(
+    token: &[u8],
+    syntax: tcl_dialect::NumberSyntax,
+) -> Option<JimExpressionNumber> {
+    let scanned = tcl_dialect::scan_jim_expression_number(token, 0, syntax)?;
     if scanned.end() != token.len() {
         return None;
     }

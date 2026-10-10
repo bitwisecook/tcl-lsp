@@ -275,6 +275,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exists",
+        variable_receivers: Some(&[(
+            0,
+            crate::resolved_invocation::VariableReceiverOperandForm::Combined,
+        )]),
         native_compilation: Some(array_special_compilation(
             0,
             crate::native_compilation::NativeArrayCommand::Exists,
@@ -333,6 +337,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "get",
+        variable_receivers: Some(&[(
+            0,
+            crate::resolved_invocation::VariableReceiverOperandForm::Combined,
+        )]),
         native_compilation: Some(array_named_compilation(2, Arity::new(1, 2))),
         arity: Arity::new(1, 2),
         detail: "Returns a list containing pairs of elements.",
@@ -348,6 +356,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "names",
+        variable_receivers: Some(&[(
+            0,
+            crate::resolved_invocation::VariableReceiverOperandForm::Combined,
+        )]),
         native_compilation: Some(array_named_compilation(3, Arity::new(1, 3))),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ArrayNames)),
         arity: Arity::new(1, 3),
@@ -385,6 +397,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "set",
+        variable_receivers: Some(&[(
+            0,
+            crate::resolved_invocation::VariableReceiverOperandForm::Combined,
+        )]),
         native_compilation: Some(array_special_compilation(
             1,
             crate::native_compilation::NativeArrayCommand::Set,
@@ -458,6 +474,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unset",
+        variable_receivers: Some(&[(
+            0,
+            crate::resolved_invocation::VariableReceiverOperandForm::Combined,
+        )]),
         native_compilation: Some(array_special_compilation(
             2,
             crate::native_compilation::NativeArrayCommand::Unset,

@@ -62,9 +62,7 @@ use tcl_registry::{ByteArrayEffect, BytePayloadSpec, CommandRegistry, TclType};
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::{Statement, WordExpr, WordPart};
 use crate::naming::normalise_var_name;
-use crate::registry_invocation::{
-    NormalRepresentationInvocation, normal_representation_invocation,
-};
+use crate::registry_invocation::NormalRepresentationInvocation;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 
@@ -305,18 +303,18 @@ fn byte_warning(
 
 /// Forward byte-provenance dataflow state for one function.
 struct ByteCorruption<'a> {
-    registry: &'a CommandRegistry,
+    context: super::ShimmerContext<'a>,
     prov: HashMap<ValueKey, ByteProvInfo>,
     warnings: Vec<ShimmerWarning>,
 }
 
 impl<'a> ByteCorruption<'a> {
     fn new(
-        registry: &'a CommandRegistry,
+        context: super::ShimmerContext<'a>,
         _payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
     ) -> Self {
         Self {
-            registry,
+            context,
             prov: HashMap::new(),
             warnings: Vec::new(),
         }
@@ -384,7 +382,7 @@ impl<'a> ByteCorruption<'a> {
         &self,
         ssa: crate::ssa::SsaSourceView<'_>,
     ) -> Option<NormalRepresentationInvocation> {
-        normal_representation_invocation(self.registry, None, ssa.source_tokens()?)
+        self.context.invocation(ssa.source_tokens()?)
     }
 
     fn nested_invocation(
@@ -393,17 +391,10 @@ impl<'a> ByteCorruption<'a> {
         ssa: crate::ssa::SsaSourceView<'_>,
     ) -> Option<NormalRepresentationInvocation> {
         let parent = ssa.source_tokens()?;
-        let config = parent
-            .source_binding
-            .as_ref()
-            .and_then(|binding| binding.variable_context.invocation_dialect)
-            .map_or_else(
-                || tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-                |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-            );
+        let config = self.context.config();
         let mut tokens = crate::word_subst::whole_word_command_tokens(word, config)?;
         tokens.inherit_nested_bindings(parent);
-        normal_representation_invocation(self.registry, None, &tokens)
+        self.context.invocation(&tokens)
     }
 
     fn operand_prov(
@@ -497,7 +488,7 @@ impl<'a> ByteCorruption<'a> {
         if let Some(version) = read.version {
             return self.prov.get(&(read.symbol, version)).cloned();
         }
-        let contents = source.read_word_contents(word, self.registry)?;
+        let contents = source.read_word_contents(word, self.context.registry())?;
         if contents.unknown_residual || contents.includes_incoming {
             return None;
         }
@@ -847,6 +838,7 @@ impl<'a> ByteCorruption<'a> {
 /// under non-iRules dialects); the plain-Tcl `binary` / `encoding` sources are
 /// always recognised via the registry.
 #[must_use]
+#[cfg(test)]
 pub(crate) fn find_byte_array_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -854,7 +846,23 @@ pub(crate) fn find_byte_array_warnings(
     registry: &CommandRegistry,
     payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
 ) -> Vec<ShimmerWarning> {
-    ByteCorruption::new(registry, payload_layouts).run(cfg, ssa, executable_blocks)
+    find_byte_array_warnings_with_context(
+        cfg,
+        ssa,
+        executable_blocks,
+        super::ShimmerContext::standalone(registry),
+        payload_layouts,
+    )
+}
+
+pub(crate) fn find_byte_array_warnings_with_context(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    executable_blocks: &HashSet<BlockId>,
+    context: super::ShimmerContext<'_>,
+    payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
+) -> Vec<ShimmerWarning> {
+    ByteCorruption::new(context, payload_layouts).run(cfg, ssa, executable_blocks)
 }
 
 #[cfg(test)]
@@ -889,7 +897,7 @@ mod tests {
     fn assignment_proof_summary(src: &str, registry: &CommandRegistry) -> Vec<String> {
         let unit = CompilationUnit::build_for(src, registry, false);
         let layouts = registry.byte_array_payload_layouts();
-        let tracker = ByteCorruption::new(registry, &layouts);
+        let tracker = ByteCorruption::new(super::ShimmerContext::standalone(registry), &layouts);
         let mut summary = Vec::new();
         for function in unit.analysable_functions() {
             for (&block, body) in &function.ssa.blocks {

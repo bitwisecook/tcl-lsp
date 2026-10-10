@@ -1,0 +1,137 @@
+{
+  "question": "Which source boundaries validate/store an ordinary own-object method and release a known procedure replacement without entering its body?",
+  "source_anchors": [
+    {
+      "version_association": "8.6.18",
+      "path": "generic/tclOODefineCmds.c",
+      "symbol": "TclOODefineMethodObjCmd",
+      "complete_file_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "start_line": 1548,
+      "end_line": 1592,
+      "snippet_sha256": "149f61556901b38088f841f849e86b9e55a4b7d2730a1fa0ccd39871531f1ca4",
+      "snippet": "TclOODefineMethodObjCmd(\n    ClientData clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const *objv)\n{\n    int isInstanceMethod = (clientData != NULL);\n    Object *oPtr;\n    int isPublic;\n\n    if (objc != 4) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name args body\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (!isInstanceMethod && !oPtr->classPtr) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"attempt to misuse API\", -1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"OO\", \"MONKEY_BUSINESS\", (char *)NULL);\n\treturn TCL_ERROR;\n    }\n    isPublic = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)\n\t    ? PUBLIC_METHOD : 0;\n\n    /*\n     * Create the method by using the right back-end API.\n     */\n\n    if (isInstanceMethod) {\n\tif (TclOONewProcInstanceMethod(interp, oPtr, isPublic, objv[1],\n\t\tobjv[2], objv[3], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    } else {\n\tif (TclOONewProcMethod(interp, oPtr->classPtr, isPublic, objv[1],\n\t\tobjv[2], objv[3], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n    return TCL_OK;\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "8.6.18",
+      "path": "generic/tclOOMethod.c",
+      "symbol": "TclOOMakeProcInstanceMethod",
+      "complete_file_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "start_line": 430,
+      "end_line": 523,
+      "snippet_sha256": "fedc40da244048f038d3711262486ee7da96b47622c70e68983d0c599a278fd2",
+      "snippet": "TclOOMakeProcInstanceMethod(\n    Tcl_Interp *interp,\t\t/* The interpreter containing the object. */\n    Object *oPtr,\t\t/* The object to modify. */\n    int flags,\t\t\t/* Whether this is a public method. */\n    Tcl_Obj *nameObj,\t\t/* The name of the method, which _must not_ be\n\t\t\t\t * NULL. */\n    Tcl_Obj *argsObj,\t\t/* The formal argument list for the method,\n\t\t\t\t * which _must not_ be NULL. */\n    Tcl_Obj *bodyObj,\t\t/* The body of the method, which _must not_ be\n\t\t\t\t * NULL. */\n    const Tcl_MethodType *typePtr,\n\t\t\t\t/* The type of the method to create. */\n    void *clientData,\t/* The per-method type-specific data. */\n    Proc **procPtrPtr)\t\t/* A pointer to the variable in which to write\n\t\t\t\t * the procedure record reference. Presumably\n\t\t\t\t * inside the structure indicated by the\n\t\t\t\t * pointer in clientData. */\n{\n    Interp *iPtr = (Interp *) interp;\n    Proc *procPtr;\n\n    if (TclCreateProc(interp, NULL, TclGetString(nameObj), argsObj, bodyObj,\n\t    procPtrPtr) != TCL_OK) {\n\treturn NULL;\n    }\n    procPtr = *procPtrPtr;\n    procPtr->cmdPtr = NULL;\n\n    if (iPtr->cmdFramePtr) {\n\tCmdFrame context = *iPtr->cmdFramePtr;\n\n\tif (context.type == TCL_LOCATION_BC) {\n\t    /*\n\t     * Retrieve source information from the bytecode, if possible. If\n\t     * the information is retrieved successfully, context.type will be\n\t     * TCL_LOCATION_SOURCE and the reference held by\n\t     * context.data.eval.path will be counted.\n\t     */\n\n\t    TclGetSrcInfoForPc(&context);\n\t} else if (context.type == TCL_LOCATION_SOURCE) {\n\t    /*\n\t     * The copy into 'context' up above has created another reference\n\t     * to 'context.data.eval.path'; account for it.\n\t     */\n\n\t    Tcl_IncrRefCount(context.data.eval.path);\n\t}\n\n\tif (context.type == TCL_LOCATION_SOURCE) {\n\t    /*\n\t     * We can account for source location within a proc only if the\n\t     * proc body was not created by substitution.\n\t     * (FIXME: check that this is sane and correct!)\n\t     */\n\n\t    if (context.line\n\t\t    && (context.nline >= 4) && (context.line[3] >= 0)) {\n\t\tint isNew;\n\t\tCmdFrame *cfPtr = (CmdFrame *)ckalloc(sizeof(CmdFrame));\n\t\tTcl_HashEntry *hPtr;\n\n\t\tcfPtr->level = -1;\n\t\tcfPtr->type = context.type;\n\t\tcfPtr->line = (int *)ckalloc(sizeof(int));\n\t\tcfPtr->line[0] = context.line[3];\n\t\tcfPtr->nline = 1;\n\t\tcfPtr->framePtr = NULL;\n\t\tcfPtr->nextPtr = NULL;\n\n\t\tcfPtr->data.eval.path = context.data.eval.path;\n\t\tTcl_IncrRefCount(cfPtr->data.eval.path);\n\n\t\tcfPtr->cmd = NULL;\n\t\tcfPtr->len = 0;\n\n\t\thPtr = Tcl_CreateHashEntry(iPtr->linePBodyPtr,\n\t\t\t(char *) procPtr, &isNew);\n\t\tTcl_SetHashValue(hPtr, cfPtr);\n\t    }\n\n\t    /*\n\t     * 'context' is going out of scope; account for the reference that\n\t     * it's holding to the path name.\n\t     */\n\n\t    Tcl_DecrRefCount(context.data.eval.path);\n\t    context.data.eval.path = NULL;\n\t}\n    }\n\n    return Tcl_NewInstanceMethod(interp, (Tcl_Object) oPtr, nameObj, flags,\n\t    typePtr, clientData);\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "8.6.18",
+      "path": "generic/tclOOMethod.c",
+      "symbol": "Tcl_NewInstanceMethod",
+      "complete_file_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "start_line": 136,
+      "end_line": 192,
+      "snippet_sha256": "e53a1b9f6d25737a47b657a664438d3d48b31884a00e540c1ab0352c0eeab381",
+      "snippet": "Tcl_NewInstanceMethod(\n    Tcl_Interp *interp,\t\t/* Unused? */\n    Tcl_Object object,\t\t/* The object that has the method attached to\n\t\t\t\t * it. */\n    Tcl_Obj *nameObj,\t\t/* The name of the method. May be NULL; if so,\n\t\t\t\t * up to caller to manage storage (e.g., when\n\t\t\t\t * it is a constructor or destructor). */\n    int flags,\t\t\t/* Whether this is a public method. */\n    const Tcl_MethodType *typePtr,\n\t\t\t\t/* The type of method this is, which defines\n\t\t\t\t * how to invoke, delete and clone the\n\t\t\t\t * method. */\n    void *clientData)\t\t/* Some data associated with the particular\n\t\t\t\t * method to be created. */\n{\n    Object *oPtr = (Object *) object;\n    Method *mPtr;\n    Tcl_HashEntry *hPtr;\n    int isNew;\n\n    if (nameObj == NULL) {\n\tmPtr = (Method *)ckalloc(sizeof(Method));\n\tmPtr->namePtr = NULL;\n\tmPtr->refCount = 1;\n\tgoto populate;\n    }\n    if (!oPtr->methodsPtr) {\n\toPtr->methodsPtr = (Tcl_HashTable *)ckalloc(sizeof(Tcl_HashTable));\n\tTcl_InitObjHashTable(oPtr->methodsPtr);\n\toPtr->flags &= ~USE_CLASS_CACHE;\n    }\n    hPtr = Tcl_CreateHashEntry(oPtr->methodsPtr, (char *) nameObj, &isNew);\n    if (isNew) {\n\tmPtr = (Method *)ckalloc(sizeof(Method));\n\tmPtr->namePtr = nameObj;\n\tmPtr->refCount = 1;\n\tTcl_IncrRefCount(nameObj);\n\tTcl_SetHashValue(hPtr, mPtr);\n    } else {\n\tmPtr = (Method *)Tcl_GetHashValue(hPtr);\n\tif (mPtr->typePtr != NULL && mPtr->typePtr->deleteProc != NULL) {\n\t    mPtr->typePtr->deleteProc(mPtr->clientData);\n\t}\n    }\n\n  populate:\n    mPtr->typePtr = typePtr;\n    mPtr->clientData = clientData;\n    mPtr->flags = 0;\n    mPtr->declaringObjectPtr = oPtr;\n    mPtr->declaringClassPtr = NULL;\n    if (flags) {\n\tmPtr->flags |= flags & (PUBLIC_METHOD | PRIVATE_METHOD);\n    }\n    oPtr->epoch++;\n    return (Tcl_Method) mPtr;\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "8.6.18",
+      "path": "generic/tclOOMethod.c",
+      "symbol": "DeleteProcedureMethod",
+      "complete_file_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "start_line": 1227,
+      "end_line": 1235,
+      "snippet_sha256": "18171600f0682d3b789cc7439c9acea4b02f9afa5aa482c81bb5a737b5adb859",
+      "snippet": "DeleteProcedureMethod(\n    void *clientData)\n{\n    ProcedureMethod *pmPtr = (ProcedureMethod *)clientData;\n\n    if (pmPtr->refCount-- <= 1) {\n\tDeleteProcedureMethodRecord(pmPtr);\n    }\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "9.0.4",
+      "path": "generic/tclOODefineCmds.c",
+      "symbol": "TclOODefineMethodObjCmd",
+      "complete_file_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "start_line": 2277,
+      "end_line": 2361,
+      "snippet_sha256": "ca528ef582289d9f8483cc4767b04c7b0b97395acfa1a112abf3a591d5c9853f",
+      "snippet": "TclOODefineMethodObjCmd(\n    void *clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const *objv)\n{\n    /*\n     * Table of export modes for methods and their corresponding enum.\n     */\n\n    static const char *const exportModes[] = {\n\t\"-export\",\n\t\"-private\",\n\t\"-unexport\",\n\tNULL\n    };\n    enum ExportMode {\n\tMODE_EXPORT,\n\tMODE_PRIVATE,\n\tMODE_UNEXPORT\n    } exportMode;\n\n    int isInstanceMethod = (clientData != NULL);\n    Object *oPtr;\n    int isPublic = 0;\n\n    if (objc < 4 || objc > 5) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name ?option? args body\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (!isInstanceMethod && !oPtr->classPtr) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"attempt to misuse API\", TCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn TCL_ERROR;\n    }\n    if (objc == 5) {\n\tif (Tcl_GetIndexFromObj(interp, objv[2], exportModes, \"export flag\",\n\t\t0, &exportMode) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\n\tswitch (exportMode) {\n\tcase MODE_EXPORT:\n\t    isPublic = PUBLIC_METHOD;\n\t    break;\n\tcase MODE_PRIVATE:\n\t    isPublic = TRUE_PRIVATE_METHOD;\n\t    break;\n\tcase MODE_UNEXPORT:\n\t    isPublic = 0;\n\t    break;\n\tdefault:\n\t    TCL_UNREACHABLE();\n\t}\n    } else {\n\tif (IsPrivateDefine(interp)) {\n\t    isPublic = TRUE_PRIVATE_METHOD;\n\t} else {\n\t    isPublic = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)\n\t\t    ? PUBLIC_METHOD : 0;\n\t}\n    }\n\n    /*\n     * Create the method by using the right back-end API.\n     */\n\n    if (isInstanceMethod) {\n\tif (TclOONewProcInstanceMethod(interp, oPtr, isPublic, objv[1],\n\t\tobjv[objc - 2], objv[objc - 1], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    } else {\n\tif (TclOONewProcMethod(interp, oPtr->classPtr, isPublic, objv[1],\n\t\tobjv[objc - 2], objv[objc - 1], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n    return TCL_OK;\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "9.0.4",
+      "path": "generic/tclOOMethod.c",
+      "symbol": "TclOOMakeProcInstanceMethod",
+      "complete_file_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "start_line": 615,
+      "end_line": 651,
+      "snippet_sha256": "0d12907dc5ed11638a5557d82bd266c58a2564a8d010d240544984b72e1b10c3",
+      "snippet": "TclOOMakeProcInstanceMethod(\n    Tcl_Interp *interp,\t\t/* The interpreter containing the object. */\n    Object *oPtr,\t\t/* The object to modify. */\n    int flags,\t\t\t/* Whether this is a public method. */\n    Tcl_Obj *nameObj,\t\t/* The name of the method, which _must not_ be\n\t\t\t\t * NULL. */\n    Tcl_Obj *argsObj,\t\t/* The formal argument list for the method,\n\t\t\t\t * which _must not_ be NULL. */\n    Tcl_Obj *bodyObj,\t\t/* The body of the method, which _must not_ be\n\t\t\t\t * NULL. */\n    const Tcl_MethodType *typePtr,\n\t\t\t\t/* The type of the method to create. */\n    void *clientData,\t\t/* The per-method type-specific data. */\n    Proc **procPtrPtr)\t\t/* A pointer to the variable in which to write\n\t\t\t\t * the procedure record reference. Presumably\n\t\t\t\t * inside the structure indicated by the\n\t\t\t\t * pointer in clientData. */\n{\n    Interp *iPtr = (Interp *) interp;\n    Proc *procPtr;\n\n    if (typePtr->version > TCL_OO_METHOD_VERSION_1) {\n\tTcl_Panic(\"%s: Wrong version in typePtr->version, should be %s\",\n\t\t\"TclOOMakeProcInstanceMethod\", \"TCL_OO_METHOD_VERSION_1\");\n    }\n    if (TclCreateProc(interp, NULL, TclGetString(nameObj), argsObj, bodyObj,\n\t    procPtrPtr) != TCL_OK) {\n\treturn NULL;\n    }\n    procPtr = *procPtrPtr;\n    procPtr->cmdPtr = NULL;\n\n    InitCmdFrame(iPtr, procPtr);\n\n    return TclNewInstanceMethod(interp, (Tcl_Object) oPtr, nameObj, flags,\n\t    typePtr, clientData);\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "9.0.4",
+      "path": "generic/tclOOMethod.c",
+      "symbol": "Tcl_NewInstanceMethod",
+      "complete_file_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "start_line": 199,
+      "end_line": 220,
+      "snippet_sha256": "8ec2e9e7b1ee9765dcb56d1a99704765478cf65aeec0da73e34c4bd2639b1280",
+      "snippet": "Tcl_NewInstanceMethod(\n    TCL_UNUSED(Tcl_Interp *),\n    Tcl_Object object,\t\t/* The object that has the method attached to\n\t\t\t\t * it. */\n    Tcl_Obj *nameObj,\t\t/* The name of the method. May be NULL; if so,\n\t\t\t\t * up to caller to manage storage (e.g., when\n\t\t\t\t * it is a constructor or destructor). */\n    int flags,\t\t\t/* Whether this is a public method. */\n    const Tcl_MethodType *typePtr,\n\t\t\t\t/* The type of method this is, which defines\n\t\t\t\t * how to invoke, delete and clone the\n\t\t\t\t * method. */\n    void *clientData)\t\t/* Some data associated with the particular\n\t\t\t\t * method to be created. */\n{\n    if (typePtr->version > TCL_OO_METHOD_VERSION_1) {\n\tTcl_Panic(\"%s: Wrong version in typePtr->version, should be %s\",\n\t\t\"Tcl_NewInstanceMethod\", \"TCL_OO_METHOD_VERSION_1\");\n    }\n    return TclNewInstanceMethod(NULL, object, nameObj, flags, typePtr,\n\t    clientData);\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "9.0.4",
+      "path": "generic/tclOOMethod.c",
+      "symbol": "DeleteProcedureMethod",
+      "complete_file_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "start_line": 1401,
+      "end_line": 1409,
+      "snippet_sha256": "bb88abeac6295b42cb4a9dad06019c03d53e4ccb00807898281b8fd1afb7a6fe",
+      "snippet": "DeleteProcedureMethod(\n    void *clientData)\n{\n    ProcedureMethod *pmPtr = (ProcedureMethod *) clientData;\n\n    if (pmPtr->refCount-- <= 1) {\n\tDeleteProcedureMethodRecord(pmPtr);\n    }\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "9.1.0",
+      "path": "generic/tclOODefineCmds.c",
+      "symbol": "TclOODefineMethodObjCmd",
+      "complete_file_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "start_line": 2237,
+      "end_line": 2318,
+      "snippet_sha256": "a10f879e9ab4d7269c1f889ab63cb99cf586d0d07f8f5423c4b69c4d36c0e57b",
+      "snippet": "TclOODefineMethodObjCmd(\n    void *clientData,\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    /*\n     * Table of export modes for methods and their corresponding enum.\n     */\n\n    static const char *const exportModes[] = {\n\t\"-export\",\n\t\"-private\",\n\t\"-unexport\",\n\tNULL\n    };\n    enum ExportMode {\n\tMODE_EXPORT,\n\tMODE_PRIVATE,\n\tMODE_UNEXPORT\n    } exportMode;\n\n    bool isInstanceMethod = (clientData != NULL);\n    Object *oPtr;\n    int flags = 0;\n\n    if (objc < 4 || objc > 5) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name ?option? args body\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (!isInstanceMethod && !oPtr->classPtr) {\n\treturn ReportAbuse(interp);\n    }\n    if (objc == 5) {\n\tif (Tcl_GetIndexFromObj(interp, objv[2], exportModes, \"export flag\",\n\t\t0, &exportMode) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\n\tswitch (exportMode) {\n\tcase MODE_EXPORT:\n\t    flags = PUBLIC_METHOD;\n\t    break;\n\tcase MODE_PRIVATE:\n\t    flags = TRUE_PRIVATE_METHOD;\n\t    break;\n\tcase MODE_UNEXPORT:\n\t    flags = 0;\n\t    break;\n\tdefault:\n\t    TCL_UNREACHABLE();\n\t}\n    } else {\n\tif (IsPrivateDefine(interp)) {\n\t    flags = TRUE_PRIVATE_METHOD;\n\t} else {\n\t    flags = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)\n\t\t    ? PUBLIC_METHOD : 0;\n\t}\n    }\n\n    /*\n     * Create the method by using the right back-end API.\n     */\n\n    if (isInstanceMethod) {\n\tif (TclOONewProcInstanceMethod(interp, oPtr, flags, objv[1],\n\t\tobjv[objc - 2], objv[objc - 1], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    } else {\n\tif (TclOONewProcMethod(interp, oPtr->classPtr, flags, objv[1],\n\t\tobjv[objc - 2], objv[objc - 1], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n    return TCL_OK;\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "9.1.0",
+      "path": "generic/tclOOMethod.c",
+      "symbol": "TclOOMakeProcInstanceMethod",
+      "complete_file_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "start_line": 622,
+      "end_line": 658,
+      "snippet_sha256": "c4294003964f6e418f9425a0e88ebc734dcf1349a6a39d149270ca240e1ea125",
+      "snippet": "TclOOMakeProcInstanceMethod(\n    Tcl_Interp *interp,\t\t/* The interpreter containing the object. */\n    Object *oPtr,\t\t/* The object to modify. */\n    int flags,\t\t\t/* Whether this is a public method. */\n    Tcl_Obj *nameObj,\t\t/* The name of the method, which _must not_ be\n\t\t\t\t * NULL. */\n    Tcl_Obj *argsObj,\t\t/* The formal argument list for the method,\n\t\t\t\t * which _must not_ be NULL. */\n    Tcl_Obj *bodyObj,\t\t/* The body of the method, which _must not_ be\n\t\t\t\t * NULL. */\n    const Tcl_MethodType *typePtr,\n\t\t\t\t/* The type of the method to create. */\n    void *clientData,\t\t/* The per-method type-specific data. */\n    Proc **procPtrPtr)\t\t/* A pointer to the variable in which to write\n\t\t\t\t * the procedure record reference. Presumably\n\t\t\t\t * inside the structure indicated by the\n\t\t\t\t * pointer in clientData. */\n{\n    Interp *iPtr = (Interp *) interp;\n    Proc *procPtr;\n\n    if (typePtr->version > TCL_OO_METHOD_VERSION_1) {\n\tTcl_Panic(\"%s: Wrong version in typePtr->version, should be %s\",\n\t\t\"TclOOMakeProcInstanceMethod\", \"TCL_OO_METHOD_VERSION_1\");\n    }\n    if (TclCreateProc(interp, NULL, TclGetString(nameObj), argsObj, bodyObj,\n\t    procPtrPtr) != TCL_OK) {\n\treturn NULL;\n    }\n    procPtr = *procPtrPtr;\n    procPtr->cmdPtr = NULL;\n\n    InitCmdFrame(iPtr, procPtr);\n\n    return TclNewInstanceMethod(interp, (Tcl_Object) oPtr, nameObj, flags,\n\t    (const Tcl_MethodType2 *)typePtr, clientData);\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "9.1.0",
+      "path": "generic/tclOOMethod.c",
+      "symbol": "Tcl_NewInstanceMethod",
+      "complete_file_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "start_line": 203,
+      "end_line": 224,
+      "snippet_sha256": "40a8bfd03b8fd168229f697f0e19abfafd4fc3794080b91cb4733cbbaf5ffcda",
+      "snippet": "Tcl_NewInstanceMethod(\n    TCL_UNUSED(Tcl_Interp *),\n    Tcl_Object object,\t\t/* The object that has the method attached to\n\t\t\t\t * it. */\n    Tcl_Obj *nameObj,\t\t/* The name of the method. May be NULL; if so,\n\t\t\t\t * up to caller to manage storage (e.g., when\n\t\t\t\t * it is a constructor or destructor). */\n    int flags,\t\t\t/* Whether this is a public method. */\n    const Tcl_MethodType *typePtr,\n\t\t\t\t/* The type of method this is, which defines\n\t\t\t\t * how to invoke, delete and clone the\n\t\t\t\t * method. */\n    void *clientData)\t\t/* Some data associated with the particular\n\t\t\t\t * method to be created. */\n{\n    if (typePtr->version > TCL_OO_METHOD_VERSION_1) {\n\tTcl_Panic(\"%s: Wrong version in typePtr->version, should be %s\",\n\t\t\"Tcl_NewInstanceMethod\", \"TCL_OO_METHOD_VERSION_1\");\n    }\n    return TclNewInstanceMethod(NULL, object, nameObj, flags,\n\t    (const Tcl_MethodType2 *)typePtr, clientData);\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    },
+    {
+      "version_association": "9.1.0",
+      "path": "generic/tclOOMethod.c",
+      "symbol": "DeleteProcedureMethod",
+      "complete_file_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "start_line": 1464,
+      "end_line": 1472,
+      "snippet_sha256": "bb88abeac6295b42cb4a9dad06019c03d53e4ccb00807898281b8fd1afb7a6fe",
+      "snippet": "DeleteProcedureMethod(\n    void *clientData)\n{\n    ProcedureMethod *pmPtr = (ProcedureMethod *) clientData;\n\n    if (pmPtr->refCount-- <= 1) {\n\tDeleteProcedureMethodRecord(pmPtr);\n    }\n}\n",
+      "limit": "Inspected C source snapshot; no guest execution or native body/object receipt is established."
+    }
+  ]
+}

@@ -1157,7 +1157,8 @@ mod tests {
             crate::interp::default_host(),
             profile,
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
-        ).expect("the original package fixture requires its selected native core")
+        )
+        .expect("the original package fixture requires its selected native core")
     }
 
     #[test]
@@ -1533,12 +1534,13 @@ mod tests {
 
     #[test]
     fn package_completion_matches_all_six_native_84_controls() {
-        let jim: &'static tcl_dialect::DialectProfile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
+        let jim: &'static tcl_dialect::DialectProfile =
+            Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            )));
         const FIXTURES: [&str; 6] = [
             include_str!(
                 "../../../rust/tcl-registry/tests/data/native_package_ordinary/8.4.20.tsv"
@@ -1606,7 +1608,8 @@ mod tests {
                 } else {
                     tcl_registry::model::ingress::resolve_environment(
                         TclVersion::ALL[engine].dialect_name(),
-                    ).unit_profile()
+                    )
+                    .unit_profile()
                 };
                 let mut interp = native_package_fixture(profile);
                 let host =

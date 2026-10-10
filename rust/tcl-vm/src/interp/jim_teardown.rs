@@ -104,7 +104,7 @@ impl JimInterpreterTeardown for Vm {
             std::mem::take(&mut world.jim_command_nodes)
         };
         drop(std::mem::take(&mut self.commands));
-        drop(std::mem::take(&mut self.hidden_commands));
+        drop(std::mem::take(&mut self.hidden.commands));
         drop(std::mem::take(&mut self.module_procs));
         drop(nodes);
         drop(std::mem::take(&mut self.var_arena));

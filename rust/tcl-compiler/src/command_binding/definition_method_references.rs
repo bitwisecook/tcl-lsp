@@ -10,6 +10,7 @@ use super::{
     executed_script_source::source_text,
 };
 use crate::ir::{WordExpr, WordPart};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{LexerConfig, Span};
 
 /// A method-name reference retained independently of callable method lookup.
@@ -65,6 +66,17 @@ impl SourceDefinitionMethodReference {
     pub fn name(&self) -> &str {
         &self.phase.name
     }
+    /// Original native name producer retained at the definition operation.
+    #[must_use]
+    pub fn original_name_input(&self) -> &SignatureSourceNameInput {
+        &self.phase.name_input
+    }
+    /// Independently proved unchanged editable contents. Escaped or opaque
+    /// native names retain identity while this direct-text edit route abstains.
+    #[must_use]
+    pub fn editable_name_span(&self) -> Option<Span> {
+        self.phase.editable_name_span
+    }
 
     /// Exact original declaration available when this operand was consumed.
     #[must_use]
@@ -87,6 +99,7 @@ pub(super) struct DefinitionMethodReferenceCapture {
     pub(super) invocation: CommandAllocationSite,
     pub(super) operand: WordExpr,
     pub(super) name: String,
+    pub(super) name_input: SignatureSourceNameInput,
     pub(super) entry: Option<SourceReceiverMethodEntry>,
     pub(super) config: LexerConfig,
 }
@@ -100,7 +113,9 @@ pub(super) struct SourceDefinitionMethodReferencePhase {
     invocation: CommandAllocationSite,
     operand: WordExpr,
     name: String,
+    name_input: SignatureSourceNameInput,
     name_span: Span,
+    editable_name_span: Option<Span>,
     entry: Option<SourceReceiverMethodEntry>,
 }
 
@@ -111,25 +126,47 @@ impl SourceDefinitionMethodReferencePhase {
             || input.worker.implementation_generation != 0
             || !is_static_operand(&input.operand)
             || input.entry.as_ref().is_some_and(|entry| {
-                entry.name() != input.name || entry.receiver() != input.receiver
+                entry.original_name_input().bytes() != input.name_input.bytes()
+                    || entry.original_name_input().policy() != input.name_input.policy()
+                    || entry.receiver() != input.receiver
             })
         {
             return None;
         }
-        let start = ExecutedScriptSource::literal_word_base(
-            source_text(&input.invocation.source)?,
-            &input.operand,
-            &input.name,
-            input.config,
-        )?;
-        let end = start.checked_add(u32::try_from(input.name.len()).ok()?)?;
+        let key = input.name_input.original_word_key()?;
+        if key.source_image() != input.invocation.source.source_image()
+            || key.lexer_config() != input.config
+            || key.span()
+                != tcl_lexer::word_span_at(
+                    source_text(&input.invocation.source)?,
+                    input.operand.source().span,
+                )
+        {
+            return None;
+        }
+        key.policy().recipe().oo_method_input(key.bytes()).ok()?;
+        let name_span = key.span();
+        let editable_name_span = key.display().and_then(|name| {
+            let start = ExecutedScriptSource::literal_word_base(
+                source_text(&input.invocation.source)?,
+                &input.operand,
+                name,
+                input.config,
+            )?;
+            Some(Span::new(
+                start,
+                start.checked_add(u32::try_from(name.len()).ok()?)?,
+            ))
+        });
         Some(Self {
             receiver: input.receiver,
             worker: input.worker,
             invocation: input.invocation,
             operand: input.operand,
             name: input.name,
-            name_span: Span::new(start, end),
+            name_input: input.name_input,
+            name_span,
+            editable_name_span,
             entry: input.entry,
         })
     }

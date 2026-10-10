@@ -296,7 +296,7 @@ const TCL_WORDS_90: &[WordOperator] = &[
 /// this same slice along the fork edge.
 ///
 /// Bare `matches` is measured as a whole-string glob on BIG-IP 21.1.0.1
-/// build 0.0.26 in HTTP_REQUEST, tmsh CLI scripts, iApp implementation
+/// build 0.0.26 in `HTTP_REQUEST`, tmsh CLI scripts, iApp implementation
 /// actions and triggered iCall scripts. Presentation/APL and other iCall
 /// forms have no expression execution receipt from that payload.
 const F5_TCL_WORDS: &[WordOperator] = &[

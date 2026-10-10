@@ -43,7 +43,8 @@ impl Interp {
             Err(code) if self.host_refusal_pending() => return Err(code),
             Err(_) => return Ok(false),
         };
-        let captured = self.capture_original_c_selection(original, &selected, purpose);
+        let captured =
+            self.capture_original_c_parts_selection(original, element, &selected, purpose);
         let capture = match captured {
             Ok(Some((receiver, home))) => OriginalCVariableCapture {
                 receiver,
@@ -94,7 +95,7 @@ impl Interp {
                 return Err(self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("actual original existence local slot")
                         .into(),
-                ))
+                ));
             }
             Err(_) => return Ok(false),
         };
@@ -123,7 +124,7 @@ impl Interp {
             b"read",
         ) {
             return Ok(captured.receiver.read().ok().flatten().is_some()
-                || captured.element.is_none() && captured.receiver.is_array());
+                || !captured.receiver.is_element() && captured.receiver.is_array());
         }
         let report = original
             .map(|original| {
@@ -144,6 +145,6 @@ impl Interp {
             return Err(Code::Error);
         }
         Ok(captured.receiver.read().ok().flatten().is_some()
-            || captured.element.is_none() && captured.receiver.is_array())
+            || !captured.receiver.is_element() && captured.receiver.is_array())
     }
 }

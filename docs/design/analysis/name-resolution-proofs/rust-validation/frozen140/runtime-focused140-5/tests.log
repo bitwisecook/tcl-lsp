@@ -1,0 +1,39 @@
+
+running 1 test
+test cmd_proc::tests::jim_static_cells_match_native_definition_and_retirement ... ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+
+thread 'cmd_proc::tests::jim_static_cells_match_native_definition_and_retirement' (552636) panicked at src/cmd_proc.rs:945:17:
+assertion `left == right` failed: proc maker {} {set a KEEP;upvar 0 a x;proc p {} {&x} {set x}};maker;p
+  left: []
+ right: [99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 120, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 118, 97, 114, 105, 97, 98, 108, 101]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_proc::tests::jim_static_cells_match_native_definition_and_retirement
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1212 filtered out; finished in 4.77s
+

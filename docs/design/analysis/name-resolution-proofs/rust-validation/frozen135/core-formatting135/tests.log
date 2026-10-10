@@ -1,0 +1,135 @@
+
+running 83 tests
+test formatting::engine::tests::align_comments_to_code_toggles_reindentation ... ok
+test formatting::engine::tests::apply_lambda_body_indents_and_params_normalise ... ok
+test formatting::engine::tests::apply_lambda_body_with_backslash_escape_decodes ... ok
+test formatting::engine::tests::apply_lambda_namespace_element_preserved ... ok
+test formatting::engine::tests::backslash_newline_collapse_handles_crlf ... ok
+test formatting::engine::tests::backslash_newline_keeps_preceding_spaces_in_quoted_string ... ok
+test formatting::engine::tests::bare_dollar_in_quoted_string_is_not_brace_wrapped ... ok
+test formatting::engine::tests::blank_lines_between_procs ... ok
+test formatting::engine::tests::bracket_continuations_preserve_nested_word_data ... ok
+test formatting::engine::tests::case_list_alias_formatting_uses_the_binding_at_each_call_position ... ok
+test formatting::engine::tests::case_list_rename_formatting_uses_the_binding_at_each_call_position ... ok
+test formatting::engine::tests::collapses_blank_lines_to_max ... ok
+test formatting::engine::tests::command_count_retains_complete_body_grammar ... ok
+test formatting::engine::tests::command_substitution_preserved ... ok
+test formatting::engine::tests::comments_preserved ... ok
+test formatting::engine::tests::control_flow_always_expands ... ok
+test formatting::engine::tests::count_body_commands_counts_top_level_statements ... ok
+test formatting::engine::tests::deeply_nested_bodies ... 
+thread 'formatting::engine::tests::deeply_nested_bodies' (533705) panicked at rust/tcl-lsp-core/src/formatting/engine.rs:2612:9:
+assertion `left == right` failed: 
+input:    "proc f {} {\nforeach x $list {\nif {$x} {\nputs $x\n}\n}\n}\n"
+got:      "proc f {} {\n    foreach x $list {\n        if {$x} {\nputs $x\n}\n    }\n}\n"
+expected: "proc f {} {\n    foreach x $list {\n        if {$x} {\n            puts $x\n        }\n    }\n}\n"
+  left: "proc f {} {\n    foreach x $list {\n        if {$x} {\nputs $x\n}\n    }\n}\n"
+ right: "proc f {} {\n    foreach x $list {\n        if {$x} {\n            puts $x\n        }\n    }\n}\n"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test formatting::engine::tests::deeply_nested_if_survives_formatting ... ok
+test formatting::engine::tests::dynamic_head_is_left_alone ... ok
+test formatting::engine::tests::empty_proc_body ... ok
+test formatting::engine::tests::enforce_braced_expr_braces_expr_and_conditions ... 
+thread 'formatting::engine::tests::enforce_braced_expr_braces_expr_and_conditions' (533709) panicked at rust/tcl-lsp-core/src/formatting/engine.rs:2380:9:
+assertion `left == right` failed: expr tail must be braced as one group
+  left: "expr $a + $b\n"
+ right: "expr {$a + $b}\n"
+FAILED
+test formatting::engine::tests::enforce_braced_expr_off_by_default ... ok
+test formatting::engine::tests::enforce_braced_expr_preserves_expansion_tail ... ok
+test formatting::engine::tests::enforce_braced_variables_rewrites_dollar_refs ... ok
+test formatting::engine::tests::every_if_clause_shape_formats ... ok
+test formatting::engine::tests::every_try_handler_shape_formats ... ok
+test formatting::engine::tests::expand_prefix_preserved ... ok
+test formatting::engine::tests::expect_case_list_formatter_preserves_descriptor_fields_and_formats_only_actions ... ok
+test formatting::engine::tests::expression_wrapping_preserves_string_terms_and_declines_comments ... ok
+test formatting::engine::tests::for_keeps_start_and_next_inline ... ok
+test formatting::engine::tests::force_expr_wrap ... ok
+test formatting::engine::tests::force_split_long_line ... ok
+test formatting::engine::tests::foreach_body ... ok
+test formatting::engine::tests::formatting_abstains_for_a_builtin_shadowed_by_a_user_proc ... ok
+test formatting::engine::tests::formatting_abstains_for_a_dynamic_binding ... ok
+test formatting::engine::tests::formatting_budget_preserves_complete_source_before_analysis ... ok
+test formatting::engine::tests::formatting_follows_a_renamed_body_command ... ok
+test formatting::engine::tests::formatting_follows_an_aliased_body_command ... ok
+test formatting::engine::tests::formatting_follows_an_aliased_clause_list_command ... 
+thread 'formatting::engine::tests::formatting_follows_an_aliased_clause_list_command' (533760) panicked at rust/tcl-lsp-core/src/formatting/engine.rs:3538:9:
+an alias of `switch` must get the clause-list layout; got:
+interp alias {} pick {} switch
+pick $v {a {puts 1} b {puts 2}}
+
+FAILED
+test formatting::engine::tests::if_else ... ok
+test formatting::engine::tests::incomplete_case_list_recovery_is_presentation_only_and_idempotent ... ok
+test formatting::engine::tests::irule_brace_chain_gets_a_space ... ok
+test formatting::engine::tests::keyword_lookalike_data_words_are_not_keywords ... ok
+test formatting::engine::tests::logical_default_formatting_retains_its_whole_context_over_mixed_specs ... 
+thread 'formatting::engine::tests::logical_default_formatting_retains_its_whole_context_over_mixed_specs' (533816) panicked at rust/tcl-lsp-core/src/formatting/engine.rs:2647:9:
+assertion failed: command.source_roles.is_none()
+FAILED
+test formatting::engine::tests::malformed_clauses_stay_stable_and_idempotent ... ok
+test formatting::engine::tests::min_body_commands_keeps_single_command_body_inline ... ok
+test formatting::engine::tests::moderately_nested_if_still_formats ... ok
+test formatting::engine::tests::multi_hash_comment ... ok
+test formatting::engine::tests::multiline_braced_data_keeps_its_original_continuation ... ok
+test formatting::engine::tests::nested_indentation ... ok
+test formatting::engine::tests::original_lambda_spacing_checks_nested_formals_before_emission ... ok
+test formatting::engine::tests::original_param_spacing_declines_foreign_word_and_full_config ... ok
+test formatting::engine::tests::original_param_spacing_retains_native_children_and_opaque_units ... ok
+test formatting::engine::tests::original_source_formatting_braces_only_a_retained_literal_equivalence ... ok
+test formatting::engine::tests::original_source_formatting_keeps_opaque_formal_word_verbatim ... ok
+test formatting::engine::tests::original_source_formatting_uses_effective_roles_without_widening_captured_operands ... ok
+test formatting::engine::tests::param_list_backslash_newline_preserves_arity ... ok
+test formatting::engine::tests::param_list_escaped_space_stays_one_parameter ... ok
+test formatting::engine::tests::param_list_malformed_preserved_verbatim ... ok
+test formatting::engine::tests::param_list_normalised ... ok
+test formatting::engine::tests::param_list_shapes_round_trip_and_are_idempotent ... ok
+test formatting::engine::tests::proc_body_indents ... ok
+test formatting::engine::tests::procedure_spacing_uses_selected_source_traits ... ok
+test formatting::engine::tests::qualified_control_flow_formats_like_the_bare_form ... ok
+test formatting::engine::tests::quoted_string_preserved ... ok
+test formatting::engine::tests::replace_semicolons_disabled_keeps_commands_inline ... ok
+test formatting::engine::tests::rooted_and_namespaced_case_list_aliases_format_at_their_positions ... 
+thread 'formatting::engine::tests::rooted_and_namespaced_case_list_aliases_format_at_their_positions' (534011) panicked at rust/tcl-lsp-core/src/formatting/engine.rs:3617:13:
+qualified switch alias did not format namespaced_alias:
+::root_pick subject {default {puts before_root}}
+::case_alias::pick subject {default {puts before_namespace}}
+namespace eval ::case_alias {}
+interp alias {} ::root_pick {} ::switch
+interp alias {} ::case_alias::pick {} switch
+::root_pick subject {
+    default {
+        puts rooted_alias
+    }
+}
+::case_alias::pick subject {default {puts namespaced_alias}}
+
+FAILED
+test formatting::engine::tests::semicolon_splits_commands ... ok
+test formatting::engine::tests::simple_command ... ok
+test formatting::engine::tests::switch_body ... ok
+test formatting::engine::tests::switch_body_preserves_comments ... ok
+test formatting::engine::tests::switch_case_list_formatter_follows_release_matrix ... ok
+test formatting::engine::tests::the_irules_profile_alone_decides_the_ghost_separator ... ok
+test formatting::engine::tests::then_in_the_else_body_slot_is_not_a_keyword ... ok
+test formatting::engine::tests::trailing_comment ... ok
+test formatting::engine::tests::trailing_trim_preserves_spaces_inside_multiline_braces ... ok
+test formatting::engine::tests::trailing_trim_still_trims_ordinary_code_lines ... ok
+test formatting::engine::tests::trim_preserves_multiline_braced_string_interior ... ok
+test formatting::engine::tests::trim_preserves_multiline_quoted_string_interior ... ok
+test formatting::engine::tests::trim_still_strips_structural_trailing_whitespace ... ok
+test formatting::engine::tests::try_finally ... ok
+test formatting::engine::tests::while_body ... ok
+
+failures:
+
+failures:
+    formatting::engine::tests::deeply_nested_bodies
+    formatting::engine::tests::enforce_braced_expr_braces_expr_and_conditions
+    formatting::engine::tests::formatting_follows_an_aliased_clause_list_command
+    formatting::engine::tests::logical_default_formatting_retains_its_whole_context_over_mixed_specs
+    formatting::engine::tests::rooted_and_namespaced_case_list_aliases_format_at_their_positions
+
+test result: FAILED. 78 passed; 5 failed; 0 ignored; 0 measured; 2545 filtered out; finished in 79.55s
+

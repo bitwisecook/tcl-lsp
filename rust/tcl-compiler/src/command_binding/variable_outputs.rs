@@ -37,13 +37,15 @@ pub(super) fn walk_known_outputs(
         if commitment == VariableOutputCommitment::Unchanged {
             continue;
         }
-        let target = crate::variable_bindings::variable_output_operand_access(
-            facts,
-            arguments,
-            index,
-            &candidate.source_variables,
-            context.registry,
-        );
+        let target =
+            crate::variable_bindings::variable_output_operand_access_with_original_operands(
+                facts,
+                arguments,
+                index,
+                &candidate.source_variables,
+                context.registry,
+                native.original_variable_operands,
+            );
         if target.observed || target.dynamic || target.cell.is_none() {
             return None;
         }

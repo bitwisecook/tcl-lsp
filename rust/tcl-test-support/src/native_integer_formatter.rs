@@ -11,8 +11,23 @@ use tcl_host_c_abi::LoadedNativeIntegerFormatter;
 
 static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-const ARCHIVE: &str = "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011";
-const HEADER: &str = "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf";
+// Native proof: naming.numeric.c84-integer-updater-build-pair
+// docs/design/analysis/name-resolution-proofs/numeric-c84-integer-updater-build-pair.md
+// Each exact archive/header pair has its own original updater observations.
+const REFERENCE_BUILDS: [(&str, &str); 2] = [
+    (
+        "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+        "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    ),
+    (
+        "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+        "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    ),
+];
+
+fn admitted_reference_build(archive: &str, header: &str) -> bool {
+    REFERENCE_BUILDS.contains(&(archive, header))
+}
 
 fn digest(path: &Path) -> Result<[u8; 32], String> {
     let bytes = std::fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
@@ -37,7 +52,9 @@ pub fn load_pinned_c84_integer_formatter(
         .ok_or_else(|| "pinned C84 source tree unavailable".to_owned())?;
     let archive = tree.root.join("unix/libtcl8.4.a");
     let header = tree.root.join("generic/tcl.h");
-    if hex(&digest(&archive)?) != ARCHIVE || hex(&digest(&header)?) != HEADER {
+    let archive_sha = hex(&digest(&archive)?);
+    let header_sha = hex(&digest(&header)?);
+    if !admitted_reference_build(&archive_sha, &header_sha) {
         return Err("C84 native formatter reference build identity mismatch".to_owned());
     }
     let directory = std::env::temp_dir().join(format!(
@@ -73,13 +90,13 @@ pub fn load_pinned_c84_integer_formatter(
     }
     // Recheck the inputs after the recorded producer, independently of the
     // output image identity subsequently verified by the loader.
-    if hex(&digest(&archive)?) != ARCHIVE || hex(&digest(&header)?) != HEADER {
+    if hex(&digest(&archive)?) != archive_sha || hex(&digest(&header)?) != header_sha {
         return Err("C84 native formatter build inputs changed during linking".to_owned());
     }
     let image_sha = digest(&image)?;
     if std::env::var_os("TCL_LSP_ORACLE_PROGRESS").as_deref() == Some(std::ffi::OsStr::new("1")) {
         eprintln!(
-            "native-formatter archive_sha={ARCHIVE} header_sha={HEADER} image_sha={} command={command:?}",
+            "native-formatter archive_sha={archive_sha} header_sha={header_sha} image_sha={} command={command:?}",
             hex(&image_sha)
         );
     }
@@ -108,7 +125,24 @@ mod tests {
     use tcl_platform::{NativeIntegerFormatter, NativeIntegerKind, NumericEnvironment};
 
     #[test]
+    fn formatter_admission_requires_a_complete_verified_build_pair() {
+        // Native proof: naming.numeric.c84-integer-updater-build-pair
+        // docs/design/analysis/name-resolution-proofs/numeric-c84-integer-updater-build-pair.md
+        // This is only an admission check; the native record owns both812-row runs.
+        for (archive, header) in REFERENCE_BUILDS {
+            assert!(admitted_reference_build(archive, header));
+            assert!(!admitted_reference_build(archive, "unverified-header"));
+            assert!(!admitted_reference_build("unverified-archive", header));
+        }
+        assert!(!admitted_reference_build("", ""));
+    }
+
+    #[test]
     fn loaded_c84_updater_matches_812_original_archive_and_image_windows() {
+        // Native proof: naming.numeric.c84-integer-updater-build-pair
+        // docs/design/analysis/name-resolution-proofs/numeric-c84-integer-updater-build-pair.md
+        // Native216 admits only the verified complete archive/header pair and
+        // its independently loaded image; all 812 original rows remain exact.
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let formatter =
             load_pinned_c84_integer_formatter(&root).expect("explicit native build capability");

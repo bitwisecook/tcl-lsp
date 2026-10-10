@@ -182,6 +182,29 @@ fn materialization_length(length: usize) -> Result<(), ValueError> {
     }
     Ok(())
 }
+/// Fresh indexed members for ordinary List conversion, without populating the
+/// abstract GetElements cache. The returned owners survive retirement of the
+/// original abstract primary while a List takes its member references.
+pub(crate) fn ordinary_members(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+) -> Result<Vec<obj::Owned>, ValueError> {
+    validate(value, protocol)?;
+    let length = header(value).backing.series.length();
+    materialization_length(length)?;
+    let mut members = Vec::new();
+    members.try_reserve_exact(length).map_err(|_| {
+        ValueError::NativeMaterialization(NativeMaterializationLimitError::new(
+            length as u128,
+            lseq::MAX_MATERIALIZE as u64,
+        ))
+    })?;
+    for coordinate in 0..length {
+        let member = index(value, coordinate).expect("validated abstract List coordinate");
+        members.push(obj::Owned::fresh(member));
+    }
+    Ok(members)
+}
 pub(crate) fn elements_retained(value: *mut TclObj) -> Result<Vec<*mut TclObj>, ValueError> {
     elements(value, header(value).protocol)
 }
@@ -253,62 +276,6 @@ pub(crate) fn materialize_string(
     // SAFETY: actual C9 UpdateString uses Tcl_InitStringRep; zero is canonical.
     unsafe { obj::set_native_updater_string_rep(value, &bytes, true) };
     Ok(bytes)
-}
-
-/// C9 lindex must dispatch Length/Index on an abstract first receiver instead
-/// of asking the ordinary-list helper to materialize its entire inventory.
-pub(crate) fn lindex_command(
-    interp: &mut crate::interp::Interp,
-    argv: &[*mut TclObj],
-) -> crate::interp::Code {
-    use tcl_syntax::value::ValueOps;
-    let path = if argv.len() == 3 {
-        match interp.list_elements(&argv[2]) {
-            Ok(path) => path,
-            Err(ValueError::ListParse { .. }) => vec![argv[2]],
-            Err(error) => return interp.report_cmd_error(error.into()),
-        }
-    } else {
-        argv[2..].to_vec()
-    };
-    let mut current = argv[1];
-    let mut owner = None;
-    for (position, &index) in path.iter().enumerate() {
-        let length = match interp.list_len(&current) {
-            Ok(length) => length,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        let selected = match tcl_cmd_core::index::resolve_value(interp, &index, length) {
-            Ok(index) => usize::try_from(index).ok().filter(|&index| index < length),
-            Err(error) => return interp.report_cmd_error(error),
-        };
-        let Some(index) = selected else {
-            for remaining in &path[position + 1..] {
-                if let Err(error) = tcl_cmd_core::index::resolve_value(interp, remaining, 0) {
-                    return interp.report_cmd_error(error);
-                }
-            }
-            interp.set_result(obj::new_obj());
-            return crate::interp::Code::Ok;
-        };
-        let abstract_index = is_series(current);
-        let selected = match interp.list_index(&current, index) {
-            Ok(Some(value)) => value,
-            Ok(None) => unreachable!("Index is inside captured Length"),
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        let next = if abstract_index {
-            obj::Owned::fresh(selected)
-        } else {
-            obj::Owned::retain(selected)
-        };
-        // Pin the actual next result before releasing a previous receiver.
-        current = next.as_ptr();
-        owner = Some(next);
-    }
-    interp.set_result(current);
-    drop(owner);
-    crate::interp::Code::Ok
 }
 
 /// Genuine duplicated abstract header retained for the generic-loop cursor.

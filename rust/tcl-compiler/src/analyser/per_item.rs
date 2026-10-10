@@ -123,6 +123,9 @@ pub enum PerItemFallback {
     ClassFactsCollide,
     /// A method body's object-instance tracking could not be replayed.
     MethodInstanceReplay,
+    /// Isolated naming facts need genuine full-document source ownership.
+    /// Rebasing their spans cannot reissue original name or lookup receipts.
+    OriginalSourceOwnership,
     /// §5.4 range targeting is declared (configuration pairs or a
     /// `# tcl-lsp: supports` directive): the range verdicts (W150/W151)
     /// read walk-level state the isolated-body memo key does not carry,
@@ -148,6 +151,7 @@ impl PerItemFallback {
             Self::DuplicateProcInBody => "duplicate-proc-in-body",
             Self::ClassFactsCollide => "class-facts-collide",
             Self::MethodInstanceReplay => "method-instance-replay",
+            Self::OriginalSourceOwnership => "original-source-ownership",
             Self::DeclaredTargets => "declared-targets",
         }
     }
@@ -252,25 +256,13 @@ pub struct DeferredBody {
     /// instance-side `TclOO` method body of a statically-named class,
     /// `None` otherwise (class-side members, snit / itcl, procs).
     pub oo_defining_class: Option<String>,
-    /// A flattened snapshot of `self.safe_interp_stack`'s *top* entry at the
-    /// moment this body was deferred — `(base_hidden,
-    /// hidden_extra, exposed)`, sorted `Vec<String>`s rather than the live
-    /// `HashSet`-based `SafeInterpCtx` (which isn't `Hash`, so can't key
-    /// `tcl-lsp-db`'s `ItemBodyKey` directly) so this stays deterministic and
-    /// salsa-interning-friendly, matching `seeded_variables` above.
-    /// `None` outside any tracked safe interpreter (the overwhelming common
-    /// case). Every safe-interp check only ever consults the *top* of the
-    /// stack (`safe_interp_visibility_gate`'s `.last()`), never an older
-    /// entry, so this single flattened snapshot is sufficient — a proc/apply
-    /// body nested several `interp eval`s deep still only needs the
-    /// innermost one. [`analyse_proc_body_isolated`] seeds the isolated
-    /// `Analyser`'s own `safe_interp_stack` from this before walking the
-    /// body, so a hidden call inside the body hits the same, unmodified gate
-    /// a directly-written call already does — without this, W129 silently
-    /// missed *any* hidden call inside *any* proc/apply body nested in a
-    /// safe interpreter under incremental (`analyse_per_item`) analysis,
-    /// which is what the live LSP server always uses for diagnostics.
-    pub safe_interp_ctx: Option<(bool, Vec<String>, Vec<String>)>,
+    /// The top child-source visibility receipt when this body was deferred.
+    /// Its hash retains original full source/configuration, immutable editing
+    /// input, scoped visible slots and separate hidden-token relationships.
+    /// It supplies only conditional source warnings; runtime visibility and
+    /// entered child frames are independent. A foreign body projection must
+    /// decline this receipt rather than reconstruct it from reporting names.
+    pub safe_interp_ctx: Option<super::SourceInterpreterVisibilitySnapshot>,
 }
 
 impl Analyser {
@@ -415,6 +407,7 @@ impl Analyser {
 
         // Tail: cross-item passes, canonicalising order.
         self.record_literal_parameter_definitions();
+        self.retain_original_callback_signature_lookups(source);
         self.run_diagnostic_emitters(source);
 
         // Correctness backstop: a syntax error
@@ -478,6 +471,7 @@ impl Analyser {
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
         self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_ambient = tk_ambient;
@@ -507,10 +501,7 @@ impl Analyser {
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
-        super::state::merge_noqa_line_suppressions(
-            &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
-        );
+
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
         self.declared_commands = Some(super::types::build_declared_surface(&stub_cmds));
         self.result.stub_commands = stub_cmds;
@@ -522,6 +513,9 @@ impl Analyser {
         // Isolated fragments cannot reconstruct this world from their bytes.
         self.head_identities = self.document_command_realm(source);
         self.result.command_realm = Some(std::sync::Arc::new(self.head_identities.clone()));
+        self.result.original_command_world =
+            self.head_identities.original_completed_command_world();
+        self.retain_original_comment_suppressions(source);
         self.line_offsets = Some(super::state::compute_line_offsets(source));
         // Same recovery known-command universe as `Analyser::analyse` — see
         // `recovery_known_commands` — so per-item analysis matches the
@@ -623,6 +617,15 @@ impl Analyser {
         body_fn: &mut dyn FnMut(&DeferredBody) -> BodyFragment,
     ) -> Result<(), Box<AnalysisResult>> {
         let deferred = std::mem::take(&mut self.deferred_bodies);
+        // Whole declaration words cannot be reconstructed from a body-only
+        // fragment by rebasing coordinates. Preserve the existing source owner.
+        if deferred.iter().any(|body| {
+            super::scope::scope_at(&self.result.global_scope, &body.scope_path)
+                .is_some_and(|scope| scope.original_member_context.is_some())
+        }) {
+            self.per_item_fallback = Some(PerItemFallback::OriginalSourceOwnership);
+            return Err(Box::new(self.fresh_full_analyse(source, dialect)));
+        }
         // Scaling guard.  Analysing a body in isolation costs
         // markedly more than analysing the identical content in place, and the
         // gap widens with body size, so a single enormous body turns the
@@ -737,6 +740,10 @@ impl Analyser {
                 self.per_item_fallback = Some(PerItemFallback::ClassFactsCollide);
                 return Err(Box::new(self.fresh_full_analyse(source, dialect)));
             }
+            if fragment_needs_original_source_owner(&frag) {
+                self.per_item_fallback = Some(PerItemFallback::OriginalSourceOwnership);
+                return Err(Box::new(self.fresh_full_analyse(source, dialect)));
+            }
             self.graft_proc_body(db, frag, &shell_var_keys);
         }
         // Object-instance tracking (W308) resolves the class at the walk
@@ -751,42 +758,35 @@ impl Analyser {
             self.per_item_fallback = Some(fallback);
             return Err(Box::new(self.fresh_full_analyse(source, dialect)));
         }
-        // `instance_classes` / `created_instance_commands` are complete now
-        // — resolve the bareword named-object dispatch
-        // candidates the shell/body passes deferred above.
+        // Canonical source declarations are complete; join the original receiver
+        // sites through their conditional source carriers.
         self.finalise_bareword_dispatch_sites();
         Ok(())
     }
 
-    /// The real, sufficient gate for a bareword named-object dispatch
-    /// candidate `record_var_or_cmd_command_site` deferred: a name
-    /// `instance_classes` binds to a class becomes a real
-    /// `var_command_sites` entry (the same contract the non-deferred
-    /// `analyse` path applies inline); a coroutine / `interp create` /
-    /// registry-factory / external-class name that merely matched the
-    /// cheap registry-layout pre-filter never had a class and is
-    /// dropped here without ever drawing a diagnostic.
+    /// Apply the same original source-instance gate as the whole-document scan.
+    /// Source receipts carry the original ordered context and known mutation
+    /// blockers; final presentation maps supply no receiver authority.
     fn finalise_bareword_dispatch_sites(&mut self) {
         let Some(candidates) = self.pending_bareword_dispatch_sites.take() else {
             return;
         };
         self.var_command_sites
             .extend(candidates.into_iter().filter(|site| {
-                self.result
-                    .created_instance_commands
-                    .contains(&site.var_name)
-                    && self.result.instance_classes.contains_key(&site.var_name)
+                crate::registry_invocation::source_structure::source_class_instance_words_at(
+                    &self.source,
+                    &self.result,
+                    site.cmd_span.start(),
+                )
+                .is_some()
             }));
     }
 
-    /// Replay every captured instance-creation site (shell pass + grafted
-    /// bodies, already merged into
-    /// [`super::state::Analyser::deferred_instance_replays`] plus the
-    /// shell's own `pending_instances`) in source order, hiding from each
-    /// replay the classes whose definition does **not** precede the site —
-    /// the exact progressive class universe the whole-file DFS resolves
-    /// against.  Returns the fallback reason when a method-origin replay
-    /// records an instance (see `fill_deferred_bodies`).
+    /// Replay captured construction-reporting sites in source order after graft.
+    /// A method-origin reporting change requests a whole-file cache fallback.
+    /// Native naming and receiver metadata require the genuine source-instance
+    /// issuer against the current complete source image; the report maps and
+    /// the temporary class-map filtering supply no command or lifetime proof.
     fn replay_deferred_instances(&mut self) -> Option<PerItemFallback> {
         let mut sites = std::mem::take(&mut self.deferred_instance_replays);
         if let Some(shell) = self.pending_instances.take() {
@@ -902,42 +902,52 @@ impl Analyser {
     /// keep each function within the line budget.
     fn merge_fragment_result(
         &mut self,
-        r: AnalysisResult,
+        mut r: AnalysisResult,
         shell_var_keys: &std::collections::HashSet<String>,
     ) {
-        self.result.all_procs.extend(r.all_procs);
+        self.result
+            .all_procs
+            .extend(std::mem::take(&mut r.all_procs));
         // Per qualified name, not a flat `extend`: a body that redefines a
         // proc it defines itself carries its own displaced definitions, and a
         // flat extend would replace rather than append to whatever the shell
         // already recorded for that name. (A body redefining a proc defined
         // *outside* it forces a full re-analyse above, so the shell and the
         // body never contend for the same key here.)
-        for (qualified, defs) in r.superseded_procs {
+        for (qualified, defs) in std::mem::take(&mut r.superseded_procs) {
             self.result
                 .superseded_procs
                 .entry(qualified)
                 .or_default()
                 .extend(defs);
         }
-        for (qualified, definitions) in r.superseded_classes {
+        for (qualified, definitions) in std::mem::take(&mut r.superseded_classes) {
             self.result
                 .superseded_classes
                 .entry(qualified)
                 .or_default()
                 .extend(definitions);
         }
-        for (qualified, class) in r.all_classes {
+        for (qualified, class) in std::mem::take(&mut r.all_classes) {
             self.result.retain_class_declaration(qualified, class);
         }
-        self.merge_body_variables(r.all_variables, shell_var_keys);
-        self.result.command_aliases.extend(r.command_aliases);
-        self.result.alias_offsets.extend(r.alias_offsets);
-        self.result.renamed_commands.extend(r.renamed_commands);
-        self.result.rename_offsets.extend(r.rename_offsets);
+        self.merge_body_variables(std::mem::take(&mut r.all_variables), shell_var_keys);
+        self.result
+            .command_aliases
+            .extend(std::mem::take(&mut r.command_aliases));
+        self.result
+            .alias_offsets
+            .extend(std::mem::take(&mut r.alias_offsets));
+        self.result
+            .renamed_commands
+            .extend(std::mem::take(&mut r.renamed_commands));
+        self.result
+            .rename_offsets
+            .extend(std::mem::take(&mut r.rename_offsets));
         // Per-ensemble union, not a flat `.extend()` — the outer key is the
         // ensemble's own name, and a flat extend would replace one grafted
         // body's whole inner subcommand map instead of merging into it.
-        for (ensemble, subs) in r.ensemble_subcommand_targets {
+        for (ensemble, subs) in std::mem::take(&mut r.ensemble_subcommand_targets) {
             self.result
                 .ensemble_subcommand_targets
                 .entry(ensemble)
@@ -950,9 +960,15 @@ impl Analyser {
         // come back abbreviation-matching for every later reader.
         self.result
             .prefixless_ensembles
-            .extend(r.prefixless_ensembles);
-        Self::merge_per_object_records(&mut self.result, r.object_methods, r.object_member_state);
-        self.result.instance_classes.extend(r.instance_classes);
+            .extend(std::mem::take(&mut r.prefixless_ensembles));
+        Self::merge_per_object_records(
+            &mut self.result,
+            std::mem::take(&mut r.object_methods),
+            std::mem::take(&mut r.object_member_state),
+        );
+        self.result
+            .instance_classes
+            .extend(std::mem::take(&mut r.instance_classes));
         // `object_handle_facts` is deliberately **not** merged here.  It has
         // exactly one producer — `emit_cfg_ssa_diagnostics_with_cu`
         // — which runs on the *shell*, once, against the whole-file compilation
@@ -970,30 +986,17 @@ impl Analyser {
         assert_no_body_object_facts(&r.object_handle_facts);
         self.result
             .created_instance_commands
-            .extend(r.created_instance_commands);
+            .extend(std::mem::take(&mut r.created_instance_commands));
         self.result
             .ambiguous_instance_names
-            .extend(r.ambiguous_instance_names);
-        self.result.diagnostics.extend(r.diagnostics);
-        self.result
-            .command_invocations
-            .extend(r.command_invocations);
-        self.result.package_requires.extend(r.package_requires);
-        self.result.package_provides.extend(r.package_provides);
-        self.result.package_ifneededs.extend(r.package_ifneededs);
-        self.result
-            .package_prefer_latest
-            .extend(r.package_prefer_latest);
-        self.result.source_targets.extend(r.source_targets);
-        self.result.namespace_imports.extend(r.namespace_imports);
-        self.result.namespace_exports.extend(r.namespace_exports);
-        self.result
-            .proc_declaration_sites
-            .extend(r.proc_declaration_sites);
-        self.result.class_body_spans.extend(r.class_body_spans);
-        self.result.auto_path_entries.extend(r.auto_path_entries);
+            .extend(std::mem::take(&mut r.ambiguous_instance_names));
+        self.merge_fragment_source_shell_advice(&mut r);
+        self.merge_fragment_original_advice(&mut r);
         self.result.qualified_var_refs.extend(r.qualified_var_refs);
         self.result.namespace_refs.extend(r.namespace_refs);
+        self.result
+            .namespace_name_unknowns
+            .extend(r.namespace_name_unknowns);
         self.result.regex_patterns.extend(r.regex_patterns);
         self.result
             .namespace_overrides
@@ -1022,6 +1025,134 @@ impl Analyser {
                 .or_default()
                 .extend(codes);
         }
+    }
+
+    fn merge_fragment_source_shell_advice(&mut self, r: &mut AnalysisResult) {
+        self.result
+            .diagnostics
+            .extend(std::mem::take(&mut r.diagnostics));
+        self.result
+            .command_invocations
+            .extend(std::mem::take(&mut r.command_invocations));
+        self.result
+            .package_requires
+            .extend(std::mem::take(&mut r.package_requires));
+        self.result
+            .package_provides
+            .extend(std::mem::take(&mut r.package_provides));
+        self.result
+            .package_ifneededs
+            .extend(std::mem::take(&mut r.package_ifneededs));
+        self.result
+            .package_prefer_latest
+            .extend(std::mem::take(&mut r.package_prefer_latest));
+        self.result
+            .source_targets
+            .extend(std::mem::take(&mut r.source_targets));
+        self.result
+            .namespace_imports
+            .extend(std::mem::take(&mut r.namespace_imports));
+        self.result
+            .original_namespace_patterns
+            .extend(std::mem::take(&mut r.original_namespace_patterns));
+        self.result
+            .namespace_exports
+            .extend(std::mem::take(&mut r.namespace_exports));
+        self.result
+            .proc_declaration_sites
+            .extend(std::mem::take(&mut r.proc_declaration_sites));
+        self.result
+            .class_body_spans
+            .extend(std::mem::take(&mut r.class_body_spans));
+        self.result
+            .auto_path_entries
+            .extend(std::mem::take(&mut r.auto_path_entries));
+    }
+
+    fn merge_fragment_original_advice(&mut self, r: &mut AnalysisResult) {
+        self.result
+            .original_vendor_procedure_metadata
+            .extend(std::mem::take(&mut r.original_vendor_procedure_metadata));
+        self.result
+            .original_vendor_class_metadata
+            .extend(std::mem::take(&mut r.original_vendor_class_metadata));
+        self.result
+            .original_vendor_symbol_metadata
+            .extend(std::mem::take(&mut r.original_vendor_symbol_metadata));
+        self.result
+            .original_symbol_metadata
+            .extend(std::mem::take(&mut r.original_symbol_metadata));
+        self.result
+            .original_scoped_bodies
+            .extend(std::mem::take(&mut r.original_scoped_bodies));
+        for (offset, metadata) in std::mem::take(&mut r.original_conditional_registry_metadata) {
+            match self
+                .result
+                .original_conditional_registry_metadata
+                .entry(offset)
+            {
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(metadata);
+                }
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    if entry.get() != &metadata {
+                        entry.insert(None);
+                    }
+                }
+            }
+        }
+        for (span, producer) in std::mem::take(&mut r.original_vendor_source_names) {
+            match self.result.original_vendor_source_names.entry(span) {
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(producer);
+                }
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    let combined =
+                        entry.get().as_ref().zip(producer.as_ref()).and_then(
+                            |(existing, incoming)| existing.merge_source_origin(incoming),
+                        );
+                    entry.insert(combined);
+                }
+            }
+        }
+        self.result
+            .original_variable_symbols
+            .extend(std::mem::take(&mut r.original_variable_symbols));
+        self.result
+            .original_vendor_variable_advice
+            .extend(std::mem::take(&mut r.original_vendor_variable_advice));
+        self.result
+            .original_vendor_variable_bodies
+            .extend(std::mem::take(&mut r.original_vendor_variable_bodies));
+        self.result
+            .original_variable_write_advice
+            .extend(std::mem::take(&mut r.original_variable_write_advice));
+        self.result
+            .original_variable_roots
+            .extend(std::mem::take(&mut r.original_variable_roots));
+        self.result
+            .original_variable_alias_sites
+            .extend(std::mem::take(&mut r.original_variable_alias_sites));
+        self.result
+            .original_variable_name_unknowns
+            .extend(std::mem::take(&mut r.original_variable_name_unknowns));
+        self.result
+            .original_variable_alias_obligations
+            .extend(std::mem::take(&mut r.original_variable_alias_obligations));
+        self.result
+            .original_variable_alias_operands
+            .extend(std::mem::take(&mut r.original_variable_alias_operands));
+        self.result
+            .original_variable_alias_source_operands
+            .extend(std::mem::take(
+                &mut r.original_variable_alias_source_operands,
+            ));
+        self.result
+            .original_variable_alias_receipts
+            .extend(std::mem::take(&mut r.original_variable_alias_receipts));
+        self.result
+            .original_variable_symbol_conflicts
+            .extend(std::mem::take(&mut r.original_variable_symbol_conflicts));
     }
 
     /// The [`Self::graft_proc_body`] half that re-queues the fragment's own
@@ -1269,9 +1400,9 @@ pub struct BodyFragment {
     /// rebased) for the global source-ordered replay
     /// (`Analyser::replay_deferred_instances`).
     instances: Vec<(String, Vec<String>, String, u32)>,
-    /// Captured bareword named-object dispatch candidates; the
-    /// graft queues them (spans rebased) for finalisation right after the
-    /// instance-creation replay above, once `instance_classes` is complete.
+    /// Captured bareword receiver syntax; graft rebases the sites for final
+    /// source-instance selection against the complete original document.
+    /// Construction reporting maps do not select a Native receiver.
     bareword_dispatch_sites: Vec<super::state::VarCommandSite>,
     /// The isolated pass's **analyser-side** alias / rename / deletion
     /// tables (`Analyser::command_aliases` / `renamed_commands` /
@@ -1295,11 +1426,10 @@ pub struct BodyFragment {
     /// `$class`-headed instance-creation sites, same
     /// settle-late discipline as `const_dispatches`.
     instance_class_sites: Vec<super::state::PendingInstanceClassSite>,
-    /// Buffered widget/instance dispatch sites (`.w sub …` / `$w sub …`)
-    /// whose head no registry command resolved — whole-file state
-    /// (`instance_classes` is only complete post-graft), so like every
-    /// other deferred check they are re-queued on the shell and flushed by
-    /// the tail's `flush_widget_dispatch_diagnostics`.
+    /// Buffered widget/instance dispatch syntax (`.w sub …` / `$w sub …`)
+    /// whose head had no selected registry command. Graft rebases these sites
+    /// for the shared final diagnostic owners; Native receiver identity and
+    /// lookup currency require their own retained receipts.
     widget_sites: Vec<super::diagnostics::widget_command::WidgetDispatchSite>,
     /// Deferred W103 / W300 dynamic-argument sites — their `$var`
     /// classification needs the whole-file most-recent-literal-`set`
@@ -1382,6 +1512,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     }
     a.resolve_walk_environment(dialect);
     a.result.body_lexer_config = Some(a.lexer_config());
+    a.result.lexical_declaration_advice = a.selected_logical_declaration_advice();
     a.result.resolved_input = Some(a.resolved_analysis_input());
     a.declared_commands = declared_commands;
     // Offset 0: the body content is the whole source; a synthetic `Str` body
@@ -1428,62 +1559,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         &db.scope_name,
         kind,
     );
-    // A `TclOO` method's isolated scope resolves bare commands globally, like
-    // its whole-file twin (`Scope::oo_global_resolution`).
-    if db.oo_global_resolution
-        && let Some(scope) = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
-    {
-        scope.oo_global_resolution = true;
-        // Every `DeferredBody` is a real method body — `walk_class_init_body`
-        // walks the class-level `initialise` frame inline and never defers —
-        // so the isolated scope is a method frame too (`Scope::oo_method_frame`).
-        scope.oo_method_frame = true;
-        // And the instance-side defining-class fact travels with the body,
-        // so `[self class]` folds identically here and on
-        // the whole-file walk.
-        scope.oo_defining_class.clone_from(&db.oo_defining_class);
-    }
-    let placeholder = tcl_lexer::Span::new(0, 0);
-    let dummy = Token::new(tcl_lexer::TokenType::Str, placeholder);
-    // Re-binding params / instance variables into the isolated scope is purely
-    // structural (so body references resolve). The shell walk already emitted
-    // W215 for these declarations byte-identically to the full `analyse` path,
-    // and the synthetic `dummy` token's kind would otherwise flip the W215
-    // `braced` reachability heuristic — so suppress W215 across the rebind to
-    // avoid a spurious duplicate. The body walk below re-enables it so genuine
-    // in-body declarations are still checked.
-    a.structural_rebind = true;
-    for p in &db.params {
-        a.define_var(&p.name, dummy, &proc_path, false, Some(placeholder));
-    }
-    // Class instance variables — visible in every method body (skip ones that a
-    // formal parameter already shadows, matching `walk_method_body`).
-    for var in &db.seeded_variables {
-        let base = crate::naming::normalise_var_name(var);
-        if base.is_empty() || db.params.iter().any(|p| p.name == base) {
-            continue;
-        }
-        // The isolated body only needs the binding to exist so `$v` reads
-        // resolve; the authoritative `definition_span` comes from the shell
-        // walk and is preserved by the graft (`merge_one_var`), so a
-        // `placeholder` here is discarded for this shell-owned key.
-        a.define_var(base, dummy, &proc_path, false, Some(placeholder));
-    }
-    a.structural_rebind = false;
-    // Restore the enclosing safe-interpreter visibility context so a hidden
-    // call inside this body — reached only via
-    // incremental analysis's isolated second pass — still hits
-    // `safe_interp_visibility_gate` the same way it would in a directly-
-    // written body under the whole-file `analyse` path. `None` (the
-    // overwhelming common case) leaves the fresh analyser's stack empty,
-    // exactly as before this field existed.
-    if let Some((base_hidden, hidden_extra, exposed)) = &db.safe_interp_ctx {
-        a.safe_interp_stack.push(super::state::SafeInterpCtx {
-            base_hidden: *base_hidden,
-            hidden_extra: hidden_extra.iter().cloned().collect(),
-            exposed: exposed.iter().cloned().collect(),
-        });
-    }
+    seed_isolated_frame_state(&mut a, db, &proc_path);
     a.analyse_body(&db.body_text, body_tok, &proc_path);
     let proc_scope = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
         .expect("reconstructed proc scope")
@@ -1544,6 +1620,71 @@ fn merge_scope_vars(
     for (k, v) in src {
         merge_one_var(dst, k, v);
     }
+}
+
+/// Isolated source facts cannot publish names or retain call-site producers
+/// in another document by shifting their coordinates. The full analyser is
+/// the existing owner that can issue these receipts from original command rows.
+fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> bool {
+    let result = &fragment.result;
+    if !fragment.pending_ctor_arity.is_empty()
+        || !fragment.pending_next_arity.is_empty()
+        || !result.all_procs.is_empty()
+        || !result.all_classes.is_empty()
+        || !result.original_procedure_metadata.is_empty()
+        || !result.original_class_metadata.is_empty()
+        || !result.original_vendor_source_names.is_empty()
+        || !result.original_vendor_procedure_metadata.is_empty()
+        || !result.original_vendor_class_metadata.is_empty()
+        || !result.original_vendor_symbol_metadata.is_empty()
+        || !result.original_symbol_metadata.is_empty()
+        || !result.original_scoped_bodies.is_empty()
+        || !result.original_conditional_registry_metadata.is_empty()
+        || !result.command_aliases.is_empty()
+        || !result.renamed_commands.is_empty()
+        || !result.package_requires.is_empty()
+        || !result.package_provides.is_empty()
+        || !result.package_ifneededs.is_empty()
+        || result
+            .source_targets
+            .iter()
+            .any(|target| target.original_interpreter_source_load.is_some())
+        || result.command_invocations.iter().any(|invocation| {
+            invocation.original_callback_signature_lookup.is_some()
+                || invocation.original_callback_prefix.is_some()
+                || invocation.original_name_input.is_some()
+                || invocation.original_lookup.is_some()
+                || invocation.resolved_command_reference.is_some()
+                || invocation.resolved_definition.is_some()
+                || (invocation.indirect && invocation.lookup.is_execution_site())
+        })
+        || result.diagnostics.iter().any(|diagnostic| {
+            matches!(
+                diagnostic.subject(),
+                Some(
+                    super::DiagnosticSubject::CallbackSourceArity(_)
+                        | super::DiagnosticSubject::ObjectSourceArity(_)
+                        | super::DiagnosticSubject::CommandAvailability(_)
+                        | super::DiagnosticSubject::RegisteredInstanceSource(_)
+                        | super::DiagnosticSubject::UnresolvedCommand(_)
+                        | super::DiagnosticSubject::UnresolvedMathFunction(_)
+                        | super::DiagnosticSubject::ConditionalInterpreterVisibility(_)
+                )
+            )
+        })
+    {
+        return true;
+    }
+    let mut scopes = vec![&fragment.proc_scope];
+    while let Some(scope) = scopes.pop() {
+        if scope.kind == super::types::ScopeKind::Namespace
+            || scope.original_member_context.is_some()
+        {
+            return true;
+        }
+        scopes.extend(&scope.children);
+    }
+    false
 }
 
 /// Would grafting `frag`'s `all_classes` *overwrite* an entry the shell already
@@ -1684,6 +1825,8 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     rebase_scope(&mut frag.proc_scope, d);
     let r = &mut frag.result;
     rebase_result_declarations(r, d);
+    // Original producer images cannot be moved by adjusting numeric spans.
+    clear_fragment_original_producers(r);
     for v in r.all_variables.values_mut() {
         rebase_vardef(v, d);
     }
@@ -1708,7 +1851,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for x in &mut r.source_targets {
         x.range = shift(x.range, d);
+        x.original_interpreter_source_load = None;
     }
+    r.original_namespace_patterns.clear();
     for x in &mut r.namespace_imports {
         x.range = shift(x.range, d);
     }
@@ -1748,9 +1893,14 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for x in &mut r.qualified_var_refs {
         x.span = shift(x.span, d);
+        x.original_name_input = None;
+        x.original_namespace = None;
     }
     for x in &mut r.namespace_refs {
         x.span = shift(x.span, d);
+    }
+    for span in &mut r.namespace_name_unknowns {
+        *span = shift(*span, d);
     }
     for x in &mut r.regex_patterns {
         x.range = shift(x.range, d);
@@ -1953,6 +2103,7 @@ fn rebase_result_names(r: &mut AnalysisResult, fix: &impl Fn(&mut String)) {
             fix(&mut entry.target);
         }
     }
+    r.original_namespace_patterns.clear();
     for imp in &mut r.namespace_imports {
         fix(&mut imp.ns);
         if let Some(source) = &mut imp.source {
@@ -1967,8 +2118,11 @@ fn rebase_result_names(r: &mut AnalysisResult, fix: &impl Fn(&mut String)) {
     for (_, ns) in &mut r.namespace_overrides {
         fix(ns);
     }
+    clear_fragment_original_producers(r);
     for qref in &mut r.qualified_var_refs {
         fix(&mut qref.qualified_name);
+        qref.original_name_input = None;
+        qref.original_namespace = None;
     }
     for nref in &mut r.namespace_refs {
         fix(&mut nref.qualified_name);
@@ -2003,17 +2157,7 @@ fn rebase_pending_names(frag: &mut BodyFragment, fix: &impl Fn(&mut String)) {
         fix(&mut cand.cmd_name);
         fix(&mut cand.ns);
     }
-    for cand in &mut frag.pending_ctor_arity {
-        fix(&mut cand.class_name);
-        fix(&mut cand.ns);
-    }
-    for cand in &mut frag.pending_next_arity {
-        fix(&mut cand.class_qualified);
-        if let Some(t) = &mut cand.target_class {
-            fix(t);
-        }
-        fix(&mut cand.ns);
-    }
+
     for (_, _, creation_ns, _) in &mut frag.instances {
         fix(creation_ns);
     }
@@ -2055,13 +2199,11 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
         cand.call_off += d;
         cand.full_span = shift(cand.full_span, d);
     }
-    for cand in &mut frag.pending_ctor_arity {
-        cand.call_off += d;
-        cand.full_span = shift(cand.full_span, d);
-    }
-    for cand in &mut frag.pending_next_arity {
-        cand.full_span = shift(cand.full_span, d);
-    }
+    assert!(frag.pending_ctor_arity.is_empty());
+    // The whole-source owner reconstructs retained lexical calls before grafting.
+    // Their image, declaration and word receipts cannot acquire a new source by
+    // shifting coordinates; fragment_needs_original_source_owner rejects them.
+    assert!(frag.pending_next_arity.is_empty());
     // Every dispatch site rebases through its own `rebase`, which owns the
     // full list of spans it carries.  Spelling the fields out here is what
     // let `method_span` go un-rebased on two of these three lists, so W308
@@ -2077,7 +2219,6 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
         s.rebase(d);
     }
     for s in &mut frag.widget_sites {
-        s.subcommand_span = shift(s.subcommand_span, d);
         s.cmd_span = shift(s.cmd_span, d);
     }
     for s in &mut frag.const_dispatches {
@@ -2231,6 +2372,84 @@ fn body_needs_enclosing_context(body_text: &str) -> bool {
     false
 }
 
+fn clear_fragment_original_producers(r: &mut AnalysisResult) {
+    r.original_vendor_source_names.clear();
+    r.original_vendor_procedure_metadata.clear();
+    r.original_vendor_class_metadata.clear();
+    r.original_vendor_symbol_metadata.clear();
+    r.original_symbol_metadata.clear();
+    r.original_scoped_bodies.clear();
+    r.original_conditional_registry_metadata.clear();
+    r.original_vendor_variable_advice.clear();
+    r.original_vendor_variable_bodies.clear();
+    r.original_variable_symbols.clear();
+    r.original_variable_write_advice.clear();
+    r.original_variable_roots.clear();
+    r.original_variable_symbol_conflicts.clear();
+    r.original_variable_alias_sites.clear();
+    r.original_variable_name_unknowns.clear();
+    r.original_variable_alias_obligations.clear();
+    r.original_variable_alias_operands.clear();
+    r.original_variable_alias_source_operands.clear();
+    r.original_variable_alias_receipts.clear();
+}
+
+fn seed_isolated_formal_bindings(a: &mut Analyser, db: &DeferredBody, proc_path: &[usize]) {
+    let placeholder = tcl_lexer::Span::new(0, 0);
+    let dummy = Token::new(tcl_lexer::TokenType::Str, placeholder);
+    // Re-binding params / instance variables into the isolated scope is purely
+    // structural (so body references resolve). The shell walk already emitted
+    // W215 for these declarations byte-identically to the full `analyse` path,
+    // and the synthetic `dummy` token's kind would otherwise flip the W215
+    // `braced` reachability heuristic — so suppress W215 across the rebind to
+    // avoid a spurious duplicate. The body walk below re-enables it so genuine
+    // in-body declarations are still checked.
+    a.structural_rebind = true;
+    for p in &db.params {
+        a.define_var(&p.name, dummy, proc_path, false, Some(placeholder));
+    }
+    // Class instance variables — visible in every method body (skip ones that a
+    // formal parameter already shadows, matching `walk_method_body`).
+    for var in &db.seeded_variables {
+        let base = crate::naming::normalise_var_name(var);
+        if base.is_empty() || db.params.iter().any(|p| p.name == base) {
+            continue;
+        }
+        // The isolated body only needs the binding to exist so `$v` reads
+        // resolve; the authoritative `definition_span` comes from the shell
+        // walk and is preserved by the graft (`merge_one_var`), so a
+        // `placeholder` here is discarded for this shell-owned key.
+        a.define_var(base, dummy, proc_path, false, Some(placeholder));
+    }
+    a.structural_rebind = false;
+}
+
+fn seed_isolated_frame_state(a: &mut Analyser, db: &DeferredBody, proc_path: &[usize]) {
+    // A `TclOO` method's isolated scope resolves bare commands globally, like
+    // its whole-file twin (`Scope::oo_global_resolution`).
+    if db.oo_global_resolution
+        && let Some(scope) = super::scope::scope_at_mut(&mut a.result.global_scope, proc_path)
+    {
+        scope.oo_global_resolution = true;
+        // Every `DeferredBody` is a real method body — `walk_class_init_body`
+        // walks the class-level `initialise` frame inline and never defers —
+        // so the isolated scope is a method frame too (`Scope::oo_method_frame`).
+        scope.oo_method_frame = true;
+        // And the instance-side defining-class fact travels with the body,
+        // so `[self class]` folds identically here and on
+        // the whole-file walk.
+        scope.oo_defining_class.clone_from(&db.oo_defining_class);
+    }
+    seed_isolated_formal_bindings(a, db, proc_path);
+    // Restore the enclosing safe-interpreter visibility context so a hidden
+    // Retain the original conditional receipt. Exact source/input checks are
+    // performed by its emitter; a body-only foreign projection cannot recapture
+    // an original child visibility context from nominal names.
+    if let Some(context) = &db.safe_interp_ctx {
+        a.safe_interp_stack.push(context.clone());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2239,6 +2458,80 @@ mod tests {
         let want = Analyser::new().analyse(src, "tcl8.6");
         let got = Analyser::new().analyse_per_item(src, "tcl8.6");
         assert_eq!(got, want, "per_item != analyse for:\n{src}");
+    }
+
+    #[test]
+    fn original_incremental_callbacks_retain_full_source_targets_and_barriers() {
+        // naming.source.original-callback-procedure-target
+        // docs/design/analysis/name-resolution-proofs/source-original-callback-procedure-target.md
+        // Incremental and full consumers share the genuine registration-horizon
+        // issuer. Empty bodies keep this control on the incremental fast path;
+        // no isolated fragment can donate a target or suppress a known barrier.
+        use crate::command_binding::OriginalSourceCallbackProcedureRefusal::KnownSourceBarrier;
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            for (source, local, barrier) in [
+                ("lsort -command {cb BAKED} {3 1 2}", false, false),
+                (
+                    "interp alias {} cb {} external FIXED; lsort -command {cb BAKED} {3 1 2}",
+                    false,
+                    false,
+                ),
+                (
+                    "proc cb {left right} {}; lsort -command cb {3 1 2}",
+                    true,
+                    false,
+                ),
+                (
+                    "proc cb {left right} {}; rename cb {}; lsort -command cb {3 1 2}",
+                    false,
+                    true,
+                ),
+                (
+                    "interp alias {} cb {} list; lsort -command cb {3 1 2}",
+                    false,
+                    true,
+                ),
+            ] {
+                let (gate, incremental) = gate_and_result(source, dialect);
+                assert_eq!(
+                    gate, None,
+                    "{dialect}: fast source-header control: {source}"
+                );
+                let lookup = incremental
+                    .command_invocations
+                    .iter()
+                    .filter_map(|row| row.original_callback_signature_lookup.as_ref())
+                    .find(|lookup| lookup.prefix().name_input().bytes() == b"cb")
+                    .unwrap_or_else(|| {
+                        panic!("{dialect}: missing original callback lookup: {source}")
+                    });
+                assert_eq!(lookup.declaration().is_some(), local, "{dialect}: {source}");
+                assert_eq!(
+                    lookup.original().refusal() == Some(KnownSourceBarrier),
+                    barrier,
+                    "{dialect}: {source}"
+                );
+                assert!(!lookup.original().obligations().is_empty());
+                if let Some(target) = lookup.original().target() {
+                    assert_eq!(
+                        target.captured_arguments().len(),
+                        usize::from(source.contains("external FIXED"))
+                    );
+                }
+                assert_eq!(
+                    lookup.prefix().baked_argument_count(),
+                    usize::from(source.contains("BAKED"))
+                );
+                let complete = Analyser::new().analyse(source, dialect);
+                let complete_lookup = complete
+                    .command_invocations
+                    .iter()
+                    .filter_map(|row| row.original_callback_signature_lookup.as_ref())
+                    .find(|lookup| lookup.prefix().name_input().bytes() == b"cb")
+                    .expect("full source owner supplies the same target/refusal");
+                assert_eq!(lookup, complete_lookup, "{dialect}: {source}");
+            }
+        }
     }
 
     /// One `analyse_per_item` run, reported as *both* the gate it tripped and
@@ -2510,6 +2803,125 @@ mod tests {
         }
         assert!(src.len() > OVERSIZED_BODY_BYTES, "fixture must be large");
         fast_path(&src);
+    }
+
+    #[test]
+    fn nested_opaque_declarations_use_full_original_source_owner() {
+        let source = r"proc outer {} {proc p\uD800 {} {}; proc p\uD801 {} {}}";
+        let (gate, result) = gate_and_result(source, "tcl8.6");
+        assert_eq!(gate, Some(PerItemFallback::OriginalSourceOwnership));
+        let records = result.original_procedure_declarations().collect::<Vec<_>>();
+        assert_eq!(records.len(), 3);
+        for record in &records {
+            assert_eq!(
+                record.name_input().source_image().bytes(),
+                source.as_bytes()
+            );
+        }
+        let names = records
+            .iter()
+            .map(|record| record.name().slot().simple.as_bytes().to_vec())
+            .collect::<std::collections::HashSet<_>>();
+        assert!(names.contains(b"p\xed\xa0\x80".as_slice()));
+        assert!(names.contains(b"p\xed\xa0\x81".as_slice()));
+        let tree = super::super::item_tree::ItemTree::from_analysis(
+            &result,
+            &std::collections::HashSet::new(),
+        );
+        assert_eq!(tree.file_decls().original_declarations.len(), 3);
+    }
+
+    #[test]
+    fn original_lexical_member_body_keeps_the_whole_source_owner() {
+        // naming.tcloo.original-lexical-member-context
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-lexical-member-context.md
+        let source = "oo::class create C {method a::b {} {return body}}";
+        let (gate, result) = gate_and_result(source, "tcl8.6");
+        assert_eq!(gate, Some(PerItemFallback::OriginalSourceOwnership));
+        let context = result
+            .global_scope
+            .children
+            .iter()
+            .find_map(|scope| scope.original_member_context.as_deref())
+            .unwrap();
+        assert_eq!(
+            context
+                .ordinary_method()
+                .unwrap()
+                .original_name_input()
+                .bytes(),
+            b"a::b"
+        );
+        assert_eq!(
+            context.body_word().image(),
+            &tcl_lexer::SourceImage::document(source)
+        );
+        assert!(context.source_class(&result).is_some());
+    }
+
+    #[test]
+    fn original_next_advice_reconstructs_whole_source_after_preceding_edits() {
+        // naming.tcloo.original-lexical-member-context
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-lexical-member-context.md
+        for prefix in ["", "# preceding line\nset unrelated value\n"] {
+            let source = format!(
+                "{prefix}oo::class create Base {{method f {{a b}} {{}}}}\noo::class create Child {{superclass Base; method f {{}} {{next 1 2 3}}}}"
+            );
+            let (gate, result) = gate_and_result(&source, "tcl9.0");
+            assert_eq!(gate, Some(PerItemFallback::OriginalSourceOwnership));
+            let diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    matches!(
+                        diagnostic.subject(),
+                        Some(super::super::DiagnosticSubject::ObjectSourceArity(_))
+                    )
+                })
+                .expect("original next signature advice");
+            assert_eq!(&source[diagnostic.span.as_range()], "next 1 2 3");
+            let Some(super::super::DiagnosticSubject::ObjectSourceArity(subject)) =
+                diagnostic.subject()
+            else {
+                unreachable!()
+            };
+            let super::super::ObjectSourceAritySubject::LexicalNext(original) = subject.as_ref()
+            else {
+                panic!("next source purpose")
+            };
+            assert!(
+                original
+                    .original_words()
+                    .iter()
+                    .all(|word| word.image() == &tcl_lexer::SourceImage::document(&source))
+            );
+            assert!(original.member_context().matches_source(
+                &tcl_lexer::SourceImage::document(&source),
+                result.body_lexer_config.unwrap()
+            ));
+        }
+    }
+
+    #[test]
+    fn computed_body_head_keeps_genuine_whole_document_value_owner() {
+        let source = "proc p {} {}; proc outer {} {set cmd p; $cmd}";
+        let (gate, result) = gate_and_result(source, "tcl8.6");
+        assert_eq!(gate, Some(PerItemFallback::OriginalSourceOwnership));
+        let offset = u32::try_from(source.rfind("$cmd").unwrap()).unwrap();
+        let invocation = result
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.range.start() == offset && invocation.indirect)
+            .unwrap();
+        let input = invocation.original_name_input.as_ref().unwrap();
+        assert_eq!(input.bytes(), b"p");
+        assert!(input.original_word_key().is_none());
+        let lookup = invocation.original_lookup.as_ref().unwrap();
+        assert_eq!(
+            lookup.site().source.source_image().bytes(),
+            source.as_bytes()
+        );
+        assert_eq!(lookup.site().offset, offset);
     }
 
     #[test]

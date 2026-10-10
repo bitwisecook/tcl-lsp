@@ -107,6 +107,7 @@ impl Vm {
         &mut self,
         slot: CommandSlot,
         command: Command,
+        table_key: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
     ) -> String {
         let previous = self.command_storage_key_at_slot(&slot).and_then(|key| {
             let command = self.visible_command_at_key(&key)?;
@@ -133,7 +134,7 @@ impl Vm {
         });
         let depth = self.name_world.borrow().jim_local_depth;
         self.name_world.borrow_mut().jim_local_depth = 0;
-        let key = self.register_command_in_slot(slot, command);
+        let key = self.register_command_in_slot_with_jim_key(slot, command, table_key);
         self.name_world.borrow_mut().jim_local_depth = depth;
         if let Some(previous) = previous {
             let token = self
@@ -205,6 +206,9 @@ impl Vm {
                     world
                         .jim_command_nodes
                         .insert(previous.token, Rc::clone(&previous));
+                    world
+                        .jim_command_table_keys
+                        .insert(restored_key.clone(), previous.table_key.borrow().clone());
                 }
                 (*previous.storage_key.borrow_mut()).clone_from(&restored_key);
                 if let Some(identity) = previous.builtin_identity.borrow().clone() {

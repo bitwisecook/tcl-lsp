@@ -1,0 +1,12 @@
+native_integer_formatter::tests::formatter_admission_requires_a_complete_verified_build_pair: test
+native_integer_formatter::tests::loaded_c84_updater_matches_812_original_archive_and_image_windows: test
+tests::environment_source_tree_override_requires_the_pinned_patchlevel: test
+tests::explicit_source_tree_requires_the_pinned_patchlevel: test
+tests::patchlevel_is_read_from_the_c_header: test
+tests::reference_release_facts_cover_every_dialect_axis: test
+tests::source_tree_validation_canonicalizes_a_relative_root: test
+tests::source_tree_validation_checks_release_and_layout: test
+tests::strict_requested_oracles_do_not_skip_invalid_overrides: test
+tests::upstream_definition_is_bounded_by_its_adjacent_marker: test
+
+10 tests, 0 benchmarks

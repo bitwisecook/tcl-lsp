@@ -1,0 +1,8 @@
+PATCHLEVEL 8.5.19
+RESULT no_operands 1 {wrong # args: should be "lassign list varName ?varName ...?"}
+RESULT literal_no_target 1 {wrong # args: should be "lassign list varName ?varName ...?"}
+RESULT dynamic_no_target 1 {wrong # args: should be "lassign list varName ?varName ...?"}
+RESULT compiled_no_target 1 {wrong # args: should be "lassign list varName ?varName ...?"}
+RESULT malformed_no_target 1 {wrong # args: should be "lassign list varName ?varName ...?"}
+RESULT literal_one_target 0 B
+RESULT empty_no_target 1 {wrong # args: should be "lassign list varName ?varName ...?"}

@@ -57,6 +57,8 @@ mod extract_variable;
 mod if_to_switch;
 mod inline_proc;
 mod inline_variable;
+mod source_command;
+mod source_rewrite;
 mod switch_to_dict;
 
 pub use brace_expr::brace_expr;
@@ -69,6 +71,7 @@ pub use extract_variable::extract_variable;
 pub use if_to_switch::if_to_switch;
 pub use inline_proc::{inline_proc, inline_proc_in_program};
 pub use inline_variable::inline_variable;
+pub use source_command::find_original_command_at;
 pub use switch_to_dict::switch_to_dict;
 
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
@@ -276,38 +279,268 @@ pub fn token_end_offset(source: &str, tok: Token) -> u32 {
     }
 }
 
-/// The document facts a same-frame statement walk needs, built once per
-/// refactoring.
-///
-/// `nesting` is deliberately the **document's own** registry rather than the
-/// caller's: which nested words are same-frame scripts is a question
-/// [`crate::references::nested_dispatch_regions`] answers from the dialect
-/// profile's registry (a `switch` clause list reaches its arm bodies only
-/// through that registry's `CaseListSpec`), whereas the argument roles a
-/// refactoring classifies stay its own to decide.
-///
-/// `source` is whatever text the walk will address — a whole document for a
-/// transform that works in document coordinates, a proc body for one that has
-/// re-segmented that body on its own.
-pub(crate) struct FrameWalk {
+/// Refactoring traversal over the actual retained document configuration and
+/// positioned command owner. Conditional structure cannot certify execution.
+pub(crate) struct FrameWalk<'a> {
+    analysis: &'a tcl_compiler::analyser::AnalysisResult,
     dialect: &'static tcl_dialect::DialectProfile,
-    nesting: &'static CommandRegistry,
-    identities: tcl_compiler::realm::CommandBindingRealm,
+    nesting: &'a CommandRegistry,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
+    lexical: bool,
+    complete: std::cell::Cell<bool>,
     config: LexerConfig,
     expr_surface: tcl_registry::expr_surface::RuntimeExprSurface,
 }
 
-impl FrameWalk {
-    pub(crate) fn new(source: &str, analysis: &tcl_compiler::analyser::AnalysisResult) -> Self {
-        let dialect = crate::profile_for_analysis(analysis);
-        let nesting = crate::registry_for_dialect_profile(dialect);
-        Self {
+impl<'a> FrameWalk<'a> {
+    pub(crate) fn new(
+        source: &str,
+        analysis: &'a tcl_compiler::analyser::AnalysisResult,
+    ) -> Option<Self> {
+        let config = analysis.body_lexer_config?;
+        analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+            .then_some(())?;
+        let dialect = analysis.resolved_profile()?;
+        Some(Self {
+            analysis,
             dialect,
-            nesting,
-            identities: tcl_compiler::realm::document_realm_bindings(source, dialect, nesting),
-            config: LexerConfig::from_grammar(dialect.grammar),
+            nesting: analysis.resolved_registry()?,
+            identities: analysis.retained_command_realm()?,
+            lexical: analysis.allows_lexical_declaration_advice(),
+            complete: std::cell::Cell::new(true),
+            config,
             expr_surface: tcl_registry::expr_surface::RuntimeExprSurface::for_profile(dialect),
+        })
+    }
+
+    pub(crate) fn complete(&self) -> bool {
+        self.complete.get()
+    }
+
+    pub(crate) fn tokens(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> tcl_compiler::ir::CommandTokens {
+        let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            self.config,
+            command,
+        );
+        self.identities.stamp_original_tokens(&mut tokens);
+        tokens
+    }
+
+    pub(crate) fn structure(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
+        tcl_compiler::registry_invocation::original_structured_invocation(
+            self.nesting,
+            &self.tokens(source, command),
+        )
+    }
+
+    pub(crate) fn native_words(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<Vec<tcl_lexer::NativeWord>> {
+        tcl_compiler::registry_invocation::original_native_compiler_words(
+            &tcl_lexer::SourceImage::document(source),
+            self.tokens(source, command).words(),
+            command.argv.first()?.span.start(),
+            self.config,
+        )
+    }
+
+    /// Exact word and expression components under the selected conditional
+    /// grammar. Braced data is never scanned as a variable or script.
+    pub(crate) fn components(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<Vec<tcl_lexer::ExecutablePartArena>> {
+        let words = self.native_words(source, command)?;
+        let selected = self.structure(source, command)?;
+        let mut arenas = words
+            .iter()
+            .map(|word| word.executable_parts().clone())
+            .collect::<Vec<_>>();
+        for (written, role) in selected.written_argument_roles() {
+            if role != ArgRole::Expr {
+                continue;
+            }
+            let word = words.get(written.checked_add(1)?)?;
+            if word.group().kind != tcl_lexer::WordKind::Braced {
+                continue;
+            }
+            let span = word.content_span().ok()?;
+            arenas.push(
+                tcl_lexer::ExecutablePartArena::decompose(
+                    word.image().clone(),
+                    span,
+                    tcl_lexer::word_parts::SubstFlags::default(),
+                    self.config,
+                )
+                .ok()?,
+            );
         }
+        if selected
+            .facts
+            .traits
+            .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
+        {
+            // A source rewrite needs the actual selected switch values. Unknown
+            // template flags cannot be replaced by a nominal ALL scanner.
+            let values = (0..selected.arguments.len())
+                .map(|index| {
+                    selected
+                        .argument_word(index)
+                        .literal_bytes()
+                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                        .map(str::to_owned)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let arguments = values.iter().map(String::as_str).collect::<Vec<_>>();
+            let kinds = self
+                .nesting
+                .substitutions_performed(&selected.facts.canonical_command, &arguments)?;
+            let variables = match selected.dialect?.family()? {
+                tcl_dialect::model::Family::Tcl => {
+                    tcl_lexer::word_parts::TemplateVariableSyntax::CTcl
+                }
+                tcl_dialect::model::Family::Jim => {
+                    tcl_lexer::word_parts::TemplateVariableSyntax::Jim084
+                }
+                _ => return None,
+            };
+            for word in words
+                .iter()
+                .skip(1)
+                .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
+            {
+                arenas.push(
+                    tcl_lexer::ExecutablePartArena::decompose_template(
+                        word.image().clone(),
+                        word.content_span().ok()?,
+                        tcl_lexer::word_parts::SubstFlags {
+                            vars: kinds.variables,
+                            cmds: kinds.commands,
+                            backslashes: kinds.backslashes,
+                            ..Default::default()
+                        },
+                        self.config,
+                        variables,
+                    )
+                    .ok()?,
+                );
+            }
+        }
+        Some(arenas)
+    }
+
+    fn original_regions(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+        structural: bool,
+    ) -> Option<Vec<(usize, usize)>> {
+        let selected = self.structure(source, command)?;
+        let tokens = self.tokens(source, command);
+        let words = self.native_words(source, command)?;
+        let mut regions = Vec::new();
+        if !structural {
+            for arena in self.components(source, command)? {
+                for part in arena.all_parts() {
+                    match part.part {
+                        tcl_lexer::ExecutablePart::Command { body } => {
+                            regions.push((body.start() as usize, body.end() as usize))
+                        }
+                        tcl_lexer::ExecutablePart::ParseError(_)
+                        | tcl_lexer::ExecutablePart::Expression { .. } => return None,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        let body_kind_matches = if structural {
+            selected.facts.body_kind == tcl_registry::BodyKind::Structural
+        } else {
+            selected.facts.body_kind == tcl_registry::BodyKind::Plain
+        };
+        let body_span = |argument: usize, element: Option<usize>| -> Option<tcl_lexer::Span> {
+            let origin = selected.effective.origins.get(argument.checked_add(1)?)?;
+            let tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) = origin
+            else {
+                return None;
+            };
+            let word = words.get(*written)?;
+            if let Some(element) = element {
+                let parent = tokens
+                    .source_binding
+                    .as_ref()?
+                    .original_written_name_input(&tokens, *written)?;
+                let children = parent.original_list_elements_with_source_spans()?;
+                let (child, span) = children.get(element)?;
+                let span = (*span)?;
+                let raw = word.image().bytes().get(span.as_range())?;
+                (tcl_syntax::backslash::native_source_literal_bytes(
+                    raw,
+                    word.image().channel(),
+                    child.policy().string_protocol(),
+                )
+                .ok()?
+                .as_ref()
+                    == child.bytes())
+                .then_some(span)
+            } else {
+                (word.group().kind == tcl_lexer::WordKind::Braced && !word.group().expand)
+                    .then_some(())?;
+                word.content_span().ok()
+            }
+        };
+        if body_kind_matches {
+            let flow = selected.with_argument_words(|arguments| {
+                tcl_registry::case_bodies::script_body_flow_in_registry(
+                    self.nesting,
+                    &selected.facts,
+                    arguments.arguments(),
+                )
+            });
+            if let tcl_registry::script_body_flow::ScriptBodyFlow::CaseBodies(cases) = flow {
+                if cases.selection_unknown {
+                    return None;
+                }
+                for body in cases.bodies {
+                    let span = body_span(body.argument, body.list_element)?;
+                    regions.push((span.start() as usize, span.end() as usize));
+                }
+            } else {
+                for &(index, role) in &selected.facts.arg_roles {
+                    if role != ArgRole::Body {
+                        continue;
+                    }
+                    let span =
+                        body_span(selected.facts.argument_offset + usize::from(index), None)?;
+                    regions.push((span.start() as usize, span.end() as usize));
+                }
+            }
+        }
+        if structural {
+            for &(index, role) in &selected.facts.arg_roles {
+                if role != ArgRole::LambdaLiteral {
+                    continue;
+                }
+                let span = body_span(selected.facts.argument_offset + usize::from(index), Some(1))?;
+                regions.push((span.start() as usize, span.end() as usize));
+            }
+        }
+        regions.sort_unstable();
+        regions.dedup();
+        Some(regions)
     }
 
     /// Every command nested inside `command` that still runs in `command`'s
@@ -341,6 +574,7 @@ impl FrameWalk {
         out: &mut Vec<SegmentedCommand>,
     ) {
         if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
+            self.complete.set(false);
             return;
         }
         for (start, end) in self.same_frame_regions(source, command) {
@@ -381,11 +615,18 @@ impl FrameWalk {
         source: &str,
         command: &SegmentedCommand,
     ) -> Vec<(usize, usize)> {
-        let mut regions = crate::references::nested_dispatch_regions_with_identities(
+        if !self.lexical {
+            return self
+                .original_regions(source, command, false)
+                .unwrap_or_else(|| {
+                    self.complete.set(false);
+                    Vec::new()
+                });
+        }
+        let mut regions = crate::references::nested_dispatch_regions(
             source,
+            self.analysis,
             self.dialect,
-            self.nesting,
-            &self.identities,
             command,
         );
         self.push_expression_substitutions(source, command, &mut regions);
@@ -516,7 +757,20 @@ impl FrameWalk {
         source: &str,
         command: &SegmentedCommand,
     ) -> Vec<(usize, usize)> {
-        crate::references::frame_shifted_dispatch_regions(source, self.dialect, command)
+        if !self.lexical {
+            return self
+                .original_regions(source, command, true)
+                .unwrap_or_else(|| {
+                    self.complete.set(false);
+                    Vec::new()
+                });
+        }
+        crate::references::frame_shifted_dispatch_regions(
+            source,
+            self.analysis,
+            self.dialect,
+            command,
+        )
     }
 
     /// Every region inside `command`, at any same-frame depth, that runs in a
@@ -976,5 +1230,39 @@ mod tests {
     fn reindent_strips_braces_and_normalises() {
         let out = reindent_body("{\n        puts hi\n    }", "    ");
         assert_eq!(out, "    puts hi");
+    }
+}
+
+#[cfg(test)]
+mod original_frame_walk_tests {
+    use super::*;
+    #[test]
+    fn original_frame_walk_keeps_full_document_context_and_absolute_components() {
+        // Implementation contract: naming.refactor.original-frame-traversal
+        // docs/design/analysis/name-resolution-proofs/refactor-original-frame-traversal.md
+        let source = "proc p {x} {expr {$x + [string length VALUE]}}\np 2\n";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let mut analysis = analyser.analyse(source, "tcl8.6").clone();
+        let selected_registry = analysis.resolved_registry().unwrap() as *const CommandRegistry;
+        analysis.dialect = "f5-irules".to_owned();
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        assert_eq!(walk.nesting as *const CommandRegistry, selected_registry);
+        assert_eq!(walk.config, analysis.body_lexer_config.unwrap());
+        assert!(std::ptr::eq(
+            walk.identities,
+            analysis.retained_command_realm().unwrap()
+        ));
+        let start = u32::try_from(source.find("expr").unwrap()).unwrap();
+        let end = source.find("}\np").unwrap();
+        let command = walk.segment(&source[start as usize..end], start).remove(0);
+        let words = walk.native_words(source, &command).unwrap();
+        assert_eq!(words[0].span().start(), start);
+        assert!(
+            words
+                .iter()
+                .all(|word| word.image() == &tcl_lexer::SourceImage::document(source))
+        );
+        assert!(FrameWalk::new(&format!("{source}# stale"), &analysis).is_none());
+        assert!(FrameWalk::new("expr {$x + [string length VALUE]}", &analysis).is_none());
     }
 }

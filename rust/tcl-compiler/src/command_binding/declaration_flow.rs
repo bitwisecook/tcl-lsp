@@ -15,14 +15,15 @@ use super::{
 use crate::ir::{CommandTokens, WordExpr, WordPart};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tcl_registry::body_execution::BodyOperand;
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::completion_route::InvocationCompletionRoute as Route;
 use tcl_registry::script_body_flow::ScriptBodyFlow;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub(super) struct DeclarationFlowInventory {
+    reports: DeclarationFlowReports,
     layouts: Arc<DeclarationLayouts>,
     accesses: Arc<super::SourceVariableAccesses>,
     origin_accesses: Arc<super::OriginVariableAccesses>,
@@ -39,6 +40,7 @@ impl DeclarationFlowInventory {
         origin_points: Arc<BTreeMap<Arc<super::SourceOriginId>, Vec<super::SourceBindingPoint>>>,
     ) -> Self {
         Self {
+            reports: DeclarationFlowReports::default(),
             layouts,
             accesses,
             origin_accesses,
@@ -47,6 +49,97 @@ impl DeclarationFlowInventory {
         }
     }
 }
+// Derived reports never participate in source-inventory identity.
+impl PartialEq for DeclarationFlowInventory {
+    fn eq(&self, other: &Self) -> bool {
+        self.layouts == other.layouts
+            && self.accesses == other.accesses
+            && self.origin_accesses == other.origin_accesses
+            && self.points == other.points
+            && self.origin_points == other.origin_points
+    }
+}
+impl Eq for DeclarationFlowInventory {}
+
+/// Derived inventory retained only by this mutable builder. Clones start empty.
+#[derive(Default)]
+pub(super) struct SourceDeclarationFlowCache(Mutex<Option<Arc<DeclarationFlowInventory>>>);
+impl Clone for SourceDeclarationFlowCache {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+impl std::fmt::Debug for SourceDeclarationFlowCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SourceDeclarationFlowCache")
+            .finish_non_exhaustive()
+    }
+}
+#[derive(Clone, PartialEq, Eq)]
+struct DeclarationFlowKey {
+    entry: Arc<super::declaration_layout::OriginalDiagnosticFrameEntry>,
+    config: tcl_lexer::LexerConfig,
+    dialect: tcl_registry::InvocationDialect,
+    registry: tcl_registry::RegistrySemanticKey,
+}
+#[derive(Default)]
+struct DeclarationFlowReports(Mutex<Vec<(DeclarationFlowKey, Arc<DeclarationFlowReport>)>>);
+impl std::fmt::Debug for DeclarationFlowReports {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeclarationFlowReports")
+            .finish_non_exhaustive()
+    }
+}
+const MAX_DECLARATION_FLOW_REPORTS: usize = 64;
+impl DeclarationFlowReports {
+    fn get(&self, key: &DeclarationFlowKey) -> Option<Arc<DeclarationFlowReport>> {
+        self.0
+            .lock()
+            .expect("declaration report cache poisoned")
+            .iter()
+            .find(|(candidate, _)| candidate == key)
+            .map(|(_, report)| Arc::clone(report))
+    }
+    fn retain(
+        &self,
+        key: DeclarationFlowKey,
+        report: DeclarationFlowReport,
+    ) -> Arc<DeclarationFlowReport> {
+        let mut reports = self.0.lock().expect("declaration report cache poisoned");
+        if let Some((_, report)) = reports.iter().find(|(candidate, _)| candidate == &key) {
+            return Arc::clone(report);
+        }
+        if reports.len() == MAX_DECLARATION_FLOW_REPORTS {
+            reports.remove(0);
+        }
+        let report = Arc::new(report);
+        reports.push((key, Arc::clone(&report)));
+        report
+    }
+}
+impl super::SourceCommandBindings {
+    pub(super) fn current_declaration_flow_inventory(&self) -> Arc<DeclarationFlowInventory> {
+        let next = DeclarationFlowInventory::new(
+            self.declaration_layouts.shared(),
+            self.variable_accesses.shared(),
+            self.origin_variable_accesses.shared(),
+            self.points.shared(),
+            self.origin_points.shared(),
+        );
+        let mut current = self
+            .declaration_flow_cache
+            .0
+            .lock()
+            .expect("declaration inventory cache poisoned");
+        if let Some(current) = current.as_ref().filter(|current| current.as_ref() == &next) {
+            return Arc::clone(current);
+        }
+        let next = Arc::new(next);
+        *current = Some(Arc::clone(&next));
+        next
+    }
+}
+
 impl Hash for DeclarationFlowInventory {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // The other invocation axes discriminate source observations. Full
@@ -77,7 +170,8 @@ pub(crate) struct DeclarationFlowReport {
     quoted_use_unavailable: bool,
     declared_entries: BTreeSet<u32>,
     conditional_handler_literals: BTreeMap<u32, BTreeMap<String, String>>,
-    conditional_handler_incoming: BTreeMap<u32, BTreeSet<String>>,
+    conditional_argument_incoming: BTreeMap<u32, BTreeSet<String>>,
+    conditional_caller_alias_prefixes: BTreeSet<u32>,
     aliases: BTreeSet<String>,
     stores: BTreeSet<(u32, String)>,
     frame: super::declaration_layout::OriginalDiagnosticFrameEntry,
@@ -230,18 +324,36 @@ impl DeclarationFlowReport {
     }
 
     /// An original formal still carries its incoming value at this declared
-    /// handler site. Joins and unknown writers withdraw this conditional
-    /// provenance; it grants neither an actual read nor a caller value.
-    pub(crate) fn conditional_handler_keeps_incoming(
+    /// argument entry, before this command's operands and dispatch. The caller
+    /// must independently close intervening operand effects. Unknown earlier
+    /// writers and joins withdraw this source-only provenance; this command's
+    /// unavailable handler cannot erase its own available argument prefix.
+    /// This grants neither an actual read nor a caller value.
+    pub(crate) fn conditional_argument_keeps_incoming(
         &self,
         site: &CommandAllocationSite,
         name: &str,
     ) -> bool {
         site.source == self.source
             && self
-                .conditional_handler_incoming
+                .conditional_argument_incoming
                 .get(&site.offset)
                 .is_some_and(|names| names.contains(name))
+    }
+
+    /// Every original alias in this available declaration prefix selects the
+    /// immediate caller's frame. This conditional name-layout fact does not
+    /// establish a successful alias, actual caller address or receiver entry.
+    pub(crate) fn conditional_alias_prefix_targets_caller(
+        &self,
+        site: &CommandAllocationSite,
+    ) -> bool {
+        // naming.tcloo.original-declared-receiver-caller-traits
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
+        self.source == site.source
+            && self
+                .conditional_caller_alias_prefixes
+                .contains(&site.offset)
     }
 
     /// Original argument entry under the accepted declared-frame layouts.
@@ -299,7 +411,7 @@ impl SourceInvocationBinding {
     pub(crate) fn declaration_flow_report(
         &self,
         registry: &tcl_registry::CommandRegistry,
-    ) -> Option<DeclarationFlowReport> {
+    ) -> Option<Arc<DeclarationFlowReport>> {
         let observations = super::declaration_layout::original_declaration_layouts(
             self.declaration_layout_observations.as_deref()?,
         )?;
@@ -319,6 +431,16 @@ impl SourceInvocationBinding {
         if observations.clone().any(|item| item.config != config) {
             return None;
         }
+        let key = DeclarationFlowKey {
+            entry: Arc::clone(&first.entry),
+            config,
+            dialect,
+            registry: registry.snapshot().semantic_key(),
+        };
+        if let Some(report) = inventory.reports.get(&key) {
+            return Some(report);
+        }
+        // Nested source queries must never run under the cache lock.
         let mut builder = Builder {
             inventory,
             registry,
@@ -338,7 +460,7 @@ impl SourceInvocationBinding {
         while let Some(job) = builder.jobs.pop() {
             builder.script(&job);
         }
-        Some(builder.evaluate(entry))
+        Some(inventory.reports.retain(key, builder.evaluate(entry)))
     }
 }
 
@@ -351,7 +473,7 @@ impl super::SourceCommandBindings {
         procedure: &crate::ir::Procedure,
         image: &tcl_lexer::SourceImage,
         registry: &tcl_registry::CommandRegistry,
-    ) -> Option<DeclarationFlowReport> {
+    ) -> Option<Arc<DeclarationFlowReport>> {
         self.declaration_layouts.iter().find_map(|(site, observations)| {
             if !matches!(site.source.kind(), super::SourceOriginKind::Authored(source) if source == image)
                 || !original_procedure_entry_matches(
@@ -364,13 +486,7 @@ impl super::SourceCommandBindings {
             }
             let binding = super::SourceInvocationBinding {
                 declaration_layout_observations: Some(Arc::from(observations.as_slice())),
-                declaration_flow_inventory: Some(Arc::new(DeclarationFlowInventory::new(
-                    self.declaration_layouts.shared(),
-                    self.variable_accesses.shared(),
-                    self.origin_variable_accesses.shared(),
-                    self.points.shared(),
-                    self.origin_points.shared(),
-                ))),
+                declaration_flow_inventory: Some(self.current_declaration_flow_inventory()),
                 ..Default::default()
             };
             let report = binding.declaration_flow_report(registry)?;
@@ -383,6 +499,7 @@ impl super::SourceCommandBindings {
 struct State {
     defined: BTreeSet<String>,
     aliases: BTreeSet<String>,
+    caller_frame_aliases: BTreeSet<String>,
     unknown_writers: bool,
     literals: BTreeMap<String, String>,
     incoming: BTreeSet<String>,
@@ -393,6 +510,8 @@ impl State {
         self.defined.retain(|name| other.defined.contains(name));
         self.incoming.retain(|name| other.incoming.contains(name));
         self.aliases.extend(other.aliases.iter().cloned());
+        self.caller_frame_aliases
+            .retain(|name| other.caller_frame_aliases.contains(name));
         self.unknown_writers |= other.unknown_writers;
         self.literals
             .retain(|name, value| other.literals.get(name) == Some(value));
@@ -415,6 +534,7 @@ struct Node {
     possible_output_writes: Vec<String>,
     removes: Vec<String>,
     aliases: Vec<String>,
+    caller_frame_aliases: Vec<String>,
     unknown: bool,
     declared_read_unavailable: bool,
     successors: Vec<usize>,
@@ -656,6 +776,7 @@ impl Builder<'_> {
                 tokens,
                 &observation.snapshot,
                 &observation.namespace,
+                observation.config,
             )?;
             if advice.dialect() != self.dialect {
                 return None;
@@ -720,6 +841,9 @@ impl Builder<'_> {
         }
         self.nodes[dispatch].handler_site = Some(site.offset);
         self.nodes[dispatch].aliases.clone_from(&selected.aliases);
+        self.nodes[dispatch]
+            .caller_frame_aliases
+            .clone_from(&selected.caller_frame_aliases);
         self.nodes[dispatch].unknown = selected.effects.unknown_writes;
         self.nodes[dispatch].named_reads.clone_from(&selected.reads);
         self.nodes[dispatch]
@@ -1550,7 +1674,8 @@ impl Builder<'_> {
             quoted_use_unavailable: false,
             declared_entries: BTreeSet::new(),
             conditional_handler_literals: BTreeMap::new(),
-            conditional_handler_incoming: BTreeMap::new(),
+            conditional_argument_incoming: BTreeMap::new(),
+            conditional_caller_alias_prefixes: BTreeSet::new(),
             aliases: BTreeSet::new(),
             stores: BTreeSet::new(),
             frame: self.entry.clone(),
@@ -1592,6 +1717,18 @@ impl Builder<'_> {
             let Some(state) = &warning_paths[id] else {
                 continue;
             };
+            // naming.compiler.original-formal-argument-entry
+            // docs/design/analysis/name-resolution-proofs/original-formal-argument-entry.md
+            if let Some(site) = node.site
+                && !state.unknown_writers
+            {
+                report
+                    .conditional_argument_incoming
+                    .insert(site, state.incoming.clone());
+                if state.aliases.is_subset(&state.caller_frame_aliases) {
+                    report.conditional_caller_alias_prefixes.insert(site);
+                }
+            }
             if let Some(site) = node.handler_site
                 && !state.unknown_writers
             {
@@ -1602,9 +1739,6 @@ impl Builder<'_> {
                     .map(|(name, value)| (name.clone(), value.clone()))
                     .collect();
                 report.conditional_handler_literals.insert(site, literals);
-                report
-                    .conditional_handler_incoming
-                    .insert(site, state.incoming.clone());
             }
             for (name, span) in &node.authored_reads {
                 if !state.defined.contains(name) && !state.aliases.contains(name) {
@@ -1624,19 +1758,25 @@ impl Builder<'_> {
     }
 
     fn initial_state(&self) -> State {
+        let names = self.entry.original_formal_topology().map_or_else(
+            || {
+                self.entry
+                    .parameters()
+                    .iter()
+                    .map(|formal| formal.name.clone())
+                    .collect::<BTreeSet<_>>()
+            },
+            |topology| {
+                topology
+                    .parameters()
+                    .iter()
+                    .filter_map(|formal| std::str::from_utf8(&formal.name).ok().map(str::to_owned))
+                    .collect::<BTreeSet<_>>()
+            },
+        );
         State {
-            incoming: self
-                .entry
-                .parameters()
-                .iter()
-                .map(|formal| formal.name.clone())
-                .collect(),
-            defined: self
-                .entry
-                .parameters()
-                .iter()
-                .map(|formal| formal.name.clone())
-                .collect(),
+            incoming: names.clone(),
+            defined: names,
             ..State::default()
         }
     }
@@ -1851,6 +1991,12 @@ impl Builder<'_> {
         {
             state.incoming.remove(name);
         }
+        for name in node.removes.iter().chain(&node.aliases) {
+            state.caller_frame_aliases.remove(name);
+        }
+        state
+            .caller_frame_aliases
+            .extend(node.caller_frame_aliases.iter().cloned());
         state.aliases.extend(node.aliases.iter().cloned());
         for name in node.removes.iter().chain(&node.writes).chain(&node.aliases) {
             state.literals.remove(name);
@@ -1959,7 +2105,7 @@ fn strict_expression_owner(
 mod tests {
     use super::*;
 
-    fn report(source: &str) -> DeclarationFlowReport {
+    fn report(source: &str) -> Arc<DeclarationFlowReport> {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
         let bindings = super::super::SourceCommandBindings::analyse(source, config, registry);
@@ -1980,6 +2126,70 @@ mod tests {
             .unwrap()
             .declaration_flow_report(registry)
             .expect("accepted original declaration owns a diagnostic graph")
+    }
+
+    #[test]
+    fn original_declaration_flow_cache_retains_full_inventory_and_query_identity() {
+        // Implementation contract: naming.source.declaration-flow-report-cache (docs/design/analysis/name-resolution-proofs/declaration-flow-report-cache.md).
+        let owner = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = owner.commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
+        let source = "set anchor 1; list $anchor";
+        let mut bindings = super::super::SourceCommandBindings::analyse(source, config, registry);
+        let call = bindings.invocation_at_source("set", 0);
+        let first = call.declaration_flow_report(registry).unwrap();
+        let again = bindings
+            .invocation_at_source("set", 0)
+            .declaration_flow_report(registry)
+            .unwrap();
+        assert!(Arc::ptr_eq(&first, &again));
+        let inventory = call.declaration_flow_inventory.as_ref().unwrap();
+        let key = inventory.reports.0.lock().unwrap()[0].0.clone();
+        let mut changed = key.clone();
+        changed.config.strict_quoting = !changed.config.strict_quoting;
+        assert!(inventory.reports.get(&changed).is_none());
+        changed = key.clone();
+        changed.registry = tcl_registry::model::ingress::static_context_for("tcl8.5")
+            .commands()
+            .snapshot()
+            .semantic_key();
+        assert!(inventory.reports.get(&changed).is_none());
+        changed = key.clone();
+        let super::super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
+            source,
+            frame,
+            namespace,
+        } = key.entry.as_ref()
+        else {
+            panic!("original root entry");
+        };
+        let mut foreign_source = source.clone();
+        foreign_source.text = tcl_lexer::SourceImage::native(source.text.bytes());
+        foreign_source.origin = Arc::new(super::super::SourceOriginId::authored_image(
+            foreign_source.text.clone(),
+        ));
+        changed.entry = Arc::new(
+            super::super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
+                source: foreign_source,
+                frame: frame.clone(),
+                namespace: namespace.clone(),
+            },
+        );
+        assert!(inventory.reports.get(&changed).is_none());
+        let clone = bindings.clone();
+        assert!(clone.declaration_flow_cache.0.lock().unwrap().is_none());
+        let detached = clone.current_declaration_flow_inventory();
+        assert!(!Arc::ptr_eq(inventory, &detached));
+        assert!(detached.reports.0.lock().unwrap().is_empty());
+        let point = bindings.points[0].clone();
+        bindings.points.push(point);
+        let next = bindings.current_declaration_flow_inventory();
+        assert!(!Arc::ptr_eq(inventory, &next));
+        assert!(next.reports.0.lock().unwrap().is_empty());
+        assert!(Arc::ptr_eq(
+            &first,
+            &call.declaration_flow_report(registry).unwrap()
+        ));
     }
 
     #[test]

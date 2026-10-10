@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Registry-driven traversal of statically executable Tcl source regions.
+//! Registry-driven traversal of potential Tcl source regions.
 //!
 //! Consumers that need to inspect a command embedded in another command must
 //! not each invent a partial list of body-bearing commands.  This walker keeps
@@ -11,7 +11,8 @@
 //! normal body arguments, clause-list arm bodies, lambda bodies, definition
 //! members, and live command substitutions.
 
-use tcl_compiler::lambda_literal::split_lambda_literal;
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::lambda_literal::{split_lambda_literal, split_original_lambda_literal};
 use tcl_compiler::realm::CommandBindingRealm;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::model::SurfaceQuery;
@@ -25,17 +26,17 @@ use crate::oo_body::{HeadWords, is_member, member_body_indices_in, next_definiti
 const MAX_EXECUTABLE_REGION_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
-/// Whether a command is in the directly executed region or merely in a body
-/// whose execution depends on control flow, a later callback, or invocation.
+/// Whether source belongs to the direct region or a potential body.
+/// This classification supplies no reached execution, frame, effects or completion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ExecutableContext {
-    /// Top-level source or a live command substitution reached from it.
+    /// Top-level source or a live command-substitution source region.
     Direct,
     /// A registry-declared body, case action, definition body, or lambda body.
     PotentialBody,
 }
 
-/// The deepest statically executable source region containing a cursor.
+/// The deepest potential source region containing a cursor.
 ///
 /// `start` follows the delimiter that introduced the region. `depth` is the
 /// lexer nesting depth required to interpret its prefix with the same grammar
@@ -43,6 +44,7 @@ pub(crate) enum ExecutableContext {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ExecutableRegion {
     pub(crate) start: usize,
+    pub(crate) end: usize,
     pub(crate) depth: u32,
 }
 
@@ -57,71 +59,94 @@ impl RegionProbe {
             && self.cursor <= end
             && self.best.is_none_or(|best| depth > best.depth)
         {
-            self.best = Some(ExecutableRegion { start, depth });
+            self.best = Some(ExecutableRegion { start, end, depth });
         }
     }
 }
 
-/// Visit every statically locatable command that Tcl can execute from
-/// `source`, preserving each command's absolute source spans.
-///
-/// `visitor` returns `true` to stop early.  A callback receives the head in
-/// its written and registry-resolved forms; the latter is empty for a proven
-/// rebound command, so registry grammar is never applied to a shadowed or
-/// mutated builtin.  Definition members deliberately use their written head:
-/// they are lexical keywords, not global command bindings.
-pub(crate) fn visit_executable_commands(
+/// Visit original potential source regions under the same retained analysis.
+/// Body applicability stays conditional; this supplies no execution or frame.
+pub(crate) fn visit_analysis_executable_commands(
     source: &str,
-    config: LexerConfig,
-    registry: &CommandRegistry,
-    availability: Option<SurfaceQuery<'_>>,
-    identities: &CommandBindingRealm,
+    analysis: &AnalysisResult,
     visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
 ) {
+    let Some((config, registry, identities)) = analysis_walk_inputs(source, analysis) else {
+        return;
+    };
+    let input = analysis
+        .resolved_input
+        .as_ref()
+        .expect("validated original input");
     let mut walk = ExecutableWalker {
         source,
         config,
         registry,
-        availability,
+        availability: Some(input.availability_context().authoring_query()),
         identities,
         visitor,
         region_probe: None,
+        analysis: Some(analysis),
+        definition_parent: None,
     };
     let _ = walk.region(0, source.len(), 0, None, ExecutableContext::Direct);
 }
 
-/// Return the innermost registry-declared executable region containing
-/// `cursor`.
-///
-/// This is the cursor-oriented counterpart to [`visit_executable_commands`]:
-/// it follows the exact same body, clause-list, lambda, definition-member, and
-/// command-substitution metadata. Consumers therefore do not need to infer
-/// script bodies from brace characters or command names.
-pub(crate) fn innermost_executable_region_at(
+/// Innermost original source region under the actual complete input/Registry.
+pub(crate) fn innermost_analysis_executable_region_at(
     source: &str,
-    config: LexerConfig,
+    analysis: &AnalysisResult,
     registry: &CommandRegistry,
-    availability: Option<SurfaceQuery<'_>>,
-    identities: &CommandBindingRealm,
     cursor: usize,
 ) -> Option<ExecutableRegion> {
-    if cursor > source.len() {
+    let (config, actual_registry, identities) = analysis_walk_inputs(source, analysis)?;
+    if cursor > source.len()
+        || registry.snapshot().semantic_key() != actual_registry.snapshot().semantic_key()
+    {
         return None;
     }
+    let input = analysis.resolved_input.as_ref()?;
     let mut probe = RegionProbe { cursor, best: None };
     let mut visitor =
         |_command: &SegmentedCommand, _head: HeadWords<'_>, _context: ExecutableContext| false;
     let mut walk = ExecutableWalker {
         source,
         config,
-        registry,
-        availability,
+        registry: actual_registry,
+        availability: Some(input.availability_context().authoring_query()),
         identities,
         visitor: &mut visitor,
         region_probe: Some(&mut probe),
+        analysis: Some(analysis),
+        definition_parent: None,
     };
     let _ = walk.region(0, source.len(), 0, None, ExecutableContext::Direct);
+    if let Some(region) = identities.original_incomplete_body_region_at(
+        &tcl_lexer::SourceImage::document(source),
+        config,
+        u32::try_from(cursor).ok()?,
+        actual_registry,
+    ) {
+        probe.consider(region.start() as usize, region.end() as usize, 1);
+    }
     probe.best
+}
+
+fn analysis_walk_inputs<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+) -> Option<(LexerConfig, &'a CommandRegistry, &'a CommandBindingRealm)> {
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    let image = tcl_lexer::SourceImage::document(source);
+    if input.lexer_config() != config || !analysis.matches_original_source_image(&image, config) {
+        return None;
+    }
+    Some((
+        config,
+        analysis.resolved_registry()?,
+        analysis.retained_command_realm()?,
+    ))
 }
 
 struct ExecutableWalker<'a, F> {
@@ -132,6 +157,8 @@ struct ExecutableWalker<'a, F> {
     identities: &'a CommandBindingRealm,
     visitor: &'a mut F,
     region_probe: Option<&'a mut RegionProbe>,
+    analysis: Option<&'a AnalysisResult>,
+    definition_parent: Option<tcl_compiler::registry_invocation::OriginalSourceScriptBody>,
 }
 
 impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
@@ -145,6 +172,25 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
             probe.consider(start, end, depth);
         }
         start < end
+    }
+
+    fn original_region(
+        &mut self,
+        span: tcl_lexer::Span,
+        depth: u32,
+        parent: Option<tcl_compiler::registry_invocation::OriginalSourceScriptBody>,
+        context: ExecutableContext,
+    ) -> bool {
+        let previous = std::mem::replace(&mut self.definition_parent, parent);
+        let stopped = self.region(
+            span.start() as usize,
+            span.end() as usize,
+            depth,
+            None,
+            context,
+        );
+        self.definition_parent = previous;
+        stopped
     }
 
     fn region(
@@ -163,6 +209,13 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
             u32::try_from(start).unwrap_or(0),
             self.config.at_depth(depth),
         );
+        let definition_members = self.analysis.and_then(|analysis| {
+            let context = analysis.resolved_input.as_ref()?.context_registry();
+            self.definition_parent.as_ref()?.definition_member_region(
+                &context,
+                tcl_lexer::Span::new(u32::try_from(start).ok()?, u32::try_from(end).ok()?),
+            )
+        });
         for command in &commands {
             let Some(head_tok) = command.argv.first() else {
                 continue;
@@ -181,6 +234,12 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
                 return true;
             }
 
+            if self.analysis.is_some() {
+                if self.original_source_regions(command, depth, definition_members.as_ref()) {
+                    return true;
+                }
+                continue;
+            }
             let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
             let member = grammar.filter(|g| is_member(g, head.written));
             let body_indices = member.map_or_else(
@@ -268,6 +327,135 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
         false
     }
 
+    fn original_source_regions(
+        &mut self,
+        command: &SegmentedCommand,
+        depth: u32,
+        definition_members: Option<
+            &tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion,
+        >,
+    ) -> bool {
+        // naming.core.original-executable-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md
+        let Some(analysis) = self.analysis else {
+            return false;
+        };
+        let Some(input) = analysis.resolved_input.as_ref() else {
+            return false;
+        };
+        let context = input.context_registry();
+        if let Some(members) = definition_members {
+            if let Some(words) = command
+                .argv
+                .first()
+                .and_then(|head| members.original_command_words_at(head.span.start()))
+                && let Some(bodies) = members.script_bodies(words)
+            {
+                for body in bodies {
+                    if self.original_region(
+                        body.content_span(),
+                        depth + 1,
+                        body.definition_parent().cloned(),
+                        ExecutableContext::PotentialBody,
+                    ) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+        if let Some(words) =
+            tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                self.source,
+                analysis,
+                command,
+            )
+        {
+            for body in words.source_script_bodies_for(
+                &context,
+                tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+            ) {
+                let parent = body.definition_parent_for(&context, self.definition_parent.as_ref());
+                if self.original_region(
+                    body.content_span(),
+                    depth + 1,
+                    parent,
+                    ExecutableContext::PotentialBody,
+                ) {
+                    return true;
+                }
+            }
+            if let Some(bodies) = words.source_expression_script_bodies(input) {
+                for body in bodies {
+                    if self.original_region(
+                        body.content_span(),
+                        depth + 1,
+                        self.definition_parent.clone(),
+                        ExecutableContext::PotentialBody,
+                    ) {
+                        return true;
+                    }
+                }
+            }
+            return self.original_lambda_regions(&words, &context, depth);
+        }
+        if let Some(declared) =
+            tcl_compiler::registry_invocation::source_structure::source_declared_command_words(
+                self.source,
+                analysis,
+                command,
+            )
+        {
+            for body in declared.source_script_bodies_for(
+                tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+            ) {
+                if self.original_region(
+                    body.content_span(),
+                    depth + 1,
+                    None,
+                    ExecutableContext::PotentialBody,
+                ) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn original_lambda_regions(
+        &mut self,
+        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+        context: &tcl_registry::model::ContextRegistry,
+        depth: u32,
+    ) -> bool {
+        let executable = words
+            .with_source_schema(context, |schema| schema.authored_source_script_arguments())
+            .flatten()
+            .unwrap_or_default();
+        for (index, role) in words.roles().unwrap_or_default() {
+            if *role != ArgRole::LambdaLiteral || !executable.contains(index) {
+                continue;
+            }
+            let Some(word) = words
+                .operands()
+                .get(*index)
+                .and_then(Option::as_ref)
+                .and_then(|operand| operand.word())
+            else {
+                continue;
+            };
+            let Some(body) =
+                split_original_lambda_literal(word).and_then(|fields| fields.braced_body())
+            else {
+                continue;
+            };
+            if self.original_region(body, depth + 1, None, ExecutableContext::PotentialBody) {
+                return true;
+            }
+        }
+        false
+    }
+
     fn live_substitutions(
         &mut self,
         command: &SegmentedCommand,
@@ -275,6 +463,30 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
         grammar: Option<&'static DefinitionBodyGrammar>,
         context: ExecutableContext,
     ) -> bool {
+        if self.analysis.is_some() {
+            let image = tcl_lexer::SourceImage::document(self.source);
+            let Ok(plan) = tcl_lexer::native_script_words_in(image, command.span, self.config)
+            else {
+                return false;
+            };
+            for command in plan.commands {
+                for word in command.words {
+                    for part in word.executable_parts().all_parts() {
+                        if let tcl_lexer::ExecutablePart::Command { body } = part.part
+                            && self.original_region(
+                                body,
+                                depth + 1,
+                                self.definition_parent.clone(),
+                                context,
+                            )
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
         command.argv.iter().any(|token| {
             command_substitution_regions(self.source, self.config, *token)
                 .into_iter()
@@ -410,7 +622,7 @@ fn quoted_literal_body_region(source: &str, token: Token) -> Option<(usize, usiz
 /// Locate active bracket substitutions inside one token, preserving absolute
 /// offsets.  The segmenter coalesces compound bare/quoted words into `Esc`,
 /// so those are re-lexed to recover every embedded `Cmd` fragment.
-fn command_substitution_regions(
+pub(crate) fn command_substitution_regions(
     source: &str,
     config: LexerConfig,
     token: Token,
@@ -453,72 +665,44 @@ fn command_substitution_regions(
     }
 }
 
-/// Whether `cursor` is inside an active command substitution within `token`.
-///
-/// Consumers that inspect the containing word must defer to the recursively
-/// executable command in this case: a widened quoted or compound token is not
-/// a literal fragment at a position Tcl evaluates as `[...]`.
-pub(crate) fn cursor_in_command_substitution(
-    source: &str,
-    config: LexerConfig,
-    token: Token,
-    cursor: u32,
-) -> bool {
-    command_substitution_regions(source, config, token)
-        .into_iter()
-        .any(|(start, end)| cursor as usize >= start && (cursor as usize) < end)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn visited_format_heads(
-        source: &str,
-        dialect: &'static tcl_dialect::DialectProfile,
-    ) -> Vec<(String, String, u32)> {
-        let profile = dialect;
-        let registry = crate::registry_for_dialect_profile(profile);
-        let config = LexerConfig::for_file_dialect(profile.name);
-        let identities =
-            tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
+    fn visited_format_heads(source: &str, dialect: &str) -> Vec<(String, u32, String)> {
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
         let mut heads = Vec::new();
-        visit_executable_commands(
-            source,
-            config,
-            registry,
-            Some(profile.surface_query()),
-            &identities,
-            &mut |command, identity, _context| {
-                if command.name() == "format" || command.name() == "fmt" {
-                    heads.push((
-                        identity.written.to_owned(),
-                        identity.resolved.to_owned(),
-                        command.span.start(),
-                    ));
-                }
-                false
-            },
-        );
+        visit_analysis_executable_commands(source, &analysis, &mut |command, identity, context| {
+            if command.name() == "format" || command.name() == "fmt" {
+                assert_eq!(context, ExecutableContext::PotentialBody);
+                // Original potential source has a written head and whole
+                // command span, independently of entered-frame lookup.
+                heads.push((
+                    identity.written.to_owned(),
+                    command.span.start(),
+                    source[command.span.start() as usize..command.span.end() as usize].to_owned(),
+                ));
+            }
+            false
+        });
         heads
     }
 
     #[test]
     fn quoted_case_actions_retain_absolute_spans_for_each_registry_descriptor() {
+        // naming.core.original-executable-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md
         for (source, dialect, written) in [
             ("switch $x {a \"format {%d} 1\"}", "tcl8.6", "format"),
             ("expect {-re {ready} \"format {%d} 1\"}", "expect", "format"),
         ] {
-            let heads = visited_format_heads(
-                source,
-                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
-            );
+            let heads = visited_format_heads(source, dialect);
             assert_eq!(
                 heads,
                 vec![(
                     written.to_owned(),
-                    "format".to_owned(),
                     u32::try_from(source.rfind(written).expect("nested head")).unwrap(),
+                    "format {%d} 1".to_owned(),
                 ),],
                 "quoted case action must preserve its whole-document command span: {source}"
             );
@@ -527,31 +711,27 @@ mod tests {
 
     #[test]
     fn quoted_case_actions_preserve_identity_and_abstain_for_dynamic_or_malformed_lists() {
+        // naming.core.original-executable-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md
         let aliased = "interp alias {} fmt {} format\nswitch $x {a \"fmt {%d} 1\"}";
         assert_eq!(
-            visited_format_heads(
-                aliased,
-                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
-            ),
+            visited_format_heads(aliased, "tcl8.6"),
             vec![(
                 "fmt".to_owned(),
-                "format".to_owned(),
                 u32::try_from(aliased.rfind("fmt").expect("nested alias")).unwrap(),
+                "fmt {%d} 1".to_owned(),
             )]
         );
 
         let renamed = "rename format saved\nswitch $x {a \"format {%d} 1\"}";
         assert_eq!(
-            visited_format_heads(
-                renamed,
-                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
-            ),
+            visited_format_heads(renamed, "tcl8.6"),
             vec![(
                 "format".to_owned(),
-                String::new(),
                 u32::try_from(renamed.rfind("format").expect("nested head")).unwrap(),
+                "format {%d} 1".to_owned(),
             )],
-            "the nested call remains executable but must not reclaim a renamed builtin"
+            "a renamed head retains only its written potential source; lookup is a separate question"
         );
 
         for source in [
@@ -559,11 +739,7 @@ mod tests {
             "switch $x {a \"format {%d} 1\" orphan}",
         ] {
             assert!(
-                visited_format_heads(
-                    source,
-                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
-                )
-                .is_empty(),
+                visited_format_heads(source, "tcl8.6").is_empty(),
                 "dynamic and malformed lists must not expose nested actions: {source}"
             );
         }
@@ -571,28 +747,24 @@ mod tests {
 
     #[test]
     fn quoted_declared_bodies_recurse_only_when_source_mappable() {
-        let dialect =
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        // naming.core.original-executable-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md
+        let dialect = "tcl8.6";
         let literal = "proc p {} \"format {%d} 1\"";
         assert_eq!(
             visited_format_heads(literal, dialect),
             vec![(
                 "format".to_owned(),
-                "format".to_owned(),
                 u32::try_from(literal.find("format").expect("nested head")).unwrap(),
+                "format {%d} 1".to_owned(),
             )],
-            "a substitution-free quoted body is executable at its written span",
+            "a complete substitution-free quoted body retains its potential source span",
         );
 
         let unterminated = "proc p {} \"format {%d} 1";
-        assert_eq!(
-            visited_format_heads(unterminated, dialect),
-            vec![(
-                "format".to_owned(),
-                "format".to_owned(),
-                u32::try_from(unterminated.find("format").expect("nested head")).unwrap(),
-            )],
-            "an unterminated quoted body remains executable through EOF",
+        assert!(
+            visited_format_heads(unterminated, dialect).is_empty(),
+            "an incomplete quoted operand cannot issue a complete potential body; cursor recovery is a separate purpose",
         );
 
         for source in [
@@ -607,8 +779,296 @@ mod tests {
     }
 
     #[test]
+    fn original_analysis_regions_keep_alias_case_and_shadow_source_ownership() {
+        // naming.core.original-executable-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md
+        for source in [
+            "interp alias {} choose {} switch\nchoose x {x {format live}}",
+            "if 1 {format live}",
+            "apply {{} {format live}}",
+            "expr {[format live]}",
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let mut nested = 0;
+            visit_analysis_executable_commands(source, &analysis, &mut |command, _, context| {
+                if command.name() == "format" && context == ExecutableContext::PotentialBody {
+                    nested += 1;
+                }
+                false
+            });
+            assert_eq!(nested, 1, "{source}");
+        }
+        let source = "proc if args {}\nif 1 {format inert}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let mut nested = 0;
+        visit_analysis_executable_commands(source, &analysis, &mut |command, _, _| {
+            if command.name() == "format" {
+                nested += 1;
+            }
+            false
+        });
+        assert_eq!(nested, 0);
+    }
+
+    #[test]
+    fn original_analysis_regions_decline_stale_source_config_and_registry() {
+        // naming.core.original-executable-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md
+        let source = "if 1 {format live}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let registry = analysis.resolved_registry().unwrap();
+        let cursor = source.find("live").unwrap();
+        assert!(
+            innermost_analysis_executable_region_at(source, &analysis, registry, cursor).is_some()
+        );
+        assert!(
+            innermost_analysis_executable_region_at(
+                "if 1 {format stale}",
+                &analysis,
+                registry,
+                cursor
+            )
+            .is_none()
+        );
+        let mut stale = analysis.clone();
+        stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(
+            innermost_analysis_executable_region_at(source, &stale, registry, cursor).is_none()
+        );
+        let mut changed = CommandRegistry::build_default();
+        changed.insert(tcl_registry::CommandSpec {
+            name: "foreign-command",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert!(
+            innermost_analysis_executable_region_at(source, &analysis, &changed, cursor).is_none()
+        );
+    }
+
+    #[test]
+    fn retained_analysis_regions_respect_reference_only_script_purpose() {
+        // naming.source.original-script-region-purpose
+        // docs/design/analysis/name-resolution-proofs/original-script-region-purpose.md
+        fn reference_only_first(
+            _args: tcl_registry::InvocationArguments<'_>,
+        ) -> Vec<(u8, ScriptTiming)> {
+            vec![(0, ScriptTiming::ReferenceOnly)]
+        }
+        let source = "reference-script {format reference}\nrun-script {format potential}";
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "reference-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, ArgRole::Body)],
+            script_timing_resolver: Some(reference_only_first),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        registry.insert(tcl_registry::CommandSpec {
+            name: "run-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, ArgRole::Body)],
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let generation = tcl_registry::model::context_for_profile(profile);
+        let context =
+            std::sync::Arc::new(generation.with_command_store(std::sync::Arc::new(registry)));
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl8.6");
+        let mut visited = Vec::new();
+        visit_analysis_executable_commands(source, &analysis, &mut |command, _, scope| {
+            if command.name() == "format" {
+                visited.push((command.span.start(), scope));
+            }
+            false
+        });
+        assert_eq!(
+            visited,
+            vec![(
+                u32::try_from(source.rfind("format").unwrap()).unwrap(),
+                ExecutableContext::PotentialBody
+            )]
+        );
+        let segment = segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let words =
+            crate::original_invocation::source_registry_words(source, &analysis, &segment).unwrap();
+        assert_eq!(
+            words.source_script_bodies(&context).len(),
+            1,
+            "reference syntax remains available to navigation"
+        );
+        assert!(words.source_script_bodies_for(&context, tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation).is_empty());
+    }
+
+    #[test]
+    fn original_analysis_definition_vocabulary_clears_ordinary_and_procedure_bodies() {
+        // naming.core.original-executable-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md
+        for (source, expected) in [
+            (
+                "oo::class create C {if 1 {method café {} {format live}}}",
+                1,
+            ),
+            (
+                "oo::class create C {self self {method café {} {format live}}}",
+                1,
+            ),
+            (
+                "oo::class create C {proc p {} {method ordinary {} {format inert}}}",
+                0,
+            ),
+            (
+                "oo::class create C {method m {} {method ordinary {} {format inert}}}",
+                0,
+            ),
+            (
+                "oo::class create C {apply {{} {method ordinary {} {format inert}}}}",
+                0,
+            ),
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let mut visited = Vec::new();
+            visit_analysis_executable_commands(source, &analysis, &mut |command, _, context| {
+                if command.name() == "format" {
+                    visited.push((command.span.start(), context));
+                }
+                false
+            });
+            assert_eq!(visited.len(), expected, "{source}");
+            for (start, context) in visited {
+                assert_eq!(
+                    source.get(start as usize..start as usize + 6),
+                    Some("format")
+                );
+                assert_eq!(context, ExecutableContext::PotentialBody);
+            }
+        }
+    }
+
+    #[test]
+    fn original_analysis_member_regions_keep_parent_vocabulary_and_whole_geometry() {
+        // naming.core.original-executable-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md
+        for (source, dialect, expected) in [
+            (
+                "oo::class create C {method café {} {format live}}",
+                "tcl8.6",
+                1,
+            ),
+            (
+                "oo::class create C {self self {method m {} {format live}}}",
+                "tcl8.6",
+                1,
+            ),
+            (
+                "oo::class create C {method m -private {} {format live}}",
+                "tcl9.0",
+                1,
+            ),
+            (
+                "oo::class create C {method m -private {} {format hidden}}",
+                "tcl8.6",
+                0,
+            ),
+            (
+                "oo::class create C {$member m {} {format hidden}}",
+                "tcl8.6",
+                0,
+            ),
+            (
+                "oo::class create C {method m $params {format hidden}}",
+                "tcl8.6",
+                0,
+            ),
+            (
+                r#"oo::class create C {method m {} "\u0066ormat hidden"}"#,
+                "tcl8.6",
+                0,
+            ),
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+            let mut visited = Vec::new();
+            visit_analysis_executable_commands(source, &analysis, &mut |command, _, context| {
+                if command.name() == "format" {
+                    visited.push((command.span.start(), context));
+                }
+                false
+            });
+            assert_eq!(visited.len(), expected, "{source}");
+            for (start, context) in visited {
+                assert_eq!(
+                    usize::try_from(start).unwrap(),
+                    source.find("format").unwrap()
+                );
+                assert_eq!(context, ExecutableContext::PotentialBody);
+            }
+        }
+        let source = "oo::class create C {method m {} prefix[format live]suffix}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let mut visited = Vec::new();
+        visit_analysis_executable_commands(source, &analysis, &mut |command, _, _| {
+            if command.name() == "format" {
+                visited.push(command.span.start());
+            }
+            false
+        });
+        assert_eq!(
+            visited,
+            vec![u32::try_from(source.find("format").unwrap()).unwrap()],
+            "live compound-word substitution keeps whole original word geometry"
+        );
+    }
+
+    #[test]
+    fn original_analysis_declared_body_roles_keep_syntax_separate_from_timing() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {script:body}\n# tcl-lsp: stubs-end\nhold {format source-only}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let config = analysis.body_lexer_config.unwrap();
+        let command = segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let words =
+            tcl_compiler::registry_invocation::source_structure::source_declared_command_words(
+                source, &analysis, &command,
+            )
+            .unwrap();
+        assert_eq!(
+            words
+                .source_script_bodies_for(
+                    tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::Syntax
+                )
+                .len(),
+            1
+        );
+        assert!(words.source_script_bodies_for(tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation).is_empty());
+        let mut visited = Vec::new();
+        visit_analysis_executable_commands(source, &analysis, &mut |command, _, _| {
+            if command.name() == "format" {
+                visited.push(command.span.start());
+            }
+            false
+        });
+        assert!(
+            visited.is_empty(),
+            "a declaration without timing cannot acquire potential evaluation"
+        );
+    }
+
+    #[test]
     fn reference_only_bodies_are_not_executable_regions() {
-        fn reference_only_first(_args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+        // naming.core.original-executable-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md
+        fn reference_only_first(
+            _args: tcl_registry::InvocationArguments<'_>,
+        ) -> Vec<(u8, ScriptTiming)> {
             vec![(0, ScriptTiming::ReferenceOnly)]
         }
 
@@ -621,18 +1081,22 @@ mod tests {
             script_timing_resolver: Some(reference_only_first),
             ..tcl_registry::CommandSpec::DEFAULT
         });
-        let config = LexerConfig::for_file_dialect("tcl8.6");
-        let identities =
-            tcl_compiler::realm::document_realm_bindings_with_config(source, config, &registry);
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let base = tcl_registry::model::context_for_profile(profile);
+        let context = std::sync::Arc::new(base.with_command_store(std::sync::Arc::new(registry)));
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl8.6");
         let mut frame_spans = Vec::new();
-        visit_executable_commands(
+        visit_analysis_executable_commands(
             source,
-            config,
-            &registry,
-            None,
-            &identities,
-            &mut |command, _identity, _context| {
+            &analysis,
+            &mut |command, _identity, context| {
                 if command.name() == "frame" {
+                    assert_eq!(context, ExecutableContext::PotentialBody);
                     frame_spans.push(command.span.start());
                 }
                 false

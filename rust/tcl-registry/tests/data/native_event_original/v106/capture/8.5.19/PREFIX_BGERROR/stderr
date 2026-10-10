@@ -1,0 +1,7 @@
+error in background error handler:
+wrong # args: should be "handler prefix message"
+    while executing
+"handler PRE BOOM {-code 1 -level 0 -errorcode NONE -errorinfo {BOOM
+    while executing
+"error BOOM"
+    ("after" script)} -errorline 1}"

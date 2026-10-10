@@ -11,6 +11,12 @@ fn actual(engine: &str) -> Vm {
 
 #[test]
 fn original_procedure_colon_names_match_all_18_native_home_and_error_controls() {
+    // Native proof: naming.procedure-source.colon-namespace-home
+    // docs/design/analysis/name-resolution-proofs/procedure-source.colon-namespace-home.md
+    // Native proof: naming.procedure-source.colon-local-name
+    // docs/design/analysis/name-resolution-proofs/procedure-source.colon-local-name.md
+    // Native proof: naming.procedure-source.name-before-malformed-formals
+    // docs/design/analysis/name-resolution-proofs/procedure-source.name-before-malformed-formals.md
     let rows = include_str!("../../../tcl-syntax/tests/data/native_procedure_name/rows.txt");
     let decode = |text: &str| {
         text.as_bytes()

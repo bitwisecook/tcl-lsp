@@ -29,6 +29,9 @@ use crate::command::completion_from_cmd_error;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
+mod native_jim;
+#[cfg(test)]
+mod native_jim_inventory_tests;
 mod native_oo;
 
 pub(crate) fn register(vm: &mut Vm) {
@@ -96,7 +99,7 @@ info_members! {
     info_nameofexecutable => "nameofexecutable", info_object => "object",
     info_patchlevel => "patchlevel", info_procs => "procs", info_script => "script",
     info_sharedlibextension => "sharedlibextension", info_tclversion => "tclversion",
-    info_vars => "vars",
+    info_vars => "vars", info_version => "version",
 }
 
 /// `info`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it — the
@@ -134,6 +137,7 @@ const INFO_SUBS: &[&str] = &[
     "sharedlibextension",
     "tclversion",
     "vars",
+    "version",
 ];
 
 /// `info`'s implementation namespace — the `ns_fqn` an empty ensemble's miss
@@ -144,43 +148,80 @@ const INFO_NS: &[u8] = b"::tcl::info";
 /// shared ensemble owner: an exact match wins, otherwise a unique prefix — so
 /// `info command` resolves to `commands` (cmdAH.test). `None` when the word
 /// matches nothing or prefixes several; the caller then reports the miss.
-fn canonical_info_sub<'a>(subs: &[&'a str], sub: &str) -> Option<&'a str> {
-    tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.as_bytes(), true).map(|index| subs[index])
+fn canonical_info_sub<'a>(subs: &[&'a str], sub: &[u8]) -> Option<&'a str> {
+    tcl_cmd_core::ensemble::resolve_subcommand(subs, sub, true).map(|index| subs[index])
 }
 
 #[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
 fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((sub, rest)) = args.split_first() else {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"info subcommand ?arg ...?\"",
-        );
-    };
-    let sub_str = sub.to_str();
-    // `cmdtype`, `constant` and `consts` are Tcl 9 (`class`, `coroutine`,
-    // `errorstack` and `object` 8.6, `frame` 8.5), so the table is filtered to
-    // the emulated release before the scan: on 8.6 `info cm` is `cmdcount`,
-    // on 9.0 it is ambiguous with `cmdtype`.
     let subs = crate::environment::release_subcommands(
         vm.actual_native_execution_profile().name,
         "info",
         INFO_SUBS,
     );
-    // A miss reports here rather than falling through with the raw word: the
-    // arms below match on the canonical name, so a word the *pinned release*
-    // does not have (`info cmdtype` under 8.6) would otherwise still dispatch.
-    let Some(canon) = canonical_info_sub(subs, &sub_str) else {
-        return err(
-            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                sub_str.as_bytes(),
-                true,
-                INFO_NS,
-            ))
-            .into_owned(),
-        );
+    let (canon, rest) = if let Some(protocol) = vm
+        .actual_native_invocation_dialect()
+        .native_jim_info_protocol()
+    {
+        let Some(head) = vm.invoked_name_value() else {
+            return vm.refuse_host_command("original Jim info invocation is unavailable".into());
+        };
+        let mut original = Vec::with_capacity(args.len() + 1);
+        original.push(head);
+        original.extend_from_slice(args);
+        let dispatch = match protocol.dispatch(original.len(), |index| {
+            vm.native_name_operand_bytes(&original[index])
+        }) {
+            Ok(dispatch) => dispatch,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        match dispatch {
+            tcl_registry::commands::tcl::NativeJimInfoDispatch::Member {
+                name,
+                arguments,
+                scope,
+                ..
+            } => {
+                if let Some(kind) = protocol.command_inventory_kind(name) {
+                    return native_jim::command_inventory(
+                        vm,
+                        scope,
+                        &original[arguments - 1..],
+                        kind,
+                    );
+                }
+                (name, &args[arguments - 1..])
+            }
+            tcl_registry::commands::tcl::NativeJimInfoDispatch::Report(report) => {
+                return native_jim::report(vm, protocol, report, &original);
+            }
+        }
+    } else {
+        let Some((sub, rest)) = args.split_first() else {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"info subcommand ?arg ...?\"",
+            );
+        };
+        let sub_bytes = match vm.native_name_operand_bytes(sub) {
+            Ok(bytes) => bytes,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        let Some(canon) = canonical_info_sub(subs, &sub_bytes) else {
+            return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs, &sub_bytes, true, INFO_NS,
+            ));
+        };
+        (canon, rest)
     };
     match canon {
+        "alias" => match rest {
+            [original_name] => match tcl_cmd_core::info::jim_original_alias(vm, original_name) {
+                Ok(original) => ok(original),
+                Err(error) => completion_from_cmd_error(vm, error),
+            },
+            _ => vm.refuse_host_command("selected Jim alias arity".into()),
+        },
         // `info exists varName` — the shared Family-B core over `VarStore::exists`.
         "exists" => match rest {
             [name] => {
@@ -219,9 +260,10 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ),
         },
         "complete" => match rest {
-            [script] => ok(Value::bool(tcl_cmd_core::info::complete(
-                script.to_str().as_bytes(),
-            ))),
+            [script] => match vm.native_name_operand_bytes(script) {
+                Ok(bytes) => ok(Value::bool(tcl_cmd_core::info::complete(&bytes))),
+                Err(error) => vm.refuse_host_command(error.to_string()),
+            },
             _ => crate::command::native_wrong_arguments_message(
                 vm,
                 "wrong # args: should be \"info complete command\"",
@@ -287,7 +329,10 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // `info constant name` — whether `name` is a `const`; `info consts
         // ?pattern?` — the constant names in scope (glob-filtered).
         "constant" => match rest {
-            [name] => ok(Value::bool(vm.is_constant(&name.to_str()))),
+            [name] => match vm.native_name_operand_bytes(name) {
+                Ok(bytes) => ok(Value::bool(vm.is_constant(&bytes))),
+                Err(error) => vm.refuse_host_command(error.to_string()),
+            },
             _ => crate::command::native_wrong_arguments_message(
                 vm,
                 "wrong # args: should be \"info constant varname\"",
@@ -339,8 +384,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             },
             _ => crate::command::native_wrong_args(vm, "info default procname arg varname"),
         },
-        "tclversion" => info_global(vm, rest, "info tclversion", "tcl_version"),
-        "patchlevel" => info_global(vm, rest, "info patchlevel", "tcl_patchLevel"),
+        "tclversion" | "patchlevel" | "version" => info_version_report(vm, rest, canon),
         "sharedlibextension" => match rest {
             [] => ok(Value::string(
                 tcl_platform::bootstrap::SHARED_LIBRARY_EXTENSION,
@@ -351,54 +395,34 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ),
         },
         // `info functions ?pattern?` — the registered `tcl::mathfunc::*` names.
-        "functions" => match rest {
-            [] => ok(Value::list(
-                vm.math_function_names()
-                    .into_iter()
-                    .map(Value::string)
-                    .collect(),
-            )),
-            [pat] => {
-                let p = pat.to_str();
-                ok(Value::list(
-                    vm.math_function_names()
-                        .into_iter()
-                        .filter(|n| tcl_syntax::glob::string_match(&p, n))
-                        .map(Value::string)
-                        .collect(),
-                ))
-            }
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"info functions ?pattern?\"",
-            ),
+        "functions" => info_functions_impl(vm, rest),
+        // The empty original list denotes this interpreter. Each reached child
+        // element uses the shared original-list/C-string path owner.
+        "loaded" => match rest {
+            [] => ok(Value::empty()),
+            [path] | [path, _] => match vm.resolve_interp_path_original(path) {
+                Ok(_) => ok(Value::empty()),
+                Err(error) => error,
+            },
+            _ => crate::command::native_wrong_args(vm, "info loaded ?interp? ?prefix?"),
         },
-        // `info loaded ?interp? ?prefix?` — no binary extensions are loaded, so
-        // the result is empty for the current interp; a named interp must exist.
-        "loaded" => {
-            let interp = match rest {
-                [] => None,
-                [i] | [i, _] => Some(i.to_str()),
-                _ => {
-                    return crate::command::native_wrong_arguments_message(
-                        vm,
-                        "wrong # args: should be \"info loaded ?interp? ?prefix?\"",
-                    );
-                }
-            };
-            match interp {
-                Some(i) if !i.is_empty() => err(format!("could not find interpreter \"{i}\"")),
-                _ => ok(Value::empty()),
-            }
-        }
         // `info cmdtype commandName` — native / proc / alias (interp/object kinds
         // need those subsystems).
         "cmdtype" => match rest {
             [name] => {
-                let n = name.to_str();
-                match vm.command_kind(&n) {
-                    Some(kind) => ok(Value::string(kind)),
-                    None => err(format!("unknown command \"{n}\"")),
+                let bytes = match vm.native_name_operand_bytes(name) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return vm.refuse_host_command(error.to_string()),
+                };
+                match vm.command_kind_bytes_checked(&bytes) {
+                    Ok(Some(kind)) => ok(Value::string(kind)),
+                    Ok(None) => completion_from_cmd_error(
+                        vm,
+                        tcl_cmd_core::CmdError::new_bytes(
+                            [b"unknown command \"".as_slice(), &bytes, b"\""].concat(),
+                        ),
+                    ),
+                    Err(error) => vm.refuse_host_command(error.to_string()),
                 }
             }
             _ => crate::command::native_wrong_arguments_message(
@@ -466,7 +490,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "errorstack" => {
             let id = match rest {
                 [] => None,
-                [path] => match vm.resolve_interp_path(&path.to_str()) {
+                [path] => match vm.resolve_interp_path_original(path) {
                     Ok(id) => Some(id),
                     Err(error) => return error,
                 },
@@ -484,6 +508,13 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         // Reached by a word that matched nothing, prefixed several entries, or
         // resolved to a subcommand this engine does not implement.
+        _ if vm
+            .actual_native_invocation_dialect()
+            .native_jim_info_member_names()
+            .is_some() =>
+        {
+            vm.refuse_host_command("selected Jim info handler is unavailable".into())
+        }
         other => err(
             String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
                 subs,
@@ -493,6 +524,73 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ))
             .into_owned(),
         ),
+    }
+}
+
+fn info_functions_impl(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if args.len() > 1 {
+        return crate::command::native_wrong_args(vm, "info functions ?pattern?");
+    }
+    let Some(recipe) = tcl_registry::mathfunc::NativeInfoFunctionsRecipe::select(
+        vm.actual_native_invocation_dialect(),
+    ) else {
+        return vm.refuse_host_command("selected math function information recipe".into());
+    };
+    let pattern = match args
+        .first()
+        .map(|word| vm.native_name_operand_bytes(word))
+        .transpose()
+    {
+        Ok(pattern) => pattern,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    if let Some(bytes) = recipe.script(pattern.as_deref()) {
+        let script = Value::new_native_string_bytes(bytes);
+        return match vm.eval_original_script_value(
+            &script,
+            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            None,
+        ) {
+            Ok(completion) => completion,
+            Err(error) => crate::command::completion_from_tcl_error(vm, error),
+        };
+    }
+    let mut names = Vec::new();
+    for name in vm.math_function_names() {
+        if let Some(pattern) = &pattern {
+            match vm.native_namespace_match(
+                tcl_syntax::native_glob::NativeNameGlobPurpose::InfoFunctions84Scan,
+                pattern,
+                name.as_bytes(),
+            ) {
+                Ok(true) => {}
+                Ok(false) => continue,
+                Err(error) => return vm.refuse_host_command(error.to_string()),
+            }
+        }
+        names.push(Value::new_native_string_bytes(name.into_bytes()));
+    }
+    ok(Value::list(names))
+}
+
+fn info_version_report(vm: &mut Vm, rest: &[Value], member: &str) -> Completion<Value> {
+    let usage = format!("info {member}");
+    if !rest.is_empty() {
+        return crate::command::native_wrong_args(vm, &usage);
+    }
+    match vm
+        .actual_native_invocation_dialect()
+        .native_info_version_source(member)
+    {
+        Some(tcl_registry::native_info_version::NativeInfoVersionSource::Global(name)) => {
+            info_global(vm, rest, &usage, name)
+        }
+        Some(tcl_registry::native_info_version::NativeInfoVersionSource::CoreRelease(version)) => {
+            ok(Value::new_native_string_bytes(version.as_bytes()))
+        }
+        None => {
+            vm.refuse_host_command("native info version reporting source is unavailable".into())
+        }
     }
 }
 
@@ -512,10 +610,125 @@ fn info_global(vm: &mut Vm, rest: &[Value], usage: &str, name: &str) -> Completi
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Code;
     use tcl_dialect::TclVersion;
 
     fn info(vm: &mut Vm, subcommand: &str) -> Completion<Value> {
         cmd_info(vm, &[Value::string(subcommand)])
+    }
+
+    #[test]
+    fn original_info_functions_follow_selected_native_script_and_helpers() {
+        // Native controls: naming.info.functions-native-script
+        // docs/design/analysis/name-resolution-proofs/info-functions-native-script.md
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = crate::environment::profile_for_dialect(engine);
+            let mut vm = crate::native_fixture::core(profile);
+            vm.set_compiler(Box::new(
+                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            ));
+            let completion = vm
+                .eval_source("info functions sin")
+                .unwrap_or_else(|error| panic!("{engine}/info functions sin: {error:?}"));
+            assert_eq!(completion.code, Code::Ok, "{engine}: {completion:?}");
+            assert_eq!(
+                vm.native_name_operand_bytes(&completion.result)
+                    .unwrap()
+                    .as_ref(),
+                b"sin",
+                "{engine}"
+            );
+            let completion = vm.eval_source("namespace eval ::InfoScope085 {namespace eval tcl::mathfunc {proc local085 {} {return LOCAL}}; info functions local085}").unwrap();
+            assert_eq!(completion.code, Code::Ok, "{engine}: {completion:?}");
+            let expected: &[u8] = if engine == "tcl8.4" { b"" } else { b"local085" };
+            assert_eq!(
+                vm.native_name_operand_bytes(&completion.result)
+                    .unwrap()
+                    .as_ref(),
+                expected,
+                "{engine}"
+            );
+            if engine != "tcl8.4" {
+                let completion = vm.eval_source("rename ::apply ::SavedInfoApply085; proc ::apply args {error APPLY_HELPER085}; info functions sin").unwrap();
+                assert_eq!(completion.code, Code::Error, "{engine}: {completion:?}");
+                assert_eq!(
+                    vm.native_name_operand_bytes(&completion.result)
+                        .unwrap()
+                        .as_ref(),
+                    b"APPLY_HELPER085",
+                    "{engine}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_info_loaded_uses_counted_interpreter_path_elements() {
+        // Native controls: naming.info.loaded-original-interpreter-path
+        // docs/design/analysis/name-resolution-proofs/info-loaded-original-interpreter-path.md
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = crate::environment::profile_for_dialect(engine);
+            let mut vm = crate::native_fixture::core(profile);
+            vm.set_compiler(Box::new(
+                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            ));
+            for source in [
+                "info loaded {}",
+                "interp create InfoParent085; interp eval InfoParent085 {interp create InfoChild085}; info loaded {InfoParent085 InfoChild085}",
+                "set child [binary format H* 496e666f5a65726f30383500ff]; interp create $child; info loaded $child",
+            ] {
+                let completion = vm.eval_source(source).unwrap();
+                assert_eq!(completion.code, Code::Ok, "{engine}: {completion:?}");
+                assert_eq!(
+                    completion.result.resident_string_bytes().unwrap().as_ref(),
+                    b"",
+                    "{engine}"
+                );
+            }
+            let completion = vm.eval_source("info loaded MissingInfo085").unwrap();
+            assert_eq!(completion.code, Code::Error, "{engine}: {completion:?}");
+            assert_eq!(
+                completion.result.resident_string_bytes().unwrap().as_ref(),
+                b"could not find interpreter \"MissingInfo085\"",
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn actual_jim_version_report_does_not_read_tcl_bootstrap_globals() {
+        // Source proof: naming.info.version-source-owner
+        // docs/design/analysis/name-resolution-proofs/info-version-source-owner.md
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
+        assert!(vm.get_var("::tcl_patchLevel").is_none());
+        for member in ["patchlevel", "version"] {
+            let result = vm
+                .try_invoke_command("info", &[Value::new_native_string_bytes(member.as_bytes())])
+                .unwrap();
+            assert_eq!(result.code, Code::Ok, "{result:?}");
+            assert_eq!(
+                result.result.resident_string_bytes().unwrap().as_ref(),
+                b"0.84"
+            );
+        }
+        assert_eq!(
+            vm.try_invoke_command(
+                "set",
+                &[Value::string("::tcl_patchLevel"), Value::string("FOREIGN")]
+            )
+            .unwrap()
+            .code,
+            Code::Ok
+        );
+        assert_eq!(
+            vm.try_invoke_command("info", &[Value::string("patchlevel")])
+                .unwrap()
+                .result
+                .resident_string_bytes()
+                .unwrap()
+                .as_ref(),
+            b"0.84"
+        );
     }
 
     #[test]

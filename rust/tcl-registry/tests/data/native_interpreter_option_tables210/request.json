@@ -1,0 +1,83 @@
+{
+  "request_id": "naming.interpreter.original-option-table-diagnostics",
+  "problem": "Runtime interp_subcommand_words_resolve_like_tcl_get_index_from_obj asserts a handwritten C option list. The current shared Registry owns option tables; native results must determine the complete release-specific table rather than duplicate Registry output as an expected value. Actual Jim interp and child-handle APIs are distinct and their unavailable C entry must remain distinct.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim-current"
+  ],
+  "execution_requirements": [
+    "Use existing Native202/205 actual external C API driver with fresh full Tcl_Init or Jim core/static extensions for each control, counted flags0 original source and no surrounding catch/eval/puts wrapper.",
+    "Evaluate optional unchanged child prelude independently first, retain its completion. Preserve a Jim prelude failure and the actual original result as unavailable C child API observations; never substitute supported Jim child-handle commands.",
+    "Record exact source bytes/hashes, phase completion codes and counted result hex, process exit/stdout/stderr and actual provider/header/library pins. These public original diagnostics prove option-list presentation only, not command token identity, child equivalence or side effects."
+  ],
+  "cases": [
+    {
+      "id": "root-empty",
+      "question": "What exact original bad/ambiguous interpreter command option table does this provider report?",
+      "source_file": "/workspace/.proofs/native-interpreter-option-tables210-request/root-empty.tcl",
+      "source_sha256": "3f24c8cae050f2a1c75261a0db568186ea4687e30f9b2f51d27ad92a73a917bf",
+      "source_encoding": "ASCII LF"
+    },
+    {
+      "id": "root-missing",
+      "question": "What exact original bad/ambiguous interpreter command option table does this provider report?",
+      "source_file": "/workspace/.proofs/native-interpreter-option-tables210-request/root-missing.tcl",
+      "source_sha256": "903cd20814e98b8d6a8cd1c9488a884aaa0ea39f7bba028d4b4a0d4dade935a4",
+      "source_encoding": "ASCII LF"
+    },
+    {
+      "id": "root-c-prefix",
+      "question": "What exact original bad/ambiguous interpreter command option table does this provider report?",
+      "source_file": "/workspace/.proofs/native-interpreter-option-tables210-request/root-c-prefix.tcl",
+      "source_sha256": "319352c01002428ab8996304dfba124b2d1d16aa3344489d3c16f93b82526032",
+      "source_encoding": "ASCII LF"
+    },
+    {
+      "id": "root-e-prefix",
+      "question": "What exact original bad/ambiguous interpreter command option table does this provider report?",
+      "source_file": "/workspace/.proofs/native-interpreter-option-tables210-request/root-e-prefix.tcl",
+      "source_sha256": "662d97bdc133b7c21c8aa1acd412ad95fc9ad82bd5e4aa39ed45f69aa4c8f18f",
+      "source_encoding": "ASCII LF"
+    },
+    {
+      "id": "child-missing",
+      "question": "What exact original bad/ambiguous interpreter command option table does this provider report?",
+      "source_file": "/workspace/.proofs/native-interpreter-option-tables210-request/child-missing.tcl",
+      "source_sha256": "ee5ba9ae32734fa2af9ef6b48ed68eefd3af86938106fb28bc02ab808a10b83d",
+      "source_encoding": "ASCII LF",
+      "independent_prelude_file": "/workspace/.proofs/native-interpreter-option-tables210-request/child-prelude.tcl",
+      "independent_prelude_sha256": "07748a6afc1d4cd832850de52b08aba7e82b4f98661c0209c2a9f45732a567d8"
+    },
+    {
+      "id": "child-empty",
+      "question": "What exact original bad/ambiguous interpreter command option table does this provider report?",
+      "source_file": "/workspace/.proofs/native-interpreter-option-tables210-request/child-empty.tcl",
+      "source_sha256": "41e1c855bf3b09a79f32ae45c27d2d8693584751a1f948fd8bb4fa93c39d57d7",
+      "source_encoding": "ASCII LF",
+      "independent_prelude_file": "/workspace/.proofs/native-interpreter-option-tables210-request/child-prelude.tcl",
+      "independent_prelude_sha256": "07748a6afc1d4cd832850de52b08aba7e82b4f98661c0209c2a9f45732a567d8"
+    },
+    {
+      "id": "child-h-prefix",
+      "question": "What exact original bad/ambiguous interpreter command option table does this provider report?",
+      "source_file": "/workspace/.proofs/native-interpreter-option-tables210-request/child-h-prefix.tcl",
+      "source_sha256": "927bac5539abf8f7d12c3930f9b933e6761559bae2bde85a299267e2011a34a3",
+      "source_encoding": "ASCII LF",
+      "independent_prelude_file": "/workspace/.proofs/native-interpreter-option-tables210-request/child-prelude.tcl",
+      "independent_prelude_sha256": "07748a6afc1d4cd832850de52b08aba7e82b4f98661c0209c2a9f45732a567d8"
+    },
+    {
+      "id": "child-hi-prefix",
+      "question": "What exact original bad/ambiguous interpreter command option table does this provider report?",
+      "source_file": "/workspace/.proofs/native-interpreter-option-tables210-request/child-hi-prefix.tcl",
+      "source_sha256": "4318df6ad749e52a718a679f170ba47aa6db4bf725a6f4a039875f1b54241e01",
+      "source_encoding": "ASCII LF",
+      "independent_prelude_file": "/workspace/.proofs/native-interpreter-option-tables210-request/child-prelude.tcl",
+      "independent_prelude_sha256": "07748a6afc1d4cd832850de52b08aba7e82b4f98661c0209c2a9f45732a567d8"
+    }
+  ]
+}

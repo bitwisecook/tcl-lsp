@@ -1,426 +1,588 @@
-// tcl-lsp — a language server and toolchain for Tcl
-// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//
 // SPDX-License-Identifier: AGPL-3.0-or-later
+//! Event storage retains original script objects and selected global wait subjects.
 
-//! The Tcl event loop for the bytecode VM: `after`, `vwait`, `update`.
-//!
-//! A minimal but faithful single-threaded event loop, ported from the
-//! tree-walking runtime (`runtime/rust/src/cmd_event.rs`). `after` schedules
-//! timer and idle events; `vwait` runs the loop until a named variable is
-//! written; `update` drains the events that are ready now. Timer events fire in
-//! deadline order (then scheduling order); an idle event fires only when no
-//! timer is due.
-//!
-//! This is the scheduler half of the coroutine subsystem ([`crate::cmd_coro`]):
-//! `after 0 $coro` schedules a coroutine resume and `vwait`/`update` drives it,
-//! the idiomatic way to run a coroutine to completion off the event loop.
-//!
-//! Event scripts are evaluated at the global level via [`Vm::eval_source`]; a
-//! script error is routed to the background-error handler (C's event handlers
-//! send errors to `bgerror`) rather than propagating out of `vwait`/`update`.
-//!
-//! C refs: `tclEvent.c` (`Tcl_DoOneEvent`, `Tcl_AfterObjCmd`, `vwait`),
-//! `tclTimer.c`.
-
-use std::collections::VecDeque;
-use std::time::{Duration, Instant};
-
-use tcl_runtime_api::{Code, Completion};
-
-use crate::interp::{Vm, err, ok};
+use crate::interp::{Vm, ok};
 use crate::value::Value;
+use std::cell::Cell;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
+use tcl_cmd_core::event::EventKind;
+use tcl_registry::native_event::{NativeEventProtocol, NativeEventWait};
+use tcl_runtime_api::Completion;
+use tcl_runtime_api::native_variable_trace::{
+    NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
+};
+use tcl_syntax::value::{ValueError, ValueOps};
 
-/// A scheduled timer event (`after ms script`); `after 0` has a now-deadline.
-struct TimerEv {
-    id: u64,
-    deadline: Instant,
-    seq: u64,
-    script: String,
-}
-
-/// The pending event set: due-ordered timers + a FIFO idle queue.
-#[derive(Default)]
-pub(crate) struct EventQueue {
-    timers: Vec<TimerEv>,
-    idle: VecDeque<(u64, String)>,
-    next_id: u64,
-    seq: u64,
-}
-
-impl EventQueue {
-    fn fresh_id(&mut self) -> u64 {
-        // C's `after` ids are 0-based (the first scheduled event is `after#0`).
-        let id = self.next_id;
-        self.next_id += 1;
-        id
-    }
-
-    /// Schedule a timer event `ms` from now; returns its `after#<id>` number.
-    fn push_timer(&mut self, ms: u64, script: String) -> u64 {
-        let id = self.fresh_id();
-        self.seq += 1;
-        self.timers.push(TimerEv {
-            id,
-            deadline: Instant::now() + Duration::from_millis(ms),
-            seq: self.seq,
-            script,
-        });
-        id
-    }
-
-    /// Schedule an idle event; returns its id.
-    fn push_idle(&mut self, script: String) -> u64 {
-        let id = self.fresh_id();
-        self.idle.push_back((id, script));
-        id
-    }
-
-    /// Cancel by id (`after#<id>`); returns the removed script, if any.
-    fn cancel_id(&mut self, id: u64) -> Option<String> {
-        if let Some(p) = self.timers.iter().position(|t| t.id == id) {
-            return Some(self.timers.remove(p).script);
-        }
-        if let Some(p) = self.idle.iter().position(|(i, _)| *i == id) {
-            return self.idle.remove(p).map(|(_, s)| s);
-        }
-        None
-    }
-
-    /// Cancel by exact script text; returns the removed script, if any.
-    fn cancel_script(&mut self, script: &str) -> Option<String> {
-        if let Some(p) = self.timers.iter().position(|t| t.script == script) {
-            return Some(self.timers.remove(p).script);
-        }
-        if let Some(p) = self.idle.iter().position(|(_, s)| s == script) {
-            return self.idle.remove(p).map(|(_, s)| s);
-        }
-        None
-    }
-
-    fn is_empty(&self) -> bool {
-        self.timers.is_empty() && self.idle.is_empty()
-    }
-
-    /// The earliest timer deadline (to know how long `vwait` may sleep).
-    fn earliest_deadline(&self) -> Option<Instant> {
-        self.timers.iter().map(|t| t.deadline).min()
-    }
-
-    /// Pop the next event whose time has come: a due timer (earliest deadline,
-    /// then scheduling order), else an idle event. `None` if nothing is ready
-    /// yet (a future timer remains) or the queue is empty.
-    fn pop_ready(&mut self, now: Instant) -> Option<String> {
-        let due = self
-            .timers
-            .iter()
-            .enumerate()
-            .filter(|(_, t)| t.deadline <= now)
-            .min_by_key(|(_, t)| (t.deadline, t.seq))
-            .map(|(i, _)| i);
-        if let Some(i) = due {
-            return Some(self.timers.remove(i).script);
-        }
-        // No due timer: an idle event runs only when no timer is *due*.
-        self.idle.pop_front().map(|(_, s)| s)
-    }
-
-    /// Pop the next idle event only (never a timer) — `update idletasks` drains
-    /// idle handlers but must not run due timer events.
-    fn pop_idle(&mut self) -> Option<String> {
-        self.idle.pop_front().map(|(_, s)| s)
-    }
-}
-
+pub(crate) type EventQueue = tcl_cmd_core::event::EventQueue<Value>;
 pub(crate) fn register(vm: &mut Vm) {
     vm.register_stock_builtin("after", cmd_after);
     vm.register_stock_builtin("vwait", cmd_vwait);
     vm.register_stock_builtin("update", cmd_update);
 }
-
-/// `after`'s subcommand words, in C table order (`afterSubCmds[]`,
-/// `tclTimer.c`). C scans them at flags `0` with a NULL interp, so
-/// abbreviations resolve (`in` → `info`, `ca` → `cancel`) but the miss is
-/// silent and `after` composes its own sentence.
-const AFTER_SUBCOMMANDS: &[&str] = &["cancel", "idle", "info"];
-
-/// `update`'s one option word (`tclCmdIL.c`): `Tcl_GetIndexFromObj(…,
-/// "option", 0)`, so `i` abbreviates `idletasks` and a one-entry table's miss
-/// is always `bad`, never `ambiguous`.
-const UPDATE_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &["idletasks"]);
-
-/// `after ms ?script ...?` / `after idle ?script ...?` /
-/// `after cancel id|script` / `after info ?id?`. A bare `after ms` (no script)
-/// processes events until `ms` has elapsed (a blocking delay). Multiple script
-/// args are joined with spaces as a command prefix (matching C).
-fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some(first) = args.first() else {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"after option ?arg ...?\"",
-        );
+fn selected(vm: &mut Vm) -> Result<NativeEventProtocol, Completion<Value>> {
+    vm.actual_native_invocation_dialect()
+        .native_event_protocol()
+        .ok_or_else(|| {
+            failure(
+                vm,
+                ValueError::CommandProtocolUnavailable("native event purpose"),
+            )
+        })
+}
+fn failure(vm: &mut Vm, error: ValueError) -> Completion<Value> {
+    crate::command::completion_from_cmd_error(vm, error.into())
+}
+fn wrong(vm: &mut Vm, usage: &str) -> Completion<Value> {
+    crate::command::native_wrong_arguments_message(vm, usage)
+}
+fn script(vm: &mut Vm, p: NativeEventProtocol, args: &[Value]) -> Result<Value, Completion<Value>> {
+    if p.retains_single_script() && args.len() == 1 {
+        return Ok(args[0].clone().into_native_reference());
+    }
+    tcl_cmd_core::list::concat_selected(vm, args)
+        .map(Value::into_native_reference)
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))
+}
+fn numeric(vm: &mut Vm, p: NativeEventProtocol, original: &Value) -> Result<Duration, ValueError> {
+    if let Some(ms) = p.cached_number_ms(&original.native_object_snapshot()) {
+        return Ok(Duration::from_millis(ms));
+    }
+    if p.number_kind() == tcl_syntax::scalar_getter::NativeScalarGetterKind::Double {
+        let value = vm.as_double(original)?;
+        return Duration::try_from_secs_f64(value.max(0.0) / 1000.0)
+            .map_err(|_| ValueError::CommandProtocolUnavailable("host timer capacity"));
+    }
+    let value = original.native_scalar_getter_with_environment(
+        vm.actual_native_invocation_dialect(),
+        p.number_kind(),
+        vm.host().numeric_environment(),
+    )?;
+    let tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(ms) = value else {
+        return Err(ValueError::ScalarNumericInputUnavailable);
     };
-    let word = first.to_str();
-    // C composes this one itself: `Tcl_GetIndexFromObj(NULL, …, afterSubCmds,
-    // "", 0, &index)` (`tclTimer.c`) — a *silent* lookup, so a miss falls
-    // through to the integer parse and only then to `after`'s own
-    // `bad argument …, or an integer` sentence. An `OptionTable` message must
-    // never surface here; only the scan is shared. Note `i` is ambiguous
-    // (idle/info) and so lands on the integer path, exactly as in tclsh.
-    let scanned = tcl_cmd_core::prefix::scan(AFTER_SUBCOMMANDS, word.as_bytes(), false);
-    let first = match scanned {
-        tcl_cmd_core::prefix::Resolution::Exact(i)
-        | tcl_cmd_core::prefix::Resolution::UniquePrefix(i) => AFTER_SUBCOMMANDS[i],
-        tcl_cmd_core::prefix::Resolution::Ambiguous | tcl_cmd_core::prefix::Resolution::NoMatch => {
-            ""
-        }
-    };
-    match first {
-        "idle" => {
-            if args.len() < 2 {
-                return crate::command::native_wrong_arguments_message(
-                    vm,
-                    "wrong # args: should be \"after idle script\"",
-                );
-            }
-            let script = join_args(&args[1..]);
-            let id = vm.events.push_idle(script);
-            ok(after_id(id))
-        }
-        "cancel" => {
-            if args.len() < 2 {
-                return crate::command::native_wrong_arguments_message(
-                    vm,
-                    "wrong # args: should be \"after cancel id|command\"",
-                );
-            }
-            let arg = args[1].to_str();
-            if let Some(id) = parse_after_id(&arg) {
-                vm.events.cancel_id(id);
-            } else {
-                let script = join_args(&args[1..]);
-                vm.events.cancel_script(&script);
-            }
-            ok(Value::empty())
-        }
-        // Minimal `after info`: C lists pending ids / a given id's handler; we
-        // report empty (nothing depends on the detail, and it never lies about
-        // scheduling — a cancelled/fired event is simply absent).
-        "info" => ok(Value::empty()),
-        _ => {
-            let Some(ms) = parse_ms(&word) else {
-                return err(format!(
-                    "bad argument \"{word}\": must be cancel, idle, info, or an integer"
-                ));
-            };
-            if args.len() == 1 {
-                // Bare delay: block, servicing events, until `ms` elapses.
-                return delay(vm, ms);
-            }
-            let script = join_args(&args[1..]);
-            let id = vm.events.push_timer(ms, script);
-            ok(after_id(id))
-        }
+    Ok(Duration::from_millis(u64::try_from(ms).unwrap_or(0)))
+}
+fn option(vm: &mut Vm, p: NativeEventProtocol, first: &Value) -> Result<Option<usize>, ValueError> {
+    let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+        p.after_options(),
+    );
+    if p.after_options_exact() {
+        vm.native_jim_enum_from_original(
+            first,
+            &table,
+            tcl_registry::native_jim_enum::NativeJimEnumFlags::options(true),
+            Some(b"argument"),
+        )
+        .map(Result::ok)
+    } else {
+        vm.native_index_from_original(first, &table, false, "argument")
+            .map(Result::ok)
     }
 }
-
-/// `vwait varName` — run the event loop until `varName` is written, returning
-/// when its value changes. Returns immediately (after draining) if no events
-/// remain and the variable never changes, so a missing event source cannot hang.
-fn cmd_vwait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let [name] = args else {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"vwait name\"",
-        );
+fn after_miss(vm: &mut Vm, p: NativeEventProtocol, first: &Value) -> Completion<Value> {
+    if p.after_options_exact() {
+        return match vm.native_static_option_index(first, p.after_options(), true, "argument") {
+            Err(e) => crate::command::completion_from_cmd_error(vm, e),
+            Ok(_) => unreachable!("prior enum miss"),
+        };
+    }
+    let bytes = match vm.native_string_bytes(first) {
+        Ok(b) => b,
+        Err(e) => return failure(vm, e),
     };
-    let name = name.to_str();
-    let before = var_snapshot(vm, &name);
-    loop {
-        if var_snapshot(vm, &name) != before {
-            break;
+    let mut details =
+        tcl_cmd_core::CmdError::new_bytes(p.after_miss_message(&bytes).expect("C after miss"))
+            .into_byte_details();
+    details.error_code =
+        tcl_cmd_core::CmdErrorCodeUpdate::Set(p.after_miss_code(&bytes).expect("C after code"));
+    crate::command::completion_from_cmd_error(
+        vm,
+        tcl_cmd_core::CmdError::from_byte_details(details),
+    )
+}
+fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some(first) = args.first() else {
+        return wrong(vm, "wrong # args: should be \"after option ?arg ...?\"");
+    };
+    let p = match selected(vm) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let object = first.native_object_snapshot();
+    let first_byte = if p.number_kind() == tcl_syntax::scalar_getter::NativeScalarGetterKind::Int
+        && !matches!(
+            object.cache,
+            tcl_syntax::native_object::NativeObjectCacheSnapshot::Numeric(_)
+        ) {
+        match vm.native_string_bytes(first) {
+            Ok(b) => b.first().copied(),
+            Err(e) => return failure(vm, e),
         }
-        if vm.events.is_empty() {
-            // Nothing left to service and the variable is unchanged: C reports
-            // "can't wait … would wait forever"; we return so a missing event
-            // source does not hang.
-            break;
+    } else {
+        None
+    };
+    let numeric_first = p.number_before_options(&object, first_byte);
+    let mut delay = None;
+    let member = if numeric_first {
+        match numeric(vm, p, first) {
+            Ok(ms) => {
+                delay = Some(ms);
+                None
+            }
+            Err(e) if e.native_access_refusal().is_some() || p.reports_number_error() => {
+                return failure(vm, e);
+            }
+            Err(_) => match option(vm, p, first) {
+                Ok(i) => i,
+                Err(e) => return failure(vm, e),
+            },
         }
-        if let Some(c) = process_one(vm) {
-            return c;
+    } else {
+        match option(vm, p, first) {
+            Ok(Some(i)) => Some(i),
+            Ok(None) => match numeric(vm, p, first) {
+                Ok(ms) => {
+                    delay = Some(ms);
+                    None
+                }
+                Err(e) if e.native_access_refusal().is_some() => return failure(vm, e),
+                Err(_) => return after_miss(vm, p, first),
+            },
+            Err(e) => return failure(vm, e),
+        }
+    };
+    if let Some(ms) = delay {
+        if args.len() == 1 {
+            std::thread::sleep(ms);
+            return ok(Value::empty());
+        }
+        return schedule(vm, p, &args[1..], ms, EventKind::Timer);
+    }
+    let Some(member) = member else {
+        return after_miss(vm, p, first);
+    };
+    match p.after_options()[member] {
+        "idle" => {
+            if args.len() < 2 {
+                return wrong(
+                    vm,
+                    "wrong # args: should be \"after idle script ?script ...?\"",
+                );
+            }
+            schedule(vm, p, &args[1..], Duration::ZERO, EventKind::Idle)
+        }
+        "cancel" => cancel(vm, p, &args[1..]),
+        "info" => info(vm, p, &args[1..]),
+        _ => unreachable!("selected after table"),
+    }
+}
+fn schedule(
+    vm: &mut Vm,
+    p: NativeEventProtocol,
+    args: &[Value],
+    delay: Duration,
+    kind: EventKind,
+) -> Completion<Value> {
+    if Instant::now().checked_add(delay).is_none() {
+        return failure(
+            vm,
+            ValueError::CommandProtocolUnavailable("host timer deadline capacity"),
+        );
+    }
+    let original = match script(vm, p, args) {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    let reported = if kind == EventKind::Idle || (delay.is_zero() && p.zero_timer_reports_idle()) {
+        EventKind::Idle
+    } else {
+        EventKind::Timer
+    };
+    let actual = if kind == EventKind::Idle && p.idle_is_timer() {
+        EventKind::Timer
+    } else {
+        kind
+    };
+    let id = vm
+        .events
+        .push(p.first_id(), delay, actual, reported, original);
+    ok(Value::string(format!("after#{id}")))
+}
+fn after_id(p: NativeEventProtocol, bytes: &[u8]) -> Result<Option<u64>, ValueError> {
+    p.after_id(
+        bytes,
+        tcl_runtime_api::native_hash_abi::supported_backend_array_search_abi(),
+    )
+}
+fn cancel(vm: &mut Vm, p: NativeEventProtocol, args: &[Value]) -> Completion<Value> {
+    let Some(first) = args.first() else {
+        return wrong(vm, "wrong # args: should be \"after cancel id|command\"");
+    };
+    let mut id = None;
+    if p.cancel_id_first() {
+        let bytes = match vm.native_string_bytes(first) {
+            Ok(b) => b,
+            Err(e) => return failure(vm, e),
+        };
+        id = match after_id(p, &bytes) {
+            Ok(id) => id.filter(|id| *id > 0),
+            Err(error) => return failure(vm, error),
+        };
+    }
+    if id.is_none() {
+        let original = match script(vm, p, args) {
+            Ok(s) => s,
+            Err(c) => return c,
+        };
+        let bytes = match vm.native_string_bytes(&original) {
+            Ok(b) => b,
+            Err(e) => return failure(vm, e),
+        };
+        for candidate in vm.events.ids(p.deadline_order()) {
+            let Some((s, _)) = vm.events.script(candidate) else {
+                continue;
+            };
+            let s = s.clone();
+            let other = match vm.native_string_bytes(&s) {
+                Ok(b) => b,
+                Err(e) => return failure(vm, e),
+            };
+            if bytes == other {
+                id = Some(candidate);
+                break;
+            }
+        }
+        if id.is_none() && !p.cancel_id_first() {
+            id = match after_id(p, &bytes) {
+                Ok(id) => id,
+                Err(error) => return failure(vm, error),
+            };
+        }
+    }
+    if let Some(id) = id {
+        let remaining = vm.events.remaining(id);
+        let cancelled = vm.events.cancel(id);
+        if p.cancel_id_first()
+            && cancelled.is_some()
+            && let Some(remaining) = remaining
+        {
+            return ok(Value::int(
+                i64::try_from(remaining.as_micros()).expect("selected Jim event deadline"),
+            ));
         }
     }
     ok(Value::empty())
 }
-
-/// `update` / `update idletasks` — service the events ready now, then return.
-/// `idletasks` services *only* idle events (C's `TCL_IDLE_EVENTS` excludes
-/// timers).
+fn info(vm: &mut Vm, p: NativeEventProtocol, args: &[Value]) -> Completion<Value> {
+    if args.is_empty() {
+        let values = vm
+            .events
+            .ids(p.deadline_order())
+            .into_iter()
+            .map(|i| Value::string(format!("after#{i}")))
+            .collect();
+        return ok(vm.new_list(values));
+    }
+    let [original] = args else {
+        return wrong(vm, "wrong # args: should be \"after info ?id?\"");
+    };
+    let bytes = match vm.native_string_bytes(original) {
+        Ok(b) => b,
+        Err(e) => return failure(vm, e),
+    };
+    let id = match after_id(p, &bytes) {
+        Ok(id) => id,
+        Err(error) => return failure(vm, error),
+    };
+    if let Some(id) = id
+        && let Some((script, kind)) = vm.events.script(id)
+    {
+        let script = script.clone();
+        let kind = Value::string(if kind == EventKind::Idle {
+            "idle"
+        } else {
+            "timer"
+        });
+        return ok(vm.new_list(vec![script, kind]));
+    }
+    let reported = tcl_core_types::c_string_extent(&bytes);
+    let mut message = b"event \"".to_vec();
+    message.extend_from_slice(reported);
+    message.extend_from_slice(b"\" doesn't exist");
+    let mut detail = tcl_cmd_core::CmdError::new_bytes(message).into_byte_details();
+    if let Some(code) = p.missing_event_code(&bytes) {
+        detail.error_code = tcl_cmd_core::CmdErrorCodeUpdate::Set(code);
+    }
+    crate::command::completion_from_cmd_error(vm, tcl_cmd_core::CmdError::from_byte_details(detail))
+}
+struct WaitFlag(Rc<Cell<bool>>);
+impl NativeVariableObserver<Vm> for WaitFlag {
+    type Error = tcl_cmd_core::CmdError;
+    fn observe(&self, _: &mut Vm, _: NativeVariableTraceAccess<'_>) -> Result<(), Self::Error> {
+        self.0.set(true);
+        Ok(())
+    }
+}
+fn cmd_vwait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // Implementation contract: naming.event.original-vwait-operand-boundaries
+    // docs/design/analysis/name-resolution-proofs/event-original-vwait-operand-boundaries.md
+    let p = match selected(vm) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let form = match p
+        .vwait()
+        .form(args.len(), |index| vm.native_string_bytes(&args[index]))
+    {
+        Ok(form) => form,
+        Err(error) => return failure(vm, error),
+    };
+    match form {
+        tcl_registry::native_vwait::NativeVwaitForm::Basic => {}
+        tcl_registry::native_vwait::NativeVwaitForm::Extended => {
+            return failure(
+                vm,
+                ValueError::CommandProtocolUnavailable("extended native vwait grammar"),
+            );
+        }
+        tcl_registry::native_vwait::NativeVwaitForm::WrongArity => {
+            return wrong(vm, p.vwait().wrong_arguments());
+        }
+    }
+    let original = &args[0];
+    if p.wait() == NativeEventWait::GlobalValueComparison {
+        return jim_wait(vm, original);
+    }
+    let flag = Rc::new(Cell::new(false));
+    let token = match vm.with_event_global_frame(|vm| {
+        vm.add_native_variable_observer(
+            original,
+            &[
+                NativeVariableTraceOperation::Write,
+                NativeVariableTraceOperation::Unset,
+            ],
+            Rc::new(WaitFlag(flag.clone())),
+        )
+    }) {
+        Ok(t) => t,
+        Err(c) => return c,
+    };
+    let mut completion = None;
+    while !flag.get() {
+        if vm.events.is_empty() {
+            completion = Some(failure(
+                vm,
+                ValueError::CommandProtocolUnavailable("host event-source inventory"),
+            ));
+            break;
+        }
+        process_one(vm);
+        if let Some(c) = vm.refused_completion() {
+            completion = Some(c);
+            break;
+        }
+    }
+    vm.remove_native_variable_observer(&token);
+    completion.unwrap_or_else(|| ok(Value::empty()))
+}
+fn jim_wait(vm: &mut Vm, original: &Value) -> Completion<Value> {
+    let before = match vm.original_global_event_value(original) {
+        Ok(value) => value.map(Value::into_native_reference),
+        Err(error) => return error,
+    };
+    while !vm.events.is_empty() {
+        process_one(vm);
+        if let Some(c) = vm.refused_completion() {
+            return c;
+        }
+        let current = match vm.original_global_event_value(original) {
+            Ok(value) => value,
+            Err(error) if vm.refused_completion().is_some() => return error,
+            Err(_) => None,
+        };
+        match (&before, current) {
+            (None, None) => {}
+            (Some(old), Some(new)) => {
+                let a = match vm.native_string_bytes(old) {
+                    Ok(b) => b,
+                    Err(e) => return failure(vm, e),
+                };
+                let b = match vm.native_string_bytes(&new) {
+                    Ok(b) => b,
+                    Err(e) => return failure(vm, e),
+                };
+                if a != b {
+                    break;
+                }
+            }
+            _ => break,
+        }
+    }
+    ok(Value::empty())
+}
 fn cmd_update(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let idletasks = match args {
+    let p = match selected(vm) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let idle = match args {
         [] => false,
-        [a] => match vm.native_index_operand(
-            a,
-            &tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
-                UPDATE_OPTIONS.names(),
-            ),
-            false,
-            "option",
-        ) {
+        [option] if p.after_options_exact() => {
+            let table =
+                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(&[
+                    "idletasks",
+                ]);
+            match vm.native_jim_enum_from_original(
+                option,
+                &table,
+                tcl_registry::native_jim_enum::NativeJimEnumFlags(
+                    tcl_registry::native_jim_enum::NativeJimEnumFlags::ABBREVIATE,
+                ),
+                None,
+            ) {
+                Ok(Ok(_)) => true,
+                Ok(Err(_)) => return wrong(vm, "wrong # args: should be \"update ?idletasks?\""),
+                Err(error) => return failure(vm, error),
+            }
+        }
+        [option] => match vm.native_static_option_index(option, &["idletasks"], false, "option") {
             Ok(_) => true,
             Err(e) => return crate::command::completion_from_cmd_error(vm, e),
         },
-        _ => {
-            return crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"update ?idletasks?\"",
-            );
+        _ => return wrong(vm, "wrong # args: should be \"update ?idletasks?\""),
+    };
+    while service_ready(vm, idle && !p.idle_update_runs_timers()) {
+        if let Some(c) = vm.refused_completion() {
+            return c;
+        }
+    }
+    if p.clears_update_result() {
+        ok(Value::empty())
+    } else {
+        match vm.with_native_interp_result(|value| value.clone().into_native_reference()) {
+            Ok(value) => ok(value),
+            Err(e) => failure(vm, e),
+        }
+    }
+}
+fn service_ready(vm: &mut Vm, idle_only: bool) -> bool {
+    let Some(turn) = vm.events.begin_turn(Instant::now(), idle_only) else {
+        return false;
+    };
+    while let Some(script) = vm.events.pop_turn(turn) {
+        run_event(vm, &script);
+        if vm.refused_completion().is_some() {
+            break;
+        }
+    }
+    true
+}
+fn process_one(vm: &mut Vm) {
+    if service_ready(vm, false) {
+        return;
+    }
+    if let Some(deadline) = vm.events.earliest_deadline() {
+        std::thread::sleep(
+            deadline
+                .saturating_duration_since(Instant::now())
+                .min(Duration::from_millis(50)),
+        );
+        service_ready(vm, false);
+    }
+}
+fn run_event(vm: &mut Vm, script: &Value) {
+    let completion = vm.eval_original_event(script);
+    let Ok(p) = selected(vm) else {
+        return;
+    };
+    if vm.refused_completion().is_none() && p.reports_callback_code(completion.code.as_int()) {
+        let options = vm
+            .completion_options_snapshot(&completion)
+            .into_native_reference();
+        report_bg_error(vm, completion.result.into_native_reference(), options, p);
+    }
+}
+fn report_bg_error(vm: &mut Vm, message: Value, options: Value, p: NativeEventProtocol) {
+    let prefix = if p.after_options_exact() {
+        Value::empty()
+    } else {
+        match vm.bgerror_apply(&[]) {
+            Ok(prefix) => prefix,
+            Err(_) => return,
         }
     };
-    let now = Instant::now();
-    loop {
-        let script = if idletasks {
-            vm.events.pop_idle()
-        } else {
-            vm.events.pop_ready(now)
-        };
-        let Some(script) = script else { break };
-        run_event(vm, &script);
-        if let Some(refusal) = vm.refused_completion() {
-            return refusal;
+    let mut words = match vm.list_elements(&prefix) {
+        Ok(words) => words,
+        Err(e) => {
+            let _ = failure(vm, e);
+            return;
         }
-    }
-    ok(Value::empty())
-}
-
-/// Process exactly one event, sleeping until the earliest timer is due if none
-/// is ready yet. Returns `Some(error)` only if an event handler's error should
-/// propagate (it never does today — handler errors go to `bgerror`), else `None`.
-fn process_one(vm: &mut Vm) -> Option<Completion<Value>> {
-    let now = Instant::now();
-    if let Some(script) = vm.events.pop_ready(now) {
-        run_event(vm, &script);
-        return vm.refused_completion();
-    }
-    // Nothing ready: wait until the earliest timer deadline, then retry.
-    if let Some(d) = vm.events.earliest_deadline() {
-        let wait = d.saturating_duration_since(Instant::now());
-        if !wait.is_zero() {
-            std::thread::sleep(wait.min(Duration::from_millis(50)));
-        }
-        let now = Instant::now();
-        if let Some(script) = vm.events.pop_ready(now) {
-            run_event(vm, &script);
-        }
-    }
-    vm.refused_completion()
-}
-
-/// Bare `after ms`: block, servicing events, until `ms` has elapsed.
-fn delay(vm: &mut Vm, ms: u64) -> Completion<Value> {
-    let end = Instant::now() + Duration::from_millis(ms);
-    while Instant::now() < end {
-        if vm.events.is_empty() {
-            let remaining = end.saturating_duration_since(Instant::now());
-            std::thread::sleep(remaining.min(Duration::from_millis(50)));
-        } else if let Some(refusal) = process_one(vm) {
-            return refusal;
-        }
-    }
-    ok(Value::empty())
-}
-
-/// Evaluate one event script at the global level; a script error is reported as
-/// a background error (C routes event-handler errors to `bgerror`), never
-/// propagated out of the loop.
-fn run_event(vm: &mut Vm, script: &str) {
-    let failed = match vm.eval_source(script) {
-        Ok(c) if c.code == Code::Error => Some(c.result.string_bytes()),
-        Ok(_) => None,
-        Err(error) => {
-            let completion = crate::command::completion_from_tcl_error(vm, error);
-            if vm.refused_completion().is_some() {
+    };
+    if let Some(head) = words.first() {
+        match vm.lookup_original_command_at(
+            if p.after_options_exact() {
+                vm.current_ns_id()
+            } else {
+                tcl_core_types::ROOT_NS
+            },
+            head,
+        ) {
+            Ok(Some(_)) => {
+                let head = words.remove(0);
+                words.push(message);
+                if !p.after_options_exact() {
+                    words.push(options);
+                }
+                vm.with_event_global_frame(|vm| {
+                    let _ = vm.invoke_host_original_object_vector(&head, &words);
+                });
                 return;
             }
-            (completion.code == Code::Error).then(|| completion.result.string_bytes())
+            Err(e) => {
+                let _ = failure(vm, e);
+                return;
+            }
+            Ok(None) => {}
+        }
+    }
+    let head = Value::new_native_string_bytes(b"bgerror".as_slice());
+    let context = if p.after_options_exact() {
+        vm.current_ns_id()
+    } else {
+        tcl_core_types::ROOT_NS
+    };
+    match vm.lookup_original_command_at(context, &head) {
+        Ok(Some(_)) => {
+            if p.after_options_exact() {
+                let _ = vm.invoke_host_original_object_vector(&head, &[message]);
+            } else {
+                vm.with_event_global_frame(|vm| {
+                    let _ = vm.invoke_host_original_object_vector(&head, &[message]);
+                });
+            }
+            return;
+        }
+        Err(error) => {
+            let _ = failure(vm, error);
+            return;
+        }
+        Ok(None) => {}
+    }
+    let bytes = match vm.native_string_bytes(&message) {
+        Ok(b) => b,
+        Err(e) => {
+            let _ = failure(vm, e);
+            return;
         }
     };
-    if vm.refused_completion().is_some() {
-        return;
-    }
-    if let Some(message) = failed {
-        report_bg_error(vm, &message);
-    }
-}
-
-/// Report a background error the way C's `::tcl::Bgerror` does: hand it to the
-/// `bgerror` handler if one is callable; otherwise print the error's `errorInfo`
-/// to stderr (with the `("after" script)` frame the event raised it under). Any
-/// error from the handler itself is swallowed — it must not escape the loop.
-fn report_bg_error(vm: &mut Vm, message: &[u8]) {
-    let handler = vm.bgerror_handler_prefix();
-    if !handler.is_empty() {
-        let mut prefix = tcl_syntax::list::split_list_lenient(&handler)
-            .into_iter()
-            .map(Value::string)
-            .collect::<Vec<_>>();
-        let head = prefix.remove(0);
-        prefix.push(Value::from_string_bytes(message));
-        let _ = vm.invoke_command(&head.to_str(), &prefix);
-        return;
-    }
-    let mut info = vm.take_error_info().unwrap_or_else(|| message.to_vec());
+    let mut info = vm.take_error_info().unwrap_or_else(|| bytes.to_vec());
     info.extend_from_slice(b"\n    (\"after\" script)");
-    // Stderr is a text channel boundary; byte diagnostics stay explicit when
-    // its Unicode encoding cannot represent the original native message.
     match tcl_syntax::raw_string::RawString::from_bytes(info.as_slice()).unicode() {
         Ok(text) => vm.report_stderr_text(&text),
         Err(_) => vm.report_stderr_text(&format!("native Tcl error bytes: {info:?}")),
     }
 }
 
-/// Join the script words with single spaces (a command *prefix*, exactly as C's
-/// `after`/`Tcl_ConcatObj` does — NOT list-quoted, so `after 0 {set x 1}` runs
-/// the body `set x 1`, and `after 0 puts hi` runs `puts hi`).
-fn join_args(args: &[Value]) -> String {
-    args.iter()
-        .map(|v| v.to_str().to_string())
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn parse_ms(s: &str) -> Option<u64> {
-    // A negative delay clamps to 0 (C treats `after -5` as `after 0`).
-    s.trim()
-        .parse::<i64>()
-        .ok()
-        .map(|n| u64::try_from(n).unwrap_or(0))
-}
-
-/// The `after#<id>` token C returns for a scheduled event.
-fn after_id(id: u64) -> Value {
-    Value::string(format!("after#{id}"))
-}
-
-fn parse_after_id(s: &str) -> Option<u64> {
-    s.strip_prefix("after#")?.parse::<u64>().ok()
-}
-
-/// A variable's current value for `vwait` change detection (`None` = unset).
-fn var_snapshot(vm: &Vm, name: &str) -> Option<String> {
-    vm.get_var(name).map(|v| v.to_str().to_string())
-}
+#[cfg(test)]
+mod native_original_tests;

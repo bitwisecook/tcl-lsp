@@ -515,6 +515,10 @@ pub struct CommandTokens {
     /// executed script bodies are excluded. Reads can differ within one word.
     /// A missing record supplies no proof of the cell read.
     pub variable_accesses: Vec<crate::command_binding::SourceVariableAccess>,
+    /// Actual hosted source/context for conditional taint metadata only.
+    /// This grants no handler, store, effects, Normal or native compiler facts.
+    pub hosted_taint_context:
+        Option<std::sync::Arc<crate::registry_invocation::HostedSourceTaintContext>>,
 }
 
 impl CommandTokens {
@@ -551,6 +555,8 @@ impl CommandTokens {
     /// than the original command's entire argument vector. Source restoration
     /// must neither replace that projection nor make it execute again.
     pub fn restore_source_proofs(&mut self, original: &Self) {
+        self.hosted_taint_context
+            .clone_from(&original.hosted_taint_context);
         self.source_binding.clone_from(&original.source_binding);
         self.nested_bindings.clone_from(&original.nested_bindings);
         self.variable_accesses
@@ -620,6 +626,7 @@ impl CommandTokens {
             source_binding: None,
             nested_bindings: Vec::new(),
             variable_accesses: Vec::new(),
+            hosted_taint_context: None,
         }
     }
 
@@ -647,6 +654,7 @@ impl CommandTokens {
             source_binding: None,
             nested_bindings: Vec::new(),
             variable_accesses: Vec::new(),
+            hosted_taint_context: None,
         }
     }
 
@@ -697,6 +705,7 @@ impl CommandTokens {
             source_binding: None,
             nested_bindings: Vec::new(),
             variable_accesses: Vec::new(),
+            hosted_taint_context: None,
         }
     }
 
@@ -749,6 +758,8 @@ impl CommandTokens {
     /// A missing or non-source nested site stays explicitly unknown when the
     /// parent was queried; it never recovers meaning from a written head.
     pub fn inherit_nested_bindings(&mut self, parent: &Self) {
+        self.hosted_taint_context
+            .clone_from(&parent.hosted_taint_context);
         self.nested_bindings.clone_from(&parent.nested_bindings);
         self.variable_accesses.clone_from(&parent.variable_accesses);
         if parent.source_binding.is_none() {
@@ -2244,6 +2255,107 @@ pub struct Procedure {
     pub base_priority: u32,
 }
 
+/// A Registry-selected iRules event body retained by its actual lowering
+/// producer. This source contract supplies conditional frame policy only;
+/// it establishes no worker, epoch, entered event, Normal or current value.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SourceIrulesEventBody {
+    event: String,
+    event_word: Option<tcl_lexer::NativeWord>,
+    declaration: Span,
+    body: std::sync::Arc<Script>,
+    image: tcl_lexer::SourceImage,
+    config: LexerConfig,
+    registry: tcl_registry::RegistrySemanticKey,
+}
+
+impl SourceIrulesEventBody {
+    pub(crate) fn from_lowering(
+        event: &str,
+        declaration: Span,
+        body: &Script,
+        image: tcl_lexer::SourceImage,
+        config: LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+        event_word: Option<tcl_lexer::NativeWord>,
+    ) -> Self {
+        let event_word = event_word.filter(|word| {
+            word.image() == &image
+                && word.config() == config
+                && declaration.start() <= word.span().start()
+                && word.span().end() <= declaration.end()
+        });
+        Self {
+            event: event.to_owned(),
+            event_word,
+            declaration,
+            body: std::sync::Arc::new(body.clone()),
+            image,
+            config,
+            registry: registry.snapshot().semantic_key(),
+        }
+    }
+
+    /// Event identity selected at the real declaration, without name parsing.
+    #[must_use]
+    pub fn event(&self) -> &str {
+        &self.event
+    }
+
+    /// Original complete event operand under its retained source generation.
+    /// This is declaration geometry, without installation, activation or TMM facts.
+    #[must_use]
+    pub fn event_word(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&tcl_lexer::NativeWord> {
+        (self.matches_source(image, config) && self.registry == registry.snapshot().semantic_key())
+            .then_some(self.event_word.as_ref())
+            .flatten()
+    }
+
+    pub(crate) fn owns_procedure(
+        &self,
+        procedure: &Procedure,
+        image: &tcl_lexer::SourceImage,
+        config: LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        self.declaration == procedure.span
+            && self.body.as_ref() == &procedure.body
+            && self.matches_source(image, config)
+            && self.registry == registry.snapshot().semantic_key()
+    }
+
+    /// Full original source/configuration correspondence, without event reachability.
+    #[must_use]
+    pub fn matches_source(&self, image: &tcl_lexer::SourceImage, config: LexerConfig) -> bool {
+        &self.image == image && self.config == config
+    }
+
+    pub(crate) fn conditional_lattice_entry(
+        &self,
+        body: &Script,
+        config: LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::var_resolve::ResolveContext> {
+        if config != self.config.nested().normalized()
+            || self.registry != registry.snapshot().semantic_key()
+        {
+            return None;
+        }
+        let mut expected = self.body.as_ref().clone();
+        crate::lattice_rebase::rebase_script(&mut expected, -i64::from(self.declaration.start()));
+        (expected == *body).then(|| self.conditional_entry())
+    }
+
+    pub(crate) fn conditional_entry(&self) -> crate::var_resolve::ResolveContext {
+        crate::connection_scope::event_resolve_context(&self.event)
+    }
+}
+
 /// A method definition within a class body.
 ///
 /// Compiles like [`Procedure`] but carries class context for
@@ -2272,6 +2384,15 @@ pub struct MethodDef {
     /// therefore impure for O126 purposes, even though the write looks
     /// like a plain local `set`. Used by interprocedural method-purity.
     pub instance_vars: std::collections::HashSet<String>,
+    /// Actual unanimous entered receiver state, independent of lexical class labels.
+    pub(crate) original_receiver_context: Option<
+        std::sync::Arc<
+            crate::command_binding::original_receiver_body_context::OriginalReceiverBodyContext,
+        >,
+    >,
+    /// Original counted `ParamList` producer; it grants no entered activation.
+    pub(crate) original_parameters:
+        Option<std::sync::Arc<crate::command_binding::formal_topology::OriginalFormalTopology>>,
 }
 
 /// The kind of a class method.
@@ -2360,6 +2481,9 @@ pub struct Module {
     pub dialect_profile: Option<&'static tcl_dialect::DialectProfile>,
     /// Exact command registry snapshot which produced this module.
     pub registry_snapshot: Option<tcl_registry::RegistrySnapshot>,
+    /// Original compiler metadata ingress, including the complete availability
+    /// generation and word grammar. This supplies no runtime entry or frame.
+    pub source_metadata_input: Option<crate::analyser::ResolvedAnalysisInput>,
     /// Execution entry and selected provider provenance shared by source,
     /// CFG, and invocation consumers. It is part of the module cache input.
     pub source_entry: crate::command_binding::SourceAnalysisEntry,
@@ -2424,6 +2548,10 @@ pub struct Module {
     pub top_level: Script,
     /// Named procedures.
     pub procedures: std::collections::HashMap<String, Procedure>,
+    /// Sealed actual event-declaration bodies. Internal procedure labels do
+    /// not create an event frame or select a hosted execution context.
+    pub irules_event_bodies:
+        std::collections::HashMap<String, std::sync::Arc<SourceIrulesEventBody>>,
     /// Named methods (keyed by `class::method`).
     pub methods: std::collections::HashMap<String, MethodDef>,
     /// Synthetic *body units* — the bodies of commands that run their script

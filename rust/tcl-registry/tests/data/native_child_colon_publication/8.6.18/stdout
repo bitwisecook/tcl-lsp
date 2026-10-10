@@ -1,0 +1,14 @@
+version 8.6.18
+observation create status 0 result s errorCode {}
+observation literal-colon-procedure status 0 result {} errorCode {}
+observation literal-colon-call status 0 result literal errorCode {}
+observation root-source-after-colon-procedure status 1 result {invalid command name "source"} errorCode {TCL LOOKUP COMMAND source}
+observation root-procedure-inventory status 0 result {:source {}} errorCode {}
+observation colon-holder-procedure status 0 result {} errorCode {}
+observation colon-holder-procedure-inventory status 0 result source errorCode {}
+observation colon-holder-call status 1 result {wrong # args: should be "source"} errorCode {TCL WRONGARGS}
+observation uncolon-holder-procedure-inventory status 0 result {} errorCode {}
+observation uncolon-holder-call status 1 result {invalid command name "source"} errorCode {TCL LOOKUP COMMAND source}
+observation literal-lambda-colon-holder status 1 result {invalid command name "source"} errorCode {TCL LOOKUP COMMAND source}
+observation literal-lambda-default-root status 1 result {invalid command name "source"} errorCode {TCL LOOKUP COMMAND source}
+observation delete status 0 result {} errorCode {}

@@ -6,6 +6,49 @@ use tcl_registry::native_jim_enum::NativeJimEnumFlags;
 const WORDS: &[&str] = &["provide", "present", "--"];
 const OTHER: &[&str] = &["present", "provide"];
 const BOGUS: &[&str] = &["bogus"];
+
+#[test]
+fn original_static_option_facade_keeps_jim_counted_enum_currency() {
+    // Native proof: naming.interpreter.selector-and-property-index-currency
+    // docs/design/analysis/name-resolution-proofs/interpreter-selector-and-property-index-currency.md
+    let backend = crate::native_fixture::core(
+        tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+    );
+    let original = Value::new_native_string_bytes(b"provide\0x".as_slice());
+    assert_eq!(
+        backend
+            .native_static_option_index(&original, WORDS, true, "subcommand")
+            .unwrap(),
+        0
+    );
+    assert!(matches!(
+        original.native_jim_option_cache(),
+        Some(NativeJimOptionCache::Enum { flags: 1, .. })
+    ));
+    assert!(original.native_index_cache().is_none());
+    assert_eq!(
+        original.resident_string_bytes().unwrap().as_ref(),
+        b"provide\0x"
+    );
+
+    let prefix = Value::new_native_string_bytes(b"pro".as_slice());
+    assert_eq!(
+        backend
+            .native_static_option_index(&prefix, WORDS, false, "subcommand")
+            .unwrap(),
+        0
+    );
+    assert!(
+        backend
+            .native_static_option_index(&prefix, WORDS, true, "subcommand")
+            .is_err()
+    );
+    assert!(matches!(
+        prefix.native_jim_option_cache(),
+        Some(NativeJimOptionCache::Enum { flags: 3, .. })
+    ));
+}
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().fold(String::new(), |mut output, byte| {
         use std::fmt::Write;

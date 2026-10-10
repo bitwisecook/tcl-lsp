@@ -142,6 +142,8 @@ mod tests {
 
     #[test]
     fn selected_mathop_identity_matches_all_60_native_name_and_argv_controls() {
+        // naming.mathop-binding-and-written-head-controls
+        // docs/design/analysis/name-resolution-proofs/mathop-binding-and-written-head-controls.md
         let rows =
             include_str!("../../../rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt");
         let decode = |text: &str| {
@@ -162,6 +164,8 @@ mod tests {
                 },
             )
             .unwrap();
+            // The native provider starts with its distribution extensions loaded.
+            crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
             let code = interp.eval_str(&decode(fields[4]));
             assert_eq!(
                 code.as_int(),
@@ -184,6 +188,8 @@ mod tests {
 
     #[test]
     fn original_mathop_compilation_matches_all_84_native_controls() {
+        // naming.mathop-procedure-source-controls
+        // docs/design/analysis/name-resolution-proofs/mathop-procedure-source-controls.md
         let rows = include_str!(
             "../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt"
         );
@@ -205,6 +211,8 @@ mod tests {
                 },
             )
             .unwrap();
+            // The native provider starts with its distribution extensions loaded.
+            crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
             let code = interp.eval_str(&decode(fields[4]));
             assert_eq!(
                 code.as_int(),

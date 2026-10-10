@@ -2029,7 +2029,12 @@ mod tests {
                 .as_ref()
                 .expect("original flat namespace cell")
                 .name,
-            "::named::counter",
+            "named::counter",
+        );
+        assert_eq!(
+            original.cell.as_ref().unwrap().owner,
+            crate::place::CellOwner::NamespaceIdentity(Box::new(root.clone())),
+            "Jim's stored key is root-flat; the namespace owner is independent",
         );
         context.alias_bindings.insert("counter", original);
         assert_eq!(

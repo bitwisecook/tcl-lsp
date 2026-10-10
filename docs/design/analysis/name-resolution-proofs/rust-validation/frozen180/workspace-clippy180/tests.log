@@ -1,0 +1,151 @@
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+error[E0599]: no method named `resolve_user_class_in` found for mutable reference `&mut analyser::state::Analyser` in the current scope
+     --> rust/tcl-compiler/src/analyser/handlers.rs:10723:42
+      |
+10723 |             && let Some(selected) = self.resolve_user_class_in(raw, scope_path)
+      |                                          ^^^^^^^^^^^^^^^^^^^^^
+      |
+help: there is a method `resolve_alias` with a similar name, but with different arguments
+     --> rust/tcl-compiler/src/analyser/handlers.rs:7048:5
+      |
+ 7048 | /     pub fn resolve_alias(
+ 7049 | |         &mut self,
+ 7050 | |         cmd_name: &str,
+ 7051 | |         args: &[String],
+ 7052 | |         scope_path: &[usize],
+ 7053 | |     ) -> (String, Vec<String>) {
+      | |______________________________^
+
+error[E0599]: no method named `resolve_user_class_in` found for reference `&analyser::state::Analyser` in the current scope
+    --> rust/tcl-compiler/src/analyser/oo.rs:2090:18
+     |
+2089 |               let Some(base_class) = self
+     |  ____________________________________-
+2090 | |                 .resolve_user_class_in(base, scope_path)
+     | |_________________-^^^^^^^^^^^^^^^^^^^^^
+     |
+help: there is a method `resolve_alias` with a similar name, but with different arguments
+    --> rust/tcl-compiler/src/analyser/handlers.rs:7048:5
+     |
+7048 | /     pub fn resolve_alias(
+7049 | |         &mut self,
+7050 | |         cmd_name: &str,
+7051 | |         args: &[String],
+7052 | |         scope_path: &[usize],
+7053 | |     ) -> (String, Vec<String>) {
+     | |______________________________^
+
+error[E0599]: no method named `resolve_user_class_in` found for mutable reference `&mut analyser::state::Analyser` in the current scope
+    --> rust/tcl-compiler/src/analyser/oo.rs:2121:18
+     |
+2120 |               if self
+     |  ________________-
+2121 | |                 .resolve_user_class_in(class_word, scope_path)
+     | |_________________-^^^^^^^^^^^^^^^^^^^^^
+     |
+help: there is a method `resolve_alias` with a similar name, but with different arguments
+    --> rust/tcl-compiler/src/analyser/handlers.rs:7048:5
+     |
+7048 | /     pub fn resolve_alias(
+7049 | |         &mut self,
+7050 | |         cmd_name: &str,
+7051 | |         args: &[String],
+7052 | |         scope_path: &[usize],
+7053 | |     ) -> (String, Vec<String>) {
+     | |______________________________^
+
+error[E0599]: no method named `resolve_user_class_in` found for mutable reference `&mut analyser::state::Analyser` in the current scope
+    --> rust/tcl-compiler/src/analyser/oo.rs:2156:34
+     |
+2156 |         let Some(class_q) = self.resolve_user_class_in(cmd_name, scope_path) else {
+     |                                  ^^^^^^^^^^^^^^^^^^^^^
+     |
+help: there is a method `resolve_alias` with a similar name, but with different arguments
+    --> rust/tcl-compiler/src/analyser/handlers.rs:7048:5
+     |
+7048 | /     pub fn resolve_alias(
+7049 | |         &mut self,
+7050 | |         cmd_name: &str,
+7051 | |         args: &[String],
+7052 | |         scope_path: &[usize],
+7053 | |     ) -> (String, Vec<String>) {
+     | |______________________________^
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+    --> rust/tcl-compiler/src/analyser/oo.rs:2156:13
+     |
+2156 |         let Some(class_q) = self.resolve_user_class_in(cmd_name, scope_path) else {
+     |             ^^^^^^^^^^^^^ doesn't have a size known at compile-time
+     |
+     = help: the trait `std::marker::Sized` is not implemented for `str`
+note: required by a bound in `std::prelude::v1::Some`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:606:4
+
+error[E0308]: mismatched types
+     --> rust/tcl-compiler/src/analyser/oo.rs:2203:37
+      |
+ 2203 |         self.register_defined_class(class_q, class_def, scope_path);
+      |              ---------------------- ^^^^^^^ expected `String`, found `str`
+      |              |
+      |              arguments to this method are incorrect
+      |
+note: method defined here
+     --> rust/tcl-compiler/src/analyser/handlers.rs:10648:19
+      |
+10648 |     pub(super) fn register_defined_class(
+      |                   ^^^^^^^^^^^^^^^^^^^^^^
+10649 |         &mut self,
+10650 |         qualified: String,
+      |         -----------------
+help: try using a conversion method
+      |
+ 2203 |         self.register_defined_class(class_q.to_string(), class_def, scope_path);
+      |                                            ++++++++++++
+
+error[E0599]: no method named `resolve_user_class_in` found for mutable reference `&mut analyser::state::Analyser` in the current scope
+    --> rust/tcl-compiler/src/analyser/oo.rs:2235:34
+     |
+2235 |         let Some(class_q) = self.resolve_user_class_in(class_word, scope_path) else {
+     |                                  ^^^^^^^^^^^^^^^^^^^^^
+     |
+help: there is a method `resolve_alias` with a similar name, but with different arguments
+    --> rust/tcl-compiler/src/analyser/handlers.rs:7048:5
+     |
+7048 | /     pub fn resolve_alias(
+7049 | |         &mut self,
+7050 | |         cmd_name: &str,
+7051 | |         args: &[String],
+7052 | |         scope_path: &[usize],
+7053 | |     ) -> (String, Vec<String>) {
+     | |______________________________^
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+    --> rust/tcl-compiler/src/analyser/oo.rs:2235:13
+     |
+2235 |         let Some(class_q) = self.resolve_user_class_in(class_word, scope_path) else {
+     |             ^^^^^^^^^^^^^ doesn't have a size known at compile-time
+     |
+     = help: the trait `std::marker::Sized` is not implemented for `str`
+note: required by a bound in `std::prelude::v1::Some`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:606:4
+
+    Checking tcl-cshim v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cshim)
+error: implementation of `std::ops::FnOnce` is not general enough
+    --> rust/tcl-compiler/src/analyser/commands.rs:1341:30
+     |
+1341 |           let Some(argument) = registry
+     |  ______________________________^
+1342 | |             .with_schema(tcl_registry::ResolvedInvocation::authored_source_rule_procedure_operand)
+     | |__________________________________________________________________________________________________^ implementation of `std::ops::FnOnce` is not general enough
+     |
+     = note: `for<'a> fn(&'a tcl_registry::ResolvedInvocation<'_, '2>) -> Option<usize> {tcl_registry::source_navigation::<impl tcl_registry::ResolvedInvocation<'_, '2>>::authored_source_rule_procedure_operand}` must implement `std::ops::FnOnce<(&tcl_registry::ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+     = note: ...but it actually implements `std::ops::FnOnce<(&tcl_registry::ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+Some errors have detailed explanations: E0277, E0308, E0599.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `tcl-compiler` (lib) due to 9 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 9 previous errors

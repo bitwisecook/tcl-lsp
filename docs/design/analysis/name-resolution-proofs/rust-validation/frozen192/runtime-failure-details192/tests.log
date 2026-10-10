@@ -1,0 +1,206 @@
+
+running 24 tests
+test cmd_alias::tests::interp_subcommand_words_resolve_like_tcl_get_index_from_obj ... 
+thread 'cmd_alias::tests::interp_subcommand_words_resolve_like_tcl_get_index_from_obj' (694952) panicked at src/cmd_alias.rs:1210:13:
+assertion `left == right` failed
+  left: "ambiguous option \"\": must be alias, aliases, bgerror, cancel, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, share, target, or transfer"
+ right: "ambiguous option \"\": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion ... 
+thread 'cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion' (694997) panicked at src/cmd_alias.rs:1179:9:
+assertion `left == right` failed: []
+  left: Error
+ right: Ok
+FAILED
+test cmd_alias::tests::jim_interpreter_handle_isolation ... 
+thread 'cmd_alias::tests::jim_interpreter_handle_isolation' (695030) panicked at src/cmd_alias.rs:1193:9:
+assertion `left == right` failed: []
+  left: Error
+ right: Ok
+FAILED
+test cmd_coro::tests::coroinject_runs_on_next_resume ... 
+thread 'cmd_coro::tests::coroinject_runs_on_next_resume' (695031) panicked at src/cmd_coro.rs:1047:9:
+assertion `left == right` failed: eval failed: [100, 32, 104, 101, 108, 108, 111]
+  left: Error
+ right: Ok
+FAILED
+test cmd_error::tests::body_frame_commands ... 
+thread 'cmd_error::tests::body_frame_commands' (695033) panicked at src/cmd_error.rs:999:13:
+assertion `left == right` failed
+  left: [101, 10, 32, 32, 32, 32, 119, 104, 105, 108, 101, 32, 101, 120, 101, 99, 117, 116, 105, 110, 103, 10, 34, 101, 114, 114, 111, 114, 32, 101, 34, 10, 32, 32, 32, 32, 40, 34, 101, 118, 97, 108, 34, 32, 98, 111, 100, 121, 32, 108, 105, 110, 101, 32, 49, 41, 10, 32, 32, 32, 32, 105, 110, 118, 111, 107, 101, 100, 32, 102, 114, 111, 109, 32, 119, 105, 116, 104, 105, 110, 10, 34, 101, 118, 97, 108, 32, 123, 32, 101, 114, 114, 111, 114, 32, 101, 32, 125, 34]
+ right: [101, 10, 32, 32, 32, 32, 119, 104, 105, 108, 101, 32, 101, 120, 101, 99, 117, 116, 105, 110, 103, 10, 34, 101, 114, 114, 111, 114, 32, 101, 32, 34, 10, 32, 32, 32, 32, 40, 34, 101, 118, 97, 108, 34, 32, 98, 111, 100, 121, 32, 108, 105, 110, 101, 32, 49, 41, 10, 32, 32, 32, 32, 105, 110, 118, 111, 107, 101, 100, 32, 102, 114, 111, 109, 32, 119, 105, 116, 104, 105, 110, 10, 34, 101, 118, 97, 108, 32, 123, 32, 101, 114, 114, 111, 114, 32, 101, 32, 125, 32, 34]
+FAILED
+test cmd_error::tests::error_info_stack_traces ... 
+thread 'cmd_error::tests::error_info_stack_traces' (695034) panicked at src/cmd_error.rs:958:13:
+assertion `left == right` failed
+  left: None
+ right: Some([102, 111, 111, 10, 32, 32, 32, 32, 119, 104, 105, 108, 101, 32, 101, 120, 101, 99, 117, 116, 105, 110, 103, 10, 34, 101, 114, 114, 111, 114, 32, 102, 111, 111, 32, 34, 10, 32, 32, 32, 32, 40, 112, 114, 111, 99, 101, 100, 117, 114, 101, 32, 34, 112, 34, 32, 108, 105, 110, 101, 32, 49, 41, 10, 32, 32, 32, 32, 105, 110, 118, 111, 107, 101, 100, 32, 102, 114, 111, 109, 32, 119, 105, 116, 104, 105, 110, 10, 34, 112, 34])
+FAILED
+test cmd_info::tests::info_consts_includes_only_tcloo_instance_links ... 
+thread 'cmd_info::tests::info_consts_includes_only_tcloo_instance_links' (695035) panicked at src/cmd_info.rs:974:9:
+assertion `left == right` failed: eval "const G 9; oo::class create C {variable X; constructor {} {const X 1}; method inspect {} {global G; upvar #0 ::G U; list [info consts] [info constant G] [info constant U]}; method retarget {} {upvar #0 ::G X; list [info consts] [info constant X]}; method shadow {X} {list $X [info consts]}}; set o [C new]; oo::object create O; oo::objdefine O {variable P; method init {} {const P 2}; method inspect {} {info consts}}; O init; oo::class create CA {variable X; method inspect {} {list [info consts] [info constant X] $X}}; set oa [CA new]; namespace eval [info object namespace $oa] {namespace upvar :: G X}; oo::class create CP {method inspect {} {info consts}}; CP create op; oo::objdefine op {variable Q; method init {} {const Q 3}}; op init; list [$o inspect] [$o retarget] [$o shadow formal] [O inspect] [$oa inspect] [op inspect] [info constant [info object namespace op]::Q]"
+  left: Error
+ right: Ok
+FAILED
+test cmd_info::tests::info_frame_stack ... 
+thread 'cmd_info::tests::info_frame_stack' (695036) panicked at src/cmd_info.rs:1083:13:
+assertion `left == right` failed
+  left: [116, 121, 112, 101, 32, 112, 114, 111, 99, 32, 108, 105, 110, 101, 32, 49, 32, 99, 109, 100, 32, 98, 32, 112, 114, 111, 99, 32, 58, 58, 97, 32, 108, 101, 118, 101, 108, 32, 49]
+ right: [116, 121, 112, 101, 32, 112, 114, 111, 99, 32, 108, 105, 110, 101, 32, 49, 32, 99, 109, 100, 32, 123, 98, 32, 125, 32, 112, 114, 111, 99, 32, 58, 58, 97, 32, 108, 101, 118, 101, 108, 32, 49]
+FAILED
+test cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation ... 
+thread 'cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation' (695038) panicked at src/cmd_list.rs:1165:17:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+FAILED
+test cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release ... 
+thread 'cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release' (695193) panicked at src/cmd_mathfunc.rs:316:13:
+assertion `left == right` failed
+  left: None
+ right: Some([84, 67, 76, 32, 80, 65, 82, 83, 69, 32, 69, 88, 80, 82, 32, 66, 65, 82, 69, 87, 79, 82, 68])
+FAILED
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... 
+thread 'cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls' (695194) panicked at src/cmd_mathop.rs:173:13:
+assertion `left == right` failed: tcl8.5/9
+  left: [53, 32, 53]
+ right: [53, 32, 79, 86, 69, 82, 82, 73, 68, 69]
+FAILED
+test cmd_namespace::tests::a_retained_token_takes_relative_definitions_only ... 
+thread 'cmd_namespace::tests::a_retained_token_takes_relative_definitions_only' (695195) panicked at src/cmd_namespace.rs:3401:13:
+assertion `left == right` failed: sheet:
+namespace eval N {
+                    proc p {} {
+                        namespace delete ::N
+                        proc r {} {return R}
+                        list [r] [info commands ::N::r] [namespace which r] \
+                             [catch {proc ::N::s {} {}} m] $m [info commands ::N::*] \
+                             [namespace exists ::N]
+                    }
+                }
+                set a [::N::p]
+                list $a [info commands ::N::*] [namespace exists ::N]
+  left: [123, 82, 32, 123, 125, 32, 58, 58, 78, 58, 58, 114, 32, 48, 32, 123, 125, 32, 123, 125, 32, 48, 125, 32, 123, 125, 32, 48]
+ right: [123, 82, 32, 123, 125, 32, 58, 58, 78, 58, 58, 114, 32, 49, 32, 123, 99, 97, 110, 39, 116, 32, 99, 114, 101, 97, 116, 101, 32, 112, 114, 111, 99, 101, 100, 117, 114, 101, 32, 34, 58, 58, 78, 58, 58, 115, 34, 58, 32, 117, 110, 107, 110, 111, 119, 110, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 125, 32, 123, 125, 32, 48, 125, 32, 123, 125, 32, 48]
+FAILED
+test cmd_namespace::tests::namespace_teardown_defers_a_callback_recreated_command_to_the_next_pass ... 
+thread 'cmd_namespace::tests::namespace_teardown_defers_a_callback_recreated_command_to_the_next_pass' (695196) panicked at src/cmd_namespace.rs:3231:9:
+assertion `left == right` failed
+  left: "six four three eight seven nine five remade two one ten"
+ right: "six four three eight seven nine five remade two one ten two"
+FAILED
+test cmd_namespace::tests::namespace_teardown_visits_a_callback_created_command_in_the_next_pass ... 
+thread 'cmd_namespace::tests::namespace_teardown_visits_a_callback_created_command_in_the_next_pass' (695197) panicked at src/cmd_namespace.rs:3209:9:
+assertion `left == right` failed
+  left: "six six four three eight seven nine five two one ten"
+ right: "six six four three eight seven nine five two one ten zz"
+FAILED
+test cmd_namespace::tests::retained_object_teardown_cannot_delete_replacement_private_dispatcher ... 
+thread 'cmd_namespace::tests::retained_object_teardown_cannot_delete_replacement_private_dispatcher' (695198) panicked at src/cmd_namespace.rs:3401:13:
+assertion `left == right` failed: sheet:
+set r [namespace eval N {
+                    oo::class create C {method m {} {return OLD}}
+                    C create o
+                    proc p {} {
+                        namespace delete ::N
+                        namespace eval ::N {
+                            oo::class create C {
+                                method m {} {return NEW}
+                                method n {} {my m}
+                            }
+                            C create o
+                        }
+                        o m
+                    }
+                    p
+                }]
+                list $r [info commands ::N::o::my] [::N::o n]
+  left: [79, 76, 68, 32, 123, 125, 32, 78, 69, 87]
+ right: [79, 76, 68, 32, 58, 58, 78, 58, 58, 111, 58, 58, 109, 121, 32, 78, 69, 87]
+FAILED
+test cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls ... 
+thread 'cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls' (695199) panicked at src/cmd_oo/native_variables.rs:177:9:
+assertion `left == right` failed: PREFIX_DECLARATION_NEGATIVE_STATIC_READ
+  left: []
+ right: [99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 107, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 118, 97, 114, 105, 97, 98, 108, 101]
+FAILED
+test cmd_oo::tests::define_context_self_arity ... 
+thread 'cmd_oo::tests::define_context_self_arity' (695200) panicked at src/cmd_oo.rs:6622:9:
+assertion `left == right` failed: eval "oo::define Cls {set ::r [self]}; set ::r" -> "wrong # args: should be \"self arg ?arg ...?\""
+  left: Error
+ right: Ok
+FAILED
+test cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages ... 
+thread 'cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages' (695201) panicked at src/cmd_oo.rs:8548:13:
+assertion `left == right` failed
+  left: Ok
+ right: Error
+FAILED
+test cmd_oo::tests::definitionnamespace_semantics ... 
+thread 'cmd_oo::tests::definitionnamespace_semantics' (695202) panicked at src/cmd_oo.rs:6622:9:
+assertion `left == right` failed: eval "oo::class create foocls { superclass oo::class parent; definitionnamespace foodef }" -> "namespace \"foodef\" not found"
+  left: Error
+ right: Ok
+FAILED
+test cmd_oo::tests::objdefine_forward_mixin_unexport_copy ... 
+thread 'cmd_oo::tests::objdefine_forward_mixin_unexport_copy' (695203) panicked at src/cmd_oo.rs:8727:13:
+assertion `left == right` failed
+  left: [58, 58, 111, 111, 58, 58, 79, 98, 106, 50, 48]
+ right: [58, 58, 111, 111, 58, 58, 79, 98, 106, 48]
+FAILED
+test cmd_oo::tests::object_builtin_variable_varname_eval ... 
+thread 'cmd_oo::tests::object_builtin_variable_varname_eval' (695204) panicked at src/cmd_oo.rs:7630:13:
+assertion `left == right` failed
+  left: [58, 58, 111, 111, 58, 58, 79, 98, 106, 50, 48, 58, 58, 120]
+ right: [58, 58, 111, 111, 58, 58, 79, 98, 106, 48, 58, 58, 120]
+FAILED
+test cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object ... 
+thread 'cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object' (695205) panicked at src/cmd_oo.rs:7518:13:
+assertion `left == right` failed
+  left: [0x7f024dd92010]
+ right: [0x7f024d4a9d10]
+FAILED
+test cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries ... 
+thread 'cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries' (695206) panicked at src/cmd_proc/native_formal_alpha_tests.rs:41:5:
+assertion `left == right` failed: RAW_ZERO_TEXT_ORIGINAL
+  left: []
+ right: [99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 108, 111, 110, 103, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 118, 97, 114, 105, 97, 98, 108, 101]
+FAILED
+test cmd_regex::tests::regsub_command_error_appends_the_c_error_info_trailer ... 
+thread 'cmd_regex::tests::regsub_command_error_appends_the_c_error_info_trailer' (695207) panicked at src/cmd_regex.rs:757:13:
+assertion `left == right` failed
+  left: "boom {boom\n    while executing\n\"error boom\"\n    (procedure \"boomp\" line 1)\n    (-command substitution computation script)\n    invoked from within\n\"regsub -command {.x.} abcxdef boomp\"}"
+ right: "boom {boom\n    while executing\n\"error boom \"\n    (procedure \"boomp\" line 1)\n    (-command substitution computation script)\n    invoked from within\n\"regsub -command {.x.} abcxdef boomp\"}"
+FAILED
+
+failures:
+
+failures:
+    cmd_alias::tests::interp_subcommand_words_resolve_like_tcl_get_index_from_obj
+    cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion
+    cmd_alias::tests::jim_interpreter_handle_isolation
+    cmd_coro::tests::coroinject_runs_on_next_resume
+    cmd_error::tests::body_frame_commands
+    cmd_error::tests::error_info_stack_traces
+    cmd_info::tests::info_consts_includes_only_tcloo_instance_links
+    cmd_info::tests::info_frame_stack
+    cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation
+    cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release
+    cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls
+    cmd_namespace::tests::a_retained_token_takes_relative_definitions_only
+    cmd_namespace::tests::namespace_teardown_defers_a_callback_recreated_command_to_the_next_pass
+    cmd_namespace::tests::namespace_teardown_visits_a_callback_created_command_in_the_next_pass
+    cmd_namespace::tests::retained_object_teardown_cannot_delete_replacement_private_dispatcher
+    cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls
+    cmd_oo::tests::define_context_self_arity
+    cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages
+    cmd_oo::tests::definitionnamespace_semantics
+    cmd_oo::tests::objdefine_forward_mixin_unexport_copy
+    cmd_oo::tests::object_builtin_variable_varname_eval
+    cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object
+    cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries
+    cmd_regex::tests::regsub_command_error_appends_the_c_error_info_trailer
+
+test result: FAILED. 0 passed; 24 failed; 0 ignored; 0 measured; 1210 filtered out; finished in 28.02s
+

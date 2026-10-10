@@ -1,0 +1,26 @@
+{
+  "provider": "tcl9.1",
+  "version": "9.1.0",
+  "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+  "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+  "windows": [
+    {
+      "function": "InfoObjectVariablesCmd",
+      "lines": [
+        944,
+        990
+      ],
+      "snippet": "InfoObjectVariablesCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Object *oPtr;\n    Tcl_Obj *resultObj;\n    Tcl_Size i;\n    bool isPrivate = false;\n\n    if (objc != 2 && objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"objName ?-private?\");\n\treturn TCL_ERROR;\n    }\n    if (objc == 3) {\n\tif (strcmp(\"-private\", TclGetString(objv[2])) != 0) {\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t    \"option \\\"%s\\\" is not exactly \\\"-private\\\"\",\n\t\t    TclGetString(objv[2])));\n\t    OO_ERROR(interp, BAD_ARG);\n\t    return TCL_ERROR;\n\t}\n\tisPrivate = true;\n    }\n    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[1]);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    TclNewObj(resultObj);\n    if (isPrivate) {\n\tPrivateVariableMapping *privatePtr;\n\n\tFOREACH_STRUCT(privatePtr, oPtr->privateVariables) {\n\t    Tcl_ListObjAppendElement(NULL, resultObj, privatePtr->variableObj);\n\t}\n    } else {\n\tTcl_Obj *variableObj;\n\n\tFOREACH(variableObj, oPtr->variables) {\n\t    Tcl_ListObjAppendElement(NULL, resultObj, variableObj);\n\t}\n    }\n    Tcl_SetObjResult(interp, resultObj);\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "6f0e63143063b06be3dbc8feb0d8f7f0f845e88bdf0d3b9e869bbfa55dd1990a"
+    },
+    {
+      "function": "InfoClassVariablesCmd",
+      "lines": [
+        1675,
+        1721
+      ],
+      "snippet": "InfoClassVariablesCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Class *clsPtr;\n    Tcl_Obj *resultObj;\n    Tcl_Size i;\n    bool isPrivate = false;\n\n    if (objc != 2 && objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"className ?-private?\");\n\treturn TCL_ERROR;\n    }\n    if (objc == 3) {\n\tif (strcmp(\"-private\", TclGetString(objv[2])) != 0) {\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t    \"option \\\"%s\\\" is not exactly \\\"-private\\\"\",\n\t\t    TclGetString(objv[2])));\n\t    OO_ERROR(interp, BAD_ARG);\n\t    return TCL_ERROR;\n\t}\n\tisPrivate = true;\n    }\n    clsPtr = TclOOGetClassFromObj(interp, objv[1]);\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    TclNewObj(resultObj);\n    if (isPrivate) {\n\tPrivateVariableMapping *privatePtr;\n\n\tFOREACH_STRUCT(privatePtr, clsPtr->privateVariables) {\n\t    Tcl_ListObjAppendElement(NULL, resultObj, privatePtr->variableObj);\n\t}\n    } else {\n\tTcl_Obj *variableObj;\n\n\tFOREACH(variableObj, clsPtr->variables) {\n\t    Tcl_ListObjAppendElement(NULL, resultObj, variableObj);\n\t}\n    }\n    Tcl_SetObjResult(interp, resultObj);\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "dbff1bcf6ab71f390e0baf690ed69e1c789a1e8ddc484f98702f5aff51d11ef1"
+    }
+  ]
+}

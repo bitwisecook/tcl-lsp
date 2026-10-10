@@ -202,10 +202,7 @@ fn namespace_member(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(names) => names,
         Err(error) => return err(error.to_string()),
     };
-    let words = names
-        .iter()
-        .map(|name| name.as_ref())
-        .collect::<Vec<&str>>();
+    let words = names.iter().map(AsRef::as_ref).collect::<Vec<&str>>();
     match tcl_registry::native_package::select_authored_keyword(&original, &words) {
         Ok(index) => ok(Value::from_native_string_bytes(words[index].as_bytes())),
         Err(message) => crate::command::completion_from_cmd_error(

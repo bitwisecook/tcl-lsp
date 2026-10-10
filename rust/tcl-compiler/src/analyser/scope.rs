@@ -43,6 +43,16 @@ use crate::naming::normalise_qualified_name;
 use super::state::Analyser;
 use super::types::{ClassDef, ProcDef, Scope, ScopeKind, VarDef};
 
+pub(super) struct VariableLinkTarget {
+    pub(super) target: String,
+    pub(super) target_span: Span,
+    pub(super) local_span: Span,
+    pub(super) original_target_namespace:
+        Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    pub(super) original_target_receiver:
+        crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+}
+
 /// Ancestor path enumerator: yields the active scope's path and
 /// each of its proper ancestors back to the root, longest first.
 ///
@@ -128,7 +138,18 @@ pub(super) fn scope_at_mut<'a>(root: &'a mut Scope, path: &[usize]) -> Option<&'
 /// by byte offset, for post-walk LSP consumers with no `scope_path`) so
 /// the two traversal mechanisms can never disagree on the underlying rule.
 fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
-    if let Some(display) = child.naming_scope.as_ref().and_then(crate::signature_scan::scope::SignatureNamespaceScope::display) {
+    if let Some(display) = child
+        .naming_scope
+        .as_ref()
+        .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+    {
+        if let Some(domain) = &child.original_interpreter_source_domain {
+            return child
+                .naming_scope
+                .as_ref()
+                .and_then(|namespace| domain.reported_namespace(namespace))
+                .unwrap_or_else(|| ns.to_owned());
+        }
         return display;
     }
     match child.kind {
@@ -213,6 +234,21 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
         cursor = child;
     }
     ns
+}
+
+/// Retained source naming geometry at the actual innermost scope. A scope
+/// without its own original geometry withdraws the query instead of donating
+/// a parent or presentation-derived namespace to its body.
+#[must_use]
+pub fn original_namespace_scope_at(
+    root: &Scope,
+    byte_offset: u32,
+) -> Option<&crate::signature_scan::scope::SignatureNamespaceScope> {
+    let mut cursor = root;
+    while let Some(child) = innermost_containing_child(cursor, byte_offset) {
+        cursor = child;
+    }
+    cursor.naming_scope.as_ref()
 }
 
 /// Whether an unqualified command at `byte_offset` also resolves against
@@ -865,7 +901,7 @@ impl Analyser {
             reads.push((name.to_string(), tok.span, braced));
         }
         for (name, span, braced) in reads {
-            self.record_var_read_braced(&name, span, scope_path, braced);
+            self.record_var_read_braced_in_origin(&name, span, scope_path, braced, true);
         }
 
         // `$var` reads also occur inside command substitutions
@@ -903,7 +939,13 @@ impl Analyser {
             // there is no `$` to see.
             collect_name_role_reads(cmd, registry, &mut extra);
             for site in extra {
-                self.record_var_read_braced(&site.name, site.span, scope_path, site.braced_literal);
+                self.record_var_read_braced_in_origin(
+                    &site.name,
+                    site.span,
+                    scope_path,
+                    site.braced_literal,
+                    site.substitution,
+                );
             }
         }
     }
@@ -1108,6 +1150,7 @@ impl Analyser {
     /// A document-final declaration or lexical deletion gate cannot prove which
     /// implementation a reached call selected after evaluating its arguments.
     pub(super) fn retain_positioned_command_definitions(&mut self) {
+        let lexical_advice = self.result.allows_lexical_declaration_advice();
         for invocation in &mut self.result.command_invocations {
             if invocation.is_mathfunc_call
                 || invocation.ensemble_dispatch.is_some()
@@ -1127,7 +1170,11 @@ impl Analyser {
                     .lookup_command_word(&invocation.name)
                     .command_reference(&invocation.name),
                 crate::signature_scan::types::SignatureCommandLookup::InvocationHead => {
-                    point.evaluated_command_reference()
+                    point.original_evaluated_command_reference().or_else(|| {
+                        lexical_advice
+                            .then(|| point.evaluated_command_reference())
+                            .flatten()
+                    })
                 }
                 crate::signature_scan::types::SignatureCommandLookup::DeferredReference => None,
             };
@@ -1139,7 +1186,43 @@ impl Analyser {
         }
     }
 
+    fn finalise_original_invocation_inputs(&mut self) {
+        let config = self.lexer_config();
+        let rules = self.word_rules();
+        let policy = self.declaration_name_policy();
+        for invocation in &mut self.result.command_invocations {
+            if invocation.is_mathfunc_call
+                || invocation.callback_arity.is_some()
+                || invocation.ensemble_dispatch.is_some()
+            {
+                continue;
+            }
+            let Some(offset) = invocation.lookup.offset(invocation.range) else {
+                continue;
+            };
+            let binding = self.head_identities.invocation_at_source("", offset);
+            if invocation.original_name_input.is_none() && !invocation.indirect {
+                let Some(policy) = policy else {
+                    continue;
+                };
+                invocation.original_name_input = binding
+                    .original_source_name_key_at_span(invocation.range, config, rules, policy)
+                    .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord);
+            }
+            if invocation.original_lookup.is_none() && invocation.lookup.is_execution_site() {
+                invocation.original_lookup = invocation
+                    .original_name_input
+                    .as_ref()
+                    .and_then(
+                        crate::signature_scan::scope::SignatureSourceNameInput::original_word_key,
+                    )
+                    .and_then(|key| binding.original_static_command_lookup(key));
+            }
+        }
+    }
+
     pub(super) fn finalise_invocation_resolutions(&mut self) {
+        self.finalise_original_invocation_inputs();
         // Populate the per-dialect builtin-name cache before splitting field
         // borrows below (`builtin_command_names` needs `&mut self`).
         let _ = self.builtin_command_names();
@@ -1649,40 +1732,19 @@ impl Analyser {
         false
     }
 
-    /// The `(class_qualified, method_name)` of the innermost `TclOO`
-    /// method body enclosing `scope_path`, or `None` when the call site
-    /// isn't textually inside one.
-    ///
-    /// Drives `next` / `nextto` arity resolution
-    /// (`Analyser::queue_next_arity_candidate`): a method scope's `name`
-    /// is always `"{class_qualified}::{method}"` (see
-    /// `Analyser::walk_method_body`), split here on the *last* `::` —
-    /// safe because a method's own simple name never itself contains
-    /// `::`.
-    ///
-    /// A nested `proc` / lambda body between the method scope and
-    /// `scope_path` resets the result to `None`: `next` only resolves
-    /// inside the calling frame of the method invocation itself — a
-    /// bareword `proc` defined and called from inside a method body runs
-    /// in its own, unrelated frame (confirmed against tclsh 9.0.4:
-    /// calling `next` from inside such a nested `proc` fails "next may
-    /// only be called from inside a method"), so it must not inherit the
-    /// enclosing method's context.
+    /// Retained declaration context of the innermost method body. A nested
+    /// procedure or lambda owns another frame and resets this readonly context.
     #[must_use]
-    pub(super) fn current_method_context(&self, scope_path: &[usize]) -> Option<(String, String)> {
+    pub(super) fn current_method_context(
+        &self,
+        scope_path: &[usize],
+    ) -> Option<&super::types::OriginalLexicalMemberContext> {
         let mut cursor = &self.result.global_scope;
-        let mut found: Option<(String, String)> = None;
-        for &idx in scope_path {
-            let Some(child) = cursor.children.get(idx) else {
-                break;
-            };
+        let mut found = None;
+        for &index in scope_path {
+            let child = cursor.children.get(index)?;
             match child.kind {
-                ScopeKind::Method => {
-                    found = child
-                        .name
-                        .rsplit_once("::")
-                        .map(|(cls, method)| (cls.to_string(), method.to_string()));
-                }
+                ScopeKind::Method => found = child.original_member_context.as_deref(),
                 ScopeKind::Proc => found = None,
                 ScopeKind::Global | ScopeKind::Namespace | ScopeKind::Uplevel => {}
             }
@@ -1721,11 +1783,22 @@ impl Analyser {
         scope_path: &[usize],
         braced_literal: bool,
     ) {
+        self.record_var_read_braced_in_origin(name, read_span, scope_path, braced_literal, false);
+    }
+
+    fn record_var_read_braced_in_origin(
+        &mut self,
+        name: &str,
+        read_span: Span,
+        scope_path: &[usize],
+        braced_literal: bool,
+        substitution: bool,
+    ) {
         let base_name = crate::naming::normalise_var_name_braced(name, braced_literal);
         if base_name.is_empty() {
             return;
         }
-        self.record_qualified_var_ref(base_name, read_span, scope_path);
+        self.record_qualified_var_ref(base_name, read_span, scope_path, substitution, false);
         // An `$arr(idx)` read records the element index on the array var.
         let element = crate::naming::split_array_name_braced(name, braced_literal)
             .1
@@ -1809,18 +1882,103 @@ impl Analyser {
     /// cross-file case is precisely the one where it does not.  Repeated calls
     /// for one token (a write bound by both its dedicated handler and the
     /// registry `VarWrite`-role walk) collapse on the trailing duplicate check.
-    fn record_qualified_var_ref(&mut self, base_name: &str, span: Span, scope_path: &[usize]) {
+    fn record_qualified_var_ref(
+        &mut self,
+        base_name: &str,
+        span: Span,
+        scope_path: &[usize],
+        substitution: bool,
+        declaration: bool,
+    ) {
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
+        };
+        let original_name_input = self.original_qualified_variable_input(span, substitution);
+        if let Some(crate::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(
+            root,
+        )) = &original_name_input
+            && !self.result.original_variable_roots.contains(root)
+        {
+            self.result.original_variable_roots.push(root.clone());
+        }
+        let scope = scope_at(&self.result.global_scope, scope_path);
+        let original_namespace = scope.and_then(|scope| scope.naming_scope.clone());
+        if !substitution
+            && declaration
+            && let Some(site) = self
+                .result
+                .original_variable_symbols
+                .iter_mut()
+                .find(|site| site.span() == span)
+        {
+            site.retain_declaration();
+        }
+        let purpose = if scope.is_some_and(|scope| {
+            matches!(
+                scope.kind,
+                ScopeKind::Global | ScopeKind::Namespace | ScopeKind::Uplevel
+            )
+        }) {
+            OriginalVariableSymbolPurpose::NamespaceStorage
+        } else {
+            OriginalVariableSymbolPurpose::QualifiedOnly
+        };
+        if substitution
+            && !self
+                .result
+                .original_variable_symbol_conflicts
+                .contains(&span)
+            && !self.result.original_variable_alias_sites.contains(&span)
+        {
+            let site = original_name_input.clone().and_then(|input| {
+                self.original_variable_occurrence(
+                    span,
+                    input,
+                    original_namespace.clone(),
+                    purpose,
+                    OriginalVariableSymbolReceiver::LexicalRoot,
+                    declaration,
+                )
+            });
+            if site.is_none() && !self.result.original_variable_name_unknowns.contains(&span) {
+                self.result.original_variable_name_unknowns.push(span);
+            }
+            if let Some(existing) = self
+                .result
+                .original_variable_symbols
+                .iter_mut()
+                .find(|existing| existing.span() == span)
+            {
+                if site
+                    .as_ref()
+                    .is_none_or(|site| !existing.merge_declaration(site))
+                {
+                    self.result
+                        .original_variable_symbols
+                        .retain(|existing| existing.span() != span);
+                    self.result.original_variable_symbol_conflicts.push(span);
+                }
+            } else if let Some(site) = site {
+                self.result.original_variable_symbols.push(site);
+            }
+        }
         if !base_name.contains("::") {
             return;
         }
         let ns = self.command_resolution_namespace(scope_path);
         let qualified = crate::naming::qualify(&ns, base_name);
-        if self
+        if let Some(last) = self
             .result
             .qualified_var_refs
-            .last()
-            .is_some_and(|last| last.span == span && last.qualified_name == qualified)
+            .last_mut()
+            .filter(|last| last.span == span && last.qualified_name == qualified)
         {
+            if last.original_name_input != original_name_input {
+                last.original_name_input = None;
+            }
+            if last.original_namespace != original_namespace {
+                last.original_namespace = None;
+            }
             return;
         }
         self.result
@@ -1828,7 +1986,483 @@ impl Analyser {
             .push(super::types::QualifiedVarRef {
                 qualified_name: qualified,
                 span,
+                original_name_input,
+                original_namespace,
             });
+    }
+
+    pub(super) fn record_original_variable_write_advice(
+        &mut self,
+        span: Span,
+        scope_path: &[usize],
+        form: tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+        conditional_metadata: Option<
+            &crate::registry_invocation::OriginalConditionalRegistryMetadata,
+        >,
+    ) {
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let config = self.lexer_config();
+        if let Some(original) = self
+            .result
+            .original_vendor_source_name_in_source(&image, config, span)
+        {
+            let Some(metadata) = self.original_vendor_variable_metadata(original) else {
+                return;
+            };
+            let home =
+                self.result
+                    .original_vendor_variable_body_in_source(&image, config, span.start());
+            let source_root = home.is_none()
+                && self.body_depth == 0
+                && scope_at(&self.result.global_scope, scope_path)
+                    .is_some_and(|scope| scope.kind == ScopeKind::Global);
+            let Some(advice) =
+                crate::signature_scan::vendor_variable::VendorSourceVariableAdvice::written(
+                    original,
+                    span,
+                    form,
+                    home,
+                    source_root,
+                    metadata,
+                )
+            else {
+                return;
+            };
+            if !self
+                .result
+                .original_vendor_variable_advice
+                .contains(&advice)
+            {
+                self.result.original_vendor_variable_advice.push(advice);
+            }
+            return;
+        }
+        let Some(input) = self.original_qualified_variable_input(span, false) else {
+            return;
+        };
+        let frame = self
+            .head_identities
+            .source_bindings_ref()
+            .original_variable_frame_at_span(span, self.lexer_config())
+            .or_else(|| {
+                self.head_identities
+                    .source_bindings_ref()
+                    .original_variable_frame_at_offset(span.start(), self.lexer_config())
+            });
+        let namespace = scope_at(&self.result.global_scope, scope_path)
+            .and_then(|scope| scope.naming_scope.clone());
+        let advice = crate::signature_scan::variable_symbol::OriginalVariableWriteAdvice::new(
+            span,
+            input,
+            form,
+            frame,
+            namespace,
+            conditional_metadata.cloned(),
+        );
+        let same_card =
+            |existing: &crate::signature_scan::variable_symbol::OriginalVariableWriteAdvice| {
+                existing.span() == advice.span()
+                    && existing.original_name_input() == advice.original_name_input()
+                    && existing.receiver_form() == advice.receiver_form()
+                    && existing.original_frame() == advice.original_frame()
+                    && existing.original_namespace() == advice.original_namespace()
+            };
+        if let Some(existing) = self
+            .result
+            .original_variable_write_advice
+            .iter_mut()
+            .find(|existing| same_card(existing))
+        {
+            if existing.conditional_metadata().is_none() && advice.conditional_metadata().is_some()
+            {
+                *existing = advice;
+            } else if advice.conditional_metadata().is_some() && existing != &advice {
+                self.result.original_variable_write_advice.push(advice);
+            }
+        } else {
+            self.result.original_variable_write_advice.push(advice);
+        }
+    }
+
+    pub(super) fn record_original_vendor_variable_body(
+        &mut self,
+        declaration_span: Span,
+        body_span: Span,
+        parameters_span: Option<Span>,
+        kind: crate::signature_scan::vendor_variable::VendorSourceVariableBodyKind,
+    ) {
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let config = self.lexer_config();
+        let Some(declaration) =
+            self.result
+                .original_vendor_source_name_in_source(&image, config, declaration_span)
+        else {
+            return;
+        };
+        let Some(body) = self
+            .result
+            .original_vendor_source_name_in_source(&image, config, body_span)
+        else {
+            return;
+        };
+        let Some(metadata) = self.original_vendor_variable_metadata(body) else {
+            return;
+        };
+        let parameters = parameters_span.and_then(|span| {
+            self.result
+                .original_vendor_source_name_in_source(&image, config, span)
+        });
+        let Some(receipt) = crate::signature_scan::vendor_variable::VendorSourceVariableBody::new(
+            declaration,
+            body,
+            parameters,
+            kind,
+            metadata,
+        ) else {
+            return;
+        };
+        if !self
+            .result
+            .original_vendor_variable_bodies
+            .contains(&receipt)
+        {
+            for advice in receipt.formal_advice() {
+                if !self
+                    .result
+                    .original_vendor_variable_advice
+                    .contains(&advice)
+                {
+                    self.result.original_vendor_variable_advice.push(advice);
+                }
+            }
+            self.result.original_vendor_variable_bodies.push(receipt);
+        }
+    }
+
+    pub(super) fn original_vendor_variable_metadata(
+        &self,
+        original: &crate::signature_scan::vendor_name::VendorSourceNameOccurrence,
+    ) -> Option<crate::registry_invocation::VendorRegistryInvocationShape> {
+        let head = crate::signature_scan::vendor_name::VendorSourceNameInput::from_original_word(
+            original.original_words().first()?,
+            original.name_input().policy(),
+        );
+        crate::registry_invocation::vendor_registry_invocation_shape(
+            &self.analysis_context(),
+            &head,
+            original.original_words(),
+        )
+    }
+
+    pub(super) fn record_original_variable_receiver(
+        &mut self,
+        span: Span,
+        scope_path: &[usize],
+        form: tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+        declaration: bool,
+    ) {
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
+        };
+        if self.result.original_variable_alias_sites.contains(&span)
+            || self
+                .result
+                .original_variable_symbol_conflicts
+                .contains(&span)
+        {
+            return;
+        }
+        let Some(scope) = scope_at(&self.result.global_scope, scope_path) else {
+            return;
+        };
+        let purpose = if matches!(
+            scope.kind,
+            ScopeKind::Global | ScopeKind::Namespace | ScopeKind::Uplevel
+        ) {
+            OriginalVariableSymbolPurpose::NamespaceStorage
+        } else {
+            OriginalVariableSymbolPurpose::QualifiedOnly
+        };
+        let namespace = scope.naming_scope.clone();
+        let site = self
+            .original_qualified_variable_input(span, false)
+            .and_then(|input| {
+                let namespace = namespace.or_else(|| {
+                    let protocol = input.policy().recipe();
+                    let tcl_syntax::naming::NativeVariableInputForm::Combined(bytes) =
+                        form.input_form(protocol, input.bytes())?
+                    else {
+                        return None;
+                    };
+                    let selected = protocol.combined_variable_input(bytes);
+                    (selected.root().qualification()
+                        == tcl_syntax::naming::NativeNameQualification::Absolute)
+                        .then(|| self.original_variable_root_namespace())
+                        .flatten()
+                });
+                self.original_variable_occurrence(
+                    span,
+                    input,
+                    namespace,
+                    purpose,
+                    OriginalVariableSymbolReceiver::Operand(form),
+                    declaration,
+                )
+            });
+        if site.is_none() && !self.result.original_variable_name_unknowns.contains(&span) {
+            self.result.original_variable_name_unknowns.push(span);
+        }
+        if let Some(existing) = self
+            .result
+            .original_variable_symbols
+            .iter_mut()
+            .find(|existing| existing.span() == span)
+        {
+            if site
+                .as_ref()
+                .is_none_or(|site| !existing.merge_declaration(site))
+            {
+                self.result
+                    .original_variable_symbols
+                    .retain(|site| site.span() != span);
+                self.result.original_variable_symbol_conflicts.push(span);
+            }
+        } else if let Some(site) = site {
+            self.result.original_variable_symbols.push(site);
+        }
+    }
+
+    pub(super) fn record_original_formal_variables(&mut self) {
+        let Some(policy) = self.declaration_name_policy() else {
+            return;
+        };
+        let occurrences = self
+            .head_identities
+            .source_bindings_ref()
+            .original_variable_formal_occurrences(self.lexer_config());
+        for occurrence in occurrences {
+            if occurrence.symbol().policy() != policy {
+                continue;
+            }
+            if let Some(existing) = self
+                .result
+                .original_variable_symbols
+                .iter_mut()
+                .find(|existing| existing.span() == occurrence.span())
+            {
+                if !existing.merge_declaration(&occurrence) {
+                    self.result
+                        .original_variable_symbol_conflicts
+                        .push(occurrence.span());
+                }
+            } else {
+                self.result.original_variable_symbols.push(occurrence);
+            }
+        }
+    }
+
+    fn original_variable_occurrence(
+        &self,
+        span: Span,
+        input: crate::signature_scan::scope::SignatureSourceNameInput,
+        namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+        purpose: crate::signature_scan::variable_symbol::OriginalVariableSymbolPurpose,
+        receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+        declaration: bool,
+    ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableSymbolPurpose, SignatureSourceVariableOccurrence,
+        };
+        let bindings = self.head_identities.source_bindings_ref();
+        let mut aliases = self
+            .result
+            .original_variable_alias_receipts
+            .iter()
+            .filter(|alias| {
+                self.registry.as_deref().is_some_and(|registry| {
+                    bindings.original_variable_alias_matches_at_span(
+                        span,
+                        &input,
+                        receiver,
+                        alias,
+                        self.lexer_config(),
+                        registry,
+                    )
+                })
+            });
+        if let Some(alias) = aliases.next() {
+            if aliases.any(|other| other != alias) {
+                return None;
+            }
+            return Some(
+                SignatureSourceVariableOccurrence::from_original_alias_input(
+                    span,
+                    input,
+                    namespace,
+                    receiver,
+                    alias.clone(),
+                ),
+            );
+        }
+        if let Some(namespace) = &namespace
+            && let Some(site) = SignatureSourceVariableOccurrence::from_original_input(
+                span,
+                input.clone(),
+                namespace.clone(),
+                purpose,
+                receiver,
+                declaration,
+            )
+        {
+            if purpose == OriginalVariableSymbolPurpose::NamespaceStorage {
+                return self.original_namespace_storage_occurrence(
+                    span,
+                    input,
+                    namespace,
+                    receiver,
+                    declaration,
+                    site,
+                );
+            }
+            return Some(site);
+        }
+        (purpose == OriginalVariableSymbolPurpose::QualifiedOnly).then_some(())?;
+        let (frame, simple) = self
+            .head_identities
+            .source_bindings_ref()
+            .original_local_variable_symbol_at_span(
+                span,
+                &input,
+                receiver,
+                self.lexer_config(),
+                self.registry.as_deref()?,
+            )?;
+        Some(
+            SignatureSourceVariableOccurrence::from_original_local_input(
+                span,
+                input,
+                namespace,
+                frame,
+                simple,
+                receiver,
+                declaration,
+            ),
+        )
+    }
+
+    fn original_namespace_storage_occurrence(
+        &self,
+        span: Span,
+        input: crate::signature_scan::scope::SignatureSourceNameInput,
+        namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+        receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+        declaration: bool,
+        site: crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence;
+        let bindings = self.head_identities.source_bindings_ref();
+        // Bare names in a namespace frame can select a global table
+        // on C8. Only the independently retained point owns that hop.
+        let protocol = input.policy().recipe();
+        let selected = match receiver.input_form(&input)? {
+            tcl_syntax::naming::NativeVariableInputForm::Combined(bytes) => {
+                protocol.combined_variable_input(bytes)
+            }
+            tcl_syntax::naming::NativeVariableInputForm::Separate { root, element } => {
+                protocol.separate_variable_input(root, element)
+            }
+        };
+        if matches!(
+            protocol.variable_root_geometry(namespace.context()?, selected.root().selected()),
+            tcl_syntax::naming::NativeVariableRootGeometry::Local(_)
+        ) {
+            if let Some((selected_namespace, simple)) = bindings
+                .original_namespace_variable_symbol_at_span(
+                    span,
+                    &input,
+                    receiver,
+                    self.lexer_config(),
+                    self.registry.as_deref()?,
+                )
+            {
+                return SignatureSourceVariableOccurrence::from_original_namespace_cell(
+                    span,
+                    input,
+                    namespace.clone(),
+                    &selected_namespace,
+                    simple,
+                    receiver,
+                    declaration,
+                );
+            }
+            let (frame, simple) = bindings.original_local_variable_symbol_at_span(
+                span,
+                &input,
+                receiver,
+                self.lexer_config(),
+                self.registry.as_deref()?,
+            )?;
+            return Some(
+                SignatureSourceVariableOccurrence::from_original_local_input(
+                    span,
+                    input,
+                    Some(namespace.clone()),
+                    frame,
+                    simple,
+                    receiver,
+                    declaration,
+                ),
+            );
+        }
+        Some(site)
+    }
+
+    pub(super) fn original_qualified_variable_input(
+        &self,
+        span: Span,
+        substitution: bool,
+    ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        let policy = self.declaration_name_policy()?;
+        let config = self.lexer_config();
+        if !substitution {
+            return self
+                .head_identities
+                .original_written_name_input_at_span(span, config)
+                .or_else(|| self.original_static_variable_operand_input(span))
+                .or_else(|| {
+                    self.head_identities
+                        .original_c_array_operand_root_at_span_in_source(
+                            &tcl_lexer::SourceImage::document(&self.source),
+                            span,
+                            config,
+                            policy,
+                        )
+                })
+                .filter(|input| input.policy() == policy);
+        }
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let start = usize::try_from(span.start()).ok()?;
+        let reference =
+            tcl_lexer::word_parts::scan_var_ref(image.bytes(), start, config).ok()??;
+        (reference.source_span(image.bytes(), start, 0)? == span).then_some(())?;
+        let raw_span = Span::new(span.start(), u32::try_from(reference.next).ok()?);
+        let arena = tcl_lexer::ExecutablePartArena::decompose(
+            image.clone(),
+            raw_span,
+            tcl_lexer::word_parts::SubstFlags::default(),
+            config,
+        )
+        .ok()?;
+        crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_executable(
+            &arena,
+            &image,
+            config,
+            span,
+            self.word_rules(),
+            self.declaration_name_policy()?,
+        )
+        .map(SignatureSourceNameInput::OriginalVariableRoot)
     }
 
     /// Post-walk pass: attach each recorded [`super::types::QualifiedVarRef`]
@@ -1905,7 +2539,7 @@ impl Analyser {
         // and the rebind's placeholder token would add a phantom zero-width
         // ref for a `::`-qualified parameter name.
         if !self.structural_rebind {
-            self.record_qualified_var_ref(base_name, span, scope_path);
+            self.record_qualified_var_ref(base_name, span, scope_path, false, true);
             // Isolated per-item body: a definition landing in the body's own
             // (throwaway) root scope is a fixed global cell the whole-file
             // walk would have written into the *document's* global scope, so
@@ -1997,20 +2631,199 @@ impl Analyser {
     /// `namespace upvar ::ns v local` / `upvar #0 ::ns::v local` name it one
     /// word earlier.  Recording it is what lets a rename of the cell rewrite
     /// the right word — see [`VarDef::link_target_span`].
-    pub fn set_var_link_target(
+    pub(super) fn set_var_link_target(
         &mut self,
         name: &str,
         scope_path: &[usize],
-        target: String,
-        target_span: Span,
+        target: VariableLinkTarget,
     ) {
+        let VariableLinkTarget {
+            target,
+            target_span,
+            local_span,
+            original_target_namespace,
+            original_target_receiver,
+        } = target;
         let base = crate::naming::normalise_var_name(name).to_string();
+        self.result
+            .original_variable_symbols
+            .retain(|site| site.span() != local_span && site.span() != target_span);
+        self.result.original_variable_alias_sites.push(local_span);
+        self.result.original_variable_alias_sites.push(target_span);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ALIAS_TEMPLATE_SOURCE").is_some() {
+            eprintln!(
+                "ALIAS_SOURCE_LINK local={} remote={} namespace={} input={}",
+                local_span.start(),
+                target_span.start(),
+                original_target_namespace.is_some(),
+                self.original_qualified_variable_input(target_span, false)
+                    .is_some()
+            );
+        }
+        let original = original_target_namespace.and_then(|namespace| {
+            crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::from_original_input(
+                target_span, self.original_qualified_variable_input(target_span, false)?, namespace,
+                crate::signature_scan::variable_symbol::OriginalVariableSymbolPurpose::NamespaceStorage, original_target_receiver, true,
+            )
+        });
+        if let Some(site) = original {
+            if let Some(receipt) = self.original_variable_alias_receipt(local_span, &site) {
+                self.result
+                    .original_variable_name_unknowns
+                    .retain(|&span| span != local_span && span != target_span);
+                if !self
+                    .result
+                    .original_variable_alias_receipts
+                    .contains(&receipt)
+                {
+                    self.result.original_variable_alias_receipts.push(receipt);
+                }
+            }
+            self.result.original_variable_symbols.push(site);
+        }
+
         if let Some(scope) = scope_at_mut(&mut self.result.global_scope, scope_path)
             && let Some(v) = scope.variables.get_mut(&base)
         {
             v.link_target = Some(target);
             v.link_target_span = Some(target_span);
         }
+    }
+
+    fn original_variable_alias_receipt(
+        &self,
+        local_span: Span,
+        target: &crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    ) -> Option<crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt> {
+        use crate::registry_invocation::DeclarationVariableAliasPurpose as Purpose;
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ALIAS_TEMPLATE_SOURCE").is_some() {
+            eprintln!(
+                "ALIAS_SOURCE_RECEIPT local={} remote={} frame={} input={} operands={:?}",
+                local_span.start(),
+                target.span().start(),
+                self.head_identities
+                    .source_bindings_ref()
+                    .original_variable_alias_frame_at_span(local_span, self.lexer_config())
+                    .is_some(),
+                self.original_variable_operand_input(local_span).is_some(),
+                self.result.original_variable_alias_operands
+            );
+        }
+
+        let (frame, invocation_offset) = self
+            .head_identities
+            .source_bindings_ref()
+            .original_variable_alias_frame_at_span(local_span, self.lexer_config())?;
+        let mut operands = self.result.original_variable_alias_operands.iter().filter(
+            |&&(site, local, remote, _)| {
+                site == invocation_offset && local == local_span && remote == target.span()
+            },
+        );
+        let &(_, _, _, purpose) = operands.next()?;
+        if operands.any(|operand| operand.3 != purpose) {
+            return None;
+        }
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let context = self.resolved_analysis_input().context_registry();
+        if self
+            .result
+            .original_variable_alias_source_operands
+            .iter()
+            .any(|source| {
+                source.invocation_offset() == Some(invocation_offset)
+                    && source
+                        .operands()
+                        .iter()
+                        .any(|&(local, remote, _)| local == local_span && remote == target.span())
+                    && !source.matches_source_context(&image, self.lexer_config(), &context)
+            })
+        {
+            return None;
+        }
+        let local_input = self.original_variable_operand_input(local_span)?;
+        if local_input.policy() != target.symbol().policy() {
+            return None;
+        }
+        let local = crate::signature_scan::variable_symbol::original_variable_alias_local_name(
+            &local_input,
+            purpose,
+        )?;
+        Some(
+            crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt::new(
+                frame,
+                local,
+                target.symbol().clone(),
+                target.original_name_input().clone(),
+                local_input,
+                matches!(purpose, Purpose::Global | Purpose::NamespaceVariable),
+                (invocation_offset, local_span),
+            ),
+        )
+    }
+
+    pub(super) fn original_variable_namespace_at(
+        &self,
+        scope_path: &[usize],
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        scope_at(&self.result.global_scope, scope_path)?
+            .naming_scope
+            .clone()
+    }
+
+    pub(super) fn original_variable_root_namespace(
+        &self,
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
+            Some(self.declaration_name_policy()?),
+        ))
+    }
+
+    fn original_static_variable_operand_input(
+        &self,
+        span: Span,
+    ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        self.head_identities
+            .original_source_name_at_span(
+                span,
+                self.lexer_config(),
+                self.word_rules(),
+                self.declaration_name_policy()?,
+            )
+            .or_else(|| self.original_static_source_name_at_span(span).cloned())
+            .map(|original| SignatureSourceNameInput::OriginalWord(original.name_input().clone()))
+    }
+
+    /// Readonly name units from the actual invocation before constructing
+    /// source namespace geometry. Static declaration fallbacks keep their
+    /// existing independent source/policy owner; no variable receiver or
+    /// runtime frame is created by this projection.
+    pub(super) fn original_variable_operand_input_at_invocation(
+        &self,
+        invocation_offset: u32,
+        span: Span,
+    ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+        // Implementation contract: naming.source.original-point-operand-projection
+        // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
+        let policy = self.declaration_name_policy()?;
+        self.head_identities
+            .original_written_name_input_at_invocation_span(
+                &tcl_lexer::SourceImage::document(&self.source),
+                self.lexer_config(),
+                invocation_offset,
+                span,
+            )
+            .or_else(|| self.original_static_variable_operand_input(span))
+            .filter(|input| input.policy() == policy)
+    }
+
+    pub(super) fn original_variable_operand_input(
+        &self,
+        span: Span,
+    ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+        self.original_qualified_variable_input(span, false)
     }
 
     /// **W215.** Emit when a variable's runtime name (or array element
@@ -2233,6 +3046,7 @@ pub(super) struct VarReadSite {
     pub name: String,
     pub span: Span,
     pub braced_literal: bool,
+    substitution: bool,
 }
 
 impl VarReadSite {
@@ -2243,6 +3057,7 @@ impl VarReadSite {
             name: name.to_owned(),
             span,
             braced_literal: false,
+            substitution: true,
         }
     }
 }
@@ -2272,6 +3087,7 @@ fn collect_name_role_reads(
             name: w.word,
             span: w.span,
             braced_literal: w.braced_literal,
+            substitution: false,
         });
     }
 }
@@ -3031,6 +3847,702 @@ mod tests {
             vec!["::app::colors::palette", "::app::colors::palette"],
             "both spellings name one cell",
         );
+        for reference in &r.qualified_var_refs {
+            assert!(matches!(
+                reference.original_name_input,
+                Some(
+                    crate::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_)
+                ),
+            ));
+            assert!(reference.original_namespace.is_some());
+        }
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.byte-cell-correspondence
+    // docs/design/analysis/name-resolution-proofs/variable.byte-cell-correspondence.md
+    fn qualified_variable_inputs_keep_document_units_and_producer_kind() {
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let source = "namespace eval N {}; set {::N::v\0tail} 1; puts ${::N::v\0tail}";
+            let result = Analyser::new().analyse(source, dialect);
+            let reference = result
+                .qualified_var_refs
+                .iter()
+                .find(|reference| {
+                    matches!(
+                        reference.original_name_input,
+                        Some(SignatureSourceNameInput::OriginalVariableRoot(_))
+                    )
+                })
+                .expect("original substitution root is retained");
+            let Some(SignatureSourceNameInput::OriginalVariableRoot(root)) =
+                &reference.original_name_input
+            else {
+                unreachable!()
+            };
+            let expected = if dialect == "jimtcl" {
+                b"::N::v\0tail".as_slice()
+            } else {
+                b"::N::v\xc0\x80tail".as_slice()
+            };
+            assert_eq!(
+                root.bytes(),
+                expected,
+                "{dialect}: original Document channel"
+            );
+            assert_eq!(
+                root.source_image().channel(),
+                tcl_lexer::SourceChannel::Document
+            );
+            assert!(root.original_word().is_none());
+            assert!(reference.original_namespace.is_some());
+            assert!(
+                result.qualified_var_refs.iter().any(|reference| {
+                    reference.original_name_input.as_ref().is_some_and(|input| {
+                        !matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_))
+                            && input.bytes() == expected
+                    })
+                }),
+                "{dialect}: name operand keeps its independently retained value producer"
+            );
+        }
+    }
+
+    #[test]
+    fn original_static_variable_words_survive_unavailable_execution_without_new_authority() {
+        let source = r"unknown; set {v\uD800} 1; set v\uD801 2";
+        for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
+            let mut analyser = Analyser::new();
+            let _ = analyser.analyse(source, profile);
+            let first = u32::try_from(source.find(r"{v\uD800}").unwrap()).unwrap();
+            let second = u32::try_from(source.find(r"v\uD801").unwrap()).unwrap();
+            let first = analyser
+                .original_static_source_name_at_span(Span::new(first, first + 9))
+                .unwrap();
+            assert_eq!(first.name_input().bytes(), br"v\uD800");
+            let second = analyser
+                .original_static_source_name_at_span(Span::new(second, second + 7))
+                .unwrap();
+            assert_eq!(second.name_input().bytes(), b"v\xed\xa0\x81");
+            assert_eq!(
+                second.name_input().source_image(),
+                &tcl_lexer::SourceImage::document(source)
+            );
+            let previous = second.clone();
+            let _ = analyser.analyse("set $computed 1", profile);
+            assert!(
+                analyser
+                    .original_static_source_name_at_span(
+                        previous.name_input().original_word().span()
+                    )
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_variable_cursor_roots_keep_lexical_membership_and_full_source_currency() {
+        let source = "set ns ::N; namespace exists $ns; namespace exists $missing; puts {${inert}}; # $comment";
+        for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = analysis.body_lexer_config.unwrap();
+            for (needle, expected) in [("$ns", b"ns".as_slice()), ("$missing", b"missing")] {
+                let offset = u32::try_from(source.find(needle).unwrap() + 1).unwrap();
+                let root = analysis
+                    .original_variable_root_in_source(&image, config, offset)
+                    .unwrap_or_else(|| panic!("{profile}: actual lexical {needle}"));
+                assert_eq!(root.bytes(), expected);
+                assert_eq!(root.source_image(), &image);
+                assert!(
+                    analysis
+                        .original_variable_root_in_source(
+                            &tcl_lexer::SourceImage::document(&source.replace("::N", "::M")),
+                            config,
+                            offset,
+                        )
+                        .is_none()
+                );
+            }
+            for needle in ["${inert}", "$comment"] {
+                let offset = u32::try_from(source.find(needle).unwrap() + 1).unwrap();
+                assert!(
+                    analysis
+                        .original_variable_root_in_source(&image, config, offset)
+                        .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_conditional_variable_receivers_keep_absolute_source_geometry_and_unknown_coverage()
+    {
+        // Implementation contract: naming.variable.conditional-registry-receiver-geometry
+        // docs/design/analysis/name-resolution-proofs/conditional-registry-receiver-geometry.md
+        let source = r"namespace eval n\uD800 {}
+namespace exists n\uD800
+namespace eval N {}
+set ::N::v\uD800 1
+info exists ::N::v\uD800";
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = analysis.body_lexer_config.unwrap();
+            let declaration_offset = u32::try_from(source.find("set ::N::v").unwrap() + 4).unwrap();
+            let read_offset = u32::try_from(source.rfind("::N::v").unwrap()).unwrap();
+            let declaration = analysis
+                .original_variable_symbol_in_source(&image, config, declaration_offset)
+                .unwrap_or_else(|| panic!("{profile}: conditional absolute source declaration"));
+            let reference = analysis
+                .original_variable_symbol_in_source(&image, config, read_offset)
+                .unwrap_or_else(|| panic!("{profile}: conditional absolute source reference"));
+            assert!(declaration.is_declaration(), "{profile}: source write role");
+            assert!(!reference.is_declaration(), "{profile}: source read role");
+            assert_eq!(
+                declaration.symbol(),
+                reference.symbol(),
+                "{profile}: exact source identity"
+            );
+            assert!(declaration.symbol().is_namespace());
+            let advice = analysis
+                .original_variable_write_advice
+                .iter()
+                .find(|advice| advice.span() == declaration.span())
+                .unwrap_or_else(|| panic!("{profile}: original source write card"));
+            let metadata = advice
+                .conditional_metadata()
+                .unwrap_or_else(|| panic!("{profile}: retained conditional applicability"));
+            assert!(metadata.matches_source(&image, config));
+            assert!(!metadata.obligations().is_empty());
+            assert_eq!(
+                declaration.original_name_input().bytes(),
+                b"::N::v\xed\xa0\x80"
+            );
+            assert!(
+                !analysis.original_variable_rename_is_complete(declaration.symbol()),
+                "{profile}: unresolved command alternatives remain a coverage obligation"
+            );
+            assert!(
+                analysis
+                    .original_variable_symbol_in_source(
+                        &tcl_lexer::SourceImage::document(
+                            &source.replace("namespace eval N", "namespace eval M")
+                        ),
+                        config,
+                        declaration_offset,
+                    )
+                    .is_none(),
+                "{profile}: complete source currency"
+            );
+        }
+    }
+
+    #[test]
+    fn original_conditional_variable_receivers_do_not_invent_bare_namespace_targets() {
+        // Implementation contract: naming.variable.conditional-registry-receiver-geometry
+        // docs/design/analysis/name-resolution-proofs/conditional-registry-receiver-geometry.md
+        let source = "unknown_command; namespace eval N {set bare 1; info exists bare}";
+        for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = analysis.body_lexer_config.unwrap();
+            for offset in source
+                .match_indices("bare")
+                .map(|(offset, _)| u32::try_from(offset).unwrap())
+            {
+                assert!(
+                    analysis
+                        .original_variable_symbol_in_source(&image, config, offset)
+                        .is_none(),
+                    "{profile}: a conditional namespace card cannot select ordinary variable storage"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_write_name_advice_keeps_source_cards_and_authentic_local_frames() {
+        // Implementation contract: naming.variable.conditional-write-name-advice
+        // docs/design/analysis/name-resolution-proofs/conditional-write-name-advice.md
+        let source = r"set v\uD800 1; set v\uD801 2; proc p {} {set local 3; set local; unset local; global shared}";
+        for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            let inputs: Vec<_> = analysis
+                .original_variable_write_advice
+                .iter()
+                .map(|advice| advice.original_name_input().bytes())
+                .collect();
+            assert!(
+                inputs.contains(&b"v\xed\xa0\x80".as_slice()),
+                "{profile}: first opaque source card"
+            );
+            assert!(
+                inputs.contains(&b"v\xed\xa0\x81".as_slice()),
+                "{profile}: distinct opaque source card"
+            );
+            let local = analysis
+                .original_variable_write_advice
+                .iter()
+                .find(|advice| advice.original_name_input().bytes() == b"local")
+                .unwrap_or_else(|| panic!("{profile}: own local write card"));
+            assert!(
+                matches!(
+                    local.original_frame().map(|frame| frame.frame().layout()),
+                    Some(crate::var_resolve::VariableExecutionFrame::Procedure { .. })
+                ),
+                "{profile}: original procedure owner"
+            );
+            assert_eq!(
+                inputs.iter().filter(|&&input| input == b"local").count(),
+                1,
+                "reads and unsets are not source write declarations"
+            );
+            assert!(
+                !inputs.contains(&b"shared".as_slice()),
+                "alias source names remain separate"
+            );
+            assert_eq!(
+                local.receiver_form(),
+                tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined
+            );
+        }
+    }
+
+    #[test]
+    fn caught_caller_rebinding_cannot_retain_the_original_formal_symbol() {
+        // Native proof: naming.variable.catch-result-alias-continuity
+        // docs/design/analysis/name-resolution-proofs/catch-result-alias-continuity.md
+        // Native ASCII controls independently show catch's result reaching the
+        // rebound root slot. These assertions test source identity withdrawal.
+        let source = "proc mutate {} {uplevel 1 {unset name; upvar #0 ::destination name}; error BOOM}\nproc probe {name} {catch {mutate} name; return $name}";
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            let formal = u32::try_from(source.find("{name}").unwrap() + 1).unwrap();
+            let original = analysis
+                .original_variable_symbol_at_offset(formal)
+                .unwrap_or_else(|| panic!("{profile}: original formal declaration"));
+            let read = u32::try_from(source.rfind("$name").unwrap() + 1).unwrap();
+            assert!(
+                analysis
+                    .original_variable_symbol_at_offset(read)
+                    .is_none_or(|current| current.symbol() != original.symbol()),
+                "a caught caller mutation cannot donate the original formal cell"
+            );
+            assert!(!analysis.original_variable_rename_is_complete(original.symbol()));
+        }
+    }
+
+    #[test]
+    fn original_formal_variable_symbols_keep_list_children_and_binding_topology() {
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableSymbolReceiver, SignatureSourceVariableSlot,
+        };
+        let source = r"proc p {v\uD800 {d\uD800 DEFAULT} args} {list [set v\uD800] [set d\uD800] [set args]}";
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            for needle in [r"v\uD800", r"d\uD800", "args"] {
+                let offsets: Vec<_> = source
+                    .match_indices(needle)
+                    .map(|(offset, _)| u32::try_from(offset).unwrap())
+                    .collect();
+                let declaration = analysis
+                    .original_variable_symbol_at_offset(offsets[0])
+                    .unwrap_or_else(|| panic!("{profile}: formal {needle}"));
+                let read = analysis
+                    .original_variable_symbol_at_offset(offsets[1])
+                    .unwrap_or_else(|| panic!("{profile}: read {needle}"));
+                assert_eq!(declaration.symbol(), read.symbol(), "{profile}: {needle}");
+                assert_eq!(
+                    declaration.receiver(),
+                    OriginalVariableSymbolReceiver::FormalDeclaration
+                );
+                assert!(declaration.is_declaration());
+                assert!(matches!(
+                    declaration.symbol().slot(),
+                    SignatureSourceVariableSlot::Local { .. }
+                ));
+                let container = declaration
+                    .original_name_input()
+                    .original_static_list_container()
+                    .expect("authentic ParamList ancestry");
+                assert!(!container.ordinals().is_empty());
+                assert!(
+                    analysis.original_variable_rename_is_complete(declaration.symbol()),
+                    "{profile}: complete original naming occurrences"
+                );
+                if needle == "args" {
+                    assert!(
+                        declaration.renamed_input(b"new").is_none(),
+                        "variadic binding cannot silently become a required formal"
+                    );
+                } else {
+                    assert_eq!(declaration.renamed_input(b"new"), Some(b"new".to_vec()));
+                    assert!(
+                        declaration.renamed_input(b"args").is_none(),
+                        "required/default binding topology cannot change"
+                    );
+                }
+            }
+        }
+        let source = "proc p {a a {b DEFAULT}} {set a; set b}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let first = analysis
+            .original_variable_symbol_at_offset(8)
+            .expect("first duplicate formal");
+        let second = analysis
+            .original_variable_symbol_at_offset(10)
+            .expect("second duplicate formal");
+        assert_eq!(first.symbol(), second.symbol());
+        assert_ne!(
+            first
+                .original_name_input()
+                .original_static_list_container()
+                .unwrap()
+                .ordinals(),
+            second
+                .original_name_input()
+                .original_static_list_container()
+                .unwrap()
+                .ordinals()
+        );
+        assert_eq!(first.renamed_input(b"new"), Some(b"new".to_vec()));
+        assert_eq!(second.renamed_input(b"new"), Some(b"new".to_vec()));
+        let source = "proc p {{args rest}} {set rest}";
+        let analysis = Analyser::new().analyse(source, "jimtcl");
+        let declaration = analysis
+            .original_variable_symbol_at_offset(14)
+            .expect("Jim renamed variadic local field");
+        let read = analysis
+            .original_variable_symbol_at_offset(26)
+            .expect("same genuine variadic local");
+        assert_eq!(declaration.symbol(), read.symbol());
+        assert_eq!(
+            declaration
+                .original_name_input()
+                .original_static_list_container()
+                .unwrap()
+                .ordinals(),
+            &[0, 1]
+        );
+        assert_eq!(declaration.renamed_input(b"new"), Some(b"new".to_vec()));
+    }
+
+    #[test]
+    fn original_variable_alias_reads_keep_derived_and_independent_local_spellings() {
+        let source = r"set ::g\uD800 VALUE; proc p {} {global g\uD800; set g\uD800; set $name 1}";
+        for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            let offsets: Vec<_> = source
+                .match_indices(r"g\uD800")
+                .map(|(offset, _)| u32::try_from(offset).unwrap())
+                .collect();
+            let declaration = analysis
+                .original_variable_symbol_at_offset(offsets[1])
+                .expect("authentic selected global declaration");
+            let read = analysis
+                .original_variable_symbol_at_offset(offsets[2])
+                .unwrap_or_else(|| panic!("{profile}: original alias read"));
+            assert_eq!(declaration.symbol(), read.symbol());
+            assert!(read.rename_changes_spelling());
+            assert_eq!(read.renamed_input(b"new"), Some(b"new".to_vec()));
+            assert!(
+                !analysis.original_variable_rename_is_complete(declaration.symbol()),
+                "computed variable names are rename coverage obligations"
+            );
+            let complete_source = source.replace("; set $name 1", "");
+            let complete = Analyser::new().analyse(&complete_source, profile);
+            let declaration = complete
+                .original_variable_symbol_at_offset(offsets[1])
+                .unwrap();
+            assert!(
+                complete.original_variable_rename_is_complete(declaration.symbol()),
+                "{profile}: known alias producer and every original read"
+            );
+        }
+        let source = "set ::x VALUE; proc p {} {upvar #0 x local; set local; return $local}";
+        for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            let target = analysis
+                .original_variable_symbol_at_offset(35)
+                .expect("genuine #0 target");
+            for offset in [48, 63] {
+                let read = analysis
+                    .original_variable_symbol_at_offset(offset)
+                    .unwrap_or_else(|| panic!("{profile}: original independent alias read"));
+                assert_eq!(read.symbol(), target.symbol());
+                assert!(!read.rename_changes_spelling());
+                assert_eq!(read.renamed_input(b"new"), Some(b"local".to_vec()));
+            }
+            assert!(
+                analysis.original_variable_rename_is_complete(target.symbol()),
+                "{profile}: original #0 local does not need spelling edits"
+            );
+        }
+        let source = "set ::x VALUE; proc p {} {upvar 1 other local; set local}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let target = analysis.original_variable_symbol_at_offset(6).unwrap();
+        assert!(
+            !analysis.original_variable_rename_is_complete(target.symbol()),
+            "missing authentic foreign frame target blocks coverage"
+        );
+    }
+
+    #[test]
+    fn original_local_variable_symbols_keep_opaque_names_and_genuine_body_frames() {
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+        let source = r"proc p {} {set v\uD800 1; set v\uD801 2; set v\uD800}; proc q {} {set v\uD800 3; set v\uD800}";
+        for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            let offsets: Vec<_> = source
+                .match_indices(r"v\uD800")
+                .map(|(offset, _)| u32::try_from(offset).unwrap())
+                .collect();
+            let sites: Vec<_> = offsets
+                .iter()
+                .map(|&offset| {
+                    analysis
+                        .original_variable_symbol_at_offset(offset)
+                        .unwrap_or_else(|| panic!("{profile}: original local at {offset}"))
+                })
+                .collect();
+            assert_eq!(
+                sites[0].symbol(),
+                sites[1].symbol(),
+                "{profile}: one original body"
+            );
+            assert_eq!(
+                sites[2].symbol(),
+                sites[3].symbol(),
+                "{profile}: second original body"
+            );
+            assert_ne!(
+                sites[0].symbol(),
+                sites[2].symbol(),
+                "{profile}: distinct frame recipes"
+            );
+            let SignatureSourceVariableSlot::Local { simple, frame } = sites[0].symbol().slot()
+            else {
+                panic!("ordinary procedure local became namespace storage");
+            };
+            assert_eq!(simple.as_bytes(), b"v\xed\xa0\x80");
+            assert!(!sites[0].symbol().is_namespace());
+            assert_eq!(frame.lexer_config(), analysis.body_lexer_config.unwrap());
+            assert!(sites[0].is_declaration());
+            assert!(!sites[1].is_declaration());
+            let other = analysis
+                .original_variable_symbol_at_offset(
+                    u32::try_from(source.find(r"v\uD801").unwrap()).unwrap(),
+                )
+                .unwrap();
+            assert_ne!(sites[0].symbol(), other.symbol());
+            let proposed = sites[0].symbol().renamed(b"new").unwrap();
+            let SignatureSourceVariableSlot::Local {
+                frame: proposed_frame,
+                simple,
+            } = proposed.slot()
+            else {
+                unreachable!()
+            };
+            assert_eq!(proposed_frame, frame);
+            assert_eq!(simple.as_bytes(), b"new");
+            assert_eq!(sites[0].renamed_input(b"new"), Some(b"new".to_vec()));
+            assert!(sites[0].renamed_input(b"other::new").is_none());
+        }
+    }
+
+    // Native proof: naming.variable.namespace-store-frame-and-fallback
+    // docs/design/analysis/name-resolution-proofs/namespace-store-frame-and-fallback.md
+    #[test]
+    fn original_namespace_store_symbols_use_the_selected_activation_and_fallback() {
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let source = "set ::x ROOT; namespace eval N {set x VALUE}";
+            let analysis = Analyser::new().analyse(source, profile);
+            let offset = u32::try_from(source.rfind("x VALUE").unwrap()).unwrap();
+            let occurrence = analysis
+                .original_variable_symbol_at_offset(offset)
+                .unwrap_or_else(|| panic!("{profile}: actual namespace set owner absent"));
+            match occurrence.symbol().slot() {
+                SignatureSourceVariableSlot::C { namespace, simple } => {
+                    assert_eq!(simple.as_bytes(), b"x");
+                    let expected = if matches!(profile, "tcl9.0" | "tcl9.1") {
+                        tcl_core_types::ByteNamespacePath::from_segments([b"N".as_slice()])
+                    } else {
+                        tcl_core_types::ByteNamespacePath::root()
+                    };
+                    assert_eq!(*namespace, expected, "{profile}: existing root selection");
+                }
+                SignatureSourceVariableSlot::Local { frame, simple } => {
+                    assert_eq!(profile, "jimtcl");
+                    assert_eq!(simple.as_bytes(), b"x");
+                    assert!(matches!(
+                        frame.frame().layout(),
+                        crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                    ));
+                }
+                SignatureSourceVariableSlot::Jim(_) => {
+                    panic!("bare Jim namespace set became global storage")
+                }
+            }
+            let source = "namespace eval Fresh {set x VALUE}";
+            let analysis = Analyser::new().analyse(source, profile);
+            let offset = u32::try_from(source.find("x VALUE").unwrap()).unwrap();
+            let occurrence = analysis
+                .original_variable_symbol_at_offset(offset)
+                .unwrap_or_else(|| panic!("{profile}: fresh namespace set owner absent"));
+            if profile == "jimtcl" {
+                assert!(!occurrence.symbol().is_namespace());
+            } else {
+                let SignatureSourceVariableSlot::C { namespace, .. } = occurrence.symbol().slot()
+                else {
+                    panic!("C fresh namespace store lost its namespace owner");
+                };
+                assert_eq!(
+                    *namespace,
+                    tcl_core_types::ByteNamespacePath::from_segments([b"Fresh".as_slice()])
+                );
+            }
+            let source = "set ::x ROOT; namespace eval Explicit {variable x VALUE}";
+            let analysis = Analyser::new().analyse(source, profile);
+            let offset = u32::try_from(source.find("x VALUE").unwrap()).unwrap();
+            let occurrence = analysis
+                .original_variable_symbol_at_offset(offset)
+                .unwrap_or_else(|| panic!("{profile}: explicit namespace variable absent"));
+            match occurrence.symbol().slot() {
+                SignatureSourceVariableSlot::C { namespace, simple } => {
+                    assert_eq!(
+                        *namespace,
+                        tcl_core_types::ByteNamespacePath::from_segments([b"Explicit".as_slice()])
+                    );
+                    assert_eq!(simple.as_bytes(), b"x");
+                }
+                SignatureSourceVariableSlot::Jim(key) => assert_eq!(key.as_bytes(), b"Explicit::x"),
+                SignatureSourceVariableSlot::Local { .. } => {
+                    panic!("explicit namespace variable became local")
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn original_variable_symbols_select_global_namespace_and_remote_frame_purposes() {
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+        let source = r"namespace eval T {}; namespace eval N {proc p {} {global g\uD800; variable v\uD800; namespace upvar ::T t\uD800 local; upvar #0 u\uD800 rootAlias; upvar 1 remote callerAlias}}";
+        for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            let at = |needle: &str| {
+                analysis.original_variable_symbol_at_offset(
+                    u32::try_from(source.find(needle).unwrap()).unwrap(),
+                )
+            };
+            for (needle, namespace, simple) in [
+                (r"g\uD800", b"".as_slice(), b"g\xed\xa0\x80".as_slice()),
+                (r"v\uD800", b"N".as_slice(), b"v\xed\xa0\x80".as_slice()),
+                (r"t\uD800", b"T".as_slice(), b"t\xed\xa0\x80".as_slice()),
+                (r"u\uD800", b"".as_slice(), b"u\xed\xa0\x80".as_slice()),
+            ] {
+                let site = at(needle).unwrap_or_else(|| {
+                    panic!(
+                        "{profile}: {needle} {:#?}",
+                        analysis.original_variable_symbols
+                    )
+                });
+                assert!(site.is_declaration(), "{profile}: {needle}");
+                match site.symbol().slot() {
+                    SignatureSourceVariableSlot::C {
+                        namespace: path,
+                        simple: key,
+                    } => {
+                        let expected = if namespace.is_empty() {
+                            tcl_core_types::ByteNamespacePath::root()
+                        } else {
+                            tcl_core_types::ByteNamespacePath::from_segments([namespace])
+                        };
+                        assert_eq!(*path, expected, "{profile}: {needle}");
+                        assert_eq!(key.as_bytes(), simple);
+                    }
+                    SignatureSourceVariableSlot::Local { .. } => {
+                        panic!("namespace receiver selected a local frame")
+                    }
+                    SignatureSourceVariableSlot::Jim(key) => {
+                        let mut expected = namespace.to_vec();
+                        if !expected.is_empty() {
+                            expected.extend_from_slice(b"::");
+                        }
+                        expected.extend_from_slice(simple);
+                        assert_eq!(key.as_bytes(), expected, "{profile}: {needle}");
+                    }
+                }
+            }
+            assert!(
+                at("remote").is_none(),
+                "a foreign caller frame is not the caller namespace"
+            );
+            assert!(
+                at("callerAlias").is_none(),
+                "local alias spelling is a separate symbol"
+            );
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = analysis
+                .body_lexer_config
+                .expect("actual retained body grammar");
+            assert!(analysis.matches_original_source_image(&image, config));
+            assert!(!analysis.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&format!("{source}; list changed")),
+                config
+            ));
+            assert!(!analysis.matches_original_source_image(
+                &tcl_lexer::SourceImage::native(source.as_bytes()),
+                config
+            ));
+        }
+    }
+
+    // Native proof: naming.array-source.combined-set-receiver
+    // docs/design/analysis/name-resolution-proofs/array-source-combined-set-receiver.md
+    // Native proof: naming.array-source.scalar-element-storage
+    // docs/design/analysis/name-resolution-proofs/array-source-scalar-element-storage.md
+    // Native proof: naming.array-source.combined-read-enumeration
+    // docs/design/analysis/name-resolution-proofs/array-source-combined-read-enumeration.md
+    // Native proof: naming.array-source.combined-unset
+    // docs/design/analysis/name-resolution-proofs/array-source-combined-unset.md
+    #[test]
+    fn original_array_receiver_symbols_keep_combined_names_and_guest_error_independent() {
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+        // Each receiver has its own original program point. In C Tcl an array
+        // setter on a combined element name errors before later script words.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (command, declaration) in [
+                ("array set ::N::a(b) {k V}", false),
+                ("set ::N::a(b) VALUE", true),
+                ("array get ::N::a(b)", false),
+                ("array names ::N::a(b)", false),
+                ("array unset ::N::a(b)", false),
+            ] {
+                let source = format!("namespace eval N {{}}; {command}");
+                let analysis = Analyser::new().analyse(&source, profile);
+                let offset = u32::try_from(source.find("::N::a(b)").unwrap()).unwrap();
+                let site = analysis
+                    .original_variable_symbol_at_offset(offset)
+                    .unwrap_or_else(|| panic!("{profile}: original receiver for {command}"));
+                assert_eq!(site.is_declaration(), declaration, "{profile}: {command}");
+                match site.symbol().slot() {
+                    SignatureSourceVariableSlot::C { namespace, simple } => {
+                        assert_eq!(
+                            *namespace,
+                            tcl_core_types::ByteNamespacePath::from_segments([b"N".as_slice()])
+                        );
+                        assert_eq!(simple.as_bytes(), b"a");
+                    }
+                    SignatureSourceVariableSlot::Local { .. } => {
+                        panic!("absolute receiver selected a local frame")
+                    }
+                    SignatureSourceVariableSlot::Jim(key) => assert_eq!(key.as_bytes(), b"N::a"),
+                }
+            }
+        }
     }
 
     /// TN — an **unqualified** occurrence is never recorded: it names whatever
@@ -3575,6 +5087,158 @@ mod tests {
             assert_ne!(declarations[0], declarations[1], "{dialect}");
             assert_eq!(result.superseded_classes["::C"].len(), 1);
             assert_eq!(result.all_classes["::C"].name_span, declarations[1]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_positioned_reference_tests {
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn opaque_head_reference_uses_original_slot_and_allocation_after_ui_maps_are_cleared() {
+        let source =
+            r"proc p\uD800 {} {return first}; proc p\uD801 {} {return second}; p\uD800; p\uD801";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let mut slots = Vec::new();
+        for spelling in [r"p\uD800", r"p\uD801"] {
+            let offset = u32::try_from(source.rfind(spelling).unwrap()).unwrap();
+            let invocation = analysis
+                .command_invocations
+                .iter()
+                .find(|invocation| invocation.range.start() == offset)
+                .unwrap();
+            let reference = invocation
+                .resolved_command_reference
+                .as_ref()
+                .expect("original post-argv call receipt");
+            let declaration = reference
+                .definition()
+                .expect("original procedure allocation");
+            let metadata = analysis.proc_for_definition(declaration, source).unwrap();
+            slots.push(reference.original_slot().unwrap().clone());
+            assert_eq!(
+                metadata.name_span,
+                analysis
+                    .original_procedure_metadata
+                    .iter()
+                    .find(|record| record.declaration_site() == &declaration.allocation().site)
+                    .unwrap()
+                    .metadata()
+                    .name_span
+            );
+        }
+        assert_ne!(slots[0], slots[1]);
+        analysis.all_procs.clear();
+        for spelling in [r"p\uD800", r"p\uD801"] {
+            let offset = u32::try_from(source.rfind(spelling).unwrap()).unwrap();
+            let invocation = analysis
+                .command_invocations
+                .iter()
+                .find(|invocation| invocation.range.start() == offset)
+                .unwrap();
+            let reference = invocation.resolved_command_reference.as_ref().unwrap();
+            assert!(
+                analysis
+                    .proc_for_definition(reference.definition().unwrap(), source)
+                    .is_some()
+            );
+        }
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.trace-source-receiver-purpose
+    // docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md
+    fn original_trace_references_use_selected_subject_and_preserve_source_currency() {
+        use crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver;
+        use tcl_registry::resolved_invocation::VariableReceiverOperandForm::TraceSubject;
+        let source = "set ::v\\uD800 1\ntrace info variable ::v\\uD800(k)\n";
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            let offset = u32::try_from(source.rfind("::v").unwrap() + 3).unwrap();
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = analysis.body_lexer_config.unwrap();
+            let reference = analysis
+                .original_variable_symbol_in_source(&image, config, offset)
+                .unwrap_or_else(|| panic!("{profile}: original trace subject"));
+            assert_eq!(
+                reference.receiver(),
+                OriginalVariableSymbolReceiver::Operand(TraceSubject)
+            );
+            assert!(!reference.is_declaration());
+            let declaration = analysis
+                .original_variable_symbols
+                .iter()
+                .find(|row| row.is_declaration())
+                .unwrap();
+            assert_eq!(reference.symbol(), declaration.symbol());
+            assert_eq!(
+                reference.original_name_input().bytes(),
+                b"::v\xed\xa0\x80(k)"
+            );
+            assert!(
+                !analysis
+                    .original_variable_write_advice
+                    .iter()
+                    .any(|row| row.span() == reference.span())
+            );
+            assert!(
+                analysis
+                    .original_variable_symbol_in_source(
+                        &tcl_lexer::SourceImage::document(&source.replace(" 1", " 2")),
+                        config,
+                        offset
+                    )
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.trace-source-receiver-purpose
+    // docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md
+    fn original_trace_reference_aliases_and_unknown_scope_remain_independent() {
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableSymbolReceiver, SignatureSourceVariableSlot,
+        };
+        use tcl_registry::resolved_invocation::VariableReceiverOperandForm::TraceSubject;
+        for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let source =
+                "set ::shared 1\nproc p {} {global shared; trace info variable shared}\np\n";
+            let analysis = Analyser::new().analyse(source, profile);
+            let trace = analysis
+                .original_variable_symbols
+                .iter()
+                .find(|row| row.receiver() == OriginalVariableSymbolReceiver::Operand(TraceSubject))
+                .unwrap_or_else(|| panic!("{profile}: exact linked trace subject"));
+            assert!(!trace.is_declaration());
+            assert!(
+                matches!(trace.symbol().slot(), SignatureSourceVariableSlot::C { namespace, simple } if namespace.is_root() && simple.as_bytes() == b"shared")
+            );
+            let unknown = "unknown_command; namespace eval N {trace info variable bare}; trace info variable ::qualified";
+            let analysis = Analyser::new().analyse(unknown, profile);
+            assert!(
+                !analysis
+                    .original_variable_symbols
+                    .iter()
+                    .any(|row| row.original_name_input().bytes() == b"bare")
+            );
+            let absolute = analysis
+                .original_variable_symbols
+                .iter()
+                .find(|row| row.original_name_input().bytes() == b"::qualified")
+                .unwrap();
+            assert!(!analysis.original_variable_rename_is_complete(absolute.symbol()));
+        }
+        for source in ["trace info command ::v", "trace info execution ::v"] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            assert!(
+                !analysis
+                    .original_variable_symbols
+                    .iter()
+                    .any(|row| row.receiver()
+                        == OriginalVariableSymbolReceiver::Operand(TraceSubject))
+            );
         }
     }
 }

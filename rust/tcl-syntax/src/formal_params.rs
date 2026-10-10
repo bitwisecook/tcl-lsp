@@ -26,6 +26,55 @@ pub use bytes::{
     parse_formal_parameter_values,
 };
 
+/// Pure native formal count shape, independently of values and activation.
+/// The maximum is absent for a variadic signature; this supplies no local
+/// cell, argument materialization, body entry or successful execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FormalArgumentCountShape {
+    /// Least argv count accepted by the selected binding grammar.
+    pub minimum: usize,
+    /// Greatest accepted argv count, absent for an unbounded rest formal.
+    pub maximum: Option<usize>,
+}
+impl FormalArgumentCountShape {
+    /// The count satisfies this descriptive binding shape.
+    #[must_use]
+    pub fn accepts(self, count: usize) -> bool {
+        count >= self.minimum && self.maximum.is_none_or(|maximum| count <= maximum)
+    }
+}
+
+/// Shared argument-count owner for already decoded formal fields.
+/// Each item states whether the native formal storage name is exactly `args`
+/// and whether that formal has a default. C uses positional defaults and a
+/// final rest formal; Jim reserves required slots and accepts rest anywhere.
+#[must_use]
+pub fn formal_argument_count_shape(
+    parameters: impl DoubleEndedIterator<Item = (bool, bool)> + ExactSizeIterator + Clone,
+    grammar: tcl_dialect::ParameterGrammar,
+) -> FormalArgumentCountShape {
+    if grammar == tcl_dialect::ParameterGrammar::Jim {
+        let rest = parameters.clone().any(|(args, _)| args);
+        let minimum = parameters
+            .clone()
+            .filter(|&(args, default)| !args && !default)
+            .count();
+        let maximum = (!rest).then(|| parameters.filter(|&(args, _)| !args).count());
+        FormalArgumentCountShape { minimum, maximum }
+    } else {
+        let rest = parameters.clone().next_back().is_some_and(|(args, _)| args);
+        let fixed = parameters.len() - usize::from(rest);
+        let minimum = parameters
+            .take(fixed)
+            .rposition(|(_, default)| !default)
+            .map_or(0, |index| index + 1);
+        FormalArgumentCountShape {
+            minimum,
+            maximum: (!rest).then_some(fixed),
+        }
+    }
+}
+
 /// One decoded formal parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormalParameter {
@@ -657,5 +706,107 @@ mod tests {
                 ..
             }
         ));
+    }
+    #[test]
+    fn formal_count_shapes_preserve_c_and_jim_default_and_rest_grammars() {
+        // naming.procedure.original-formal-count-shape
+        // docs/design/analysis/name-resolution-proofs/procedure-original-formal-count-shape.md
+        use tcl_dialect::ParameterGrammar::{Jim, Tcl};
+        for (fields, c, jim) in [
+            (
+                vec![(false, false), (false, true), (false, false)],
+                (3, Some(3)),
+                (2, Some(3)),
+            ),
+            (
+                vec![(false, false), (true, false), (false, false)],
+                (3, Some(3)),
+                (2, None),
+            ),
+            (
+                vec![(false, false), (true, true), (false, false)],
+                (3, Some(3)),
+                (2, None),
+            ),
+            (vec![(false, false), (true, false)], (1, None), (1, None)),
+            (
+                vec![(false, true), (false, true)],
+                (0, Some(2)),
+                (0, Some(2)),
+            ),
+        ] {
+            for (grammar, (minimum, maximum)) in [(Tcl, c), (Jim, jim)] {
+                assert_eq!(
+                    formal_argument_count_shape(fields.iter().copied(), grammar),
+                    FormalArgumentCountShape { minimum, maximum }
+                );
+            }
+        }
+    }
+    #[test]
+    fn native_formal_acceptance_matrix_keeps_provider_count_answers() {
+        // naming.procedure.original-formal-count-shape
+        // docs/design/analysis/name-resolution-proofs/procedure-original-formal-count-shape.md
+        // These are the caught definition/call answers for the original ASCII
+        // probe. Counts above five, values and runtime frames are not observed.
+        use tcl_dialect::ParameterGrammar::{Jim, Tcl};
+        for (source, c, jim) in [
+            (
+                "",
+                [true, false, false, false, false, false],
+                [true, false, false, false, false, false],
+            ),
+            (
+                "a {b 2} c",
+                [false, false, false, true, false, false],
+                [false, false, true, true, false, false],
+            ),
+            (
+                "a args b",
+                [false, false, false, true, false, false],
+                [false, false, true, true, true, true],
+            ),
+            (
+                "a {args tail} b",
+                [false, false, false, true, false, false],
+                [false, false, true, true, true, true],
+            ),
+            (
+                "a args",
+                [false, true, true, true, true, true],
+                [false, true, true, true, true, true],
+            ),
+            (
+                "a {b 2} args {c 3}",
+                [false, false, false, true, true, false],
+                [false, true, true, true, true, true],
+            ),
+            (
+                "{a 1} {b 2}",
+                [true, true, true, false, false, false],
+                [true, true, true, false, false, false],
+            ),
+        ] {
+            for (grammar, expected) in [(Tcl, c), (Jim, jim)] {
+                let parameters = parse_formal_parameters_in(source, grammar)
+                    .expect("original definition accepted");
+                for (count, accepted) in expected.into_iter().enumerate() {
+                    assert_eq!(
+                        bind_formal_arguments(&parameters, count, grammar).is_ok(),
+                        accepted,
+                        "original provider count answer: {source:?}, {grammar:?}, argv {count}"
+                    );
+                }
+            }
+        }
+        for grammar in [Tcl, Jim] {
+            assert!(
+                matches!(
+                    parse_formal_parameters_in("{a b c}", grammar),
+                    Err(FormalParameterError::TooManyFields { .. })
+                ),
+                "original definition refused"
+            );
+        }
     }
 }

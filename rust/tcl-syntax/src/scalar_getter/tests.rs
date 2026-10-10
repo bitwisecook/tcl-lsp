@@ -580,6 +580,9 @@ fn primitive_int_retains_native_width_cache_and_error_stage() {
 
 #[test]
 fn jim_decimal_string_switch_keeps_its_own_native_stage() {
+    // Native proof: naming.numeric.jim-decimal-string-switch
+    // docs/design/analysis/name-resolution-proofs/numeric-jim-decimal-string-switch.md
+
     let protocol = NativeScalarGetterProtocol {
         engine: Engine::Jim084,
     };
@@ -625,6 +628,9 @@ fn jim_decimal_string_switch_keeps_its_own_native_stage() {
 
 #[test]
 fn legacy_long_and_wide_retain_distinct_native_primary_caches() {
+    // Native proof: naming.numeric.c84-long-wide-original-primary
+    // docs/design/analysis/name-resolution-proofs/numeric-c84-long-wide-original-primary.md
+
     let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_4);
     let fixture = include_str!("../../tests/data/native_scalar_getters/long84/8.4.20.tsv");
     let mut count = 0;
@@ -727,7 +733,8 @@ fn jim_expression_numeric_terms_use_fresh_native_constructor_values() {
     ] {
         assert_eq!(
             jim_expression_number(source),
-            Some(JimExpressionNumber::Integer(expected))
+            Some(JimExpressionNumber::Integer(expected)),
+            "{source:?}"
         );
     }
     for (source, expected) in [
@@ -763,4 +770,33 @@ fn jim_expression_numeric_terms_use_fresh_native_constructor_values() {
     ] {
         assert_eq!(jim_expression_number(source), None);
     }
+}
+
+#[test]
+fn jim_expression_numeric_terms_keep_selected_release_frontiers() {
+    use tcl_dialect::NumberSyntax;
+
+    assert_eq!(
+        jim_expression_number_for_syntax(b"0d755", NumberSyntax::Jim),
+        None
+    );
+    assert_eq!(
+        jim_expression_number_for_syntax(b"0d755", NumberSyntax::Jim080),
+        Some(JimExpressionNumber::Integer(755))
+    );
+    for syntax in [NumberSyntax::Jim, NumberSyntax::Jim080] {
+        assert_eq!(
+            jim_expression_number_for_syntax(b"0755", syntax),
+            Some(JimExpressionNumber::Integer(755))
+        );
+        assert!(number::is_expr_number("0755", syntax, None));
+        assert_eq!(
+            number::is_expr_number("0d755", syntax, None),
+            syntax == NumberSyntax::Jim080
+        );
+    }
+    assert_eq!(
+        jim_expression_number_for_syntax(b"755", NumberSyntax::Tcl90),
+        None
+    );
 }

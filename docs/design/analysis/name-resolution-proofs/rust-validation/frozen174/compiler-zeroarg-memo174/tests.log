@@ -1,0 +1,6 @@
+
+running 1 test
+test realm::original_tokens::tests::original_token_memo_keeps_zero_written_arguments_and_captured_prefix_separate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8266 filtered out; finished in 0.14s
+

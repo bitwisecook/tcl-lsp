@@ -1,0 +1,18 @@
+{
+  "configured_provider": "90",
+  "command": [
+    "/workspace/.proofs/oracle-bin/tclsh9.0",
+    "/workspace/.proofs/captured-package-future-frame121/probe.tcl"
+  ],
+  "executable_path": "/workspace/.proofs/oracle-bin/tclsh9.0",
+  "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+  "source_sha256": "c1cfac561e3048f78ae444d4ed03b0b8d19cc9c158ab104386b601bbbc56593a",
+  "exit": 0,
+  "stdout_sha256": "48df8de9a13170df3271690ae2ae15a9b6e384ad88ce652129280b88bff99fe6",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|9.0.4",
+    "RESULT 0 1.0 {{:: 0 0}}"
+  ],
+  "claim_boundary": "Fresh native script-file channel with fixed ASCII source; observed callback namespace/frame/variable visibility, not counted object-vector or compilation admission."
+}

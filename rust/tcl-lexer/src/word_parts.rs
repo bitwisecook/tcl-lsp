@@ -270,6 +270,18 @@ pub struct RawVarRef<'s> {
 }
 
 impl RawVarRef<'_> {
+    /// The exact borrowed index extent in its original source allocation.
+    /// An empty index retains its position; another equal-valued allocation
+    /// cannot supply source geometry for this reference.
+    #[must_use]
+    pub fn index_range_in(self, source: &[u8]) -> Option<std::ops::Range<usize>> {
+        let index = self.index?;
+        let start = (index.as_ptr() as usize).checked_sub(source.as_ptr() as usize)?;
+        let end = start.checked_add(index.len())?;
+        let original = source.get(start..end)?;
+        (std::ptr::eq(original.as_ptr(), index.as_ptr()) && original == index).then_some(start..end)
+    }
+
     /// Project the native token extent into the source map's span convention.
     /// Bare references retain their exclusive end. A nonempty braced name's
     /// end sits on its closer; an empty braced name includes the closer.
@@ -331,6 +343,8 @@ pub struct SpannedPart<'s> {
     pub start: usize,
     /// Byte offset one past the component's last source byte.
     pub end: usize,
+    /// Exact rejected delimiter within the source, independently of the raw component extent.
+    pub error_term: Option<usize>,
 }
 
 /// Cap on `$name(index)` nesting depth [`decompose`] recurses into while
@@ -373,10 +387,14 @@ pub fn decompose(src: &[u8], flags: SubstFlags, config: LexerConfig) -> WordBody
 }
 
 /// Variable acceptance of a reached substitution template, separate from words.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TemplateVariableSyntax {
     /// Written-word variable grammar, including its required closing delimiters.
     WrittenWord,
+    /// C `TclSubstParse` token boundaries, including single-byte literal
+    /// substitution sigils when their operation is disabled. Unlike written
+    /// words, template text/backslash tokens are not merged before emission.
+    CTcl,
     /// Jim 0.84 `JimParseSubst` / `JimParseVar`: `${name` reads through input end.
     /// Braced names stop at the first literal close brace.
     Jim084,
@@ -416,11 +434,12 @@ pub fn decompose_template_spanned(
             }
         }
     }
-    if !triggers(src, flags) {
+    if !triggers(src, flags) && variables != TemplateVariableSyntax::CTcl {
         return Ok(vec![SpannedPart {
             part: WordPart::Text(Cow::Borrowed(src)),
             start: 0,
             end: src.len(),
+            error_term: None,
         }]);
     }
     Ok(scan_parts(src, flags, config, 0, variables, &mut false))
@@ -431,7 +450,7 @@ fn scan_template_var_ref(
     at: usize,
     config: LexerConfig,
     variables: TemplateVariableSyntax,
-) -> Result<Option<RawVarRef<'_>>, &'static str> {
+) -> Result<Option<RawVarRef<'_>>, ComponentParseError> {
     if variables == TemplateVariableSyntax::Jim084 && src.get(at + 1) == Some(&b'{') {
         let start = at + 2;
         let end = src[start..]
@@ -444,7 +463,7 @@ fn scan_template_var_ref(
             next: if end < src.len() { end + 1 } else { end },
         }));
     }
-    scan_var_ref(src, at, config)
+    scan_var_ref_with_term(src, at, config)
 }
 
 /// [`decompose`] with each top-level component's byte extent in `src`.
@@ -592,6 +611,32 @@ pub fn scan_var_ref(
     at: usize,
     config: LexerConfig,
 ) -> Result<Option<RawVarRef<'_>>, &'static str> {
+    scan_var_ref_with_term(src, at, config).map_err(|error| error.message)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ComponentParseError {
+    message: &'static str,
+    term: usize,
+}
+
+impl ComponentParseError {
+    const fn new(message: &'static str, term: usize) -> Self {
+        Self { message, term }
+    }
+    fn rebased(self, base: usize) -> Self {
+        Self {
+            term: self.term + base,
+            ..self
+        }
+    }
+}
+
+fn scan_var_ref_with_term(
+    src: &[u8],
+    at: usize,
+    config: LexerConfig,
+) -> Result<Option<RawVarRef<'_>>, ComponentParseError> {
     debug_assert_eq!(src.get(at), Some(&b'$'), "caller must point at a `$`");
     if src.get(at + 1) == Some(&b'{') {
         let name_start = at + 2;
@@ -601,7 +646,10 @@ pub fn scan_var_ref(
                 index: None,
                 next: end + 1,
             })),
-            BracedVarEnd::Unterminated => Err(MISSING_CLOSE_BRACE_FOR_VAR),
+            BracedVarEnd::Unterminated => Err(ComponentParseError::new(
+                MISSING_CLOSE_BRACE_FOR_VAR,
+                at + 1,
+            )),
         };
     }
     let start = at + 1;
@@ -618,7 +666,7 @@ pub fn scan_var_ref(
         if config.var_syntax.index_parens_nest() {
             let end = crate::ranges::jim_parenthesis_body_end(src, name_end + 1);
             if src.get(end) != Some(&b')') {
-                return Err(MISSING_PAREN);
+                return Err(ComponentParseError::new(MISSING_PAREN, name_end));
             }
             return Ok(Some(RawVarRef {
                 name: &src[start..name_end],
@@ -627,8 +675,11 @@ pub fn scan_var_ref(
             }));
         }
         let scan = scan_array_index(src, name_end, config.array_index, config.braced_var);
-        if scan.invalid.is_some() {
-            return Err(INVALID_CHARACTER_IN_ARRAY_INDEX);
+        if let Some(term) = scan.invalid {
+            return Err(ComponentParseError::new(
+                INVALID_CHARACTER_IN_ARRAY_INDEX,
+                term,
+            ));
         }
         return match scan.end {
             ArrayIndexEnd::Closed(end) => Ok(Some(RawVarRef {
@@ -644,7 +695,10 @@ pub fn scan_var_ref(
                 // surrounding source word does.
                 Err(
                     error_inside_unterminated(&src[name_end + 1..], SubstFlags::default(), config)
-                        .unwrap_or(MISSING_PAREN),
+                        .map_or_else(
+                            || ComponentParseError::new(MISSING_PAREN, name_end),
+                            |error| error.rebased(name_end + 1),
+                        ),
                 )
             }
         };
@@ -690,6 +744,15 @@ pub fn command_subst_close(
     flags: SubstFlags,
     config: LexerConfig,
 ) -> Result<usize, &'static str> {
+    command_subst_close_with_term(src, at, flags, config).map_err(|error| error.message)
+}
+
+fn command_subst_close_with_term(
+    src: &[u8],
+    at: usize,
+    flags: SubstFlags,
+    config: LexerConfig,
+) -> Result<usize, ComponentParseError> {
     match command_substitution_end_bytes(src, at) {
         Some(end) => Ok(end),
         None => Err(error_inside_unterminated_bracket(src, at, flags, config)),
@@ -713,11 +776,12 @@ pub(crate) fn shallow_spanned_parts(
     config: LexerConfig,
     variables: TemplateVariableSyntax,
 ) -> Vec<SpannedPart<'_>> {
-    if !triggers(src, flags) {
+    if !triggers(src, flags) && variables != TemplateVariableSyntax::CTcl {
         return vec![SpannedPart {
             part: WordPart::Text(Cow::Borrowed(src)),
             start: 0,
             end: src.len(),
+            error_term: None,
         }];
     }
     scan_parts(src, flags, config, MAX_INDEX_DEPTH, variables, &mut false)
@@ -735,6 +799,7 @@ fn decompose_at_depth<'s>(
             part: WordPart::Text(Cow::Borrowed(src)),
             start: 0,
             end: src.len(),
+            error_term: None,
         }];
     }
     scan_parts(
@@ -754,10 +819,50 @@ fn expression_component(src: &[u8], at: usize, config: LexerConfig) -> SpannedPa
         Err(message) => (WordPart::ParseError(message), src.len()),
         Ok(None) => unreachable!("selected expression sugar prefix"),
     };
+    let error_term = matches!(part, WordPart::ParseError(_)).then_some(at + 1);
     SpannedPart {
         part,
         start: at,
         end,
+        error_term,
+    }
+}
+
+fn variable_component<'s>(
+    at: usize,
+    raw: RawVarRef<'s>,
+    config: LexerConfig,
+    depth: u32,
+    unavailable: &mut bool,
+) -> SpannedPart<'s> {
+    let index = raw.index.map(|idx| {
+        // Index evaluation enables every substitution independently of the
+        // enclosing mask; the nesting cap retains literal bytes and refusal.
+        let flags = SubstFlags::default();
+        if depth >= MAX_INDEX_DEPTH {
+            *unavailable |= triggers(idx, flags);
+            vec![WordPart::Text(Cow::Borrowed(idx))]
+        } else {
+            match body_of(decompose_at_depth(
+                idx,
+                flags,
+                config,
+                depth + 1,
+                unavailable,
+            )) {
+                WordBody::Literal(bytes) => vec![WordPart::Text(Cow::Borrowed(bytes))],
+                WordBody::Parts(parts) => parts,
+            }
+        }
+    });
+    SpannedPart {
+        part: WordPart::Variable(VarRef {
+            name: raw.name,
+            index,
+        }),
+        start: at,
+        end: raw.next,
+        error_term: None,
     }
 }
 
@@ -774,18 +879,37 @@ fn scan_parts<'s>(
     unavailable: &mut bool,
 ) -> Vec<SpannedPart<'s>> {
     let len = src.len();
-    // Computed once per call, not per byte: whether this call already sits at
-    // the index-nesting cap, so any `$name(index)` here keeps its index as
-    // literal text rather than recursing further.
-    let past_cap = depth >= MAX_INDEX_DEPTH;
-
     let mut parts: Vec<SpannedPart> = Vec::new();
     let mut lit_start = 0usize;
     let mut i = 0usize;
 
     while i < len {
         let c = src[i];
-        if flags.vars
+        if variables == TemplateVariableSyntax::CTcl
+            && ((c == b'$' && (!flags.vars || !starts_var_ref(src, i, flags, config)))
+                || (c == b'[' && !flags.cmds)
+                || (c == b'\\' && (!flags.backslashes || i + 1 == len))
+                || c == 0)
+        {
+            // ParseTokens still emits a separate one-byte TEXT token for a
+            // disabled substitution sigil or raw zero. TclSubstCompile keeps
+            // that token separate; concatenation can change result storage.
+            flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
+            parts.push(SpannedPart {
+                part: WordPart::Text(Cow::Borrowed(&src[i..=i])),
+                start: i,
+                end: i + 1,
+                error_term: None,
+            });
+            i += 1;
+            lit_start = i;
+        } else if variables == TemplateVariableSyntax::CTcl && c == b'\\' {
+            flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
+            let end = crate::substitution::backslash_escape_end_bytes_in(src, i, config.escapes);
+            flush_text(&mut parts, src, i, end, flags, config.escapes);
+            i = end;
+            lit_start = i;
+        } else if flags.vars
             && c == b'$'
             && config.var_syntax.has_expr_sugar()
             && src.get(i + 1) == Some(&b'(')
@@ -803,31 +927,7 @@ fn scan_parts<'s>(
             flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
             match scan_template_var_ref(src, i, config, variables) {
                 Ok(Some(raw)) => {
-                    let index = raw.index.map(|idx| {
-                        if past_cap {
-                            *unavailable |= triggers(idx, flags);
-                            vec![WordPart::Text(Cow::Borrowed(idx))]
-                        } else {
-                            match body_of(decompose_at_depth(
-                                idx,
-                                flags,
-                                config,
-                                depth + 1,
-                                unavailable,
-                            )) {
-                                WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
-                                WordBody::Parts(p) => p,
-                            }
-                        }
-                    });
-                    parts.push(SpannedPart {
-                        part: WordPart::Variable(VarRef {
-                            name: raw.name,
-                            index,
-                        }),
-                        start: i,
-                        end: raw.next,
-                    });
+                    parts.push(variable_component(i, raw, config, depth, unavailable));
                     i = raw.next;
                 }
                 // `Ok(None)` cannot happen: `starts_var_ref` already tested
@@ -840,24 +940,26 @@ fn scan_parts<'s>(
                 // C stops parsing here. So do we: the components already
                 // scanned are kept (they run first — see the module docs) and
                 // the error terminates the walk.
-                Err(msg) => {
+                Err(error) => {
                     parts.push(SpannedPart {
-                        part: WordPart::ParseError(msg),
+                        part: WordPart::ParseError(error.message),
                         start: i,
                         end: len,
+                        error_term: Some(error.term),
                     });
                     return parts;
                 }
             }
             lit_start = i;
         } else if flags.cmds && c == b'[' {
-            match command_subst_close(src, i, flags, config) {
+            match command_subst_close_with_term(src, i, flags, config) {
                 Ok(end) => {
                     flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
                     parts.push(SpannedPart {
                         part: WordPart::Command(&src[i + 1..end - 1]),
                         start: i,
                         end,
+                        error_term: None,
                     });
                     i = end;
                     lit_start = i;
@@ -867,12 +969,13 @@ fn scan_parts<'s>(
                 // stays inside the literal run it sits in, so a word with
                 // nothing else to substitute still collapses to one `Literal`.
                 Err(_) if flags.unclosed_bracket_is_data => i += 1,
-                Err(msg) => {
+                Err(error) => {
                     flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
                     parts.push(SpannedPart {
-                        part: WordPart::ParseError(msg),
+                        part: WordPart::ParseError(error.message),
                         start: i,
                         end: len,
+                        error_term: Some(error.term),
                     });
                     return parts;
                 }
@@ -905,8 +1008,11 @@ fn error_inside_unterminated_bracket(
     at: usize,
     flags: SubstFlags,
     config: LexerConfig,
-) -> &'static str {
-    error_inside_unterminated(&src[at + 1..], flags, config).unwrap_or(MISSING_CLOSE_BRACKET)
+) -> ComponentParseError {
+    error_inside_unterminated(&src[at + 1..], flags, config).map_or_else(
+        || ComponentParseError::new(MISSING_CLOSE_BRACKET, at),
+        |error| error.rebased(at + 1),
+    )
 }
 
 /// The error C reports for the first unterminated construct in `src`, or
@@ -931,10 +1037,10 @@ fn error_inside_unterminated(
     src: &[u8],
     flags: SubstFlags,
     config: LexerConfig,
-) -> Option<&'static str> {
+) -> Option<ComponentParseError> {
     // The innermost unclosed `[` seen so far: the answer if nothing deeper
     // turns out to be unterminated.
-    let mut pending: Option<&'static str> = None;
+    let mut pending: Option<ComponentParseError> = None;
     let mut i = 0usize;
     let mut command_position = true;
     let mut closable = true;
@@ -962,7 +1068,7 @@ fn error_inside_unterminated(
                 }
             }
             b'$' if flags.vars && starts_var_ref(src, i, flags, config) => {
-                match scan_var_ref(src, i, config) {
+                match scan_var_ref_with_term(src, i, config) {
                     Ok(Some(raw)) => i = raw.next,
                     Ok(None) => i += 1,
                     Err(msg) => return Some(msg),
@@ -979,7 +1085,7 @@ fn error_inside_unterminated(
                     command_position = false;
                     in_word = true;
                 } else {
-                    pending.get_or_insert(MISSING_CLOSE_BRACKET);
+                    pending = Some(ComponentParseError::new(MISSING_CLOSE_BRACKET, i));
                     closable = src[i..].contains(&b']');
                     i += 1;
                     // The unclosed bracket opens a nested script.
@@ -988,7 +1094,7 @@ fn error_inside_unterminated(
                 }
             }
             b'[' => {
-                pending.get_or_insert(MISSING_CLOSE_BRACKET);
+                pending = Some(ComponentParseError::new(MISSING_CLOSE_BRACKET, i));
                 i += 1;
                 command_position = true;
                 in_word = false;
@@ -1007,7 +1113,7 @@ fn error_inside_unterminated(
                     command_position = false;
                     in_word = true;
                 }
-                None => return Some(MISSING_CLOSE_BRACE),
+                None => return Some(ComponentParseError::new(MISSING_CLOSE_BRACE, i)),
             },
             b'\n' | b';' => {
                 command_position = true;
@@ -1050,20 +1156,20 @@ fn starts_var_ref(src: &[u8], at: usize, flags: SubstFlags, config: LexerConfig)
 /// Steps over `\X` pairs and complete `[…]` substitutions. An **incomplete**
 /// nested substitution is the bracket's error, not the quote's: C reports
 /// `missing close-bracket` for `subst {[list "[foo}`.
-fn close_quote_offset_bytes(src: &[u8], at: usize) -> Result<usize, &'static str> {
+fn close_quote_offset_bytes(src: &[u8], at: usize) -> Result<usize, ComponentParseError> {
     let mut i = at + 1;
     while i < src.len() {
         match src[i] {
             b'\\' => i += 2,
             b'[' => match command_substitution_end_bytes(src, i) {
                 Some(end) => i = end,
-                None => return Err(MISSING_CLOSE_BRACKET),
+                None => return Err(ComponentParseError::new(MISSING_CLOSE_BRACKET, i)),
             },
             b'"' => return Ok(i),
             _ => i += 1,
         }
     }
-    Err(MISSING_QUOTE)
+    Err(ComponentParseError::new(MISSING_QUOTE, at))
 }
 
 /// The index of the `}` closing the braced word opening at `at`, counting
@@ -1112,6 +1218,7 @@ fn flush_text<'s>(
             part: WordPart::Text(text),
             start,
             end,
+            error_term: None,
         });
     }
 }
@@ -1127,7 +1234,91 @@ mod template_policy_tests {
     use super::*;
 
     #[test]
+    fn c_template_retains_disabled_sigil_and_escape_token_boundaries() {
+        // Source proof: naming.substitution.template-token-and-index-source
+        // docs/design/analysis/name-resolution-proofs/substitution-template-token-and-index-source.md
+        // Native proof: naming.substitution.counted-template-completions
+        // docs/design/analysis/name-resolution-proofs/substitution-counted-template-completions.md
+        // v6 source0/flags5 has four native pushes before strcat, so C9
+        // returns a String rather than one unchanged literal with no primary.
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let config = LexerConfig::for_dialect(dialect);
+            let flags = SubstFlags {
+                vars: false,
+                ..SubstFlags::default()
+            };
+            let source = b"${x}${y}";
+            let parts =
+                decompose_template_spanned(source, flags, config, TemplateVariableSyntax::CTcl)
+                    .unwrap();
+            assert_eq!(
+                parts
+                    .iter()
+                    .map(|part| (part.start, part.end))
+                    .collect::<Vec<_>>(),
+                [(0, 1), (1, 4), (4, 5), (5, 8)]
+            );
+            let values: Vec<_> = parts
+                .iter()
+                .map(|part| match &part.part {
+                    WordPart::Text(value) => value.as_ref(),
+                    _ => panic!("disabled variable is a native text token"),
+                })
+                .collect();
+            assert_eq!(values, [b"$".as_slice(), b"{x}", b"$", b"{y}"]);
+            assert_eq!(
+                decompose_template_spanned(
+                    source,
+                    flags,
+                    config,
+                    TemplateVariableSyntax::WrittenWord
+                )
+                .unwrap()
+                .len(),
+                1
+            );
+            for (source, expected) in [
+                (br"a\nb".as_slice(), [b"a".as_slice(), b"\n", b"b"]),
+                (b"a\0b".as_slice(), [b"a".as_slice(), b"\0", b"b"]),
+            ] {
+                let parts = decompose_template_spanned(
+                    source,
+                    SubstFlags::default(),
+                    config,
+                    TemplateVariableSyntax::CTcl,
+                )
+                .unwrap();
+                let values: Vec<_> = parts
+                    .iter()
+                    .map(|part| match &part.part {
+                        WordPart::Text(value) => value.as_ref(),
+                        _ => panic!("retained literal/escape token"),
+                    })
+                    .collect();
+                assert_eq!(values, expected);
+            }
+            let disabled = SubstFlags {
+                vars: false,
+                cmds: false,
+                backslashes: false,
+                ..SubstFlags::default()
+            };
+            let parts =
+                decompose_template_spanned(b"$[\\", disabled, config, TemplateVariableSyntax::CTcl)
+                    .unwrap();
+            assert_eq!(parts.len(), 3);
+            assert!(
+                parts
+                    .iter()
+                    .all(|part| matches!(part.part, WordPart::Text(_)))
+            );
+        }
+    }
+
+    #[test]
     fn jim_expression_components_retain_parentheses_and_native_token_sites() {
+        // Native proof: naming.variable.empty-array-root-lexical-reference
+        // docs/design/analysis/name-resolution-proofs/empty-array-root-lexical-reference.md
         let source = b"pre$(1+(2))post";
         let jim = LexerConfig::for_dialect("jim");
         let parts = decompose_spanned(source, SubstFlags::default(), jim);
@@ -1216,6 +1407,49 @@ mod template_policy_tests {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn outer_substitution_mask_does_not_disable_array_index_commands() {
+        // Source proof: naming.substitution.template-token-and-index-source
+        // docs/design/analysis/name-resolution-proofs/substitution-template-token-and-index-source.md
+        // Native proof: naming.substitution.counted-template-completions
+        // docs/design/analysis/name-resolution-proofs/substitution-counted-template-completions.md
+        // The C v6 array-index control runs its command with outer commands
+        // disabled. JimExpandDictSugar separately selects JIM_NONE.
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            let flags = SubstFlags {
+                cmds: false,
+                backslashes: false,
+                ..SubstFlags::default()
+            };
+            let WordBody::Parts(parts) = decompose(br"$a($k\x21[side])", flags, config) else {
+                panic!("one array reference");
+            };
+            let [
+                WordPart::Variable(VarRef {
+                    index: Some(index), ..
+                }),
+            ] = parts.as_slice()
+            else {
+                panic!("retained original index");
+            };
+            assert!(matches!(index[0], WordPart::Variable(_)));
+            assert!(matches!(&index[1], WordPart::Text(text) if text.as_ref() == b"!"));
+            assert_eq!(index[2], WordPart::Command(b"side"));
+            assert_eq!(
+                decompose(
+                    br"$a($k\x21[side])",
+                    SubstFlags {
+                        vars: false,
+                        ..flags
+                    },
+                    config,
+                ),
+                WordBody::Literal(br"$a($k\x21[side])"),
+            );
+        }
+    }
 
     /// An unterminated construct reports the *innermost* cause, as C does:
     /// `subst {[list "abc}` is `missing "` and `subst {$a([foo)}` is
@@ -1613,6 +1847,7 @@ mod tests {
                 part: text(b"plain"),
                 start: 0,
                 end: 5,
+                error_term: None,
             }]
         );
     }
@@ -1693,7 +1928,10 @@ mod tests {
             Err(DecompositionUnavailable::IndexNesting),
         );
         // The advisory API retains its documented bounded projection.
-        assert!(!decompose_spanned(&source, SubstFlags::default(), nine()).is_empty());
+        assert_ne!(
+            decompose_spanned(&source, SubstFlags::default(), nine()),
+            [] as [SpannedPart<'_>; 0]
+        );
         let malformed = decompose_spanned_checked(b"$a(", SubstFlags::default(), nine()).unwrap();
         assert!(
             malformed
@@ -1717,6 +1955,25 @@ mod tests {
         assert_eq!(scan_var_ref(b"$ x", 0, cfg), Ok(None));
         // A trailing `$` has no name behind it, so it is data, not an error.
         assert_eq!(scan_var_ref(b"a$", 1, cfg), Ok(None));
+    }
+
+    #[test]
+    fn raw_index_geometry_keeps_empty_and_foreign_source_distinct() {
+        // Implementation contract: naming.grammar.checked-expression-substitution-context
+        // docs/design/analysis/name-resolution-proofs/checked-expression-substitution-context.md
+
+        let source = b"$a()".to_vec();
+        let reference = scan_var_ref(&source, 0, nine()).unwrap().unwrap();
+        assert_eq!(reference.index_range_in(&source), Some(3..3));
+        let equal_source = source.clone();
+        assert_eq!(reference.index_range_in(&equal_source), None);
+
+        let source = "$café($clé)".as_bytes();
+        let mut config = nine();
+        config.var_syntax = tcl_dialect::VarSyntax::Jim;
+        let reference = scan_var_ref(source, 0, config).unwrap().unwrap();
+        let range = reference.index_range_in(source).unwrap();
+        assert_eq!(&source[range], "$clé".as_bytes());
     }
 
     /// The index parse recurses once per

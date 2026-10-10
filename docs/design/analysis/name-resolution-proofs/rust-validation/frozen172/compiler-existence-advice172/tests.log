@@ -1,0 +1,16 @@
+
+running 2 tests
+test existence_query::tests::original_existence_advice_is_a_name_dependency_without_actual_presence ... 
+thread 'existence_query::tests::original_existence_advice_is_a_name_dependency_without_actual_presence' (646994) panicked at rust/tcl-compiler/src/existence_query.rs:325:40:
+jimtcl: info exists u
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test existence_query::tests::original_existence_advice_tracks_selected_alias_and_imported_handlers ... ok
+
+failures:
+
+failures:
+    existence_query::tests::original_existence_advice_is_a_name_dependency_without_actual_presence
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 8254 filtered out; finished in 7.77s
+

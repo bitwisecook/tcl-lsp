@@ -69,20 +69,24 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-/// Dynamic arg-role resolver: `puts` takes one positional arg (`string`,
-/// writing to stdout) or two (`channelId string`); the optional leading
-/// `-nonewline` flag shifts which raw-arg index is the channel. Declaring
-/// the channel position lets the taint sink's position-aware filter
-/// (`sink_var_position_safe` in `tcl_compiler::taint`) recognise a tainted
-/// channel handle as a non-dangerous argument generically, with no
-/// `puts`-by-name check in the compiler.
-fn puts_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let skip: u8 = u8::from(args.first() == Some(&"-nonewline"));
-    if args.len() - usize::from(skip) >= 2 {
+/// Channel position in the selected optional-flag grammar. One operand is
+/// always payload. A possible leading flag makes larger dynamic prefixes
+/// uncertain; channel and output payload values do not otherwise select shape.
+pub(super) fn puts_layout_roles(
+    args: crate::InvocationArguments<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = args.exact_argv_len()?;
+    if count < 2 {
+        return Some(Vec::new());
+    }
+    let first = args.literal_at(0)?;
+    let skip = u8::from(options.available().any(|option| option.name == first));
+    Some(if count - usize::from(skip) >= 2 {
         vec![(skip, ArgRole::Channel)]
     } else {
         Vec::new()
-    }
+    })
 }
 
 /// Command spec for `puts`.
@@ -103,7 +107,7 @@ pub fn spec() -> CommandSpec {
         // words, so the flag itself is not part of this range. Unchanged
         // across every fetched version, 8.4 through 9.1.
         arity: Arity::new(1, 2),
-        arg_role_resolver: Some(puts_arg_roles),
+        arg_role_layout_resolver: Some(puts_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Channel],
         return_type: Some(TclType::String),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)),

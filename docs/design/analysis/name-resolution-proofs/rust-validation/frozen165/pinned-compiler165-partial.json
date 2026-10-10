@@ -1,0 +1,44 @@
+{
+  "executable": "/workspace/.proofs/pinned-compiler165-partial.elf",
+  "sha256": "ee03be00b60b770f6bcc02ad31ab972ca0a83cdb2225cb31ed4b5635de2c2a52",
+  "build_receipt": "/workspace/.proofs/recovery-compiler-build165.json",
+  "build_receipt_sha256": "e3a7776d303f9ce159cc86e53588088d73ebad623ed8038990f7226090416863",
+  "source_snapshot_sha256": "568a1b65887dab04106303a446e4b5bb8d6aa70fa59f1bfe30b54e4875c04dbc",
+  "overall_build_exit": 101,
+  "package_artifact": {
+    "reason": "compiler-artifact",
+    "package_id": "path+file:///workspace/.checkpoints/naming-validation/rust/tcl-compiler#0.1.0",
+    "manifest_path": "/workspace/.checkpoints/naming-validation/rust/tcl-compiler/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_compiler",
+      "src_path": "/workspace/.checkpoints/naming-validation/rust/tcl-compiler/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "features": [],
+    "filenames": [
+      "/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-e0e1dd85a0b4c6b3"
+    ],
+    "executable": "/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-e0e1dd85a0b4c6b3",
+    "fresh": false
+  },
+  "error_package_ids": [
+    "path+file:///workspace/.checkpoints/naming-validation/rust/tcl-registry#0.1.0"
+  ],
+  "boundary": "Cargo emitted this completed Compiler lib-test executable from the uniform165 source. The combined build failed in Registry lib-test compilation. Running this package image establishes only named Compiler assertions, not a successful combined/workspace build."
+}

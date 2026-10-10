@@ -1,0 +1,45 @@
+{
+  "question": "naming.class.jim-source-factory-initialiser-replacement",
+  "problem": "Which pre-existing two-word procedure slots are replaced by the current Jim class factory, is baseclass replacement conditional on nonempty BASES, and can a later raw procedure replace a stock member?",
+  "channel": "Original fixed ASCII LF CLI file; explicit public info body equality/catch outcomes and one caught later object call. Body contents are compared, not printed. No native header/object/frame/cache or successful compiler admission claim. C no class command is explicitly not applicable.",
+  "source_sha256": "85766df415973214a92e4e378fd09e3a574c2b801ed4020f01cc19457e1b5fe3",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "jim_expected_version": "0.84-9-g5bac7c9",
+  "jim_required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77"
+  },
+  "bigip": "not-tested",
+  "controls": [
+    "new",
+    "finalize",
+    "method",
+    "vars",
+    "classvars",
+    "classname",
+    "methods",
+    "defaultconstructor",
+    "constructor",
+    "destroy",
+    "get",
+    "eval",
+    "baseclass_without_bases",
+    "baseclass_with_base",
+    "baseclass_current_target",
+    "custom_after_factory"
+  ],
+  "authority_boundary": "Public factory replacement observations permit source-model initializer barriers only under the independently selected Jim source grammar/policy; no native allocation or actual dispatch proof is donated to Compiler source carriers."
+}

@@ -1,0 +1,15 @@
+{
+  "question": "naming.tcloo.empty-lifecycle-definition",
+  "problem": "Does empty TclOO constructor body remove the own constructor without validating its formal list, while whitespace/comment bodies retain formals, and does a superclass constructor remain applicable after own removal?",
+  "channel": "Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.",
+  "source_sha256": "34a28b9cdc4d5501378a76bbdbbe0db1d7886ed62e4a146ff37e3e756fb92139",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested; TclOO availability in external hosted contexts must be measured independently"
+}

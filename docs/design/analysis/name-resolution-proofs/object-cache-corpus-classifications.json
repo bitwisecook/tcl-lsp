@@ -1,0 +1,52 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_getters/manifest.json",
+    "sha256": "3e74bf58654d88ddffa93c83d84742ff243e0a4327d235697171a5d49bfbddc5",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.command-cache.original-wide-getter",
+      "naming.command-cache.original-double-getter",
+      "naming.command-cache.original-boolean-getter",
+      "naming.command-cache.original-list-length-getter",
+      "naming.command-cache.original-dictionary-size-getter",
+      "naming.command-cache.original-character-length-getter"
+    ],
+    "reason": "Exact probe SHA and all five full output digests checked; six independently scoped getter stages retain success/failure/primary/pointer observations. Six C8.4 dictionary sentinel rows are explicitly not guest invocations."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_priming/manifest.json",
+    "sha256": "565b7b78b8747f3c044b1c4ee1679b0cfc4437bea170ba628204ee2fc20adeeb",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.command-cache.original-compiler-priming"
+    ],
+    "reason": "Original probe and five complete output hashes checked; all25 target/primary/storage windows scoped to exact private compiler priming, without live-world donation."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_append/manifest.json",
+    "sha256": "1b2e9f4e3b6adb998ce4170387d7b595757a8820c4a85e6f1a5706785f889c48",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.append.original-storage-and-identity"
+    ],
+    "reason": "Two original probe hashes and all six retained projection digests checked, with1035 distinct case/route rows. Missing full physical/identity logs and unqueried Jim patch/configuration remain explicit limitations."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_cat/manifest.json",
+    "sha256": "6637cecca9eeb397017b855d23659b0f9b30e3df8d8b41dd24b0de81e0801f77",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.cat.original-cache-and-sharing"
+    ],
+    "reason": "Original probe/full JSONL/projected TSV digests checked for both C9 releases, plus exact case/sharing coverage and all basic physical/result projection fields; older releases are not tested."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_cat/bytes/manifest.json",
+    "sha256": "4a34f17932cf7eb50d4834613e4f9098f1ab975e69b7ad96375f9a561c5892a9",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.cat.original-counted-bytes-and-surrogates"
+    ],
+    "reason": "Original probe/full JSONL/projected TSV digests checked for both C9 releases, plus exact case/sharing coverage and all basic physical/result projection fields; older releases are not tested."
+  }
+]

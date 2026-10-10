@@ -34,6 +34,9 @@ pub(super) struct CompiledInvocationSelection {
     /// Immutable implementation shared by every possible compiler protocol.
     /// This licenses no opcode, body-compilation, or successful-entry claim.
     pub stable_handler: Option<SourceCommandTarget>,
+    /// Every possible compiler preserves tracked names before argv. This
+    /// closes no native opcode, variable receiver or handler completion.
+    pub(super) compiler_name_preservation: super::SourceCompilerNameClosure,
     pub admission: Option<NativeCompilationSelection>,
     pub admitted: Option<Arc<SourceNativeCompilerAdmission>>,
     pub policy: Option<Arc<super::compiler_inventory::SourceNativeCompilerPolicy>>,
@@ -54,6 +57,7 @@ impl Default for CompiledInvocationSelection {
             proofs: Vec::new(),
             named: Vec::new(),
             stable_handler: None,
+            compiler_name_preservation: super::SourceCompilerNameClosure::Preserved,
             admission: Some(NativeCompilationSelection::Generic),
             admitted: None,
             policy: None,
@@ -71,7 +75,24 @@ impl Default for CompiledInvocationSelection {
 }
 
 impl CompiledInvocationSelection {
+    pub(super) fn compiler_preserves_names(&self) -> bool {
+        self.compiler_name_preservation.is_preserved()
+    }
+
+    pub(super) fn stable_handler_after_original_arguments(
+        &self,
+        head: Option<&crate::signature_scan::scope::SignatureSourceNameInput>,
+        state: &ModuleCommandBindings,
+        namespace: &super::SourceNamespaceKey,
+    ) -> Option<&SourceCommandTarget> {
+        let target = self.stable_handler.as_ref()?;
+        let after = super::source_binding_from_original_input(state, head?, namespace)?;
+        (after.proved_target() == Some(target)).then_some(target)
+    }
+
     pub(super) fn join(&mut self, other: &Self) {
+        self.compiler_name_preservation
+            .join(other.compiler_name_preservation);
         if self.policy != other.policy {
             self.policy = None;
         }
@@ -129,19 +150,6 @@ impl CompiledInvocationSelection {
             Some(previous) if previous == selection => previous,
             Some(_) => NativeCompilationSelection::Unknown,
         });
-    }
-
-    /// Check convergence again after substitutions, including lookup and
-    /// observer uncertainty. A compiler alternative may still reject entry.
-    pub(super) fn stable_handler_after_arguments(
-        &self,
-        head: Option<&str>,
-        state: &ModuleCommandBindings,
-        namespace: &(impl super::NamespaceKeyQuery + ?Sized),
-    ) -> Option<&SourceCommandTarget> {
-        let target = self.stable_handler.as_ref()?;
-        let after = super::source_binding(state, head?, namespace);
-        (after.proved_target() == Some(target)).then_some(target)
     }
 }
 
@@ -216,6 +224,7 @@ pub enum SourceNativeCompilerAdmission {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct SourceOriginalCompilerWords {
+    pub config: tcl_lexer::LexerConfig,
     pub site: CommandAllocationSite,
     pub words: Arc<[crate::ir::WordExpr]>,
 }
@@ -303,6 +312,8 @@ impl SourceNativeStructuredPreparation {
 pub struct NativeCompilationSnapshot {
     pub(super) table: Arc<SourceLookupSnapshot>,
     pub(super) generic_fallbacks: BTreeSet<CommandAllocationSite>,
+    pub(super) source_locals:
+        Option<Arc<super::compiled_preflight::ordered_locals::SourceCompilerLocalInventory>>,
 }
 
 /// Compiler-hook-capable tokens found by the shared command lookup owner.
@@ -317,6 +328,16 @@ pub struct NativeCompilerTargets {
 }
 
 impl NativeCompilationSnapshot {
+    pub(super) fn compiler_targets_for_original_input(
+        &self,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        namespace: &super::SourceNamespaceKey,
+    ) -> NativeCompilerTargets {
+        self.table
+            .state
+            .native_compiler_targets_for_original_input(input, namespace)
+    }
+
     /// Query the same immutable lookup paths used by ordinary command resolution.
     #[must_use]
     pub fn compiler_targets(&self, head: &str, namespace: &str) -> NativeCompilerTargets {
@@ -333,6 +354,192 @@ impl NativeCompilationSnapshot {
 }
 
 impl ModuleCommandBindings {
+    /// Compiler-hook projection of the actual byte table cells. Callable
+    /// target resolution cannot forward an alias's compiler registration.
+    pub(super) fn native_compiler_targets_for_original_input(
+        &self,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        namespace: &super::SourceNamespaceKey,
+    ) -> NativeCompilerTargets {
+        self.trace_original_compiler_world(input, namespace);
+        if self.source_step_observed()
+            || self
+                .baseline
+                .native_entry
+                .as_ref()
+                .is_some_and(|entry| entry.inline_compilation_disabled)
+        {
+            return NativeCompilerTargets {
+                targets: Vec::new(),
+                may_be_generic: true,
+                unknown: false,
+            };
+        }
+        let Some(selection) = self.original_targets_for_input(
+            input,
+            namespace,
+            super::CommandTargetLookup::NamedSlots,
+        ) else {
+            if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+                eprintln!(
+                    "NATIVE_ORIGINAL_COMPILER_LOOKUP head={:?} reason=target-unavailable namespace={namespace:?}",
+                    input.bytes()
+                );
+            }
+            return NativeCompilerTargets {
+                targets: Vec::new(),
+                may_be_generic: true,
+                unknown: true,
+            };
+        };
+        let Some(keys) = self.original_command_keys_for_input(namespace, input) else {
+            if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+                eprintln!(
+                    "NATIVE_ORIGINAL_COMPILER_LOOKUP head={:?} reason=keys-unavailable namespace={namespace:?}",
+                    input.bytes()
+                );
+            }
+            return NativeCompilerTargets {
+                targets: Vec::new(),
+                may_be_generic: true,
+                unknown: true,
+            };
+        };
+        let mut eligible = BTreeSet::new();
+        let mut generic = selection.may_be_absent;
+        let mut unknown = selection.unknown;
+        if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+            eprintln!(
+                "NATIVE_ORIGINAL_COMPILER_LOOKUP head={:?} selected_unknown={} absent={} keys={}",
+                input.bytes(),
+                selection.unknown,
+                selection.may_be_absent,
+                keys.len(),
+            );
+        }
+        for key in keys {
+            let bindings = self.original_bindings_for_key(&key);
+            self.trace_original_compiler_cell(&key, bindings.as_ref());
+            let Some(bindings) = bindings else {
+                unknown = true;
+                continue;
+            };
+            for binding in &bindings {
+                // A missing earlier cell falls through along the retained
+                // lookup path; total absence is a separate selection axis.
+                if matches!(binding, MayBinding::Missing) {
+                    continue;
+                }
+                self.collect_native_compiler_tokens(
+                    binding,
+                    &mut eligible,
+                    &mut generic,
+                    &mut unknown,
+                    &mut BTreeSet::new(),
+                    None,
+                );
+            }
+        }
+        let targets = self.current_original_compiler_targets(eligible, &mut generic);
+        NativeCompilerTargets {
+            may_be_generic: generic || unknown || targets.is_empty(),
+            targets,
+            unknown,
+        }
+    }
+
+    fn current_original_compiler_targets(
+        &self,
+        eligible: BTreeSet<super::ResolvedCommandTarget>,
+        generic: &mut bool,
+    ) -> Vec<SourceCommandTarget> {
+        eligible
+            .into_iter()
+            .filter_map(|target| {
+                if self.source_execution_observed(target.token.as_ref()) {
+                    *generic = true;
+                    return None;
+                }
+                Some(SourceCommandTarget {
+                    runtime_implementation_generation: self
+                        .runtime_implementation_generation(target.token.as_ref()),
+                    command: target.command,
+                    prepended: target.prepended,
+                    original_prepended: None,
+                    registry_backed: target.registry_backed,
+                    kind: target.kind,
+                    identity: target.token,
+                    implementation_generation: target.implementation_generation,
+                    implementation_allocation: target.implementation_allocation,
+                })
+            })
+            .collect::<Vec<_>>()
+    }
+
+    fn trace_original_compiler_world(
+        &self,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        namespace: &super::SourceNamespaceKey,
+    ) {
+        if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+            let mut world = (*self.original_command_world).clone();
+            let policy = world.select_policy(self);
+            eprintln!(
+                "NATIVE_ORIGINAL_COMPILER_WORLD head={:?} opaque={} policy={:?} input_policy={:?} scope={:?} root={:?} namespace_rows={:?}",
+                input.bytes(),
+                self.has_opaque_domain(),
+                policy,
+                input.policy(),
+                policy.and_then(|policy| world.scope(namespace, policy)),
+                self.source_root_namespace_key(),
+                self.baseline.native_entry.as_ref().map(|entry| entry
+                    .namespaces
+                    .iter()
+                    .map(|row| (
+                        row.token,
+                        row.path.is_root(),
+                        row.jim_namespace_object.is_some()
+                    ))
+                    .collect::<Vec<_>>()),
+            );
+        }
+    }
+
+    fn trace_original_compiler_cell(
+        &self,
+        key: &super::SourceCommandKey,
+        bindings: Option<&BTreeSet<MayBinding>>,
+    ) {
+        if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+            eprintln!(
+                "NATIVE_ORIGINAL_COMPILER_CELL key={key:?} alternatives={:?}",
+                bindings.as_ref().map(|alternatives| alternatives
+                    .iter()
+                    .map(|binding| {
+                        let target = match binding {
+                            MayBinding::Target(target) => Some(target),
+                            _ => None,
+                        };
+                        (
+                            match binding {
+                                MayBinding::Target(_) => "target",
+                                MayBinding::Imported(_) => "imported",
+                                MayBinding::Missing => "missing",
+                                MayBinding::Unknown => "unknown",
+                            },
+                            target.map(|target| target.command.as_str()),
+                            target.map(|target| target.registry_backed),
+                            target
+                                .and_then(|target| target.token.as_ref())
+                                .and_then(|token| token.runtime),
+                            target.and_then(|target| self.installed_compiler_hook(target)),
+                        )
+                    })
+                    .collect::<Vec<_>>()),
+            );
+        }
+    }
+
     /// Freeze actual point knowledge; a catalogue alone never supplies an entry contract.
     #[must_use]
     pub fn native_compilation_snapshot(&self) -> NativeCompilationSnapshot {
@@ -346,6 +553,7 @@ impl ModuleCommandBindings {
         NativeCompilationSnapshot {
             table: Arc::new(SourceLookupSnapshot::in_realm(self.clone(), realm)),
             generic_fallbacks: BTreeSet::new(),
+            source_locals: None,
         }
     }
 
@@ -373,9 +581,7 @@ impl ModuleCommandBindings {
         // compilation table still proves their compiler-hook suppression.
         let mut unknown = !self.source_lookup_is_closed(head, namespace);
         for slot in self.source_keys(head, namespace) {
-            let bindings = self.bindings.get(&slot).cloned().unwrap_or_else(|| {
-                Self::unmodified_bindings(&slot, self.baseline.semantics.binding_names())
-            });
+            let bindings = self.binding_alternatives(&slot);
             for binding in &bindings {
                 self.collect_native_compiler_tokens(
                     binding,
@@ -396,6 +602,7 @@ impl ModuleCommandBindings {
                     .runtime_implementation_generation(target.token.as_ref()),
                 command: target.command,
                 prepended: target.prepended,
+                original_prepended: None,
                 registry_backed: target.registry_backed,
                 kind: target.kind,
                 identity: target.token,
@@ -635,6 +842,7 @@ pub(super) fn body_context<'a>(
             compilation: NativeCompilationContext::default(),
             compilation_snapshot: None,
             selected_compilation: None,
+            original_variable_compilation: None,
             ..context
         };
     };
@@ -675,6 +883,7 @@ pub(super) fn body_context<'a>(
             None
         },
         selected_compilation: None,
+        original_variable_compilation: None,
         ..context
     }
 }
@@ -702,6 +911,7 @@ fn compiler_head_decline(
         Some(true) => None,
         Some(false) => Some(CompiledInvocationSelection::default()),
         None => Some(CompiledInvocationSelection {
+            compiler_name_preservation: super::SourceCompilerNameClosure::Unknown,
             unknown: true,
             admission: Some(NativeCompilationSelection::Unknown),
             ..CompiledInvocationSelection::default()
@@ -722,14 +932,18 @@ pub(super) fn select_invocation(
         return decline;
     }
     let written = super::source_effective_words(words, state.baseline.dialect, None);
-    let Some(head) = written
-        .first()
-        .and_then(|word| word.as_registry_word().literal())
-    else {
+    let Some(head_input) = super::original_name_value::original_static_command_head_input(
+        words,
+        offset,
+        state,
+        context.config,
+    ) else {
         return CompiledInvocationSelection::default();
     };
+    let head = std::str::from_utf8(head_input.bytes()).unwrap_or("");
     let Some(snapshot) = context.compilation_snapshot else {
         return CompiledInvocationSelection {
+            compiler_name_preservation: super::SourceCompilerNameClosure::Unknown,
             unknown: true,
             admission: Some(NativeCompilationSelection::Unknown),
             ..CompiledInvocationSelection::default()
@@ -747,8 +961,26 @@ pub(super) fn select_invocation(
             ..CompiledInvocationSelection::default()
         };
     }
-    let targets = snapshot.compiler_targets_in_namespace(head, &context.namespace_identity());
-    let before = super::source_binding(state, head, &context.namespace_identity());
+    let targets =
+        snapshot.compiler_targets_for_original_input(&head_input, &context.namespace_identity());
+    trace_original_compiler_targets(&head_input, &context, &targets);
+    if !head_input.is_current(&state.source_variables) {
+        return CompiledInvocationSelection {
+            compiler_name_preservation: super::SourceCompilerNameClosure::Unknown,
+            unknown: true,
+            admission: Some(NativeCompilationSelection::Unknown),
+            ..Default::default()
+        };
+    }
+    let before = super::source_binding_from_original_input(
+        state,
+        &head_input,
+        &context.namespace_identity(),
+    )
+    // The immutable chunk compiler already selected its original target.
+    // Unavailable later runtime occupancy removes the stable handler relation;
+    // it cannot replace that independent compiler snapshot with runtime lookup.
+    .unwrap_or_else(SourceInvocationBinding::unknown);
     let shapes = words.iter().skip(1).map(word_shape).collect::<Vec<_>>();
     let arguments = written
         .iter()
@@ -785,6 +1017,35 @@ pub(super) fn select_invocation(
     result
 }
 
+fn trace_original_compiler_targets(
+    head_input: &crate::signature_scan::scope::SignatureSourceNameInput,
+    context: &super::SourceExecutionContext<'_>,
+    targets: &NativeCompilerTargets,
+) {
+    if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+        eprintln!(
+            "NATIVE_ORIGINAL_COMPILER_TARGET head={:?} namespace={:?} generic={} unknown={} targets={:?}",
+            head_input.bytes(),
+            context.namespace_identity().display(),
+            targets.may_be_generic,
+            targets.unknown,
+            targets
+                .targets
+                .iter()
+                .map(|target| (
+                    &target.command,
+                    target.registry_backed,
+                    target.kind,
+                    target
+                        .identity
+                        .as_ref()
+                        .and_then(|identity| identity.runtime),
+                ))
+                .collect::<Vec<_>>(),
+        );
+    }
+}
+
 fn initial_compilation_selection(
     words: &[crate::ir::WordExpr],
     state: &ModuleCommandBindings,
@@ -801,6 +1062,7 @@ fn initial_compilation_selection(
         proofs: Vec::new(),
         named: Vec::new(),
         stable_handler,
+        compiler_name_preservation: (!targets.unknown).into(),
         operand_layout: None,
         namespace_bindings: None,
         switch: None,
@@ -813,6 +1075,7 @@ fn initial_compilation_selection(
                 context.config,
             )?;
             Some(Arc::new(SourceOriginalCompilerWords {
+                config: context.config,
                 site: CommandAllocationSite {
                     source: Arc::clone(origin),
                     offset,
@@ -919,15 +1182,20 @@ fn select_target(
                 super::ensemble_compilation::ActualEnsemblePlan::Unknown
             )
         {
+            result.compiler_name_preservation = super::SourceCompilerNameClosure::Unknown;
             select_actual_ensemble_target(target, selected, plan, state, context, result);
             return;
         }
     }
     let Some(registered) = registered else {
+        result.compiler_name_preservation = super::SourceCompilerNameClosure::Unknown;
         result.unknown = true;
         result.admit(NativeCompilationSelection::Unknown);
         return;
     };
+    result
+        .compiler_name_preservation
+        .join(registered.compiler_preserves_names.into());
     result.operand_layout = registered.operand_layout;
     result.namespace_bindings = registered.namespace_bindings;
     result.switch = registered.switch;
@@ -975,6 +1243,7 @@ fn select_target(
 struct RegisteredCompilerSelection {
     spec: tcl_registry::native_compilation::NativeCompilationSpec,
     admission: NativeCompilationSelection,
+    compiler_preserves_names: bool,
     dependencies: Vec<super::SourceNativeCompilationDependency>,
     operand_layout: Option<Arc<super::SourceNativeOperandLayoutProof>>,
     namespace_bindings: Option<Arc<SourceNativeNamespaceBindingPreparation>>,
@@ -1007,7 +1276,10 @@ fn registered_compiler_selection(
         invocation,
         context.realm,
     );
-    let facts = facts.as_ref()?;
+    let Some(facts) = facts.as_ref() else {
+        trace_missing_compiler_facts(target, state, context);
+        return None;
+    };
     let (spec, argument_offset) = original_registration_descriptor(
         selected.words,
         selected.head,
@@ -1032,27 +1304,16 @@ fn registered_compiler_selection(
     );
     let dependencies = compiler_dependencies(spec, target, state, context);
     let dependency_closed = dependencies.is_some();
-    let original_site = state
-        .current_source_origin
-        .as_ref()
-        .map(|source| CommandAllocationSite {
-            source: Arc::clone(source),
-            offset: selected.offset,
-        });
-    let original_dependency = super::SourceNativeCompilationDependency {
-        compiler_prerequisite: state
-            .runtime_command_compiler_prerequisite(
-                selected.head,
-                &context.namespace_identity(),
-                tcl_runtime_api::CommandBindingGuard::ChunkEntry,
-            )
-            .map(Arc::new),
-        target: target.clone(),
-        namespace: context.namespace.to_owned(),
-        namespace_key: context.namespace_identity(),
-        head: selected.head.to_owned(),
-        guard: NativeCompilationGuard::ChunkEntry,
-    };
+    let compiler_preserves_names = original_compiler_preserves_names(
+        spec,
+        selected,
+        state,
+        context,
+        argument_offset,
+        dependency_closed,
+    );
+    let (original_site, original_dependency) =
+        original_compilation_point(target, selected, state, context, admission);
     let preparation = dependency_closed
         .then(|| original.as_ref()?.1.as_ref())
         .flatten();
@@ -1076,6 +1337,7 @@ fn registered_compiler_selection(
     );
     Some(RegisteredCompilerSelection {
         spec,
+        compiler_preserves_names,
         dependencies: dependencies.unwrap_or_default(),
         admission: if dependency_closed {
             admission
@@ -1087,6 +1349,185 @@ fn registered_compiler_selection(
         switch,
         structured,
     })
+}
+
+fn original_compilation_point(
+    target: &SourceCommandTarget,
+    selected: CompilerInvocation<'_>,
+    state: &ModuleCommandBindings,
+    context: super::SourceExecutionContext<'_>,
+    admission: NativeCompilationSelection,
+) -> (
+    Option<CommandAllocationSite>,
+    super::SourceNativeCompilationDependency,
+) {
+    let original_site = state
+        .current_source_origin
+        .as_ref()
+        .map(|source| CommandAllocationSite {
+            source: Arc::clone(source),
+            offset: selected.offset,
+        });
+    let preparation_guard = match admission {
+        NativeCompilationSelection::Inline { guard, .. } => guard,
+        _ => NativeCompilationGuard::ChunkEntry,
+    };
+    let dependency =
+        original_compilation_dependency(target, selected, state, context, preparation_guard);
+    (original_site, dependency)
+}
+
+fn trace_missing_compiler_facts(
+    target: &SourceCommandTarget,
+    state: &ModuleCommandBindings,
+    context: super::SourceExecutionContext<'_>,
+) {
+    if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+        eprintln!(
+            "NATIVE_ORIGINAL_COMPILER_FACTS_MISSING command={:?} registry={} compiler_hook={:?}",
+            target.command,
+            target.registry_backed,
+            context
+                .compilation_snapshot
+                .map_or(state, |snapshot| &snapshot.table.state)
+                .runtime_compiler_hook(target.identity.as_ref()),
+        );
+    }
+}
+
+fn original_compilation_dependency(
+    target: &SourceCommandTarget,
+    selected: CompilerInvocation<'_>,
+    state: &ModuleCommandBindings,
+    context: super::SourceExecutionContext<'_>,
+    preparation_guard: NativeCompilationGuard,
+) -> super::SourceNativeCompilationDependency {
+    super::SourceNativeCompilationDependency {
+        compiler_prerequisite: state
+            .runtime_command_compiler_prerequisite(
+                selected.head,
+                &context.namespace_identity(),
+                match preparation_guard {
+                    NativeCompilationGuard::ChunkEntry => {
+                        tcl_runtime_api::CommandBindingGuard::ChunkEntry
+                    }
+                    NativeCompilationGuard::BeforeArguments => {
+                        tcl_runtime_api::CommandBindingGuard::BeforeArguments
+                    }
+                },
+            )
+            .map(Arc::new),
+        target: target.clone(),
+        namespace: context.namespace.to_owned(),
+        namespace_key: context.namespace_identity(),
+        head: selected.head.to_owned(),
+        guard: preparation_guard,
+    }
+}
+
+fn original_compiler_preserves_names(
+    spec: tcl_registry::native_compilation::NativeCompilationSpec,
+    selected: CompilerInvocation<'_>,
+    state: &ModuleCommandBindings,
+    context: super::SourceExecutionContext<'_>,
+    argument_offset: usize,
+    dependency_closed: bool,
+) -> bool {
+    let Some(origin) = state.current_source_origin.as_ref() else {
+        return false;
+    };
+    let Some(original) = crate::registry_invocation::original_native_compiler_words(
+        origin.source_image(),
+        selected.words,
+        selected.offset,
+        context.config,
+    ) else {
+        return false;
+    };
+    let Some(protocol) =
+        super::compiler_inventory::SourceNativeCompilerPolicy::source_protocol_of(state)
+    else {
+        return false;
+    };
+    let Ok(captured) =
+        tcl_registry::native_compiler_words::NativeCompilerWords::capture(&original, protocol)
+    else {
+        return false;
+    };
+    let dialect = state.baseline.compilation_dialect();
+    let compiler_state = context
+        .compilation_snapshot
+        .map_or(state, |snapshot| &snapshot.table.state);
+    match spec.original_argument_name_effects_in_context(
+        &captured,
+        argument_offset + 1,
+        dialect,
+        context.compilation,
+    ) {
+        tcl_registry::native_compilation::NativeOriginalCompilerNameEffects::Preserved => {
+            // A selected null compileProc cannot enter a private compiler worker.
+            dialect.is_some_and(|dialect| spec.compiler_hook_presence(dialect) == Some(false))
+                || dependency_closed
+        }
+        tcl_registry::native_compilation::NativeOriginalCompilerNameEffects::FixedLookup(
+            lookup,
+        ) => {
+            dependency_closed
+                && original_fixed_compiler_lookup_preserves_names(
+                    compiler_state,
+                    lookup,
+                    compiler_state
+                        .baseline
+                        .execution_name_policy
+                        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe),
+                )
+        }
+        tcl_registry::native_compilation::NativeOriginalCompilerNameEffects::Visits(visits) => {
+            dependency_closed
+                && super::original_compiler_effects::preserves_visits(
+                    &captured,
+                    visits,
+                    compiler_state,
+                    context,
+                    origin,
+                )
+        }
+        tcl_registry::native_compilation::NativeOriginalCompilerNameEffects::Unknown => false,
+    }
+}
+
+pub(super) fn original_fixed_compiler_lookup_preserves_names(
+    state: &ModuleCommandBindings,
+    lookup: &tcl_registry::native_compilation::NativeCompilerImplementationLookup,
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+) -> bool {
+    if state.baseline.unknown_entry {
+        return false;
+    }
+    // Actual runtime lookup absence has its own same-entry issuer. Closed
+    // tables and the authored initial world cannot supply this callback axis.
+    if let Some(entry) = &state.baseline.native_entry
+        && !entry
+            .command_resolvers
+            .is_some_and(|inventory| inventory.permits_no_callbacks(entry))
+    {
+        return false;
+    }
+    let Some(policy) = policy else {
+        return false;
+    };
+    let Some(root) = state.source_root_namespace_key() else {
+        return false;
+    };
+    let Some(target) = state.original_registry_metadata_target(&root, lookup.slot, policy) else {
+        return false;
+    };
+    target.registry_backed
+        && target.terminal
+        && target.kind == BindingKind::Builtin
+        && target.implementation_generation == 0
+        && target.prepended.is_empty()
+        && super::nqn(&target.command) == super::nqn(lookup.slot)
 }
 
 /// A monolithic compileProc owns the complete original command vector. The
@@ -1135,7 +1576,11 @@ pub(super) fn original_registration_descriptor(
             )?;
         return Some((spec, 0));
     }
-    Some((facts.native_compilation?, facts.argument_offset))
+    let spec = facts.native_compilation?;
+    let argument_offset = spec
+        .original_operand_from_for_facts(facts)?
+        .checked_sub(1)?;
+    Some((spec, argument_offset))
 }
 
 fn original_registered_compiler_preparation(
@@ -1204,7 +1649,7 @@ fn retain_original_preparations(
     }
 }
 
-fn compiler_dependencies(
+pub(super) fn compiler_dependencies(
     spec: tcl_registry::native_compilation::NativeCompilationSpec,
     target: &SourceCommandTarget,
     state: &ModuleCommandBindings,
@@ -1897,12 +2342,7 @@ impl SourceInvocationBinding {
             return None;
         };
         let bindings = snapshot.state.bindings.get(key).map_or_else(
-            || {
-                std::borrow::Cow::Owned(ModuleCommandBindings::unmodified_bindings(
-                    key,
-                    snapshot.state.baseline.semantics.binding_names(),
-                ))
-            },
+            || std::borrow::Cow::Owned(snapshot.state.binding_alternatives(key)),
             std::borrow::Cow::Borrowed,
         );
         if bindings.len() != 1 {
@@ -1927,12 +2367,7 @@ impl SourceInvocationBinding {
             return None;
         };
         let bindings = snapshot.state.bindings.get(key).map_or_else(
-            || {
-                std::borrow::Cow::Owned(ModuleCommandBindings::unmodified_bindings(
-                    key,
-                    snapshot.state.baseline.semantics.binding_names(),
-                ))
-            },
+            || std::borrow::Cow::Owned(snapshot.state.binding_alternatives(key)),
             std::borrow::Cow::Borrowed,
         );
         if bindings.len() != 1 {
@@ -2037,7 +2472,22 @@ impl SourceInvocationBinding {
             .or(self.native_handler_envelope.as_ref())
     }
 
+    /// Name-effect closure from the actual original compiler selection. The
+    /// complete retained vector must match; this supplies neither admission,
+    /// normal completion nor an evaluated-argument or native-object receipt.
+    pub(crate) fn original_compiler_names_preserved_for_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> bool {
+        // Implementation contract: naming.compiler.original-name-effect-separation
+        // docs/design/analysis/name-resolution-proofs/original-compiler-name-effect-separation.md
+        self.original_compiler_preserves_names.is_preserved()
+            && self.original_lexer_config_for_tokens(tokens).is_some()
+    }
+
     pub(super) fn join_compiled_execution(&mut self, other: &Self) {
+        self.original_compiler_preserves_names
+            .join(other.original_compiler_preserves_names);
         if self.native_structured_preparation != other.native_structured_preparation {
             self.native_structured_preparation = None;
         }
@@ -2113,9 +2563,13 @@ pub(super) fn join_argument_words(
     }
     for (word, other) in words.iter_mut().zip(incoming) {
         if word != other {
-            *word = if matches!(word, Word::Expanded | Word::KnownExpansion(_))
-                || matches!(other, Word::Expanded | Word::KnownExpansion(_))
-            {
+            *word = if matches!(
+                word,
+                Word::Expanded | Word::KnownExpansion(_) | Word::KnownByteExpansion(_)
+            ) || matches!(
+                other,
+                Word::Expanded | Word::KnownExpansion(_) | Word::KnownByteExpansion(_)
+            ) {
                 Word::Expanded
             } else {
                 Word::Dynamic
@@ -2251,12 +2705,13 @@ mod tests {
         version: tcl_dialect::TclVersion,
         mode: NativeCompilationMode,
     ) -> SourceCommandBindings {
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
         SourceCommandBindings::analyse_with_options(
             source,
-            tcl_lexer::LexerConfig::default(),
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
             &tcl_registry::CommandRegistry::build_default(),
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(version)),
+                invocation_dialect: Some(dialect),
                 native_compilation: NativeCompilationContext {
                     catch_depth: Some(0),
                     mode,
@@ -2266,6 +2721,335 @@ mod tests {
                 ..SourceAnalysisOptions::default()
             },
         )
+    }
+
+    #[test]
+    fn original_literal_compiler_name_effects_remain_separate_from_unknown_admission() {
+        // Implementation contract: naming.compiler.original-name-effect-separation (docs/design/analysis/name-resolution-proofs/original-compiler-name-effect-separation.md).
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let registry =
+                tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let options = SourceAnalysisOptions {
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: NativeCompilationContext {
+                    mode: NativeCompilationMode::Unknown,
+                    frame: NativeCompilationFrame::Unknown,
+                    catch_depth: None,
+                    loop_depth: 0,
+                },
+                ..SourceAnalysisOptions::default()
+            };
+            let analysis = SourceCommandBindings::analyse_with_options(
+                "set checkpoint READY",
+                config,
+                &registry,
+                options,
+            );
+            let point = analysis.points.iter().find(|point| point.dispatch).unwrap();
+            let selected = &point.compiled_execution;
+            assert!(selected.unknown);
+            assert!(selected.compiler_preserves_names());
+            let source = "set checkpoint READY";
+            let segments =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                &segments[0],
+            );
+            analysis.stamp_original_tokens(&mut tokens);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(binding.original_compiler_names_preserved_for_tokens(&tokens));
+            let mut changed = tokens.clone();
+            let crate::ir::WordExpr::Literal { text, .. } = &mut changed.word_exprs[2] else {
+                panic!("actual original literal");
+            };
+            *text = "foreign".into();
+            assert!(!binding.original_compiler_names_preserved_for_tokens(&changed));
+            assert_eq!(
+                selected.admission,
+                Some(NativeCompilationSelection::Unknown)
+            );
+            assert!(selected.proofs.is_empty());
+            assert!(selected.admitted.is_none());
+            assert_eq!(
+                selected
+                    .stable_handler_after_original_arguments(
+                        point.original_head_input.as_ref(),
+                        &point.state,
+                        &point.namespace_key
+                    )
+                    .unwrap()
+                    .command,
+                "::set"
+            );
+
+            let nested = SourceCommandBindings::analyse_with_options(
+                "set checkpoint [expr {rand()}]",
+                config,
+                &registry,
+                options,
+            );
+            let nested_point = nested
+                .points
+                .iter()
+                .find(|point| point.dispatch && point.offset == 0)
+                .unwrap();
+            assert!(!nested_point.compiled_execution.compiler_preserves_names());
+            let nested_source = "set checkpoint [expr {rand()}]";
+            let nested_segments =
+                crate::segmenter::segment_commands_with_offset_and_config(nested_source, 0, config);
+            let mut nested_tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(nested_source),
+                config,
+                &nested_segments[0],
+            );
+            nested.stamp_original_tokens(&mut nested_tokens);
+            let mut joined_binding = binding.clone();
+            joined_binding.join(nested_tokens.source_binding.as_ref().unwrap());
+            assert!(!joined_binding.original_compiler_names_preserved_for_tokens(&tokens));
+            let mut joined = selected.clone();
+            joined.join(&nested_point.compiled_execution);
+            assert!(!joined.compiler_preserves_names());
+            assert!(joined.unknown);
+        }
+    }
+
+    #[test]
+    fn original_nested_compiler_effects_preserve_names_without_executing_children() {
+        // Implementation contract: naming.compiler.original-preparation-name-effects (docs/design/analysis/name-resolution-proofs/original-preparation-name-effects.md).
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let registry =
+                tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let options = SourceAnalysisOptions {
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: NativeCompilationContext::default(),
+                ..Default::default()
+            };
+            for (source, closed) in [
+                ("if {1} {package ifneeded p 1.0 {source p.tcl}}", true),
+                ("if {0} {set x [expr {rand()}]}", true),
+                ("if {1} {set x [expr {rand()}]}", false),
+                ("set checkpoint [proc q {} {}]", true),
+                ("if {$condition} {set x 1} else {set x 2}", true),
+                ("expr {[expr {$x * 2}]}", true),
+                ("expr {[expr {rand()}]}", false),
+                ("expr {\"[expr {$x * 2}]\"}", true),
+                ("expr {$a([expr {$x * 2}])}", true),
+            ] {
+                let analysis =
+                    SourceCommandBindings::analyse_with_options(source, config, &registry, options);
+                let point = analysis
+                    .points
+                    .iter()
+                    .find(|point| point.dispatch && point.offset == 0)
+                    .unwrap();
+                assert_eq!(
+                    point.compiled_execution.compiler_preserves_names(),
+                    closed,
+                    "{version:?}: {source}"
+                );
+                assert!(point.compiled_execution.unknown);
+                assert_eq!(
+                    point.compiled_execution.admission,
+                    Some(NativeCompilationSelection::Unknown)
+                );
+                assert!(point.compiled_execution.admitted.is_none());
+                assert!(point.compiled_execution.proofs.is_empty());
+            }
+        }
+    }
+
+    fn assert_native_fixed_lookup_resolver_scope(
+        profile: &'static tcl_dialect::DialectProfile,
+        registry: &tcl_registry::CommandRegistry,
+        lookup: &tcl_registry::native_compilation::NativeCompilerImplementationLookup,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        version: tcl_dialect::TclVersion,
+    ) {
+        use tcl_runtime_api::native_compilation::{
+            NativeCommandResolverInventory, NativeCommandResolverPresence,
+        };
+        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let native_policy = entry.command_name_policy().unwrap();
+        let native = ModuleCommandBindings::initial_with_options(
+            registry,
+            SourceAnalysisOptions {
+                native_entry: Some(&entry),
+                invocation_dialect: Some(dialect),
+                ..Default::default()
+            },
+            Some(tcl_lexer::LexerConfig::from_grammar(profile.grammar)),
+        );
+        assert!(
+            original_fixed_compiler_lookup_preserves_names(&native, lookup, Some(native_policy)),
+            "{version:?}"
+        );
+        assert!(!original_fixed_compiler_lookup_preserves_names(
+            &native,
+            lookup,
+            Some(policy)
+        ));
+        let resolver = |interpreter, epoch, presence| {
+            Some(NativeCommandResolverInventory::captured(
+                interpreter,
+                epoch,
+                presence,
+            ))
+        };
+        let mut foreign = entry.interpreter;
+        foreign.owner += 1;
+        for inventory in [
+            None,
+            resolver(
+                entry.interpreter,
+                entry.epoch,
+                NativeCommandResolverPresence::Present,
+            ),
+            resolver(
+                entry.interpreter,
+                entry.epoch,
+                NativeCommandResolverPresence::Unknown,
+            ),
+            resolver(
+                entry.interpreter,
+                entry.epoch + 1,
+                NativeCommandResolverPresence::Absent,
+            ),
+            resolver(foreign, entry.epoch, NativeCommandResolverPresence::Absent),
+        ] {
+            let mut changed = native.clone();
+            Arc::make_mut(
+                Arc::make_mut(&mut changed.baseline)
+                    .native_entry
+                    .as_mut()
+                    .unwrap(),
+            )
+            .command_resolvers = inventory;
+            assert!(!original_fixed_compiler_lookup_preserves_names(
+                &changed,
+                lookup,
+                Some(native_policy)
+            ));
+        }
+    }
+
+    #[test]
+    fn original_fixed_compiler_lookup_requires_current_authored_helper_and_resolver_scope() {
+        // Implementation contract: naming.compiler.fixed-helper-name-effects (docs/design/analysis/name-resolution-proofs/fixed-helper-name-effects.md).
+        // Implementation proof: naming.compiler.native-command-resolver-inventory
+        // docs/design/analysis/name-resolution-proofs/native-command-resolver-inventory.md
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+            let registry =
+                tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+            let options = SourceAnalysisOptions {
+                invocation_dialect: Some(dialect),
+                ..Default::default()
+            };
+            let state = ModuleCommandBindings::initial_with_options(
+                &registry,
+                options,
+                Some(tcl_lexer::LexerConfig::from_grammar(profile.grammar)),
+            );
+            let spec = registry
+                .native_compilation_for_registration("::tcl::namespace::exists", dialect)
+                .unwrap();
+            let lookup = spec
+                .implementation_prerequisites(dialect)
+                .unwrap()
+                .pop()
+                .unwrap();
+            let policy = dialect.authored_name_policy().unwrap();
+            assert!(
+                original_fixed_compiler_lookup_preserves_names(&state, &lookup, Some(policy)),
+                "{version:?}"
+            );
+            assert!(!original_fixed_compiler_lookup_preserves_names(
+                &state, &lookup, None
+            ));
+            let root = state.source_root_namespace_key().unwrap();
+            let key = state
+                .original_registry_command_paths(&root, lookup.slot, policy)
+                .unwrap()[0][0]
+                .clone();
+            for alternative in [MayBinding::Missing, MayBinding::Unknown] {
+                let mut changed = state.clone();
+                changed.replace(key.clone(), BTreeSet::from([alternative]));
+                assert!(!original_fixed_compiler_lookup_preserves_names(
+                    &changed,
+                    &lookup,
+                    Some(policy)
+                ));
+            }
+            let mut target = state
+                .original_registry_metadata_target(&root, lookup.slot, policy)
+                .unwrap();
+            target.kind = BindingKind::Alias;
+            let mut wrapper = state.clone();
+            wrapper.replace(key, BTreeSet::from([MayBinding::Target(target)]));
+            assert!(!original_fixed_compiler_lookup_preserves_names(
+                &wrapper,
+                &lookup,
+                Some(policy)
+            ));
+            let mut open = state.clone();
+            Arc::make_mut(&mut open.baseline).unknown_entry = true;
+            assert!(!original_fixed_compiler_lookup_preserves_names(
+                &open,
+                &lookup,
+                Some(policy)
+            ));
+            assert_native_fixed_lookup_resolver_scope(profile, &registry, &lookup, policy, version);
+        }
+    }
+
+    #[test]
+    fn original_null_namespace_compiler_does_not_borrow_worker_admission() {
+        // Implementation contract: naming.compiler.fixed-helper-name-effects (docs/design/analysis/name-resolution-proofs/fixed-helper-name-effects.md).
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let registry =
+                tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let analysis = SourceCommandBindings::analyse_with_options(
+                "namespace eval A {proc p {} {}}",
+                config,
+                &registry,
+                SourceAnalysisOptions {
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation: NativeCompilationContext {
+                        mode: NativeCompilationMode::Unknown,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            );
+            let point = analysis
+                .points
+                .iter()
+                .find(|point| point.dispatch && point.offset == 0)
+                .unwrap();
+            assert!(
+                point.compiled_execution.compiler_preserves_names(),
+                "{name}"
+            );
+            assert!(point.compiled_execution.proofs.is_empty());
+            assert!(point.compiled_execution.admitted.is_none());
+        }
     }
 
     #[test]
@@ -2411,6 +3195,10 @@ mod tests {
 
     #[test]
     fn string_equal_public_replacement_follows_its_original_compiler_shape() {
+        // Implementation contract: naming.compiler.original-compiler-operand-coordinates
+        // docs/design/analysis/name-resolution-proofs/compiler-original-operand-coordinates.md
+        // The native scalar argv windows independently establish member shape;
+        // this source-model control checks the replacement horizon, not a native run.
         for version in tcl_dialect::TclVersion::ALL {
             for member in ["equal", "eq", "\"equal\"", "{equal}", "equal -nocase"] {
                 let source =
@@ -2608,7 +3396,11 @@ mod tests {
             [] as [crate::command_binding::SourceCompiledInvocationProof; 0]
         );
         let target = selection
-            .stable_handler_after_arguments(point.head.as_deref(), &point.state, &point.namespace)
+            .stable_handler_after_original_arguments(
+                point.original_head_input.as_ref(),
+                &point.state,
+                &point.namespace_key,
+            )
             .expect("unchanged native handler under uncertain compilation");
         assert_eq!(target.command, "::set");
         assert!(target.registry_backed);
@@ -2764,6 +3556,43 @@ mod tests {
                 .is_some_and(|target| !target.registry_backed),
             "{proof:#?}"
         );
+    }
+
+    #[test]
+    fn original_chunk_compiler_selection_survives_unknown_runtime_occupancy() {
+        // Implementation proof: naming.compiler.chunk-selection-runtime-occupancy
+        // docs/design/analysis/name-resolution-proofs/chunk-selection-runtime-occupancy.md
+        let source = "proc opaque {} {unknown}; opaque; set x VALUE";
+        let offset = u32::try_from(source.find("set x").unwrap()).unwrap();
+        for version in tcl_dialect::TclVersion::ALL {
+            let analysis = analyse(source, version, NativeCompilationMode::BytecodeObject);
+            let point = analysis
+                .points
+                .iter()
+                .find(|point| point.dispatch && point.offset == offset)
+                .unwrap();
+            assert!(point.state.has_opaque_domain(), "{version:?}");
+            assert!(
+                point.compiled_execution.stable_handler.is_none(),
+                "{version:?}"
+            );
+            assert_ne!(
+                point.compiled_execution.admission,
+                Some(NativeCompilationSelection::Unknown),
+                "{version:?}"
+            );
+            assert!(
+                point.compiled_execution.original_words.is_some(),
+                "{version:?}"
+            );
+            let unknown = analyse(source, version, NativeCompilationMode::Unknown);
+            let binding = unknown.invocation_at_source("set", offset);
+            assert!(binding.native_compiler_admission.is_none());
+            assert_eq!(
+                binding.native_compilation_admission_selection(),
+                NativeCompilationSelection::Unknown
+            );
+        }
     }
 
     #[test]

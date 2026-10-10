@@ -450,9 +450,15 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
     _ns: &NsContext,
     config: tcl_lexer::LexerConfig,
 ) -> HashMap<String, Vec<AssignKind>> {
-    use crate::ir::Statement;
     let mut out: HashMap<String, Vec<AssignKind>> = HashMap::new();
     let registry = cu.ir_module.resolved_registry();
+    let Some(context) = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        cu.ir_module.source_metadata_input.as_ref(),
+    ) else {
+        return out;
+    };
+    let metadata = Some(context.as_ref().into());
     let units = std::iter::once(&cu.top_level)
         .chain(cu.procedures.values())
         .chain(cu.methods.values());
@@ -461,39 +467,24 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
             for stmt in &block.statements {
                 // `oo::objdefine $var …` — per-object mutation of the receiver.
                 if let Some(invocation) =
-                    crate::registry_invocation::resolved_statement_invocation(registry, None, stmt)
-                    && tcl_syntax::naming::qualify("::", &invocation.facts.canonical_command)
-                        == "::oo::objdefine"
+                    crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+                        registry, metadata, stmt,
+                    )
+                    && invocation.facts.analyser_hook
+                        == Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine)
                     && let Some(recv) = invocation.arguments.first().and_then(Option::as_deref)
                     && let Some(v) = strip_dollar(recv)
                 {
                     out.entry(v).or_default().push(AssignKind::PerObject);
                 }
-                let assignments = match stmt {
-                    Statement::AssignValue {
-                        name,
-                        value,
-                        tokens,
-                        ..
-                    } => tokens
-                        .as_ref()
-                        .and_then(|tokens| tokens.words().get(2))
-                        .cloned()
-                        .or_else(|| crate::value_shapes::value_word_with_config(value, config))
-                        .map(|value| {
-                            vec![crate::registry_invocation::AdvisoryValueAssignment {
-                                name: name.clone(),
-                                value,
-                            }]
-                        })
-                        .unwrap_or_default(),
-                    _ => stmt
-                        .tokens()
-                        .map(|tokens| {
-                            crate::registry_invocation::advisory_value_assignments(registry, tokens)
-                        })
-                        .unwrap_or_default(),
-                };
+                let assignments = stmt
+                    .tokens()
+                    .map(|tokens| {
+                        crate::registry_invocation::advisory_value_assignments_in_context(
+                            &context, tokens,
+                        )
+                    })
+                    .unwrap_or_default();
                 for assignment in assignments {
                     let kind = classify_bound_rhs(
                         &assignment.value,
@@ -501,6 +492,7 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
                         registry,
                         index,
                         config,
+                        context.as_ref().into(),
                     );
                     out.entry(assignment.name).or_default().push(kind);
                 }
@@ -518,28 +510,34 @@ fn classify_bound_rhs<S: std::hash::BuildHasher + Clone>(
     registry: &tcl_registry::CommandRegistry,
     index: &HashMap<String, ClassDef, S>,
     config: tcl_lexer::LexerConfig,
+    context: crate::registry_invocation::InvocationMetadataContext<'_>,
 ) -> AssignKind {
     use crate::ir::{WordExpr, WordPart};
     if let Some(commands) = crate::value_shapes::command_substitution_tokens(word, parent, config) {
         if let Some(binding) = commands
             .last()
             .and_then(|tokens| tokens.source_binding.as_ref())
-            && let Some(target) = binding.proved_target()
-            && target.kind == crate::command_binding::BindingKind::Class
-            && let Some(method) = target.prepended.first().map_or_else(
-                || binding.evaluated_argument_values.first().cloned().flatten(),
-                |word| word.as_registry_word().literal().map(str::to_owned),
-            )
-            && registry.is_possible_class_construction_word(&method)
+            && let Some(class) = binding.proved_construction_result(registry).or_else(|| {
+                let candidates = binding.class_factory_candidates(registry);
+                let first = candidates.first()?;
+                candidates
+                    .iter()
+                    .all(|candidate| candidate.command == first.command)
+                    .then(|| first.command.clone())
+            })
         {
             return AssignKind::Constructor {
-                class: target.command.clone(),
-                in_index: index.contains_key(&target.command),
+                in_index: index.contains_key(&class),
+                class,
             };
         }
         if let Some(tokens) = commands.last()
             && let Some(assistance) =
-                crate::registry_invocation::registry_invocation_assistance(registry, None, tokens)
+                crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+                    registry,
+                    Some(context),
+                    tokens,
+                )
             && assistance.candidates.iter().any(|candidate| {
                 candidate
                     .possible_traits
@@ -1303,6 +1301,9 @@ mod tests {
                     name: (*m).to_string(),
                     params: Vec::new(),
                     params_computed: false,
+                    formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                        tcl_dialect::ParameterGrammar::Tcl,
+                    ),
                     name_span: Span::new(0, 0),
                     body_span: Span::new(0, 0),
                     kind: "method".into(),
@@ -1440,5 +1441,73 @@ mod tests {
         assert_eq!(s.total_sites, 2);
         assert!((s.top_rate() - 0.5).abs() < 1e-9);
         assert_eq!(s.top_by_reason["unknown"], 1);
+    }
+    #[test]
+    fn assignment_kind_metadata_keeps_effective_alias_words_and_supplied_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Source candidate classification only; no receiver allocation or current class.
+        let baseline = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        );
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut descriptor = registry.get("info").unwrap().clone();
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(descriptor);
+        let context =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(registry)));
+        let registry = context.commands();
+        let source = "interp alias {} store {} set target; proc owner {} {store [info object class $receiver]}";
+        let mut unit = CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                dialect: registry.profile(),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            std::sync::Arc::clone(&context),
+        );
+        let input = unit.ir_module.source_metadata_input.clone().unwrap();
+        let index = HashMap::<String, ClassDef>::new();
+        let namespace = NsContext::default();
+        let query = |unit: &CompilationUnit| {
+            collect_assign_kinds(unit, &index, &namespace, input.lexer_config())
+        };
+        assert_eq!(query(&unit)["target"], vec![AssignKind::Introspection]);
+        let original = unit.ir_module.procedures["::owner"].body.clone();
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        assert!(std::sync::Arc::ptr_eq(older.commands(), registry));
+        unit.ir_module.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older,
+            input.lexer_config(),
+        ));
+        assert_eq!(query(&unit)["target"], vec![AssignKind::Factory]);
+        let foreign = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+        );
+        for withheld in [
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                foreign,
+                input.lexer_config(),
+            )),
+            None,
+        ] {
+            unit.ir_module.source_metadata_input = withheld;
+            assert!(query(&unit).is_empty());
+            assert_eq!(unit.ir_module.procedures["::owner"].body, original);
+        }
     }
 }

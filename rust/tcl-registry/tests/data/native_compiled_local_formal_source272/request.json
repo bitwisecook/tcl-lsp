@@ -1,0 +1,57 @@
+{
+  "question": "May an entered C procedure apply its compiled namespace variable resolver to genuine argument slots or unnamed temporary slots?",
+  "proposed_id": "naming.procedure.compiled-local-resolver-formal-exclusion",
+  "scope": "Exact source inspection of TclInitCompiledLocals in five C source trees. This is not a native execution, runtime bytecode observation, physical cell identity, or a claim about Jim/BIG-IP behavior.",
+  "entries": [
+    {
+      "version": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.c",
+      "source_sha256": "0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8",
+      "excerpt_sha256": "a1f1bfec21e2f0937dda2a21ebe7a8a540ac2d234c94e92419d3fc2f93a03a6b",
+      "line_start": 2348,
+      "line_end": 2387,
+      "source_copy": "/workspace/.proofs/compiled-local-formal-source272/8.4.20/tclCompile.c",
+      "excerpt_copy": "/workspace/.proofs/compiled-local-formal-source272/8.4.20/resolver-excerpt.c"
+    },
+    {
+      "version": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c",
+      "source_sha256": "9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6",
+      "excerpt_sha256": "00d8864d624381e7a112cb82246cc99d2a2e83483d77d9a4567db5a002ea2599",
+      "line_start": 1265,
+      "line_end": 1304,
+      "source_copy": "/workspace/.proofs/compiled-local-formal-source272/8.5.19/tclProc.c",
+      "excerpt_copy": "/workspace/.proofs/compiled-local-formal-source272/8.5.19/resolver-excerpt.c"
+    },
+    {
+      "version": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c",
+      "source_sha256": "c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3",
+      "excerpt_sha256": "65846249809bd4bc1980b40f48b64a55c17f4d9acc538c41608dbb82670509ff",
+      "line_start": 1214,
+      "line_end": 1253,
+      "source_copy": "/workspace/.proofs/compiled-local-formal-source272/8.6.18/tclProc.c",
+      "excerpt_copy": "/workspace/.proofs/compiled-local-formal-source272/8.6.18/resolver-excerpt.c"
+    },
+    {
+      "version": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c",
+      "source_sha256": "ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110",
+      "excerpt_sha256": "57f490a48ad62ac09ad843c1675dd7ad6ac9e8ce44655942f9bba17015d9813a",
+      "line_start": 1188,
+      "line_end": 1227,
+      "source_copy": "/workspace/.proofs/compiled-local-formal-source272/9.0.4/tclProc.c",
+      "excerpt_copy": "/workspace/.proofs/compiled-local-formal-source272/9.0.4/resolver-excerpt.c"
+    },
+    {
+      "version": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c",
+      "source_sha256": "2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a",
+      "excerpt_sha256": "57f490a48ad62ac09ad843c1675dd7ad6ac9e8ce44655942f9bba17015d9813a",
+      "line_start": 1183,
+      "line_end": 1222,
+      "source_copy": "/workspace/.proofs/compiled-local-formal-source272/9.1.0/tclProc.c",
+      "excerpt_copy": "/workspace/.proofs/compiled-local-formal-source272/9.1.0/resolver-excerpt.c"
+    }
+  ]
+}

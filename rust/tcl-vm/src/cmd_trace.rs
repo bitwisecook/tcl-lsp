@@ -95,7 +95,7 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
             vm,
             format!(
                 "wrong # args: should be \"trace {sub} {} name opList command\"",
-                kindw.to_str()
+                kind.canonical_name()
             ),
         );
     };
@@ -118,7 +118,7 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
                 if let Err(e) = vm.ensure_trace_variable_bytes(&name) {
                     return e;
                 }
-                vm.add_var_trace_bytes(&name, ops, command.clone(), false);
+                vm.add_var_trace_bytes(&name, ops, command, false);
             } else {
                 let prefix = match vm.native_name_operand_bytes(command) {
                     Ok(bytes) => bytes,
@@ -130,7 +130,8 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
                 };
                 vm.remove_var_trace_bytes(&name, &ops, &prefix);
             }
-            ok(Value::empty())
+            vm.refused_completion()
+                .unwrap_or_else(|| ok(Value::empty()))
         }
         core_trace::TraceKind::Command | core_trace::TraceKind::Execution => {
             trace_command_add_remove(
@@ -189,7 +190,7 @@ fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             vm,
             format!(
                 "wrong # args: should be \"trace info {} name\"",
-                kindw.to_str()
+                kind.canonical_name()
             ),
         );
     };
@@ -279,7 +280,7 @@ fn legacy_variable(vm: &mut Vm, args: &[Value], add: bool) -> Completion<Value> 
             format!("wrong # args: should be \"trace {form} name ops command\""),
         );
     };
-    let ops: Vec<String> = match core_trace::parse_legacy_variable_ops(ops.to_str().as_bytes()) {
+    let ops: Vec<String> = match core_trace::parse_legacy_variable_ops_original(vm, ops) {
         Ok(o) => o.iter().map(|s| (*s).to_string()).collect(),
         Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
@@ -293,7 +294,7 @@ fn legacy_variable(vm: &mut Vm, args: &[Value], add: bool) -> Completion<Value> 
         if let Err(e) = vm.ensure_trace_variable_bytes(&name) {
             return e;
         }
-        vm.add_var_trace_bytes(&name, ops, command.clone(), true);
+        vm.add_var_trace_bytes(&name, ops, command, true);
     } else {
         let prefix = match vm.native_name_operand_bytes(command) {
             Ok(bytes) => bytes,
@@ -304,7 +305,8 @@ fn legacy_variable(vm: &mut Vm, args: &[Value], add: bool) -> Completion<Value> 
         };
         vm.remove_var_trace_bytes(&name, &ops, &prefix);
     }
-    ok(Value::empty())
+    vm.refused_completion()
+        .unwrap_or_else(|| ok(Value::empty()))
 }
 
 #[cfg(test)]

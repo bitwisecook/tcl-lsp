@@ -1,0 +1,31 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/consumer-variable-array-write156/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.009398540991242044,
+  "reported_version": "0.84-9-g5bac7c9",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "abd07fc77cfe05018d6fa00f25ccae83c169eee4ad60d552fc88f3bf4c41de67",
+  "runner_sha256": "5da55717a7144d067717056524ec6d5a7ee560d68e75ca06a8f36db0a41825db",
+  "stdout_sha256": "c970c50f9d9813ebf9297d40a0d677bd0e8b83ac0fd5e8dbb0ecf4794ef64428",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "rows": [
+    "PATCHLEVEL 0.84-9-g5bac7c9",
+    "RESULT literal_array_write 0 NEW NONE 0",
+    "RESULT dynamic_array_write 0 NEW NONE 0",
+    "RESULT procedure_array_write 0 NEW NONE 0"
+  ],
+  "input_channel": "ASCII LF source-file CLI; three existing-array root variable write cases",
+  "boundary": "Three labelled existing-array root variable write cases across literal, dynamic and procedure source entries. Full native result and error outcomes are retained independently by provider. No physical object/header/cache or compiler admission proof is inferred from CLI results."
+}

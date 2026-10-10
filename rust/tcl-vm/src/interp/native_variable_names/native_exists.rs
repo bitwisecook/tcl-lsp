@@ -18,7 +18,7 @@
 
 //! Original existence reads retain their exact receiver through quiet observers.
 
-use super::*;
+use super::{Completion, NativeVariableNameLookupPurpose, ResolvedVar, Value, Vm};
 
 impl Vm {
     pub(crate) fn exists_original_c_parts(
@@ -47,7 +47,7 @@ impl Vm {
         self.exists_selected_original_variable(
             &bytes,
             element_bytes.as_deref(),
-            resolved,
+            &resolved,
             Some((original, element.is_some())),
         )
     }
@@ -60,7 +60,9 @@ impl Vm {
     ) {
         if !self
             .native_c_variable_name_protocol()
-            .is_some_and(|protocol| protocol.element_table_retains_original())
+            .is_some_and(
+                tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original,
+            )
         {
             return;
         }
@@ -79,10 +81,10 @@ impl Vm {
         &mut self,
         name: &[u8],
         element: Option<&[u8]>,
-        resolved: ResolvedVar,
+        resolved: &ResolvedVar,
         original: Option<(&Value, bool)>,
     ) -> Result<bool, Completion<Value>> {
-        let cell = self.trace_cell_from_resolved(&resolved);
+        let cell = self.trace_cell_from_resolved(resolved);
         let check = |vm: &mut Self| {
             let name = if let Some((original, separate)) = original.filter(|_| {
                 cell.as_ref().is_some_and(|cell| {
@@ -108,7 +110,7 @@ impl Vm {
             if let Some(refusal) = vm.refused_completion() {
                 return Err(refusal);
             }
-            Ok(vm.read_variable_contents(&resolved).is_some()
+            Ok(vm.read_variable_contents(resolved).is_some()
                 || resolved.elem.is_none()
                     && resolved.id.is_some_and(|id| {
                         matches!(

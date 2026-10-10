@@ -1,0 +1,25 @@
+{
+  "source_cases": [
+    {
+      "label": "SAME_STAGGER",
+      "script": "set x SAME; set log {}; after 0 {set x SAME; lappend log SAME}; after 10 {set x NEXT; lappend log NEXT}; vwait x; set log"
+    },
+    {
+      "label": "ARRAY_STAGGER",
+      "script": "array set a {k OLD}; after 0 {set a(k) OLD}; after 10 {set a(k) NEW}; vwait a(k); set a(k)"
+    },
+    {
+      "label": "BATCH_CANCEL",
+      "script": "set log {}; after 0 {lappend ::log FIRST; after cancel $::later}; set ::later [after 0 {lappend ::log SECOND}]; update; set log"
+    },
+    {
+      "label": "BATCH_NEW",
+      "script": "set log {}; after 0 {lappend ::log FIRST; after 0 {lappend ::log NEW}}; after 0 {lappend ::log SECOND}; update; set log"
+    },
+    {
+      "label": "GLOBAL_PREFIX_BGERROR",
+      "script": "set done 0; proc handler {prefix message options} {set ::done [list $prefix $message [dict get $options -code]]}; interp bgerror {} [list handler PRE]; after 0 {error BOOM}; vwait done; set done"
+    }
+  ],
+  "channel": "ASCII counted source"
+}

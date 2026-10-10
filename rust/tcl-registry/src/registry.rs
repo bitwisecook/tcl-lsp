@@ -559,6 +559,10 @@ pub fn native_return_state_effect(
     let Some(dialect) = args.dialect() else {
         return Effect::MayMaterialiseError;
     };
+    // Source-only family and numeric grammar do not select a Native handler.
+    if dialect.native_name_protocol().is_none() {
+        return Effect::MayMaterialiseError;
+    }
     let grammar = match dialect.family() {
         Some(tcl_dialect::model::Family::Jim) => Grammar::Jim,
         Some(tcl_dialect::model::Family::Tcl) => match dialect.numbers {
@@ -1119,6 +1123,24 @@ pub struct NameProviders {
     pub rows: Vec<SpecSurface>,
 }
 
+impl NameProviders {
+    fn add_spec(&mut self, spec: &CommandSpec) {
+        match spec.surface {
+            None => self.unrestricted = true,
+            Some(rows) => {
+                for row in rows {
+                    if !self.providers.contains(&row.provider) {
+                        self.providers.push(row.provider);
+                    }
+                    if !self.rows.contains(row) {
+                        self.rows.push(*row);
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl AllDialectCommandNames {
     fn add(&mut self, spec: &CommandSpec) {
         // Normalise away a leading `::` so a spec registered only in
@@ -1133,20 +1155,7 @@ impl AllDialectCommandNames {
         if name.contains("::") || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT) {
             self.rootable.insert(name);
         }
-        let offered = self.providers.entry(name).or_default();
-        match spec.surface {
-            None => offered.unrestricted = true,
-            Some(rows) => {
-                for row in rows {
-                    if !offered.providers.contains(&row.provider) {
-                        offered.providers.push(row.provider);
-                    }
-                    if !offered.rows.contains(row) {
-                        offered.rows.push(*row);
-                    }
-                }
-            }
-        }
+        self.providers.entry(name).or_default().add_spec(spec);
     }
 }
 
@@ -1390,35 +1399,6 @@ fn option_callback_taint_inputs_at_selected(
     None
 }
 
-/// Return the variable frame of the option value that consumes `index`.
-///
-/// The scan is identical to [`option_script_timing_at`] and
-/// [`push_option_value_roles`], so aliases, unique prefixes, arity, and the
-/// option terminator cannot disagree between role and scope consumers.
-fn option_variable_scope_at(
-    options: &[crate::hover::OptionSpec],
-    args: &[&str],
-    scan_start: usize,
-    index: usize,
-) -> Option<crate::hover::VariableScope> {
-    let mut i = scan_start;
-    while i < args.len() {
-        if args[i] == "--" {
-            break;
-        }
-        if let Some(opt) = crate::spec::resolve_option_prefix(options, args[i]) {
-            let vals = opt.value_indices(args, i);
-            if vals.contains(&index) {
-                return opt.value_variable_scope();
-            }
-            i += 1 + vals.len();
-        } else {
-            i += 1;
-        }
-    }
-    None
-}
-
 /// Collect option values whose role is [`ArgRole::CommandPrefix`], paired with
 /// the option's [`AppendedArity`] — the option-side companion to
 /// [`push_option_value_roles`], used by [`CommandRegistry::command_prefixes`].
@@ -1499,6 +1479,15 @@ macro_rules! shared_group {
 }
 
 shared_group!(tcl_specs, crate::commands::tcl::tcl_command_specs);
+
+/// Shipped metadata for a selected fixed expression-function registration.
+/// This is independent of the command-wrapper surface filtered by a Registry
+/// projection and supplies no callable command or function-table receipt.
+pub(super) fn fixed_math_function_metadata(bare: &str) -> Option<&'static CommandSpec> {
+    let qualified = crate::mathfunc::qualified_name(bare);
+    tcl_specs().iter().find(|spec| spec.name == qualified)
+}
+
 shared_group!(stdlib_specs, crate::commands::stdlib::stdlib_command_specs);
 shared_group!(tcllib_specs, crate::commands::tcllib::tcllib_command_specs);
 shared_group!(
@@ -2141,6 +2130,69 @@ impl CommandRegistry {
         }
     }
 
+    /// Canonical authored names across the compiled universe and actual store.
+    /// Availability, source identity and runtime binding remain separate queries.
+    pub fn command_names_in_any_dialect(&self) -> impl Iterator<Item = &'static str> {
+        // naming.diagnostic.original-command-source-unavailability
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-command-source-unavailability.md
+        all_dialect_command_names()
+            .rootable
+            .iter()
+            .copied()
+            .chain(
+                self.by_name
+                    .values()
+                    .flatten()
+                    .copied()
+                    .chain(self.overlay_specs.iter().copied())
+                    .filter(|spec| {
+                        spec.name.contains("::")
+                            || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT)
+                    })
+                    .map(|spec| spec.name),
+            )
+            .map(|name| name.strip_prefix("::").unwrap_or(name))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+    }
+
+    /// Source availability providers from the compiled universe and this
+    /// actual store's authored rows. Neither collection establishes a lookup.
+    #[must_use]
+    pub fn source_availability_providers(&self, command: &str) -> Option<NameProviders> {
+        // naming.diagnostic.original-command-source-unavailability
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-command-source-unavailability.md
+        let name = command.strip_prefix("::").unwrap_or(command);
+        if !all_dialect_command_names().rootable.contains(name)
+            && !self
+                .by_name
+                .values()
+                .flatten()
+                .chain(self.overlay_specs.iter())
+                .any(|spec| {
+                    spec.name.strip_prefix("::").unwrap_or(spec.name) == name
+                        && (name.contains("::")
+                            || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT))
+                })
+        {
+            return None;
+        }
+        let mut providers = self.providers_in_any_dialect(command).cloned();
+        for spec in self
+            .by_name
+            .values()
+            .flatten()
+            .chain(self.overlay_specs.iter())
+        {
+            if spec.name.strip_prefix("::").unwrap_or(spec.name) == name {
+                providers
+                    .get_or_insert_with(NameProviders::default)
+                    .add_spec(spec);
+            }
+        }
+        providers
+    }
+
     /// Who offers `name` across every compiled-in dialect: the providers its
     /// specs' surface rows name, and whether any spec of the name is offered
     /// to every dialect. `None` exactly when
@@ -2574,6 +2626,57 @@ impl CommandRegistry {
             .filter(|method| method.visibility == crate::definer::MemberVisibility::Exported)
     }
 
+    /// Definition grammar entered by an outer literal script form.
+    /// Configuration operations select their target from the typed transition
+    /// owner: an immediately following script body is a definition region,
+    /// while a later method body has ordinary Tcl command context. This is
+    /// structural assistance, without target existence or runtime admission.
+    #[must_use]
+    pub fn outer_definition_body_grammar(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> Option<&'static DefinitionBodyGrammar> {
+        let grammar = self.get(command)?.definition_body?;
+        let invocation = self.resolve_invocation(command, args, None)?;
+        let transitions = invocation.state_transitions();
+        let target = transitions
+            .facts()
+            .iter()
+            .find_map(|fact| match &fact.transition {
+                crate::StateTransition::ObjectDispatch(
+                    crate::ObjectDispatchTransition::Configure { target, .. },
+                ) => target.argument_index(),
+                _ => None,
+            });
+        if let Some(target) = target {
+            return self
+                .arg_indices_for_role(command, args, ArgRole::Body)
+                .contains(&target.checked_add(1)?)
+                .then_some(grammar);
+        }
+        Some(grammar)
+    }
+
+    /// Nested source vocabulary of an admitted member of this store's selected
+    /// closed document grammar. The current and nested grammars must share its
+    /// actual family; ordinary command execution and state transitions are not
+    /// premises for a document declaration. This supplies source grammar only,
+    /// without runtime dispatch, Native naming or editing authority.
+    #[must_use]
+    pub fn authored_document_member_grammar(
+        &self,
+        current: &DefinitionBodyGrammar,
+        keyword: &str,
+    ) -> Option<&'static DefinitionBodyGrammar> {
+        let document = self.document_grammar()?;
+        if current.family != document.family || !current.is_member(keyword) {
+            return None;
+        }
+        let nested = self.get(keyword)?.definition_body?;
+        (nested.family == document.family).then_some(nested)
+    }
+
     /// The first constructor-payload argument for manufacturer `word`, when
     /// every definer family declaring that word agrees on the layout.
     ///
@@ -2817,6 +2920,27 @@ impl CommandRegistry {
         )
     }
 
+    /// Original stock class-factory constructor/bootstrap recipe under the
+    /// actual retained invocation axes. Current command/support allocations,
+    /// body execution and successful completion are independent obligations.
+    #[must_use]
+    pub fn native_class_factory_recipe(
+        &self,
+        command: &str,
+        dialect: crate::InvocationDialect,
+        realm: tcl_dialect::model::InvocationRealm,
+    ) -> Option<crate::native_tcloo_bootstrap::NativeClassFactoryRecipe> {
+        let spec =
+            self.get_for_surface(command, Some(dialect.authoring_query()?.with_realm(realm)))?;
+        if spec_pack_of(spec) != Some("tcl")
+            || !spec.traits.contains(Traits::IS_OO_METACLASS)
+            || spec.definition_body.is_none()
+        {
+            return None;
+        }
+        crate::native_tcloo_bootstrap::NativeClassFactoryRecipe::select(spec.name, dialect)
+    }
+
     fn selected_default_construction_grammar(
         &self,
         command: &str,
@@ -2897,6 +3021,24 @@ impl CommandRegistry {
             }
 
             let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            if let Some(profile) = self.profile {
+                let dialect = crate::InvocationDialect::of_profile(profile);
+                if let Some(support) = self
+                    .native_class_factory_recipe(
+                        "oo::configurable",
+                        dialect,
+                        tcl_dialect::model::InvocationRealm::RuleLoader,
+                    )
+                    .and_then(crate::native_tcloo_bootstrap::NativeClassFactoryRecipe::support)
+                {
+                    binding_names.extend(
+                        support
+                            .binding_names()
+                            .iter()
+                            .map(|name| (*name).to_owned()),
+                    );
+                }
+            }
             binding_names.hash(&mut hasher);
             unresolved_command_handlers.hash(&mut hasher);
             Arc::new(EffectiveRegistrySemantics {
@@ -2906,6 +3048,51 @@ impl CommandRegistry {
                 binding_fingerprint: hasher.finish(),
             })
         }))
+    }
+
+    /// Descriptor roster for a separate authored source model under the
+    /// actual full availability context. This supplies no native interpreter
+    /// presence, compiler implementation slots or name policy. The source
+    /// driver must independently retain its positively selected Logical input.
+    #[must_use]
+    pub fn authored_source_semantics_in_context(
+        &self,
+        context: &crate::model::ResolvedContext,
+        realm: tcl_dialect::model::InvocationRealm,
+    ) -> Arc<EffectiveRegistrySemantics> {
+        // naming.source.logical-procedure-definition-model
+        // docs/design/analysis/name-resolution-proofs/logical-procedure-definition-model.md
+        let mut commands = FxHashMap::default();
+        let mut binding_names = BTreeSet::new();
+        let mut unresolved_command_handlers = BTreeSet::new();
+        for &name in self.by_name.keys() {
+            let Some(spec) = context.resolve_spec_in_realm(self, name, realm) else {
+                continue;
+            };
+            let canonical = tcl_syntax::naming::normalise_qualified_name(name);
+            if rooted_fallback_allowed(&canonical, spec) {
+                binding_names.insert(canonical.clone());
+            }
+            if spec.traits.contains(Traits::UNRESOLVED_COMMAND_HANDLER) {
+                unresolved_command_handlers.insert(canonical);
+            }
+            commands.insert(
+                name,
+                EffectiveCommandSemantics {
+                    traits: spec.traits,
+                    lowering_hook: spec.lowering_hook,
+                },
+            );
+        }
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        binding_names.hash(&mut hasher);
+        unresolved_command_handlers.hash(&mut hasher);
+        Arc::new(EffectiveRegistrySemantics {
+            commands,
+            binding_names,
+            unresolved_command_handlers,
+            binding_fingerprint: hasher.finish(),
+        })
     }
 
     /// Entry command table for a concrete execution dialect. Jim's current
@@ -3022,6 +3209,7 @@ impl CommandRegistry {
                 .map(|lookup| lookup.slot.to_owned()),
         );
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.extend_native_factory_binding_names(&mut binding_names, dialect, realm);
         binding_names.hash(&mut hasher);
         unresolved_command_handlers.hash(&mut hasher);
         dialect.hash(&mut hasher);
@@ -3032,6 +3220,20 @@ impl CommandRegistry {
             unresolved_command_handlers,
             binding_fingerprint: hasher.finish(),
         })
+    }
+
+    fn extend_native_factory_binding_names(
+        &self,
+        names: &mut BTreeSet<String>,
+        dialect: crate::InvocationDialect,
+        realm: tcl_dialect::model::InvocationRealm,
+    ) {
+        if let Some(support) = self
+            .native_class_factory_recipe("oo::configurable", dialect, realm)
+            .and_then(crate::native_tcloo_bootstrap::NativeClassFactoryRecipe::support)
+        {
+            names.extend(support.binding_names().iter().copied().map(str::to_owned));
+        }
     }
 
     /// Select an entry descriptor under the actual surface and realm, admitting
@@ -3386,6 +3588,25 @@ impl CommandRegistry {
         )
     }
 
+    /// Original selected descriptor of a stock registration's logical source.
+    /// Private registrations use the canonical registry-authored parent lookup;
+    /// an explicit descriptor at the identity retains its own provenance. This
+    /// supplies metadata without a live token, argument layout or completion.
+    #[must_use]
+    pub fn native_registration_source_descriptor(
+        &self,
+        identity: &str,
+        dialect: crate::InvocationDialect,
+        realm: tcl_dialect::model::InvocationRealm,
+    ) -> Option<&'static CommandSpec> {
+        let query = dialect.authoring_query()?.with_realm(realm);
+        if let Some(spec) = self.get_for_surface(identity, Some(query)) {
+            return Some(spec);
+        }
+        let lookup = self.native_registration_lookup(identity, dialect)?;
+        self.get_for_surface(lookup.command, Some(query))
+    }
+
     /// Intrinsic descriptors authored for one native registration. This is
     /// registration metadata, independent of invocation cardinality; the caller
     /// must separately prove the live stock token and any ensemble mapping.
@@ -3486,6 +3707,12 @@ impl CommandRegistry {
             })
         })?;
         facts.argument_offset = facts.argument_offset.checked_sub(lookup.prepended.len())?;
+        if let crate::state_transition::StateTransitionKnowledge::Declared(transitions) =
+            &mut facts.state_transitions
+        {
+            *transitions = transitions
+                .project_argument_indices(|index| index.checked_sub(lookup.prepended.len()))?;
+        }
         if let Some(compilation) = &mut facts.native_compilation
             && let crate::native_compilation::NativeCompilationGrammar::Dictionary {
                 ensemble, ..
@@ -3756,45 +3983,57 @@ impl CommandRegistry {
         package_version: Option<&str>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<&'static SubCommand> {
-        // FIFO so the walk is genuinely breadth-first and visits siblings in
-        // declaration order — `Vec::pop` would make this a reversed-sibling
-        // depth-first search, contradicting the documented contract.
-        let mut queue = std::collections::VecDeque::from([class_name.to_string()]);
+        let Some(class_spec) = self.get_for_surface(class_name, dialect) else {
+            return Vec::new();
+        };
+        self.instance_methods_for_descriptor_at(class_spec, package_version, dialect)
+    }
+
+    /// Visible method metadata from an independently selected factory descriptor.
+    /// The descriptor must belong to this exact Registry and surface. This
+    /// source projection supplies no instance allocation or runtime dispatch.
+    #[must_use]
+    pub fn instance_methods_for_descriptor_at(
+        &self,
+        class_spec: &CommandSpec,
+        package_version: Option<&str>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Vec<&'static SubCommand> {
+        // naming.source.original-registered-instance-words
+        // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
+        if !self
+            .get_for_surface(class_spec.name, dialect)
+            .is_some_and(|selected| std::ptr::eq(selected, class_spec))
+        {
+            return Vec::new();
+        }
+        let mut queue = std::collections::VecDeque::from([class_spec]);
         let mut seen = std::collections::HashSet::new();
         let mut method_names = std::collections::HashSet::new();
         let mut visible_methods = Vec::new();
-        while let Some(cls) = queue.pop_front() {
-            if !seen.insert(cls.clone()) {
+        while let Some(owner) = queue.pop_front() {
+            if !seen.insert(owner.name) {
                 continue;
             }
-            // Resolve the owning command through this registry's profile,
-            // then gate each of its method descriptors on that command's
-            // package axis. A class absent from this profile cannot donate
-            // inherited methods either.
-            let Some(class_spec) = self.get_for_surface(&cls, dialect) else {
+            let Some(class) = owner.object_class else {
                 continue;
             };
-            let Some(class) = class_spec.object_class else {
-                continue;
-            };
-            let package_floor = self.package_floor_for_spec_at(class_spec, package_version);
+            let package_floor = self.package_floor_for_spec_at(owner, package_version);
             for candidate in class.instance_methods {
-                let method_dialects = candidate.surface.or(class_spec.surface);
+                let method_dialects = candidate.surface.or(owner.surface);
                 if !candidate.available_for_version(package_floor)
                     || !method_dialects.is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
                 {
                     continue;
                 }
-                // Breadth-first order implements ordinary override lookup:
-                // the first declaration of a canonical name is the visible
-                // one. Prefix ambiguity is resolved only after the complete
-                // visible method table has been assembled.
                 if method_names.insert(candidate.name) {
                     visible_methods.push(candidate);
                 }
             }
-            for sup in class.superclasses {
-                queue.push_back((*sup).to_string());
+            for superclass in class.superclasses {
+                if let Some(owner) = self.get_for_surface(superclass, dialect) {
+                    queue.push_back(owner);
+                }
             }
         }
         visible_methods
@@ -3830,24 +4069,62 @@ impl CommandRegistry {
         package_version: Option<&str>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&crate::spec::SubCommand> {
-        let visible_methods = self.instance_methods_at(class_name, package_version, dialect);
-        let method_prefix_matching = self
-            .get_for_surface(class_name, dialect)
-            .and_then(|spec| spec.object_class)
-            .map_or(crate::abbrev::PrefixMatching::Strict, |class| {
-                class.method_prefix_matching
-            });
-        let table = KeywordTable::from_keywords(
-            visible_methods.iter().map(|candidate| Keyword {
-                name: candidate.name,
-                min_abbrev: candidate.min_abbrev,
-            }),
-            method_prefix_matching,
-        );
-        let canonical = table.resolve(method).unique()?;
-        visible_methods
+        self.instance_method_for_descriptor_at(
+            self.get_for_surface(class_name, dialect)?,
+            method,
+            package_version,
+            dialect,
+        )
+    }
+
+    /// Select an authored instance method from the same retained factory
+    /// descriptor, with the shared lifecycle and prefix-ambiguity rules.
+    #[must_use]
+    pub fn instance_method_for_descriptor_at(
+        &self,
+        class_spec: &CommandSpec,
+        method: &str,
+        package_version: Option<&str>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<&'static SubCommand> {
+        let canonical = self
+            .instance_method_selection_for_descriptor_at(
+                class_spec,
+                method,
+                package_version,
+                dialect,
+            )?
+            .unique()?;
+        self.instance_methods_for_descriptor_at(class_spec, package_version, dialect)
             .into_iter()
             .find(|candidate| candidate.name == canonical)
+    }
+
+    /// Classify a source method spelling from its independently retained
+    /// descriptor, selected lifecycle and shared abbreviation owner.
+    #[must_use]
+    pub fn instance_method_selection_for_descriptor_at(
+        &self,
+        class_spec: &CommandSpec,
+        method: &str,
+        package_version: Option<&str>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::abbrev::KeywordMatch<'static>> {
+        self.get_for_surface(class_spec.name, dialect)
+            .is_some_and(|selected| std::ptr::eq(selected, class_spec))
+            .then_some(())?;
+        let methods = self.instance_methods_for_descriptor_at(class_spec, package_version, dialect);
+        let matching = class_spec.object_class?.method_prefix_matching;
+        Some(
+            KeywordTable::from_keywords(
+                methods.iter().map(|method| Keyword {
+                    name: method.name,
+                    min_abbrev: method.min_abbrev,
+                }),
+                matching,
+            )
+            .resolve(method),
+        )
     }
 
     /// Resolve a concrete object-instance invocation to the same
@@ -3889,6 +4166,27 @@ impl CommandRegistry {
         words: InvocationWords<'w>,
         dialect: Option<SurfaceQuery<'r>>,
     ) -> Option<ResolvedInvocation<'r, 'w>> {
+        let class_spec = if dialect.is_none() {
+            self.get(class_name)?
+        } else {
+            self.get_for_surface(class_name, dialect)?
+        };
+        self.resolve_structured_instance_invocation_for_descriptor(class_spec, words, None, dialect)
+    }
+
+    /// Source-aware instance schema from an independently selected factory
+    /// descriptor and its exact original effective argv. The Registry identity,
+    /// lifecycle and method prefix rules remain shared with the named API.
+    #[must_use]
+    pub fn resolve_structured_instance_invocation_for_descriptor<'r, 'w>(
+        &'r self,
+        class_spec: &'r CommandSpec,
+        words: InvocationWords<'w>,
+        package_version: Option<&'r str>,
+        dialect: Option<SurfaceQuery<'r>>,
+    ) -> Option<ResolvedInvocation<'r, 'w>> {
+        // naming.source.original-registered-instance-words
+        // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
         let words = words.with_profile(self.profile());
         let arguments = words.arguments();
         let dialect = dialect.or_else(|| {
@@ -3897,19 +4195,17 @@ impl CommandRegistry {
                 .and_then(crate::InvocationDialect::authoring_query)
         });
         let method_spelling = arguments.literal_at(0)?;
-        let class_spec = if dialect.is_none() {
-            self.get(class_name)?
-        } else {
-            self.get_for_surface(class_name, dialect)?
-        };
+        self.get_for_surface(class_spec.name, dialect)
+            .is_some_and(|selected| std::ptr::eq(selected, class_spec))
+            .then_some(())?;
         class_spec.object_class?;
         if !self.effect_provider_is_admitted(class_spec, dialect) {
             return None;
         }
-        let method = self.instance_method_at(
-            class_name,
+        let method = self.instance_method_for_descriptor_at(
+            class_spec,
             method_spelling,
-            self.package_floor_for_spec(class_spec),
+            package_version,
             dialect,
         )?;
         let availability = crate::resolved_invocation::InvocationAvailability {
@@ -3919,7 +4215,7 @@ impl CommandRegistry {
                     .dialect()
                     .and_then(crate::InvocationDialect::authoring_query)
             }),
-            package_version: self.package_floor_for_spec(class_spec),
+            package_version: self.package_floor_for_spec_at(class_spec, package_version),
         };
         let form = pick_form(class_spec, Some(method), arguments, availability);
         let resolved_method = ResolvedSubcommand {
@@ -3994,7 +4290,9 @@ impl CommandRegistry {
         let Some(m) = self.instance_method(class_name, method) else {
             return Vec::new();
         };
-        let n = method_args.len();
+        let Some(n) = method_args.words().exact_argv_len() else {
+            return Vec::new();
+        };
         let mut out: Vec<(usize, AppendedArity)> = Vec::new();
         if let Some(resolver) = m.command_prefix_resolver {
             out.extend(
@@ -4005,7 +4303,9 @@ impl CommandRegistry {
         } else {
             out.extend(m.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
         }
-        push_command_prefix_options(&mut out, m.options, method_args.spellings(), 0);
+        if let Some(spellings) = method_args.spellings() {
+            push_command_prefix_options(&mut out, m.options, spellings, 0);
+        }
         out.retain(|&(idx, _)| idx < n);
         out
     }
@@ -4681,9 +4981,11 @@ impl CommandRegistry {
         });
         if let Some(resolve) = timing_resolver
             && let Some(relative) = index.checked_sub(offset)
-            && let Some((_, timing)) = resolve(args.get(offset..).unwrap_or(&[]))
-                .into_iter()
-                .find(|(position, _)| usize::from(*position) == relative)
+            && let Some((_, timing)) = resolve(crate::InvocationArguments::literals(
+                args.get(offset..).unwrap_or(&[]),
+            ))
+            .into_iter()
+            .find(|(position, _)| usize::from(*position) == relative)
         {
             return Some(timing);
         }
@@ -4896,9 +5198,11 @@ impl CommandRegistry {
         let timing = method
             .script_timing_resolver
             .and_then(|resolve| {
-                resolve(args.get(1..).unwrap_or(&[]))
-                    .into_iter()
-                    .find_map(|(at, timing)| (usize::from(at) == relative).then_some(timing))
+                resolve(crate::InvocationArguments::literals(
+                    args.get(1..).unwrap_or(&[]),
+                ))
+                .into_iter()
+                .find_map(|(at, timing)| (usize::from(at) == relative).then_some(timing))
             })
             .unwrap_or_else(|| {
                 if resolved.semantics.traits.contains(Traits::DEFERS_BODY) {
@@ -5008,11 +5312,10 @@ impl CommandRegistry {
         index: usize,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<crate::hover::VariableScope> {
-        let resolved = self.resolve_call(name, args, dialect)?;
-        let (options, scan_start) = resolved
-            .sub
-            .map_or((resolved.spec.options, 0), |sub| (sub.options, 1));
-        option_variable_scope_at(options, args, scan_start, index)
+        let words = crate::InvocationWords::literals(name, args).with_profile(self.profile());
+        self.resolve_structured_invocation(words, dialect)
+            .resolved()?
+            .authored_source_option_variable_scope_at(index)
     }
 
     /// Classify one body argument of a typed control-flow invocation.
@@ -5029,7 +5332,9 @@ impl CommandRegistry {
         let resolved = self.resolve_call(name, args, None)?;
         match resolved.lowering_hook? {
             LoweringHookId::If => {
-                if (resolved.spec.clause_shape_check?)(args).is_some() {
+                if (resolved.spec.clause_shape_check?)(InvocationArguments::literals(args))
+                    .is_some()
+                {
                     return None;
                 }
                 self.arg_indices_for_role(name, args, ArgRole::Body)
@@ -5092,7 +5397,9 @@ impl CommandRegistry {
         let resolved = self.resolve_call(name, args, dialect)?;
         let hook = resolved.lowering_hook?;
         match hook {
-            LoweringHookId::If => Some((resolved.spec.clause_shape_check?)(args).is_none()),
+            LoweringHookId::If => Some(
+                (resolved.spec.clause_shape_check?)(InvocationArguments::literals(args)).is_none(),
+            ),
             LoweringHookId::Switch => Some(self.case_invocation(name, args, dialect).is_some()),
             LoweringHookId::Try => {
                 Some(try_control_arms(args, self.control_numbers(dialect)).is_some())
@@ -6192,7 +6499,12 @@ impl CommandRegistry {
 
     /// Project selected roles once, retaining the execution dialect and
     /// command/subcommand/form precedence of structured resolution.
-    fn arg_role_assignments_words(
+    /// Unknown source positions return `None`; computed ordinary values never
+    /// become literal selectors. This is descriptor metadata, not handler
+    /// binding or execution evidence. Command-prefix appended arity remains
+    /// owned by [`Self::arg_indices_for_role_words`].
+    #[must_use]
+    pub fn arg_role_assignments_words(
         &self,
         name: &str,
         args: InvocationArguments<'_>,
@@ -6217,6 +6529,17 @@ impl CommandRegistry {
         let resolved = self
             .resolve_structured_invocation(words, query)
             .resolved()?;
+        self.selected_argument_role_assignments(name, args, wanted, query, resolved)
+    }
+
+    fn selected_argument_role_assignments(
+        &self,
+        name: &str,
+        args: InvocationArguments<'_>,
+        wanted: &[ArgRole],
+        query: Option<SurfaceQuery<'_>>,
+        resolved: ResolvedInvocation<'_, '_>,
+    ) -> Option<Vec<(usize, ArgRole)>> {
         if !args.has_exact_argv_len()
             || matches!(
                 resolved.subcommand,
@@ -6232,7 +6555,9 @@ impl CommandRegistry {
         let spellings: Vec<_> = (0..args.len())
             .map(|index| args.literal_at(index).unwrap_or(""))
             .collect();
-        let (roles, complete) = resolved.argument_roles();
+        // Implementation contract: naming.source.authored-registry-role-projection
+        // docs/design/analysis/name-resolution-proofs/authored-registry-role-projection.md
+        let (roles, complete) = resolved.authored_source_argument_roles();
         // A complete resolver projection already used the actual evaluated
         // operands and its native grammar. The generic option scan is only a
         // prerequisite for the compatibility projection of unknown values.
@@ -6369,15 +6694,19 @@ impl CommandRegistry {
         })
     }
 
-    fn effect_invocation<'r, 'w>(
-        &'r self,
-        words: InvocationWords<'w>,
-    ) -> Option<ResolvedInvocation<'r, 'w>> {
-        let query = words
+    fn effect_query(&self, words: InvocationWords<'_>) -> Option<SurfaceQuery<'_>> {
+        words
             .arguments()
             .dialect()
             .and_then(crate::InvocationDialect::authoring_query)
-            .or_else(|| self.own_surface_query());
+            .or_else(|| self.own_surface_query())
+    }
+
+    fn effect_invocation_for_query<'r, 'w>(
+        &'r self,
+        words: InvocationWords<'w>,
+        query: Option<SurfaceQuery<'r>>,
+    ) -> Option<ResolvedInvocation<'r, 'w>> {
         let spec = self.get_for_surface(words.head_literal()?, query)?;
         if !self.effect_provider_is_admitted(spec, query) {
             return None;
@@ -6396,27 +6725,77 @@ impl CommandRegistry {
     /// variable name.
     #[must_use]
     pub fn variable_read_projection(&self, words: InvocationWords<'_>) -> VariableReadProjection {
+        let query = self.effect_query(words);
+        self.variable_read_projection_for_query(words, query, false)
+    }
+
+    /// Source read footprint under independently retained complete availability.
+    /// Unavailable metadata stays opaque; this does not prove a read or cell.
+    #[must_use]
+    pub fn variable_read_projection_in_resolved_context(
+        &self,
+        context: &crate::model::ResolvedContext,
+        words: InvocationWords<'_>,
+        realm: tcl_dialect::model::InvocationRealm,
+    ) -> VariableReadProjection {
+        if words
+            .head_literal()
+            .is_none_or(|name| context.resolve_spec_in_realm(self, name, realm).is_none())
+        {
+            return VariableReadProjection {
+                opaque_variable_frame: true,
+                ..VariableReadProjection::default()
+            };
+        }
+        self.variable_read_projection_for_query(
+            words,
+            Some(context.authoring_query().with_realm(realm)),
+            true,
+        )
+    }
+
+    fn variable_read_projection_for_query(
+        &self,
+        words: InvocationWords<'_>,
+        query: Option<SurfaceQuery<'_>>,
+        unavailable_is_opaque: bool,
+    ) -> VariableReadProjection {
         let Some(name) = words.head_literal() else {
             return VariableReadProjection {
                 literal_names: Vec::new(),
                 opaque_variable_frame: true,
             };
         };
-        if self.effect_invocation(words).is_none() {
-            return VariableReadProjection::default();
-        }
+        let Some(invocation) = self.effect_invocation_for_query(words, query) else {
+            return VariableReadProjection {
+                opaque_variable_frame: unavailable_is_opaque,
+                ..VariableReadProjection::default()
+            };
+        };
         let args = words.arguments();
-        let Some(indices) = self.arg_indices_for_role_words(name, args, ArgRole::VarRead) else {
+        let Some(roles) = self.selected_argument_role_assignments(
+            name,
+            args,
+            &[ArgRole::VarRead],
+            query,
+            invocation,
+        ) else {
             return VariableReadProjection {
                 literal_names: Vec::new(),
-                opaque_variable_frame: self.may_have_arg_role(name, ArgRole::VarRead),
+                opaque_variable_frame: self
+                    .get_for_surface(name, query)
+                    .is_some_and(|spec| Self::spec_may_have_arg_role(spec, ArgRole::VarRead)),
             };
         };
         let mut projection = VariableReadProjection::default();
-        for index in indices {
+        for (index, _) in roles {
             match args.literal_at(index) {
                 Some(variable) if !variable.is_empty() => {
-                    if !projection.literal_names.iter().any(|f| f == variable) {
+                    if !projection
+                        .literal_names
+                        .iter()
+                        .any(|found| found == variable)
+                    {
                         projection.literal_names.push(variable.to_owned());
                     }
                 }
@@ -6434,6 +6813,41 @@ impl CommandRegistry {
     /// head is opaque because it may dispatch any variable-writing command.
     #[must_use]
     pub fn variable_write_projection(&self, words: InvocationWords<'_>) -> VariableWriteProjection {
+        let query = self.effect_query(words);
+        self.variable_write_projection_for_query(words, query, false)
+    }
+
+    /// Source write footprint under independently retained complete availability.
+    /// Unknown or unavailable metadata stays opaque, never a successful store.
+    #[must_use]
+    pub fn variable_write_projection_in_resolved_context(
+        &self,
+        context: &crate::model::ResolvedContext,
+        words: InvocationWords<'_>,
+        realm: tcl_dialect::model::InvocationRealm,
+    ) -> VariableWriteProjection {
+        if words
+            .head_literal()
+            .is_none_or(|name| context.resolve_spec_in_realm(self, name, realm).is_none())
+        {
+            return VariableWriteProjection {
+                opaque_variable_frame: true,
+                ..VariableWriteProjection::default()
+            };
+        }
+        self.variable_write_projection_for_query(
+            words,
+            Some(context.authoring_query().with_realm(realm)),
+            true,
+        )
+    }
+
+    fn variable_write_projection_for_query(
+        &self,
+        words: InvocationWords<'_>,
+        query: Option<SurfaceQuery<'_>>,
+        unavailable_is_opaque: bool,
+    ) -> VariableWriteProjection {
         let Some(name) = words.head_literal() else {
             return VariableWriteProjection {
                 literal_names: Vec::new(),
@@ -6441,8 +6855,11 @@ impl CommandRegistry {
                 opaque_variable_frame: true,
             };
         };
-        let Some(invocation) = self.effect_invocation(words) else {
-            return VariableWriteProjection::default();
+        let Some(invocation) = self.effect_invocation_for_query(words, query) else {
+            return VariableWriteProjection {
+                opaque_variable_frame: unavailable_is_opaque,
+                ..VariableWriteProjection::default()
+            };
         };
 
         // `incr` / `append` / `lappend` / `lset` / `lpop` / `ledit` fold the
@@ -6485,7 +6902,11 @@ impl CommandRegistry {
                 let StateTransition::VariableCellAlias(alias) = &fact.transition else {
                     continue;
                 };
-                if matches!(alias.local, TransitionSubject::Unknown { .. }) {
+                if matches!(
+                    alias.local,
+                    TransitionSubject::LocatedNativeBytes { .. }
+                        | TransitionSubject::Unknown { .. }
+                ) {
                     // Even declaration-only aliases make later writes land in
                     // an unnameable cell, so effect consumers must widen.
                     projection.opaque_variable_frame = true;
@@ -6494,12 +6915,14 @@ impl CommandRegistry {
                     continue;
                 }
                 match &alias.local {
-                    TransitionSubject::Literal(name) => {
+                    TransitionSubject::Literal(name)
+                    | TransitionSubject::LocatedLiteral { value: name, .. } => {
                         if !name.is_empty() && !projection.literal_names.contains(name) {
                             projection.literal_names.push(name.clone());
                         }
                     }
-                    TransitionSubject::Unknown { .. } => {
+                    TransitionSubject::LocatedNativeBytes { .. }
+                    | TransitionSubject::Unknown { .. } => {
                         projection.opaque_variable_frame = true;
                     }
                 }
@@ -6507,7 +6930,7 @@ impl CommandRegistry {
             return with_reads(projection);
         }
 
-        with_reads(self.arg_role_variable_writes(name, words))
+        with_reads(self.arg_role_variable_writes(name, words, query, invocation))
     }
 
     /// The [`ArgRole::VarWrite`] half of [`Self::variable_write_projection`]:
@@ -6518,10 +6941,12 @@ impl CommandRegistry {
         &self,
         name: &str,
         words: InvocationWords<'_>,
+        query: Option<SurfaceQuery<'_>>,
+        invocation: ResolvedInvocation<'_, '_>,
     ) -> VariableWriteProjection {
         let args = words.arguments();
         if args.exact_argv_len().is_some_and(|count| {
-            self.spec_for_this_registry(name)
+            self.get_for_surface(name, query)
                 .and_then(|spec| spec.variable_write_min_args)
                 .is_some_and(|minimum| count < usize::from(minimum))
         }) {
@@ -6531,32 +6956,37 @@ impl CommandRegistry {
             // contain any variable target (for example `regexp $re $s`).
             return VariableWriteProjection::default();
         }
-        let Some(indices) = self.arg_indices_for_role_words(name, args, ArgRole::VarWrite) else {
+        let global_arguments: std::collections::BTreeSet<_> = (0..args.len())
+            .filter(|index| {
+                invocation.authored_source_option_variable_scope_at(*index)
+                    == Some(crate::hover::VariableScope::Global)
+            })
+            .collect();
+        let Some(roles) = self.selected_argument_role_assignments(
+            name,
+            args,
+            &[ArgRole::VarWrite],
+            query,
+            invocation,
+        ) else {
             return VariableWriteProjection {
                 literal_names: Vec::new(),
                 read_before_write_names: Vec::new(),
-                opaque_variable_frame: self.may_have_arg_role(name, ArgRole::VarWrite),
+                opaque_variable_frame: self
+                    .get_for_surface(name, query)
+                    .is_some_and(|spec| Self::spec_may_have_arg_role(spec, ArgRole::VarWrite)),
             };
         };
-        let spellings: Vec<&str> = (0..args.len())
-            .map(|index| args.literal_at(index).unwrap_or(""))
-            .collect();
         let mut projection = VariableWriteProjection::default();
-        for index in indices {
+        for (index, _) in roles {
             match args.literal_at(index) {
                 Some(variable) if !variable.is_empty() => {
-                    let effective_name = if self.option_variable_scope(
-                        name,
-                        &spellings,
-                        index,
-                        self.own_surface_query(),
-                    ) == Some(crate::hover::VariableScope::Global)
-                        && !variable.starts_with("::")
-                    {
-                        format!("::{variable}")
-                    } else {
-                        variable.to_owned()
-                    };
+                    let effective_name =
+                        if global_arguments.contains(&index) && !variable.starts_with("::") {
+                            format!("::{variable}")
+                        } else {
+                            variable.to_owned()
+                        };
                     if !projection
                         .literal_names
                         .iter()
@@ -6580,6 +7010,14 @@ impl CommandRegistry {
         let Some(spec) = self.get(name) else {
             return false;
         };
+        Self::spec_may_have_arg_role(spec, role)
+    }
+
+    /// Pure role capabilities of an independently selected command schema.
+    /// Callers retain availability and context selection; this query does not
+    /// select a spelling again or establish execution of a script operand.
+    #[must_use]
+    pub fn spec_may_have_arg_role(spec: &CommandSpec, role: ArgRole) -> bool {
         let options_have = |options: &[crate::hover::OptionSpec]| {
             options.iter().any(|option| {
                 option.value_role() == Some(role) || option.value_also_role() == Some(role)
@@ -7213,7 +7651,9 @@ impl CommandRegistry {
         let Some(spec) = self.get(name) else {
             return Vec::new();
         };
-        let n = args.len();
+        let Some(n) = args.words().exact_argv_len() else {
+            return Vec::new();
+        };
         let mut out: Vec<(usize, AppendedArity)> = Vec::new();
 
         if !spec.subcommands.is_empty()
@@ -7234,7 +7674,9 @@ impl CommandRegistry {
                         .map(|(i, a)| (*i as usize + 1, *a)),
                 );
             }
-            push_command_prefix_options(&mut out, sub.options, args.spellings(), 1);
+            if let Some(spellings) = args.spellings() {
+                push_command_prefix_options(&mut out, sub.options, spellings, 1);
+            }
             out.retain(|&(idx, _)| idx < n);
             return out;
         }
@@ -7244,7 +7686,9 @@ impl CommandRegistry {
         } else {
             out.extend(spec.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
         }
-        push_command_prefix_options(&mut out, spec.options, args.spellings(), 0);
+        if let Some(spellings) = args.spellings() {
+            push_command_prefix_options(&mut out, spec.options, spellings, 0);
+        }
         out.retain(|&(idx, _)| idx < n);
         out
     }
@@ -7268,6 +7712,21 @@ impl CommandRegistry {
     ) -> Option<ResolvedInvocation<'r, 'w>> {
         self.resolve_structured_invocation(InvocationWords::literals(name, args), dialect)
             .resolved()
+    }
+
+    /// Readonly descriptor availability from this exact command store and query.
+    /// The supplied descriptor has already been selected independently. Scoped
+    /// schemas inherit their body owner's package floor through this same owner.
+    #[must_use]
+    pub fn source_descriptor_availability<'r>(
+        &'r self,
+        spec: &CommandSpec,
+        query: Option<SurfaceQuery<'r>>,
+    ) -> crate::resolved_invocation::InvocationAvailability<'r> {
+        crate::resolved_invocation::InvocationAvailability {
+            query,
+            package_version: self.package_floor_for_spec(spec),
+        }
     }
 
     /// Resolve source-aware invocation words to target-neutral registry
@@ -7318,34 +7777,13 @@ impl CommandRegistry {
                 InvocationResolutionUnresolved::UnknownLiteralHead { spelling: name },
             );
         };
-        let arguments = words.arguments();
-        let availability = crate::resolved_invocation::InvocationAvailability {
-            query: dialect,
-            package_version: self.package_floor_for_spec(spec),
-        };
-        let (subcommand, sub) = resolve_semantic_subcommand(
-            spec,
-            arguments,
-            dialect,
-            availability.package_version,
-            numbers,
-        );
-        let form = match (sub, spec.subcommands.is_empty(), arguments.is_empty()) {
-            (Some(sub), _, _) => pick_form(spec, Some(sub), arguments, availability),
-            (None, true, _) | (None, false, true) => pick_form(spec, None, arguments, availability),
-            (None, false, false) if subcommand == SubcommandResolution::NotApplicable => {
-                pick_form(spec, None, arguments, availability)
-            }
-            (None, false, false) => None,
-        };
+        let availability = self.source_descriptor_availability(spec, dialect);
         StructuredInvocationResolution {
-            invocation: Some(ResolvedInvocation::new(
-                words,
+            invocation: Some(resolve_source_descriptor_invocation(
                 spec,
-                sub,
-                form,
-                subcommand,
+                words,
                 availability,
+                numbers,
             )),
             unresolved: None,
         }
@@ -7866,7 +8304,15 @@ impl ResolvedCall<'_> {
             .procedure_definition
             .filter(|_| self.sub.is_none())
             .map_or_else(
-                || self.arity(),
+                || {
+                    crate::native_list_assignment::operation_arity(
+                        crate::resolved_invocation::resolved_operation(
+                            self.spec, self.sub, self.form,
+                        ),
+                        arguments.dialect(),
+                    )
+                    .unwrap_or_else(|| self.arity())
+                },
                 |descriptor| descriptor.arity(arguments.dialect()),
             )
     }
@@ -8058,6 +8504,36 @@ fn pick_form<'r>(
     forms.iter().find(|form| {
         admits_dialect(form) && accepts(form) && form.literal_argument_prefix.is_none()
     })
+}
+
+/// Resolve readonly invocation metadata from an independently selected descriptor.
+/// The caller owns descriptor selection and actual availability. This does not
+/// select a command by name or grant a native handler, entered frame or effect.
+/// Registered and scoped source descriptors share this selector/form owner.
+#[must_use]
+pub fn resolve_source_descriptor_invocation<'r, 'w>(
+    spec: &'r CommandSpec,
+    words: InvocationWords<'w>,
+    availability: crate::resolved_invocation::InvocationAvailability<'r>,
+    numbers: Option<tcl_dialect::NumberSyntax>,
+) -> ResolvedInvocation<'r, 'w> {
+    let arguments = words.arguments();
+    let (subcommand, sub) = resolve_semantic_subcommand(
+        spec,
+        arguments,
+        availability.query,
+        availability.package_version,
+        numbers,
+    );
+    let form = match (sub, spec.subcommands.is_empty(), arguments.is_empty()) {
+        (Some(sub), _, _) => pick_form(spec, Some(sub), arguments, availability),
+        (None, true, _) | (None, false, true) => pick_form(spec, None, arguments, availability),
+        (None, false, false) if subcommand == SubcommandResolution::NotApplicable => {
+            pick_form(spec, None, arguments, availability)
+        }
+        (None, false, false) => None,
+    };
+    ResolvedInvocation::new(words, spec, sub, form, subcommand, availability)
 }
 
 /// Resolve a subcommand for the common semantic path.
@@ -8360,6 +8836,9 @@ mod tests {
 
     #[test]
     fn private_registration_facts_keep_actual_operand_indices() {
+        // Implementation contract: naming.invocation.effective-transition-operands
+        // docs/design/analysis/name-resolution-proofs/effective-transition-operands.md
+
         let registry = CommandRegistry::build_default();
         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
         for (head, args, canonical) in [
@@ -8421,6 +8900,39 @@ mod tests {
                 .argument_offset,
             0
         );
+        for argument in [
+            crate::InvocationWord::Literal("::A"),
+            crate::InvocationWord::Dynamic,
+        ] {
+            let arguments = [argument];
+            let words = crate::InvocationWords::structured(
+                crate::InvocationWord::Literal("::tcl::namespace::path"),
+                &arguments,
+            )
+            .with_dialect(dialect);
+            let facts = registry
+                .native_registration_invocation_facts(words)
+                .unwrap();
+            let path = facts
+                .state_transitions
+                .declared()
+                .unwrap()
+                .facts()
+                .iter()
+                .find_map(|fact| {
+                    if let crate::StateTransition::Namespace(
+                        crate::NamespaceTransition::SetPath { path, .. },
+                    ) = &fact.transition
+                    {
+                        Some(path)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            assert_eq!(path.argument_index(), Some(0));
+            assert_eq!(path.literal(), argument.literal());
+        }
     }
 
     #[test]
@@ -8445,6 +8957,71 @@ mod tests {
             .unwrap();
         assert!(root.contains(&crate::IntrinsicId::StringLength));
         assert!(root.contains(&crate::IntrinsicId::StringIndex));
+    }
+
+    #[test]
+    fn original_registration_source_descriptor_retains_parent_and_override_provenance() {
+        // Implementation contract: naming.namespace.original-quiet-pattern-completion
+        // docs/design/analysis/name-resolution-proofs/namespace-original-quiet-pattern-completion.md
+        let mut registry = CommandRegistry::build_default();
+        let realm = tcl_dialect::model::InvocationRealm::RuleLoader;
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let root = registry
+                .native_registration_source_descriptor("::namespace", dialect, realm)
+                .unwrap();
+            assert_eq!(root.name, "namespace");
+            assert_eq!(super::spec_pack_of(root), Some("tcl"));
+            let private = registry.native_registration_source_descriptor(
+                "::tcl::namespace::export",
+                dialect,
+                realm,
+            );
+            if version < tcl_dialect::TclVersion::V8_6 {
+                assert!(private.is_none(), "{version:?}");
+            } else {
+                assert!(std::ptr::eq(private.unwrap(), root), "{version:?}");
+            }
+            assert!(
+                registry
+                    .native_registration_source_descriptor(
+                        "tcl::namespace::unregistered",
+                        dialect,
+                        realm
+                    )
+                    .is_none()
+            );
+        }
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let surface = registry
+            .get_for_surface("namespace", dialect.authoring_query())
+            .unwrap()
+            .surface;
+        registry.insert_static(Box::leak(Box::new(crate::CommandSpec {
+            name: "tcl::namespace::export",
+            surface,
+            ..crate::CommandSpec::DEFAULT
+        })));
+        let authored = registry
+            .native_registration_source_descriptor("tcl::namespace::export", dialect, realm)
+            .unwrap();
+        assert_eq!(authored.name, "tcl::namespace::export");
+        assert_eq!(
+            super::spec_pack_of(authored),
+            None,
+            "an explicit authored helper descriptor cannot borrow its stock parent's pack"
+        );
+        let unknown = crate::InvocationDialect {
+            native_family: None,
+            core_point: None,
+            tcl_version: None,
+            ..dialect
+        };
+        assert!(
+            registry
+                .native_registration_source_descriptor("namespace", unknown, realm)
+                .is_none()
+        );
     }
 
     #[test]
@@ -13103,6 +13680,66 @@ mod tests {
     }
 
     #[test]
+    fn source_procedure_roles_do_not_require_native_definition_acceptance() {
+        // naming.source.authored-registry-role-projection
+        // docs/design/analysis/name-resolution-proofs/authored-registry-role-projection.md
+        let registry = CommandRegistry::build_default();
+        let values = [
+            InvocationWord::Dynamic,
+            InvocationWord::KnownBytes(b"\xff"),
+            InvocationWord::Dynamic,
+        ];
+        let arguments = InvocationArguments::structured(&values);
+        let selected = registry
+            .resolve_structured_invocation(
+                InvocationWords::from_arguments(InvocationWord::Literal("proc"), arguments),
+                None,
+            )
+            .resolved()
+            .unwrap();
+        assert!(!selected.facts().arg_roles_complete);
+        assert!(selected.facts().arg_roles.is_empty());
+        assert_eq!(
+            registry.arg_role_assignments_words(
+                "proc",
+                arguments,
+                &[ArgRole::Name, ArgRole::ParamList, ArgRole::Body],
+            ),
+            Some(vec![
+                (0, ArgRole::Name),
+                (1, ArgRole::ParamList),
+                (2, ArgRole::Body)
+            ])
+        );
+        assert_eq!(
+            registry.arg_indices_for_role("proc", &["p", "a b", "return"], ArgRole::Body,),
+            vec![2]
+        );
+        let expanded = [InvocationWord::Expanded];
+        assert_eq!(
+            registry.arg_role_assignments_words(
+                "proc",
+                InvocationArguments::structured(&expanded),
+                &[ArgRole::Body],
+            ),
+            None
+        );
+        let opaque = [
+            InvocationWord::Dynamic,
+            InvocationWord::Opaque,
+            InvocationWord::Dynamic,
+        ];
+        assert_eq!(
+            registry.arg_role_assignments_words(
+                "proc",
+                InvocationArguments::structured(&opaque),
+                &[ArgRole::Body],
+            ),
+            None
+        );
+    }
+
+    #[test]
     fn source_role_queries_retain_explicit_optional_frame_grammar() {
         let registry = CommandRegistry::build_default();
         let args = [
@@ -13580,9 +14217,11 @@ mod tests {
                 (sub.script_timing_resolver, 1)
             });
         resolver.is_some_and(|resolve| {
-            resolve(arguments.get(offset..).unwrap_or(&[]))
-                .iter()
-                .any(|(position, _)| offset + usize::from(*position) == index)
+            resolve(crate::InvocationArguments::literals(
+                arguments.get(offset..).unwrap_or(&[]),
+            ))
+            .iter()
+            .any(|(position, _)| offset + usize::from(*position) == index)
         })
     }
 
@@ -14021,6 +14660,49 @@ mod tests {
     }
 
     #[test]
+    fn variable_effect_footprints_keep_actual_availability_over_argument_dialect() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // This is authored metadata, not a Native read/store or command result.
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(crate::CommandSpec {
+            name: "gated-write",
+            surface: registry.get("dict").unwrap().surface,
+            ..registry.get("set").unwrap().clone()
+        });
+        let store = std::sync::Arc::new(registry);
+        let arguments = [
+            crate::InvocationWord::Literal("$scalar(open"),
+            crate::InvocationWord::Literal("VALUE"),
+        ];
+        let words = crate::InvocationWords::structured(
+            crate::InvocationWord::Literal("gated-write"),
+            &arguments,
+        )
+        .with_profile(tcl_dialect::DialectProfile::find("tcl8.6"));
+        for (environment, available) in [("tcl8.4", false), ("tcl9.0", true)] {
+            let context = crate::model::ingress::static_context_for(environment)
+                .with_command_store(std::sync::Arc::clone(&store));
+            let projection = store.variable_write_projection_in_resolved_context(
+                context.context(),
+                words,
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            );
+            assert_eq!(
+                projection
+                    .literal_names
+                    .contains(&"$scalar(open".to_owned()),
+                available,
+                "{environment}"
+            );
+            assert_eq!(
+                projection.opaque_variable_frame, !available,
+                "{environment}"
+            );
+        }
+    }
+
+    #[test]
     fn variable_write_projection_keeps_repeated_literal_targets() {
         let reg = CommandRegistry::build_default();
         let arguments = [
@@ -14144,45 +14826,58 @@ mod tests {
     #[test]
     fn variable_write_projection_distinguishes_aliases_from_value_writes() {
         let reg = CommandRegistry::build_default();
-        for (head, arguments) in [
-            ("global", vec![crate::InvocationWord::Literal("item")]),
-            (
-                "upvar",
-                vec![
-                    crate::InvocationWord::Literal("1"),
-                    crate::InvocationWord::Literal("outer"),
-                    crate::InvocationWord::Literal("local"),
-                ],
-            ),
-            (
-                "trace",
-                vec![
-                    crate::InvocationWord::Literal("add"),
-                    crate::InvocationWord::Literal("variable"),
-                    crate::InvocationWord::Literal("item"),
-                    crate::InvocationWord::Literal("write"),
-                    crate::InvocationWord::Literal("callback"),
-                ],
-            ),
-        ] {
-            let projection = reg.variable_write_projection(InvocationWords::structured(
-                crate::InvocationWord::Literal(head),
-                &arguments,
-            ));
-            assert_eq!(projection, VariableWriteProjection::default(), "{head}");
-        }
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            for (head, arguments) in [
+                ("global", vec![crate::InvocationWord::Literal("item")]),
+                (
+                    "upvar",
+                    vec![
+                        crate::InvocationWord::Literal("1"),
+                        crate::InvocationWord::Literal("outer"),
+                        crate::InvocationWord::Literal("local"),
+                    ],
+                ),
+                (
+                    "trace",
+                    vec![
+                        crate::InvocationWord::Literal("add"),
+                        crate::InvocationWord::Literal("variable"),
+                        crate::InvocationWord::Literal("item"),
+                        crate::InvocationWord::Literal("write"),
+                        crate::InvocationWord::Literal("callback"),
+                    ],
+                ),
+            ] {
+                let projection = reg.variable_write_projection(
+                    InvocationWords::structured(crate::InvocationWord::Literal(head), &arguments)
+                        .with_dialect(dialect),
+                );
+                assert_eq!(projection, VariableWriteProjection::default(), "{head}");
+            }
 
-        let arguments = [
-            crate::InvocationWord::Literal("first"),
-            crate::InvocationWord::Literal("value"),
-            crate::InvocationWord::Literal("declared_only"),
-        ];
+            let arguments = [
+                crate::InvocationWord::Literal("first"),
+                crate::InvocationWord::Literal("value"),
+                crate::InvocationWord::Literal("declared_only"),
+            ];
+            let projection = reg.variable_write_projection(
+                InvocationWords::structured(crate::InvocationWord::Literal("variable"), &arguments)
+                    .with_dialect(dialect),
+            );
+            assert_eq!(projection.literal_names, ["first"]);
+            assert!(!projection.opaque_variable_frame);
+        }
+        let unknown = [crate::InvocationWord::Literal("item")];
         let projection = reg.variable_write_projection(InvocationWords::structured(
-            crate::InvocationWord::Literal("variable"),
-            &arguments,
+            crate::InvocationWord::Literal("global"),
+            &unknown,
         ));
-        assert_eq!(projection.literal_names, ["first"]);
-        assert!(!projection.opaque_variable_frame);
+        assert!(projection.literal_names.is_empty());
+        assert!(
+            projection.opaque_variable_frame,
+            "missing alias naming policy remains unknown"
+        );
     }
 
     #[test]
@@ -15734,6 +16429,38 @@ mod tests {
     }
 
     #[test]
+    fn authored_source_model_roster_keeps_context_separate_from_native_release_evidence() {
+        // naming.source.logical-procedure-definition-model
+        // docs/design/analysis/name-resolution-proofs/logical-procedure-definition-model.md
+        let driver =
+            crate::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let older = crate::model::ingress::resolve_environment("tcl8.4").default_context_registry();
+        let older = older.with_command_store(driver.commands().snapshot().shared_registry());
+        for (context, lmap) in [(&*driver, true), (&older, false)] {
+            let model = context.commands().authored_source_semantics_in_context(
+                context.context(),
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            );
+            assert!(model.binding_names().contains("::proc"));
+            assert_eq!(model.binding_names().contains("::lmap"), lmap);
+            assert!(!model.binding_names().contains("::tcltest::test"));
+            assert!(!model.binding_names().contains("::tcl::string::equal"));
+        }
+        let native =
+            driver
+                .commands()
+                .effective_semantics_for_dialect(crate::InvocationDialect::of_point(
+                    tcl_dialect::model::DialectPoint::canonical(
+                        tcl_dialect::model::Release::JIM_0_79,
+                    ),
+                ));
+        assert!(
+            native.binding_names().is_empty(),
+            "a source model cannot fill an unaudited Native roster"
+        );
+    }
+
+    #[test]
     fn fresh_dialect_bindings_follow_availability_and_package_provenance() {
         let registry = CommandRegistry::build_default();
         for release in tcl_dialect::TclVersion::ALL {
@@ -16730,5 +17457,170 @@ mod registry_snapshot_tests {
             .expect("unique semantic key")
             .fingerprint = first.0.semantic_key.0.fingerprint;
         assert_ne!(first, second);
+    }
+}
+
+#[cfg(test)]
+mod original_document_grammar_tests {
+
+    #[test]
+    fn original_document_member_grammar_keeps_source_vocabulary_separate_from_execution() {
+        // Implementation contract: naming.consumer.typed-spec-pack-notice-actions
+        // docs/design/analysis/name-resolution-proofs/typed-spec-pack-notice-actions.md
+        let context = crate::model::ingress::static_context_for("spectcl");
+        let registry = context.commands();
+        let document = registry.document_grammar().unwrap();
+        let pack = registry
+            .authored_document_member_grammar(document, "speclib")
+            .unwrap();
+        let command = registry
+            .authored_document_member_grammar(pack, "command")
+            .unwrap();
+        assert!(
+            command
+                .members
+                .iter()
+                .any(|member| member.keyword == "arity")
+        );
+        assert!(
+            registry
+                .authored_document_member_grammar(document, "command")
+                .is_none()
+        );
+        assert!(
+            registry
+                .authored_document_member_grammar(command, "pool")
+                .is_none()
+        );
+        let native = crate::model::ingress::static_context_for("tcl8.6").commands();
+        assert!(
+            native
+                .authored_document_member_grammar(document, "speclib")
+                .is_none()
+        );
+        let other = crate::model::ingress::static_context_for("sslictcl").commands();
+        assert!(
+            other
+                .authored_document_member_grammar(document, "speclib")
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod native_return_effect_ingress_tests {
+    use super::native_return_state_effect;
+    use crate::completion_route::ReturnStateEffect;
+    use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+
+    #[test]
+    fn native_return_effect_requires_its_independent_selected_protocol() {
+        // naming.minifier.logical-formal-binding-alpha
+        // docs/design/analysis/name-resolution-proofs/logical-formal-binding-alpha.md
+        let arguments = [InvocationWord::Dynamic];
+        let logical = InvocationDialect::of_profile(&tcl_dialect::DialectProfile::plain_tcl());
+        assert!(logical.authored_name_policy().is_some());
+        assert!(logical.native_name_protocol().is_none());
+        for dialect in [None, Some(logical)] {
+            let words = InvocationArguments::structured(&arguments);
+            let words = dialect.map_or(words, |dialect| words.with_dialect(dialect));
+            assert_eq!(
+                native_return_state_effect(words),
+                ReturnStateEffect::MayMaterialiseError
+            );
+        }
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(version);
+            assert_eq!(
+                native_return_state_effect(
+                    InvocationArguments::structured(&arguments).with_dialect(dialect)
+                ),
+                ReturnStateEffect::ResultAndCompletion,
+                "{version:?}"
+            );
+        }
+        let jim = InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        assert_eq!(
+            native_return_state_effect(
+                InvocationArguments::structured(&arguments).with_dialect(jim)
+            ),
+            ReturnStateEffect::ResultAndCompletion
+        );
+        let unmeasured = InvocationDialect {
+            core_point: Some(tcl_dialect::model::DialectPoint::canonical(
+                tcl_dialect::model::Release::JIM_0_79,
+            )),
+            tcl_version: None,
+            ..jim
+        };
+        assert!(unmeasured.native_name_protocol().is_none());
+        assert_eq!(
+            native_return_state_effect(
+                InvocationArguments::structured(&arguments).with_dialect(unmeasured)
+            ),
+            ReturnStateEffect::MayMaterialiseError
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_instance_descriptor_tests {
+    #[test]
+    fn original_instance_descriptor_keeps_registry_identity_prefixes_and_lifecycle() {
+        // naming.source.original-registered-instance-words
+        // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry =
+            crate::registry::CommandRegistry::build_default().project_for_profile(profile);
+        let query = Some(profile.surface_query());
+        let factory = registry.get_for_surface("ttk::treeview", query).unwrap();
+        let method = registry
+            .instance_method_for_descriptor_at(factory, "conf", None, query)
+            .unwrap();
+        assert_eq!(method.name, "configure");
+        assert!(std::ptr::eq(
+            method,
+            registry
+                .instance_method_at(factory.name, "conf", None, query)
+                .unwrap()
+        ));
+        let foreign = factory.clone();
+        assert!(
+            registry
+                .instance_methods_for_descriptor_at(&foreign, None, query)
+                .is_empty()
+        );
+        assert!(
+            registry
+                .resolve_structured_instance_invocation_for_descriptor(
+                    &foreign,
+                    crate::InvocationWords::literals(".t", &["configure"]),
+                    None,
+                    query,
+                )
+                .is_none()
+        );
+        let selected = registry
+            .resolve_structured_instance_invocation_for_descriptor(
+                factory,
+                crate::InvocationWords::literals(".t", &["move", "one"]),
+                None,
+                query,
+            )
+            .unwrap();
+        assert_eq!(
+            selected
+                .authored_source_descriptors()
+                .subcommand
+                .unwrap()
+                .name,
+            "move"
+        );
+        assert_eq!(
+            selected.facts().arity_accepts_frozen_arguments(),
+            Some(false)
+        );
     }
 }

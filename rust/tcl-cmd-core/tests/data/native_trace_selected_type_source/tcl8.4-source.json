@@ -1,0 +1,50 @@
+{
+  "source_only": true,
+  "windows": [
+    {
+      "id": "selected-type",
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c",
+      "function": "Tcl_TraceObjCmd",
+      "lines": [
+        3123,
+        3128
+      ],
+      "source_sha256": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+      "snippet_sha256": "066480d2088ac40ecb85d6c035b095909a25cc38a1717c311a46004f07ab54c1",
+      "snippet": "\t    if (Tcl_GetIndexFromObj(interp, objv[2], traceTypeOptions,\n\t\t\t\"option\", 0, &typeIndex) != TCL_OK) {\n\t\treturn TCL_ERROR;\n\t    }\n\t    return (traceSubCmds[typeIndex])(interp, optionIndex, objc, objv);\n\t}\n"
+    },
+    {
+      "id": "arity-header",
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c",
+      "function": "TclTraceExecutionObjCmd",
+      "lines": [
+        3282,
+        3285
+      ],
+      "source_sha256": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+      "snippet_sha256": "e522793296312bf3b796e536a635889e6cac31cde9b56cc71e14dde65eb24a46",
+      "snippet": "\t    if (objc != 6) {\n\t\tTcl_WrongNumArgs(interp, 3, objv, \"name opList command\");\n\t\treturn TCL_ERROR;\n\t    }\n"
+    },
+    {
+      "id": "indexed-presentation",
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIndexObj.c",
+      "function": "Tcl_WrongNumArgs",
+      "lines": [
+        462,
+        475
+      ],
+      "source_sha256": "babe18e9f596d54d49f16c17b0576723d0d6c580ffb4356e1fca9b26ad6576da",
+      "snippet_sha256": "8667d4237a51693450675d71c16f0072d214c20b03dc86d15b91f9b20c5204c4",
+      "snippet": "\t * If the object is an index type use the index table which allows\n\t * for the correct error message even if the subcommand was\n\t * abbreviated.  Otherwise, just use the string rep.\n\t */\n\t\n\tif (objv[i]->typePtr == &tclIndexType) {\n\t    indexRep = (IndexRep *) objv[i]->internalRep.otherValuePtr;\n\t    Tcl_AppendStringsToObj(objPtr, EXPAND_OF(indexRep), (char *) NULL);\n\t} else {\n\t    Tcl_AppendStringsToObj(objPtr, Tcl_GetString(objv[i]),\n\t\t    (char *) NULL);\n\t}\n\n\t/*\n"
+    }
+  ]
+}

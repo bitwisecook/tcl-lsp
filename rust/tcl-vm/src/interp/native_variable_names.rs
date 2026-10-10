@@ -5,6 +5,8 @@
 mod native_array;
 #[path = "native_variable_names/native_exists.rs"]
 mod native_exists;
+#[path = "native_variable_names/native_tcloo.rs"]
+mod native_tcloo;
 use super::{HashSet, ResolvedVar, Value, VarBinding, VarTableOwner, Vm};
 use crate::value::NativeObjectLifetimeLease;
 use std::rc::Rc;
@@ -538,7 +540,16 @@ impl Vm {
         let result = self
             .bind_variable_link(local, super::VariableLinkTarget::Cell(target))
             .map_err(|error| {
-                crate::command::upvar_link_error_bytes(error, &bytes, local.name.as_bytes())
+                let protocol = self
+                    .native_c_variable_name_protocol()
+                    .expect("actual C alias diagnostic");
+                let failure = crate::command::upvar_link_error_bytes_in(
+                    error,
+                    &bytes,
+                    local.name.as_bytes(),
+                    Some(protocol),
+                );
+                self.present_original_c_alias_error(failure, error)
             });
         self.retire_released_native_alias_entries();
         result
@@ -617,21 +628,34 @@ impl Vm {
 
     /// The local side of `ObjMakeUpvar` is a simple scalar lookup. It retains
     /// an actual hash key at birth, without changing the original name primary.
-    fn present_original_c_alias_error(&mut self, failure: Completion<Value>) -> Completion<Value> {
+    fn present_original_c_alias_error(
+        &mut self,
+        failure: Completion<Value>,
+        cause: super::UpvarLinkError,
+    ) -> Completion<Value> {
         if self.refused_completion().is_some() {
             return failure;
         }
         let protocol = self
             .native_c_variable_name_protocol()
             .expect("actual C alias diagnostic");
-        let code = crate::command::opt_get(&failure.options, "-errorcode")
-            .expect("alias failure owns its native error tuple");
+        let code = if matches!(
+            cause,
+            super::UpvarLinkError::TargetNamespace | super::UpvarLinkError::LocalNamespace
+        ) || protocol.alias_rejection_sets_error_code()
+        {
+            let code = crate::command::opt_get(&failure.options, "-errorcode")
+                .expect("alias failure owns its native error tuple");
+            tcl_cmd_core::CmdErrorCodeUpdate::Set(code.string_bytes().to_vec())
+        } else {
+            tcl_cmd_core::CmdErrorCodeUpdate::Default
+        };
         crate::command::completion_from_cmd_error(
             self,
             tcl_cmd_core::CmdError::from_byte_details(tcl_cmd_core::CmdErrorDetails {
                 message: failure.result.string_bytes().to_vec(),
                 string_result: protocol.diagnostic_string_protocol(),
-                error_code: tcl_cmd_core::CmdErrorCodeUpdate::Set(code.string_bytes().to_vec()),
+                error_code: code,
                 error_info: None,
                 error_line: None,
                 primitive_getter: None,
@@ -648,7 +672,8 @@ impl Vm {
     ) -> Result<(), Completion<Value>> {
         match self.bind_original_c_alias_local_inner(original, target, owner_is_proc, other) {
             Ok(()) => Ok(()),
-            Err(failure) => Err(self.present_original_c_alias_error(failure)),
+            Err((failure, Some(cause))) => Err(self.present_original_c_alias_error(failure, cause)),
+            Err((failure, None)) => Err(failure),
         }
     }
 
@@ -658,22 +683,26 @@ impl Vm {
         target: tcl_core_types::VarId,
         owner_is_proc: bool,
         other: &[u8],
-    ) -> Result<(), Completion<Value>> {
+    ) -> Result<(), (Completion<Value>, Option<super::UpvarLinkError>)> {
         let protocol = self
             .native_c_variable_name_protocol()
             .expect("actual C alias local");
         let bytes = self
             .native_name_operand_bytes(original)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
+            .map_err(|error| (self.refuse_host_command(error.to_string()), None))?;
         let input = protocol.alias_local_input(&bytes);
         let qualified =
             input.qualification() != tcl_syntax::naming::NativeNameQualification::Unqualified;
         let namespace = qualified || !self.frame_owns_local_variables(self.current_level());
         let failure = |error| {
-            crate::command::upvar_link_error_bytes(
-                error,
-                other,
-                tcl_core_types::c_string_extent(&bytes),
+            (
+                crate::command::upvar_link_error_bytes_in(
+                    error,
+                    other,
+                    tcl_core_types::c_string_extent(&bytes),
+                    Some(protocol),
+                ),
+                Some(error),
             )
         };
         if owner_is_proc && namespace {
@@ -700,7 +729,10 @@ impl Vm {
         if birth {
             self.bind_new_var(&binding, crate::vars::VarState::Undefined)
                 .ok_or_else(|| {
-                    self.refuse_host_command("original alias local cell unavailable".into())
+                    (
+                        self.refuse_host_command("original alias local cell unavailable".into()),
+                        None,
+                    )
                 })?;
             if protocol.version() >= tcl_dialect::TclVersion::V8_5
                 && !matches!(binding.owner, VarTableOwner::CompiledLocal { .. })
@@ -817,9 +849,16 @@ impl Vm {
         let (target, _, bytes) = self.original_c_upvar_target(original, target_level, None)?;
         if let Err(error) = self.bind_variable_link(local, super::VariableLinkTarget::Cell(target))
         {
-            let failure =
-                crate::command::upvar_link_error_bytes(error, &bytes, local.name.as_bytes());
-            return Err(self.present_original_c_alias_error(failure));
+            let protocol = self
+                .native_c_variable_name_protocol()
+                .expect("actual C alias diagnostic");
+            let failure = crate::command::upvar_link_error_bytes_in(
+                error,
+                &bytes,
+                local.name.as_bytes(),
+                Some(protocol),
+            );
+            return Err(self.present_original_c_alias_error(failure, error));
         }
         self.retire_released_native_alias_entries();
         Ok(())
@@ -928,7 +967,9 @@ impl Vm {
         element_access: bool,
         operation: &str,
     ) -> bool {
-        if cell.id.is_some_and(|id| self.active_traces.contains(&id)) {
+        let destroyed = tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation::from_name(operation)
+            .is_some_and(tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation::uses_destroyed_cell_callbacks);
+        if !destroyed && cell.id.is_some_and(|id| self.active_traces.contains(&id)) {
             return false;
         }
         let array_active = cell
@@ -1124,6 +1165,208 @@ mod tests {
         assert!(vm.set_native_engine_profile(profile));
         vm.set_dialect_profile(profile);
         vm
+    }
+
+    struct TraceProbeOutput(Rc<RefCell<Vec<u8>>>);
+
+    impl std::io::Write for TraceProbeOutput {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.borrow_mut().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn trace_source_observation(engine: &str, source: &[u8], expected: &[u8]) {
+        let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+        let output = Rc::new(RefCell::new(Vec::new()));
+        let mut vm = crate::native_fixture::interpreter_with_output(
+            profile,
+            Box::new(TraceProbeOutput(output.clone())),
+        );
+        let result = vm
+            .eval_source(std::str::from_utf8(source).unwrap())
+            .unwrap();
+        assert_eq!(result.code, tcl_runtime_api::Code::Ok, "{engine}");
+        let actual = output.borrow();
+        // Only setup and callback observations are compared; version reporting
+        // identifies the native process and is a separate API surface.
+        let after_version = |bytes: &[u8]| {
+            let end = bytes.iter().position(|byte| *byte == b'\n').unwrap();
+            bytes[end + 1..].to_vec()
+        };
+        assert_eq!(after_version(&actual), after_version(expected), "{engine}");
+    }
+
+    fn jim_trace_setup_observation(source: &[u8], expected: &[u8]) {
+        // Compare the original source prefix through SETUP, independently of
+        // the unimplemented binary reporter after this frontier.
+        let source = std::str::from_utf8(source).unwrap();
+        let (prefix, _) = source
+            .split_once("binary scan $probeSetupResult H* probeSetupHex\n")
+            .unwrap();
+        let captured = std::str::from_utf8(expected).unwrap();
+        let setup = captured
+            .lines()
+            .find(|line| line.starts_with("SETUP "))
+            .unwrap();
+        let hex = setup.strip_prefix("SETUP 1 ").unwrap();
+        let expected_message: Vec<_> = hex
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect();
+        assert!(
+            !captured
+                .lines()
+                .any(|line| line.starts_with("OBSERVATION "))
+        );
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::interpreter(profile);
+        assert_eq!(
+            vm.eval_source(prefix).unwrap().code,
+            tcl_runtime_api::Code::Ok
+        );
+        for (name, expected) in [
+            (b"probeSetupCode".as_slice(), b"1".as_slice()),
+            (b"probeSetupResult".as_slice(), expected_message.as_slice()),
+        ] {
+            let value = vm.get_var_bytes(name).unwrap();
+            assert_eq!(
+                vm.native_name_operand_bytes(&value).unwrap().as_ref(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn active_read_unset_matches_five_original_source_controls() {
+        // Native proof: naming.variable.unset-active-read-callback-retirement
+        // docs/design/analysis/name-resolution-proofs/variable-unset-active-read-callback-retirement.md
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_active_read_unset/8.4.20.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_active_read_unset/8.5.19.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_active_read_unset/8.6.18.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_active_read_unset/9.0.4.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_active_read_unset/9.1.0.txt"
+                )
+                .as_slice(),
+            ),
+        ] {
+            trace_source_observation(
+                engine,
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_active_read_unset/source.tcl"
+                ),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn active_read_unset_preserves_jim_unsupported_setup() {
+        // Native proof: naming.variable.unset-active-read-callback-retirement
+        // docs/design/analysis/name-resolution-proofs/variable-unset-active-read-callback-retirement.md
+        jim_trace_setup_observation(
+            include_bytes!(
+                "../../../../runtime/rust/tests/data/native_active_read_unset/source.tcl"
+            ),
+            include_bytes!("../../../../runtime/rust/tests/data/native_active_read_unset/jim.txt"),
+        );
+    }
+
+    #[test]
+    fn recreated_element_read_trace_matches_five_original_source_controls() {
+        // Native proof: naming.variable.recreated-element-independent-read-trace
+        // docs/design/analysis/name-resolution-proofs/variable-recreated-element-independent-read-trace.md
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_recreated_element_trace/8.4.20.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_recreated_element_trace/8.5.19.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_recreated_element_trace/8.6.18.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_recreated_element_trace/9.0.4.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_recreated_element_trace/9.1.0.txt"
+                )
+                .as_slice(),
+            ),
+        ] {
+            trace_source_observation(
+                engine,
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_recreated_element_trace/source.tcl"
+                ),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn recreated_element_trace_preserves_jim_unsupported_setup() {
+        // Native proof: naming.variable.recreated-element-independent-read-trace
+        // docs/design/analysis/name-resolution-proofs/variable-recreated-element-independent-read-trace.md
+        jim_trace_setup_observation(
+            include_bytes!(
+                "../../../../runtime/rust/tests/data/native_recreated_element_trace/source.tcl"
+            ),
+            include_bytes!(
+                "../../../../runtime/rust/tests/data/native_recreated_element_trace/jim.txt"
+            ),
+        );
     }
 
     #[test]
@@ -1446,6 +1689,8 @@ mod tests {
     }
     #[test]
     fn dynamic_global_uses_original_compiler_token_tail_and_name_cache() {
+        // Native proof: naming.variable.original-global-cache-token
+        // docs/design/analysis/name-resolution-proofs/variable-original-global-cache-token.md
         for (engine, expected) in [
             (
                 "tcl8.4",
@@ -1510,6 +1755,10 @@ mod tests {
 
     #[test]
     fn alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners() {
+        // Native proof: naming.alias.original-local-name-object
+        // docs/design/analysis/name-resolution-proofs/alias-original-local-name-object.md
+        // Native proof: naming.alias.original-local-name-list-canonical
+        // docs/design/analysis/name-resolution-proofs/alias-original-local-name-list-canonical.md
         for (engine, expected) in [
             (
                 "tcl8.4",
@@ -1867,6 +2116,10 @@ mod tests {
 
     #[test]
     fn original_local_cache_getter_order_matches_all_25_native_paths() {
+        // Native proof: naming.variable.original-local-cache-before-getter
+        // docs/design/analysis/name-resolution-proofs/variable-original-local-cache-before-getter.md
+        // Native proof: naming.variable.original-local-cache-unavailable-updater
+        // docs/design/analysis/name-resolution-proofs/variable-original-local-cache-unavailable-updater.md
         let expected = include_str!(
             "../../../tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt"
         );
@@ -1993,6 +2246,8 @@ mod tests {
 
     #[test]
     fn cpp_table_and_var_roles_match_all_25_original_callback_windows() {
+        // Native proof: naming.variable.original-element-unset-callback-roles
+        // docs/design/analysis/name-resolution-proofs/variable-original-element-unset-callback-roles.md
         use std::cell::RefCell;
         let rows = Rc::new(RefCell::new(Vec::new()));
         for (environment, version) in [
@@ -2118,6 +2373,8 @@ mod tests {
 
     #[test]
     fn search_free_slots_match_all_20_actual_c_windows() {
+        // Native proof: naming.variable.array-search-free-slot-retirement
+        // docs/design/analysis/name-resolution-proofs/variable-array-search-free-slot-retirement.md
         use tcl_cmd_core::native_array_search::NativeArraySearchBackend;
         let mut rows = Vec::new();
         for (environment, version) in [
@@ -2198,6 +2455,10 @@ mod tests {
 
     #[test]
     fn original_parsed_headers_match_all_150_actual_c_windows() {
+        // Native proof: naming.variable.original-scalar-parsed-header
+        // docs/design/analysis/name-resolution-proofs/variable-original-scalar-parsed-header.md
+        // Native proof: naming.variable.original-counted-array-parsed-header
+        // docs/design/analysis/name-resolution-proofs/variable-original-counted-array-parsed-header.md
         let mut rows = Vec::new();
         for (environment, version) in [
             ("tcl8.4", "8.4.20"),
@@ -2257,6 +2518,10 @@ mod tests {
 
     #[test]
     fn scalar_alias_entries_and_array_parts_match_all_95_native_windows() {
+        // Native proof: naming.variable.original-scalar-alias-entry-lifetime
+        // docs/design/analysis/name-resolution-proofs/variable-original-scalar-alias-entry-lifetime.md
+        // Native proof: naming.variable.original-parsed-array-child-references
+        // docs/design/analysis/name-resolution-proofs/variable-original-parsed-array-child-references.md
         let mut rows = Vec::new();
         for (environment, version) in [
             ("tcl8.4", "8.4.20"),
@@ -2356,5 +2621,206 @@ mod tests {
         .collect::<Vec<_>>();
         assert_eq!(rows.len(), 95);
         assert_eq!(rows, expected);
+    }
+    #[test]
+    fn list_assignment_arity_matches_five_original_source_controls() {
+        // Native proof: naming.list.original-lassign-target-arity
+        // docs/design/analysis/name-resolution-proofs/list-original-lassign-target-arity.md
+        // Literal, dynamic and proc source entry are observations, not admission proofs.
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_list_assignment_arity/8.4.20.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_list_assignment_arity/8.5.19.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_list_assignment_arity/8.6.18.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_list_assignment_arity/9.0.4.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_list_assignment_arity/9.1.0.txt"
+                )
+                .as_slice(),
+            ),
+        ] {
+            trace_source_observation(
+                engine,
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_list_assignment_arity/source.tcl"
+                ),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn list_assignment_arity_matches_current_jim_original_source_controls() {
+        // Native proof: naming.list.original-lassign-target-arity
+        // docs/design/analysis/name-resolution-proofs/list-original-lassign-target-arity.md
+        trace_source_observation(
+            "jim",
+            include_bytes!(
+                "../../../../runtime/rust/tests/data/native_list_assignment_arity/source.tcl"
+            ),
+            include_bytes!(
+                "../../../../runtime/rust/tests/data/native_list_assignment_arity/jim.txt"
+            ),
+        );
+    }
+    #[test]
+    fn variable_read_diagnostics_match_five_original_source_controls() {
+        // Native proof: naming.variable.original-read-diagnostic-input
+        // docs/design/analysis/name-resolution-proofs/variable-original-read-diagnostic-input.md
+        // These source-entry outcomes grant no private layout or compiler admission.
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_read_input/8.4.20.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_read_input/8.5.19.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_read_input/8.6.18.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_read_input/9.0.4.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_read_input/9.1.0.txt"
+                )
+                .as_slice(),
+            ),
+        ] {
+            trace_source_observation(
+                engine,
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_read_input/source.tcl"
+                ),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn variable_read_input_preserves_current_jim_dictionary_results() {
+        // Native proof: naming.variable.original-read-diagnostic-input
+        // docs/design/analysis/name-resolution-proofs/variable-original-read-diagnostic-input.md
+        // Jim's array-valued root reads succeed; its scalar element reads fail.
+        trace_source_observation(
+            "jim",
+            include_bytes!(
+                "../../../../runtime/rust/tests/data/native_variable_read_input/source.tcl"
+            ),
+            include_bytes!(
+                "../../../../runtime/rust/tests/data/native_variable_read_input/jim.txt"
+            ),
+        );
+    }
+
+    #[test]
+    fn array_root_write_diagnostics_match_five_original_source_controls() {
+        // Native proof: naming.variable.original-array-root-write-diagnostic
+        // docs/design/analysis/name-resolution-proofs/variable-original-array-root-write-diagnostic.md
+        // Full source output is compared; no private receiver or compiler admission is inferred.
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_array_write/8.4.20.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_array_write/8.5.19.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_array_write/8.6.18.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_array_write/9.0.4.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_array_write/9.1.0.txt"
+                )
+                .as_slice(),
+            ),
+        ] {
+            trace_source_observation(
+                engine,
+                include_bytes!(
+                    "../../../../runtime/rust/tests/data/native_variable_array_write/source.tcl"
+                ),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn array_root_write_preserves_current_jim_dictionary_replacement() {
+        // Native proof: naming.variable.original-array-root-write-diagnostic
+        // docs/design/analysis/name-resolution-proofs/variable-original-array-root-write-diagnostic.md
+        // Jim replaces its dictionary-valued root with the scalar result.
+        trace_source_observation(
+            "jim",
+            include_bytes!(
+                "../../../../runtime/rust/tests/data/native_variable_array_write/source.tcl"
+            ),
+            include_bytes!(
+                "../../../../runtime/rust/tests/data/native_variable_array_write/jim.txt"
+            ),
+        );
     }
 }

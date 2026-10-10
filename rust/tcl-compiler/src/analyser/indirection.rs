@@ -16,76 +16,31 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Command-table indirection: the one hop-walk shared by the analyser's
-//! diagnostics and the LSP's navigation providers.
+//! Bounded String reporting for recorded command aliases and renames.
 //!
-//! Tcl's command table is mutable at run time.  `rename OLD NEW` moves a
-//! command to a new name; `interp alias {} ALIAS {} TARGET` installs a second
-//! name that re-resolves to `TARGET` on every invocation (and silently
-//! replaces an existing command of that name).  A call site written after
-//! either statement therefore reaches a *different* definition than its
-//! spelling suggests, and everything that answers "what does this word name?"
-//! — the W307/W308 method checks, go-to-definition, find-references, rename,
-//! call hierarchy — has to follow the same chain, the same way, or they
-//! disagree with each other and with `tclsh`.
+//! [`walk`] follows representable `command_aliases` / `alias_offsets` and
+//! `renamed_commands` / `rename_offsets` under one lexical reporting model.
+//! The latest eligible event selects a hop. A rename retains its reporting
+//! as-of time; an alias retains late target-name lookup. [`Indirection`] is a
+//! target label and comparison projection, not an original Native name input,
+//! current callable, implementation allocation or reached handler receipt.
 //!
-//! This module is that single implementation.
-//! `diagnostics::var_command`'s `class_reachable_by_indirection` consumes it,
-//! so the navigation providers in `tcl-lsp-core` cannot drift from the
-//! diagnostics.
+//! The walk refuses self-aliases and captured-prefix chains that its String-only
+//! result cannot express, and is bounded by [`MAX_COMMAND_NAME_HOPS`]. Original
+//! effective-argv and callback source owners retain captured operands separately.
 //!
-//! # The model
+//! [`in_effect`] and [`in_effect_within`] order events within a written body.
+//! Their convenience for records outside that body is a lexical reporting
+//! assumption. It does not prove that all top-level statements ran before the
+//! body entered: genuine calls can occur before a later source mutation.
 //!
-//! A command *name* is not a definition; it is a slot whose contents change
-//! over the life of the script.  Every statement that writes such a slot —
-//! `proc`, `rename`, `interp alias` — is an event on that name's timeline, and
-//! the question every consumer really asks is *"what does this name hold at
-//! this point, in this execution context?"*.  This module answers it for the
-//! two mutation kinds; [`AnalysisResult::proc_def_in_effect_at`] answers the
-//! `proc` half of the same question, under the same order rules.
-//!
-//! # Rules
-//!
-//! - **Order-gating.**  A hop counts only once the statement that established
-//!   it has run: textual order at top level, and — for a statement written
-//!   *outside* the body now executing — unconditionally inside a proc/class
-//!   body, because the whole file loads, running every top-level statement,
-//!   before any body runs.  A mutation that is itself a statement *of that
-//!   same body* is an ordinary statement of the running script and stays
-//!   order-gated by offset ([`in_effect`]).  Oracle (tclsh 8.6.14/9.0.4):
-//!   with `proc greet {} {…}`, a `hello` written before `rename greet hello`
-//!   raises `invalid command name "hello"`, and one written after returns
-//!   `greet`'s body — while `greet` itself then raises `invalid command name
-//!   "greet"`.
-//! - **Latest binding wins.**  A name may carry both a `rename` record and an
-//!   `interp alias` record; the one written later is the one the slot holds
-//!   ([`latest_binding`]).  Oracle (8.6.14/9.0.4): `proc a {} {return A};
-//!   proc b {} {return B}; rename a x; interp alias {} x {} b; x` → `B` — the
-//!   alias replaced the renamed-in command.  (The reverse order is not a
-//!   reachable program: `rename a x` onto a live `x` aborts with `can't
-//!   rename to "x": command already exists`, so the code after it never runs;
-//!   the same latest-wins rule is applied there for want of a reachable
-//!   alternative.)
-//! - **A rename moves the command object, an alias re-resolves by name.**
-//!   `rename p oldp` hands `oldp` the *object* `p` held at the rename, so a
-//!   later `proc p` does not change what `oldp` runs — oracle (8.6.14/9.0.4):
-//!   `proc p {} {return first}; rename p oldp; proc p {} {return second}` has
-//!   `oldp` → `first` (and `oldp`'s arity is the *first* signature:
-//!   `wrong # args: should be "oldp a"` for `proc p {a}`), while `p` →
-//!   `second`.  An `interp alias`, by contrast, looks its target up by name on
-//!   every invocation, so it sees the table as it stands *at the call*.
-//!   [`Indirection::resolve_at`] carries whichever of the two as-of times
-//!   applies, and consumers resolve the terminal name at that time.
-//! - **Hop cap.**  Eight hops, the same cap the user-call arity resolver
-//!   (`diagnostics::validity`) applies to the identical chains, so a
-//!   `rename a b; rename b c; …` cycle cannot spin.
-//! - **Prepended arguments decline.**  `interp alias {} Cat {} Dog extra`
-//!   binds a leading argument, so `Cat …` is not the call `Dog …` would be
-//!   (tclsh 8.6.14/9.0.4: `interp alias {} withextra {} target pre` makes
-//!   `withextra x` fail `wrong # args: should be "withextra"`).  Such a chain
-//!   is declined outright rather than resolved to the target.
-//! - **Self-alias decline.**  An alias whose canonical target is its own name
-//!   is not a hop.
+//! Native and hosted consumers require the independent original positioned
+//! command-binding or conditional source issuer appropriate to their purpose.
+//! Readonly schema, class, receiver and callback consumers retain complete
+//! original image/configuration/context, canonical declarations and explicit
+//! applicability obligations. A reporting chain cannot restore their known
+//! deletion/replacement refusal or grant execution, Normal completion or edits.
+//! See `docs/design/contracts/command-alias-resolution.md` for the purpose table.
 
 use std::collections::HashMap;
 

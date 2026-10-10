@@ -202,6 +202,24 @@ pub struct CommandSpan {
 }
 
 impl CommandSpan {
+    /// Physical command source from its first content token through the byte
+    /// before its terminator, retaining trailing trivia and closing delimiters.
+    /// `tokens` and `source_length` must describe the original grouped region.
+    /// This lexical fact supplies no provider's frame or error-log protocol.
+    #[must_use]
+    pub fn source_extent(&self, tokens: &[Token], source_length: usize) -> Option<Span> {
+        let source_end = u32::try_from(source_length).ok()?;
+        let end = match self.terminator {
+            Some(index) => {
+                let terminator = tokens.get(index)?;
+                (terminator.kind == TokenType::Eol).then_some(())?;
+                terminator.span.start()
+            }
+            None => source_end,
+        };
+        (self.span.end() <= end && end <= source_end).then(|| Span::new(self.span.start(), end))
+    }
+
     /// The command's preceding comment, rendered the way `build.rs` and the
     /// segmenter render it: each comment line's leading `#`s stripped, the
     /// remainder trimmed, consecutive lines joined with `\n`.  `None` when
@@ -553,6 +571,37 @@ mod tests {
                 src[w.span.start() as usize..end as usize].to_string()
             })
             .collect()
+    }
+
+    #[test]
+    fn original_command_source_extent_keeps_terminator_trivia_separate() {
+        // naming.runtime.original-command-source-extent
+        // docs/design/analysis/name-resolution-proofs/runtime-original-command-source-extent.md
+        for (source, expected) in [
+            (" error marker   ", "error marker   "),
+            (" error marker   ; next", "error marker   "),
+            (" error marker   \nnext", "error marker   "),
+            (" error \"marker\"   ", "error \"marker\"   "),
+            (" error {marker}   ", "error {marker}   "),
+            ("\terror marker\t \t", "error marker\t \t"),
+        ] {
+            let (tokens, commands) = group(source);
+            let command = &commands[0];
+            let extent = command.source_extent(&tokens, source.len()).unwrap();
+            assert_eq!(&source[extent.as_range()], expected);
+            assert!(extent.end() > command.span.end());
+            assert!(
+                command
+                    .source_extent(&tokens, extent.end() as usize - 1)
+                    .is_none()
+            );
+            if command.terminator.is_some() {
+                assert!(command.source_extent(&[], source.len()).is_none());
+            }
+        }
+        let (tokens, mut commands) = group("error marker; next");
+        commands[0].terminator = Some(0);
+        assert!(commands[0].source_extent(&tokens, 18).is_none());
     }
 
     #[test]

@@ -1,0 +1,36 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/current-native-interpreter-create-handle174/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.0035233340022386983,
+  "reported_version": "0.84-9-g5bac7c9",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "b4c398938320243da4d60bff017baa511eeaa7bd5728e1f3ae7db060e7626741",
+  "runner_sha256": "0145a2d08bc910597cad3d885ff97deb8fafa05ea61235b250534239f2b4a2f9",
+  "stdout_sha256": "2b6123e782079659dd4f8bb142e4a4c07aa4ed36197cbfa258262a62ff43f8af",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "rows": [
+    "version 0.84-9-g5bac7c9",
+    "observation create status 1 result {wrong # args: should be \"interp\"} errorCode NONE",
+    "observation parent-command status 0 result {} errorCode {}",
+    "observation handle-return status 1 result {invalid command name \"s\"} errorCode NONE",
+    "observation path-return status 1 result {wrong # args: should be \"interp\"} errorCode NONE",
+    "observation handle-value status 1 result {invalid command name \"s\"} errorCode NONE",
+    "observation path-value status 1 result {wrong # args: should be \"interp\"} errorCode NONE",
+    "observation delete status 1 result {wrong # args: should be \"interp\"} errorCode NONE",
+    "observation parent-command-after-delete status 0 result {} errorCode {}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; independent interpreter creation and parent-handle observations",
+  "boundary": "Question: does creating a child install a callable parent command, how do handle/path eval propagate return and value completion, and does deletion remove the command? Sequential catch observations retain actual unsupported outcomes. No arbitrary constructor Normal, entered frame, runtime handle token or compiler admission is inferred."
+}

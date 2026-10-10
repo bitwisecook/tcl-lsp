@@ -1,0 +1,51 @@
+TclCompileListCmd(interp, parsePtr, envPtr)
+    Tcl_Interp *interp;		/* Used for error reporting. */
+    Tcl_Parse *parsePtr;	/* Points to a parse structure for the
+				 * command created by Tcl_ParseCommand. */
+    CompileEnv *envPtr;		/* Holds resulting instructions. */
+{
+    DefineLineInformation;
+
+    /*
+     * If we're not in a procedure, don't compile.
+     */
+    if (envPtr->procPtr == NULL) {
+	return TCL_OUT_LINE_COMPILE;
+    }
+
+    if (parsePtr->numWords == 1) {
+	/*
+	 * Empty args case
+	 */
+
+	TclEmitPush(TclRegisterNewLiteral(envPtr, "", 0), envPtr);
+    } else {
+	/*
+	 * Push the all values onto the stack.
+	 */
+	Tcl_Token *valueTokenPtr;
+	int i, code, numWords;
+
+	numWords = parsePtr->numWords;
+
+	valueTokenPtr = parsePtr->tokenPtr
+	    + (parsePtr->tokenPtr->numComponents + 1);
+	for (i = 1; i < numWords; i++) {
+	    if (valueTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+		TclEmitPush(TclRegisterNewLiteral(envPtr,
+			valueTokenPtr[1].start, valueTokenPtr[1].size), envPtr);
+	    } else {
+		SetLineInformation (i);
+		code = TclCompileTokens(interp, valueTokenPtr+1,
+			valueTokenPtr->numComponents, envPtr);
+		if (code != TCL_OK) {
+		    return code;
+		}
+	    }
+	    valueTokenPtr = valueTokenPtr + (valueTokenPtr->numComponents + 1);
+	}
+	TclEmitInstInt4(INST_LIST, numWords - 1, envPtr);
+    }
+
+    return TCL_OK;
+}

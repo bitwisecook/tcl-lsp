@@ -1,0 +1,58 @@
+{
+  "request_id": "naming.namespace.jim-original-scripted-distribution-and-forwarding",
+  "question": "What original procedure declarations implement current Jim namespace ensemble, and does the native namespace worker reach replacement helper commands under global and current namespace lookup?",
+  "problem": "Runtime and VM currently route Jim namespace ensemble into C configuration logic although the current Jim extension forwards to an independently loaded mutable scripted helper. Original source metadata and selected actual procedure bindings must remain separate from native core admission.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse unchanged Native222 original-counted driver with fresh full Tcl_Init or Jim core/static extensions per case; no outer catch/eval/puts wrapper. Preserve exact source, counted code/result, stdout/stderr, exit and build pins. C nonapplicable rows must remain distinct from Jim helper observations.",
+  "cases": [
+    {
+      "id": "original-library-formals-and-bodies",
+      "source_file": "/workspace/.proofs/native-jim-namespace-distribution234-request/original-library-formals-and-bodies.tcl",
+      "source_sha256": "7b42a8b4cb191728231d30cd5f12b7cfad7148acfa8b5a84695d94f4675a717d",
+      "source_encoding": "ASCII LF"
+    },
+    {
+      "id": "global-helper-replacement",
+      "source_file": "/workspace/.proofs/native-jim-namespace-distribution234-request/global-helper-replacement.tcl",
+      "source_sha256": "8880a42043621e6176ce75bb198b5c0a274300f0b3323455275ab28c78df27ce",
+      "source_encoding": "ASCII LF"
+    },
+    {
+      "id": "namespace-local-helper-replacement",
+      "source_file": "/workspace/.proofs/native-jim-namespace-distribution234-request/namespace-local-helper-replacement.tcl",
+      "source_sha256": "090c8f4f1ae0a65406b6599a2e02965087aed6889a39cce85ce1255833044be1",
+      "source_encoding": "ASCII LF"
+    },
+    {
+      "id": "original-unsupported-and-arity",
+      "source_file": "/workspace/.proofs/native-jim-namespace-distribution234-request/original-unsupported-and-arity.tcl",
+      "source_sha256": "84113387c9ae82b9ba48384cf768c2f9f94e5b3809b3129a87d2ff40b0b110ff",
+      "source_encoding": "ASCII LF"
+    }
+  ],
+  "source_anchors": [
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl",
+      "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "copy_file": "/workspace/.proofs/native-jim-namespace-distribution234-request/nshelper.tcl"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/ensemble.tcl",
+      "source_sha256": "9ca704e877070759aeada3c5a326a2d960ebe5184abce6428c97cec73fed32de",
+      "copy_file": "/workspace/.proofs/native-jim-namespace-distribution234-request/ensemble.tcl"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim-namespace.c",
+      "source_sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "copy_file": "/workspace/.proofs/native-jim-namespace-distribution234-request/jim-namespace.c"
+    }
+  ],
+  "scope": "Public formals/body results and actual forwarded argument/current-context results only. Procedure source anchors are independently pinned, not observations of private namespace/command tokens, headers, bootstrap timing or internal frame identity. No core-before-library native experiment is requested."
+}

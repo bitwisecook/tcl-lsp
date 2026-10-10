@@ -1,0 +1,30 @@
+{
+  "request_id": "naming.alias.jim-original-core-prefix-object-storage",
+  "question": "Does the original Jim core alias definition retain original name result and original prefix member objects without materialising member strings, and does an original info alias query return that stored prefix before an alias invocation?",
+  "problem": "Runtime core alias retains original prefix pointers but eagerly formats each member to fill a byte query projection. Actual prefix ownership and lazy cache conversion must be established before treating byte queries as the producer. VM already retains original prefix Values.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "probe_file": "/workspace/.proofs/native-jim-core-alias-prefix273-request/probe.c",
+  "probe_sha256": "360bbedd2b7cce8177c40ff5762e07ff6754109dc48a0f8258ffe00f228a6a31",
+  "source_anchors": [
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "copy_file": "/workspace/.proofs/native-jim-core-alias-prefix273-request/jim.c"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.h",
+      "source_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "copy_file": "/workspace/.proofs/native-jim-core-alias-prefix273-request/jim.h"
+    }
+  ],
+  "cases": [],
+  "driver": "Compile this exact C99 probe against the same six independently pinned headers/archive/build pairs as Native241. Run with no arguments in one fresh interpreter per provider. Jim uses Jim_CreateInterp + Jim_RegisterCoreCommands ONLY: no static extensions or script installer. C uses full Tcl_Init only for its version report and explicitly reports incompatible standalone alias/object API NOT_APPLICABLE. Retain exact stdout/stderr/exit and actual version. No stack override, source wrapper, expectation normalization, address printing or allocator instrumentation.",
+  "scope": "Original counted API vector and genuine Jim object constructors. Observer rows print command code, exact name/prefix/member equality booleans, actual descriptor names and resident-string presence booleans. Public operations definition/query/invocation are separate. No arbitrary object cache contract, private command token, namespace membership, all alias types, C equivalence, VM/Rust pass, BIGIP or TMM claim."
+}

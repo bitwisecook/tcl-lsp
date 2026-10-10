@@ -1,0 +1,118 @@
+TclCompileLsetCmd(
+    Tcl_Interp *interp,		/* Tcl interpreter for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the
+				 * command. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds the resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Size tempDepth;		/* Depth used for emitting one part of the
+				 * code burst. */
+    Tcl_Token *varTokenPtr;	/* Pointer to the Tcl_Token representing the
+				 * parse of the variable name. */
+    Tcl_LVTIndex localIndex;	/* Index of var in local var table. */
+    int isScalar;		/* Flag == 1 if scalar, 0 if array. */
+    Tcl_Size i, numWords = parsePtr->numWords;
+
+    /*
+     * Check argument count.
+     */
+
+    /* TODO: Consider support for compiling expanded args. */
+    if (numWords < 3 || OutOfUintRange(numWords)) {
+	/*
+	 * Fail at run time, not in compilation.
+	 */
+
+	return TCL_ERROR;
+    }
+
+    /*
+     * Decide if we can use a frame slot for the var/array name or if we need
+     * to emit code to compute and push the name at runtime. We use a frame
+     * slot (entry in the array of local vars) if we are compiling a procedure
+     * body and if the name is simple text that does not include namespace
+     * qualifiers.
+     */
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    PushVarNameWord(varTokenPtr, 0, &localIndex, &isScalar, 1);
+    if (OutOfUintRangeUpper(localIndex)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Push the "index" args and the new element value.
+     */
+
+    for (i=2 ; i<numWords ; ++i) {
+	varTokenPtr = TokenAfter(varTokenPtr);
+	PUSH_TOKEN(		varTokenPtr, i);
+    }
+
+    /*
+     * Duplicate the variable name if it's been pushed.
+     */
+
+    if (localIndex < 0) {
+	tempDepth = numWords - (isScalar ? 2 : 1);
+	OP4(			OVER, tempDepth);
+    }
+
+    /*
+     * Duplicate an array index if one's been pushed.
+     */
+
+    if (!isScalar) {
+	tempDepth = numWords - (localIndex >= 0 ? 2 : 1);
+	OP4(			OVER, tempDepth);
+    }
+
+    /*
+     * Emit code to load the variable's value.
+     */
+
+    if (isScalar) {
+	if (localIndex < 0) {
+	    OP(			LOAD_STK);
+	} else {
+	    OP4(		LOAD_SCALAR, localIndex);
+	}
+    } else {
+	if (localIndex < 0) {
+	    OP(			LOAD_ARRAY_STK);
+	} else {
+	    OP4(		LOAD_ARRAY, localIndex);
+	}
+    }
+
+    /*
+     * Emit the correct variety of 'lset' instruction.
+     */
+
+    if (numWords == 4) {
+	OP(			LSET_LIST);
+    } else {
+	OP4(			LSET_FLAT, numWords - 1);
+    }
+
+    /*
+     * Emit code to put the value back in the variable.
+     */
+
+    if (isScalar) {
+	if (localIndex < 0) {
+	    OP(			STORE_STK);
+	} else {
+	    OP4(		STORE_SCALAR, localIndex);
+	}
+    } else {
+	if (localIndex < 0) {
+	    OP(			STORE_ARRAY_STK);
+	} else {
+	    OP4(		STORE_ARRAY, localIndex);
+	}
+    }
+
+    return TCL_OK;
+}

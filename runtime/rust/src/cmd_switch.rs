@@ -137,7 +137,7 @@ fn switch_inline_form(
             return Code::Ok;
         }
         Err(tcl_cmd_core::regex::OriginalRegexConsumerError::Command(error)) => {
-            return interp.report_cmd_error(error)
+            return interp.report_cmd_error(error);
         }
         Err(tcl_cmd_core::regex::OriginalRegexConsumerError::Callback(code)) => return code,
     };
@@ -211,7 +211,7 @@ fn switch_list_form(
                         "switch original list source geometry",
                     )
                     .into(),
-                )
+                );
             }
             Err(error) => return interp.set_error(error),
         }
@@ -240,7 +240,7 @@ fn switch_list_form(
             return Code::Ok;
         }
         Err(tcl_cmd_core::regex::OriginalRegexConsumerError::Command(error)) => {
-            return interp.report_cmd_error(error)
+            return interp.report_cmd_error(error);
         }
         Err(tcl_cmd_core::regex::OriginalRegexConsumerError::Callback(code)) => return code,
     };
@@ -351,11 +351,13 @@ mod tests {
     }
 
     fn run(i: &mut Interp, src: &[u8]) -> Vec<u8> {
+        let code = i.eval_str(src);
         assert_eq!(
-            i.eval_str(src),
+            code,
             Code::Ok,
-            "eval {:?}",
-            String::from_utf8_lossy(src)
+            "eval {:?}: {:?}",
+            String::from_utf8_lossy(src),
+            i.result_bytes()
         );
         i.result_bytes()
     }
@@ -534,8 +536,15 @@ mod tests {
     /// `switch -integer 010 {8 {puts a} 10 {puts b}}`.
     #[test]
     fn switch_integer_matches_by_value_on_tcl91() {
-        leak_free(|i| {
-            i.set_runtime_version(tcl_dialect::TclVersion::V9_1);
+        counters::reset();
+        {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("tcl9.1"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .expect("selected original C9.1 constructor");
+            let i = &mut interp;
             assert_eq!(
                 run(i, b"switch -integer 010 {8 {subst a} 10 {subst b}}"),
                 b"b"
@@ -557,7 +566,9 @@ mod tests {
                 run(i, b"switch -integer 1 {1 {subst a} abc {subst b}}"),
                 b"a"
             );
-        });
+        }
+        assert_eq!(counters::finalize(), 0);
+        assert_eq!(counters::double_free_count(), 0);
     }
 
     /// tclsh 9.1.0's error texts and codes for `-integer`.

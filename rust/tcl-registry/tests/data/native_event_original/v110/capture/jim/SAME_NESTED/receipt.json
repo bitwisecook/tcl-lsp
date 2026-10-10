@@ -1,0 +1,19 @@
+{
+  "id": "SAME_NESTED",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original110/jim/probe",
+    "0"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "5c9474fce3f69857b31b75c8b4e07546daea6512e65a1f565a55d1c174f9131d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|302e38342d392d6735626163376339",
+    "SAME_NESTED_INPUT|0|73657420782053414d453b20736574206c6f67207b7d3b2061667465722030207b73657420782053414d453b206c617070656e64206c6f672053414d453b2061667465722030207b7365742078204e4558543b206c617070656e64206c6f67204e4558547d7d3b20767761697420783b20736574206c6f67",
+    "SAME_NESTED|0|53414d45204e455854",
+    "SAME_NESTED_OPTIONS_NOT_TESTED|0|no-C-return-options-api"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

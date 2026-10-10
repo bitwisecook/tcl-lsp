@@ -1,0 +1,17 @@
+{
+  "configured_provider": "jim",
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/captured-package-future-frame121/probe.tcl"
+  ],
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "c1cfac561e3048f78ae444d4ed03b0b8d19cc9c158ab104386b601bbbc56593a",
+  "exit": 1,
+  "stdout_sha256": "feb37b34eea5e2705844d5448aff71be77c0bb72bb3ad3432d50563c634f3103",
+  "stderr_sha256": "80134d9830429065438659c29793f5151848250dda8b1e03f6b4a791c25c0324",
+  "rows": [
+    "VERSION|0.84-9-g5bac7c9"
+  ],
+  "claim_boundary": "Fresh native script-file channel with fixed ASCII source; observed callback namespace/frame/variable visibility, not counted object-vector or compilation admission."
+}

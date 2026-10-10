@@ -124,6 +124,8 @@ mod tests {
 
     #[test]
     fn original_namespace_upvar_grammar_preserves_worker_and_forwarded_frontiers() {
+        // Native proof naming.namespace.dispatch-upvar-zero-argument-usage:
+        // docs/design/analysis/name-resolution-proofs/namespace-dispatch-upvar-zero-argument-usage.md
         assert!(
             InvocationDialect::for_version(TclVersion::V8_4)
                 .native_namespace_upvar_protocol()

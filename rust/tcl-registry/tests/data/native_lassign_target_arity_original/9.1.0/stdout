@@ -1,0 +1,8 @@
+PATCHLEVEL 9.1.0
+RESULT no_operands 1 {wrong # args: should be "lassign list ?varName ...?"}
+RESULT literal_no_target 0 {A B}
+RESULT dynamic_no_target 0 {A B}
+RESULT compiled_no_target 0 {A B}
+RESULT malformed_no_target 1 {unmatched open brace in list}
+RESULT literal_one_target 0 B
+RESULT empty_no_target 0 {}

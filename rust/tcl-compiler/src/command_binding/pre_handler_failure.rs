@@ -223,15 +223,39 @@ impl SourceCommandBindings {
         origin: &Arc<super::SourceOriginId>,
         namespace: &SourceNamespaceKey,
     ) {
-        if let Some(entries) = self.unrepresented_entries.get_mut(origin) {
-            entries.retain(|entry| entry.may_share_namespace(namespace));
-        }
-        self.pre_handler_failures.retain(|site, failures| {
-            if &site.source == origin {
-                failures.retain(|failure| &failure.entry.namespace == namespace);
-            }
-            !failures.is_empty()
-        });
+        self.unrepresented_entries.update_if_needed(
+            |entries| {
+                entries.get(origin).is_some_and(|entries| {
+                    entries
+                        .iter()
+                        .any(|entry| !entry.may_share_namespace(namespace))
+                })
+            },
+            |entries| {
+                if let Some(entries) = entries.get_mut(origin) {
+                    entries.retain(|entry| entry.may_share_namespace(namespace));
+                }
+            },
+        );
+        self.pre_handler_failures.update_if_needed(
+            |failures| {
+                failures.iter().any(|(site, failures)| {
+                    failures.is_empty()
+                        || &site.source == origin
+                            && failures
+                                .iter()
+                                .any(|failure| &failure.entry.namespace != namespace)
+                })
+            },
+            |failures| {
+                failures.retain(|site, failures| {
+                    if &site.source == origin {
+                        failures.retain(|failure| &failure.entry.namespace == namespace);
+                    }
+                    !failures.is_empty()
+                })
+            },
+        );
     }
 }
 

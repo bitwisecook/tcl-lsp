@@ -1,0 +1,19 @@
+
+running 1 test
+test interp::native_variable_names::tests::active_read_unset_probe_preserves_actual_jim_unsupported_setup ... ADMISSION140 control physical=None in_proc=false list_dispatch=false compiles=false namespace=0 original=0x7f5ee458e680
+ADMISSION140 control physical=None in_proc=false list_dispatch=false compiles=false namespace=0 original=0x7f5ee4590ae0
+
+thread 'interp::native_variable_names::tests::active_read_unset_probe_preserves_actual_jim_unsupported_setup' (552582) panicked at src/interp/native_variable_names.rs:1815:13:
+assertion `left == right` failed: jim: [105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 98, 105, 110, 97, 114, 121, 34]
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_variable_names::tests::active_read_unset_probe_preserves_actual_jim_unsupported_setup
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1212 filtered out; finished in 1.01s
+

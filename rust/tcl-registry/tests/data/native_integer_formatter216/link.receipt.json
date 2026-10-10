@@ -1,0 +1,34 @@
+{
+  "label": "link",
+  "command": [
+    "cc",
+    "-shared",
+    "-Wl,--whole-archive",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-Wl,--no-whole-archive",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/native-integer-formatter216/libtcl8.4-observed.so"
+  ],
+  "exit": 0,
+  "seconds": 0.03856738898321055,
+  "required_sha256": {
+    "/workspace/.proofs/native-integer-formatter216-request/probe.c": "2c1e656d0a1bdc6a86f84a08a8601cb414eef16ce7f53ec9b1d882c99f91ff6e",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclObj.c": "6e20f047f13e19527f746934b7a9472405d1871e0936687004506f966bb8bd9c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclConfig.sh": "e67ced9d9a920741fd6ed13a7462acf7f7ccd75283e7ce1daa0ef8f3e7f712ca",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+    "/workspace/tcl-lsp/rust/tcl-host-c-abi/testdata/native_integer_formatter/observations.tsv": "cc19ad501bb96674935c4dd855ec055b3095b97673f1dca64f5cdc8a06a6929c",
+    "/workspace/.proofs/native-integer-formatter216-request/request.json": "1b73ed27bbbbca2b1452a1795649538828a6fea9b692da599b5dc009b3dc742e"
+  },
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "request_sha256": "1b73ed27bbbbca2b1452a1795649538828a6fea9b692da599b5dc009b3dc742e",
+  "produced_sha256": "66b79b3754bae00916073872f0eb2e812c45dd21cb24be0d092d6e17820c53c2"
+}

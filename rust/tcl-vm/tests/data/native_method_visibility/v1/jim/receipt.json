@@ -1,0 +1,33 @@
+{
+  "provider": "jim-current-upstream",
+  "probe_sha256": "58a2cd9b52855324f4f4cec366feac1d323985353516506631c19441cc942e66",
+  "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+  "makefile_sha256": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+  "source_owner_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "library_sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-DJIM_PROBE=1",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/native-method-visibility060/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/captured-native-method-visibility060/jim/probe"
+  ],
+  "compile_exit": 0,
+  "executable_sha256": "eb7b269623581169dee3b9804b47e34358dd8d86caaf311f77436f10074885c9",
+  "process_exit": 0,
+  "stdout_sha256": "5707d1b91c4f468cfe79a38218291016830110fb0bc37c8d942c2c7eff73518a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|302e38342d392d6735626163376339",
+    "OO_UNAVAILABLE|0|554e415641494c41424c45"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

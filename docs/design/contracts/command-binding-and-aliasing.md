@@ -212,8 +212,8 @@ does not invoke the handler twice.  The projection follows terminal alias
 resolution and applies the same rule to direct and embedded invocations; it
 does not identify handlers by command spelling.
 
-The historical may-binding state remains a module-wide union for reachability;
-it therefore retains a registry fallback alongside a source-defined procedure.
+The module-wide may-binding inventory unions possible reachable targets;
+it can retain a registry fallback alongside a source-defined procedure.
 Consumers that need execution-point facts use the separate source binding
 timeline: it records each statement before substitutions and before its direct
 call, in Tcl's substitution-before-direct order, and joins conditional and

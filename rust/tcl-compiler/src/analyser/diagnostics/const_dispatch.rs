@@ -47,6 +47,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::analyser::state::{Analyser, ConstDispatchSite};
+use crate::command_binding::SourceCommandReference;
 use crate::signature_scan::types::SignatureCommandInvocation;
 use crate::value_provenance::{ValueContributor, const_contributors};
 
@@ -121,9 +122,8 @@ fn settle_one_site(
     // and the writable provenance narrows to that element's sub-span
     // within the defining literal.  A plain `$cmd` head uses the whole
     // value as the name.
-    let mut by_target: HashMap<String, Vec<ValueContributor>> = HashMap::new();
-    let mut order: Vec<String> = Vec::new();
-    let mut references = HashMap::new();
+    let mut by_target: HashMap<SourceCommandReference, Vec<ValueContributor>> = HashMap::new();
+    let mut order: Vec<SourceCommandReference> = Vec::new();
     for c in &contributors {
         let Some(c) = command_component(
             c,
@@ -138,18 +138,16 @@ fn settle_one_site(
         if !reference.is_user_command() {
             continue;
         }
-        let winner = reference.slot().to_owned();
-        references.insert(winner.clone(), reference);
-        if !by_target.contains_key(&winner) {
-            order.push(winner.clone());
+        if !by_target.contains_key(&reference) {
+            order.push(reference.clone());
         }
-        by_target.entry(winner).or_default().push(c);
+        by_target.entry(reference).or_default().push(c);
     }
     for winner in order {
         let group = &by_target[&winner];
         let rename_safe = group.iter().all(|c| c.literal_span.is_some());
         let written = &group[0].value;
-        let reference = &references[&winner];
+        let reference = &winner;
         let mut invocation = SignatureCommandInvocation::written(written.clone(), site.span, None);
         invocation.retain_reference(reference);
         invocation.indirect = true;
@@ -221,10 +219,7 @@ impl Analyser {
         let mut ambiguous = HashSet::new();
         for invocation in settled.iter().filter(|invocation| !invocation.indirect) {
             let span = (invocation.range.start(), invocation.range.end());
-            let target = (
-                invocation.resolved_qualified_name.clone(),
-                invocation.resolved_command_reference.clone(),
-            );
+            let target = invocation.resolved_command_reference.clone();
             if literal_definitions
                 .insert(span, target.clone())
                 .is_some_and(|previous| previous != target)
@@ -238,10 +233,11 @@ impl Analyser {
                 !invocation.indirect
                     && ambiguous.contains(&(invocation.range.start(), invocation.range.end()))
             })
-            .map(|invocation| invocation.resolved_qualified_name.clone())
+            .map(|invocation| invocation.resolved_command_reference.clone())
             .collect();
         for invocation in &mut settled {
-            if (invocation.indirect && unsafe_targets.contains(&invocation.resolved_qualified_name))
+            if (invocation.indirect
+                && unsafe_targets.contains(&invocation.resolved_command_reference))
                 || ambiguous.contains(&(invocation.range.start(), invocation.range.end()))
             {
                 invocation.rename_safe = false;
@@ -255,7 +251,6 @@ impl Analyser {
             seen.insert((
                 inv.range.start(),
                 inv.range.end(),
-                inv.resolved_qualified_name.clone().unwrap_or_default(),
                 inv.indirect,
                 inv.resolved_command_reference.clone(),
             ))

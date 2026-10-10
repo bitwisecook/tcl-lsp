@@ -336,7 +336,7 @@ impl<'a> Query<'a> {
                 if index.kind != crate::place::IndexKind::Literal {
                     return None;
                 }
-                Some(vec![dictionary.get(&index.value)?.clone()])
+                Some(vec![dictionary.get(index.value.try_utf8().ok()?)?.clone()])
             }
             VarElementsEffect::SetsDictValue => {
                 let keys = write.dictionary_keys()?;

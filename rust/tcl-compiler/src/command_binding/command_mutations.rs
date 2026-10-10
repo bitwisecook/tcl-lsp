@@ -92,6 +92,8 @@ impl ModuleCommandBindings {
         }
         destination.is_none_or(|destination| {
             let Some(destination) = self.publication_key_at(&context.namespace_identity(), destination, super::namespace_slots::PublicationPurpose::Rename) else { return false; };
+            if !self.namespaces.contains(destination.holder().as_ref())
+                || self.unknown_lookup_namespaces.contains(destination.holder().as_ref()) { return false; }
             self.bindings.get(&destination).map_or_else(
                 || !destination.authored_spelling().is_some_and(|spelling| self.baseline.semantics.binding_names().contains(spelling)),
                 |bindings| bindings == &BTreeSet::from([MayBinding::Missing]),
@@ -125,9 +127,7 @@ impl ModuleCommandBindings {
             return None;
         }
         for slot in self.source_keys(head, namespace) {
-            let alternatives = self.bindings.get(&slot).cloned().unwrap_or_else(|| {
-                Self::unmodified_bindings(&slot, self.baseline.semantics.binding_names())
-            });
+            let alternatives = self.binding_alternatives(&slot);
             if alternatives.len() != 1 {
                 return None;
             }
@@ -385,9 +385,7 @@ impl ModuleCommandBindings {
                 continue;
             }
             if let CapturedMutationKind::Move { destination } = &kind {
-                let alternatives = self.bindings.get(destination).cloned().unwrap_or_else(|| {
-                    Self::unmodified_bindings(destination, self.baseline.semantics.binding_names())
-                });
+                let alternatives = self.binding_alternatives(destination);
                 if alternatives != BTreeSet::from([MayBinding::Missing]) {
                     continue;
                 }

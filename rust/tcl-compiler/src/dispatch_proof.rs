@@ -2069,11 +2069,12 @@ fn apply_namespace_transition(
             NamespaceTransitionTarget::Current => {
                 Some(SubjectPattern::NamespacePrefix(String::new()))
             }
-            NamespaceTransitionTarget::Named(TransitionSubject::Literal(name))
-                if name.starts_with("::") =>
+            NamespaceTransitionTarget::Named(subject)
+                if subject.literal().is_some_and(|name| name.starts_with("::")) =>
             {
                 Some(SubjectPattern::NamespacePrefix(
-                    normalise_name(name).into_owned(),
+                    normalise_name(subject.literal().expect("qualified namespace value"))
+                        .into_owned(),
                 ))
             }
             NamespaceTransitionTarget::Named(_) => None,

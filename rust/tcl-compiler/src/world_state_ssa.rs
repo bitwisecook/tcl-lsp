@@ -825,10 +825,12 @@ fn namespace_target(target: &NamespaceTransitionTarget) -> WorldNamespaceScope {
         // namespace.  Retaining its spelling as a globally stable name would
         // prove unrelated trees disjoint, so only fully-qualified literals
         // become exact scopes here.
-        NamespaceTransitionTarget::Named(TransitionSubject::Literal(namespace))
-            if namespace.starts_with("::") =>
+        NamespaceTransitionTarget::Named(subject)
+            if subject
+                .literal()
+                .is_some_and(|namespace| namespace.starts_with("::")) =>
         {
-            WorldNamespaceScope::named(namespace)
+            WorldNamespaceScope::named(subject.literal().expect("qualified namespace value"))
         }
         NamespaceTransitionTarget::Named(_) => WorldNamespaceScope::Any,
     }
@@ -915,15 +917,23 @@ fn object_private_variable_region(namespace: &ObjectPrivateNamespace) -> WorldRe
 
 fn subject_scope(subject: &TransitionSubject) -> WorldSubjectScope {
     match subject {
-        TransitionSubject::Literal(value) => WorldSubjectScope::named(value),
-        TransitionSubject::Unknown { .. } => WorldSubjectScope::Wildcard,
+        TransitionSubject::Literal(value) | TransitionSubject::LocatedLiteral { value, .. } => {
+            WorldSubjectScope::named(value)
+        }
+        TransitionSubject::LocatedNativeBytes { .. } | TransitionSubject::Unknown { .. } => {
+            WorldSubjectScope::Wildcard
+        }
     }
 }
 
 fn subject_interpreter(subject: &TransitionSubject) -> WorldInterpreterScope {
     match subject {
-        TransitionSubject::Literal(value) => WorldInterpreterScope::named(value),
-        TransitionSubject::Unknown { .. } => WorldInterpreterScope::Any,
+        TransitionSubject::Literal(value) | TransitionSubject::LocatedLiteral { value, .. } => {
+            WorldInterpreterScope::named(value)
+        }
+        TransitionSubject::LocatedNativeBytes { .. } | TransitionSubject::Unknown { .. } => {
+            WorldInterpreterScope::Any
+        }
     }
 }
 
@@ -933,8 +943,12 @@ fn optional_subject_interpreter(subject: Option<&TransitionSubject>) -> WorldInt
 
 fn subject_namespace(subject: &TransitionSubject) -> WorldNamespaceScope {
     match subject {
-        TransitionSubject::Literal(value) => WorldNamespaceScope::named(value),
-        TransitionSubject::Unknown { .. } => WorldNamespaceScope::Any,
+        TransitionSubject::Literal(value) | TransitionSubject::LocatedLiteral { value, .. } => {
+            WorldNamespaceScope::named(value)
+        }
+        TransitionSubject::LocatedNativeBytes { .. } | TransitionSubject::Unknown { .. } => {
+            WorldNamespaceScope::Any
+        }
     }
 }
 

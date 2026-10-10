@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.15s
+     Running unittests src/lib.rs (/workspace/.targets/naming-runtime/debug/deps/tcl_vm-13c4a8dc710f7193)
+
+running 1 test
+test cmd_oo::native_info_option_tests::variable_info_matches_original_native_option_and_target_failures ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 645 filtered out; finished in 0.55s
+

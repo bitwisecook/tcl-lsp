@@ -245,12 +245,19 @@ pub(crate) fn ssa_destruction_keys(
     {
         return actual;
     }
-    crate::registry_invocation::declaration_invocation_flow(registry, tokens, &advice)
-        .into_iter()
-        .flat_map(|flow| flow.removes)
-        .filter_map(|name| {
-            crate::var_resolve::canonical_literal_variable_key(&name, before, registry)
+    let Some(flow) =
+        crate::registry_invocation::declaration_invocation_flow(registry, tokens, &advice)
+    else {
+        return actual;
+    };
+    tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| {
+            binding.declaration_variable_argument_keys(tokens, &flow.removal_arguments, registry)
         })
+        .into_iter()
+        .flatten()
         .map(|key| (key, true))
         .collect()
 }
@@ -272,6 +279,18 @@ pub fn def_places(
         tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments)
     }) {
         return Vec::new();
+    }
+    if let Some(tokens) = stmt.tokens()
+        && tokens
+            .source_binding
+            .as_ref()
+            .is_some_and(|binding| binding.variable_context.execution_name_policy.is_some())
+        && !matches!(
+            tokens.synthetic,
+            Some(crate::ir::SyntheticMarker::IterationBindings(_))
+        )
+    {
+        return invocation_def_places(stmt, ctx, registry);
     }
     match stmt {
         Statement::AssignConst {
@@ -334,18 +353,6 @@ fn invocation_def_places(
         return vec![place::unknown_top()];
     };
     invocation.definition_places(ctx, registry)
-}
-
-pub(crate) fn resolved_invocation_def_places_with_output_order(
-    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
-    ctx: &ResolveContext,
-    registry: &CommandRegistry,
-    output_order: Option<&[usize]>,
-) -> Vec<Place> {
-    resolved_invocation_variable_definitions(invocation, ctx, registry, output_order)
-        .into_iter()
-        .map(|(_, place)| place)
-        .collect()
 }
 
 pub(crate) fn resolved_invocation_variable_definitions(
@@ -447,6 +454,80 @@ pub fn def_places_with_continuation(
             place
         })
         .collect()
+}
+
+/// Definitions at one retained CFG operation. Specialised IR assignments can
+/// omit their own token field; their authentic source-input carrier still
+/// belongs to this exact point and supplies the selected variable operands.
+#[must_use]
+pub fn def_places_at(
+    statement: &Statement,
+    block: crate::cfg::BlockId,
+    index: usize,
+    points: &PointResolveContexts,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    use tcl_registry::native_compilation::VariableOperandBindingPhase;
+    let before = points.before_statement(block, index);
+    let after = points.after_statement(block, index);
+    if before.execution_name_policy.is_none() {
+        return def_places_with_continuation(statement, before, after, registry);
+    }
+    if let Some(effects) =
+        crate::dictionary_bindings::scope_marker_effects(statement, before, registry)
+    {
+        return effects.writes;
+    }
+    if statement.has_opaque_native_accesses() {
+        return Vec::new();
+    }
+    let Some(tokens) = points.source_tokens_at(block, index) else {
+        return Vec::new();
+    };
+    if tokens.synthetic.is_some() {
+        return def_places_with_continuation(statement, before, after, registry);
+    }
+    let semantic_context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let Some(invocation) =
+        crate::registry_invocation::normal_transfer_invocation(registry, semantic_context, tokens)
+    else {
+        return Vec::new();
+    };
+    match invocation.variable_binding_phase() {
+        VariableOperandBindingPhase::NormalContinuation => invocation.definition_places(
+            tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.normal_variable_continuation())
+                .unwrap_or(after),
+            registry,
+        ),
+        VariableOperandBindingPhase::BodyProtocol => Vec::new(),
+        VariableOperandBindingPhase::AfterArguments => {
+            let continued = invocation.definition_places(after, registry);
+            invocation
+                .definition_places(before, registry)
+                .into_iter()
+                .map(|place| {
+                    if place.cell.as_ref().is_some_and(|cell| {
+                        cell.generation == crate::place::CellGeneration::Unknown
+                    }) && let Some(selected) = continued.iter().find(|selected| {
+                        selected.index == place.index
+                            && selected.cell.as_ref().zip(place.cell.as_ref()).is_some_and(
+                                |(left, right)| {
+                                    left.owner == right.owner && left.name == right.name
+                                },
+                            )
+                    }) {
+                        return selected.clone();
+                    }
+                    place
+                })
+                .collect()
+        }
+    }
 }
 
 /// Resolve the reads of every command in `script_text` — VAR_READ-role name
@@ -1109,18 +1190,10 @@ pub fn element_writes_observed_with_contexts(
     let mut reads: Vec<Place> = Vec::new();
     for (&id, block) in &cfg.blocks {
         for (index, stmt) in block.statements.iter().enumerate() {
-            reads.extend(read_places(
-                stmt,
-                points.before_statement(id, index),
-                registry,
-            ));
+            reads.extend(read_places_at(stmt, id, index, points, registry));
         }
         if let Some(term) = &block.terminator {
-            reads.extend(terminator_read_places(
-                term,
-                points.before_terminator(id),
-                registry,
-            ));
+            reads.extend(terminator_read_places_at(term, id, points, registry));
         }
     }
 
@@ -1288,6 +1361,99 @@ mod tests {
                 ordinal == 1,
                 "store {ordinal}"
             );
+        }
+    }
+
+    #[test]
+    fn element_observers_follow_original_renamed_and_aliased_array_reads() {
+        // Native dispatch controls: naming.variable.original-array-observer-renamed-alias-controls
+        // docs/design/analysis/name-resolution-proofs/original-array-observer-renamed-alias-controls.md
+        // naming.variable.original-point-element-observers
+        // docs/design/analysis/name-resolution-proofs/variable-original-point-element-observers.md
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let (_owner, captured) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            let entry = crate::command_binding::SourceAnalysisEntry {
+                native_entry: Some(std::sync::Arc::new(captured)),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..Default::default()
+            };
+            for (setup, head) in [
+                ("", "array"),
+                ("rename array array_old; ", "array_old"),
+                ("interp alias {} array_alias {} array; ", "array_alias"),
+            ] {
+                let source = format!("set a(k) OLD; {setup}set out [{head} get a]");
+                let unit = CompilationUnit::build_with_source_entry(
+                    &source,
+                    crate::compilation_unit::UnitBuildOptions {
+                        registry: &registry,
+                        defer_top_level: false,
+                        config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                        dialect: Some(profile),
+                        external_call_sites: None,
+                        declared_commands: None,
+                    },
+                    &entry,
+                );
+                let function = &unit.top_level;
+                let points = function.ssa.point_contexts.as_ref().unwrap();
+                let mut selected_reads = 0;
+                let mut stores = Vec::new();
+                for (&block, body) in &function.cfg.blocks {
+                    for (index, statement) in body.statements.iter().enumerate() {
+                        let writes = def_places_at(statement, block, index, points, &registry);
+                        stores.extend(writes.into_iter().filter_map(|place| {
+                            (place.kind == PlaceKind::ArrayElem && place.name == "a").then_some((
+                                body.name.clone(),
+                                index,
+                                place,
+                            ))
+                        }));
+                        let Some(tokens) = points.source_tokens_at(block, index) else {
+                            continue;
+                        };
+                        for child in crate::word_subst::lifted_calls(
+                            Some(tokens),
+                            unit.ir_module.native_lexer_config(),
+                        ) {
+                            if child.command != head {
+                                continue;
+                            }
+                            let child_tokens = child.tokens.as_ref().unwrap();
+                            assert!(
+                                child_tokens.source_binding.as_ref().is_some_and(|binding| {
+                                    binding.proved_target().is_some_and(|target| {
+                                        target.registry_backed
+                                            && target.command.trim_start_matches("::") == "array"
+                                    })
+                                }),
+                                "{dialect}: actual selected child owner: {source}: {child:?}",
+                            );
+                            let reads = read_places_at(statement, block, index, points, &registry);
+                            assert!(
+                                reads.iter().any(|place| {
+                                    place.kind == PlaceKind::ArrayWhole && place.name == "a"
+                                }),
+                                "{dialect}: actual array read inventory: {source}: {reads:?}",
+                            );
+                            selected_reads += 1;
+                        }
+                    }
+                }
+                assert_eq!(selected_reads, 1, "{dialect}: {source}");
+                assert_eq!(stores.len(), 1, "{dialect}: actual element store: {source}");
+                let observed =
+                    element_writes_observed_with_contexts(&function.cfg, points, &registry);
+                let (block, index, _) = &stores[0];
+                assert!(
+                    observed.contains(&(block.clone(), i32::try_from(*index).unwrap())),
+                    "{dialect}: selected {head} read observes the original element: {observed:?}",
+                );
+            }
         }
     }
 

@@ -97,17 +97,24 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::NamespaceBindings(recipe) => {
                 self.original_namespace_preparations(words, recipe, context)
             }
-            NativeInstructionPlan::Upvar(recipe) => self.original_operands(
-                words,
-                recipe.level.iter().cloned().chain(recipe.bindings.iter().map(|binding| binding.other.clone())),
-                context,
-            ),
+            NativeInstructionPlan::Upvar(recipe) => {
+                if let Some(level) = &recipe.level
+                    && let Some(failure) = self.original_operand(words, level, context)
+                { return Some(failure); }
+                for binding in &recipe.bindings {
+                    if let Some(failure) = self.original_operand(words, &binding.other, context) {
+                        return Some(failure);
+                    }
+                    self.declare_source_local(Some(&binding.local));
+                }
+                None
+            },
             NativeInstructionPlan::InfoExists(recipe) => {
                 match (&recipe.receiver, &recipe.operand) {
                     (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::Original(target), NativeCompilerWordOperand::Original(word)) => {
                         self.original_variable_operand(words, target, *word, context)
                     }
-                    (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::ExpandedLiteral { .. }, NativeCompilerWordOperand::LiteralExpansion { .. }) => None,
+                    (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::ExpandedLiteral { name, .. }, NativeCompilerWordOperand::LiteralExpansion { .. }) => { self.source_local_command(name); None },
                     _ => { self.require_provider(); None }
                 }
             }
@@ -120,15 +127,23 @@ impl CompilerTraversal<'_> {
                     .map(NativeCompilerWordOperand::Original),
                 context,
             ),
-            NativeInstructionPlan::Load { target } => {
-                let Some(target_word) = words.len().checked_sub(1) else {
-                    self.require_provider();
-                    return None;
-                };
-                self.original_variable_operand(words, target, target_word, context)
+            NativeInstructionPlan::Load { target_word, target } => {
+                self.original_variable_operand(words, target, *target_word, context)
             }
-            NativeInstructionPlan::Store { target, value_word } => {
-                self.original_store_preparations(words, target, *value_word, context)
+            NativeInstructionPlan::Store { target_word, target, value_word } => {
+                self.original_store_preparations(words, target, *target_word, *value_word, context)
+            }
+            NativeInstructionPlan::Increment { target_word, target, amount_word, .. } => {
+                if let Some(failure) = self.original_variable_operand(words, target, *target_word, context) {
+                    return Some(failure);
+                }
+                self.original_operands(words, amount_word.iter().copied().map(NativeCompilerWordOperand::Original), context)
+            }
+            NativeInstructionPlan::Append { target_word, target, recipe } => {
+                if let Some(failure) = self.original_variable_operand(words, target, *target_word, context) {
+                    return Some(failure);
+                }
+                self.original_operands(words, recipe.values.clone().map(NativeCompilerWordOperand::Original), context)
             }
             NativeInstructionPlan::Error(error) => self.original_operands(
                 words,
@@ -153,29 +168,56 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::NamedInvocation(named) => {
                 self.control_preparations(words, offset, recipe, context, OriginalControlPreparations {steps: &named.preparations, generic: true, rejection: None})
             }
+            other => self.original_value_compilation(words, offset, other, context),
+        }
+    }
+    fn original_value_compilation(
+        &mut self,
+        words: &[WordExpr],
+        offset: u32,
+        recipe: &NativeInstructionPlan,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        match recipe {
             NativeInstructionPlan::DictionaryMutation(dictionary) => {
+                self.declare_source_local(Some(&dictionary.receiver));
                 self.original_operands(words, dictionary.operands.iter().cloned(), context)
             }
             NativeInstructionPlan::DictionaryLookup(dictionary) => {
                 self.original_operands(words, dictionary.operands.iter().cloned(), context)
             }
-            NativeInstructionPlan::ListOperations(recipe) => self.original_list_operation(words, recipe, context),
+            NativeInstructionPlan::ListOperations(recipe) => {
+                self.original_list_operation(words, recipe, context)
+            }
             NativeInstructionPlan::ListIndex(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)
             }
             NativeInstructionPlan::Array(recipe) => {
-                let Some(recipe)=&recipe.instruction else{return None;};
-                if let (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::Original(target),NativeCompilerWordOperand::Original(index))=(&recipe.receiver,&recipe.operand) {
-                    if let Some(failure)=self.original_variable_operand(words,target,*index,context){return Some(failure);}
-                }
-                self.original_operands(words,recipe.values.iter().cloned(),context)
+                let Some(recipe) = &recipe.instruction else {
+                    return None;
+                };
+                if let (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::Original(target),NativeCompilerWordOperand::Original(index))=(&recipe.receiver,&recipe.operand)
+                    && let Some(failure)=self.original_variable_operand(words,target,*index,context)
+                { return Some(failure); }
+                if let tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::ExpandedLiteral { name, .. } = &recipe.receiver { self.source_local_command(name); }
+                self.original_operands(words, recipe.values.iter().cloned(), context)
+            }
+            NativeInstructionPlan::NamespaceString(recipe) => {
+                self.original_operands(words, std::iter::once(recipe.operand.clone()), context)
             }
             NativeInstructionPlan::Introspection(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)
             }
-            NativeInstructionPlan::MathOperator(mathop) => self.original_operands(words, mathop.steps.iter().filter_map(|step| match step {
-                tcl_registry::native_mathop_compilation::NativeMathopStep::Word(operand) => Some(operand.clone()), _ => None,
-            }), context),
+            NativeInstructionPlan::MathOperator(mathop) => self.original_operands(
+                words,
+                mathop.steps.iter().filter_map(|step| match step {
+                    tcl_registry::native_mathop_compilation::NativeMathopStep::Word(operand) => {
+                        Some(operand.clone())
+                    }
+                    _ => None,
+                }),
+                context,
+            ),
             NativeInstructionPlan::Scalar(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)
             }
@@ -197,7 +239,11 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Unset(recipe) => {
                 self.original_unset_preparations(words, recipe, context)
             }
-            NativeInstructionPlan::StringTrim(recipe) => self.original_operands(words,std::iter::once(recipe.subject.clone()).chain(recipe.characters.iter().cloned()),context),
+            NativeInstructionPlan::StringTrim(recipe) => self.original_operands(
+                words,
+                std::iter::once(recipe.subject.clone()).chain(recipe.characters.iter().cloned()),
+                context,
+            ),
             NativeInstructionPlan::StringMatch(recipe) => self.original_operands(
                 words,
                 [recipe.pattern.clone(), recipe.subject.clone()],
@@ -236,6 +282,9 @@ impl CompilerTraversal<'_> {
     ) -> Option<SourceNativeCompilationFailure> {
         use tcl_registry::native_unset_compilation::NativeUnsetReceiver;
         for variable in &recipe.variables {
+            if let NativeUnsetReceiver::ExpandedLiteral { name, .. } = &variable.receiver {
+                self.source_local_command(name);
+            }
             if let NativeUnsetReceiver::Original(target) = &variable.receiver {
                 let NativeCompilerWordOperand::Original(index) = variable.operand else {
                     self.require_provider();
@@ -254,13 +303,10 @@ impl CompilerTraversal<'_> {
         &mut self,
         words: &[WordExpr],
         target: &tcl_syntax::native_variable_words::NativeVariableWordOperand,
+        target_word: usize,
         value_word: usize,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceNativeCompilationFailure> {
-        let Some(target_word) = value_word.checked_sub(1) else {
-            self.require_provider();
-            return None;
-        };
         if let Some(failure) = self.original_variable_operand(words, target, target_word, context) {
             return Some(failure);
         }
@@ -292,10 +338,12 @@ impl CompilerTraversal<'_> {
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceNativeCompilationFailure> {
         for visit in &recipe.visits {
-            if let tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingVisit::Word(operand) = visit
-                && let Some(failure) = self.original_operand(words, operand, context)
-            {
-                return Some(failure);
+            match visit {
+                tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingVisit::Word(operand) => {
+                    if let Some(failure) = self.original_operand(words, operand, context) { return Some(failure); }
+                }
+                tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingVisit::DeclareLocal(name) => self.declare_source_local(Some(name)),
+                tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingVisit::Literal(_) => {}
             }
         }
         if recipe.outcome == tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingOutcome::Generic {
@@ -374,9 +422,15 @@ impl CompilerTraversal<'_> {
                         recipe.expression_error_context(&program.operand),
                     )
                 }
-                NativeControlPreparationStep::DeclareLocal(_)
-                | NativeControlPreparationStep::DeclareAnonymousLocal
-                | NativeControlPreparationStep::Literal(_)
+                NativeControlPreparationStep::DeclareLocal(name) => {
+                    self.declare_source_local(Some(name));
+                    None
+                }
+                NativeControlPreparationStep::DeclareAnonymousLocal => {
+                    self.declare_source_local(None);
+                    None
+                }
+                NativeControlPreparationStep::Literal(_)
                 | NativeControlPreparationStep::Integer(_)
                 | NativeControlPreparationStep::List(_) => None,
             };
@@ -598,6 +652,9 @@ impl CompilerTraversal<'_> {
             self.require_provider();
             return None;
         }
+        if expression_has_unretained_local_visits(&program.tree) {
+            self.locals = None;
+        }
         let (steps, prerequisite) = self.original_expression_steps(program);
         self.retain_prefix_math_table(prerequisite.clone());
         for step in steps {
@@ -727,6 +784,10 @@ impl CompilerTraversal<'_> {
                         {
                             return Some(failure);
                         }
+                    } else if let Target::ExpandedLiteral { name, .. } = target {
+                        self.source_local_command(name);
+                    } else {
+                        self.locals = None;
                     }
                 }
                 None
@@ -747,13 +808,17 @@ impl CompilerTraversal<'_> {
     ) -> Option<SourceNativeCompilationFailure> {
         use tcl_syntax::native_variable_words::NativeVariableWordOperand;
         match target {
-            NativeVariableWordOperand::Literal { .. } => None,
+            NativeVariableWordOperand::Literal { name, .. } => {
+                self.source_local_command(name);
+                None
+            }
             NativeVariableWordOperand::DynamicWord => self.original_operand(
                 words,
                 &NativeCompilerWordOperand::Original(target_word),
                 context,
             ),
-            NativeVariableWordOperand::CompoundArray { index, .. } => {
+            NativeVariableWordOperand::CompoundArray { name, index, .. } => {
+                self.source_local_command(name);
                 self.original_variable_index(index, context)
             }
         }
@@ -795,14 +860,31 @@ impl CompilerTraversal<'_> {
                         return Some(failure);
                     }
                 }
-                tcl_lexer::ExecutablePart::Variable {
-                    index: Some(index), ..
-                } => {
-                    pending.push((index, 0, depth + 1));
+                tcl_lexer::ExecutablePart::Variable { index, .. } => {
+                    // The source-local name producer must retain this exact arena,
+                    // not reparsed index text or the whole materialised word.
+                    let root = self.state.source_variables.execution_name_policy
+                        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                        .and_then(|policy| crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_executable(
+                            arena, arena.image(), context.config, component.span,
+                            tcl_syntax::word_rules::WordValueRules::from_config(&context.config), policy,
+                        ));
+                    if let Some(root) = root {
+                        if self.locals.as_mut().is_some_and(|locals| {
+                            !locals.substitution_name(root.bytes(), root.is_separate_array_root())
+                        }) {
+                            self.locals = None;
+                        }
+                    } else {
+                        self.locals = None;
+                    }
+                    if let Some(index) = index {
+                        pending.push((index, 0, depth + 1));
+                    }
                 }
                 tcl_lexer::ExecutablePart::Expression { .. }
                 | tcl_lexer::ExecutablePart::ParseError(_) => self.possible_error = true,
-                _ => {}
+                tcl_lexer::ExecutablePart::Text(_) => {}
             }
         }
         None
@@ -895,4 +977,35 @@ fn entered_context(
             }
         }
     })
+}
+
+fn expression_has_unretained_local_visits(
+    tree: &tcl_registry::native_expression_program::NativeExpressionTree,
+) -> bool {
+    use tcl_registry::native_expression_program::NativeExpressionTree;
+    use tcl_syntax::expr::ExprNode;
+    let NativeExpressionTree::Parsed(root) = tree else {
+        return true;
+    };
+    let mut pending = vec![root];
+    while let Some(node) = pending.pop() {
+        match node {
+            ExprNode::Literal { .. } => {}
+            ExprNode::Unary { operand, .. } => pending.push(operand),
+            ExprNode::Binary { left, right, .. } => pending.extend([right.as_ref(), left.as_ref()]),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+                ..
+            } => pending.extend([
+                false_branch.as_ref(),
+                true_branch.as_ref(),
+                condition.as_ref(),
+            ]),
+            ExprNode::Call { args, .. } => pending.extend(args.iter().rev()),
+            _ => return true,
+        }
+    }
+    false
 }

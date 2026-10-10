@@ -28,7 +28,7 @@
 //!
 //! Semantics verified against tclsh 9.0.
 
-use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, drop_fresh, new_string, obj_bytes};
 use crate::obj::TclObj;
 use tcl_syntax::value::ValueOps;
 
@@ -98,11 +98,10 @@ fn time_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         1
     };
-    let script = obj_bytes(argv[1]);
     let start = interp.host().clock().now_micros();
     let mut i = count;
     while i > 0 {
-        let code = interp.eval_body(&script);
+        let code = interp.eval_generic_control_body(argv[1]);
         if code != Code::Ok {
             return code;
         }
@@ -630,7 +629,287 @@ fn lmap(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     each_loop(interp, argv, true)
 }
 
+struct EachLoopGroup {
+    variables: *mut TclObj,
+    values: *mut TclObj,
+    _variable_owner: Option<crate::obj::Owned>,
+    _value_owner: Option<crate::obj::Owned>,
+    _variable_lifetime: crate::obj::NativeObjectLifetime,
+    _value_lifetime: crate::obj::NativeObjectLifetime,
+    variable_items: Option<crate::list::NativeListBacking>,
+    value_items: Option<crate::list::NativeListBacking>,
+    abstract_values: Option<crate::native_arithseries::NativeEachLoopAbstractValues>,
+}
+
+fn native_each_loop_members(
+    root: *mut TclObj,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<crate::list::NativeListBacking, tcl_syntax::value::ValueError> {
+    drop(crate::list::list_elements_native_checked(root, strings)?);
+    crate::list::native_list_backing(root).ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native each-loop concrete List backing",
+        ),
+    )
+}
+
+/// Prepare one original pair outside the recursively entered body frame.
+#[inline(never)]
+fn prepare_each_loop_group(
+    interp: &mut Interp,
+    pair: &[*mut TclObj],
+    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<(EachLoopGroup, (usize, usize)), Code> {
+    let recipe = protocol.recipe();
+    let kind = protocol.kind();
+    let variable_owner = if recipe.copies_headers() {
+        match crate::list::native_list_copy(pair[0], strings) {
+            Ok(owner) => Some(owner),
+            Err(error) => return Err(interp.report_cmd_error(error.into())),
+        }
+    } else {
+        None
+    };
+    let variables = variable_owner
+        .as_ref()
+        .map_or(pair[0], crate::obj::Owned::as_ptr);
+    let variable_items = match native_each_loop_members(variables, strings) {
+        Ok(items) => items,
+        Err(error) => return Err(interp.report_cmd_error(error.into())),
+    };
+    let variable_count = variable_items.len();
+    if variable_count == 0 && !recipe.live_iterators() {
+        return Err(
+            interp.report_cmd_error(tcl_cmd_core::native_each_loop::empty_variables(
+                recipe, kind,
+            )),
+        );
+    }
+    let abstract_values =
+        match crate::native_arithseries::capture_native_each_loop_abstract(pair[1], strings) {
+            Ok(values) => values,
+            Err(error) => return Err(interp.report_cmd_error(error.into())),
+        };
+    let value_owner = if abstract_values.is_some() {
+        None
+    } else if recipe.copies_headers() {
+        match crate::list::native_list_copy(pair[1], strings) {
+            Ok(owner) => Some(owner),
+            Err(error) => return Err(interp.report_cmd_error(error.into())),
+        }
+    } else {
+        None
+    };
+    let values = value_owner
+        .as_ref()
+        .map_or(pair[1], crate::obj::Owned::as_ptr);
+    let value_items = if abstract_values.is_some() || recipe.live_iterators() {
+        None
+    } else {
+        match native_each_loop_members(values, strings) {
+            Ok(items) => Some(items),
+            Err(error) => return Err(interp.report_cmd_error(error.into())),
+        }
+    };
+    let lengths = (
+        variable_count,
+        abstract_values.as_ref().map_or_else(
+            || value_items.as_ref().map_or(0, |items| items.len()),
+            crate::native_arithseries::NativeEachLoopAbstractValues::length,
+        ),
+    );
+    let group = EachLoopGroup {
+        variables,
+        values,
+        _variable_owner: variable_owner,
+        _value_owner: value_owner,
+        _variable_lifetime: crate::obj::NativeObjectLifetime::retain(variables),
+        _value_lifetime: crate::obj::NativeObjectLifetime::retain(values),
+        variable_items: Some(variable_items),
+        value_items,
+        abstract_values,
+    };
+    Ok((group, lengths))
+}
+
+#[inline(never)]
+fn prepare_each_loop_groups(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<(Vec<EachLoopGroup>, Vec<(usize, usize)>), Code> {
+    interp
+        .associate_native_jim_arguments(argv)
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    let mut groups = Vec::new();
+    let mut lengths = Vec::new();
+    let mut empty = false;
+    for pair in argv[1..argv.len() - 1].chunks_exact(2) {
+        let (group, length) = prepare_each_loop_group(interp, pair, protocol, strings)?;
+        empty |= length.0 == 0;
+        lengths.push(length);
+        groups.push(group);
+    }
+    if empty {
+        return Err(
+            interp.report_cmd_error(tcl_cmd_core::native_each_loop::empty_variables(
+                protocol.recipe(),
+                protocol.kind(),
+            )),
+        );
+    }
+    Ok((groups, lengths))
+}
+
+/// Refetch only the group selected by the shared native schedule.
+#[inline(never)]
+fn refresh_each_loop_group(
+    interp: &mut Interp,
+    groups: &mut [EachLoopGroup],
+    cursor: &mut tcl_cmd_core::native_each_loop::EachLoopState,
+    action: tcl_cmd_core::native_each_loop::EachLoopAction,
+    recipe: tcl_runtime_api::native_each_loop::NativeEachLoopRecipe,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<(), Code> {
+    use tcl_cmd_core::native_each_loop::EachLoopAction;
+    match action {
+        EachLoopAction::Check(index) => {
+            let group = &mut groups[index];
+            group.value_items = None;
+            let items = match native_each_loop_members(group.values, strings) {
+                Ok(items) => items,
+                Err(error) => return Err(interp.report_cmd_error(error.into())),
+            };
+            cursor.set_value_length(index, items.len());
+            group.value_items = Some(items);
+        }
+        EachLoopAction::Refresh(index) => {
+            let group = &mut groups[index];
+            group.variable_items = None;
+            let variables = match native_each_loop_members(group.variables, strings) {
+                Ok(items) => items,
+                Err(_) if recipe.refetches_groups() => {
+                    return Err(interp.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "native Tcl 8.4 each-loop variable-list refetch fatal boundary",
+                        )
+                        .into(),
+                    ));
+                }
+                Err(error) => return Err(interp.report_cmd_error(error.into())),
+            };
+            let count = variables.len();
+            group.variable_items = Some(variables);
+            if !recipe.live_iterators() || cursor.variable_cursor() < count {
+                group.value_items = None;
+                let values = match native_each_loop_members(group.values, strings) {
+                    Ok(items) => items,
+                    Err(_) if recipe.refetches_groups() => {
+                        return Err(interp.report_cmd_error(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "native Tcl 8.4 each-loop value-list refetch fatal boundary",
+                            )
+                            .into(),
+                        ));
+                    }
+                    Err(error) => return Err(interp.report_cmd_error(error.into())),
+                };
+                cursor.set_lengths(index, count, values.len());
+                group.value_items = Some(values);
+            } else {
+                cursor.set_lengths(
+                    index,
+                    count,
+                    group.value_items.as_ref().map_or(0, |items| items.len()),
+                );
+            }
+        }
+        _ => unreachable!("original group refresh action"),
+    }
+    Ok(())
+}
+
+/// Keep assignment conversion and trace temporaries out of the body callback.
+#[inline(never)]
+fn assign_each_loop_variable(
+    interp: &mut Interp,
+    group: &EachLoopGroup,
+    variable: usize,
+    value: Option<usize>,
+    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    padding: Option<*mut TclObj>,
+) -> Result<(), Code> {
+    let recipe = protocol.recipe();
+    let kind = protocol.kind();
+    let name = match group
+        .variable_items
+        .as_ref()
+        .expect("native variable header")
+        .elements()
+    {
+        Ok(elements) => elements[variable],
+        Err(error) => return Err(interp.report_cmd_error(error.into())),
+    };
+    let fresh_value = (value.is_none() && padding.is_none())
+        || (value.is_some() && group.abstract_values.is_some());
+    let assigned = match value {
+        Some(index) if group.abstract_values.is_some() => {
+            match group.abstract_values.as_ref().unwrap().element(index) {
+                Ok(value) => value,
+                Err(error) => return Err(interp.report_cmd_error(error.into())),
+            }
+        }
+        Some(index) => match group
+            .value_items
+            .as_ref()
+            .expect("native value header")
+            .elements()
+        {
+            Ok(elements) => elements[index],
+            Err(error) => return Err(interp.report_cmd_error(error.into())),
+        },
+        None => padding.unwrap_or_else(|| new_string(b"")),
+    };
+    let fresh_lifetime = fresh_value.then(|| crate::obj::NativeObjectLifetime::retain(assigned));
+    let transient = recipe
+        .pins_assignment_value()
+        .then(|| crate::obj::Owned::retain(assigned));
+    let stored = interp.assign_original_named_variable(name, assigned);
+    drop(transient);
+    if fresh_value && crate::obj::allocation_is_live(assigned) {
+        // SAFETY: the allocation-only lease keeps the header valid.
+        // A trace can withdraw the native reference while the
+        // original setter is running; such a retired header must
+        // never be promoted again during caller cleanup.
+        if unsafe { (*assigned).ref_count == 0 } {
+            drop_fresh(assigned);
+        }
+    }
+    drop(fresh_lifetime);
+    if let Err(code) = stored {
+        let original = match interp.native_string_bytes(&name) {
+            Ok(bytes) => bytes,
+            Err(error) => return Err(interp.report_cmd_error(error.into())),
+        };
+        match tcl_cmd_core::native_each_loop::setter_failure(recipe, kind, &original) {
+            tcl_cmd_core::native_each_loop::SetterFailure::Preserve => return Err(code),
+            tcl_cmd_core::native_each_loop::SetterFailure::Replace(error) => {
+                return Err(interp.report_cmd_error(error));
+            }
+            tcl_cmd_core::native_each_loop::SetterFailure::Context(context) => {
+                interp.append_error_info_context(&context);
+                return Err(code);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Execute the authenticated original-object generic loop schedule.
+/// Preparation/refetch/assignment frames unwind before a nested body callback;
+/// the original group headers and padding/result owners remain live here.
 fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
     use tcl_cmd_core::native_each_loop::{BodyDecision, EachLoopAction};
     use tcl_runtime_api::completion_options::ControlOptionPolicy;
@@ -663,107 +942,10 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
         );
     };
     let recipe = protocol.recipe();
-    struct Group {
-        variables: *mut TclObj,
-        values: *mut TclObj,
-        _variable_owner: Option<crate::obj::Owned>,
-        _value_owner: Option<crate::obj::Owned>,
-        _variable_lifetime: crate::obj::NativeObjectLifetime,
-        _value_lifetime: crate::obj::NativeObjectLifetime,
-        variable_items: Option<crate::list::NativeListBacking>,
-        value_items: Option<crate::list::NativeListBacking>,
-        abstract_values: Option<crate::native_arithseries::NativeEachLoopAbstractValues>,
-    }
-    fn members(
-        root: *mut TclObj,
-        strings: tcl_syntax::native_string::NativeStringProtocol,
-    ) -> Result<crate::list::NativeListBacking, tcl_syntax::value::ValueError> {
-        drop(crate::list::list_elements_native_checked(root, strings)?);
-        crate::list::native_list_backing(root).ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "native each-loop concrete List backing",
-            ),
-        )
-    }
-    if let Err(error) = interp.associate_native_jim_arguments(argv) {
-        return interp.report_cmd_error(error.into());
-    }
-    let mut groups = Vec::new();
-    let mut lengths = Vec::new();
-    let mut empty = false;
-    for pair in argv[1..argv.len() - 1].chunks_exact(2) {
-        let variable_owner = if recipe.copies_headers() {
-            match crate::list::native_list_copy(pair[0], strings) {
-                Ok(owner) => Some(owner),
-                Err(error) => return interp.report_cmd_error(error.into()),
-            }
-        } else {
-            None
-        };
-        let variables = variable_owner
-            .as_ref()
-            .map_or(pair[0], crate::obj::Owned::as_ptr);
-        let variable_items = match members(variables, strings) {
-            Ok(items) => items,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        let variable_count = variable_items.len();
-        empty |= variable_count == 0;
-        if empty && !recipe.live_iterators() {
-            return interp.report_cmd_error(tcl_cmd_core::native_each_loop::empty_variables(
-                recipe, kind,
-            ));
-        }
-        let abstract_values =
-            match crate::native_arithseries::capture_native_each_loop_abstract(pair[1], strings) {
-                Ok(values) => values,
-                Err(error) => return interp.report_cmd_error(error.into()),
-            };
-        let value_owner = if abstract_values.is_some() {
-            None
-        } else if recipe.copies_headers() {
-            match crate::list::native_list_copy(pair[1], strings) {
-                Ok(owner) => Some(owner),
-                Err(error) => return interp.report_cmd_error(error.into()),
-            }
-        } else {
-            None
-        };
-        let values = value_owner
-            .as_ref()
-            .map_or(pair[1], crate::obj::Owned::as_ptr);
-        let value_items = if abstract_values.is_some() || recipe.live_iterators() {
-            None
-        } else {
-            match members(values, strings) {
-                Ok(items) => Some(items),
-                Err(error) => return interp.report_cmd_error(error.into()),
-            }
-        };
-        lengths.push((
-            variable_count,
-            abstract_values.as_ref().map_or_else(
-                || value_items.as_ref().map_or(0, |items| items.len()),
-                crate::native_arithseries::NativeEachLoopAbstractValues::length,
-            ),
-        ));
-        groups.push(Group {
-            variables,
-            values,
-            _variable_owner: variable_owner,
-            _value_owner: value_owner,
-            _variable_lifetime: crate::obj::NativeObjectLifetime::retain(variables),
-            _value_lifetime: crate::obj::NativeObjectLifetime::retain(values),
-            variable_items: Some(variable_items),
-            value_items,
-            abstract_values,
-        });
-    }
-    if empty {
-        return interp.report_cmd_error(tcl_cmd_core::native_each_loop::empty_variables(
-            recipe, kind,
-        ));
-    }
+    let (mut groups, lengths) = match prepare_each_loop_groups(interp, argv, protocol, strings) {
+        Ok(prepared) => prepared,
+        Err(code) => return code,
+    };
     let jim_empty = if recipe.live_iterators() {
         match interp.native_jim_object_context() {
             Ok(context) => {
@@ -778,6 +960,9 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
     } else {
         None
     };
+    let padding = jim_empty
+        .as_ref()
+        .map(|(context, _)| context.empty_object().as_ptr());
     let policy = if collect {
         ControlOptionPolicy::FRESH_FORWARDED
     } else {
@@ -788,54 +973,16 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
     let mut collected = Vec::<crate::obj::Owned>::new();
     loop {
         match cursor.advance() {
-            EachLoopAction::Check(index) => {
-                let group = &mut groups[index];
-                group.value_items = None;
-                let items = match members(group.values, strings) {
-                    Ok(items) => items,
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                };
-                cursor.set_value_length(index, items.len());
-                group.value_items = Some(items);
-            }
-            EachLoopAction::Refresh(index) => {
-                let group = &mut groups[index];
-                group.variable_items = None;
-                let variables = match members(group.variables, strings) {
-                    Ok(items) => items,
-                    Err(_) if recipe.refetches_groups() => {
-                        return interp.report_cmd_error(
-                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                "native Tcl 8.4 each-loop variable-list refetch fatal boundary",
-                            )
-                            .into(),
-                        );
-                    }
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                };
-                let count = variables.len();
-                group.variable_items = Some(variables);
-                if !recipe.live_iterators() || cursor.variable_cursor() < count {
-                    group.value_items = None;
-                    let values =
-                        match members(group.values, strings) {
-                            Ok(items) => items,
-                            Err(_) if recipe.refetches_groups() => return interp.report_cmd_error(
-                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                    "native Tcl 8.4 each-loop value-list refetch fatal boundary",
-                                )
-                                .into(),
-                            ),
-                            Err(error) => return interp.report_cmd_error(error.into()),
-                        };
-                    cursor.set_lengths(index, count, values.len());
-                    group.value_items = Some(values);
-                } else {
-                    cursor.set_lengths(
-                        index,
-                        count,
-                        group.value_items.as_ref().map_or(0, |items| items.len()),
-                    );
+            action @ (EachLoopAction::Check(_) | EachLoopAction::Refresh(_)) => {
+                if let Err(code) = refresh_each_loop_group(
+                    interp,
+                    &mut groups,
+                    &mut cursor,
+                    action,
+                    recipe,
+                    strings,
+                ) {
+                    return code;
                 }
             }
             EachLoopAction::Assign {
@@ -843,71 +990,15 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                 variable,
                 value,
             } => {
-                let group = &groups[group];
-                let name = match group
-                    .variable_items
-                    .as_ref()
-                    .expect("native variable header")
-                    .elements()
-                {
-                    Ok(elements) => elements[variable],
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                };
-                let fresh_value = (value.is_none() && jim_empty.is_none())
-                    || (value.is_some() && group.abstract_values.is_some());
-                let assigned = match value {
-                    Some(index) if group.abstract_values.is_some() => {
-                        match group.abstract_values.as_ref().unwrap().element(index) {
-                            Ok(value) => value,
-                            Err(error) => return interp.report_cmd_error(error.into()),
-                        }
-                    }
-                    Some(index) => match group
-                        .value_items
-                        .as_ref()
-                        .expect("native value header")
-                        .elements()
-                    {
-                        Ok(elements) => elements[index],
-                        Err(error) => return interp.report_cmd_error(error.into()),
-                    },
-                    None => jim_empty.as_ref().map_or_else(
-                        || new_string(b""),
-                        |(context, _)| context.empty_object().as_ptr(),
-                    ),
-                };
-                let fresh_lifetime =
-                    fresh_value.then(|| crate::obj::NativeObjectLifetime::retain(assigned));
-                let transient = recipe
-                    .pins_assignment_value()
-                    .then(|| crate::obj::Owned::retain(assigned));
-                let stored = interp.assign_original_named_variable(name, assigned);
-                drop(transient);
-                if fresh_value && crate::obj::allocation_is_live(assigned) {
-                    // SAFETY: the allocation-only lease keeps the header valid.
-                    // A trace can withdraw the native reference while the
-                    // original setter is running; such a retired header must
-                    // never be promoted again during caller cleanup.
-                    if unsafe { (*assigned).ref_count == 0 } {
-                        drop_fresh(assigned);
-                    }
-                }
-                drop(fresh_lifetime);
-                if let Err(code) = stored {
-                    let original = match interp.native_string_bytes(&name) {
-                        Ok(bytes) => bytes,
-                        Err(error) => return interp.report_cmd_error(error.into()),
-                    };
-                    match tcl_cmd_core::native_each_loop::setter_failure(recipe, kind, &original) {
-                        tcl_cmd_core::native_each_loop::SetterFailure::Preserve => return code,
-                        tcl_cmd_core::native_each_loop::SetterFailure::Replace(error) => {
-                            return interp.report_cmd_error(error);
-                        }
-                        tcl_cmd_core::native_each_loop::SetterFailure::Context(context) => {
-                            interp.append_error_info_context(&context);
-                            return code;
-                        }
-                    }
+                if let Err(code) = assign_each_loop_variable(
+                    interp,
+                    &groups[group],
+                    variable,
+                    value,
+                    protocol,
+                    padding,
+                ) {
+                    return code;
                 }
             }
             EachLoopAction::Body => {
@@ -979,6 +1070,35 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn time_retains_original_list_body_and_result_objects() {
+        // Source proof: naming.time.original-script-object-evaluation
+        // docs/design/analysis/name-resolution-proofs/time-original-script-object-evaluation.md
+        for engine in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let command = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"return"));
+            let result = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"VALUE\xff\0TAIL"));
+            let script = crate::obj::Owned::fresh(crate::list::new_list_obj(&[
+                command.as_ptr(),
+                result.as_ptr(),
+            ]));
+            let name = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"time"));
+            assert_eq!(
+                super::time_cmd(&mut interp, &[name.as_ptr(), script.as_ptr()]),
+                Code::Return,
+                "{engine}"
+            );
+            assert_eq!(interp.result_obj(), result.as_ptr(), "{engine}");
+            assert!(!crate::obj::has_string_rep(script.as_ptr()), "{engine}");
+            assert_eq!(interp.result_bytes(), b"VALUE\xff\0TAIL", "{engine}");
+        }
     }
 
     #[test]

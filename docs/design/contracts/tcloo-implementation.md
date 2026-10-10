@@ -59,6 +59,34 @@ go-to-definition, and call-hierarchy resolve them across files through the
 workspace index — and rename and references can never disagree about a
 `superclass` / `mixin` / `inherit` site.
 
+### Original member and configuration metadata
+
+`ClassDef::original_members` retains counted original method operands,
+canonical declaration occurrences, receiver side, visibility and forward
+inputs. `original_relations` retains superclass and mixin operands with their
+own caller lookup geometry. It joins providers before the shared
+`SlotSpec::apply_values` fold, so removal and deduplication compare provider
+identity. Instance and class-object mixins are separate lists. A no-argument
+slot query contributes no update; explicit empty `-set` and `-clear` remain
+updates. Unknown operand coverage withdraws the affected list until an exact
+replacement renews it.
+
+`AnalysisResult::original_class_configurations()` retains each configuration's
+own target receipt and member/relation delta. The target issuer authenticates
+the full original command, the Registry-selected configuration ordinal and
+operand effects at its retained point. Local deltas join an original class
+declaration by its full implementation allocation site. A moved class can keep
+that allocation; aliases and ordinary instances cannot borrow it. External
+targets retain an independent lookup obligation and receive no class identity
+from a reporting map. An unowned target withdraws effective original own views
+while preserving their birth declarations.
+
+These are source metadata inventories. They do not prove that a definition
+worker executed, that an object was manufactured, or that a method is selected
+at a later invocation. Positioned receiver state, worker admission, temporal
+configuration selection and native compiler/body permissions remain separate
+obligations. The String maps remain reporting and explicit compatibility data.
+
 ### Callback prefixes that name a method (`references.rs`)
 
 A method reached through a callback prefix — `after 0 [list [self] tick]`,

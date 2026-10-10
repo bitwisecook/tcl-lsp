@@ -8,11 +8,11 @@ use super::*;
 use crate::command_binding::{ExecutedScriptSource, SourceNamespaceKey, SourceOriginId};
 use std::sync::Arc;
 
-fn native_module(source: &str) -> Module {
+fn native_module(source: &str) -> (tcl_vm::Vm, Module) {
     let owner = tcl_registry::model::ingress::static_context_for("tcl8.6");
     let registry = owner.commands();
     let profile = registry.profile().unwrap();
-    let entry = crate::environment_ingress::captured_native_entry(profile);
+    let (runtime, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let mut lowerer = Lowerer::with_config(
         registry,
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
@@ -22,14 +22,15 @@ fn native_module(source: &str) -> Module {
         invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
         ..Default::default()
     });
-    lower_to_ir_with(lowerer, source)
+    (runtime, lower_to_ir_with(lowerer, source))
 }
 
 #[test]
 fn original_colon_procedure_body_keeps_definition_namespace() {
     // Native six-engine scope controls: C86+ :f is a simple command in N;
     // the reporting spelling ::N:::f cannot be split to recover its holder.
-    let module = native_module("namespace eval N {proc :f {} {return [namespace current]}}");
+    let (_owner, module) =
+        native_module("namespace eval N {proc :f {} {return [namespace current]}}");
     let original = module
         .procedure_implementation_bodies
         .iter()
@@ -59,7 +60,7 @@ fn original_colon_procedure_body_keeps_definition_namespace() {
 
 #[test]
 fn original_colliding_namespace_displays_keep_both_body_contexts() {
-    let module = native_module(
+    let (_owner, module) = native_module(
         "namespace eval a: {namespace eval b {proc p {} {return FIRST}}}; \
          namespace eval a {namespace eval :b {proc p {} {return SECOND}}}",
     );
@@ -163,7 +164,7 @@ fn original_event_body_keeps_conditional_frame_without_claiming_entry() {
 fn original_replaced_and_retired_declarations_keep_analysis_only_coverage() {
     let source = "proc p {} {return FIRST}; proc p {} {return SECOND}; \
         rename p {}; missing_command";
-    let mut module = native_module(source);
+    let (_owner, mut module) = native_module(source);
     let originals = module.procedure_implementation_bodies.to_vec();
     assert_eq!(originals.len(), 2);
     assert_ne!(originals[0].allocation, originals[1].allocation);
@@ -208,7 +209,7 @@ fn original_replaced_and_retired_declarations_keep_analysis_only_coverage() {
 
 #[test]
 fn shared_original_body_keeps_distinct_declaration_sites() {
-    let module = native_module(
+    let (_owner, module) = native_module(
         "set body {return SHARED}; proc p {} $body; proc p {} $body; \
          rename p {}; missing_command",
     );

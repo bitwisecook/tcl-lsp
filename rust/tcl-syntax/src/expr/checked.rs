@@ -771,12 +771,7 @@ fn parse_checked_tokens<Text: super::ExprText>(
             lexical: None,
         });
     }
-    let mut parser = PrattParser::new(
-        &tokens,
-        context.lexer_grammar.numbers,
-        context.expr_grammar_base,
-    );
-    parser.variable_config = tcl_lexer::LexerConfig::default().with_grammar(context.lexer_grammar);
+    let mut parser = PrattParser::new(&tokens, context.lexer_grammar, context.expr_grammar_base);
     parser.function_syntax = context
         .native_syntax
         .function_call_syntax()
@@ -836,6 +831,64 @@ fn legacy_function_failure_requires_lookup<Text: super::ExprText>(
 
 #[cfg(test)]
 mod native_byte_tests {
+    #[test]
+    fn checked_reference_roots_keep_selected_grammar_and_opaque_source() {
+        // Implementation contract: naming.expression.selected-reference-root
+        // docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md
+        let jim = tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        let contexts = tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(|version| {
+                ExprParseContext::for_profile(
+                    tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
+                )
+            })
+            .chain(std::iter::once(ExprParseContext::for_profile(&jim)));
+        for context in contexts {
+            for (source, expected) in [
+                (b"${scalar(open}".as_slice(), b"scalar(open".as_slice()),
+                (b"${scalar(open)tail}", b"scalar(open)tail"),
+                (b"${arr(key)}", b"arr"),
+                (b"$arr(\xff)", b"arr"),
+                (b"${\xff(key)}", b"\xff"),
+                (b"${\xff(open}", b"\xff(open"),
+                (b"${nul\0tail(key)}", b"nul\0tail"),
+            ] {
+                let CheckedExprParse::Parsed(ExprNode::Var { text, name, .. }) =
+                    parse_expr_bytes_checked_with_context(source, &context)
+                else {
+                    panic!("whole reference declined");
+                };
+                assert_eq!(text, source);
+                assert_eq!(name, expected);
+            }
+            for style in [
+                tcl_dialect::BracedVarStyle::FirstClose,
+                tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ] {
+                let mut selected = context;
+                selected.lexer_grammar.braced_var = style;
+                for (source, accepts) in [
+                    (b"${a{b}".as_slice(), !style.nests()),
+                    (b"${a{b}c}", style.nests()),
+                ] {
+                    assert_eq!(
+                        matches!(
+                            parse_expr_bytes_checked_with_context(source, &selected),
+                            CheckedExprParse::Parsed(ExprNode::Var { .. })
+                        ),
+                        accepts
+                    );
+                }
+            }
+        }
+    }
+
     use super::*;
 
     #[test]

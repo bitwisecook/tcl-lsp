@@ -141,6 +141,11 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         exclusion: None,
     },
     ArtifactCoverage {
+        artifact: "FunctionUnit::irules_event_body",
+        view: Some("semantic"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
         artifact: "FunctionUnit::semantic_facts",
         view: Some("semantic"),
         exclusion: None,
@@ -230,6 +235,7 @@ durable_inventory!(
     complexity_guarded,
     base_offset,
     method_facts,
+    irules_event_body,
     semantic_facts,
 );
 

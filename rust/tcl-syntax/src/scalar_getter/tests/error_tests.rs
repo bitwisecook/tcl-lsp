@@ -104,6 +104,13 @@ fn verify_line(index: usize, line: &str, seeded: bool) {
 
 #[test]
 fn primitive_failures_keep_cache_origin_and_existing_error_state() {
+    // Native proof: naming.numeric.seeded-wide-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-seeded-wide-frontier.md
+    // Native proof: naming.numeric.seeded-double-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-seeded-double-frontier.md
+    // Native proof: naming.numeric.seeded-boolean-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-seeded-boolean-frontier.md
+
     let mut count = 0;
     for (index, fixture) in STATE.iter().enumerate() {
         for line in fixture.lines() {
@@ -122,6 +129,19 @@ fn primitive_failures_keep_cache_origin_and_existing_error_state() {
 
 #[test]
 fn invalid_octal_and_native_character_units_match_actual_releases() {
+    // Native proof: naming.numeric.units-wide-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-units-wide-frontier.md
+    // Native proof: naming.numeric.units-double-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-units-double-frontier.md
+    // Native proof: naming.numeric.units-boolean-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-units-boolean-frontier.md
+    // Native proof: naming.numeric.octal-wide-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-octal-wide-frontier.md
+    // Native proof: naming.numeric.octal-double-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-octal-double-frontier.md
+    // Native proof: naming.numeric.octal-boolean-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-octal-boolean-frontier.md
+
     let mut count = 0;
     for fixtures in [OCTAL, UNITS] {
         for (index, fixture) in fixtures.iter().enumerate() {

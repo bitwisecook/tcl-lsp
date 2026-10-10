@@ -1,0 +1,1011 @@
+{
+  "problem_statement": "The shared authored info schema can inherit C Tcl 8.6 operations into Jim despite Jim implementing its own info command table. Consumer-level exclusions would split higher-layer naming and availability behaviour.",
+  "question": "Which original public info selectors and prefix matches are exposed by C Tcl 8.4\u20139.1 and current Jim, and does Jim\u2019s info table include C TclOO/coroutine/functions/loaded operations?",
+  "input_channel": "Fresh-process native object vectors with fixed ASCII words; no configuration source, opaque-byte or successful-handler proof is inferred.",
+  "cases": [
+    {
+      "id": "inventory-miss",
+      "argv": [
+        "info",
+        "__r2286_absent__"
+      ],
+      "purpose": "Capture the genuine native unknown-selector inventory without interpreting its text as a structured diagnostic.",
+      "argument": "0",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "inventory-jim-list",
+      "argv": [
+        "info",
+        "-commands"
+      ],
+      "purpose": "Capture Jim\u2019s genuine structured public subcommand list; C results are independent controls.",
+      "argument": "1",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "inventory-c-map",
+      "argv": [
+        "namespace",
+        "ensemble",
+        "configure",
+        "info",
+        "-map"
+      ],
+      "purpose": "Capture the actual C ensemble map where this native interpreter has it; C 8.4 and Jim are independent controls.",
+      "argument": "2",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exists-missing",
+      "argv": [
+        "info",
+        "exists",
+        "__r2286_inventory_missing__"
+      ],
+      "purpose": "Capture a shared successful baseline without importing lookup or success from another provider.",
+      "argument": "3",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-alias",
+      "argv": [
+        "info",
+        "alias",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "4",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-aliases",
+      "argv": [
+        "info",
+        "aliases",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "5",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-args",
+      "argv": [
+        "info",
+        "args",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "6",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-body",
+      "argv": [
+        "info",
+        "body",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "7",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-channels",
+      "argv": [
+        "info",
+        "channels",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "8",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-class",
+      "argv": [
+        "info",
+        "class",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "9",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-cmdcount",
+      "argv": [
+        "info",
+        "cmdcount",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "10",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-cmdtype",
+      "argv": [
+        "info",
+        "cmdtype",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "11",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-commands",
+      "argv": [
+        "info",
+        "commands",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "12",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-complete",
+      "argv": [
+        "info",
+        "complete",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "13",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-constant",
+      "argv": [
+        "info",
+        "constant",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "14",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-consts",
+      "argv": [
+        "info",
+        "consts",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "15",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-coroutine",
+      "argv": [
+        "info",
+        "coroutine",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "16",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-default",
+      "argv": [
+        "info",
+        "default",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "17",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-errorstack",
+      "argv": [
+        "info",
+        "errorstack",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "18",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-exists",
+      "argv": [
+        "info",
+        "exists",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "19",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-frame",
+      "argv": [
+        "info",
+        "frame",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "20",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-functions",
+      "argv": [
+        "info",
+        "functions",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "21",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-globals",
+      "argv": [
+        "info",
+        "globals",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "22",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-help",
+      "argv": [
+        "info",
+        "help",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "23",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-hostname",
+      "argv": [
+        "info",
+        "hostname",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "24",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-level",
+      "argv": [
+        "info",
+        "level",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "25",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-library",
+      "argv": [
+        "info",
+        "library",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "26",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-loaded",
+      "argv": [
+        "info",
+        "loaded",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "27",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-locals",
+      "argv": [
+        "info",
+        "locals",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "28",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-nameofexecutable",
+      "argv": [
+        "info",
+        "nameofexecutable",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "29",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-object",
+      "argv": [
+        "info",
+        "object",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "30",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-patchlevel",
+      "argv": [
+        "info",
+        "patchlevel",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "31",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-procs",
+      "argv": [
+        "info",
+        "procs",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "32",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-references",
+      "argv": [
+        "info",
+        "references",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "33",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-returncodes",
+      "argv": [
+        "info",
+        "returncodes",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "34",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-script",
+      "argv": [
+        "info",
+        "script",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "35",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-sharedlibextension",
+      "argv": [
+        "info",
+        "sharedlibextension",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "36",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-source",
+      "argv": [
+        "info",
+        "source",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "37",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-stacktrace",
+      "argv": [
+        "info",
+        "stacktrace",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "38",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-statics",
+      "argv": [
+        "info",
+        "statics",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "39",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-tainted",
+      "argv": [
+        "info",
+        "tainted",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "40",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-tclversion",
+      "argv": [
+        "info",
+        "tclversion",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "41",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-usage",
+      "argv": [
+        "info",
+        "usage",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "42",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-vars",
+      "argv": [
+        "info",
+        "vars",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "43",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "exact-version",
+      "argv": [
+        "info",
+        "version",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Invoke the exact native selector with deliberately excess operands. Arity/operation refusal is not a claim of successful operation semantics.",
+      "argument": "44",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "prefix-co",
+      "argv": [
+        "info",
+        "co",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Capture genuine prefix selection/ambiguity under the actual provider\u2019s own inventory; deliberately excess operands preserve the distinction from success.",
+      "argument": "45",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "prefix-cor",
+      "argv": [
+        "info",
+        "cor",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Capture genuine prefix selection/ambiguity under the actual provider\u2019s own inventory; deliberately excess operands preserve the distinction from success.",
+      "argument": "46",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "prefix-cl",
+      "argv": [
+        "info",
+        "cl",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Capture genuine prefix selection/ambiguity under the actual provider\u2019s own inventory; deliberately excess operands preserve the distinction from success.",
+      "argument": "47",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "prefix-cm",
+      "argv": [
+        "info",
+        "cm",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Capture genuine prefix selection/ambiguity under the actual provider\u2019s own inventory; deliberately excess operands preserve the distinction from success.",
+      "argument": "48",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "prefix-sta",
+      "argv": [
+        "info",
+        "sta",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Capture genuine prefix selection/ambiguity under the actual provider\u2019s own inventory; deliberately excess operands preserve the distinction from success.",
+      "argument": "49",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "prefix-vers",
+      "argv": [
+        "info",
+        "vers",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Capture genuine prefix selection/ambiguity under the actual provider\u2019s own inventory; deliberately excess operands preserve the distinction from success.",
+      "argument": "50",
+      "timeout_seconds": 5
+    },
+    {
+      "id": "prefix-empty",
+      "argv": [
+        "info",
+        "",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__",
+        "__r2286_operand__"
+      ],
+      "purpose": "Capture genuine prefix selection/ambiguity under the actual provider\u2019s own inventory; deliberately excess operands preserve the distinction from success.",
+      "argument": "51",
+      "timeout_seconds": 5
+    }
+  ]
+}

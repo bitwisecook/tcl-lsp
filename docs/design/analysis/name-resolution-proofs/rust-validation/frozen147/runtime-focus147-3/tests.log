@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_script::tests::jim_original_lookup_error_keeps_live_procedure_and_script_frames ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1225 filtered out; finished in 0.61s
+

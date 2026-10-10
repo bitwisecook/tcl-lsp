@@ -1,0 +1,60 @@
+TclCompileDictIncrCmd(
+    Tcl_Interp *interp,		/* Used for looking up stuff. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to defintion of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    Tcl_Token *varTokenPtr, *keyTokenPtr;
+    int dictVarIndex, incrAmount;
+    DefineLineInformation;	/* TIP #280 */
+
+    /*
+     * There must be at least two arguments after the command.
+     */
+
+    if (parsePtr->numWords < 3 || parsePtr->numWords > 4) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * The dictionary variable must be a local scalar that is knowable at
+     * compile time; anything else exceeds the complexity of the opcode. So
+     * discover what the index is.
+     */
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    dictVarIndex = LocalScalarFromToken(varTokenPtr, envPtr);
+    if (dictVarIndex < 0) {
+	return TCL_ERROR;
+    }
+
+    keyTokenPtr = TokenAfter(varTokenPtr);
+
+    /*
+     * Parse the increment amount, if present.
+     */
+
+    if (parsePtr->numWords == 4) {
+	Tcl_Token *incrTokenPtr = TokenAfter(keyTokenPtr);
+	Tcl_Obj *intObj = Tcl_NewObj();
+	int fail = (!TclWordKnownAtCompileTime(incrTokenPtr, intObj)
+		|| TCL_ERROR == TclGetIntFromObj(NULL, intObj, &incrAmount));
+	Tcl_DecrRefCount(intObj);
+	if (fail) {
+	    return TCL_ERROR;
+	}
+    } else {
+	incrAmount = 1;
+    }
+
+    /*
+     * Emit the key and the code to actually do the increment.
+     */
+
+    CompileWord(envPtr, keyTokenPtr, interp, 2);
+    TclEmitInstInt4( INST_DICT_INCR_IMM, incrAmount,	envPtr);
+    TclEmitInt4(     dictVarIndex,			envPtr);
+    return TCL_OK;
+}

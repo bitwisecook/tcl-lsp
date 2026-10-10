@@ -1,0 +1,41 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/workspace/.proofs/native-w216-literal-replacement324/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.011640528013231233,
+  "provider": "8.6.18",
+  "provider_version_association": "version 8.6.18 initial_class {} alias_command {}",
+  "version_association_receipt": "/workspace/.proofs/native-jim-class-source269/8.6.18/receipt.json",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+  "executable_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+  "source_sha256": "f84167ca4fb287a3a89354d4fd54d7c97a3f4940a3a5bb20917d2ba813f67336",
+  "stdout_sha256": "0d122dd07d7a043b6618ec48940644b9f58404f0fac26062c3883acf568b7d6f",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInterp.c": "b2597dfae723709bd21c6dfe9dd0cd4eb6d38f90ea082419b59a2aa2c00881ca",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPkg.c": "83845b75b4da27d7ae67afd5b15135153d68557681cd9659f75d4d4e027135a2"
+  },
+  "rows": [
+    "dollar 1 0 1 {invalid command name \"VALUE_dollar\"}",
+    "quote 1 0 1 {invalid command name \"VALUE_quote\"}",
+    "brackets 1 0 1 {invalid command name \"VALUE_brackets\"}",
+    "backslash 1 0 1 {invalid command name \"VALUE_backslash\"}",
+    "unicode 1 0 1 {invalid command name \"VALUE_unicode\"}",
+    "quoted_index 1 0 1 {invalid command name \"VALUE_quoted_index\"}",
+    "nested_command 1 0 1 {invalid command name \"VALUE_nested_command\"}",
+    "split_root 1 0 1 {invalid command name \"VALUE_split_root\"}",
+    "replaced_set 1 {can't read \"name\": no such variable}"
+  ],
+  "input_channel": "Exact UTF-8 source-file CLI with a literal U+00E9 and literal split-line root, ASCII escaped proposal strings. Public catch codes/value equality/info-exists/results only. No native name/header pointers/current-cell completeness/compiler-entry claims.",
+  "question": "naming.variable.original-w216-literal-replacement-public-values"
+}

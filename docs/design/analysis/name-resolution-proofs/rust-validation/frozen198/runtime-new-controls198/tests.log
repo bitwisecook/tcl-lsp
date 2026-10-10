@@ -1,0 +1,51 @@
+
+running 7 tests
+test cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers ... 
+thread 'cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers' (732496) panicked at src/cmd_namespace/native_holder_routing.rs:101:5:
+jim/ensemble/0/ORIGINAL: refusal=Some(CommandProtocolUnavailable("ensemble configuration options")), admission=None
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read ... 
+thread 'codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read' (732497) panicked at src/codegen_abi.rs:3523:18:
+the public Read reaches the published native trace: Error
+FAILED
+test interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards ... 
+thread 'interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards' (732498) panicked at src/interp.rs:15361:22:
+called `Result::unwrap()` on an `Err` value: IdentityUnavailable
+FAILED
+test interp::tests::missing_arity_protocol_refuses_before_guest_state_changes ... 
+thread 'interp::tests::missing_arity_protocol_refuses_before_guest_state_changes' (732499) panicked at src/interp.rs:14580:13:
+assertion `left == right` failed
+  left: None
+ right: Some(CommandProtocolUnavailable("variable naming"))
+FAILED
+test list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow ... 
+thread 'list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow' (732500) panicked at src/list.rs:1443:35:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("changed native List member vector")
+FAILED
+test native_arithseries::tests::public_arithmetic_length_and_index_do_not_materialize_huge_series ... 
+thread 'native_arithseries::tests::public_arithmetic_length_and_index_do_not_materialize_huge_series' (732501) panicked at src/native_arithseries/tests.rs:305:13:
+assertion `left == right` failed: [108, 105, 110, 100, 101, 120, 32, 36, 115, 101, 113, 117, 101, 110, 99, 101, 32, 123, 48, 32, 48, 125]
+  left: Error
+ right: Ok
+FAILED
+test obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings ... 
+thread 'obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings' (732502) panicked at src/obj.rs:2391:13:
+assertion `left == right` failed
+  left: "0 12"
+ right: "1 12"
+FAILED
+
+failures:
+
+failures:
+    cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers
+    codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read
+    interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards
+    interp::tests::missing_arity_protocol_refuses_before_guest_state_changes
+    list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow
+    native_arithseries::tests::public_arithmetic_length_and_index_do_not_materialize_huge_series
+    obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings
+
+test result: FAILED. 0 passed; 7 failed; 0 ignored; 0 measured; 1233 filtered out; finished in 12.81s
+

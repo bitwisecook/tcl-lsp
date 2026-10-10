@@ -1,0 +1,63 @@
+{
+  "request_id": "naming.list.arithseries-original-multiple-index-conversion",
+  "question": "For a finite lseq result, do original single-index, index-list path, separate-index and out-of-range path calls produce the same result and retain the same public representation type?",
+  "problem": "Runtime huge-series test expects a two-index path to remain lazy, while shared C9 flat-index source selects the abstract hook only for one index. Establish small actual provider results and type observations before correcting a test or adapter; retain the separate host materialisation limit as a host constraint.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse exact Native210/222 original-counted external C API driver, fresh full Tcl_Init or Jim core/static extensions for each of the four controls. No outer catch/eval/puts wrapper. Preserve original code, counted hex result, stdout/stderr, exit, source hashes and build pins.",
+  "cases": [
+    {
+      "id": "single-index",
+      "source_file": "/workspace/.proofs/native-arithseries-multiple-index231-request/single-index.tcl",
+      "source_sha256": "50c789189eb5f9704a8ffd9180d79a3463ed0a889b0c73c7871c97cd503055c7",
+      "source_encoding": "ASCII LF",
+      "source_notes": "Finite nine-element sequence; observer publishes only the public representation type word, never addresses or the full representation description. No huge allocation or allocator behaviour experiment."
+    },
+    {
+      "id": "index-list-path",
+      "source_file": "/workspace/.proofs/native-arithseries-multiple-index231-request/index-list-path.tcl",
+      "source_sha256": "acd330f56a3be7e81d372c2d17aa28e0da2c8c089e0ef337e13add93312e6c97",
+      "source_encoding": "ASCII LF",
+      "source_notes": "Finite nine-element sequence; observer publishes only the public representation type word, never addresses or the full representation description. No huge allocation or allocator behaviour experiment."
+    },
+    {
+      "id": "separate-indices",
+      "source_file": "/workspace/.proofs/native-arithseries-multiple-index231-request/separate-indices.tcl",
+      "source_sha256": "23d9068a5688d86d720d196b3383cb5cf74b4b5c5a89b8d871b9120aba00332e",
+      "source_encoding": "ASCII LF",
+      "source_notes": "Finite nine-element sequence; observer publishes only the public representation type word, never addresses or the full representation description. No huge allocation or allocator behaviour experiment."
+    },
+    {
+      "id": "out-of-range-path",
+      "source_file": "/workspace/.proofs/native-arithseries-multiple-index231-request/out-of-range-path.tcl",
+      "source_sha256": "05d62c6ba1b7c8b7a90f68f8ae674171fbb400561fff749dbf4a0f1b33259f7c",
+      "source_encoding": "ASCII LF",
+      "source_notes": "Finite nine-element sequence; observer publishes only the public representation type word, never addresses or the full representation description. No huge allocation or allocator behaviour experiment."
+    }
+  ],
+  "source_anchors": [
+    {
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclListObj.c",
+      "source_sha256": "15d49e9df1a0e799eb199ab5ceb58e77e0b3587d7200156ddf82344102069d95",
+      "copy_file": "/workspace/.proofs/native-arithseries-multiple-index231-request/tcl9.0.4-tclListObj.c",
+      "excerpt_file": "/workspace/.proofs/native-arithseries-multiple-index231-request/tcl9.0.4-TclLindexFlat.txt",
+      "excerpt_sha256": "b3230076f4026fdddf339b9f3386651b4e594fc8755547ec9268e60ecdb79ec5",
+      "scope": "Independent pinned source inspection: single-index abstract special case versus ordinary List conversion inside the generic multi-index loop. No opcode or private-header identity inferred from public command output."
+    },
+    {
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclListObj.c",
+      "source_sha256": "6711651457a8f8813f37c71e5e8958aca9d2e83a6fc7c7e281ae3f7ada10e81b",
+      "copy_file": "/workspace/.proofs/native-arithseries-multiple-index231-request/tcl9.1.0-tclListObj.c",
+      "excerpt_file": "/workspace/.proofs/native-arithseries-multiple-index231-request/tcl9.1.0-TclLindexFlat.txt",
+      "excerpt_sha256": "b3230076f4026fdddf339b9f3386651b4e594fc8755547ec9268e60ecdb79ec5",
+      "scope": "Independent pinned source inspection: single-index abstract special case versus ordinary List conversion inside the generic multi-index loop. No opcode or private-header identity inferred from public command output."
+    }
+  ],
+  "scope": "All controls are independent fresh interpreters. C pre-lseq and Jim unavailable cases are actual rows. Public representation type is observed after the selected call; no refcount/address/private-member or huge-allocation claim. Source excerpts remain a distinct evidence channel."
+}

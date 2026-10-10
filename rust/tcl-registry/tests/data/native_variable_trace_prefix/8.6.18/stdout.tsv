@@ -1,0 +1,18 @@
+add	0	0	prefixRefs=1
+info	copied	0	1	77617463682041
+callback	1	5	410058	76		7772697465
+fire	0	0	calls=1
+remove	0	0
+info	remaining	0	0	
+add	1	0	prefixRefs=1
+info	copied	0	1	77617463682041
+callback	1	5	410058	76		7772697465
+fire	1	0	calls=1
+remove	1	0
+info	remaining	0	1	77617463682041
+add	2	0	prefixRefs=1
+info	copied	0	1	77617463682041
+callback	1	5	410058	76		7772697465
+fire	2	0	calls=1
+remove	2	0
+info	remaining	0	1	77617463682041

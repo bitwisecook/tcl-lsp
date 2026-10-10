@@ -9,6 +9,8 @@ use tcl_runtime_api::VarId;
 pub(crate) struct NativeScalarAliasEntry {
     pub(super) contents: Rc<RefCell<CellContents>>,
     pub(super) binding: VarId,
+    /// Exact retained root slot; it is not resolved again after alias creation.
+    name: Vec<u8>,
 }
 impl std::fmt::Debug for NativeScalarAliasEntry {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -37,6 +39,7 @@ impl NativeScalarAliasEntry {
         Rc::new(Self {
             contents: Rc::clone(&self.contents),
             binding: self.binding,
+            name: self.name.clone(),
         })
     }
     pub(crate) fn ensure_array(&self) -> Result<(), super::VarError> {
@@ -47,14 +50,7 @@ impl NativeScalarAliasEntry {
         if let Some(error) = cell.rmw_retirement {
             return Err(error);
         }
-        match cell.var.as_ref() {
-            Some(super::Var::Array(_)) => Ok(()),
-            Some(_) => Err(super::VarError::IsScalar),
-            None => {
-                cell.var = Some(super::Var::Array(Default::default()));
-                Ok(())
-            }
-        }
+        cell.materialise_selected_array(Some(&self.name))
     }
     pub(crate) fn prepare_original_element(
         &self,
@@ -68,11 +64,7 @@ impl NativeScalarAliasEntry {
         if let Some(error) = cell.rmw_retirement {
             return Err(error);
         }
-        match cell.var.as_ref() {
-            Some(super::Var::Array(_)) => {}
-            Some(_) => return Err(super::VarError::IsScalar),
-            None => cell.var = Some(super::Var::Array(Default::default())),
-        }
+        cell.materialise_selected_array(Some(&self.name))?;
         cell.insert_member_entry(key);
         let id = cell.element_ids[key];
         cell.native_member_keys.ensure(id, key, original);
@@ -90,21 +82,17 @@ impl NativeScalarAliasEntry {
         if let Some(error) = cell.rmw_retirement {
             return Err(error);
         }
-        if element.is_some() {
-            match cell.var.as_ref() {
-                Some(super::Var::Array(_)) => {}
-                Some(super::Var::Scalar(_)) => return Err(super::VarError::IsScalar),
-                Some(super::Var::Link(_)) => return Err(super::VarError::NameProtocolUnavailable),
-                None if !create => return Ok(None),
-                None => {
-                    cell.var = Some(super::Var::Array(Default::default()));
-                }
+        if element.is_some() && cell.array_materialisation_needed(Some(&self.name))? {
+            if !create {
+                return Ok(None);
             }
+            cell.materialise_selected_array(Some(&self.name))?;
         }
         drop(cell);
         Ok(Some(super::VariableReceiver::capture_contents(
             Rc::clone(&self.contents),
             element,
+            Some(self.name.clone()),
         )))
     }
 }
@@ -167,7 +155,11 @@ impl VarTable {
             }
             binding
         };
-        Rc::new(NativeScalarAliasEntry { contents, binding })
+        Rc::new(NativeScalarAliasEntry {
+            contents,
+            binding,
+            name,
+        })
     }
 }
 
@@ -203,6 +195,77 @@ mod tests {
         assert!(!table.native_keys.borrow().contains_key(b"k".as_slice()));
         // SAFETY: the test owns this live original header throughout.
         assert_eq!(unsafe { (*name.as_ptr()).ref_count }, 1);
+    }
+
+    #[test]
+    fn retained_alias_materialises_only_its_original_undefined_root() {
+        // naming.variable.original-traced-array-root-materialisation
+        // docs/design/analysis/name-resolution-proofs/variable-original-traced-array-root-materialisation.md
+        // Rust receiver correspondence only; native public values are independent.
+        let mut table = VarTable::default();
+        table.insert_link(
+            b"x",
+            super::super::Link {
+                original_jim_target: None,
+                native_scalar_entry: None,
+                native_element_entry: None,
+                array_identity: None,
+                array_cell: None,
+                home: super::super::VarHome::Frame(0),
+                name: b"x".to_vec(),
+                elem: None,
+            },
+        );
+        table.mark_trace_shell(b"x", super::super::VarHome::Frame(0));
+        let alias = table.retain_native_scalar_alias(b"x");
+        let original = alias.identity();
+        alias.ensure_array().unwrap();
+        assert_eq!(table.binding_id(b"x"), Some(original));
+        let receiver = alias
+            .capture_receiver(Some(b"k".to_vec()), true)
+            .unwrap()
+            .unwrap();
+        assert_eq!(receiver.binding_id(), Some(original));
+        assert!(receiver.is_element());
+        let value = Owned::fresh(obj::new_string_bytes(b"SCALAR"));
+        table.store_scalar(b"other", value.as_ptr()).unwrap();
+        let scalar = table.capture_receiver(b"other", None).unwrap();
+        assert_eq!(scalar.ensure_array(), Err(super::super::VarError::IsScalar));
+        assert_eq!(table.load_scalar(b"other"), Some(value.as_ptr()));
+    }
+
+    #[test]
+    fn same_spelled_foreign_link_cannot_issue_an_undefined_root_marker() {
+        // naming.variable.original-traced-array-root-materialisation
+        // docs/design/analysis/name-resolution-proofs/variable-original-traced-array-root-materialisation.md
+        // Rust receiver correspondence only; native public values are independent.
+        let mut table = VarTable::default();
+        table.insert_link(
+            b"x",
+            super::super::Link {
+                original_jim_target: None,
+                native_scalar_entry: None,
+                native_element_entry: None,
+                array_identity: None,
+                array_cell: None,
+                home: super::super::VarHome::Frame(1),
+                name: b"x".to_vec(),
+                elem: None,
+            },
+        );
+        assert!(!table.mark_undefined_root(b"x", super::super::VarHome::Frame(0)));
+        table.mark_trace_shell(b"x", super::super::VarHome::Frame(0));
+        let receiver = table.capture_receiver(b"x", None).unwrap();
+        assert_eq!(
+            receiver.ensure_array(),
+            Err(super::super::VarError::IsScalar)
+        );
+        let alias = table.retain_native_scalar_alias(b"x");
+        assert_eq!(alias.ensure_array(), Err(super::super::VarError::IsScalar));
+        assert!(
+            matches!(table.cell(b"x").as_deref(), Some(super::super::Var::Link(link))
+            if link.home == super::super::VarHome::Frame(1))
+        );
     }
 
     #[test]

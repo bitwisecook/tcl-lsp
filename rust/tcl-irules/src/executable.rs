@@ -1,64 +1,25 @@
-//! Registry-aware inventory of commands that can execute in an iRule.
-
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::OnceLock;
+//! Presentation projections of the shared conditional iRules source context.
 
 #[cfg(feature = "test-instrumentation")]
 use std::cell::Cell;
+use std::collections::{HashSet, VecDeque};
+use tcl_registry::CommandRegistry;
+use tcl_registry::events::EventEmissionCertainty;
 
-use tcl_compiler::realm::{CommandBindingRealm, document_realm_bindings_with_config};
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use tcl_lexer::{LexerConfig, Token, TokenType};
-use tcl_registry::events::{
-    EventEmissionCertainty, IrulesCommandPlacement, IrulesExecutionContext,
-};
-use tcl_registry::expr_surface::RuntimeExprSurface;
-use tcl_registry::{ArgRole, CommandRegistry, Traits};
-
-/// The one resolved iRules grammar drives both script and expression lexing.
-///
-/// A caller normally supplies a profile-stamped iRules registry.  The
-/// fallback keeps the public inventory API correct for legacy registries that
-/// loaded the iRules pack without retaining its profile.
-#[derive(Clone, Copy)]
-struct InventoryLexing {
-    /// The resolved profile is the single source for expression grammar and
-    /// runtime-surface selection.  Keep it beside the script lexer config so
-    /// an inventory never mixes an iRules script parse with another release's
-    /// expression rules.
-    profile: &'static tcl_dialect::DialectProfile,
-    config: LexerConfig,
-    expr_surface: RuntimeExprSurface,
-}
-
-impl InventoryLexing {
-    fn for_registry(registry: &CommandRegistry) -> Self {
-        let profile = registry
-            .profile()
-            .filter(|profile| profile.is_irules())
-            .unwrap_or_else(tcl_dialect::DialectProfile::irules);
-        Self {
-            profile,
-            config: LexerConfig::for_file_grammar(profile.grammar),
-            expr_surface: RuntimeExprSurface::for_profile(profile),
-        }
-    }
-}
-
-/// Immutable inventory-wide services threaded through recursive script walks.
-struct InventoryContext<'a> {
-    registry: &'a CommandRegistry,
-    identities: &'a CommandBindingRealm,
-    lexing: InventoryLexing,
-}
-
-/// One executable command, after static command-head resolution.
+/// Presentation-only source-candidate fields. Command/argument/event strings
+/// grant no identity, runtime effects, entered frame or worker reachability.
+/// Semantic consumers use `OriginalIrulesSourceContext`'s sealed words instead.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrulesExecutableCommand {
+    /// Actual independently retained source command extent.
     pub span: tcl_lexer::Span,
+    /// Selected source-schema label, without a live handler grant.
     pub command: String,
+    /// Original literal values or written unknown operands for display.
     pub args: Vec<String>,
+    /// Source variable-token labels, without cell or frame authority.
     pub variable_names: Vec<String>,
+    /// Actual event-body source label, without event reachability.
     pub event: Option<String>,
 }
 
@@ -66,18 +27,13 @@ pub struct IrulesExecutableCommand {
 thread_local! {
     static EXECUTABLE_CLOSURE_BUILDS: Cell<usize> = const { Cell::new(0) };
 }
-
-/// Reset this thread's executable-closure build count.
-///
-/// Available only to the integration test feature. Production consumers never
-/// carry this instrumentation.
+/// Reset this thread's source-closure capture count.
 #[cfg(feature = "test-instrumentation")]
 #[doc(hidden)]
 pub fn reset_executable_closure_builds_for_tests() {
     EXECUTABLE_CLOSURE_BUILDS.with(|builds| builds.set(0));
 }
-
-/// Return this thread's executable-closure build count.
+/// Number of whole source-context captures at this compatibility ingress.
 #[cfg(feature = "test-instrumentation")]
 #[doc(hidden)]
 #[must_use]
@@ -85,663 +41,148 @@ pub fn executable_closure_builds_for_tests() -> usize {
     EXECUTABLE_CLOSURE_BUILDS.with(Cell::get)
 }
 
-/// Commands that can execute from valid top-level event and procedure
-/// declarations. Invalid top-level executable statements and nested
-/// declarations are excluded; registry-declared bodies and command
-/// substitutions are followed recursively.
+pub(crate) fn record_source_capture() {
+    #[cfg(feature = "test-instrumentation")]
+    EXECUTABLE_CLOSURE_BUILDS.with(|builds| builds.set(builds.get() + 1));
+}
+
+/// Conditional event-rooted source candidates. Applicability and procedure
+/// binding remain unproved; this compatibility return is presentation only.
 #[must_use]
 pub fn irules_executable_commands(
     source: &str,
     registry: &CommandRegistry,
 ) -> Vec<IrulesExecutableCommand> {
-    #[cfg(feature = "test-instrumentation")]
-    EXECUTABLE_CLOSURE_BUILDS.with(|builds| builds.set(builds.get() + 1));
-    let lexing = InventoryLexing::for_registry(registry);
-    let identities = document_realm_bindings_with_config(source, lexing.config, registry);
-    let ctx = InventoryContext {
-        registry,
-        identities: &identities,
-        lexing,
-    };
-    let mut event_bodies = Vec::new();
-    let mut procedures = HashMap::<String, Token>::new();
-    collect_top_level_regions(source, &ctx, &mut event_bodies, &mut procedures);
-    event_rooted_closure(source, &ctx, event_bodies, &procedures)
+    crate::OriginalIrulesSourceContext::capture(source, registry)
+        .map_or_else(Vec::new, |context| context.presentation_commands(source))
 }
 
-/// Return the event-rooted executable closure for every valid top-level
-/// `when EVENT { … }` handler matching `event`.
-///
-/// The closure includes all matching handlers, not merely the first source
-/// occurrence, followed by procedures reached through registry-declared
-/// [`Traits::INVOKES_USER_PROC`] edges.  Ordinary Tcl-looking direct calls do
-/// not make a procedure reachable.  Procedure traversal is cycle-safe and
-/// each returned command keeps its exact source span.
+/// Source candidates associated with an actual retained event-body descriptor.
+/// An event label is a readonly filter, not worker or handler entry authority.
 #[must_use]
 pub fn irules_event_executable_closure(
     source: &str,
     event: &str,
     registry: &CommandRegistry,
 ) -> Vec<IrulesExecutableCommand> {
-    let lexing = InventoryLexing::for_registry(registry);
-    let identities = document_realm_bindings_with_config(source, lexing.config, registry);
-    let ctx = InventoryContext {
-        registry,
-        identities: &identities,
-        lexing,
-    };
-    let mut event_bodies = Vec::new();
-    let mut procedures = HashMap::<String, Token>::new();
-    collect_top_level_regions(source, &ctx, &mut event_bodies, &mut procedures);
-    event_rooted_closure(
-        source,
-        &ctx,
-        event_bodies
-            .into_iter()
-            .filter(|(candidate, _)| candidate.eq_ignore_ascii_case(event))
-            .collect(),
-        &procedures,
-    )
+    irules_executable_commands(source, registry)
+        .into_iter()
+        .filter(|command| {
+            command
+                .event
+                .as_deref()
+                .is_some_and(|actual| actual.eq_ignore_ascii_case(event))
+        })
+        .collect()
 }
 
-/// One registry-declared edge from a reachable command to an event it raises.
-///
-/// The single owner of the command-to-event relation: every
-/// consumer that wants cross-event reachability, a diagram edge, or a
-/// data-flow path reads this rather than growing its own table of command
-/// names. The edge exists because the registry says the *form* raises the
-/// event — `TCP::notify request` does, `TCP::notify eom` does not — so a
-/// dynamic subcommand matches no form and produces nothing.
+/// Possible authored event-emission relation in the current source schema.
+/// The Registry certainty describes the selected schema, without execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrulesEventEmissionEdge {
-    /// The emitting command's span.
+    /// Actual emitting source command extent.
     pub span: tcl_lexer::Span,
-    /// The event this command runs under — directly, or on behalf of the
-    /// event that reached its procedure.
+    /// Source event-body descriptor label.
     pub from_event: String,
-    /// The resolved command head.
+    /// Actual selected source-schema label.
     pub command: String,
-    /// The event it can raise.
+    /// Possible target event from the authored Registry schema.
     pub to_event: &'static str,
-    /// How sure the emission is. **Not** an ordering claim: an
-    /// [`EventEmissionCertainty::Asynchronous`] edge means the handler runs
-    /// later on another stack, never that it continues this one.
+    /// Schema certainty, without observed execution.
     pub certainty: EventEmissionCertainty,
 }
 
-/// Every registry-declared event emission among the file's executable
-/// commands.
-///
-/// An emitting command contributes an edge exactly when it is itself
-/// reachable — a `TCP::notify request` in a dormant or invalid region
-/// contributes nothing.
-///
-/// The closure is rebuilt once per distinct top-level event rather than once
-/// for the whole file, because a procedure emits on behalf of *every* event
-/// that calls it. The whole-file walk reaches a procedure only once and keeps
-/// whichever handler happened to reach it first, so a helper called from both
-/// `CLIENT_ACCEPTED` and `HTTP_REQUEST` would silently lose one of its two
-/// edges to handler source order.
-#[must_use]
-pub fn irules_event_emission_edges(
-    source: &str,
-    registry: &CommandRegistry,
+fn source_emission_edges(
+    context: &crate::OriginalIrulesSourceContext,
 ) -> Vec<IrulesEventEmissionEdge> {
-    let lexing = InventoryLexing::for_registry(registry);
-    let identities = document_realm_bindings_with_config(source, lexing.config, registry);
-    let ctx = InventoryContext {
-        registry,
-        identities: &identities,
-        lexing,
-    };
-    let mut event_bodies = Vec::new();
-    let mut procedures = HashMap::<String, Token>::new();
-    collect_top_level_regions(source, &ctx, &mut event_bodies, &mut procedures);
-    let mut events: Vec<String> = Vec::new();
-    for (event, _) in &event_bodies {
-        if !events.iter().any(|seen| seen.eq_ignore_ascii_case(event)) {
-            events.push(event.clone());
-        }
-    }
-    let mut edges = Vec::new();
-    for event in events {
-        let roots: Vec<(String, Token)> = event_bodies
+    let actual = context.context_registry();
+    let mut out = Vec::new();
+    for command in context.commands() {
+        let Some(arguments) = command
+            .words()
+            .arguments()
             .iter()
-            .filter(|(candidate, _)| candidate.eq_ignore_ascii_case(&event))
-            .cloned()
-            .collect();
-        let closure = event_rooted_closure(source, &ctx, roots, &procedures);
-        edges.extend(emission_edges(&closure, registry));
-    }
-    edges
-}
-
-/// The emission edges carried by an already-built closure.
-fn emission_edges(
-    commands: &[IrulesExecutableCommand],
-    registry: &CommandRegistry,
-) -> Vec<IrulesEventEmissionEdge> {
-    let mut edges = Vec::new();
-    for command in commands {
-        // An unresolved head — a dynamic spelling, or an alias the registry
-        // does not know — declares nothing, so it raises nothing we can name.
-        let Some(spec) = registry.get(&command.command) else {
+            .map(|word| std::str::from_utf8(word.literal_bytes()?).ok())
+            .collect::<Option<Vec<_>>>()
+        else {
             continue;
         };
-        let Some(event) = command.event.as_ref() else {
-            continue;
-        };
-        let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
-        // A form prefix can match a call the runtime rejects outright:
-        // `TCP::notify request extra` carries the `request` prefix but breaks
-        // the command's declared arity, so it raises nothing and must not put
-        // an unreachable handler into a consumer's reachability set.
-        if arity_is_definitely_wrong(spec, &args) {
-            continue;
-        }
-        let Some(emission) = spec.event_emission_for_args(&args) else {
+        let emission = command
+            .words()
+            .with_source_schema(actual, |selected| {
+                if !selected
+                    .argument_count_for_arity()
+                    .is_some_and(|count| selected.semantics.arity.accepts(count))
+                {
+                    return None;
+                }
+                actual
+                    .commands()
+                    .get_exact(selected.canonical_command)?
+                    .event_emission_for_args(&arguments)
+            })
+            .flatten();
+        let Some(emission) = emission else {
             continue;
         };
         for to_event in emission.events {
-            edges.push(IrulesEventEmissionEdge {
-                span: command.span,
-                from_event: event.clone(),
-                command: command.command.clone(),
+            out.push(IrulesEventEmissionEdge {
+                span: command.span(),
+                from_event: command.event_source().event().to_owned(),
+                command: command.words().command().to_owned(),
                 to_event,
                 certainty: emission.certainty,
             });
         }
     }
-    edges
+    out
 }
 
-/// Whether the registry declares this call's argument count outright invalid.
-///
-/// Deliberately one-sided: `true` only when the count alone settles it, so an
-/// emission edge is dropped only for a call that cannot run. A
-/// release-dependent, form-owned, subcommand-owned, option-bearing or
-/// structurally checked shape — or a word-expanding call, whose count is only
-/// a lower bound — is undecidable from the count here and stays the
-/// analyser's arity diagnostic to report, rather than costing a real edge on
-/// a guess.
-fn arity_is_definitely_wrong(spec: &tcl_registry::CommandSpec, args: &[&str]) -> bool {
-    if !spec.arity_windows.is_empty()
-        || !spec.subcommands.is_empty()
-        || !spec.command_forms.is_empty()
-        || !spec.options.is_empty()
-        || spec.traits.contains(Traits::STRUCTURALLY_CHECKED_ARITY)
-        || args.iter().any(|arg| arg.starts_with("{*}"))
-    {
-        return false;
-    }
-    u16::try_from(args.len()).is_ok_and(|count| !spec.arity.accepts(count))
+/// Current conditional event-emission source relations, through authentic argv.
+#[must_use]
+pub fn irules_event_emission_edges(
+    source: &str,
+    registry: &CommandRegistry,
+) -> Vec<IrulesEventEmissionEdge> {
+    crate::OriginalIrulesSourceContext::capture(source, registry)
+        .map_or_else(Vec::new, |context| source_emission_edges(&context))
 }
 
-/// The executable closure of `event`, widened by the events its commands can
-/// raise — transitively, and cycle-safely.
-///
-/// [`irules_event_executable_closure`] answers "what does this handler run".
-/// This answers "what can running this handler reach", which is the question a
-/// cross-event data-flow or reachability consumer asks: a `TCP::notify
-/// request` in `CLIENT_ACCEPTED` makes a `when USER_REQUEST` handler — and
-/// everything that handler calls — reachable from it.
-///
-/// Following a `Possible` or `Asynchronous` edge is correct here and is not a
-/// claim about ordering or certainty: reachability is the union of what *may*
-/// run. A consumer that needs the distinction reads
-/// [`irules_event_emission_edges`], which keeps the certainty on every edge.
+/// Conditional source paths widened by actual authored event-emission schema.
+/// This union supplies neither an entered event nor complete runtime coverage.
 #[must_use]
 pub fn irules_event_reachable_closure(
     source: &str,
     event: &str,
     registry: &CommandRegistry,
 ) -> Vec<IrulesExecutableCommand> {
-    let mut out = irules_event_executable_closure(source, event, registry);
-    let mut visited: HashSet<String> = HashSet::new();
-    visited.insert(event.to_ascii_uppercase());
-    let mut pending: VecDeque<&'static str> = emission_edges(&out, registry)
-        .into_iter()
-        .map(|edge| edge.to_event)
-        .collect();
-    while let Some(next) = pending.pop_front() {
-        if !visited.insert(next.to_ascii_uppercase()) {
+    let Some(context) = crate::OriginalIrulesSourceContext::capture(source, registry) else {
+        return Vec::new();
+    };
+    let edges = source_emission_edges(&context);
+    let mut pending = VecDeque::from([event.to_owned()]);
+    let mut visited = HashSet::new();
+    while let Some(event) = pending.pop_front() {
+        if !visited.insert(event.to_ascii_uppercase()) {
             continue;
         }
-        let reached = irules_event_executable_closure(source, next, registry);
         pending.extend(
-            emission_edges(&reached, registry)
-                .into_iter()
-                .map(|e| e.to_event),
+            edges
+                .iter()
+                .filter(|edge| edge.from_event.eq_ignore_ascii_case(&event))
+                .map(|edge| edge.to_event.to_owned()),
         );
-        out.extend(reached);
     }
-    out
-}
-
-/// Build an executable closure from already-proven event roots.
-fn event_rooted_closure(
-    source: &str,
-    ctx: &InventoryContext<'_>,
-    event_bodies: Vec<(String, Token)>,
-    procedures: &HashMap<String, Token>,
-) -> Vec<IrulesExecutableCommand> {
-    // Events are the only execution roots in an iRule. Procedure bodies enter
-    // the inventory only through a statically resolved registry-declared
-    // user-proc invocation (`call`), recursively and cycle-safely.
-    let mut out = Vec::new();
-    let mut pending = VecDeque::<(String, String)>::new();
-    for (event, body) in event_bodies {
-        let before = out.len();
-        recurse_token(source, &body, ctx, Context::Event(event), &mut out, 1);
-        enqueue_proc_calls(&out[before..], ctx.registry, &mut pending);
-    }
-    let mut reached = HashSet::new();
-    while let Some((name, event)) = pending.pop_front() {
-        if !reached.insert(name.clone()) {
-            continue;
-        }
-        let Some(body) = procedures.get(&name) else {
-            continue;
-        };
-        let before = out.len();
-        // A procedure executes on behalf of the event that reached it. Keep
-        // that provenance on every command in the closure so consumers that
-        // classify event-sensitive state do not mistake a called helper for
-        // dormant code.
-        recurse_token(source, body, ctx, Context::Procedure(event), &mut out, 1);
-        enqueue_proc_calls(&out[before..], ctx.registry, &mut pending);
-    }
-    // A local proc spelling is not an invocation form in iRules; only a
-    // registry-declared `INVOKES_USER_PROC` edge (`call`) can dispatch it.
-    out.retain(|command| !procedures.contains_key(&procedure_key(&command.command)));
-    out
-}
-
-/// iRules user procedures live in the global command namespace.  The absolute
-/// marker is spelling, not a distinct procedure identity, so `call helper`
-/// and `call ::helper` must reach the same top-level declaration.
-fn procedure_key(name: &str) -> String {
-    tcl_syntax::naming::canonical_written_command(name)
-        .trim_start_matches("::")
-        .to_owned()
-}
-
-fn enqueue_proc_calls(
-    commands: &[IrulesExecutableCommand],
-    registry: &CommandRegistry,
-    pending: &mut VecDeque<(String, String)>,
-) {
-    for command in commands {
-        let Some(spec) = registry.get(&command.command) else {
-            continue;
-        };
-        if !spec.traits.contains(Traits::INVOKES_USER_PROC) {
-            continue;
-        }
-        let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
-        for index in registry.arg_indices_for_role(&command.command, &args, ArgRole::Name) {
-            if let Some(name) = command.args.get(index)
-                && !name.contains(['$', '[', ']', ';'])
-                && let Some(event) = command.event.as_ref()
-            {
-                pending.push_back((procedure_key(name), event.clone()));
-            }
-        }
-    }
-}
-
-fn collect_top_level_regions(
-    source: &str,
-    ctx: &InventoryContext<'_>,
-    events: &mut Vec<(String, Token)>,
-    procedures: &mut HashMap<String, Token>,
-) {
-    for cmd in segment_commands_with_offset_and_config(source, 0, ctx.lexing.config) {
-        let at = cmd.argv.first().map_or(0, |token| token.span.start());
-        let resolved = ctx.identities.head_words(cmd.name(), at).resolved;
-        let canonical = tcl_syntax::naming::canonical_written_command(resolved);
-        let head = if ctx.registry.get_exact(&canonical).is_some() {
-            canonical
-        } else {
-            canonical.trim_start_matches("::").to_owned()
-        };
-        let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        let Some(closed) = tcl_registry::events::closed_braced_argument_words(
-            source,
-            cmd.arg_tokens(),
-            cmd.arg_single_token(),
-        ) else {
-            continue;
-        };
-        let Some(arguments) = tcl_registry::events::IrulesDeclarationArguments::new(
-            &args,
-            cmd.arg_tokens(),
-            cmd.arg_single_token(),
-            &closed,
-        ) else {
-            continue;
-        };
-        match ctx
-            .registry
-            .irules_top_level_declaration(&head, arguments, event_registry())
-        {
-            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event {
-                event,
-                body_index,
-                ..
-            }) => {
-                if let Some(body) = cmd
-                    .argv
-                    .get(body_index + 1)
-                    .copied()
-                    .filter(|body| body.kind == TokenType::Str)
-                {
-                    events.push((event, body));
-                }
-            }
-            Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure {
-                name_index,
-                body_index,
-            }) => {
-                let (Some(name), Some(body)) =
-                    (args.get(name_index), cmd.argv.get(body_index + 1).copied())
-                else {
-                    continue;
-                };
-                if !name.contains(['$', '[', ']', ';']) {
-                    procedures.insert(procedure_key(name), body);
-                }
-            }
-            Some(
-                tcl_registry::events::IrulesTopLevelDeclaration::Priority { .. }
-                | tcl_registry::events::IrulesTopLevelDeclaration::Timing { .. },
-            )
-            | None => {}
-        }
-    }
-}
-
-#[derive(Clone)]
-enum Context {
-    Event(String),
-    Procedure(String),
-}
-
-fn event_registry() -> &'static tcl_registry::events::EventRegistry {
-    static EVENTS: OnceLock<tcl_registry::events::EventRegistry> = OnceLock::new();
-    EVENTS.get_or_init(tcl_registry::events::EventRegistry::build)
-}
-
-#[allow(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::needless_pass_by_value
-)]
-fn walk(
-    full: &str,
-    slice: &str,
-    base: u32,
-    ctx: &InventoryContext<'_>,
-    context: Context,
-    out: &mut Vec<IrulesExecutableCommand>,
-    depth: u16,
-) {
-    if depth >= 256 {
-        return;
-    }
-    let registry = ctx.registry;
-    let identities = ctx.identities;
-    let lexing = ctx.lexing;
-    for cmd in segment_commands_with_offset_and_config(slice, base, lexing.config.nested()) {
-        let at = cmd.argv.first().map_or(0, |token| token.span.start());
-        let resolved = identities.head_words(cmd.name(), at).resolved;
-        let canonical = tcl_syntax::naming::canonical_written_command(resolved);
-        let head = if registry.get_exact(&canonical).is_some() {
-            canonical
-        } else {
-            canonical.trim_start_matches("::").to_owned()
-        };
-        let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-
-        let nested_context = match context {
-            Context::Event(_) => IrulesExecutionContext::EventBody,
-            Context::Procedure(_) => IrulesExecutionContext::ProcedureBody,
-        };
-        if registry.irules_command_placement(&head, nested_context)
-            == IrulesCommandPlacement::RequiresTopLevel
-        {
-            continue;
-        }
-
-        let mut variable_names = Vec::new();
-        for token in &cmd.all_tokens {
-            if token.kind == TokenType::Var {
-                let start = token.span.start() as usize + token.content_offset as usize;
-                let end = token.span.end() as usize;
-                if let Some(raw) = full.get(start..end) {
-                    variable_names.push(variable_name(raw));
-                }
-            }
-        }
-        let owned_spans: HashSet<_> = registry
-            .arg_indices_for_role(&head, &args, ArgRole::Body)
-            .into_iter()
-            .filter_map(|idx| cmd.argv.get(idx + 1))
-            .map(|tok| (tok.span.start(), tok.span.end()))
-            .collect();
-        let mut expression_command_spans = Vec::new();
-        for index in registry.arg_indices_for_role(&head, &args, ArgRole::Expr) {
-            let Some(token) = cmd.argv.get(index + 1) else {
-                continue;
-            };
-            // Tcl substitutes an unbraced or quoted argument *before* `if`
-            // asks `expr` to parse it.  Therefore its complete lexer-owned
-            // `Cmd` tokens must flow through the generic substitution pass
-            // below even if the resulting expression is invalid. A braced
-            // word is opaque to the script lexer and is evaluated by `expr`
-            // itself, so only that form needs the syntax/runtime-surface gate
-            // to recover its live command substitutions.
-            let token_start = token.span.start() as usize;
-            if full.as_bytes().get(token_start) != Some(&b'{') || token.content_offset != 1 {
-                continue;
-            }
-            let expression_start = token_start + token.content_offset as usize;
-            let expression_end = token.span.end() as usize;
-            let Some(expression) = full.get(expression_start..expression_end) else {
-                continue;
-            };
-            let substitutions = tcl_syntax::expr::live_expression_substitutions(
-                expression,
-                lexing.profile,
-                lexing.config,
-                |parsed| lexing.expr_surface.validate(parsed).is_ok(),
-            );
-            for span in substitutions.variables {
-                let variable_start = expression_start + span.start() as usize;
-                let variable_end = expression_start + span.end() as usize;
-                if let Some(raw) = full.get(variable_start..variable_end) {
-                    variable_names.push(variable_name(raw));
-                }
-            }
-            for span in substitutions.commands {
-                let command_start = expression_start + span.start() as usize;
-                let command_end = expression_start + span.end() as usize;
-                let Some(interior_start) = command_start.checked_add(1) else {
-                    continue;
-                };
-                let Some(interior_end) = command_end.checked_sub(1) else {
-                    continue;
-                };
-                if interior_start >= interior_end {
-                    continue;
-                }
-                expression_command_spans.push(interior_start..interior_end);
-            }
-        }
-        out.push(IrulesExecutableCommand {
-            span: cmd.span,
-            command: head.clone(),
-            args: cmd.args().to_vec(),
-            variable_names,
-            event: match &context {
-                Context::Event(event) | Context::Procedure(event) => Some(event.clone()),
-            },
-        });
-
-        recurse_bodies(full, &cmd, &head, &args, ctx, context.clone(), out, depth);
-        recurse_case_bodies(full, &cmd, &head, &args, ctx, context.clone(), out, depth);
-        for command_range in expression_command_spans {
-            let Some(interior) = full.get(command_range.clone()) else {
-                continue;
-            };
-            walk(
-                full,
-                interior,
-                u32::try_from(command_range.start).unwrap_or(0),
-                ctx,
-                context.clone(),
-                out,
-                depth + 1,
-            );
-        }
-        for token in &cmd.all_tokens {
-            if token.kind == TokenType::Cmd
-                && !owned_spans.contains(&(token.span.start(), token.span.end()))
-            {
-                recurse_token(full, token, ctx, context.clone(), out, depth + 1);
-            }
-        }
-    }
-}
-
-/// Convert a lexer-owned variable spelling into the public inventory name.
-///
-/// Script tokens arrive with their `$` / `${` introducer stripped through
-/// `content_offset`; expression spans intentionally include it so their exact
-/// source range remains available to every consumer. Normalise only those
-/// delimiters here, preserving array keys and namespace spelling exactly like
-/// the pre-existing script-token path.
-fn variable_name(raw: &str) -> String {
-    let raw = raw.strip_prefix('$').unwrap_or(raw);
-    raw.strip_prefix('{')
-        .and_then(|name| name.strip_suffix('}'))
-        .unwrap_or(raw)
-        .to_owned()
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
-fn recurse_case_bodies(
-    full: &str,
-    cmd: &SegmentedCommand,
-    head: &str,
-    args: &[&str],
-    ctx: &InventoryContext<'_>,
-    context: Context,
-    out: &mut Vec<IrulesExecutableCommand>,
-    depth: u16,
-) {
-    let registry = ctx.registry;
-    let dialect = registry
-        .profile()
-        .map(tcl_dialect::DialectProfile::surface_query);
-    let Some((spec, invocation)) = registry.case_invocation(head, args, dialect) else {
-        return;
-    };
-    let Some(index) = invocation.clause_list_index else {
-        return;
-    };
-    let Some(token) = cmd
-        .argv
-        .get(index + 1)
-        .filter(|token| token.kind == TokenType::Str)
-    else {
-        return;
-    };
-    let start = token.span.start() as usize + token.content_offset as usize;
-    let end = token.span.end() as usize;
-    let Some(inner) = full.get(start..end) else {
-        return;
-    };
-    let shape = tcl_syntax::case_list::CaseListShape {
-        clause_flags: spec.clause_flags,
-        clause_value_flags: spec.clause_value_flags,
-    };
-    for body in tcl_syntax::case_list::split_case_list(inner, &shape)
+    context
+        .presentation_commands(source)
         .into_iter()
-        .filter_map(|clause| clause.body)
-        .filter(|body| body.braced)
-    {
-        // The case-list owner alone defines the braced arm's interior. Its
-        // end is already exclusive (at the closing brace), so subtracting
-        // from it would shave the final byte of the nested command and make
-        // this closure disagree with the reference walker.
-        let body_range = body.content_range();
-        let body_start = start + body_range.start;
-        let body_end = start + body_range.end;
-        if let Some(script) = full.get(body_start..body_end) {
-            walk(
-                full,
-                script,
-                u32::try_from(body_start).unwrap_or(0),
-                ctx,
-                context.clone(),
-                out,
-                depth + 1,
-            );
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
-fn recurse_bodies(
-    full: &str,
-    cmd: &SegmentedCommand,
-    head: &str,
-    args: &[&str],
-    ctx: &InventoryContext<'_>,
-    context: Context,
-    out: &mut Vec<IrulesExecutableCommand>,
-    depth: u16,
-) {
-    let registry = ctx.registry;
-    for idx in registry.arg_indices_for_role(head, args, ArgRole::Body) {
-        if let Some(token) = cmd.argv.get(idx + 1) {
-            recurse_token(full, token, ctx, context.clone(), out, depth + 1);
-        }
-    }
-}
-
-#[allow(clippy::needless_pass_by_value)]
-fn recurse_token(
-    full: &str,
-    token: &Token,
-    ctx: &InventoryContext<'_>,
-    context: Context,
-    out: &mut Vec<IrulesExecutableCommand>,
-    depth: u16,
-) {
-    // The recovery lexer preserves a `Cmd` token for an unterminated `[` so
-    // editor features can still colour the fragment.  It is not an executable
-    // command substitution, however: only the lexer range owner can prove a
-    // closing `]` through nested Tcl syntax and comments.
-    if token.kind == TokenType::Cmd
-        && tcl_lexer::command_substitution_end(full, token.span.start() as usize).is_none()
-    {
-        return;
-    }
-    let start = token.span.start() as usize + token.content_offset as usize;
-    let end = token.span.end() as usize;
-    if let Some(inner) = full.get(start..end) {
-        walk(
-            full,
-            inner,
-            u32::try_from(start).unwrap_or(0),
-            ctx,
-            context,
-            out,
-            depth,
-        );
-    }
+        .filter(|command| {
+            command
+                .event
+                .as_deref()
+                .is_some_and(|event| visited.contains(&event.to_ascii_uppercase()))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -770,7 +211,7 @@ mod tests {
             .filter(|fact| fact.command == "pool")
             .map(|fact| fact.args[0].as_str())
             .collect();
-        assert_eq!(pools, ["from_event", "from_proc"]);
+        assert_eq!(pools, ["from_proc", "from_event"]);
     }
 
     #[test]
@@ -795,7 +236,7 @@ mod tests {
             .collect();
         assert_eq!(
             pools,
-            ["first_pool", "second_pool", "helper_one", "helper_two"],
+            ["helper_one", "helper_two", "first_pool", "second_pool"],
             "both roots and the cycle-safe call closure are present exactly once"
         );
         assert!(
@@ -1091,7 +532,7 @@ mod tests {
             .filter(|fact| fact.command == "pool")
             .map(|fact| fact.args[0].as_str())
             .collect();
-        assert_eq!(pools, ["valid_event", "valid_proc"]);
+        assert_eq!(pools, ["valid_proc", "valid_event"]);
         assert!(facts.iter().all(|fact| fact.command != "table"));
         assert!(
             facts
@@ -1114,7 +555,7 @@ mod tests {
             .filter(|fact| fact.command == "pool")
             .map(|fact| fact.args[0].as_str())
             .collect();
-        assert_eq!(pools, ["event", "leaf", "cycle_a", "cycle_b"]);
+        assert_eq!(pools, ["leaf", "cycle_a", "cycle_b", "event"]);
     }
 
     #[test]
@@ -1128,16 +569,18 @@ mod tests {
     }
 
     #[test]
-    fn call_edges_normalise_the_global_procedure_marker() {
-        let facts = commands(concat!(
-            "proc ::helper {} { pool rooted_helper }\n",
-            "when HTTP_REQUEST { call helper }\n",
-        ));
-        assert!(
-            facts
-                .iter()
-                .any(|fact| fact.command == "pool" && fact.args == ["rooted_helper"]),
-            "the absolute marker is not a distinct user-procedure identity: {facts:?}"
-        );
+    fn source_calls_do_not_invent_global_marker_equivalence() {
+        // Implementation contract: naming.consumer.original-irules-source-context
+        // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
+        let source = "proc ::helper {} { pool rooted_helper }\nwhen HTTP_REQUEST { call helper }\n";
+        let facts = commands(source);
+        assert!(facts.iter().all(|fact| fact.command != "pool"));
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let context = crate::OriginalIrulesSourceContext::capture(source, registry).unwrap();
+        assert!(context.commands().iter().any(|command| {
+            command
+                .obligations()
+                .contains(&crate::IrulesSourceObligation::ProcedureTargetUnavailable)
+        }));
     }
 }

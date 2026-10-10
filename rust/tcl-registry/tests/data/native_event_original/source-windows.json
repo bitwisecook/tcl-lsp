@@ -1,0 +1,692 @@
+[
+  {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclTimer.c",
+    "function": "Tcl_AfterObjCmd",
+    "lines": [
+      735,
+      933
+    ],
+    "source_sha256": "3a54a00f6b2037ce2afc039054dad9c2a7b5c80c77c0258c696a3c9f4ca15cfa",
+    "snippet": "Tcl_AfterObjCmd(clientData, interp, objc, objv)\n    ClientData clientData;\t/* Unused */\n    Tcl_Interp *interp;\t\t/* Current interpreter. */\n    int objc;\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[];\t/* Argument objects. */\n{\n    int ms;\n    AfterInfo *afterPtr;\n    AfterAssocData *assocPtr;\n    int length;\n    char *argString;\n    int index;\n    char buf[16 + TCL_INTEGER_SPACE];\n    static CONST char *afterSubCmds[] = {\n\t\"cancel\", \"idle\", \"info\", (char *) NULL\n    };\n    enum afterSubCmds {AFTER_CANCEL, AFTER_IDLE, AFTER_INFO};\n    ThreadSpecificData *tsdPtr = InitTimer();\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"option ?arg arg ...?\");\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Create the \"after\" information associated for this interpreter,\n     * if it doesn't already exist.  \n     */\n\n    assocPtr = Tcl_GetAssocData( interp, \"tclAfter\", NULL );\n    if (assocPtr == NULL) {\n\tassocPtr = (AfterAssocData *) ckalloc(sizeof(AfterAssocData));\n\tassocPtr->interp = interp;\n\tassocPtr->firstAfterPtr = NULL;\n\tTcl_SetAssocData(interp, \"tclAfter\", AfterCleanupProc,\n\t\t(ClientData) assocPtr);\n    }\n\n    /*\n     * First lets see if the command was passed a number as the first argument.\n     */\n\n    if (objv[1]->typePtr == &tclIntType) {\n\tms = (int) objv[1]->internalRep.longValue;\n\tgoto processInteger;\n    }\n    argString = Tcl_GetStringFromObj(objv[1], &length);\n    if (argString[0] == '+' || argString[0] == '-'\n\t|| isdigit(UCHAR(argString[0]))) {\t/* INTL: digit */\n\tif (Tcl_GetIntFromObj(interp, objv[1], &ms) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\nprocessInteger:\n\tif (ms < 0) {\n\t    ms = 0;\n\t}\n\tif (objc == 2) {\n\t    Tcl_Sleep(ms);\n\t    return TCL_OK;\n\t}\n\tafterPtr = (AfterInfo *) ckalloc((unsigned) (sizeof(AfterInfo)));\n\tafterPtr->assocPtr = assocPtr;\n\tif (objc == 3) {\n\t    afterPtr->commandPtr = objv[2];\n\t} else {\n \t    afterPtr->commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\tTcl_IncrRefCount(afterPtr->commandPtr);\n\t/*\n\t * The variable below is used to generate unique identifiers for\n\t * after commands.  This id can wrap around, which can potentially\n\t * cause problems.  However, there are not likely to be problems\n\t * in practice, because after commands can only be requested to\n\t * about a month in the future, and wrap-around is unlikely to\n\t * occur in less than about 1-10 years.  Thus it's unlikely that\n\t * any old ids will still be around when wrap-around occurs.\n\t */\n\tafterPtr->id = tsdPtr->afterId;\n\ttsdPtr->afterId += 1;\n\tafterPtr->token = Tcl_CreateTimerHandler(ms, AfterProc,\n\t\t(ClientData) afterPtr);\n\tafterPtr->nextPtr = assocPtr->firstAfterPtr;\n\tassocPtr->firstAfterPtr = afterPtr;\n\tsprintf(buf, \"after#%d\", afterPtr->id);\n\tTcl_AppendResult(interp, buf, (char *) NULL);\n\treturn TCL_OK;\n    }\n\n    /*\n     * If it's not a number it must be a subcommand.\n     */\n\n    if (Tcl_GetIndexFromObj(NULL, objv[1], afterSubCmds, \"argument\",\n            0, &index) != TCL_OK) {\n\tTcl_AppendResult(interp, \"bad argument \\\"\", argString,\n\t\t\"\\\": must be cancel, idle, info, or a number\",\n\t\t(char *) NULL);\n\treturn TCL_ERROR;\n    }\n    switch ((enum afterSubCmds) index) {\n        case AFTER_CANCEL: {\n\t    Tcl_Obj *commandPtr;\n\t    char *command, *tempCommand;\n\t    int tempLength;\n\n\t    if (objc < 3) {\n\t\tTcl_WrongNumArgs(interp, 2, objv, \"id|command\");\n\t\treturn TCL_ERROR;\n\t    }\n\t    if (objc == 3) {\n\t\tcommandPtr = objv[2];\n\t    } else {\n\t\tcommandPtr = Tcl_ConcatObj(objc-2, objv+2);;\n\t    }\n\t    command = Tcl_GetStringFromObj(commandPtr, &length);\n\t    for (afterPtr = assocPtr->firstAfterPtr;  afterPtr != NULL;\n\t\t    afterPtr = afterPtr->nextPtr) {\n\t\ttempCommand = Tcl_GetStringFromObj(afterPtr->commandPtr,\n\t\t\t&tempLength);\n\t\tif ((length == tempLength)\n\t\t        && (memcmp((void*) command, (void*) tempCommand,\n\t\t\t        (unsigned) length) == 0)) {\n\t\t    break;\n\t\t}\n\t    }\n\t    if (afterPtr == NULL) {\n\t\tafterPtr = GetAfterEvent(assocPtr, commandPtr);\n\t    }\n\t    if (objc != 3) {\n\t\tTcl_DecrRefCount(commandPtr);\n\t    }\n\t    if (afterPtr != NULL) {\n\t\tif (afterPtr->token != NULL) {\n\t\t    Tcl_DeleteTimerHandler(afterPtr->token);\n\t\t} else {\n\t\t    Tcl_CancelIdleCall(AfterProc, (ClientData) afterPtr);\n\t\t}\n\t\tFreeAfterPtr(afterPtr);\n\t    }\n\t    break;\n\t}\n\tcase AFTER_IDLE:\n\t    if (objc < 3) {\n\t\tTcl_WrongNumArgs(interp, 2, objv, \"script script ...\");\n\t\treturn TCL_ERROR;\n\t    }\n\t    afterPtr = (AfterInfo *) ckalloc((unsigned) (sizeof(AfterInfo)));\n\t    afterPtr->assocPtr = assocPtr;\n\t    if (objc == 3) {\n \t\tafterPtr->commandPtr = objv[2];\n\t    } else {\n\t\tafterPtr->commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t    }\n\t    Tcl_IncrRefCount(afterPtr->commandPtr);\n\t    afterPtr->id = tsdPtr->afterId;\n\t    tsdPtr->afterId += 1;\n\t    afterPtr->token = NULL;\n\t    afterPtr->nextPtr = assocPtr->firstAfterPtr;\n\t    assocPtr->firstAfterPtr = afterPtr;\n\t    Tcl_DoWhenIdle(AfterProc, (ClientData) afterPtr);\n\t    sprintf(buf, \"after#%d\", afterPtr->id);\n\t    Tcl_AppendResult(interp, buf, (char *) NULL);\n\t    break;\n\tcase AFTER_INFO: {\n\t    Tcl_Obj *resultListPtr;\n\n\t    if (objc == 2) {\n\t\tfor (afterPtr = assocPtr->firstAfterPtr; afterPtr != NULL;\n\t\t     afterPtr = afterPtr->nextPtr) {\n\t\t    if (assocPtr->interp == interp) {\n\t\t\tsprintf(buf, \"after#%d\", afterPtr->id);\n\t\t\tTcl_AppendElement(interp, buf);\n\t\t    }\n\t\t}\n\t\treturn TCL_OK;\n\t    }\n\t    if (objc != 3) {\n\t\tTcl_WrongNumArgs(interp, 2, objv, \"?id?\");\n\t\treturn TCL_ERROR;\n\t    }\n\t    afterPtr = GetAfterEvent(assocPtr, objv[2]);\n\t    if (afterPtr == NULL) {\n\t\tTcl_AppendResult(interp, \"event \\\"\", Tcl_GetString(objv[2]),\n\t\t\t\"\\\" doesn't exist\", (char *) NULL);\n\t\treturn TCL_ERROR;\n\t    }\n\t    resultListPtr = Tcl_GetObjResult(interp);\n \t    Tcl_ListObjAppendElement(interp, resultListPtr, afterPtr->commandPtr);\n \t    Tcl_ListObjAppendElement(interp, resultListPtr, Tcl_NewStringObj(\n \t\t(afterPtr->token == NULL) ? \"idle\" : \"timer\", -1));\n\t    Tcl_SetObjResult(interp, resultListPtr);\n\t    break;\n\t}\n\tdefault: {\n\t    panic(\"Tcl_AfterObjCmd: bad subcommand index to afterSubCmds\");\n\t}\n    }\n    return TCL_OK;\n}",
+    "snippet_sha256": "d585c94ea4dc36fc9759d20db15e4818509d5e7ca3cbd44a26ffb8dcd7e641fb",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclTimer.c",
+    "function": "GetAfterEvent",
+    "lines": [
+      955,
+      982
+    ],
+    "source_sha256": "3a54a00f6b2037ce2afc039054dad9c2a7b5c80c77c0258c696a3c9f4ca15cfa",
+    "snippet": "GetAfterEvent(assocPtr, commandPtr)\n    AfterAssocData *assocPtr;\t/* Points to \"after\"-related information for\n\t\t\t\t * this interpreter. */\n    Tcl_Obj *commandPtr;\n{\n    char *cmdString;\t\t/* Textual identifier for after event, such\n\t\t\t\t * as \"after#6\". */\n    AfterInfo *afterPtr;\n    int id;\n    char *end;\n\n    cmdString = Tcl_GetString(commandPtr);\n    if (strncmp(cmdString, \"after#\", 6) != 0) {\n\treturn NULL;\n    }\n    cmdString += 6;\n    id = strtoul(cmdString, &end, 10);\n    if ((end == cmdString) || (*end != 0)) {\n\treturn NULL;\n    }\n    for (afterPtr = assocPtr->firstAfterPtr; afterPtr != NULL;\n\t    afterPtr = afterPtr->nextPtr) {\n\tif (afterPtr->id == id) {\n\t    return afterPtr;\n\t}\n    }\n    return NULL;\n}",
+    "snippet_sha256": "e1bee03ceddfaa8fe17a4d72881f1d9159d1c9e5bace9a534d9dea826ece4710",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclTimer.c",
+    "function": "AfterProc",
+    "lines": [
+      1005,
+      1052
+    ],
+    "source_sha256": "3a54a00f6b2037ce2afc039054dad9c2a7b5c80c77c0258c696a3c9f4ca15cfa",
+    "snippet": "AfterProc(clientData)\n    ClientData clientData;\t/* Describes command to execute. */\n{\n    AfterInfo *afterPtr = (AfterInfo *) clientData;\n    AfterAssocData *assocPtr = afterPtr->assocPtr;\n    AfterInfo *prevPtr;\n    int result;\n    Tcl_Interp *interp;\n    char *script;\n    int numBytes;\n\n    /*\n     * First remove the callback from our list of callbacks;  otherwise\n     * someone could delete the callback while it's being executed, which\n     * could cause a core dump.\n     */\n\n    if (assocPtr->firstAfterPtr == afterPtr) {\n\tassocPtr->firstAfterPtr = afterPtr->nextPtr;\n    } else {\n\tfor (prevPtr = assocPtr->firstAfterPtr; prevPtr->nextPtr != afterPtr;\n\t\tprevPtr = prevPtr->nextPtr) {\n\t    /* Empty loop body. */\n\t}\n\tprevPtr->nextPtr = afterPtr->nextPtr;\n    }\n\n    /*\n     * Execute the callback.\n     */\n\n    interp = assocPtr->interp;\n    Tcl_Preserve((ClientData) interp);\n    script = Tcl_GetStringFromObj(afterPtr->commandPtr, &numBytes);\n    result = Tcl_EvalEx(interp, script, numBytes, TCL_EVAL_GLOBAL);\n    if (result != TCL_OK) {\n\tTcl_AddErrorInfo(interp, \"\\n    (\\\"after\\\" script)\");\n\tTcl_BackgroundError(interp);\n    }\n    Tcl_Release((ClientData) interp);\n    \n    /*\n     * Free the memory for the callback.\n     */\n\n    Tcl_DecrRefCount(afterPtr->commandPtr);\n    ckfree((char *) afterPtr);\n}",
+    "snippet_sha256": "b85d2e4ddfa43e470924a2b351b99d9c9b53ef9bdbd3472b0170fafe736cfe66",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclTimer.c",
+    "function": "TimerHandlerEventProc",
+    "lines": [
+      467,
+      549
+    ],
+    "source_sha256": "3a54a00f6b2037ce2afc039054dad9c2a7b5c80c77c0258c696a3c9f4ca15cfa",
+    "snippet": "TimerHandlerEventProc(evPtr, flags)\n    Tcl_Event *evPtr;\t\t/* Event to service. */\n    int flags;\t\t\t/* Flags that indicate what events to\n\t\t\t\t * handle, such as TCL_FILE_EVENTS. */\n{\n    TimerHandler *timerHandlerPtr, **nextPtrPtr;\n    Tcl_Time time;\n    int currentTimerId;\n    ThreadSpecificData *tsdPtr = InitTimer();\n\n    /*\n     * Do nothing if timers aren't enabled.  This leaves the event on the\n     * queue, so we will get to it as soon as ServiceEvents() is called\n     * with timers enabled.\n     */\n\n    if (!(flags & TCL_TIMER_EVENTS)) {\n\treturn 0;\n    }\n\n    /*\n     * The code below is trickier than it may look, for the following\n     * reasons:\n     *\n     * 1. New handlers can get added to the list while the current\n     *    one is being processed.  If new ones get added, we don't\n     *    want to process them during this pass through the list to avoid\n     *\t  starving other event sources.  This is implemented using the\n     *\t  token number in the handler:  new handlers will have a\n     *    newer token than any of the ones currently on the list.\n     * 2. The handler can call Tcl_DoOneEvent, so we have to remove\n     *    the handler from the list before calling it. Otherwise an\n     *    infinite loop could result.\n     * 3. Tcl_DeleteTimerHandler can be called to remove an element from\n     *    the list while a handler is executing, so the list could\n     *    change structure during the call.\n     * 4. Because we only fetch the current time before entering the loop,\n     *    the only way a new timer will even be considered runnable is if\n     *\t  its expiration time is within the same millisecond as the\n     *\t  current time.  This is fairly likely on Windows, since it has\n     *\t  a course granularity clock.  Since timers are placed\n     *\t  on the queue in time order with the most recently created\n     *    handler appearing after earlier ones with the same expiration\n     *\t  time, we don't have to worry about newer generation timers\n     *\t  appearing before later ones.\n     */\n\n    tsdPtr->timerPending = 0;\n    currentTimerId = tsdPtr->lastTimerId;\n    Tcl_GetTime(&time);\n    while (1) {\n\tnextPtrPtr = &tsdPtr->firstTimerHandlerPtr;\n\ttimerHandlerPtr = tsdPtr->firstTimerHandlerPtr;\n\tif (timerHandlerPtr == NULL) {\n\t    break;\n\t}\n\t    \n\tif ((timerHandlerPtr->time.sec > time.sec)\n\t\t|| ((timerHandlerPtr->time.sec == time.sec)\n\t\t\t&& (timerHandlerPtr->time.usec > time.usec))) {\n\t    break;\n\t}\n\n\t/*\n\t * Bail out if the next timer is of a newer generation.\n\t */\n\n\tif ((currentTimerId - (int)timerHandlerPtr->token) < 0) {\n\t    break;\n\t}\n\n\t/*\n\t * Remove the handler from the queue before invoking it,\n\t * to avoid potential reentrancy problems.\n\t */\n\n\t(*nextPtrPtr) = timerHandlerPtr->nextPtr;\n\t(*timerHandlerPtr->proc)(timerHandlerPtr->clientData);\n\tckfree((char *) timerHandlerPtr);\n    }\n    TimerSetupProc(NULL, TCL_TIMER_EVENTS);\n    return 1;\n}",
+    "snippet_sha256": "8eee6fce0ddf7e7a411f6f9e896cc7bbb1d45e1895ee7eece64c05aae59e843b",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclEvent.c",
+    "function": "Tcl_VwaitObjCmd",
+    "lines": [
+      1176,
+      1216
+    ],
+    "source_sha256": "020cc8b9d0b020c2b1dac904f08b03c3e59889dd2ff493677f04696524d40673",
+    "snippet": "Tcl_VwaitObjCmd(clientData, interp, objc, objv)\n    ClientData clientData;\t/* Not used. */\n    Tcl_Interp *interp;\t\t/* Current interpreter. */\n    int objc;\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[];\t/* Argument objects. */\n{\n    int done, foundEvent;\n    char *nameString;\n\n    if (objc != 2) {\n        Tcl_WrongNumArgs(interp, 1, objv, \"name\");\n\treturn TCL_ERROR;\n    }\n    nameString = Tcl_GetString(objv[1]);\n    if (Tcl_TraceVar(interp, nameString,\n\t    TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t    VwaitVarProc, (ClientData) &done) != TCL_OK) {\n\treturn TCL_ERROR;\n    };\n    done = 0;\n    foundEvent = 1;\n    while (!done && foundEvent) {\n\tfoundEvent = Tcl_DoOneEvent(TCL_ALL_EVENTS);\n    }\n    Tcl_UntraceVar(interp, nameString,\n\t    TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t    VwaitVarProc, (ClientData) &done);\n\n    /*\n     * Clear out the interpreter's result, since it may have been set\n     * by event handlers.\n     */\n\n    Tcl_ResetResult(interp);\n    if (!foundEvent) {\n\tTcl_AppendResult(interp, \"can't wait for variable \\\"\", nameString,\n\t\t\"\\\":  would wait forever\", (char *) NULL);\n\treturn TCL_ERROR;\n    }\n    return TCL_OK;\n}",
+    "snippet_sha256": "1328a8f513834f5b7a5b16fc36f88138ec507eb04f53c43f8b8a9edda31a52ef",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclEvent.c"
+  },
+  {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclEvent.c",
+    "function": "VwaitVarProc",
+    "lines": [
+      1220,
+      1231
+    ],
+    "source_sha256": "020cc8b9d0b020c2b1dac904f08b03c3e59889dd2ff493677f04696524d40673",
+    "snippet": "VwaitVarProc(clientData, interp, name1, name2, flags)\n    ClientData clientData;\t/* Pointer to integer to set to 1. */\n    Tcl_Interp *interp;\t\t/* Interpreter containing variable. */\n    CONST char *name1;\t\t/* Name of variable. */\n    CONST char *name2;\t\t/* Second part of variable name. */\n    int flags;\t\t\t/* Information about what happened. */\n{\n    int *donePtr = (int *) clientData;\n\n    *donePtr = 1;\n    return (char *) NULL;\n}",
+    "snippet_sha256": "1e477af22d9a7a65f948075c243f4598545e58d84d5137a82caeec9cb6298f51",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclEvent.c"
+  },
+  {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclEvent.c",
+    "function": "Tcl_UpdateObjCmd",
+    "lines": [
+      1252,
+      1295
+    ],
+    "source_sha256": "020cc8b9d0b020c2b1dac904f08b03c3e59889dd2ff493677f04696524d40673",
+    "snippet": "Tcl_UpdateObjCmd(clientData, interp, objc, objv)\n    ClientData clientData;\t/* Not used. */\n    Tcl_Interp *interp;\t\t/* Current interpreter. */\n    int objc;\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[];\t/* Argument objects. */\n{\n    int optionIndex;\n    int flags = 0;\t\t/* Initialized to avoid compiler warning. */\n    static CONST char *updateOptions[] = {\"idletasks\", (char *) NULL};\n    enum updateOptions {REGEXP_IDLETASKS};\n\n    if (objc == 1) {\n\tflags = TCL_ALL_EVENTS|TCL_DONT_WAIT;\n    } else if (objc == 2) {\n\tif (Tcl_GetIndexFromObj(interp, objv[1], updateOptions,\n\t\t\"option\", 0, &optionIndex) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\n\tswitch ((enum updateOptions) optionIndex) {\n\t    case REGEXP_IDLETASKS: {\n\t\tflags = TCL_WINDOW_EVENTS|TCL_IDLE_EVENTS|TCL_DONT_WAIT;\n\t\tbreak;\n\t    }\n\t    default: {\n\t\tpanic(\"Tcl_UpdateObjCmd: bad option index to UpdateOptions\");\n\t    }\n\t}\n    } else {\n        Tcl_WrongNumArgs(interp, 1, objv, \"?idletasks?\");\n\treturn TCL_ERROR;\n    }\n    \n    while (Tcl_DoOneEvent(flags) != 0) {\n\t/* Empty loop body */\n    }\n\n    /*\n     * Must clear the interpreter's result because event handlers could\n     * have executed commands.\n     */\n\n    Tcl_ResetResult(interp);\n    return TCL_OK;\n}",
+    "snippet_sha256": "84dfd0e1ec089a7b4be43581d176442092c7806109e71ddbfe1a2bf534fce0d9",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclEvent.c"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclTimer.c",
+    "function": "Tcl_AfterObjCmd",
+    "lines": [
+      766,
+      969
+    ],
+    "source_sha256": "9c6e3aa2bad086fe1e94dadca7e99c22b5997b55b07065e6d9256a7a692255ff",
+    "snippet": "Tcl_AfterObjCmd(\n    ClientData clientData,\t/* Unused */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[])\t/* Argument objects. */\n{\n    Tcl_WideInt ms;\t\t/* Number of milliseconds to wait */\n    Tcl_Time wakeup;\n    AfterInfo *afterPtr;\n    AfterAssocData *assocPtr;\n    int length;\n    int index;\n    char buf[16 + TCL_INTEGER_SPACE];\n    static CONST char *afterSubCmds[] = {\n\t\"cancel\", \"idle\", \"info\", NULL\n    };\n    enum afterSubCmds {AFTER_CANCEL, AFTER_IDLE, AFTER_INFO};\n    ThreadSpecificData *tsdPtr = InitTimer();\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"option ?arg arg ...?\");\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Create the \"after\" information associated for this interpreter, if it\n     * doesn't already exist.\n     */\n\n    assocPtr = Tcl_GetAssocData(interp, \"tclAfter\", NULL);\n    if (assocPtr == NULL) {\n\tassocPtr = (AfterAssocData *) ckalloc(sizeof(AfterAssocData));\n\tassocPtr->interp = interp;\n\tassocPtr->firstAfterPtr = NULL;\n\tTcl_SetAssocData(interp, \"tclAfter\", AfterCleanupProc,\n\t\t(ClientData) assocPtr);\n    }\n\n    /*\n     * First lets see if the command was passed a number as the first argument.\n     */\n\n    if (objv[1]->typePtr == &tclIntType\n#ifndef NO_WIDE_TYPE\n\t|| objv[1]->typePtr == &tclWideIntType\n#endif\n\t|| objv[1]->typePtr == &tclBignumType\n\t|| ( Tcl_GetIndexFromObj(NULL, objv[1], afterSubCmds, \"\", 0, \n\t\t\t\t &index) != TCL_OK )) {\n\tindex = -1;\n\tif (Tcl_GetWideIntFromObj(NULL, objv[1], &ms) != TCL_OK) {\n\t    Tcl_AppendResult(interp, \"bad argument \\\"\",\n\t\t\t     Tcl_GetString(objv[1]),\n\t\t\t     \"\\\": must be cancel, idle, info, or an integer\",\n\t\t\t     NULL);\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /* \n     * At this point, either index = -1 and ms contains the number of ms\n     * to wait, or else index is the index of a subcommand.\n     */\n\n    switch (index) {\n    case -1: {\n\tif (ms < 0) {\n\t    ms = 0;\n\t}\n\tif (objc == 2) {\n\t    return AfterDelay(interp, ms);\n\t}\n\tafterPtr = (AfterInfo *) ckalloc((unsigned) (sizeof(AfterInfo)));\n\tafterPtr->assocPtr = assocPtr;\n\tif (objc == 3) {\n\t    afterPtr->commandPtr = objv[2];\n\t} else {\n \t    afterPtr->commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\tTcl_IncrRefCount(afterPtr->commandPtr);\n\n\t/*\n\t * The variable below is used to generate unique identifiers for after\n\t * commands. This id can wrap around, which can potentially cause\n\t * problems. However, there are not likely to be problems in practice,\n\t * because after commands can only be requested to about a month in\n\t * the future, and wrap-around is unlikely to occur in less than about\n\t * 1-10 years. Thus it's unlikely that any old ids will still be\n\t * around when wrap-around occurs.\n\t */\n\n\tafterPtr->id = tsdPtr->afterId;\n\ttsdPtr->afterId += 1;\n\tTcl_GetTime(&wakeup);\n\twakeup.sec += (long)(ms / 1000);\n\twakeup.usec += ((long)(ms % 1000)) * 1000;\n\tif (wakeup.usec > 1000000) {\n\t    wakeup.sec++;\n\t    wakeup.usec -= 1000000;\n\t}\n\tafterPtr->token = TclCreateAbsoluteTimerHandler(&wakeup, AfterProc,\n\t\t\t\t\t\t\t(ClientData) afterPtr);\n\tafterPtr->nextPtr = assocPtr->firstAfterPtr;\n\tassocPtr->firstAfterPtr = afterPtr;\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\"after#%d\", afterPtr->id));\n\treturn TCL_OK;\n    }\n    case AFTER_CANCEL: {\n\tTcl_Obj *commandPtr;\n\tchar *command, *tempCommand;\n\tint tempLength;\n\n\tif (objc < 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"id|command\");\n\t    return TCL_ERROR;\n\t}\n\tif (objc == 3) {\n\t    commandPtr = objv[2];\n\t} else {\n\t    commandPtr = Tcl_ConcatObj(objc-2, objv+2);;\n\t}\n\tcommand = Tcl_GetStringFromObj(commandPtr, &length);\n\tfor (afterPtr = assocPtr->firstAfterPtr;  afterPtr != NULL;\n\t\tafterPtr = afterPtr->nextPtr) {\n\t    tempCommand = Tcl_GetStringFromObj(afterPtr->commandPtr,\n\t\t    &tempLength);\n\t    if ((length == tempLength)\n\t\t    && (memcmp((void*) command, (void*) tempCommand,\n\t\t\t    (unsigned) length) == 0)) {\n\t\tbreak;\n\t    }\n\t}\n\tif (afterPtr == NULL) {\n\t    afterPtr = GetAfterEvent(assocPtr, commandPtr);\n\t}\n\tif (objc != 3) {\n\t    Tcl_DecrRefCount(commandPtr);\n\t}\n\tif (afterPtr != NULL) {\n\t    if (afterPtr->token != NULL) {\n\t\tTcl_DeleteTimerHandler(afterPtr->token);\n\t    } else {\n\t\tTcl_CancelIdleCall(AfterProc, (ClientData) afterPtr);\n\t    }\n\t    FreeAfterPtr(afterPtr);\n\t}\n\tbreak;\n    }\n    case AFTER_IDLE:\n\tif (objc < 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"script script ...\");\n\t    return TCL_ERROR;\n\t}\n\tafterPtr = (AfterInfo *) ckalloc((unsigned) (sizeof(AfterInfo)));\n\tafterPtr->assocPtr = assocPtr;\n\tif (objc == 3) {\n\t    afterPtr->commandPtr = objv[2];\n\t} else {\n\t    afterPtr->commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\tTcl_IncrRefCount(afterPtr->commandPtr);\n\tafterPtr->id = tsdPtr->afterId;\n\ttsdPtr->afterId += 1;\n\tafterPtr->token = NULL;\n\tafterPtr->nextPtr = assocPtr->firstAfterPtr;\n\tassocPtr->firstAfterPtr = afterPtr;\n\tTcl_DoWhenIdle(AfterProc, (ClientData) afterPtr);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\"after#%d\", afterPtr->id));\n\tbreak;\n    case AFTER_INFO: {\n\tTcl_Obj *resultListPtr;\n\n\tif (objc == 2) {\n\t    for (afterPtr = assocPtr->firstAfterPtr; afterPtr != NULL;\n\t\t    afterPtr = afterPtr->nextPtr) {\n\t\tif (assocPtr->interp == interp) {\n\t\t    sprintf(buf, \"after#%d\", afterPtr->id);\n\t\t    Tcl_AppendElement(interp, buf);\n\t\t}\n\t    }\n\t    return TCL_OK;\n\t}\n\tif (objc != 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"?id?\");\n\t    return TCL_ERROR;\n\t}\n\tafterPtr = GetAfterEvent(assocPtr, objv[2]);\n\tif (afterPtr == NULL) {\n\t    Tcl_AppendResult(interp, \"event \\\"\", TclGetString(objv[2]),\n\t\t    \"\\\" doesn't exist\", NULL);\n\t    return TCL_ERROR;\n\t}\n\tresultListPtr = Tcl_NewObj();\n\tTcl_ListObjAppendElement(interp, resultListPtr, afterPtr->commandPtr);\n\tTcl_ListObjAppendElement(interp, resultListPtr, Tcl_NewStringObj(\n \t\t(afterPtr->token == NULL) ? \"idle\" : \"timer\", -1));\n\tTcl_SetObjResult(interp, resultListPtr);\n\tbreak;\n    }\n    default:\n\tTcl_Panic(\"Tcl_AfterObjCmd: bad subcommand index to afterSubCmds\");\n    }\n    return TCL_OK;\n}",
+    "snippet_sha256": "17c85107615cc7e8eb6659b952e1213906e96a11b54e2da7fc0e81de1217eceb",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclTimer.c",
+    "function": "GetAfterEvent",
+    "lines": [
+      1065,
+      1092
+    ],
+    "source_sha256": "9c6e3aa2bad086fe1e94dadca7e99c22b5997b55b07065e6d9256a7a692255ff",
+    "snippet": "GetAfterEvent(\n    AfterAssocData *assocPtr,\t/* Points to \"after\"-related information for\n\t\t\t\t * this interpreter. */\n    Tcl_Obj *commandPtr)\n{\n    char *cmdString;\t\t/* Textual identifier for after event, such as\n\t\t\t\t * \"after#6\". */\n    AfterInfo *afterPtr;\n    int id;\n    char *end;\n\n    cmdString = TclGetString(commandPtr);\n    if (strncmp(cmdString, \"after#\", 6) != 0) {\n\treturn NULL;\n    }\n    cmdString += 6;\n    id = strtoul(cmdString, &end, 10);\n    if ((end == cmdString) || (*end != 0)) {\n\treturn NULL;\n    }\n    for (afterPtr = assocPtr->firstAfterPtr; afterPtr != NULL;\n\t    afterPtr = afterPtr->nextPtr) {\n\tif (afterPtr->id == id) {\n\t    return afterPtr;\n\t}\n    }\n    return NULL;\n}",
+    "snippet_sha256": "9c4faf972703f3c39efd728c849b1cadd3b86a7fad521151776042d90591f027",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclTimer.c",
+    "function": "AfterProc",
+    "lines": [
+      1114,
+      1158
+    ],
+    "source_sha256": "9c6e3aa2bad086fe1e94dadca7e99c22b5997b55b07065e6d9256a7a692255ff",
+    "snippet": "AfterProc(\n    ClientData clientData)\t/* Describes command to execute. */\n{\n    AfterInfo *afterPtr = (AfterInfo *) clientData;\n    AfterAssocData *assocPtr = afterPtr->assocPtr;\n    AfterInfo *prevPtr;\n    int result;\n    Tcl_Interp *interp;\n\n    /*\n     * First remove the callback from our list of callbacks; otherwise someone\n     * could delete the callback while it's being executed, which could cause\n     * a core dump.\n     */\n\n    if (assocPtr->firstAfterPtr == afterPtr) {\n\tassocPtr->firstAfterPtr = afterPtr->nextPtr;\n    } else {\n\tfor (prevPtr = assocPtr->firstAfterPtr; prevPtr->nextPtr != afterPtr;\n\t\tprevPtr = prevPtr->nextPtr) {\n\t    /* Empty loop body. */\n\t}\n\tprevPtr->nextPtr = afterPtr->nextPtr;\n    }\n\n    /*\n     * Execute the callback.\n     */\n\n    interp = assocPtr->interp;\n    Tcl_Preserve((ClientData) interp);\n    result = Tcl_EvalObjEx(interp, afterPtr->commandPtr, TCL_EVAL_GLOBAL);\n    if (result != TCL_OK) {\n\tTcl_AddErrorInfo(interp, \"\\n    (\\\"after\\\" script)\");\n\tTclBackgroundException(interp, result);\n    }\n    Tcl_Release((ClientData) interp);\n\n    /*\n     * Free the memory for the callback.\n     */\n\n    Tcl_DecrRefCount(afterPtr->commandPtr);\n    ckfree((char *) afterPtr);\n}",
+    "snippet_sha256": "b97779c183f626115a786a6ca0ddc79e6f97b68765168df34dcab2f2e1243e2b",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclTimer.c",
+    "function": "TimerHandlerEventProc",
+    "lines": [
+      505,
+      583
+    ],
+    "source_sha256": "9c6e3aa2bad086fe1e94dadca7e99c22b5997b55b07065e6d9256a7a692255ff",
+    "snippet": "TimerHandlerEventProc(\n    Tcl_Event *evPtr,\t\t/* Event to service. */\n    int flags)\t\t\t/* Flags that indicate what events to handle,\n\t\t\t\t * such as TCL_FILE_EVENTS. */\n{\n    TimerHandler *timerHandlerPtr, **nextPtrPtr;\n    Tcl_Time time;\n    int currentTimerId;\n    ThreadSpecificData *tsdPtr = InitTimer();\n\n    /*\n     * Do nothing if timers aren't enabled. This leaves the event on the\n     * queue, so we will get to it as soon as ServiceEvents() is called with\n     * timers enabled.\n     */\n\n    if (!(flags & TCL_TIMER_EVENTS)) {\n\treturn 0;\n    }\n\n    /*\n     * The code below is trickier than it may look, for the following reasons:\n     *\n     * 1. New handlers can get added to the list while the current one is\n     *\t  being processed. If new ones get added, we don't want to process\n     *\t  them during this pass through the list to avoid starving other event\n     *\t  sources. This is implemented using the token number in the handler:\n     *\t  new handlers will have a newer token than any of the ones currently\n     *\t  on the list.\n     * 2. The handler can call Tcl_DoOneEvent, so we have to remove the\n     *\t  handler from the list before calling it. Otherwise an infinite loop\n     *\t  could result.\n     * 3. Tcl_DeleteTimerHandler can be called to remove an element from the\n     *\t  list while a handler is executing, so the list could change\n     *\t  structure during the call.\n     * 4. Because we only fetch the current time before entering the loop, the\n     *\t  only way a new timer will even be considered runnable is if its\n     *\t  expiration time is within the same millisecond as the current time.\n     *\t  This is fairly likely on Windows, since it has a course granularity\n     *\t  clock. Since timers are placed on the queue in time order with the\n     *\t  most recently created handler appearing after earlier ones with the\n     *\t  same expiration time, we don't have to worry about newer generation\n     *\t  timers appearing before later ones.\n     */\n\n    tsdPtr->timerPending = 0;\n    currentTimerId = tsdPtr->lastTimerId;\n    Tcl_GetTime(&time);\n    while (1) {\n\tnextPtrPtr = &tsdPtr->firstTimerHandlerPtr;\n\ttimerHandlerPtr = tsdPtr->firstTimerHandlerPtr;\n\tif (timerHandlerPtr == NULL) {\n\t    break;\n\t}\n\n\tif (TCL_TIME_BEFORE(time, timerHandlerPtr->time)) {\n\t    break;\n\t}\n\n\t/*\n\t * Bail out if the next timer is of a newer generation.\n\t */\n\n\tif ((currentTimerId - PTR2INT(timerHandlerPtr->token)) < 0) {\n\t    break;\n\t}\n\n\t/*\n\t * Remove the handler from the queue before invoking it, to avoid\n\t * potential reentrancy problems.\n\t */\n\n\t(*nextPtrPtr) = timerHandlerPtr->nextPtr;\n\t(*timerHandlerPtr->proc)(timerHandlerPtr->clientData);\n\tckfree((char *) timerHandlerPtr);\n    }\n    TimerSetupProc(NULL, TCL_TIMER_EVENTS);\n    return 1;\n}",
+    "snippet_sha256": "355dbea6b6e44f00264b51bae10c6f7f2d323221a01000e231f0721331e4672c",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclEvent.c",
+    "function": "Tcl_VwaitObjCmd",
+    "lines": [
+      1321,
+      1368
+    ],
+    "source_sha256": "3d05eb479c767520e0b44459e91a0b4930cdb47139c4bfdb86e0beba6d04fb90",
+    "snippet": "Tcl_VwaitObjCmd(\n    ClientData clientData,\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[])\t/* Argument objects. */\n{\n    int done, foundEvent;\n    char *nameString;\n\n    if (objc != 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name\");\n\treturn TCL_ERROR;\n    }\n    nameString = Tcl_GetString(objv[1]);\n    if (Tcl_TraceVar(interp, nameString,\n\t    TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t    VwaitVarProc, (ClientData) &done) != TCL_OK) {\n\treturn TCL_ERROR;\n    };\n    done = 0;\n    foundEvent = 1;\n    while (!done && foundEvent) {\n\tfoundEvent = Tcl_DoOneEvent(TCL_ALL_EVENTS);\n\tif (Tcl_LimitExceeded(interp)) {\n\t    break;\n\t}\n    }\n    Tcl_UntraceVar(interp, nameString,\n\t    TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t    VwaitVarProc, (ClientData) &done);\n\n    /*\n     * Clear out the interpreter's result, since it may have been set by event\n     * handlers.\n     */\n\n    Tcl_ResetResult(interp);\n    if (!foundEvent) {\n\tTcl_AppendResult(interp, \"can't wait for variable \\\"\", nameString,\n\t\t\"\\\": would wait forever\", NULL);\n\treturn TCL_ERROR;\n    }\n    if (!done) {\n\tTcl_AppendResult(interp, \"limit exceeded\", NULL);\n\treturn TCL_ERROR;\n    }\n    return TCL_OK;\n}",
+    "snippet_sha256": "cf24836c48502fc46b580d223b5cf8b21de1d5cad5eef848cd57b5caa2d4b60f",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclEvent.c"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclEvent.c",
+    "function": "VwaitVarProc",
+    "lines": [
+      1372,
+      1383
+    ],
+    "source_sha256": "3d05eb479c767520e0b44459e91a0b4930cdb47139c4bfdb86e0beba6d04fb90",
+    "snippet": "VwaitVarProc(\n    ClientData clientData,\t/* Pointer to integer to set to 1. */\n    Tcl_Interp *interp,\t\t/* Interpreter containing variable. */\n    CONST char *name1,\t\t/* Name of variable. */\n    CONST char *name2,\t\t/* Second part of variable name. */\n    int flags)\t\t\t/* Information about what happened. */\n{\n    int *donePtr = (int *) clientData;\n\n    *donePtr = 1;\n    return NULL;\n}",
+    "snippet_sha256": "687baa4208c9fbc9efc2f0d96a16ff69c3da3ffd9fb4559b518e3ddf1cdc8b27",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclEvent.c"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclEvent.c",
+    "function": "Tcl_UpdateObjCmd",
+    "lines": [
+      1404,
+      1449
+    ],
+    "source_sha256": "3d05eb479c767520e0b44459e91a0b4930cdb47139c4bfdb86e0beba6d04fb90",
+    "snippet": "Tcl_UpdateObjCmd(\n    ClientData clientData,\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[])\t/* Argument objects. */\n{\n    int optionIndex;\n    int flags = 0;\t\t/* Initialized to avoid compiler warning. */\n    static CONST char *updateOptions[] = {\"idletasks\", NULL};\n    enum updateOptions {REGEXP_IDLETASKS};\n\n    if (objc == 1) {\n\tflags = TCL_ALL_EVENTS|TCL_DONT_WAIT;\n    } else if (objc == 2) {\n\tif (Tcl_GetIndexFromObj(interp, objv[1], updateOptions,\n\t\t\"option\", 0, &optionIndex) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\n\tswitch ((enum updateOptions) optionIndex) {\n\tcase REGEXP_IDLETASKS:\n\t    flags = TCL_WINDOW_EVENTS|TCL_IDLE_EVENTS|TCL_DONT_WAIT;\n\t    break;\n\tdefault:\n\t    Tcl_Panic(\"Tcl_UpdateObjCmd: bad option index to UpdateOptions\");\n\t}\n    } else {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?idletasks?\");\n\treturn TCL_ERROR;\n    }\n\n    while (Tcl_DoOneEvent(flags) != 0) {\n\tif (Tcl_LimitExceeded(interp)) {\n\t    Tcl_ResetResult(interp);\n\t    Tcl_AppendResult(interp, \"limit exceeded\", NULL);\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * Must clear the interpreter's result because event handlers could have\n     * executed commands.\n     */\n\n    Tcl_ResetResult(interp);\n    return TCL_OK;\n}",
+    "snippet_sha256": "069ae6de945edcfce45705a5a28df7642a4510373638f76d3e68b8d907ec6920",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclEvent.c"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c",
+    "function": "SlaveBgerror",
+    "lines": [
+      2097,
+      2116
+    ],
+    "source_sha256": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+    "snippet": "SlaveBgerror(\n    Tcl_Interp *interp,\t\t/* Interp for error return. */\n    Tcl_Interp *slaveInterp,\t/* Interp in which limit is set/queried. */\n    int objc,\t\t\t/* Set or Query. */\n    Tcl_Obj *const objv[])\t/* Argument strings. */\n{\n    if (objc) {\n\tint length;\n\n\tif (TCL_ERROR == TclListObjLength(NULL, objv[0], &length)\n\t\t|| (length < 1)) {\n\t    Tcl_AppendResult(interp, \"cmdPrefix must be list of length >= 1\",\n\t\t    NULL);\n\t    return TCL_ERROR;\n\t}\n\tTclSetBgErrorHandler(slaveInterp, objv[0]);\n    }\n    Tcl_SetObjResult(interp, TclGetBgErrorHandler(slaveInterp));\n    return TCL_OK;\n}",
+    "snippet_sha256": "a659ffa5a728750dff2eb23810275e482d923322945285fe8f73ba33665d2cc4",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclInterp.c"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclTimer.c",
+    "function": "Tcl_AfterObjCmd",
+    "lines": [
+      781,
+      992
+    ],
+    "source_sha256": "648da0aebdcd2adde777ab81d12e4722c7ca8396ff5034e71c4e3f19e25ca7d5",
+    "snippet": "Tcl_AfterObjCmd(\n    ClientData clientData,\t/* Unused */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    Tcl_WideInt ms = 0;\t\t/* Number of milliseconds to wait */\n    Tcl_Time wakeup;\n    AfterInfo *afterPtr;\n    AfterAssocData *assocPtr;\n    int length;\n    int index;\n    static const char *const afterSubCmds[] = {\n\t\"cancel\", \"idle\", \"info\", NULL\n    };\n    enum afterSubCmds {AFTER_CANCEL, AFTER_IDLE, AFTER_INFO};\n    ThreadSpecificData *tsdPtr = InitTimer();\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"option ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Create the \"after\" information associated for this interpreter, if it\n     * doesn't already exist.\n     */\n\n    assocPtr = Tcl_GetAssocData(interp, \"tclAfter\", NULL);\n    if (assocPtr == NULL) {\n\tassocPtr = ckalloc(sizeof(AfterAssocData));\n\tassocPtr->interp = interp;\n\tassocPtr->firstAfterPtr = NULL;\n\tTcl_SetAssocData(interp, \"tclAfter\", AfterCleanupProc, assocPtr);\n    }\n\n    /*\n     * First lets see if the command was passed a number as the first argument.\n     */\n\n    if (objv[1]->typePtr == &tclIntType\n#ifndef TCL_WIDE_INT_IS_LONG\n\t    || objv[1]->typePtr == &tclWideIntType\n#endif\n\t    || objv[1]->typePtr == &tclBignumType\n\t    || (Tcl_GetIndexFromObj(NULL, objv[1], afterSubCmds, \"\", 0,\n\t\t    &index) != TCL_OK)) {\n\tindex = -1;\n\tif (Tcl_GetWideIntFromObj(NULL, objv[1], &ms) != TCL_OK) {\n            const char *arg = TclGetString(objv[1]);\n\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n                    \"bad argument \\\"%s\\\": must be\"\n                    \" cancel, idle, info, or an integer\", arg));\n            Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"INDEX\", \"argument\",\n                    arg, (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * At this point, either index = -1 and ms contains the number of ms\n     * to wait, or else index is the index of a subcommand.\n     */\n\n    switch (index) {\n    case -1: {\n\tif (ms < 0) {\n\t    ms = 0;\n\t}\n\tif (objc == 2) {\n\t    return AfterDelay(interp, ms);\n\t}\n\tafterPtr = ckalloc(sizeof(AfterInfo));\n\tafterPtr->assocPtr = assocPtr;\n\tif (objc == 3) {\n\t    afterPtr->commandPtr = objv[2];\n\t} else {\n\t    afterPtr->commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\tTcl_IncrRefCount(afterPtr->commandPtr);\n\n\t/*\n\t * The variable below is used to generate unique identifiers for after\n\t * commands. This id can wrap around, which can potentially cause\n\t * problems. However, there are not likely to be problems in practice,\n\t * because after commands can only be requested to about a month in\n\t * the future, and wrap-around is unlikely to occur in less than about\n\t * 1-10 years. Thus it's unlikely that any old ids will still be\n\t * around when wrap-around occurs.\n\t */\n\n\tafterPtr->id = tsdPtr->afterId;\n\ttsdPtr->afterId += 1;\n\tTcl_GetTime(&wakeup);\n\twakeup.sec += (long)(ms / 1000);\n\twakeup.usec += ((long)(ms % 1000)) * 1000;\n\tif (wakeup.usec > 1000000) {\n\t    wakeup.sec++;\n\t    wakeup.usec -= 1000000;\n\t}\n\tafterPtr->token = TclCreateAbsoluteTimerHandler(&wakeup,\n\t\tAfterProc, afterPtr);\n\tafterPtr->nextPtr = assocPtr->firstAfterPtr;\n\tassocPtr->firstAfterPtr = afterPtr;\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\"after#%d\", afterPtr->id));\n\treturn TCL_OK;\n    }\n    case AFTER_CANCEL: {\n\tTcl_Obj *commandPtr;\n\tconst char *command, *tempCommand;\n\tint tempLength;\n\n\tif (objc < 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"id|command\");\n\t    return TCL_ERROR;\n\t}\n\tif (objc == 3) {\n\t    commandPtr = objv[2];\n\t} else {\n\t    commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\tcommand = TclGetStringFromObj(commandPtr, &length);\n\tfor (afterPtr = assocPtr->firstAfterPtr;  afterPtr != NULL;\n\t\tafterPtr = afterPtr->nextPtr) {\n\t    tempCommand = TclGetStringFromObj(afterPtr->commandPtr,\n\t\t    &tempLength);\n\t    if ((length == tempLength)\n\t\t    && !memcmp(command, tempCommand, length)) {\n\t\tbreak;\n\t    }\n\t}\n\tif (afterPtr == NULL) {\n\t    afterPtr = GetAfterEvent(assocPtr, commandPtr);\n\t}\n\tif (objc != 3) {\n\t    Tcl_DecrRefCount(commandPtr);\n\t}\n\tif (afterPtr != NULL) {\n\t    if (afterPtr->token != NULL) {\n\t\tTcl_DeleteTimerHandler(afterPtr->token);\n\t    } else {\n\t\tTcl_CancelIdleCall(AfterProc, afterPtr);\n\t    }\n\t    FreeAfterPtr(afterPtr);\n\t}\n\tbreak;\n    }\n    case AFTER_IDLE:\n\tif (objc < 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"script ?script ...?\");\n\t    return TCL_ERROR;\n\t}\n\tafterPtr = ckalloc(sizeof(AfterInfo));\n\tafterPtr->assocPtr = assocPtr;\n\tif (objc == 3) {\n\t    afterPtr->commandPtr = objv[2];\n\t} else {\n\t    afterPtr->commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\tTcl_IncrRefCount(afterPtr->commandPtr);\n\tafterPtr->id = tsdPtr->afterId;\n\ttsdPtr->afterId += 1;\n\tafterPtr->token = NULL;\n\tafterPtr->nextPtr = assocPtr->firstAfterPtr;\n\tassocPtr->firstAfterPtr = afterPtr;\n\tTcl_DoWhenIdle(AfterProc, afterPtr);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\"after#%d\", afterPtr->id));\n\tbreak;\n    case AFTER_INFO:\n\tif (objc == 2) {\n\t    Tcl_Obj *resultObj;\n\n\t    TclNewObj(resultObj);\n\t    for (afterPtr = assocPtr->firstAfterPtr; afterPtr != NULL;\n\t\t    afterPtr = afterPtr->nextPtr) {\n\t\tif (assocPtr->interp == interp) {\n\t\t    Tcl_ListObjAppendElement(NULL, resultObj, Tcl_ObjPrintf(\n\t\t\t    \"after#%d\", afterPtr->id));\n\t\t}\n\t    }\n            Tcl_SetObjResult(interp, resultObj);\n\t    return TCL_OK;\n\t}\n\tif (objc != 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"?id?\");\n\t    return TCL_ERROR;\n\t}\n\tafterPtr = GetAfterEvent(assocPtr, objv[2]);\n\tif (afterPtr == NULL) {\n            const char *eventStr = TclGetString(objv[2]);\n\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n                    \"event \\\"%s\\\" doesn't exist\", eventStr));\n            Tcl_SetErrorCode(interp, \"TCL\",\"LOOKUP\",\"EVENT\", eventStr, (char *)NULL);\n\t    return TCL_ERROR;\n\t} else {\n\t    Tcl_Obj *resultListPtr;\n\n\t    TclNewObj(resultListPtr);\n\t    Tcl_ListObjAppendElement(interp, resultListPtr,\n\t\t    afterPtr->commandPtr);\n\t    Tcl_ListObjAppendElement(interp, resultListPtr, Tcl_NewStringObj(\n\t\t    (afterPtr->token == NULL) ? \"idle\" : \"timer\", -1));\n            Tcl_SetObjResult(interp, resultListPtr);\n\t}\n\tbreak;\n    default:\n\tTcl_Panic(\"Tcl_AfterObjCmd: bad subcommand index to afterSubCmds\");\n    }\n    return TCL_OK;\n}",
+    "snippet_sha256": "79c14177342deec6b5c34df5c79e5546d2d773c320ffd306c569a156ccd9c201",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclTimer.c",
+    "function": "GetAfterEvent",
+    "lines": [
+      1119,
+      1146
+    ],
+    "source_sha256": "648da0aebdcd2adde777ab81d12e4722c7ca8396ff5034e71c4e3f19e25ca7d5",
+    "snippet": "GetAfterEvent(\n    AfterAssocData *assocPtr,\t/* Points to \"after\"-related information for\n\t\t\t\t * this interpreter. */\n    Tcl_Obj *commandPtr)\n{\n    const char *cmdString;\t/* Textual identifier for after event, such as\n\t\t\t\t * \"after#6\". */\n    AfterInfo *afterPtr;\n    int id;\n    char *end;\n\n    cmdString = TclGetString(commandPtr);\n    if (strncmp(cmdString, \"after#\", 6) != 0) {\n\treturn NULL;\n    }\n    cmdString += 6;\n    id = strtoul(cmdString, &end, 10);\n    if ((end == cmdString) || (*end != 0)) {\n\treturn NULL;\n    }\n    for (afterPtr = assocPtr->firstAfterPtr; afterPtr != NULL;\n\t    afterPtr = afterPtr->nextPtr) {\n\tif (afterPtr->id == id) {\n\t    return afterPtr;\n\t}\n    }\n    return NULL;\n}",
+    "snippet_sha256": "4630c11baad387a6273ae2994613a69d0996b5f1ee5ba3816b0745bd334ff6c9",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclTimer.c",
+    "function": "AfterProc",
+    "lines": [
+      1168,
+      1212
+    ],
+    "source_sha256": "648da0aebdcd2adde777ab81d12e4722c7ca8396ff5034e71c4e3f19e25ca7d5",
+    "snippet": "AfterProc(\n    ClientData clientData)\t/* Describes command to execute. */\n{\n    AfterInfo *afterPtr = clientData;\n    AfterAssocData *assocPtr = afterPtr->assocPtr;\n    AfterInfo *prevPtr;\n    int result;\n    Tcl_Interp *interp;\n\n    /*\n     * First remove the callback from our list of callbacks; otherwise someone\n     * could delete the callback while it's being executed, which could cause\n     * a core dump.\n     */\n\n    if (assocPtr->firstAfterPtr == afterPtr) {\n\tassocPtr->firstAfterPtr = afterPtr->nextPtr;\n    } else {\n\tfor (prevPtr = assocPtr->firstAfterPtr; prevPtr->nextPtr != afterPtr;\n\t\tprevPtr = prevPtr->nextPtr) {\n\t    /* Empty loop body. */\n\t}\n\tprevPtr->nextPtr = afterPtr->nextPtr;\n    }\n\n    /*\n     * Execute the callback.\n     */\n\n    interp = assocPtr->interp;\n    Tcl_Preserve(interp);\n    result = Tcl_EvalObjEx(interp, afterPtr->commandPtr, TCL_EVAL_GLOBAL);\n    if (result != TCL_OK) {\n\tTcl_AddErrorInfo(interp, \"\\n    (\\\"after\\\" script)\");\n\tTcl_BackgroundException(interp, result);\n    }\n    Tcl_Release(interp);\n\n    /*\n     * Free the memory for the callback.\n     */\n\n    Tcl_DecrRefCount(afterPtr->commandPtr);\n    ckfree(afterPtr);\n}",
+    "snippet_sha256": "e42c4864ba8f37bb0160602f5bbe7f3bf18ce07e1d90076d6f3a6b8ffbac2c7b",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclTimer.c",
+    "function": "TimerHandlerEventProc",
+    "lines": [
+      520,
+      598
+    ],
+    "source_sha256": "648da0aebdcd2adde777ab81d12e4722c7ca8396ff5034e71c4e3f19e25ca7d5",
+    "snippet": "TimerHandlerEventProc(\n    Tcl_Event *evPtr,\t\t/* Event to service. */\n    int flags)\t\t\t/* Flags that indicate what events to handle,\n\t\t\t\t * such as TCL_FILE_EVENTS. */\n{\n    TimerHandler *timerHandlerPtr, **nextPtrPtr;\n    Tcl_Time time;\n    int currentTimerId;\n    ThreadSpecificData *tsdPtr = InitTimer();\n\n    /*\n     * Do nothing if timers aren't enabled. This leaves the event on the\n     * queue, so we will get to it as soon as ServiceEvents() is called with\n     * timers enabled.\n     */\n\n    if (!(flags & TCL_TIMER_EVENTS)) {\n\treturn 0;\n    }\n\n    /*\n     * The code below is trickier than it may look, for the following reasons:\n     *\n     * 1. New handlers can get added to the list while the current one is\n     *\t  being processed. If new ones get added, we don't want to process\n     *\t  them during this pass through the list to avoid starving other event\n     *\t  sources. This is implemented using the token number in the handler:\n     *\t  new handlers will have a newer token than any of the ones currently\n     *\t  on the list.\n     * 2. The handler can call Tcl_DoOneEvent, so we have to remove the\n     *\t  handler from the list before calling it. Otherwise an infinite loop\n     *\t  could result.\n     * 3. Tcl_DeleteTimerHandler can be called to remove an element from the\n     *\t  list while a handler is executing, so the list could change\n     *\t  structure during the call.\n     * 4. Because we only fetch the current time before entering the loop, the\n     *\t  only way a new timer will even be considered runnable is if its\n     *\t  expiration time is within the same millisecond as the current time.\n     *\t  This is fairly likely on Windows, since it has a course granularity\n     *\t  clock. Since timers are placed on the queue in time order with the\n     *\t  most recently created handler appearing after earlier ones with the\n     *\t  same expiration time, we don't have to worry about newer generation\n     *\t  timers appearing before later ones.\n     */\n\n    tsdPtr->timerPending = 0;\n    currentTimerId = tsdPtr->lastTimerId;\n    Tcl_GetTime(&time);\n    while (1) {\n\tnextPtrPtr = &tsdPtr->firstTimerHandlerPtr;\n\ttimerHandlerPtr = tsdPtr->firstTimerHandlerPtr;\n\tif (timerHandlerPtr == NULL) {\n\t    break;\n\t}\n\n\tif (TCL_TIME_BEFORE(time, timerHandlerPtr->time)) {\n\t    break;\n\t}\n\n\t/*\n\t * Bail out if the next timer is of a newer generation.\n\t */\n\n\tif ((currentTimerId - PTR2INT(timerHandlerPtr->token)) < 0) {\n\t    break;\n\t}\n\n\t/*\n\t * Remove the handler from the queue before invoking it, to avoid\n\t * potential reentrancy problems.\n\t */\n\n\t*nextPtrPtr = timerHandlerPtr->nextPtr;\n\ttimerHandlerPtr->proc(timerHandlerPtr->clientData);\n\tckfree(timerHandlerPtr);\n    }\n    TimerSetupProc(NULL, TCL_TIMER_EVENTS);\n    return 1;\n}",
+    "snippet_sha256": "f70847309a2838e410a469aa647c3669e28153ea3496eb393d60e6bd403aaf44",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclTimer.c"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEvent.c",
+    "function": "Tcl_VwaitObjCmd",
+    "lines": [
+      1387,
+      1447
+    ],
+    "source_sha256": "81c0e0b655ecd46bd981750c9d710ec11dd1368b7f3f156886e0965c81788dd6",
+    "snippet": "Tcl_VwaitObjCmd(\n    ClientData clientData,\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    int done, foundEvent;\n    const char *nameString;\n\n    if (objc != 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name\");\n\treturn TCL_ERROR;\n    }\n    nameString = Tcl_GetString(objv[1]);\n    if (Tcl_TraceVar2(interp, nameString, NULL,\n\t    TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t    VwaitVarProc, &done) != TCL_OK) {\n\treturn TCL_ERROR;\n    };\n    done = 0;\n    foundEvent = 1;\n    while (!done && foundEvent) {\n\tfoundEvent = Tcl_DoOneEvent(TCL_ALL_EVENTS);\n\tif (Tcl_Canceled(interp, TCL_LEAVE_ERR_MSG) == TCL_ERROR) {\n\t    break;\n\t}\n\tif (Tcl_LimitExceeded(interp)) {\n\t    Tcl_ResetResult(interp);\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\"limit exceeded\", -1));\n\t    break;\n\t}\n    }\n    Tcl_UntraceVar2(interp, nameString, NULL,\n\t    TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t    VwaitVarProc, &done);\n\n    if (!foundEvent) {\n\tTcl_ResetResult(interp);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"can't wait for variable \\\"%s\\\": would wait forever\",\n\t\tnameString));\n\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NO_SOURCES\", (char *)NULL);\n\treturn TCL_ERROR;\n    }\n    if (!done) {\n\t/*\n\t * The interpreter's result was already set to the right error message\n\t * prior to exiting the loop above.\n\t */\n\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Clear out the interpreter's result, since it may have been set by event\n     * handlers.\n     */\n\n    Tcl_ResetResult(interp);\n    return TCL_OK;\n}",
+    "snippet_sha256": "6a720ec0b86320ee0c3eb9ac57fe7dda865390cee80306fd1844c2ccb65b85a7",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclEvent.c"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEvent.c",
+    "function": "VwaitVarProc",
+    "lines": [
+      1450,
+      1463
+    ],
+    "source_sha256": "81c0e0b655ecd46bd981750c9d710ec11dd1368b7f3f156886e0965c81788dd6",
+    "snippet": "VwaitVarProc(\n    ClientData clientData,\t/* Pointer to integer to set to 1. */\n    Tcl_Interp *interp,\t\t/* Interpreter containing variable. */\n    const char *name1,\t\t/* Name of variable. */\n    const char *name2,\t\t/* Second part of variable name. */\n    int flags)\t\t\t/* Information about what happened. */\n{\n    int *donePtr = (int *)clientData;\n\n    *donePtr = 1;\n    Tcl_UntraceVar2(interp, name1, name2, TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t    VwaitVarProc, clientData);\n    return NULL;\n}",
+    "snippet_sha256": "f5f1223460517e696316e52932f2fdcf32d4f2bd681f237383668b1f30c79ed6",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclEvent.c"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEvent.c",
+    "function": "Tcl_UpdateObjCmd",
+    "lines": [
+      1483,
+      1531
+    ],
+    "source_sha256": "81c0e0b655ecd46bd981750c9d710ec11dd1368b7f3f156886e0965c81788dd6",
+    "snippet": "Tcl_UpdateObjCmd(\n    ClientData clientData,\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    int optionIndex;\n    int flags = 0;\t\t/* Initialized to avoid compiler warning. */\n    static const char *const updateOptions[] = {\"idletasks\", NULL};\n    enum updateOptionsEnum {OPT_IDLETASKS};\n\n    if (objc == 1) {\n\tflags = TCL_ALL_EVENTS|TCL_DONT_WAIT;\n    } else if (objc == 2) {\n\tif (Tcl_GetIndexFromObj(interp, objv[1], updateOptions,\n\t\t\"option\", 0, &optionIndex) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\n\tswitch ((enum updateOptionsEnum) optionIndex) {\n\tcase OPT_IDLETASKS:\n\t    flags = TCL_WINDOW_EVENTS|TCL_IDLE_EVENTS|TCL_DONT_WAIT;\n\t    break;\n\tdefault:\n\t    Tcl_Panic(\"Tcl_UpdateObjCmd: bad option index to UpdateOptions\");\n\t}\n    } else {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?idletasks?\");\n\treturn TCL_ERROR;\n    }\n\n    while (Tcl_DoOneEvent(flags) != 0) {\n\tif (Tcl_Canceled(interp, TCL_LEAVE_ERR_MSG) == TCL_ERROR) {\n\t    return TCL_ERROR;\n\t}\n\tif (Tcl_LimitExceeded(interp)) {\n\t    Tcl_ResetResult(interp);\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\"limit exceeded\", -1));\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * Must clear the interpreter's result because event handlers could have\n     * executed commands.\n     */\n\n    Tcl_ResetResult(interp);\n    return TCL_OK;\n}",
+    "snippet_sha256": "e3d8e596f696f178558290a5baea28a7d9f823c12515b64acb7a2671b994cf4a",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclEvent.c"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInterp.c",
+    "function": "ChildBgerror",
+    "lines": [
+      2268,
+      2289
+    ],
+    "source_sha256": "b2597dfae723709bd21c6dfe9dd0cd4eb6d38f90ea082419b59a2aa2c00881ca",
+    "snippet": "ChildBgerror(\n    Tcl_Interp *interp,\t\t/* Interp for error return. */\n    Tcl_Interp *childInterp,\t/* Interp in which limit is set/queried. */\n    int objc,\t\t\t/* Set or Query. */\n    Tcl_Obj *const objv[])\t/* Argument strings. */\n{\n    if (objc) {\n\tint length;\n\n\tif (TCL_ERROR == TclListObjLength(NULL, objv[0], &length)\n\t\t|| (length < 1)) {\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t    \"cmdPrefix must be list of length >= 1\", -1));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"OPERATION\", \"INTERP\",\n\t\t    \"BGERRORFORMAT\", (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n\tTclSetBgErrorHandler(childInterp, objv[0]);\n    }\n    Tcl_SetObjResult(interp, TclGetBgErrorHandler(childInterp));\n    return TCL_OK;\n}",
+    "snippet_sha256": "3fc49715c8939169f8518387d819d68d4624c8ef1e23dcb32b0a54c9349d3d34",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclInterp.c"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclTimer.c",
+    "function": "Tcl_AfterObjCmd",
+    "lines": [
+      776,
+      981
+    ],
+    "source_sha256": "9be43ec6af72e0ba19422b277c6badb07fec3e604fbaeef8ee6147d3bc21284e",
+    "snippet": "Tcl_AfterObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    Tcl_WideInt ms = 0;\t\t/* Number of milliseconds to wait */\n    Tcl_Time wakeup;\n    AfterInfo *afterPtr;\n    AfterAssocData *assocPtr;\n    Tcl_Size length;\n    int index = -1;\n    static const char *const afterSubCmds[] = {\n\t\"cancel\", \"idle\", \"info\", NULL\n    };\n    enum afterSubCmdsEnum {AFTER_CANCEL, AFTER_IDLE, AFTER_INFO};\n    ThreadSpecificData *tsdPtr = InitTimer();\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"option ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Create the \"after\" information associated for this interpreter, if it\n     * doesn't already exist.\n     */\n\n    assocPtr = (AfterAssocData *)Tcl_GetAssocData(interp, \"tclAfter\", NULL);\n    if (assocPtr == NULL) {\n\tassocPtr = (AfterAssocData *)Tcl_Alloc(sizeof(AfterAssocData));\n\tassocPtr->interp = interp;\n\tassocPtr->firstAfterPtr = NULL;\n\tTcl_SetAssocData(interp, \"tclAfter\", AfterCleanupProc, assocPtr);\n    }\n\n    /*\n     * First lets see if the command was passed a number as the first argument.\n     */\n\n    if (TclGetWideIntFromObj(NULL, objv[1], &ms) != TCL_OK) {\n\tif (Tcl_GetIndexFromObj(NULL, objv[1], afterSubCmds, \"\", 0, &index)\n\t\t!= TCL_OK) {\n\t    const char *arg = TclGetString(objv[1]);\n\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t    \"bad argument \\\"%s\\\": must be\"\n\t\t    \" cancel, idle, info, or an integer\", arg));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"INDEX\", \"argument\",\n\t\t    arg, (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * At this point, either index = -1 and ms contains the number of ms\n     * to wait, or else index is the index of a subcommand.\n     */\n\n    switch (index) {\n    case -1: {\n\tif (ms < 0) {\n\t    ms = 0;\n\t}\n\tif (objc == 2) {\n\t    return AfterDelay(interp, ms);\n\t}\n\tafterPtr = (AfterInfo *)Tcl_Alloc(sizeof(AfterInfo));\n\tafterPtr->assocPtr = assocPtr;\n\tif (objc == 3) {\n\t    afterPtr->commandPtr = objv[2];\n\t} else {\n\t    afterPtr->commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\tTcl_IncrRefCount(afterPtr->commandPtr);\n\n\t/*\n\t * The variable below is used to generate unique identifiers for after\n\t * commands. This id can wrap around, which can potentially cause\n\t * problems. However, there are not likely to be problems in practice,\n\t * because after commands can only be requested to about a month in\n\t * the future, and wrap-around is unlikely to occur in less than about\n\t * 1-10 years. Thus it's unlikely that any old ids will still be\n\t * around when wrap-around occurs.\n\t */\n\n\tafterPtr->id = tsdPtr->afterId;\n\ttsdPtr->afterId += 1;\n\tTcl_GetTime(&wakeup);\n\twakeup.sec += ms / 1000;\n\twakeup.usec += ms % 1000 * 1000;\n\tif (wakeup.usec > 1000000) {\n\t    wakeup.sec++;\n\t    wakeup.usec -= 1000000;\n\t}\n\tafterPtr->token = TclCreateAbsoluteTimerHandler(&wakeup,\n\t\tAfterProc, afterPtr);\n\tafterPtr->nextPtr = assocPtr->firstAfterPtr;\n\tassocPtr->firstAfterPtr = afterPtr;\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\"after#%d\", afterPtr->id));\n\treturn TCL_OK;\n    }\n    case AFTER_CANCEL: {\n\tTcl_Obj *commandPtr;\n\tconst char *command, *tempCommand;\n\tTcl_Size tempLength;\n\n\tif (objc < 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"id|command\");\n\t    return TCL_ERROR;\n\t}\n\tif (objc == 3) {\n\t    commandPtr = objv[2];\n\t} else {\n\t    commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\tcommand = TclGetStringFromObj(commandPtr, &length);\n\tfor (afterPtr = assocPtr->firstAfterPtr;  afterPtr != NULL;\n\t\tafterPtr = afterPtr->nextPtr) {\n\t    tempCommand = TclGetStringFromObj(afterPtr->commandPtr,\n\t\t    &tempLength);\n\t    if ((length == tempLength)\n\t\t    && !memcmp(command, tempCommand, length)) {\n\t\tbreak;\n\t    }\n\t}\n\tif (afterPtr == NULL) {\n\t    afterPtr = GetAfterEvent(assocPtr, commandPtr);\n\t}\n\tif (objc != 3) {\n\t    Tcl_DecrRefCount(commandPtr);\n\t}\n\tif (afterPtr != NULL) {\n\t    if (afterPtr->token != NULL) {\n\t\tTcl_DeleteTimerHandler(afterPtr->token);\n\t    } else {\n\t\tTcl_CancelIdleCall(AfterProc, afterPtr);\n\t    }\n\t    FreeAfterPtr(afterPtr);\n\t}\n\tbreak;\n    }\n    case AFTER_IDLE:\n\tif (objc < 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"script ?script ...?\");\n\t    return TCL_ERROR;\n\t}\n\tafterPtr = (AfterInfo *)Tcl_Alloc(sizeof(AfterInfo));\n\tafterPtr->assocPtr = assocPtr;\n\tif (objc == 3) {\n\t    afterPtr->commandPtr = objv[2];\n\t} else {\n\t    afterPtr->commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\tTcl_IncrRefCount(afterPtr->commandPtr);\n\tafterPtr->id = tsdPtr->afterId;\n\ttsdPtr->afterId += 1;\n\tafterPtr->token = NULL;\n\tafterPtr->nextPtr = assocPtr->firstAfterPtr;\n\tassocPtr->firstAfterPtr = afterPtr;\n\tTcl_DoWhenIdle(AfterProc, afterPtr);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\"after#%d\", afterPtr->id));\n\tbreak;\n    case AFTER_INFO:\n\tif (objc == 2) {\n\t    Tcl_Obj *resultObj;\n\n\t    TclNewObj(resultObj);\n\t    for (afterPtr = assocPtr->firstAfterPtr; afterPtr != NULL;\n\t\t    afterPtr = afterPtr->nextPtr) {\n\t\tif (assocPtr->interp == interp) {\n\t\t    Tcl_ListObjAppendElement(NULL, resultObj, Tcl_ObjPrintf(\n\t\t\t    \"after#%d\", afterPtr->id));\n\t\t}\n\t    }\n\t    Tcl_SetObjResult(interp, resultObj);\n\t    return TCL_OK;\n\t}\n\tif (objc != 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"?id?\");\n\t    return TCL_ERROR;\n\t}\n\tafterPtr = GetAfterEvent(assocPtr, objv[2]);\n\tif (afterPtr == NULL) {\n\t    const char *eventStr = TclGetString(objv[2]);\n\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t    \"event \\\"%s\\\" doesn't exist\", eventStr));\n\t    Tcl_SetErrorCode(interp, \"TCL\",\"LOOKUP\",\"EVENT\", eventStr, (char *)NULL);\n\t    return TCL_ERROR;\n\t} else {\n\t    Tcl_Obj *resultListPtr;\n\n\t    TclNewObj(resultListPtr);\n\t    Tcl_ListObjAppendElement(interp, resultListPtr,\n\t\t    afterPtr->commandPtr);\n\t    Tcl_ListObjAppendElement(interp, resultListPtr, Tcl_NewStringObj(\n\t\t    (afterPtr->token == NULL) ? \"idle\" : \"timer\", -1));\n\t    Tcl_SetObjResult(interp, resultListPtr);\n\t}\n\tbreak;\n    default:\n\tTCL_UNREACHABLE();\n    }\n    return TCL_OK;\n}",
+    "snippet_sha256": "1ea787e4cfe06b7dd2d6a894ff7141d74143f1f26c2dc67d2069bacf8bf85ae7",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclTimer.c"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclTimer.c",
+    "function": "GetAfterEvent",
+    "lines": [
+      1098,
+      1125
+    ],
+    "source_sha256": "9be43ec6af72e0ba19422b277c6badb07fec3e604fbaeef8ee6147d3bc21284e",
+    "snippet": "GetAfterEvent(\n    AfterAssocData *assocPtr,\t/* Points to \"after\"-related information for\n\t\t\t\t * this interpreter. */\n    Tcl_Obj *commandPtr)\n{\n    const char *cmdString;\t/* Textual identifier for after event, such as\n\t\t\t\t * \"after#6\". */\n    AfterInfo *afterPtr;\n    int id;\n    char *end;\n\n    cmdString = TclGetString(commandPtr);\n    if (strncmp(cmdString, \"after#\", 6) != 0) {\n\treturn NULL;\n    }\n    cmdString += 6;\n    id = (int)strtoul(cmdString, &end, 10);\n    if ((end == cmdString) || (*end != 0)) {\n\treturn NULL;\n    }\n    for (afterPtr = assocPtr->firstAfterPtr; afterPtr != NULL;\n\t    afterPtr = afterPtr->nextPtr) {\n\tif (afterPtr->id == id) {\n\t    return afterPtr;\n\t}\n    }\n    return NULL;\n}",
+    "snippet_sha256": "77a0dffb17991ef92c1eef35f07a0b40b244b04d02b6d035532221c32fc3e65a",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclTimer.c"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclTimer.c",
+    "function": "AfterProc",
+    "lines": [
+      1147,
+      1191
+    ],
+    "source_sha256": "9be43ec6af72e0ba19422b277c6badb07fec3e604fbaeef8ee6147d3bc21284e",
+    "snippet": "AfterProc(\n    void *clientData)\t\t/* Describes command to execute. */\n{\n    AfterInfo *afterPtr = (AfterInfo *)clientData;\n    AfterAssocData *assocPtr = afterPtr->assocPtr;\n    AfterInfo *prevPtr;\n    int result;\n    Tcl_Interp *interp;\n\n    /*\n     * First remove the callback from our list of callbacks; otherwise someone\n     * could delete the callback while it's being executed, which could cause\n     * a core dump.\n     */\n\n    if (assocPtr->firstAfterPtr == afterPtr) {\n\tassocPtr->firstAfterPtr = afterPtr->nextPtr;\n    } else {\n\tfor (prevPtr = assocPtr->firstAfterPtr; prevPtr->nextPtr != afterPtr;\n\t\tprevPtr = prevPtr->nextPtr) {\n\t    /* Empty loop body. */\n\t}\n\tprevPtr->nextPtr = afterPtr->nextPtr;\n    }\n\n    /*\n     * Execute the callback.\n     */\n\n    interp = assocPtr->interp;\n    Tcl_Preserve(interp);\n    result = Tcl_EvalObjEx(interp, afterPtr->commandPtr, TCL_EVAL_GLOBAL);\n    if (result != TCL_OK) {\n\tTcl_AddErrorInfo(interp, \"\\n    (\\\"after\\\" script)\");\n\tTcl_BackgroundException(interp, result);\n    }\n    Tcl_Release(interp);\n\n    /*\n     * Free the memory for the callback.\n     */\n\n    Tcl_DecrRefCount(afterPtr->commandPtr);\n    Tcl_Free(afterPtr);\n}",
+    "snippet_sha256": "6728d838a062e26667d01ff42be2bf848b2ec127e60c0b8c787ba5ed3255c3fb",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclTimer.c"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclTimer.c",
+    "function": "TimerHandlerEventProc",
+    "lines": [
+      517,
+      595
+    ],
+    "source_sha256": "9be43ec6af72e0ba19422b277c6badb07fec3e604fbaeef8ee6147d3bc21284e",
+    "snippet": "TimerHandlerEventProc(\n    TCL_UNUSED(Tcl_Event *),\n    int flags)\t\t\t/* Flags that indicate what events to handle,\n\t\t\t\t * such as TCL_FILE_EVENTS. */\n{\n    TimerHandler *timerHandlerPtr, **nextPtrPtr;\n    Tcl_Time time;\n    int currentTimerId;\n    ThreadSpecificData *tsdPtr = InitTimer();\n\n    /*\n     * Do nothing if timers aren't enabled. This leaves the event on the\n     * queue, so we will get to it as soon as ServiceEvents() is called with\n     * timers enabled.\n     */\n\n    if (!(flags & TCL_TIMER_EVENTS)) {\n\treturn 0;\n    }\n\n    /*\n     * The code below is trickier than it may look, for the following reasons:\n     *\n     * 1. New handlers can get added to the list while the current one is\n     *\t  being processed. If new ones get added, we don't want to process\n     *\t  them during this pass through the list to avoid starving other event\n     *\t  sources. This is implemented using the token number in the handler:\n     *\t  new handlers will have a newer token than any of the ones currently\n     *\t  on the list.\n     * 2. The handler can call Tcl_DoOneEvent, so we have to remove the\n     *\t  handler from the list before calling it. Otherwise an infinite loop\n     *\t  could result.\n     * 3. Tcl_DeleteTimerHandler can be called to remove an element from the\n     *\t  list while a handler is executing, so the list could change\n     *\t  structure during the call.\n     * 4. Because we only fetch the current time before entering the loop, the\n     *\t  only way a new timer will even be considered runnable is if its\n     *\t  expiration time is within the same millisecond as the current time.\n     *\t  This is fairly likely on Windows, since it has a course granularity\n     *\t  clock. Since timers are placed on the queue in time order with the\n     *\t  most recently created handler appearing after earlier ones with the\n     *\t  same expiration time, we don't have to worry about newer generation\n     *\t  timers appearing before later ones.\n     */\n\n    tsdPtr->timerPending = 0;\n    currentTimerId = tsdPtr->lastTimerId;\n    Tcl_GetTime(&time);\n    while (1) {\n\tnextPtrPtr = &tsdPtr->firstTimerHandlerPtr;\n\ttimerHandlerPtr = tsdPtr->firstTimerHandlerPtr;\n\tif (timerHandlerPtr == NULL) {\n\t    break;\n\t}\n\n\tif (TCL_TIME_BEFORE(time, timerHandlerPtr->time)) {\n\t    break;\n\t}\n\n\t/*\n\t * Bail out if the next timer is of a newer generation.\n\t */\n\n\tif ((currentTimerId - PTR2INT(timerHandlerPtr->token)) < 0) {\n\t    break;\n\t}\n\n\t/*\n\t * Remove the handler from the queue before invoking it, to avoid\n\t * potential reentrancy problems.\n\t */\n\n\t*nextPtrPtr = timerHandlerPtr->nextPtr;\n\ttimerHandlerPtr->proc(timerHandlerPtr->clientData);\n\tTcl_Free(timerHandlerPtr);\n    }\n    TimerSetupProc(NULL, TCL_TIMER_EVENTS);\n    return 1;\n}",
+    "snippet_sha256": "30979be71084db83492c85e45cf92d02bc0bb5612397976507205ed4d1332e71",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclTimer.c"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEvent.c",
+    "function": "Tcl_VwaitObjCmd",
+    "lines": [
+      1498,
+      1867
+    ],
+    "source_sha256": "e6b69ac0fc6c9c335af90623398d06eb2d8ef7d2df5574327a52f622a37e31e4",
+    "snippet": "Tcl_VwaitObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    int i, done = 0, timedOut = 0, foundEvent, any = 1, timeout = 0;\n    int numItems = 0, extended = 0, result, mode, mask = TCL_ALL_EVENTS;\n    Tcl_InterpState saved = NULL;\n    Tcl_TimerToken timer = NULL;\n    Tcl_Time before, after;\n    Tcl_Channel chan;\n    Tcl_WideInt diff = -1;\n    VwaitItem localItems[32], *vwaitItems = localItems;\n    static const char *const vWaitOptionStrings[] = {\n\t\"-all\",\t\"-extended\", \"-nofileevents\", \"-noidleevents\",\n\t\"-notimerevents\", \"-nowindowevents\", \"-readable\",\n\t\"-timeout\", \"-variable\", \"-writable\", \"--\", NULL\n    };\n    enum vWaitOptions {\n\tOPT_ALL, OPT_EXTD, OPT_NO_FEVTS, OPT_NO_IEVTS,\n\tOPT_NO_TEVTS, OPT_NO_WEVTS, OPT_READABLE,\n\tOPT_TIMEOUT, OPT_VARIABLE, OPT_WRITABLE, OPT_LAST\n    } index;\n\n    if ((objc == 2) && (strcmp(Tcl_GetString(objv[1]), \"--\") != 0)) {\n\t/*\n\t * Legacy \"vwait\" syntax, skip option handling.\n\t */\n\ti = 1;\n\tgoto endOfOptionLoop;\n    }\n\n    if ((unsigned) objc - 1 > sizeof(localItems) / sizeof(localItems[0])) {\n\tvwaitItems = (VwaitItem *)Tcl_Alloc(sizeof(VwaitItem) * (objc - 1));\n    }\n\n    for (i = 1; i < objc; i++) {\n\tconst char *name;\n\n\tname = TclGetString(objv[i]);\n\tif (name[0] != '-') {\n\t    break;\n\t}\n\tif (Tcl_GetIndexFromObj(interp, objv[i], vWaitOptionStrings, \"option\", 0,\n\t\t&index) != TCL_OK) {\n\t    result = TCL_ERROR;\n\t    goto done;\n\t}\n\tswitch (index) {\n\tcase OPT_ALL:\n\t    any = 0;\n\t    break;\n\tcase OPT_EXTD:\n\t    extended = 1;\n\t    break;\n\tcase OPT_NO_FEVTS:\n\t    mask &= ~TCL_FILE_EVENTS;\n\t    break;\n\tcase OPT_NO_IEVTS:\n\t    mask &= ~TCL_IDLE_EVENTS;\n\t    break;\n\tcase OPT_NO_TEVTS:\n\t    mask &= ~TCL_TIMER_EVENTS;\n\t    break;\n\tcase OPT_NO_WEVTS:\n\t    mask &= ~TCL_WINDOW_EVENTS;\n\t    break;\n\tcase OPT_TIMEOUT:\n\t    if (++i >= objc) {\n\tneedArg:\n\t\tTcl_ResetResult(interp);\n\t\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t\"argument required for \\\"%s\\\"\", vWaitOptionStrings[index]));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"ARGUMENT\", (char *)NULL);\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (Tcl_GetIntFromObj(interp, objv[i], &timeout) != TCL_OK) {\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (timeout < 0) {\n\t\tTcl_ResetResult(interp);\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"timeout must be positive\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NEGTIME\", (char *)NULL);\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    break;\n\tcase OPT_LAST:\n\t    i++;\n\t    goto endOfOptionLoop;\n\tcase OPT_VARIABLE:\n\t    if (++i >= objc) {\n\t\tgoto needArg;\n\t    }\n\t    result = Tcl_TraceVar2(interp, TclGetString(objv[i]), NULL,\n\t\t    TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t\t    VwaitVarProc, &vwaitItems[numItems]);\n\t    if (result != TCL_OK) {\n\t\tgoto done;\n\t    }\n\t    vwaitItems[numItems].donePtr = &done;\n\t    vwaitItems[numItems].sequence = -1;\n\t    vwaitItems[numItems].mask = 0;\n\t    vwaitItems[numItems].sourceObj = objv[i];\n\t    numItems++;\n\t    break;\n\tcase OPT_READABLE:\n\t    if (++i >= objc) {\n\t\tgoto needArg;\n\t    }\n\t    if (TclGetChannelFromObj(interp, objv[i], &chan, &mode, 0)\n\t\t    != TCL_OK) {\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (!(mode & TCL_READABLE)) {\n\t\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t\"channel \\\"%s\\\" wasn't open for reading\",\n\t\t\tTclGetString(objv[i])));\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    Tcl_CreateChannelHandler(chan, TCL_READABLE,\n\t\t    VwaitChannelReadProc, &vwaitItems[numItems]);\n\t    vwaitItems[numItems].donePtr = &done;\n\t    vwaitItems[numItems].sequence = -1;\n\t    vwaitItems[numItems].mask = TCL_READABLE;\n\t    vwaitItems[numItems].sourceObj = objv[i];\n\t    numItems++;\n\t    break;\n\tcase OPT_WRITABLE:\n\t    if (++i >= objc) {\n\t\tgoto needArg;\n\t    }\n\t    if (TclGetChannelFromObj(interp, objv[i], &chan, &mode, 0)\n\t\t    != TCL_OK) {\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (!(mode & TCL_WRITABLE)) {\n\t\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t\"channel \\\"%s\\\" wasn't open for writing\",\n\t\t\tTclGetString(objv[i])));\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    Tcl_CreateChannelHandler(chan, TCL_WRITABLE,\n\t\t    VwaitChannelWriteProc, &vwaitItems[numItems]);\n\t    vwaitItems[numItems].donePtr = &done;\n\t    vwaitItems[numItems].sequence = -1;\n\t    vwaitItems[numItems].mask = TCL_WRITABLE;\n\t    vwaitItems[numItems].sourceObj = objv[i];\n\t    numItems++;\n\t    break;\n\tdefault:\n\t    TCL_UNREACHABLE();\n\t}\n    }\n\n  endOfOptionLoop:\n    if ((mask & (TCL_FILE_EVENTS | TCL_IDLE_EVENTS |\n\t    TCL_TIMER_EVENTS | TCL_WINDOW_EVENTS)) == 0) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"can't wait: would block forever\", -1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NO_SOURCES\", (char *)NULL);\n\tresult = TCL_ERROR;\n\tgoto done;\n    }\n\n    if ((timeout > 0) && ((mask & TCL_TIMER_EVENTS) == 0)) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"timer events disabled with timeout specified\", -1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NO_TIME\", (char *)NULL);\n\tresult = TCL_ERROR;\n\tgoto done;\n    }\n\n    for (result = TCL_OK; i < objc; i++) {\n\tresult = Tcl_TraceVar2(interp, TclGetString(objv[i]), NULL,\n\t\tTCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t\tVwaitVarProc, &vwaitItems[numItems]);\n\tif (result != TCL_OK) {\n\t    break;\n\t}\n\tvwaitItems[numItems].donePtr = &done;\n\tvwaitItems[numItems].sequence = -1;\n\tvwaitItems[numItems].mask = 0;\n\tvwaitItems[numItems].sourceObj = objv[i];\n\tnumItems++;\n    }\n    if (result != TCL_OK) {\n\tresult = TCL_ERROR;\n\tgoto done;\n    }\n\n    if (!(mask & TCL_FILE_EVENTS)) {\n\tfor (i = 0; i < numItems; i++) {\n\t    if (vwaitItems[i].mask) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"file events disabled with channel(s) specified\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NO_FILE_EVENT\", (char *)NULL);\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t}\n    }\n\n    if (timeout > 0) {\n\tvwaitItems[numItems].donePtr = &timedOut;\n\tvwaitItems[numItems].sequence = -1;\n\tvwaitItems[numItems].mask = 0;\n\tvwaitItems[numItems].sourceObj = NULL;\n\ttimer = Tcl_CreateTimerHandler(timeout, VwaitTimeoutProc,\n\t\t&vwaitItems[numItems]);\n\tTcl_GetTime(&before);\n    } else {\n\ttimeout = 0;\n    }\n\n    if ((numItems == 0) && (timeout == 0)) {\n\t/*\n\t * \"vwait\" is equivalent to \"update\",\n\t * \"vwait -nofileevents -notimerevents -nowindowevents\"\n\t * is equivalent to \"update idletasks\"\n\t */\n\tany = 1;\n\tmask |= TCL_DONT_WAIT;\n    }\n\n    foundEvent = 1;\n    while (!timedOut && foundEvent &&\n\t   ((!any && (done < numItems)) || (any && !done))) {\n\tfoundEvent = Tcl_DoOneEvent(mask);\n\tif (Tcl_Canceled(interp, TCL_LEAVE_ERR_MSG) == TCL_ERROR) {\n\t    break;\n\t}\n\tif (Tcl_LimitExceeded(interp)) {\n\t    Tcl_ResetResult(interp);\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\"limit exceeded\", -1));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"LIMIT\", (char *)NULL);\n\t    break;\n\t}\n\tif ((numItems == 0) && (timeout == 0)) {\n\t    /*\n\t     * Behavior like \"update\": clear interpreter's result because\n\t     * event handlers could have executed commands.\n\t     */\n\t    Tcl_ResetResult(interp);\n\t    result = TCL_OK;\n\t    goto done;\n\t}\n    }\n\n    if (!foundEvent) {\n\tTcl_ResetResult(interp);\n\tTcl_SetObjResult(interp, Tcl_NewStringObj((numItems == 0) ?\n\t\t\"can't wait: would wait forever\" :\n\t\t\"can't wait for variable(s)/channel(s): would wait forever\",\n\t\t-1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NO_SOURCES\", (char *)NULL);\n\tresult = TCL_ERROR;\n\tgoto done;\n    }\n\n    if (!done && !timedOut) {\n\t/*\n\t * The interpreter's result was already set to the right error message\n\t * prior to exiting the loop above.\n\t */\n\tresult = TCL_ERROR;\n\tgoto done;\n    }\n\n    result = TCL_OK;\n    if (timeout <= 0) {\n\t/*\n\t * Clear out the interpreter's result, since it may have been set\n\t * by event handlers.\n\t */\n\tTcl_ResetResult(interp);\n\tgoto done;\n    }\n\n    /*\n     * When timeout was specified, report milliseconds left or -1 on timeout.\n     */\n    if (timedOut) {\n\tdiff = -1;\n    } else {\n\tTcl_GetTime(&after);\n\tdiff = after.sec * 1000 + after.usec / 1000;\n\tdiff -= before.sec * 1000 + before.usec / 1000;\n\tdiff = timeout - diff;\n\tif (diff < 0) {\n\t    diff = 0;\n\t}\n    }\n\n  done:\n    if ((timeout > 0) && (timer != NULL)) {\n\tTcl_DeleteTimerHandler(timer);\n    }\n    if (result != TCL_OK) {\n\tsaved = Tcl_SaveInterpState(interp, result);\n    }\n    for (i = 0; i < numItems; i++) {\n\tif (vwaitItems[i].mask & TCL_READABLE) {\n\t    if (TclGetChannelFromObj(interp, vwaitItems[i].sourceObj,\n\t\t    &chan, &mode, 0) == TCL_OK) {\n\t\tTcl_DeleteChannelHandler(chan, VwaitChannelReadProc,\n\t\t\t&vwaitItems[i]);\n\t    }\n\t} else if (vwaitItems[i].mask & TCL_WRITABLE) {\n\t    if (TclGetChannelFromObj(interp, vwaitItems[i].sourceObj,\n\t\t    &chan, &mode, 0) == TCL_OK) {\n\t\tTcl_DeleteChannelHandler(chan, VwaitChannelWriteProc,\n\t\t\t&vwaitItems[i]);\n\t    }\n\t} else {\n\t    Tcl_UntraceVar2(interp, TclGetString(vwaitItems[i].sourceObj),\n\t\t    NULL, TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t\t    VwaitVarProc, &vwaitItems[i]);\n\t}\n    }\n\n    if (result == TCL_OK) {\n\tif (extended) {\n\t    int k;\n\t    Tcl_Obj *listObj, *keyObj;\n\n\t    TclNewObj(listObj);\n\t    for (k = 0; k < done; k++) {\n\t\tfor (i = 0; i < numItems; i++) {\n\t\t    if (vwaitItems[i].sequence != k) {\n\t\t\tcontinue;\n\t\t    }\n\t\t    if (vwaitItems[i].mask & TCL_READABLE) {\n\t\t\tTclNewLiteralStringObj(keyObj, \"readable\");\n\t\t    } else if (vwaitItems[i].mask & TCL_WRITABLE) {\n\t\t\tTclNewLiteralStringObj(keyObj, \"writable\");\n\t\t    } else {\n\t\t\tTclNewLiteralStringObj(keyObj, \"variable\");\n\t\t    }\n\t\t    Tcl_ListObjAppendElement(NULL, listObj, keyObj);\n\t\t    Tcl_ListObjAppendElement(NULL, listObj,\n\t\t\t    vwaitItems[i].sourceObj);\n\t\t}\n\t    }\n\t    if (timeout > 0) {\n\t\tTclNewLiteralStringObj(keyObj, \"timeleft\");\n\t\tTcl_ListObjAppendElement(NULL, listObj, keyObj);\n\t\tTcl_ListObjAppendElement(NULL, listObj,\n\t\t\tTcl_NewWideIntObj(diff));\n\t    }\n\t    Tcl_SetObjResult(interp, listObj);\n\t} else if (timeout > 0) {\n\t    Tcl_SetObjResult(interp, Tcl_NewWideIntObj(diff));\n\t}\n    } else {\n\tresult = Tcl_RestoreInterpState(interp, saved);\n    }\n    if (vwaitItems != localItems) {\n\tTcl_Free(vwaitItems);\n    }\n    return result;\n}",
+    "snippet_sha256": "51c2ed4fc19f0138783d2623b8c15f51f5485a04d976d7e8bbb2432d5a59c33b",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclEvent.c"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEvent.c",
+    "function": "VwaitVarProc",
+    "lines": [
+      1916,
+      1933
+    ],
+    "source_sha256": "e6b69ac0fc6c9c335af90623398d06eb2d8ef7d2df5574327a52f622a37e31e4",
+    "snippet": "VwaitVarProc(\n    void *clientData,\t\t/* Pointer to vwait info record. */\n    Tcl_Interp *interp,\t\t/* Interpreter containing variable. */\n    const char *name1,\t\t/* Name of variable. */\n    const char *name2,\t\t/* Second part of variable name. */\n    TCL_UNUSED(int) /*flags*/)\t/* Information about what happened. */\n{\n    VwaitItem *itemPtr = (VwaitItem *) clientData;\n\n    if (itemPtr->donePtr != NULL) {\n\titemPtr->sequence = itemPtr->donePtr[0];\n\titemPtr->donePtr[0] += 1;\n\titemPtr->donePtr = NULL;\n    }\n    Tcl_UntraceVar2(interp, name1, name2, TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t    VwaitVarProc, clientData);\n    return NULL;\n}",
+    "snippet_sha256": "f2ef5df5e2c890abff496f7d99c3a5d765e3dac9d88bb570b3ded969a4c9f08f",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclEvent.c"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEvent.c",
+    "function": "Tcl_UpdateObjCmd",
+    "lines": [
+      1953,
+      2000
+    ],
+    "source_sha256": "e6b69ac0fc6c9c335af90623398d06eb2d8ef7d2df5574327a52f622a37e31e4",
+    "snippet": "Tcl_UpdateObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    int flags = 0;\t\t/* Initialized to avoid compiler warning. */\n    static const char *const updateOptions[] = {\"idletasks\", NULL};\n    enum updateOptionsEnum {OPT_IDLETASKS} optionIndex;\n\n    if (objc == 1) {\n\tflags = TCL_ALL_EVENTS|TCL_DONT_WAIT;\n    } else if (objc == 2) {\n\tif (Tcl_GetIndexFromObj(interp, objv[1], updateOptions,\n\t\t\"option\", 0, &optionIndex) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\n\tswitch (optionIndex) {\n\tcase OPT_IDLETASKS:\n\t    flags = TCL_IDLE_EVENTS|TCL_DONT_WAIT;\n\t    break;\n\tdefault:\n\t    TCL_UNREACHABLE();\n\t}\n    } else {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?idletasks?\");\n\treturn TCL_ERROR;\n    }\n\n    while (Tcl_DoOneEvent(flags) != 0) {\n\tif (Tcl_Canceled(interp, TCL_LEAVE_ERR_MSG) == TCL_ERROR) {\n\t    return TCL_ERROR;\n\t}\n\tif (Tcl_LimitExceeded(interp)) {\n\t    Tcl_ResetResult(interp);\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\"limit exceeded\", -1));\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * Must clear the interpreter's result because event handlers could have\n     * executed commands.\n     */\n\n    Tcl_ResetResult(interp);\n    return TCL_OK;\n}",
+    "snippet_sha256": "bd93821bbae5dbca7a8b7ba7747df9dcdfb13f8fa2ea3a4e93795d2318f39d2b",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclEvent.c"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c",
+    "function": "ChildBgerror",
+    "lines": [
+      2342,
+      2363
+    ],
+    "source_sha256": "5c944998c2f89689ef9f591983ea7b0e322dd40756fe5baca641e2258969b125",
+    "snippet": "ChildBgerror(\n    Tcl_Interp *interp,\t\t/* Interp for error return. */\n    Tcl_Interp *childInterp,\t/* Interp in which limit is set/queried. */\n    Tcl_Size objc,\t\t/* Set or Query. */\n    Tcl_Obj *const objv[])\t/* Argument strings. */\n{\n    if (objc) {\n\tTcl_Size length;\n\n\tif (TCL_ERROR == TclListObjLength(NULL, objv[0], &length)\n\t\t|| (length < 1)) {\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t    \"cmdPrefix must be list of length >= 1\", -1));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"OPERATION\", \"INTERP\",\n\t\t    \"BGERRORFORMAT\", (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n\tTclSetBgErrorHandler(childInterp, objv[0]);\n    }\n    Tcl_SetObjResult(interp, TclGetBgErrorHandler(childInterp));\n    return TCL_OK;\n}",
+    "snippet_sha256": "95f6464606cd1776ff7093b3f2684bb0526a7be04579c833c7d41d80c04434fc",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclInterp.c"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclTimer.c",
+    "function": "Tcl_AfterObjCmd",
+    "lines": [
+      1018,
+      1171
+    ],
+    "source_sha256": "580f163fb0bbd01a5a5ffbd9992cf7f4d2dec932355edb7fe6383b0352ab581b",
+    "snippet": "Tcl_AfterObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    Tcl_Size objc,\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Argument objects. */\n{\n    Tcl_WideInt ms = 0;\t\t/* Number of milliseconds to wait */\n    int index = -1;\n    static const char *const afterSubCmds[] = {\n\t\"cancel\", \"idle\", \"info\", NULL\n    };\n    enum afterSubCmdsEnum {AFTER_CANCEL, AFTER_IDLE, AFTER_INFO};\n    Tcl_Obj *cmdObj;\n    int res;\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"option ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * First lets see if the command was passed a number as the first argument.\n     */\n\n    if (TclGetWideIntFromObj(NULL, objv[1], &ms) != TCL_OK) {\n\tif (Tcl_GetIndexFromObj(NULL, objv[1], afterSubCmds, \"\", 0, &index)\n\t\t!= TCL_OK) {\n\t    const char *arg = TclGetString(objv[1]);\n\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t    \"bad argument \\\"%s\\\": must be\"\n\t\t    \" cancel, idle, info, or an integer\", arg));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"INDEX\", \"argument\",\n\t\t    arg, (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * At this point, either index = -1 and ms contains the number of ms\n     * to wait, or else index is the index of a subcommand.\n     */\n\n    switch (index) {\n    case -1: {\n\tAfterInfo *afterPtr;\n\tAfterAssocData *assocPtr;\n\tThreadSpecificData *tsdPtr;\n\tlong long microSeconds;\n\n\tif (ms < 0) {\n\t    ms = 0;\n\t}\n\n\tlong long wakeupUS;\n\twakeupUS = Tcl_GetMonotonicTime();\n\n\tif (ms >= LLONG_MAX / US_PER_MS) {\n\t    TimeTooFarError(interp);\n\t    return TCL_ERROR;\n\t}\n\tmicroSeconds = ms * US_PER_MS;\n\n\tif (LLONG_MAX - microSeconds < wakeupUS) {\n\t    TimeTooFarError(interp);\n\t    return TCL_ERROR;\n\t}\n\n\twakeupUS += microSeconds;\n\n\tif (objc == 2) {\n\t    /*\n\t     * No command given: wait the given monotonic time.\n\t     */\n\n\t    return TimerDelayMonotonic(interp, wakeupUS);\n\t}\n\n\t/*\n\t * Invoke command after given monotonic time distance.\n\t */\n\n\tassocPtr = TimerAssocDataGet(interp);\n\ttsdPtr = InitTimer();\n\tafterPtr = (AfterInfo *)Tcl_Alloc(sizeof(AfterInfo));\n\tafterPtr->assocPtr = assocPtr;\n\tif (objc == 3) {\n\t    afterPtr->commandPtr = objv[2];\n\t} else {\n\t    afterPtr->commandPtr = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\tTcl_IncrRefCount(afterPtr->commandPtr);\n\n\t/*\n\t * The variable below is used to generate unique identifiers for after\n\t * commands. This id can wrap around, which can potentially cause\n\t * problems. However, there are not likely to be problems in practice,\n\t * because after commands can only be requested to about a month in\n\t * the future, and wrap-around is unlikely to occur in less than about\n\t * 1-10 years. Thus it's unlikely that any old ids will still be\n\t * around when wrap-around occurs.\n\t */\n\n\tafterPtr->id = tsdPtr->afterId;\n\ttsdPtr->afterId += 1;\n\tafterPtr->token = CreateTimerHandler(wakeupUS,\n\t\tAfterProc, afterPtr, true);\n\tafterPtr->nextPtr = assocPtr->firstAfterPtr;\n\tassocPtr->firstAfterPtr = afterPtr;\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\"after#%d\", afterPtr->id));\n\treturn TCL_OK;\n    }\n    case AFTER_CANCEL:\n\tif (objc < 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"id|script ?script?\");\n\t    return TCL_ERROR;\n\t}\n\tif (objc == 3) {\n\t    res = TimerCancelDo(interp, objv[2], false);\n\t} else {\n\t    cmdObj = Tcl_ConcatObj(objc-2, objv+2);\n\t    res = TimerCancelDo(interp, cmdObj, false);\n\n\t    /*\n\t     * When Tcl_ConcatObj was used, the created object is only\n\t     * decremented in this case, not in the other 3 cases in this\n\t     * function. I don't know why.\n\t     */\n\n\t    Tcl_DecrRefCount(cmdObj);\n\t}\n\treturn res;\n    case AFTER_IDLE:\n\tif (objc < 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"script ?script ...?\");\n\t    return TCL_ERROR;\n\t}\n\tif (objc == 3) {\n\t    cmdObj = objv[2];\n\t} else {\n\t    cmdObj = Tcl_ConcatObj(objc-2, objv+2);\n\t}\n\treturn TimerIdleDo(interp, cmdObj);\n    case AFTER_INFO:\n\tif (objc < 2 || objc > 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"?id?\");\n\t    return TCL_ERROR;\n\t}\n\treturn TimerInfoDo(interp, objc-1, objv+1, true);\n    default:\n\tTCL_UNREACHABLE();\n    }\n    return TCL_OK;\n}",
+    "snippet_sha256": "0362d72ed16ba6db40cc90bb91d04e0d28a5caba1016e8f124db60ae0e7d3a05",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclTimer.c"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclTimer.c",
+    "function": "GetAfterEvent",
+    "lines": [
+      1484,
+      1511
+    ],
+    "source_sha256": "580f163fb0bbd01a5a5ffbd9992cf7f4d2dec932355edb7fe6383b0352ab581b",
+    "snippet": "GetAfterEvent(\n    AfterAssocData *assocPtr,\t/* Points to \"after\"-related information for\n\t\t\t\t * this interpreter. */\n    Tcl_Obj *commandPtr)\n{\n    const char *cmdString;\t/* Textual identifier for after event, such as\n\t\t\t\t * \"after#6\". */\n    AfterInfo *afterPtr;\n    int id;\n    char *end;\n\n    cmdString = TclGetString(commandPtr);\n    if (strncmp(cmdString, \"after#\", 6) != 0) {\n\treturn NULL;\n    }\n    cmdString += 6;\n    id = (int)strtoul(cmdString, &end, 10);\n    if ((end == cmdString) || (*end != 0)) {\n\treturn NULL;\n    }\n    for (afterPtr = assocPtr->firstAfterPtr; afterPtr != NULL;\n\t    afterPtr = afterPtr->nextPtr) {\n\tif (afterPtr->id == id) {\n\t    return afterPtr;\n\t}\n    }\n    return NULL;\n}",
+    "snippet_sha256": "77a0dffb17991ef92c1eef35f07a0b40b244b04d02b6d035532221c32fc3e65a",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclTimer.c"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclTimer.c",
+    "function": "AfterProc",
+    "lines": [
+      1533,
+      1577
+    ],
+    "source_sha256": "580f163fb0bbd01a5a5ffbd9992cf7f4d2dec932355edb7fe6383b0352ab581b",
+    "snippet": "AfterProc(\n    void *clientData)\t\t/* Describes command to execute. */\n{\n    AfterInfo *afterPtr = (AfterInfo *)clientData;\n    AfterAssocData *assocPtr = afterPtr->assocPtr;\n    AfterInfo *prevPtr;\n    int result;\n    Tcl_Interp *interp;\n\n    /*\n     * First remove the callback from our list of callbacks; otherwise someone\n     * could delete the callback while it's being executed, which could cause\n     * a core dump.\n     */\n\n    if (assocPtr->firstAfterPtr == afterPtr) {\n\tassocPtr->firstAfterPtr = afterPtr->nextPtr;\n    } else {\n\tfor (prevPtr = assocPtr->firstAfterPtr; prevPtr->nextPtr != afterPtr;\n\t\tprevPtr = prevPtr->nextPtr) {\n\t    /* Empty loop body. */\n\t}\n\tprevPtr->nextPtr = afterPtr->nextPtr;\n    }\n\n    /*\n     * Execute the callback.\n     */\n\n    interp = assocPtr->interp;\n    Tcl_Preserve(interp);\n    result = Tcl_EvalObjEx(interp, afterPtr->commandPtr, TCL_EVAL_GLOBAL);\n    if (result != TCL_OK) {\n\tTcl_AddErrorInfo(interp, \"\\n    (\\\"after\\\" script)\");\n\tTcl_BackgroundException(interp, result);\n    }\n    Tcl_Release(interp);\n\n    /*\n     * Free the memory for the callback.\n     */\n\n    Tcl_DecrRefCount(afterPtr->commandPtr);\n    Tcl_Free(afterPtr);\n}",
+    "snippet_sha256": "6728d838a062e26667d01ff42be2bf848b2ec127e60c0b8c787ba5ed3255c3fb",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclTimer.c"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclTimer.c",
+    "function": "TimerHandlerEventProc",
+    "lines": [
+      744,
+      841
+    ],
+    "source_sha256": "580f163fb0bbd01a5a5ffbd9992cf7f4d2dec932355edb7fe6383b0352ab581b",
+    "snippet": "TimerHandlerEventProc(\n    TCL_UNUSED(Tcl_Event *),\n    int flags)\t\t\t/* Flags that indicate what events to handle,\n\t\t\t\t * such as TCL_FILE_EVENTS. */\n{\n    ThreadSpecificData *tsdPtr = InitTimer();\n\n    /*\n     * Do nothing if timers aren't enabled. This leaves the event on the\n     * queue, so we will get to it as soon as ServiceEvents() is called with\n     * timers enabled.\n     */\n\n    if (!(flags & TCL_TIMER_EVENTS)) {\n\treturn 0;\n    }\n\n    /*\n     * The code below is trickier than it may look, for the following reasons:\n     *\n     * 1. New handlers can get added to the list while the current one is\n     *\t  being processed. If new ones get added, we don't want to process\n     *\t  them during this pass through the list to avoid starving other event\n     *\t  sources. This is implemented using the token number in the handler:\n     *\t  new handlers will have a newer token than any of the ones currently\n     *\t  on the list.\n     * 2. The handler can call Tcl_DoOneEvent, so we have to remove the\n     *\t  handler from the list before calling it. Otherwise an infinite loop\n     *\t  could result.\n     * 3. Tcl_DeleteTimerHandler can be called to remove an element from the\n     *\t  list while a handler is executing, so the list could change\n     *\t  structure during the call.\n     * 4. Because we only fetch the current time before entering the loop, the\n     *\t  only way a new timer will even be considered runnable is if its\n     *\t  expiration time is within the same millisecond as the current time.\n     *\t  This is fairly likely on Windows, since it has a course granularity\n     *\t  clock. Since timers are placed on the queue in time order with the\n     *\t  most recently created handler appearing after earlier ones with the\n     *\t  same expiration time, we don't have to worry about newer generation\n     *\t  timers appearing before later ones.\n     */\n\n    for (int timerHandlerIndex = timerHandlerMonotonic;\n\t    timerHandlerIndex <= timerHandlerWallclock; timerHandlerIndex++) {\n\tlong long timeUS;\n\tTimerHandler *timerHandlerPtr, **nextPtrPtr;\n\tint currentTimerId;\n\n\tif (!tsdPtr->timerPendingQueue[timerHandlerIndex]) {\n\t    continue;\n\t}\n\ttsdPtr->timerPendingQueue[timerHandlerIndex] = 0;\n\n\t/*\n\t * As the queues are independent, but the timer ids are used for both,\n\t * its creation time should be compared per queue.\n\t * Thus, use the queues latest id.\n\t */\n\n\tcurrentTimerId = tsdPtr->lastTimerIdQueue[timerHandlerIndex];\n\n\tif (timerHandlerIndex == timerHandlerMonotonic) {\n\t    timeUS = Tcl_GetMonotonicTime();\n\t} else {\n\t    timeUS = Tcl_GetDayTime();\n\t}\n\twhile (1) {\n\t    nextPtrPtr = &tsdPtr->firstTimerHandlerPtr[timerHandlerIndex];\n\t    timerHandlerPtr = tsdPtr->firstTimerHandlerPtr[timerHandlerIndex];\n\t    if (timerHandlerPtr == NULL) {\n\t\tbreak;\n\t    }\n\n\t    if (timeUS < timerHandlerPtr->time) {\n\t\tbreak;\n\t    }\n\n\t    /*\n\t     * Bail out if the next timer is of a newer generation.\n\t     */\n\n\t    if ((currentTimerId - PTR2INT(timerHandlerPtr->token)) < 0) {\n\t\tbreak;\n\t    }\n\n\t    /*\n\t     * Remove the handler from the queue before invoking it, to avoid\n\t     * potential reentrancy problems.\n\t     */\n\n\t    *nextPtrPtr = timerHandlerPtr->nextPtr;\n\t    timerHandlerPtr->proc(timerHandlerPtr->clientData);\n\t    Tcl_Free(timerHandlerPtr);\n\t}\n    }\n    TimerSetupProc(NULL, TCL_TIMER_EVENTS);\n    return 1;\n}",
+    "snippet_sha256": "410e17893c54f43d64c225dfe1efe3950426cc8ee537190fcc4d878f68c0f30b",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclTimer.c"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclEvent.c",
+    "function": "Tcl_VwaitObjCmd",
+    "lines": [
+      1536,
+      1906
+    ],
+    "source_sha256": "9451a2c540dcd5ed61675c15f833f5ad677b551b61deb210ee6837216f477a54",
+    "snippet": "Tcl_VwaitObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    Tcl_Size objc,\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Argument objects. */\n{\n    Tcl_Size i, done = 0, numItems = 0, timedOut = 0;\n    int foundEvent, any = 1, timeout = 0;\n    int extended = 0, result, mode, mask = TCL_ALL_EVENTS;\n    Tcl_InterpState saved = NULL;\n    Tcl_TimerToken timer = NULL;\n    long long before = -1, after;\n    Tcl_Channel chan;\n    Tcl_WideInt diff = -1;\n    VwaitItem localItems[32], *vwaitItems = localItems;\n    static const char *const vWaitOptionStrings[] = {\n\t\"-all\",\t\"-extended\", \"-nofileevents\", \"-noidleevents\",\n\t\"-notimerevents\", \"-nowindowevents\", \"-readable\",\n\t\"-timeout\", \"-variable\", \"-writable\", \"--\", NULL\n    };\n    enum vWaitOptions {\n\tOPT_ALL, OPT_EXTD, OPT_NO_FEVTS, OPT_NO_IEVTS,\n\tOPT_NO_TEVTS, OPT_NO_WEVTS, OPT_READABLE,\n\tOPT_TIMEOUT, OPT_VARIABLE, OPT_WRITABLE, OPT_LAST\n    } index;\n\n    if ((objc == 2) && (strcmp(Tcl_GetString(objv[1]), \"--\") != 0)) {\n\t/*\n\t * Legacy \"vwait\" syntax, skip option handling.\n\t */\n\ti = 1;\n\tgoto endOfOptionLoop;\n    }\n\n    if ((unsigned) objc - 1 > sizeof(localItems) / sizeof(localItems[0])) {\n\tvwaitItems = (VwaitItem *)Tcl_Alloc(sizeof(VwaitItem) * (objc - 1));\n    }\n\n    for (i = 1; i < objc; i++) {\n\tconst char *name;\n\n\tname = TclGetString(objv[i]);\n\tif (name[0] != '-') {\n\t    break;\n\t}\n\tif (Tcl_GetIndexFromObj(interp, objv[i], vWaitOptionStrings, \"option\", 0,\n\t\t&index) != TCL_OK) {\n\t    result = TCL_ERROR;\n\t    goto done;\n\t}\n\tswitch (index) {\n\tcase OPT_ALL:\n\t    any = 0;\n\t    break;\n\tcase OPT_EXTD:\n\t    extended = 1;\n\t    break;\n\tcase OPT_NO_FEVTS:\n\t    mask &= ~TCL_FILE_EVENTS;\n\t    break;\n\tcase OPT_NO_IEVTS:\n\t    mask &= ~TCL_IDLE_EVENTS;\n\t    break;\n\tcase OPT_NO_TEVTS:\n\t    mask &= ~TCL_TIMER_EVENTS;\n\t    break;\n\tcase OPT_NO_WEVTS:\n\t    mask &= ~TCL_WINDOW_EVENTS;\n\t    break;\n\tcase OPT_TIMEOUT:\n\t    if (++i >= objc) {\n\tneedArg:\n\t\tTcl_ResetResult(interp);\n\t\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t\"argument required for \\\"%s\\\"\", vWaitOptionStrings[index]));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"ARGUMENT\", (char *)NULL);\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (Tcl_GetIntFromObj(interp, objv[i], &timeout) != TCL_OK) {\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (timeout < 0) {\n\t\tTcl_ResetResult(interp);\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"timeout must be positive\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NEGTIME\", (char *)NULL);\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    break;\n\tcase OPT_LAST:\n\t    i++;\n\t    goto endOfOptionLoop;\n\tcase OPT_VARIABLE:\n\t    if (++i >= objc) {\n\t\tgoto needArg;\n\t    }\n\t    result = Tcl_TraceVar2(interp, TclGetString(objv[i]), NULL,\n\t\t    TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t\t    VwaitVarProc, &vwaitItems[numItems]);\n\t    if (result != TCL_OK) {\n\t\tgoto done;\n\t    }\n\t    vwaitItems[numItems].donePtr = &done;\n\t    vwaitItems[numItems].sequence = TCL_INDEX_NONE;\n\t    vwaitItems[numItems].mask = 0;\n\t    vwaitItems[numItems].sourceObj = objv[i];\n\t    numItems++;\n\t    break;\n\tcase OPT_READABLE:\n\t    if (++i >= objc) {\n\t\tgoto needArg;\n\t    }\n\t    if (TclGetChannelFromObj(interp, objv[i], &chan, &mode, 0)\n\t\t    != TCL_OK) {\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (!(mode & TCL_READABLE)) {\n\t\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t\"channel \\\"%s\\\" wasn't open for reading\",\n\t\t\tTclGetString(objv[i])));\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    Tcl_CreateChannelHandler(chan, TCL_READABLE,\n\t\t    VwaitChannelReadProc, &vwaitItems[numItems]);\n\t    vwaitItems[numItems].donePtr = &done;\n\t    vwaitItems[numItems].sequence = TCL_INDEX_NONE;\n\t    vwaitItems[numItems].mask = TCL_READABLE;\n\t    vwaitItems[numItems].sourceObj = objv[i];\n\t    numItems++;\n\t    break;\n\tcase OPT_WRITABLE:\n\t    if (++i >= objc) {\n\t\tgoto needArg;\n\t    }\n\t    if (TclGetChannelFromObj(interp, objv[i], &chan, &mode, 0)\n\t\t    != TCL_OK) {\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (!(mode & TCL_WRITABLE)) {\n\t\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t\"channel \\\"%s\\\" wasn't open for writing\",\n\t\t\tTclGetString(objv[i])));\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    Tcl_CreateChannelHandler(chan, TCL_WRITABLE,\n\t\t    VwaitChannelWriteProc, &vwaitItems[numItems]);\n\t    vwaitItems[numItems].donePtr = &done;\n\t    vwaitItems[numItems].sequence = TCL_INDEX_NONE;\n\t    vwaitItems[numItems].mask = TCL_WRITABLE;\n\t    vwaitItems[numItems].sourceObj = objv[i];\n\t    numItems++;\n\t    break;\n\tdefault:\n\t    TCL_UNREACHABLE();\n\t}\n    }\n\n  endOfOptionLoop:\n    if ((mask & (TCL_FILE_EVENTS | TCL_IDLE_EVENTS |\n\t    TCL_TIMER_EVENTS | TCL_WINDOW_EVENTS)) == 0) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"can't wait: would block forever\", -1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NO_SOURCES\", (char *)NULL);\n\tresult = TCL_ERROR;\n\tgoto done;\n    }\n\n    if ((timeout > 0) && ((mask & TCL_TIMER_EVENTS) == 0)) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"timer events disabled with timeout specified\", -1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NO_TIME\", (char *)NULL);\n\tresult = TCL_ERROR;\n\tgoto done;\n    }\n\n    for (result = TCL_OK; i < objc; i++) {\n\tresult = Tcl_TraceVar2(interp, TclGetString(objv[i]), NULL,\n\t\tTCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t\tVwaitVarProc, &vwaitItems[numItems]);\n\tif (result != TCL_OK) {\n\t    break;\n\t}\n\tvwaitItems[numItems].donePtr = &done;\n\tvwaitItems[numItems].sequence = TCL_INDEX_NONE;\n\tvwaitItems[numItems].mask = 0;\n\tvwaitItems[numItems].sourceObj = objv[i];\n\tnumItems++;\n    }\n    if (result != TCL_OK) {\n\tresult = TCL_ERROR;\n\tgoto done;\n    }\n\n    if (!(mask & TCL_FILE_EVENTS)) {\n\tfor (i = 0; i < numItems; i++) {\n\t    if (vwaitItems[i].mask) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"file events disabled with channel(s) specified\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NO_FILE_EVENT\", (char *)NULL);\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t}\n    }\n\n    if (timeout > 0) {\n\tvwaitItems[numItems].donePtr = &timedOut;\n\tvwaitItems[numItems].sequence = TCL_INDEX_NONE;\n\tvwaitItems[numItems].mask = 0;\n\tvwaitItems[numItems].sourceObj = NULL;\n\ttimer = Tcl_CreateTimerHandler(timeout, VwaitTimeoutProc,\n\t\t&vwaitItems[numItems]);\n\tbefore = Tcl_GetDayTime();\n    } else {\n\ttimeout = 0;\n    }\n\n    if ((numItems == 0) && (timeout == 0)) {\n\t/*\n\t * \"vwait\" is equivalent to \"update\",\n\t * \"vwait -nofileevents -notimerevents -nowindowevents\"\n\t * is equivalent to \"update idletasks\"\n\t */\n\tany = 1;\n\tmask |= TCL_DONT_WAIT;\n    }\n\n    foundEvent = 1;\n    while (!timedOut && foundEvent &&\n\t    ((!any && (done < numItems)) || (any && !done))) {\n\tfoundEvent = Tcl_DoOneEvent(mask);\n\tif (Tcl_Canceled(interp, TCL_LEAVE_ERR_MSG) == TCL_ERROR) {\n\t    break;\n\t}\n\tif (Tcl_LimitExceeded(interp)) {\n\t    Tcl_ResetResult(interp);\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\"limit exceeded\", -1));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"LIMIT\", (char *)NULL);\n\t    break;\n\t}\n\tif ((numItems == 0) && (timeout == 0)) {\n\t    /*\n\t     * Behavior like \"update\": clear interpreter's result because\n\t     * event handlers could have executed commands.\n\t     */\n\t    Tcl_ResetResult(interp);\n\t    result = TCL_OK;\n\t    goto done;\n\t}\n    }\n\n    if (!foundEvent) {\n\tTcl_ResetResult(interp);\n\tTcl_SetObjResult(interp, Tcl_NewStringObj((numItems == 0) ?\n\t\t\"can't wait: would wait forever\" :\n\t\t\"can't wait for variable(s)/channel(s): would wait forever\",\n\t\t-1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"EVENT\", \"NO_SOURCES\", (char *)NULL);\n\tresult = TCL_ERROR;\n\tgoto done;\n    }\n\n    if (!done && !timedOut) {\n\t/*\n\t * The interpreter's result was already set to the right error message\n\t * prior to exiting the loop above.\n\t */\n\tresult = TCL_ERROR;\n\tgoto done;\n    }\n\n    result = TCL_OK;\n    if (timeout <= 0) {\n\t/*\n\t * Clear out the interpreter's result, since it may have been set\n\t * by event handlers.\n\t */\n\tTcl_ResetResult(interp);\n\tgoto done;\n    }\n\n    /*\n     * When timeout was specified, report milliseconds left or -1 on timeout.\n     */\n    if (timedOut) {\n\tdiff = -1;\n    } else {\n\tafter = Tcl_GetDayTime();\n\tdiff = after / 1000;\n\tdiff -= before / 1000;\n\tdiff = timeout - diff;\n\tif (diff < 0) {\n\t    diff = 0;\n\t}\n    }\n\n  done:\n    if ((timeout > 0) && (timer != NULL)) {\n\tTcl_DeleteTimerHandler(timer);\n    }\n    if (result != TCL_OK) {\n\tsaved = Tcl_SaveInterpState(interp, result);\n    }\n    for (i = 0; i < numItems; i++) {\n\tif (vwaitItems[i].mask & TCL_READABLE) {\n\t    if (TclGetChannelFromObj(interp, vwaitItems[i].sourceObj,\n\t\t    &chan, &mode, 0) == TCL_OK) {\n\t\tTcl_DeleteChannelHandler(chan, VwaitChannelReadProc,\n\t\t\t&vwaitItems[i]);\n\t    }\n\t} else if (vwaitItems[i].mask & TCL_WRITABLE) {\n\t    if (TclGetChannelFromObj(interp, vwaitItems[i].sourceObj,\n\t\t    &chan, &mode, 0) == TCL_OK) {\n\t\tTcl_DeleteChannelHandler(chan, VwaitChannelWriteProc,\n\t\t\t&vwaitItems[i]);\n\t    }\n\t} else {\n\t    Tcl_UntraceVar2(interp, TclGetString(vwaitItems[i].sourceObj),\n\t\t    NULL, TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t\t    VwaitVarProc, &vwaitItems[i]);\n\t}\n    }\n\n    if (result == TCL_OK) {\n\tif (extended) {\n\t    Tcl_Size k;\n\t    Tcl_Obj *listObj, *keyObj;\n\n\t    TclNewObj(listObj);\n\t    for (k = 0; k < done; k++) {\n\t\tfor (i = 0; i < numItems; i++) {\n\t\t    if (vwaitItems[i].sequence != k) {\n\t\t\tcontinue;\n\t\t    }\n\t\t    if (vwaitItems[i].mask & TCL_READABLE) {\n\t\t\tTclNewLiteralStringObj(keyObj, \"readable\");\n\t\t    } else if (vwaitItems[i].mask & TCL_WRITABLE) {\n\t\t\tTclNewLiteralStringObj(keyObj, \"writable\");\n\t\t    } else {\n\t\t\tTclNewLiteralStringObj(keyObj, \"variable\");\n\t\t    }\n\t\t    Tcl_ListObjAppendElement(NULL, listObj, keyObj);\n\t\t    Tcl_ListObjAppendElement(NULL, listObj,\n\t\t\t    vwaitItems[i].sourceObj);\n\t\t}\n\t    }\n\t    if (timeout > 0) {\n\t\tTclNewLiteralStringObj(keyObj, \"timeleft\");\n\t\tTcl_ListObjAppendElement(NULL, listObj, keyObj);\n\t\tTcl_ListObjAppendElement(NULL, listObj,\n\t\t\tTcl_NewWideIntObj(diff));\n\t    }\n\t    Tcl_SetObjResult(interp, listObj);\n\t} else if (timeout > 0) {\n\t    Tcl_SetObjResult(interp, Tcl_NewWideIntObj(diff));\n\t}\n    } else {\n\tresult = Tcl_RestoreInterpState(interp, saved);\n    }\n    if (vwaitItems != localItems) {\n\tTcl_Free(vwaitItems);\n    }\n    return result;\n}",
+    "snippet_sha256": "0f13359ad3fe496d90ff98f311f7951d3e6c13a770b2f9b2a8e4fdc9fd49d291",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclEvent.c"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclEvent.c",
+    "function": "VwaitVarProc",
+    "lines": [
+      1955,
+      1972
+    ],
+    "source_sha256": "9451a2c540dcd5ed61675c15f833f5ad677b551b61deb210ee6837216f477a54",
+    "snippet": "VwaitVarProc(\n    void *clientData,\t\t/* Pointer to vwait info record. */\n    Tcl_Interp *interp,\t\t/* Interpreter containing variable. */\n    const char *name1,\t\t/* Name of variable. */\n    const char *name2,\t\t/* Second part of variable name. */\n    TCL_UNUSED(int) /*flags*/)\t/* Information about what happened. */\n{\n    VwaitItem *itemPtr = (VwaitItem *) clientData;\n\n    if (itemPtr->donePtr != NULL) {\n\titemPtr->sequence = itemPtr->donePtr[0];\n\titemPtr->donePtr[0] += 1;\n\titemPtr->donePtr = NULL;\n    }\n    Tcl_UntraceVar2(interp, name1, name2, TCL_TRACE_WRITES|TCL_TRACE_UNSETS,\n\t    VwaitVarProc, clientData);\n    return NULL;\n}",
+    "snippet_sha256": "f2ef5df5e2c890abff496f7d99c3a5d765e3dac9d88bb570b3ded969a4c9f08f",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclEvent.c"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclEvent.c",
+    "function": "Tcl_UpdateObjCmd",
+    "lines": [
+      1992,
+      2039
+    ],
+    "source_sha256": "9451a2c540dcd5ed61675c15f833f5ad677b551b61deb210ee6837216f477a54",
+    "snippet": "Tcl_UpdateObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    Tcl_Size objc,\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Argument objects. */\n{\n    int flags = 0;\t\t/* Initialized to avoid compiler warning. */\n    static const char *const updateOptions[] = {\"idletasks\", NULL};\n    enum updateOptionsEnum {OPT_IDLETASKS} optionIndex;\n\n    if (objc == 1) {\n\tflags = TCL_ALL_EVENTS|TCL_DONT_WAIT;\n    } else if (objc == 2) {\n\tif (Tcl_GetIndexFromObj(interp, objv[1], updateOptions,\n\t\t\"option\", 0, &optionIndex) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\n\tswitch (optionIndex) {\n\tcase OPT_IDLETASKS:\n\t    flags = TCL_IDLE_EVENTS|TCL_DONT_WAIT;\n\t    break;\n\tdefault:\n\t    TCL_UNREACHABLE();\n\t}\n    } else {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?idletasks?\");\n\treturn TCL_ERROR;\n    }\n\n    while (Tcl_DoOneEvent(flags) != 0) {\n\tif (Tcl_Canceled(interp, TCL_LEAVE_ERR_MSG) == TCL_ERROR) {\n\t    return TCL_ERROR;\n\t}\n\tif (Tcl_LimitExceeded(interp)) {\n\t    Tcl_ResetResult(interp);\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\"limit exceeded\", -1));\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * Must clear the interpreter's result because event handlers could have\n     * executed commands.\n     */\n\n    Tcl_ResetResult(interp);\n    return TCL_OK;\n}",
+    "snippet_sha256": "e56e6a2cce1bfcc8b280959702c3586431d1974ba4eb6fa3e97ab1b480c8536e",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclEvent.c"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "retained configured source tree",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c",
+    "function": "ChildBgerror",
+    "lines": [
+      2727,
+      2748
+    ],
+    "source_sha256": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "snippet": "ChildBgerror(\n    Tcl_Interp *interp,\t\t/* Interp for error return. */\n    Tcl_Interp *childInterp,\t/* Interp in which limit is set/queried. */\n    Tcl_Size objc,\t\t/* Set or Query. */\n    Tcl_Obj *const *objv)\t/* Argument strings. */\n{\n    if (objc) {\n\tTcl_Size length;\n\n\tif (TCL_ERROR == TclListObjLength(NULL, objv[0], &length)\n\t\t|| (length < 1)) {\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t    \"cmdPrefix must be list of length >= 1\", -1));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"OPERATION\", \"INTERP\",\n\t\t    \"BGERRORFORMAT\", (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n\tTclSetBgErrorHandler(childInterp, objv[0]);\n    }\n    Tcl_SetObjResult(interp, TclGetBgErrorHandler(childInterp));\n    return TCL_OK;\n}",
+    "snippet_sha256": "b24ea4bbf172c6ec2d9616a8c1e45d57d1ccf1535b43124d30a3b57ce95215bc",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclInterp.c"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c9",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-eventloop.c",
+    "function": "Jim_EvalObjBackground",
+    "lines": [
+      112,
+      148
+    ],
+    "source_sha256": "b9536f7021919026f8ee2cfcdb35a59305db07a23e60daa50d5da966d52a1a12",
+    "snippet": "int Jim_EvalObjBackground(Jim_Interp *interp, Jim_Obj *scriptObjPtr)\n{\n    Jim_EventLoop *eventLoop = Jim_GetAssocData(interp, \"eventloop\");\n    Jim_CallFrame *savedFramePtr;\n    int retval;\n\n    savedFramePtr = interp->framePtr;\n    interp->framePtr = interp->topFramePtr;\n    retval = Jim_EvalObj(interp, scriptObjPtr);\n    interp->framePtr = savedFramePtr;\n    /* Try to report the error (if any) via the bgerror proc */\n    if (retval != JIM_OK && retval != JIM_RETURN && !eventLoop->suppress_bgerror) {\n        Jim_Obj *objv[2];\n        int rc = JIM_ERR;\n\n        objv[0] = Jim_NewStringObj(interp, \"bgerror\", -1);\n        objv[1] = Jim_GetResult(interp);\n        Jim_IncrRefCount(objv[0]);\n        Jim_IncrRefCount(objv[1]);\n        if (Jim_GetCommand(interp, objv[0], JIM_NONE) == NULL || (rc = Jim_EvalObjVector(interp, 2, objv)) != JIM_OK) {\n            if (rc == JIM_BREAK) {\n                /* No more bgerror calls */\n                eventLoop->suppress_bgerror++;\n            }\n            else {\n                /* Report the error to stderr. */\n                Jim_MakeErrorMessage(interp);\n                fprintf(stderr, \"%s\\n\", Jim_String(Jim_GetResult(interp)));\n                /* And reset the result */\n                Jim_SetResultString(interp, \"\", -1);\n            }\n        }\n        Jim_DecrRefCount(interp, objv[0]);\n        Jim_DecrRefCount(interp, objv[1]);\n    }\n    return retval;\n}",
+    "snippet_sha256": "7c1e41da33a7663e8745126d78eb7578f28301335188e4f1a7fa6f48e157c0b2",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c9",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-eventloop.c",
+    "function": "Jim_ProcessEvents",
+    "lines": [
+      377,
+      534
+    ],
+    "source_sha256": "b9536f7021919026f8ee2cfcdb35a59305db07a23e60daa50d5da966d52a1a12",
+    "snippet": "int Jim_ProcessEvents(Jim_Interp *interp, int flags)\n{\n    jim_wide sleep_us = -1;\n    int processed = 0;\n    Jim_EventLoop *eventLoop = Jim_GetAssocData(interp, \"eventloop\");\n    Jim_FileEvent *fe = eventLoop->fileEventHead;\n    Jim_TimeEvent *te;\n    jim_wide maxId;\n\n    if ((flags & JIM_FILE_EVENTS) == 0 || fe == NULL) {\n        /* No file events */\n        if ((flags & JIM_TIME_EVENTS) == 0 || eventLoop->timeEventHead == NULL) {\n            /* No time events */\n            return -1;\n        }\n    }\n\n    /* Note that we want call select() even if there are no\n     * file events to process as long as we want to process time\n     * events, in order to sleep until the next time event is ready\n     * to fire. */\n\n    if (flags & JIM_DONT_WAIT) {\n        /* Wait no time */\n        sleep_us = 0;\n    }\n    else if (flags & JIM_TIME_EVENTS) {\n        /* The nearest timer is always at the head of the list */\n        if (eventLoop->timeEventHead) {\n            Jim_TimeEvent *shortest = eventLoop->timeEventHead;\n\n            /* Calculate the time missing for the nearest\n             * timer to fire. */\n            sleep_us = shortest->when - Jim_GetTimeUsec(CLOCK_MONOTONIC_RAW);\n            if (sleep_us < 0) {\n                sleep_us = 0;\n            }\n        }\n        else {\n            /* Wait forever */\n            sleep_us = -1;\n        }\n    }\n\n#ifdef HAVE_SELECT\n    if (flags & JIM_FILE_EVENTS) {\n        int retval;\n        struct timeval tv, *tvp = NULL;\n        fd_set rfds, wfds, efds;\n        int maxfd = -1;\n\n        FD_ZERO(&rfds);\n        FD_ZERO(&wfds);\n        FD_ZERO(&efds);\n\n        /* Check file events */\n        while (fe != NULL) {\n            if (fe->mask & JIM_EVENT_READABLE)\n                FD_SET(fe->fd, &rfds);\n            if (fe->mask & JIM_EVENT_WRITABLE)\n                FD_SET(fe->fd, &wfds);\n            if (fe->mask & JIM_EVENT_EXCEPTION)\n                FD_SET(fe->fd, &efds);\n            if (maxfd < fe->fd)\n                maxfd = fe->fd;\n            fe = fe->next;\n        }\n\n        if (sleep_us >= 0) {\n            tvp = &tv;\n            tvp->tv_sec = sleep_us / 1000000;\n            tvp->tv_usec = sleep_us % 1000000;\n        }\n\n        retval = select(maxfd + 1, &rfds, &wfds, &efds, tvp);\n\n        if (retval < 0) {\n            if (errno == EINVAL) {\n                /* This can happen on mingw32 if a non-socket filehandle is passed */\n                Jim_SetResultString(interp, \"non-waitable filehandle\", -1);\n                return -2;\n            }\n        }\n        else if (retval > 0) {\n            fe = eventLoop->fileEventHead;\n            while (fe != NULL) {\n                int mask = 0;\n                int fd = fe->fd;\n\n                if ((fe->mask & JIM_EVENT_READABLE) && FD_ISSET(fd, &rfds))\n                    mask |= JIM_EVENT_READABLE;\n                if (fe->mask & JIM_EVENT_WRITABLE && FD_ISSET(fd, &wfds))\n                    mask |= JIM_EVENT_WRITABLE;\n                if (fe->mask & JIM_EVENT_EXCEPTION && FD_ISSET(fd, &efds))\n                    mask |= JIM_EVENT_EXCEPTION;\n\n                if (mask) {\n                    int ret = fe->fileProc(interp, fe->clientData, mask);\n                    if (ret != JIM_OK && ret != JIM_RETURN) {\n                        /* Remove the element on handler error */\n                        Jim_DeleteFileHandler(interp, fd, mask);\n                        /* At this point fe is no longer valid - it will be assigned below */\n                    }\n                    processed++;\n                    /* After an event is processed our file event list\n                     * may no longer be the same, so what we do\n                     * is to clear the bit for this file descriptor and\n                     * restart again from the head. */\n                    FD_CLR(fd, &rfds);\n                    FD_CLR(fd, &wfds);\n                    FD_CLR(fd, &efds);\n                    fe = eventLoop->fileEventHead;\n                }\n                else {\n                    fe = fe->next;\n                }\n            }\n        }\n    }\n#else\n    if (sleep_us > 0) {\n        usleep(sleep_us);\n    }\n#endif\n\n    /* Check time events */\n    te = eventLoop->timeEventHead;\n    maxId = eventLoop->timeEventNextId;\n    while (te) {\n        jim_wide id;\n\n        if (te->id > maxId) {\n            te = te->next;\n            continue;\n        }\n        if (Jim_GetTimeUsec(CLOCK_MONOTONIC_RAW) >= te->when) {\n            id = te->id;\n            /* Remove from the list before executing */\n            Jim_RemoveTimeHandler(eventLoop, id);\n            te->timeProc(interp, te->clientData);\n            /* After an event is processed our time event list may\n             * no longer be the same, so we restart from head.\n             * Still we make sure to don't process events registered\n             * by event handlers itself in order to don't loop forever\n             * even in case an [after 0] that continuously register\n             * itself. To do so we saved the max ID we want to handle. */\n            Jim_FreeTimeHandler(interp, te);\n\n            te = eventLoop->timeEventHead;\n            processed++;\n        }\n        else {\n            te = te->next;\n        }\n    }\n\n    return processed;\n}",
+    "snippet_sha256": "a3e723ecda063b80222488e831cb5303e8a9d586ecd1c3b0857c265d3dcd606d",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c9",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-eventloop.c",
+    "function": "JimELVwaitCommand",
+    "lines": [
+      565,
+      645
+    ],
+    "source_sha256": "b9536f7021919026f8ee2cfcdb35a59305db07a23e60daa50d5da966d52a1a12",
+    "snippet": "static int JimELVwaitCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)\n{\n    Jim_EventLoop *eventLoop = Jim_CmdPrivData(interp);\n    Jim_Obj *oldValue = NULL;\n    Jim_Obj *scriptObjPtr = NULL;\n    int rc;\n    int signal = 0;\n\n    if (argc > 2 && Jim_CompareStringImmediate(interp, argv[1], \"-signal\")) {\n        signal++;\n    }\n\n    if (argc - signal == 3) {\n        scriptObjPtr = argv[2 + signal];\n    }\n    else if (argc - signal != 2) {\n        return JIM_USAGE;\n    }\n\n    oldValue = Jim_GetGlobalVariable(interp, argv[1 + signal], JIM_NONE);\n\n    if (oldValue) {\n        Jim_IncrRefCount(oldValue);\n    }\n    else {\n        /* If a result was left, it is an error */\n        if (Jim_Length(Jim_GetResult(interp))) {\n            return JIM_ERR;\n        }\n    }\n\n    eventLoop->suppress_bgerror = 0;\n\n    while ((rc = Jim_ProcessEvents(interp, JIM_ALL_EVENTS)) >= 0) {\n        Jim_Obj *currValue;\n\n        if (signal && interp->sigmask) {\n            /* vwait -signal and handled signals were received, so transfer them\n             * to ignored signals so that 'signal check -clear' will return them.\n             * It's possible that if signals aren't supported we shouldn't even\n             * allow the -signal option.\n             */\n#ifdef jim_ext_signal\n            Jim_SignalSetIgnored(interp->sigmask);\n#endif\n            interp->sigmask = 0;\n            break;\n        }\n\n        currValue = Jim_GetGlobalVariable(interp, argv[1 + signal], JIM_NONE);\n        /* Stop the loop if the vwait-ed variable changed value,\n         * or if was unset and now is set (or the contrary)\n         * or if a signal was caught\n         */\n        if ((oldValue && !currValue) ||\n            (!oldValue && currValue) ||\n            (oldValue && currValue && !Jim_StringEqObj(oldValue, currValue)) ||\n            Jim_CheckSignal(interp)) {\n            break;\n        }\n        if (scriptObjPtr) {\n            /* Stop the loop if a provided script returns BREAK or ERR */\n            int retval = Jim_EvalObj(interp, scriptObjPtr);\n            if (retval == JIM_ERR || retval == JIM_BREAK) {\n                if (retval == JIM_ERR) {\n                    rc = -2;\n                }\n                break;\n            }\n        }\n    }\n    if (oldValue)\n        Jim_DecrRefCount(interp, oldValue);\n\n    if (rc == -2) {\n        return JIM_ERR;\n    }\n\n    Jim_SetEmptyResult(interp);\n    return JIM_OK;\n}",
+    "snippet_sha256": "0309243c6a2a7cca9a072f5c5f7ed82248d291eae31886f251c35eb3f730c45a",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c9",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-eventloop.c",
+    "function": "JimELUpdateCommand",
+    "lines": [
+      647,
+      670
+    ],
+    "source_sha256": "b9536f7021919026f8ee2cfcdb35a59305db07a23e60daa50d5da966d52a1a12",
+    "snippet": "static int JimELUpdateCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)\n{\n    Jim_EventLoop *eventLoop = Jim_CmdPrivData(interp);\n    static const char * const options[] = {\n        \"idletasks\", NULL\n    };\n    enum { UPDATE_IDLE, UPDATE_NONE };\n    int option = UPDATE_NONE;\n    int flags = JIM_TIME_EVENTS;\n\n    if (argc == 1) {\n        flags = JIM_ALL_EVENTS;\n    }\n    else if (argc > 2 || Jim_GetEnum(interp, argv[1], options, &option, NULL, JIM_ENUM_ABBREV) != JIM_OK) {\n        return JIM_USAGE;\n    }\n\n    eventLoop->suppress_bgerror = 0;\n\n    while (Jim_ProcessEvents(interp, flags | JIM_DONT_WAIT) > 0) {\n    }\n\n    return JIM_OK;\n}",
+    "snippet_sha256": "3035ae6d80cfc350574ae10e6b9497acb90b38918f0bc343ae3930dbdb2b1126",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c9",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-eventloop.c",
+    "function": "JimELAfterCommand",
+    "lines": [
+      686,
+      793
+    ],
+    "source_sha256": "b9536f7021919026f8ee2cfcdb35a59305db07a23e60daa50d5da966d52a1a12",
+    "snippet": "static int JimELAfterCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)\n{\n    Jim_EventLoop *eventLoop = Jim_CmdPrivData(interp);\n    double ms = 0;\n    jim_wide id;\n    Jim_Obj *objPtr, *idObjPtr;\n    static const char * const options[] = {\n        \"cancel\", \"info\", \"idle\", NULL\n    };\n    enum\n    { AFTER_CANCEL, AFTER_INFO, AFTER_IDLE, AFTER_RESTART, AFTER_EXPIRE, AFTER_CREATE };\n    int option = AFTER_CREATE;\n    if (Jim_GetDouble(interp, argv[1], &ms) != JIM_OK) {\n        if (Jim_GetEnum(interp, argv[1], options, &option, \"argument\", JIM_ERRMSG) != JIM_OK) {\n            return JIM_ERR;\n        }\n        Jim_SetEmptyResult(interp);\n    }\n    else if (argc == 2) {\n        /* Simply a sleep */\n        usleep(ms * 1000);\n        return JIM_OK;\n    }\n\n    switch (option) {\n        case AFTER_IDLE:\n            if (argc < 3) {\n                Jim_WrongNumArgs(interp, 2, argv, \"script ?script ...?\");\n                return JIM_ERR;\n            }\n            /* fall through */\n        case AFTER_CREATE: {\n            Jim_Obj *scriptObj = Jim_ConcatObj(interp, argc - 2, argv + 2);\n            Jim_IncrRefCount(scriptObj);\n            id = Jim_CreateTimeHandler(interp, (jim_wide)(ms * 1000), JimAfterTimeHandler, scriptObj,\n                JimAfterTimeEventFinalizer);\n            objPtr = Jim_NewStringObj(interp, NULL, 0);\n            Jim_AppendString(interp, objPtr, \"after#\", -1);\n            idObjPtr = Jim_NewIntObj(interp, id);\n            Jim_IncrRefCount(idObjPtr);\n            Jim_AppendObj(interp, objPtr, idObjPtr);\n            Jim_DecrRefCount(interp, idObjPtr);\n            Jim_SetResult(interp, objPtr);\n            return JIM_OK;\n        }\n        case AFTER_CANCEL:\n            if (argc < 3) {\n                Jim_WrongNumArgs(interp, 2, argv, \"id|command\");\n                return JIM_ERR;\n            }\n            else {\n                jim_wide remain = 0;\n\n                id = JimParseAfterId(argv[2]);\n                if (id <= 0) {\n                    /* Not an event id, so search by script */\n                    Jim_Obj *scriptObj = Jim_ConcatObj(interp, argc - 2, argv + 2);\n                    id = JimFindAfterByScript(eventLoop, scriptObj);\n                    Jim_FreeNewObj(interp, scriptObj);\n                    if (id <= 0) {\n                        /* Not found */\n                        break;\n                    }\n                }\n                remain = Jim_DeleteTimeHandler(interp, id);\n                if (remain >= 0) {\n                    Jim_SetResultInt(interp, remain);\n                }\n            }\n            break;\n\n        case AFTER_INFO:\n            if (argc == 2) {\n                Jim_TimeEvent *te = eventLoop->timeEventHead;\n                Jim_Obj *listObj = Jim_NewListObj(interp, NULL, 0);\n                char buf[30];\n                const char *fmt = \"after#%\" JIM_WIDE_MODIFIER;\n\n                while (te) {\n                    snprintf(buf, sizeof(buf), fmt, te->id);\n                    Jim_ListAppendElement(interp, listObj, Jim_NewStringObj(interp, buf, -1));\n                    te = te->next;\n                }\n                Jim_SetResult(interp, listObj);\n            }\n            else if (argc == 3) {\n                id = JimParseAfterId(argv[2]);\n                if (id >= 0) {\n                    Jim_TimeEvent *e = JimFindTimeHandlerById(eventLoop, id);\n                    if (e && e->timeProc == JimAfterTimeHandler) {\n                        Jim_Obj *listObj = Jim_NewListObj(interp, NULL, 0);\n                        Jim_ListAppendElement(interp, listObj, e->clientData);\n                        Jim_ListAppendElement(interp, listObj, Jim_NewStringObj(interp, e->initialus ? \"timer\" : \"idle\", -1));\n                        Jim_SetResult(interp, listObj);\n                        return JIM_OK;\n                    }\n                }\n                Jim_SetResultFormatted(interp, \"event \\\"%#s\\\" doesn't exist\", argv[2]);\n                return JIM_ERR;\n            }\n            else {\n                Jim_WrongNumArgs(interp, 2, argv, \"?id?\");\n                return JIM_ERR;\n            }\n            break;\n    }\n    return JIM_OK;\n}",
+    "snippet_sha256": "6d5da41915de98f55d9f2056a6f0809e0cfcba5b28b5d373e9e2386f6d731c06",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c9",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-eventloop.c",
+    "function": "JimParseAfterId",
+    "lines": [
+      276,
+      286
+    ],
+    "source_sha256": "b9536f7021919026f8ee2cfcdb35a59305db07a23e60daa50d5da966d52a1a12",
+    "snippet": "static jim_wide JimParseAfterId(Jim_Obj *idObj)\n{\n    const char *tok = Jim_String(idObj);\n    jim_wide id;\n\n    if (strncmp(tok, \"after#\", 6) == 0 && Jim_StringToWide(tok + 6, &id, 10) == JIM_OK) {\n        /* Got an event by id */\n        return id;\n    }\n    return -1;\n}",
+    "snippet_sha256": "c6172bc9c6746fa68b96b625fae160cba63a6760b507e87aa1ee71daf518d6f6",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c9",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-eventloop.c",
+    "function": "Jim_DeleteTimeHandler",
+    "lines": [
+      339,
+      359
+    ],
+    "source_sha256": "b9536f7021919026f8ee2cfcdb35a59305db07a23e60daa50d5da966d52a1a12",
+    "snippet": "jim_wide Jim_DeleteTimeHandler(Jim_Interp *interp, jim_wide id)\n{\n    Jim_TimeEvent *te;\n    Jim_EventLoop *eventLoop = Jim_GetAssocData(interp, \"eventloop\");\n\n    if (id > eventLoop->timeEventNextId) {\n        return -2;              /* wrong event ID */\n    }\n\n    te = Jim_RemoveTimeHandler(eventLoop, id);\n    if (te) {\n        jim_wide remain;\n\n        remain = te->when - Jim_GetTimeUsec(CLOCK_MONOTONIC_RAW);\n        remain = (remain < 0) ? 0 : remain;\n\n        Jim_FreeTimeHandler(interp, te);\n        return remain;\n    }\n    return -1;                  /* NO event with the specified ID found */\n}",
+    "snippet_sha256": "87635142d26f7203943226df8058e914d5328205eea7410cad1a639fc4736763",
+    "path": "rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c"
+  }
+]

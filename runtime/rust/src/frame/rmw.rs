@@ -54,6 +54,8 @@ impl RootShellEntry {
 /// One physical receiver. Its cell borrow never survives a guest callback.
 pub(crate) struct VariableReceiver {
     contents: Rc<RefCell<CellContents>>,
+    /// Exact original slot spelling, used only to recognise its undefined marker.
+    root_name: Option<Vec<u8>>,
     element: Option<Vec<u8>>,
     array_epoch: u64,
     retained_array: Option<super::RetainedArrayCell>,
@@ -61,7 +63,24 @@ pub(crate) struct VariableReceiver {
 
 impl VariableReceiver {
     pub(crate) fn binding_id(&self) -> Option<VarId> {
-        self.contents.borrow().binding_id
+        self.retained_array
+            .as_ref()
+            .map(super::RetainedArrayCell::identity)
+            .or_else(|| self.contents.borrow().binding_id)
+    }
+    /// Trace reentrancy uses the member actually selected by this receiver.
+    pub(crate) fn trace_member(&self) -> Option<(Vec<u8>, VarId)> {
+        let element = self.element.as_ref()?;
+        let id = if let Some(array) = &self.retained_array {
+            array.trace_member_identity(element)?
+        } else {
+            let contents = self.contents.borrow();
+            if contents.rmw_array_epoch != self.array_epoch {
+                return None;
+            }
+            *contents.element_ids.get(element)?
+        };
+        Some((element.clone(), id))
     }
     pub(crate) fn is_constant(&self) -> bool {
         self.contents.borrow().constant
@@ -75,14 +94,7 @@ impl VariableReceiver {
         if let Some(error) = cell.rmw_retirement {
             return Err(error);
         }
-        match cell.var.as_ref() {
-            Some(Var::Array(_)) => Ok(()),
-            Some(_) => Err(VarError::IsScalar),
-            None => {
-                cell.var = Some(Var::Array(Default::default()));
-                Ok(())
-            }
-        }
+        cell.materialise_selected_array(self.root_name.as_deref())
     }
 
     pub(crate) fn is_array(&self) -> bool {
@@ -118,11 +130,13 @@ impl VariableReceiver {
         let entry_order = std::mem::take(&mut contents.member_order);
         contents.member_order.select_recipe(entry_order.recipe());
         let native_keys = std::mem::take(&mut contents.native_member_keys);
+        let element_ids = std::mem::take(&mut contents.element_ids);
         contents.detached_arrays.insert(
             id,
             super::destruction::DetachedArray {
                 values,
                 retired: Default::default(),
+                element_ids,
                 entry_order,
                 native_keys,
             },
@@ -212,6 +226,7 @@ impl VariableReceiver {
     pub(super) fn capture_contents(
         contents: Rc<RefCell<CellContents>>,
         element: Option<Vec<u8>>,
+        root_name: Option<Vec<u8>>,
     ) -> Self {
         let array_epoch = {
             let mut cell = contents.borrow_mut();
@@ -233,6 +248,7 @@ impl VariableReceiver {
         };
         VariableReceiver {
             contents,
+            root_name,
             element,
             array_epoch,
             retained_array: None,
@@ -365,6 +381,7 @@ impl Drop for VariableReceiver {
         if contents.rmw_refs == 0
             && contents.operation_refs == 0
             && contents.native_alias_refs == 0
+            && !contents.namespace_declared
             && contents.var.is_none()
         {
             contents.retire_rmw_shell();
@@ -456,8 +473,12 @@ impl VarTable {
         if cell.binding_id.is_none() {
             return Ok(None);
         }
-        if element.is_some() && !matches!(cell.var.as_ref(), Some(Var::Array(_))) {
-            return Ok(None);
+        if element.is_some() {
+            match cell.var.as_ref() {
+                Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
+                Some(Var::Array(_)) => {}
+                _ => return Ok(None),
+            }
         }
         drop(cell);
         self.capture_receiver(name, element).map(Some)
@@ -528,7 +549,11 @@ impl VarTable {
                 ));
             }
         }
-        Ok(Some(VariableReceiver::capture_contents(contents, element)))
+        Ok(Some(VariableReceiver::capture_contents(
+            contents,
+            element,
+            Some(name),
+        )))
     }
 }
 
@@ -542,6 +567,7 @@ impl super::RetainedArrayCell {
             .or_default() += 1;
         VariableReceiver {
             contents: self.contents.clone(),
+            root_name: None,
             element: Some(element),
             array_epoch: cell.rmw_array_epoch,
             retained_array: Some(self.clone()),
@@ -604,7 +630,7 @@ mod tests {
                 elem: None,
             };
             table.insert_link_with_origin(b"x", link, tcl_runtime_api::FrameLinkOrigin::Ordinary);
-            table.mark_trace_shell(b"x");
+            table.mark_trace_shell(b"x", super::super::VarHome::Frame(0));
             let id = table.binding_id(b"x");
             let receiver = table.capture_receiver(b"x", None).unwrap();
             let value = Owned::fresh(obj::new_wide_int_obj(1));
@@ -617,22 +643,57 @@ mod tests {
     }
 
     #[test]
+    fn selected_undefined_root_becomes_array_without_changing_its_binding() {
+        // naming.variable.original-traced-array-root-materialisation
+        // docs/design/analysis/name-resolution-proofs/variable-original-traced-array-root-materialisation.md
+        // Rust receiver correspondence only; native public values are independent.
+        crate::counters::reset();
+        {
+            let mut table = VarTable::default();
+            table.insert_link(
+                b"x",
+                super::super::Link {
+                    original_jim_target: None,
+                    native_scalar_entry: None,
+                    native_element_entry: None,
+                    array_identity: None,
+                    array_cell: None,
+                    home: super::super::VarHome::Frame(0),
+                    name: b"x".to_vec(),
+                    elem: None,
+                },
+            );
+            table.mark_trace_shell(b"x", super::super::VarHome::Frame(0));
+            let original = table.trace_binding_identity(b"x");
+            let receiver = table.capture_receiver(b"x", None).unwrap();
+            receiver.ensure_array().unwrap();
+            assert_eq!(receiver.binding_id(), original);
+            assert_eq!(table.trace_binding_identity(b"x"), original);
+            assert!(!receiver.contents.borrow().undefined_shell);
+            let selected = receiver.selected_array().unwrap();
+            let member = selected.capture_receiver(b"k".to_vec());
+            member.retain_original_element_key(None);
+            let value = Owned::fresh(obj::new_string_bytes(b"VALUE"));
+            member.store(value.as_ptr()).unwrap();
+            assert_eq!(table.load_elem(b"x", b"k"), Some(value.as_ptr()));
+            assert_eq!(member.binding_id(), original);
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
     fn native_get_creates_elements_only_with_an_existing_array_root() {
         let mut table = VarTable::default();
-        assert!(
-            table
-                .capture_get_receiver(b"absent", None)
-                .unwrap()
-                .is_none()
-        );
+        assert!(table
+            .capture_get_receiver(b"absent", None)
+            .unwrap()
+            .is_none());
         assert!(table.binding_id(b"absent").is_none());
         table.slot_for(b"reserved");
-        assert!(
-            table
-                .capture_get_receiver(b"reserved", None)
-                .unwrap()
-                .is_none()
-        );
+        assert!(table
+            .capture_get_receiver(b"reserved", None)
+            .unwrap()
+            .is_none());
         table.ensure_array(b"a").unwrap();
         let receiver = table
             .capture_get_receiver(b"a", Some(b"missing".to_vec()))

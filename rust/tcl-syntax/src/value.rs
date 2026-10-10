@@ -574,6 +574,15 @@ pub trait ValueOps {
         None
     }
 
+    /// Publish an array-existence Boolean through the backend's selected
+    /// result producer. Native interpreter constants require an actual owning
+    /// environment; the default refuses rather than creating a fresh substitute.
+    fn array_existence_result(&mut self, _present: bool) -> Result<Self::Value, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "array existence result producer",
+        ))
+    }
+
     /// Compare retained physical object identities without converting values.
     fn same_object(&self, _left: &Self::Value, _right: &Self::Value) -> Option<bool> {
         None
@@ -604,6 +613,18 @@ pub trait ValueOps {
     fn native_unicode_units(&mut self, _value: &Self::Value) -> Result<Rc<[u32]>, ValueError> {
         Err(ValueError::CommandProtocolUnavailable(
             "native original object Unicode",
+        ))
+    }
+
+    /// Construct a fresh native C String from selected Unicode units. Concrete
+    /// object owners independently validate their actual interpreter protocol.
+    fn native_unicode_string_result(
+        &mut self,
+        _units: Rc<[u32]>,
+        _version: tcl_dialect::TclVersion,
+    ) -> Result<Self::Value, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native Unicode result constructor",
         ))
     }
 
@@ -1020,10 +1041,16 @@ pub trait ValueOps {
 
     /// Try to append `item` to `list`'s list value **in place** (the `lappend`
     /// analogue of [`try_append_bytes_in_place`](Self::try_append_bytes_in_place)),
-    /// returning whether it happened. The default returns `false` (the VM
+    /// returning whether it happened. The default returns `Ok(false)` (the VM
     /// rebuilds); a runtime owning the backing vector uniquely overrides it.
-    fn try_list_append_in_place(&mut self, _list: &mut Self::Value, _item: &Self::Value) -> bool {
-        false
+    /// A selected conversion or storage refusal remains an error, so the caller
+    /// cannot replace an unavailable native operation with a fresh value.
+    fn try_list_append_in_place(
+        &mut self,
+        _list: &mut Self::Value,
+        _item: &Self::Value,
+    ) -> Result<bool, ValueError> {
+        Ok(false)
     }
 }
 
@@ -1105,6 +1132,20 @@ mod tests {
         assert_eq!(
             error.message(),
             "namespace code native handler policy is not selected"
+        );
+    }
+
+    #[test]
+    fn array_existence_requires_an_explicit_result_producer() {
+        // This string-only adapter has an ordinary Boolean constructor but no
+        // retained interpreter environment or selected array-result issuer.
+        let mut ops = Strs;
+        assert_eq!(ops.new_bool(false).as_ref(), "0");
+        assert_eq!(
+            ops.array_existence_result(false),
+            Err(ValueError::CommandProtocolUnavailable(
+                "array existence result producer"
+            ))
         );
     }
 
@@ -1235,7 +1276,7 @@ mod tests {
         let extra = o.new_str("b");
         assert!(!o.try_append_bytes_in_place(&mut v, b"bc"));
         let mut list = o.new_str("a b");
-        assert!(!o.try_list_append_in_place(&mut list, &extra));
+        assert!(!o.try_list_append_in_place(&mut list, &extra).unwrap());
     }
 
     #[test]

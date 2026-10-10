@@ -575,7 +575,12 @@ fn compare_original_members(
     }
     let a = crate::dict::native_object_bytes(a, protocol)?;
     let b = crate::dict::native_object_bytes(b, protocol)?;
-    let utf = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(tcl_dialect::TclVersion::V9_1);
+    let version = protocol
+        .tcl_version()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "property member string comparison",
+        ))?;
+    let utf = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version);
     Ok(utf.decode_units(&a).cmp(&utf.decode_units(&b)))
 }
 
@@ -730,7 +735,7 @@ pub(super) fn invoke_default(
     }
     let Some(recipe) = interp
         .native_invocation_dialect()
-        .native_property_lookup_protocol()
+        .native_property_name_protocol()
     else {
         return interp.report_cmd_error(
             ValueError::CommandProtocolUnavailable("native default property accessor").into(),
@@ -913,6 +918,8 @@ mod tests {
     }
     #[test]
     fn opaque_property_lookup_uses_original_accessor_members() {
+        // Native proof: naming.property.opaque-name-custom-getter-option-cache
+        // docs/design/analysis/name-resolution-proofs/property-opaque-name-custom-getter-option-cache.md
         let mut interp = instance();
         let target = interp.oo_resolve_object(b"o");
         for name in [b"x\xff".as_slice(), b"x\0tail".as_slice()] {
@@ -959,6 +966,8 @@ mod tests {
     }
     #[test]
     fn default_property_methods_retain_original_clientdata_and_leave_its_primary() {
+        // Native proof: naming.property.original-accessor-clientdata
+        // docs/design/analysis/name-resolution-proofs/property-original-accessor-clientdata.md
         let mut interp = instance();
         let class = interp.oo_resolve_object(b"C");
         let target = interp.oo_resolve_object(b"o");
@@ -982,7 +991,7 @@ mod tests {
             );
             let mut canonical = b"-".to_vec();
             canonical.extend_from_slice(tcl_core_types::c_string_extent(name));
-            let (reader, writer) = recipe.accessor_names(&canonical);
+            let (reader, writer) = recipe.member_accessor_names(&canonical);
             for key in [reader, writer] {
                 let method = interp.oo.borrow().classes[&class]
                     .methods
@@ -1034,6 +1043,8 @@ mod tests {
     }
     #[test]
     fn property_epochs_follow_mutations_before_definition_failure() {
+        // Native proof: naming.property.original-foundation-epoch-and-cache
+        // docs/design/analysis/name-resolution-proofs/property-original-foundation-epoch-and-cache.md
         let mut interp = instance();
         let id = interp.oo_resolve_object(b"o");
         let class = interp.oo_resolve_object(b"C");

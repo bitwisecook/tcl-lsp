@@ -2,7 +2,6 @@
 //! Jim links retain their original recursive target getter and actual frame.
 
 use super::{Local, UpvarLinkError, Value, Vm};
-use std::rc::Rc;
 use tcl_runtime_api::Completion;
 use tcl_syntax::native_jim_lookup::NativeJimLinkTargetInput;
 
@@ -34,7 +33,7 @@ impl Vm {
             .ok_or(UpvarLinkError::TargetNamespace)?;
         let receipt = crate::vars::JimNameLinkOriginal {
             name,
-            frame: Rc::downgrade(&frame.activation),
+            frame: frame.jim_storage.reference(),
         };
         let binding = self
             .var_binding_from_bytes(local, self.current_level())
@@ -70,7 +69,7 @@ impl Vm {
             self.attach_original_jim_link(&local_bytes, target_level, other)?;
             self.retain_original_jim_link_local(local, &local_bytes)
         })();
-        result.map_err(|error| crate::command::upvar_link_error_bytes(error, &bytes, &local_bytes))
+        result.map_err(|error| self.original_jim_link_failure(error, &bytes, &local_bytes))
     }
     pub(crate) fn add_link_original(
         &mut self,
@@ -103,8 +102,36 @@ impl Vm {
             }
             Ok(())
         })();
-        result.map_err(|error| crate::command::upvar_link_error_bytes(error, &bytes, local))
+        result.map_err(|error| self.original_jim_link_failure(error, &bytes, local))
     }
+    fn original_jim_link_failure(
+        &mut self,
+        error: UpvarLinkError,
+        other: &[u8],
+        local: &[u8],
+    ) -> Completion<Value> {
+        use tcl_syntax::native_jim_lookup::NativeJimAliasFailure as Failure;
+        let Some(protocol) = self
+            .actual_native_invocation_dialect()
+            .native_jim_lookup_protocol()
+        else {
+            return crate::command::upvar_link_error_bytes(error, other, local);
+        };
+        let failure = match error {
+            UpvarLinkError::LocalElement => Failure::LocalElement,
+            UpvarLinkError::Exists | UpvarLinkError::Traced => Failure::Exists,
+            UpvarLinkError::Inverted => Failure::Inverted,
+            UpvarLinkError::SelfLink => Failure::SelfLink,
+            UpvarLinkError::TargetNamespace | UpvarLinkError::LocalNamespace => {
+                return self.refuse_host_command("actual Jim alias frame unavailable".into());
+            }
+        };
+        crate::command::completion_from_cmd_error(
+            self,
+            tcl_cmd_core::var::native_jim_alias_error(protocol, failure, local),
+        )
+    }
+
     fn retain_original_jim_link_local(
         &mut self,
         local: &Value,
@@ -136,11 +163,10 @@ impl Vm {
             return None;
         };
         let target = link.original_target.as_ref()?;
-        let actual = target.frame.upgrade()?;
         let level = self
             .frames
             .iter()
-            .position(|frame| Rc::ptr_eq(&frame.activation, &actual))?;
+            .position(|frame| frame.jim_storage.matches(&target.frame))?;
         Some((target.name.native_lifetime_lease(), level))
     }
     pub(crate) fn unset_original_named_variable(
@@ -359,5 +385,89 @@ mod tests {
             stored.value().resident_string_bytes().unwrap().as_ref(),
             b"v\0tail"
         );
+    }
+}
+
+#[cfg(test)]
+mod alias_publication_tests {
+    use super::*;
+    use std::rc::Rc;
+    #[test]
+    fn original_upvar_error_publication_matches_all_six_native_sources() {
+        // naming.variable.original-upvar-error-publication
+        // docs/design/analysis/name-resolution-proofs/variable-original-upvar-error-publication.md
+        // Public script results only; C9 legacy trace refusal is a separate row.
+        let source = include_str!(
+            "../../../tcl-registry/tests/data/native_upvar_error_publication307/source.tcl"
+        );
+        for (engine, stdout) in [
+            (
+                "tcl8.4",
+                include_str!(
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/8.4.20/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl8.5",
+                include_str!(
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/8.5.19/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl8.6",
+                include_str!(
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/8.6.18/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl9.0",
+                include_str!(
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/9.0.4/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/9.1.0/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "jim",
+                include_str!(
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/jim/original-upvar-errors/stdout"
+                ),
+            ),
+        ] {
+            let original = stdout
+                .lines()
+                .find_map(|line| line.strip_prefix("ORIGINAL|0|"))
+                .unwrap();
+            let expected: Vec<u8> = original
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect();
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let mut vm = Vm::with_native_core(
+                Box::new(std::io::sink()),
+                Rc::new(crate::host_native::NativeHost::new()),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let completion = vm.eval_source(source).unwrap();
+            assert_eq!(
+                completion.code,
+                crate::Code::Ok,
+                "{engine}: {:?}",
+                completion.result.string_bytes()
+            );
+            assert!(vm.refused_completion().is_none(), "{engine}");
+            assert_eq!(
+                completion.result.string_bytes().as_ref(),
+                expected.as_slice(),
+                "{engine}"
+            );
+        }
     }
 }

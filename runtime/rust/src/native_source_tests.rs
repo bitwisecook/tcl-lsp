@@ -231,3 +231,70 @@ fn last_list_header_retires_source_filename_before_lifetime_view() {
     }
     assert_eq!(crate::counters::finalize(), 0);
 }
+
+#[test]
+fn original_jim_source_length_preserves_resident_bytes_and_child_source() {
+    // Native proof: naming.list.original-jim-source-length-conversion
+    // docs/design/analysis/name-resolution-proofs/list-original-jim-source-length-conversion.md
+    use tcl_syntax::value::ValueOps;
+    crate::counters::reset();
+    {
+        let mut interp = crate::interp::Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jim"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let context = interp.native_jim_object_context().unwrap();
+        let filename = Owned::fresh(obj::new_string_bytes(b"source-check.tcl"));
+        let parent = Owned::fresh(obj::new_string_bytes(b"A  B"));
+        install_source(
+            parent.as_ptr(),
+            NativeJimSourceInfo { filename, line: 17 },
+            &context,
+        )
+        .unwrap();
+        assert_eq!(
+            obj::stock_list_input_class(parent.as_ptr()),
+            tcl_registry::native_stock_list::NativeStockListInputClass::JimSource
+        );
+        let mut observed = String::new();
+        writeln!(
+            observed,
+            "SOURCE_BEFORE|{}|{}",
+            kind(parent.as_ptr()),
+            usize::from(obj::has_string_rep(parent.as_ptr()))
+        )
+        .unwrap();
+        let length = interp.list_len(&parent.as_ptr()).unwrap();
+        writeln!(
+            observed,
+            "SOURCE_AFTER|{}|{length}|{}|{}",
+            kind(parent.as_ptr()),
+            usize::from(obj::has_string_rep(parent.as_ptr())),
+            hex(&obj::bytes_of(parent.as_ptr()))
+        )
+        .unwrap();
+        let member = interp.list_index(&parent.as_ptr(), 0).unwrap().unwrap();
+        let info = pin_source_info(member, &context).unwrap();
+        writeln!(
+            observed,
+            "SOURCE_CHILD|{}|{}|{}",
+            kind(member),
+            info.line,
+            hex(&obj::bytes_of(info.filename.as_ptr()))
+        )
+        .unwrap();
+        let native = include_str!(
+            "../../../rust/tcl-registry/tests/data/native_source_list_length241/jim/stdout"
+        );
+        assert_eq!(
+            observed.lines().collect::<Vec<_>>(),
+            native
+                .lines()
+                .filter(|row| row.starts_with("SOURCE_"))
+                .collect::<Vec<_>>()
+        );
+    }
+    assert_eq!(crate::counters::finalize(), 0);
+}

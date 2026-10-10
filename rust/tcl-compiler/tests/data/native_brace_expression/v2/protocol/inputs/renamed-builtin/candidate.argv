@@ -1,0 +1,1 @@
+rename expr arithmetic; __argv {1 + 2}

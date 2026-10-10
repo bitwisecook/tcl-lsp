@@ -1,0 +1,205 @@
+[
+  {
+    "provider": "8.4",
+    "subcommand": "upvar",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.4",
+    "subcommand": "NOPE",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.4",
+    "subcommand": "e",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.4",
+    "subcommand": "u",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.5",
+    "subcommand": "upvar",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.5",
+    "subcommand": "NOPE",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.5",
+    "subcommand": "e",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.5",
+    "subcommand": "u",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.6",
+    "subcommand": "upvar",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.6",
+    "subcommand": "NOPE",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.6",
+    "subcommand": "e",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.6",
+    "subcommand": "u",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "9.0",
+    "subcommand": "upvar",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "9.0",
+    "subcommand": "NOPE",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "9.0",
+    "subcommand": "e",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "9.0",
+    "subcommand": "u",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "9.1",
+    "subcommand": "upvar",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "9.1",
+    "subcommand": "NOPE",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "9.1",
+    "subcommand": "e",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "9.1",
+    "subcommand": "u",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "jim",
+    "subcommand": "upvar",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "jim",
+    "subcommand": "NOPE",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "jim",
+    "subcommand": "e",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "jim",
+    "subcommand": "u",
+    "process_exit": 0,
+    "guest_code": 1,
+    "source_digest_retained_only": true
+  },
+  {
+    "provider": "8.4.20",
+    "source_hash_verified": true,
+    "observer_hash_reconstructed_exact": true,
+    "stdout_hex_matches_projection": true,
+    "process_exit": 0
+  },
+  {
+    "provider": "8.5.19",
+    "source_hash_verified": true,
+    "observer_hash_reconstructed_exact": true,
+    "stdout_hex_matches_projection": true,
+    "process_exit": 0
+  },
+  {
+    "provider": "8.6.18",
+    "source_hash_verified": true,
+    "observer_hash_reconstructed_exact": true,
+    "stdout_hex_matches_projection": true,
+    "process_exit": 0
+  },
+  {
+    "provider": "9.0.4",
+    "source_hash_verified": true,
+    "observer_hash_reconstructed_exact": true,
+    "stdout_hex_matches_projection": true,
+    "process_exit": 0
+  },
+  {
+    "provider": "9.1.0",
+    "source_hash_verified": true,
+    "observer_hash_reconstructed_exact": true,
+    "stdout_hex_matches_projection": true,
+    "process_exit": 0
+  }
+]

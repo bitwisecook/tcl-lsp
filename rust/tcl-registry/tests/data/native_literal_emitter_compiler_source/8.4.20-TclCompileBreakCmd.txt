@@ -1,0 +1,20 @@
+TclCompileBreakCmd(interp, parsePtr, envPtr)
+    Tcl_Interp *interp;		/* Used for error reporting. */
+    Tcl_Parse *parsePtr;	/* Points to a parse structure for the
+				 * command created by Tcl_ParseCommand. */
+    CompileEnv *envPtr;		/* Holds resulting instructions. */
+{
+    if (parsePtr->numWords != 1) {
+	Tcl_ResetResult(interp);
+	Tcl_AppendToObj(Tcl_GetObjResult(interp),
+	        "wrong # args: should be \"break\"", -1);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Emit a break instruction.
+     */
+
+    TclEmitOpcode(INST_BREAK, envPtr);
+    return TCL_OK;
+}

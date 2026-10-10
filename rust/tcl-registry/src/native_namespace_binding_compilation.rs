@@ -277,8 +277,12 @@ fn compiler_local_tail(
                 let raw = arena
                     .bytes(name)
                     .ok_or(NativeNamespaceBindingUnavailable::OperandGeometry)?;
-                let value =
-                    tcl_syntax::backslash::source_literal_bytes(raw, original.image().channel());
+                let value = tcl_syntax::backslash::native_source_literal_bytes(
+                    raw,
+                    original.image().channel(),
+                    words.source_protocol(),
+                )
+                .map_err(|_| NativeNamespaceBindingUnavailable::SourceEscape)?;
                 return Ok(scalar_tail(&value, false));
             }
             ExecutablePart::Variable {
@@ -322,11 +326,15 @@ fn compiler_local_tail(
             cursor += 1;
         }
     }
-    if suffix == raw.len() {
+    if suffix == raw.len() && !raw.is_empty() {
         return Ok(None);
     }
-    let value =
-        tcl_syntax::backslash::source_literal_bytes(&raw[suffix..], original.image().channel());
+    let value = tcl_syntax::backslash::native_source_literal_bytes(
+        &raw[suffix..],
+        original.image().channel(),
+        words.source_protocol(),
+    )
+    .map_err(|_| NativeNamespaceBindingUnavailable::SourceEscape)?;
     Ok(scalar_tail(&value, false))
 }
 
@@ -388,6 +396,22 @@ mod tests {
 
     #[test]
     fn namespace_binding_recipes_match_all_100_original_native_windows() {
+        // Native proof: naming.namespace-compiler.plain-name
+        // docs/design/analysis/name-resolution-proofs/namespace-compiler.plain-name.md
+        // Native proof: naming.namespace-compiler.empty-and-separator-tail
+        // docs/design/analysis/name-resolution-proofs/namespace-compiler.empty-and-separator-tail.md
+        // Native proof: naming.namespace-compiler.unmatched-closing-tail
+        // docs/design/analysis/name-resolution-proofs/namespace-compiler.unmatched-closing-tail.md
+        // Native proof: naming.namespace-compiler.interleaved-values
+        // docs/design/analysis/name-resolution-proofs/namespace-compiler.interleaved-values.md
+        // Native proof: naming.namespace-compiler.declined-prefix-residual
+        // docs/design/analysis/name-resolution-proofs/namespace-compiler.declined-prefix-residual.md
+        // Native proof: naming.namespace-compiler.dynamic-final-text
+        // docs/design/analysis/name-resolution-proofs/namespace-compiler.dynamic-final-text.md
+        // Native proof: naming.namespace-compiler.mixed-dynamic-prefix
+        // docs/design/analysis/name-resolution-proofs/namespace-compiler.mixed-dynamic-prefix.md
+        // Native proof: naming.namespace-compiler.literal-expansion-and-empty-call
+        // docs/design/analysis/name-resolution-proofs/namespace-compiler.literal-expansion-and-empty-call.md
         for (version, fixture) in [
             (
                 TclVersion::V8_4,
@@ -488,6 +512,8 @@ mod tests {
 
     #[test]
     fn namespace_dynamic_tails_follow_original_variable_token_children() {
+        // Native proof: naming.namespace-parser.final-original-token
+        // docs/design/analysis/name-resolution-proofs/namespace-parser.final-original-token.md
         let controls: [(&[u8], Option<&[u8]>); 8] = [
             (b"global $::name", Some(b"name")),
             (b"global ${::name}", Some(b"name")),

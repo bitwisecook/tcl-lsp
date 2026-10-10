@@ -35,6 +35,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
+use tcl_core_types::NameBytes;
 use tcl_registry::{CommandRegistry, FrameLevel};
 
 use crate::naming::split_array_name;
@@ -43,11 +44,25 @@ use crate::place::{
 };
 use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 mod cell_key;
+mod fresh_scalar_proposal;
 mod namespace_identity;
+mod original_bytes;
+mod original_name_contents;
+mod original_name_write;
 pub use cell_key::{
     VariableCellKey, VariableCellKeyQuery, VariableCellSet, VariableCellTable,
     VariableNamespaceMembership, VariableNamespaceQuery, VariableNamespaceSet, namespace_contains,
 };
+pub(crate) use fresh_scalar_proposal::FreshScalarVariableSlot;
+pub use original_bytes::resolve_evaluated_variable_input;
+pub(crate) use original_bytes::{
+    original_compiled_local_destination, original_compiled_variable_primary,
+    resolve_original_alias_destination_bytes, resolve_original_compiled_primary,
+    resolve_original_compiled_variable, resolve_original_element_inputs,
+    resolve_original_name_input, resolve_original_namespace_variable_bytes,
+};
+pub(crate) use original_name_contents::{OriginalNameValueRead, OriginalNormalValueRead};
+pub(crate) use original_name_write::OriginalNormalValueWrite;
 
 /// Actual variable activation selected by executable source interpretation.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
@@ -371,7 +386,111 @@ pub struct PossibleVariableTraceRegistration {
     /// Actual registered operation list.
     pub operations: Vec<tcl_registry::TraceOperation>,
     /// Actual evaluated callback prefix.
-    pub prefix: String,
+    pub prefix: VariableTracePrefix,
+}
+
+/// A copied original callback prefix or an explicitly authored compatibility
+/// value. Original storage keeps complete counted bytes and producer receipts.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VariableTracePrefix {
+    /// Logical authored analysis, without original native byte authority.
+    Authored(String),
+    /// Independently selected variable-trace copied storage.
+    Original(std::sync::Arc<OriginalVariableTracePrefix>),
+}
+
+/// Sealed copied variable-prefix data. Registration liveness is owned by the
+/// receiver's trace inventory, independently of this historical producer.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OriginalVariableTracePrefix {
+    input: crate::signature_scan::scope::SignatureSourceNameInput,
+}
+
+impl OriginalVariableTracePrefix {
+    pub(crate) fn input(&self) -> &crate::signature_scan::scope::SignatureSourceNameInput {
+        &self.input
+    }
+}
+
+impl From<String> for VariableTracePrefix {
+    fn from(value: String) -> Self {
+        Self::Authored(value)
+    }
+}
+
+impl From<&str> for VariableTracePrefix {
+    fn from(value: &str) -> Self {
+        Self::Authored(value.to_owned())
+    }
+}
+
+impl VariableTracePrefix {
+    pub(crate) fn copied_original(
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        context: &ResolveContext,
+    ) -> Option<Self> {
+        Some(Self::Original(std::sync::Arc::new(OriginalVariableTracePrefix {
+            input: crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(
+                crate::signature_scan::scope::SignatureSourceNameValue::copied_variable_trace_prefix(
+                    input, context,
+                )?,
+            ),
+        })))
+    }
+
+    pub(crate) fn same_data(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Authored(left), Self::Authored(right)) => left == right,
+            (Self::Original(left), Self::Original(right)) => {
+                left.input.bytes() == right.input.bytes()
+                    && left.input.policy() == right.input.policy()
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) fn joined(&self, other: &Self) -> Option<Self> {
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        match (self, other) {
+            (Self::Authored(left), Self::Authored(right)) if left == right => Some(self.clone()),
+            (Self::Original(left), Self::Original(right)) => {
+                let (
+                    SignatureSourceNameInput::OriginalValue(left),
+                    SignatureSourceNameInput::OriginalValue(right),
+                ) = (&left.input, &right.input)
+                else {
+                    return None;
+                };
+                Some(Self::Original(std::sync::Arc::new(
+                    OriginalVariableTracePrefix {
+                        input: SignatureSourceNameInput::OriginalValue(
+                            left.joined_variable_trace_prefix(right)?,
+                        ),
+                    },
+                )))
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn removal_matches(&self, other: &Self, context: &ResolveContext) -> bool {
+        match (self, other) {
+            (Self::Authored(left), Self::Authored(right)) => left == right,
+            (Self::Original(left), Self::Original(right)) => {
+                left.input.policy() == right.input.policy()
+                    && left.input.is_current(context)
+                    && right.input.is_current(context)
+                    && context
+                        .invocation_dialect
+                        .and_then(tcl_registry::InvocationDialect::native_variable_trace_protocol)
+                        .is_some_and(|protocol| {
+                            protocol
+                                .variable_prefix_matches(left.input.bytes(), right.input.bytes())
+                        })
+            }
+            _ => false,
+        }
+    }
 }
 
 /// Original namespace tree awaiting the last actual activation release.
@@ -428,7 +547,8 @@ pub struct ResolveContext {
     /// Names with an active `trace`.
     pub traced: VariableCellSet,
     /// Known trace registrations, retaining duplicate registrations for removal.
-    pub trace_registrations: VariableCellTable<Vec<(Vec<tcl_registry::TraceOperation>, String)>>,
+    pub trace_registrations:
+        VariableCellTable<Vec<(Vec<tcl_registry::TraceOperation>, VariableTracePrefix)>>,
     /// Selected typed registration receivers, retained independently of key encoding.
     pub trace_registration_receivers: VariableCellTable<std::sync::Arc<Place>>,
     /// Enumerated callback prefixes on unenumerated addresses; never definite registrations.
@@ -443,6 +563,9 @@ pub struct ResolveContext {
     pub frame_kind: VariableFrameKind,
     /// Known interpreter for a selected execution region.
     pub interpreter: Option<String>,
+    /// Independently selected host storage context. Source-name advice and
+    /// registry profiles do not supply a worker, cell or publication receipt.
+    pub hosted_execution_context: Option<tcl_registry::f5::BigIpExecutionContext>,
     /// Optional worker and connection identity supplied by host execution.
     pub execution: Option<tcl_registry::f5::WorkerExecution>,
     /// Point-specific aliases after following their known links.
@@ -469,6 +592,17 @@ pub struct ResolveContext {
     /// Closed physical text alternatives for purpose-only operand layout queries.
     pub(crate) closed_literal_contents:
         VariableCellTable<crate::literal_contents::ClosedLiteralContents>,
+    /// Authentic entered formal declaration prefix. It does not close the
+    /// rest of a procedure's compiled-local inventory or authenticate a CPP.
+    pub(crate) original_formal_topology:
+        Option<std::sync::Arc<crate::command_binding::formal_topology::OriginalFormalTopology>>,
+    /// Actual own-provider receiver inventory, queried separately by each
+    /// supplied compiler-primary or runtime-root resolver purpose.
+    pub(crate) original_receiver_variable_candidates:
+        Option<std::sync::Arc<crate::allocated_instance::OriginalReceiverVariableCandidates>>,
+    /// Authenticated original produced units at exact current value slots.
+    pub(crate) original_name_values:
+        VariableCellTable<original_name_contents::StoredOriginalNameValue>,
     /// Active dictionary-wrapper inputs, retained until their reached epilogue.
     pub dictionary_scopes: HashMap<
         crate::dictionary_bindings::DictionaryScopeId,
@@ -482,6 +616,10 @@ pub struct ResolveContext {
     /// Greatest issued representation stamp, retained even after a control join.
     /// Exhaustion permanently prevents issuing another frozen receipt.
     pub(crate) representation_epoch_high_water: Option<u64>,
+    /// Currency of original produced bytes, independent of cache/representation.
+    pub(crate) original_contents_epoch: Option<u64>,
+    /// Issuance high-water survives withdrawal; exhaustion cannot revive a receipt.
+    pub(crate) original_contents_epoch_high_water: Option<u64>,
     /// Reaching source writes, used to abstain on unrepresented nested definitions.
     pub contents_origins: VariableCellTable<ContentsOrigin>,
     /// Source-instance attestation of represented physical contents stores.
@@ -501,7 +639,7 @@ pub struct ResolveContext {
     pub(crate) activation_contents_world: Option<ContentsWorld>,
     /// A newly entered private activation starts with no inherited variable
     /// observers. This is separate from its contents and namespace trace world.
-    pub(crate) activation_observers_closed: bool,
+    activation_observer_inventory: ActivationObserverInventory,
     /// Actual fresh receiver allocations whose observer world remains enumerated.
     pub(crate) closed_observer_allocations: HashSet<crate::command_binding::SourceObjectAllocation>,
     /// Namespace-scoped contents clobbers without enumerated cell names.
@@ -525,6 +663,14 @@ pub struct ResolveContext {
     pub binding_identity: BindingIdentity,
     /// Unknown trace registrations may affect any cell operation.
     pub dynamic_traces: bool,
+}
+
+/// Enumeration of observers in the independently entered private activation.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+enum ActivationObserverInventory {
+    #[default]
+    Open,
+    Closed,
 }
 
 /// Whether retained namespace membership can prove a missing candidate.
@@ -678,7 +824,9 @@ impl VariableProofRelocation {
             VariableCellKey::Lifetime { source, cell } => self
                 .cell_key(cell)
                 .with_lifetime(self.source_offset(*source)),
-            VariableCellKey::Element { cell, index } => self.cell_key(cell).with_index(index),
+            VariableCellKey::Element { cell, index } => {
+                self.cell_key(cell).with_index(index.clone())
+            }
             VariableCellKey::RetainedSlot(slot) => {
                 VariableCellKey::RetainedSlot(Box::new(slot.relocated(self)))
             }
@@ -805,6 +953,28 @@ impl PossibleVariableTraceRegistration {
 }
 
 impl ResolveContext {
+    /// Select a frame's existing policies without claiming observer completeness.
+    #[must_use]
+    pub(crate) fn for_frame(
+        frame_kind: VariableFrameKind,
+        binding_identity: BindingIdentity,
+        invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    ) -> Self {
+        Self {
+            invocation_dialect,
+            frame_kind,
+            binding_identity,
+            ..Self::default()
+        }
+    }
+
+    pub(crate) const fn activation_observers_closed(&self) -> bool {
+        matches!(
+            self.activation_observer_inventory,
+            ActivationObserverInventory::Closed
+        )
+    }
+
     /// Relocate the entire binding and contents proof, including caller views and trace cells.
     /// No dialect, existence, observer, or unknown-world field is erased for memoisation.
     #[must_use]
@@ -900,6 +1070,10 @@ impl ResolveContext {
         {
             identity.clone_from(replacement);
         }
+        context.original_receiver_variable_candidates = self
+            .original_receiver_variable_candidates
+            .as_ref()
+            .map(|candidates| std::sync::Arc::new(candidates.relocated(relocation)));
         context.relocate_storage_addresses(relocation);
         context.relocate_contents_and_observers(relocation);
         context
@@ -940,6 +1114,11 @@ impl ResolveContext {
             .closed_literal_contents
             .iter()
             .map(|(key, contents)| (relocation.storage_key(key), contents.relocated(relocation)))
+            .collect();
+        self.original_name_values = self
+            .original_name_values
+            .iter()
+            .map(|(key, value)| (relocation.storage_key(key), value.relocated(relocation)))
             .collect();
         self.contents_source_proofs = self.contents_source_proofs.relocated(relocation);
         self.contents_presence = relocation.storage_map(&self.contents_presence);
@@ -1018,6 +1197,50 @@ pub fn restore_execution_frame(parent: &ResolveContext, child: &ResolveContext) 
                 _ => false,
             }
     };
+    restore_outward_observers_and_generations(&mut restored, child, &parent_key);
+    restore_outward_values(&mut restored, child, &parent_key);
+    restored
+        .contents_unknown_arrays
+        .retain(|key| !parent_key(key));
+    restored.contents_unknown_arrays.extend(
+        child
+            .contents_unknown_arrays
+            .iter()
+            .filter(|key| parent_key(key))
+            .cloned(),
+    );
+    restored.closed_array_roots.retain(|key| !parent_key(key));
+    restored.closed_array_roots.extend(
+        child
+            .closed_array_roots
+            .iter()
+            .filter(|key| parent_key(key))
+            .cloned(),
+    );
+    restored.contents_world = restored.contents_world.joined(child.contents_world);
+    restored
+        .contents_unknown_namespaces
+        .extend(child.contents_unknown_namespaces.iter().cloned());
+    restored
+        .outward_namespace_destructions
+        .extend(child.outward_namespace_destructions.iter().cloned());
+    restored.dynamic_traces |= child.dynamic_traces;
+    restored
+        .closed_observer_allocations
+        .clone_from(&child.closed_observer_allocations);
+    restore_outward_aliases(parent, child, &mut restored);
+    if child.dynamic_bindings {
+        restored.widen();
+    }
+    crate::variable_bindings::complete_pending_namespace_retirements(&mut restored);
+    restored
+}
+
+fn restore_outward_observers_and_generations(
+    restored: &mut ResolveContext,
+    child: &ResolveContext,
+    parent_key: &impl Fn(&VariableCellKey) -> bool,
+) {
     restored.generations.retain(|key, _| !parent_key(key));
     restored.generations.extend(
         child
@@ -1058,42 +1281,6 @@ pub fn restore_execution_frame(parent: &ResolveContext, child: &ResolveContext) 
             .filter(|key| parent_key(key))
             .cloned(),
     );
-    restore_outward_values(&mut restored, child, &parent_key);
-    restored
-        .contents_unknown_arrays
-        .retain(|key| !parent_key(key));
-    restored.contents_unknown_arrays.extend(
-        child
-            .contents_unknown_arrays
-            .iter()
-            .filter(|key| parent_key(key))
-            .cloned(),
-    );
-    restored.closed_array_roots.retain(|key| !parent_key(key));
-    restored.closed_array_roots.extend(
-        child
-            .closed_array_roots
-            .iter()
-            .filter(|key| parent_key(key))
-            .cloned(),
-    );
-    restored.contents_world = restored.contents_world.joined(child.contents_world);
-    restored
-        .contents_unknown_namespaces
-        .extend(child.contents_unknown_namespaces.iter().cloned());
-    restored
-        .outward_namespace_destructions
-        .extend(child.outward_namespace_destructions.iter().cloned());
-    restored.dynamic_traces |= child.dynamic_traces;
-    restored
-        .closed_observer_allocations
-        .clone_from(&child.closed_observer_allocations);
-    restore_outward_aliases(parent, child, &mut restored);
-    if child.dynamic_bindings {
-        restored.widen();
-    }
-    crate::variable_bindings::complete_pending_namespace_retirements(&mut restored);
-    restored
 }
 
 fn restore_namespace_bindings(restored: &mut ResolveContext, child: &ResolveContext) {
@@ -1115,6 +1302,7 @@ fn restore_namespace_bindings(restored: &mut ResolveContext, child: &ResolveCont
     restored.namespace_inventory = child.namespace_inventory;
     restored.namespace_name_protocol = child.namespace_name_protocol;
     restored.execution_name_policy = child.execution_name_policy;
+    restored.hosted_execution_context = child.hosted_execution_context;
     let retained_current = restored.namespace_identity.as_ref().and_then(|key| {
         restored
             .namespace_objects
@@ -1206,11 +1394,26 @@ fn restore_outward_values(
             .filter(|(key, _)| parent_key(key))
             .map(|(key, value)| (key.clone(), value.clone())),
     );
+    restored
+        .original_name_values
+        .retain(|key, _| !parent_key(key));
+    restored.original_name_values.extend(
+        child
+            .original_name_values
+            .iter()
+            .filter(|(key, _)| parent_key(key))
+            .map(|(key, value)| (key.clone(), value.clone())),
+    );
     // Representation changes affect shared Tcl objects, including objects whose
     // variable bindings belong to an unselected ancestor frame.
     restored
         .value_representations
         .clone_from(&child.value_representations);
+    restored.original_contents_epoch = child.original_contents_epoch;
+    restored.original_contents_epoch_high_water = restored
+        .original_contents_epoch_high_water
+        .zip(child.original_contents_epoch_high_water)
+        .map(|(left, right)| left.max(right));
     restored.representation_epoch = child.representation_epoch;
     restored.representation_epoch_high_water = restored
         .representation_epoch_high_water
@@ -1284,9 +1487,12 @@ fn restore_selected_bindings(parent: &ResolveContext, child: &ResolveContext) ->
                 current.globals.clone_from(&frame.globals);
                 current.ns_vars.clone_from(&frame.ns_vars);
                 current.upvar_aliases.clone_from(&frame.upvar_aliases);
+                current
+                    .original_receiver_variable_candidates
+                    .clone_from(&frame.original_receiver_variable_candidates);
                 current.dynamic_bindings = frame.dynamic_bindings;
                 current.activation_contents_world = frame.activation_contents_world;
-                current.activation_observers_closed = frame.activation_observers_closed;
+                current.activation_observer_inventory = frame.activation_observer_inventory;
                 break;
             }
             candidate = frame.caller.as_deref();
@@ -1359,6 +1565,7 @@ impl Hash for ResolveContext {
         self.instance_owner.hash(state);
         self.frame_kind.hash(state);
         self.interpreter.hash(state);
+        self.hosted_execution_context.hash(state);
         self.execution.hash(state);
         self.alias_bindings.hash(state);
         self.namespace_alias_bindings.hash(state);
@@ -1371,8 +1578,13 @@ impl Hash for ResolveContext {
         self.caller.hash(state);
         self.constant_values.hash(state);
         self.closed_literal_contents.hash(state);
+        self.original_name_values.hash(state);
+        self.original_formal_topology.hash(state);
+        self.original_receiver_variable_candidates.hash(state);
         hash_map(&self.dictionary_scopes, state);
         self.value_representations.hash(state);
+        self.original_contents_epoch.hash(state);
+        self.original_contents_epoch_high_water.hash(state);
         self.representation_epoch.hash(state);
         self.representation_epoch_high_water.hash(state);
         self.contents_origins.hash(state);
@@ -1382,7 +1594,7 @@ impl Hash for ResolveContext {
         self.contents_kinds.hash(state);
         self.contents_world.hash(state);
         self.activation_contents_world.hash(state);
-        self.activation_observers_closed.hash(state);
+        self.activation_observer_inventory.hash(state);
         hash_unordered_set(&self.closed_observer_allocations, state);
         self.contents_unknown_namespaces.hash(state);
         self.contents_unknown_arrays.hash(state);
@@ -1425,6 +1637,7 @@ impl Default for ResolveContext {
             instance_owner: String::new(),
             frame_kind: VariableFrameKind::Local,
             interpreter: None,
+            hosted_execution_context: None,
             execution: None,
             raw_bindings: crate::raw_binding::RawBindingArena::default(),
             captured_cells: crate::captured_cell::CapturedCellArena::default(),
@@ -1437,8 +1650,13 @@ impl Default for ResolveContext {
             caller: None,
             constant_values: VariableCellTable::default(),
             closed_literal_contents: VariableCellTable::default(),
+            original_name_values: VariableCellTable::default(),
+            original_formal_topology: None,
+            original_receiver_variable_candidates: None,
             dictionary_scopes: HashMap::new(),
             value_representations: VariableCellTable::default(),
+            original_contents_epoch: Some(0),
+            original_contents_epoch_high_water: Some(0),
             representation_epoch: Some(0),
             representation_epoch_high_water: Some(0),
             contents_origins: VariableCellTable::default(),
@@ -1448,7 +1666,7 @@ impl Default for ResolveContext {
             contents_kinds: VariableCellTable::default(),
             contents_world: ContentsWorld::Tracked,
             activation_contents_world: None,
-            activation_observers_closed: false,
+            activation_observer_inventory: ActivationObserverInventory::Open,
             closed_observer_allocations: HashSet::new(),
             contents_unknown_namespaces: VariableNamespaceSet::default(),
             contents_unknown_arrays: VariableCellSet::default(),
@@ -1649,6 +1867,7 @@ impl ResolveContext {
         selected.namespace_inventory = self.namespace_inventory;
         selected.namespace_name_protocol = self.namespace_name_protocol;
         selected.execution_name_policy = self.execution_name_policy;
+        selected.hosted_execution_context = self.hosted_execution_context;
         selected
             .namespace_objects
             .clone_from(&self.namespace_objects);
@@ -1714,6 +1933,8 @@ impl ResolveContext {
         selected
             .value_representations
             .clone_from(&self.value_representations);
+        selected.original_contents_epoch = self.original_contents_epoch;
+        selected.original_contents_epoch_high_water = self.original_contents_epoch_high_water;
         selected.representation_epoch = self.representation_epoch;
         selected.representation_epoch_high_water = self.representation_epoch_high_water;
         self.inherit_outward_contents(selected, outward);
@@ -1732,6 +1953,12 @@ impl ResolveContext {
         );
         selected.closed_literal_contents.extend(
             self.closed_literal_contents
+                .iter()
+                .filter(|(key, _)| outward(key))
+                .map(|(key, value)| (key.clone(), value.clone())),
+        );
+        selected.original_name_values.extend(
+            self.original_name_values
                 .iter()
                 .filter(|(key, _)| outward(key))
                 .map(|(key, value)| (key.clone(), value.clone())),
@@ -1785,6 +2012,7 @@ impl ResolveContext {
             .authored_tmm_static
             .clone_from(&self.authored_tmm_static);
         selected.interpreter.clone_from(&self.interpreter);
+        selected.hosted_execution_context = self.hosted_execution_context;
         selected.execution = self.execution;
     }
 
@@ -1805,15 +2033,20 @@ impl ResolveContext {
                 | VariableExecutionFrame::ReceiverMethod { .. }
         ) {
             selected.activation_contents_world = Some(ContentsWorld::Tracked);
-            selected.activation_observers_closed = true;
+            selected.activation_observer_inventory = ActivationObserverInventory::Closed;
         }
         selected.constant_values.clone_from(&self.constant_values);
+        selected
+            .original_name_values
+            .clone_from(&self.original_name_values);
         selected
             .closed_literal_contents
             .clone_from(&self.closed_literal_contents);
         selected
             .value_representations
             .clone_from(&self.value_representations);
+        selected.original_contents_epoch = self.original_contents_epoch;
+        selected.original_contents_epoch_high_water = self.original_contents_epoch_high_water;
         selected.representation_epoch = self.representation_epoch;
         selected.representation_epoch_high_water = self.representation_epoch_high_water;
         selected.contents_origins.clone_from(&self.contents_origins);
@@ -1892,11 +2125,16 @@ impl ResolveContext {
         );
         selected.constant_values.clone_from(&self.constant_values);
         selected
+            .original_name_values
+            .clone_from(&self.original_name_values);
+        selected
             .closed_literal_contents
             .clone_from(&self.closed_literal_contents);
         selected
             .value_representations
             .clone_from(&self.value_representations);
+        selected.original_contents_epoch = self.original_contents_epoch;
+        selected.original_contents_epoch_high_water = self.original_contents_epoch_high_water;
         selected.representation_epoch = self.representation_epoch;
         selected.representation_epoch_high_water = self.representation_epoch_high_water;
         selected.contents_origins.clone_from(&self.contents_origins);
@@ -1996,12 +2234,16 @@ impl ResolveContext {
     /// Bounded unknown array elements affect only the proved physical root.
     pub fn invalidate_contents_literals(&mut self, place: &Place) {
         if place.observed || (place.kind == PlaceKind::Unknown && place.ns == place::LOCAL_NS) {
+            self.invalidate_original_contents();
             self.retain_literal_values(|_| false);
             self.invalidate_shared_representations();
             return;
         }
         if place.kind == PlaceKind::Unknown {
             let namespace = self.namespace_footprint(place);
+            if namespace.is_none() {
+                self.invalidate_original_contents();
+            }
             self.retain_literal_values(|key| {
                 namespace
                     .as_ref()
@@ -2090,6 +2332,7 @@ impl ResolveContext {
                 .is_some_and(|index| index.kind != place::IndexKind::Literal)
         {
             let Some(root) = physical_array_key(place) else {
+                self.invalidate_original_contents();
                 self.contents_world = ContentsWorld::Unknown;
                 self.withdraw_activation_contents_closure();
                 return;
@@ -2155,6 +2398,32 @@ impl ResolveContext {
             registry,
             tcl_registry::TraceOperation::Read,
         );
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+            let key = canonical_binding_value_key(&access);
+            eprintln!(
+                "ORIGINAL_LITERAL_CONTENTS name_len={} kind={:?} observed={} dynamic={} presence={:?} key_present={} literal_present={} generation_current={} dynamic_bindings={} dynamic_traces={}",
+                variable.len(),
+                access.kind,
+                access.observed,
+                access.dynamic,
+                self.contents_presence(&access),
+                key.is_some(),
+                key.as_ref()
+                    .is_some_and(|key| self.constant_values.contains_key(key)),
+                access
+                    .cell
+                    .as_ref()
+                    .is_some_and(|cell| cell.generation != CellGeneration::Unknown
+                        && self
+                            .generations
+                            .get(&cell_key(&access))
+                            .copied()
+                            .unwrap_or_default()
+                            == cell.generation),
+                self.dynamic_bindings,
+                self.dynamic_traces
+            );
+        }
         self.literal_contents_at(&access, registry)
     }
 
@@ -2421,12 +2690,16 @@ impl ResolveContext {
                 .cell
                 .as_ref()
                 .is_none_or(|cell| matches!(cell.owner, CellOwner::SelectedFrame(_)))
-            || self.contents_presence(place) != ContentsPresence::Defined
             || self.implicit_read_changes_value(place, registry)
         {
             return false;
         }
-        if !self.current_contents_generation(place) {
+        let dictionary_element = dialect.variable_container_model
+            == Some(VariableContainerModel::DictionaryValue)
+            && place.kind == PlaceKind::ArrayElem;
+        if (!dictionary_element && self.contents_presence(place) != ContentsPresence::Defined)
+            || !self.current_contents_generation(place)
+        {
             return false;
         }
         let observers =
@@ -2474,15 +2747,20 @@ impl ResolveContext {
         };
         let mut root = place.base();
         root.kind = PlaceKind::Scalar;
+        if !self.read_produces_value(&root, registry) {
+            return false;
+        }
+        if let Some(read) = self.original_name_read_result(&root, registry) {
+            return dialect
+                .dictionary_variable_value_ordinal(read.value().bytes(), index.value.as_bytes())
+                .is_some();
+        }
+        // Explicit logical contents remain an authored compatibility adapter;
+        // original produced values above always use their retained native bytes.
         if let Some(value) = self.literal_contents_at(&root, registry) {
-            return dialect.word_values.split_list(value).is_ok_and(|items| {
-                items.len().is_multiple_of(2)
-                    && items
-                        .as_chunks::<2>()
-                        .0
-                        .iter()
-                        .any(|pair| pair[0] == index.value)
-            });
+            return dialect
+                .dictionary_variable_value_ordinal(value.as_bytes(), index.value.as_bytes())
+                .is_some();
         }
         matches!(self.array_contents_inventory(&place.base()),
             crate::array_destruction::ArrayContentsInventory::Known(members)
@@ -2898,6 +3176,81 @@ impl ResolveContext {
         self.record_incoming_binding_origin(variable, registry);
     }
 
+    /// Install an authenticated decoded formal name. C formals use their
+    /// declaration storage key, independently of runtime name lookup. Jim
+    /// uses its general setter grammar, including qualified and indexed names.
+    /// The caller owns original `ParamList` topology and argument arity.
+    pub(crate) fn bind_original_formal_incoming(
+        &mut self,
+        name: &[u8],
+        value: Option<&str>,
+        protocol: tcl_syntax::naming::NativeNameProtocol,
+        registry: &CommandRegistry,
+    ) -> Option<bool> {
+        if self
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)?
+            .recipe()
+            != protocol
+        {
+            return None;
+        }
+        let mut target = if protocol.is_jim084() {
+            resolve_evaluated_variable_input(
+                tcl_syntax::naming::NativeVariableInputForm::Combined(name),
+                self,
+                false,
+                registry,
+                tcl_registry::TraceOperation::Write,
+            )
+        } else {
+            let identity = self.activation.as_ref()?;
+            let mut target = place::scalar(
+                std::str::from_utf8(name).unwrap_or_default(),
+                place::LOCAL_NS,
+                false,
+            );
+            target.cell = Some(CellIdentity {
+                owner: CellOwner::Activation(identity.clone()),
+                name: NameBytes::from(name),
+                generation: CellGeneration::Incoming,
+                interpreter: self.interpreter.clone(),
+                storage_domain: None,
+                execution: self.execution,
+            });
+            bind_cell_identity(&mut target, self);
+            project_access(target, self, tcl_registry::TraceOperation::Write)
+        };
+        if target.dynamic || target.observed || target.kind == PlaceKind::Unknown {
+            return None;
+        }
+        if self.store_would_error(&target) {
+            return Some(false);
+        }
+        // Installing a formal is not a subsequent source store and therefore
+        // does not receive WrittenAt provenance or a fabricated source offset.
+        target.observed = false;
+        let key = canonical_binding_value_key(&target)?;
+        self.forget_literal_value(&key);
+        self.value_representations.remove(&key);
+        self.publish_defined_slot(&target, &key);
+        if let Some(value) = value {
+            self.store_literal_value(key.clone(), value.to_owned());
+        }
+        let incoming = target.index.is_none()
+            && matches!(target.cell.as_ref().map(|cell| &cell.owner),
+                Some(CellOwner::Activation(identity)) if self.activation.as_ref() == Some(identity));
+        self.contents_origins.insert(
+            key,
+            if incoming {
+                ContentsOrigin::Incoming
+            } else {
+                ContentsOrigin::Unknown
+            },
+        );
+        Some(true)
+    }
+
     fn record_incoming_binding_origin(&mut self, variable: &str, registry: &CommandRegistry) {
         let target = resolve_literal_access(
             variable,
@@ -2944,8 +3297,29 @@ impl ResolveContext {
     /// Join incoming binding states. A binding is precise only when all
     /// executable predecessors agree on the same immutable cell address.
     pub fn join(&mut self, other: &Self) {
+        let execution_disagrees = self.execution != other.execution
+            || self.interpreter != other.interpreter
+            || self.hosted_execution_context != other.hosted_execution_context;
         let integer_contents = self.joined_integer_contents(other);
+        // Equal current stamps with differing issuance histories cannot issue
+        // a future stamp safely, including repeated abstract loop allocations.
+        if self.original_contents_epoch_high_water != other.original_contents_epoch_high_water {
+            self.original_contents_epoch_high_water = None;
+            self.original_contents_epoch = None;
+        }
+        if self.original_contents_epoch != other.original_contents_epoch {
+            self.original_contents_epoch = None;
+        }
         self.join_literal_contents(other);
+        self.join_original_name_values(other);
+        if self.original_formal_topology != other.original_formal_topology {
+            self.original_formal_topology = None;
+        }
+        if self.original_receiver_variable_candidates != other.original_receiver_variable_candidates
+        {
+            self.original_receiver_variable_candidates = None;
+            self.dynamic_bindings = true;
+        }
         // Differing issuance histories at a join have no bounded next stamp.
         // In particular, abstract loop iterations must not mint an unbounded
         // succession of receipts for one repeated allocation family.
@@ -2992,12 +3366,20 @@ impl ResolveContext {
         if self.execution != other.execution {
             self.execution = None;
         }
+        if self.hosted_execution_context != other.hosted_execution_context {
+            self.hosted_execution_context = None;
+        }
         if self.activation != other.activation || self.selected_frame != other.selected_frame {
             self.activation = None;
             self.selected_frame = None;
             self.dynamic_bindings = true;
         }
         self.join_namespace_and_observer_world(other);
+        if execution_disagrees {
+            // Equal byte names and values in different interpreters, workers,
+            // connections or reload epochs do not select one reaching cell.
+            self.widen();
+        }
     }
 
     fn join_namespace_and_observer_world(&mut self, other: &Self) {
@@ -3195,7 +3577,7 @@ impl ResolveContext {
     }
 
     fn withdraw_activation_contents_closure(&mut self) {
-        self.activation_observers_closed = false;
+        self.activation_observer_inventory = ActivationObserverInventory::Open;
         self.closed_observer_allocations.clear();
         if self.activation_contents_world.is_some() {
             self.activation_contents_world = Some(ContentsWorld::Unknown);
@@ -3248,8 +3630,14 @@ impl ResolveContext {
             (Some(left), Some(right)) => Some(left.joined(right)),
             _ => None,
         };
-        self.activation_observers_closed &=
-            other.activation_observers_closed && self.activation == other.activation;
+        self.activation_observer_inventory = if self.activation_observers_closed()
+            && other.activation_observers_closed()
+            && self.activation == other.activation
+        {
+            ActivationObserverInventory::Closed
+        } else {
+            ActivationObserverInventory::Open
+        };
         self.closed_observer_allocations
             .retain(|allocation| other.closed_observer_allocations.contains(allocation));
         self.contents_unknown_namespaces
@@ -3359,18 +3747,41 @@ impl ResolveContext {
             .extend(other.untracked_traces.iter().cloned());
         for (target, registrations) in &other.trace_registrations {
             let reaching = self.trace_registrations.entry(target.clone()).or_default();
+            let mut matched = Vec::new();
             for registration in registrations {
-                let required = registrations
-                    .iter()
-                    .filter(|item| *item == registration)
-                    .count();
-                let present = reaching.iter().filter(|item| *item == registration).count();
-                reaching.extend(std::iter::repeat_n(
-                    registration.clone(),
-                    required.saturating_sub(present),
-                ));
+                let existing = reaching.iter().enumerate().position(|(index, item)| {
+                    !matched.contains(&index)
+                        && item.0 == registration.0
+                        && item.1.same_data(&registration.1)
+                });
+                if let Some(index) = existing {
+                    matched.push(index);
+                    if let Some(joined) = reaching[index].1.joined(&registration.1) {
+                        reaching[index].1 = joined;
+                    } else {
+                        self.untracked_traces.insert(target.clone());
+                    }
+                } else {
+                    matched.push(reaching.len());
+                    reaching.push(registration.clone());
+                }
             }
         }
+    }
+
+    /// Original byte correspondence does not inherit representation cache currency.
+    pub(crate) const fn original_contents_epoch(&self) -> Option<u64> {
+        self.original_contents_epoch
+    }
+
+    /// Unknown content/binding/observer effects retire every previously frozen
+    /// value owner. New exact producers may use the next bounded stamp; no
+    /// content is reconstructed or reseeded from display text.
+    pub(crate) fn invalidate_original_contents(&mut self) {
+        self.original_contents_epoch_high_water = self
+            .original_contents_epoch_high_water
+            .and_then(|epoch| epoch.checked_add(1));
+        self.original_contents_epoch = self.original_contents_epoch_high_water;
     }
 
     /// Withdraw native representation proofs after an operation may coerce shared objects.
@@ -3475,6 +3886,7 @@ impl ResolveContext {
 
     /// Evaluated code may retarget bindings and change traces and lifetimes.
     pub fn widen(&mut self) {
+        self.invalidate_original_contents();
         self.closed_array_roots.clear();
         self.namespace_inventory = NamespaceInventoryClosure::Open;
         self.captured_cells.widen();
@@ -3494,6 +3906,7 @@ impl ResolveContext {
             *presence = ContentsPresence::Unknown;
         }
 
+        self.original_receiver_variable_candidates = None;
         self.dynamic_bindings = true;
         self.mark_unenumerated_variable_observers();
         self.unknown_bindings
@@ -3717,7 +4130,7 @@ fn bind_unaliased_scalar(
     } else {
         place::scalar(base, place::LOCAL_NS, obs)
     };
-    finish_bound_scalar(bound, ctx, registry)
+    finish_bound_scalar(bound, ctx)
 }
 
 fn namespace_slot_alias(
@@ -3745,13 +4158,9 @@ fn namespace_slot_alias(
         .or_else(|| ctx.namespace_alias_bindings.get(&key).cloned())
 }
 
-fn finish_bound_scalar(
-    mut bound: Place,
-    ctx: &ResolveContext,
-    registry: &CommandRegistry,
-) -> Place {
+fn finish_bound_scalar(mut bound: Place, ctx: &ResolveContext) -> Place {
     if ctx.point_sensitive() {
-        bind_cell_identity(&mut bound, ctx, registry);
+        bind_cell_identity(&mut bound, ctx);
     }
     if bound.is_global()
         && let Some(target) = ctx.namespace_name_alias_bindings.get(&cell_key(&bound))
@@ -3790,11 +4199,24 @@ fn resolve_name_alias(target: &Place, context: &ResolveContext) -> Place {
             ) => context,
             _ => return place::unknown_top(),
         };
-        if current.ns == place::LOCAL_NS && selected.unknown_bindings.contains(&current.name) {
+        let key = cell_key(&current);
+        let authored_name = current
+            .cell
+            .as_ref()
+            .map_or(Some(current.name.as_str()), |cell| {
+                cell.name.try_utf8().ok()
+            });
+        if current.ns == place::LOCAL_NS
+            && (selected.unknown_bindings.contains(&key)
+                || authored_name.is_some_and(|name| selected.unknown_bindings.contains(name)))
+        {
             return place::unknown_top();
         }
         let next = if current.ns == place::LOCAL_NS {
-            selected.name_alias_bindings.get(&current.name)
+            selected
+                .name_alias_bindings
+                .get(&key)
+                .or_else(|| authored_name.and_then(|name| selected.name_alias_bindings.get(name)))
         } else {
             context
                 .namespace_name_alias_bindings
@@ -3823,7 +4245,7 @@ fn resolve_name_alias(target: &Place, context: &ResolveContext) -> Place {
     }
 }
 
-fn bind_cell_identity(bound: &mut Place, ctx: &ResolveContext, registry: &CommandRegistry) {
+fn bind_cell_identity(bound: &mut Place, ctx: &ResolveContext) {
     let owner = if bound.kind == PlaceKind::InstanceVar {
         CellOwner::Instance(bound.owner.clone())
     } else if bound.ns == place::LOCAL_NS {
@@ -3849,43 +4271,38 @@ fn bind_cell_identity(bound: &mut Place, ctx: &ResolveContext, registry: &Comman
             })
             .unwrap_or_else(|| CellOwner::Namespace(bound.ns.clone()))
     };
-    let storage_domain = (bound.ns != place::LOCAL_NS).then(|| {
-        use tcl_registry::f5::VariableStorageDomain;
-        if let CellOwner::NamespaceIdentity(namespace) = &owner {
-            if ctx
-                .authored_tmm_static
-                .as_ref()
-                .is_some_and(|receipt| namespace.native_context() == Some(&receipt.namespace))
-            {
-                VariableStorageDomain::WorkerNamespace
-            } else if registry
-                .profile()
-                .is_some_and(tcl_dialect::DialectProfile::is_irules)
-                && namespace
-                    .exact_native_path()
-                    .is_some_and(tcl_core_types::ByteNamespacePath::is_root)
-            {
-                VariableStorageDomain::CmpGlobal
-            } else {
-                VariableStorageDomain::InterpreterNamespace
-            }
+    let storage_domain = if bound.ns == place::LOCAL_NS {
+        None
+    } else if let CellOwner::NamespaceIdentity(namespace) = &owner {
+        if ctx.authored_tmm_static.as_ref().is_some_and(|receipt| {
+            namespace.native_context() == Some(&receipt.namespace)
+                && ctx.hosted_execution_context.is_none_or(|context| {
+                    context == tcl_registry::f5::BigIpExecutionContext::TmmIRule
+                })
+        }) {
+            Some(tcl_registry::f5::VariableStorageDomain::WorkerNamespace)
+        } else if let Some(context) = ctx.hosted_execution_context {
+            namespace
+                .exact_native_path()
+                .map(|path| tcl_registry::f5::namespace_storage_domain_in_path(context, path))
         } else {
-            tcl_registry::f5::namespace_storage_domain(
-                if registry
-                    .profile()
-                    .is_some_and(tcl_dialect::DialectProfile::is_irules)
-                {
-                    tcl_registry::f5::BigIpExecutionContext::TmmIRule
-                } else {
-                    tcl_registry::f5::BigIpExecutionContext::HostShellTcl
-                },
-                &bound.ns,
-            )
+            Some(tcl_registry::f5::VariableStorageDomain::InterpreterNamespace)
         }
-    });
+    } else if ctx
+        .hosted_execution_context
+        .is_some_and(|context| context == tcl_registry::f5::BigIpExecutionContext::TmmIRule)
+    {
+        // A presentation namespace cannot classify a worker-owned table.
+        None
+    } else {
+        Some(tcl_registry::f5::VariableStorageDomain::InterpreterNamespace)
+    };
     bound.cell = Some(CellIdentity {
         owner,
-        name: bound.name.clone(),
+        name: bound
+            .cell
+            .as_ref()
+            .map_or_else(|| NameBytes::from(&bound.name), |cell| cell.name.clone()),
         generation: CellGeneration::Incoming,
         interpreter: ctx.interpreter.clone(),
         storage_domain,
@@ -4025,58 +4442,46 @@ fn authored_namespace_place(name: &str, namespace: &str, observed: bool) -> Plac
 /// Stable name for a root's contents and lifetime state.
 #[must_use]
 pub fn cell_key(place: &Place) -> VariableCellKey {
-    if let Some(CellIdentity {
-        owner: CellOwner::NamespaceIdentity(identity),
-        ..
-    }) = &place.cell
-    {
-        return VariableCellKey::Namespace {
-            identity: (**identity).clone(),
-            simple: place.name.clone(),
-        };
-    }
-    if let Some(CellIdentity {
-        owner: CellOwner::AllocatedInstance(allocation),
-        ..
-    }) = &place.cell
-    {
-        return crate::allocated_instance::storage_key(allocation, &place.name);
-    }
-    if let Some(CellIdentity {
-        owner: CellOwner::RetainedSlot(identity),
-        ..
-    }) = &place.cell
-    {
-        return VariableCellKey::RetainedSlot(identity.clone());
-    }
-    if let Some(CellIdentity {
-        owner: CellOwner::SelectedFrame(selector),
-        ..
-    }) = &place.cell
-    {
-        VariableCellKey::SelectedFrame {
-            selector: *selector,
-            simple: place.name.clone(),
+    if let Some(cell) = &place.cell {
+        let simple = cell.name.clone();
+        match &cell.owner {
+            CellOwner::NamespaceIdentity(identity) => {
+                return VariableCellKey::Namespace {
+                    identity: (**identity).clone(),
+                    simple,
+                };
+            }
+            CellOwner::AllocatedInstance(allocation) => {
+                return VariableCellKey::AllocatedInstance {
+                    allocation: allocation.clone(),
+                    simple,
+                };
+            }
+            CellOwner::RetainedSlot(identity) => {
+                return VariableCellKey::RetainedSlot(identity.clone());
+            }
+            CellOwner::SelectedFrame(selector) => {
+                return VariableCellKey::SelectedFrame {
+                    selector: *selector,
+                    simple,
+                };
+            }
+            CellOwner::Instance(identity) => {
+                return VariableCellKey::Instance {
+                    identity: identity.clone(),
+                    simple,
+                };
+            }
+            CellOwner::Activation(identity) => {
+                return VariableCellKey::Activation {
+                    identity: identity.clone(),
+                    simple,
+                };
+            }
+            CellOwner::CurrentFrame | CellOwner::Namespace(_) => {}
         }
-    } else if let Some(CellIdentity {
-        owner: CellOwner::Instance(identity),
-        ..
-    }) = &place.cell
-    {
-        VariableCellKey::Instance {
-            identity: identity.clone(),
-            simple: place.name.clone(),
-        }
-    } else if let Some(CellIdentity {
-        owner: CellOwner::Activation(identity),
-        ..
-    }) = &place.cell
-    {
-        VariableCellKey::Activation {
-            identity: identity.clone(),
-            simple: place.name.clone(),
-        }
-    } else if place.ns == place::LOCAL_NS {
+    }
+    if place.ns == place::LOCAL_NS {
         place.name.clone().into()
     } else {
         tcl_syntax::naming::qualify(&place.ns, &place.name).into()
@@ -4192,7 +4597,7 @@ pub fn canonical_place_key(bound: &Place) -> Option<VariableCellKey> {
         if index.kind != place::IndexKind::Literal {
             return None;
         }
-        name = name.with_index(&index.value);
+        name = name.with_index(index.value.clone());
     }
     Some(name)
 }
@@ -4220,7 +4625,7 @@ pub fn root_namespace_variable_simple_name(place: &Place) -> Option<&str> {
             }
             _ => false,
         };
-        root.then_some(cell.name.as_str())
+        root.then(|| cell.name.try_utf8().ok()).flatten()
     }
     match place.cell.as_ref() {
         Some(cell) => original(cell),
@@ -4402,7 +4807,7 @@ fn resolve_place_value(
 pub fn trace_key(place: &Place) -> VariableCellKey {
     let mut key = cell_key(place);
     if let Some(index) = &place.index {
-        key = key.with_index(&index.value);
+        key = key.with_index(index.value.clone());
     }
     key
 }
@@ -4455,14 +4860,14 @@ fn variable_observer_keys(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct VariableObserverCallback {
     pub(crate) key: VariableCellKey,
-    pub(crate) prefix: String,
+    pub(crate) prefix: VariableTracePrefix,
 }
 
 /// Ordered known callbacks plus obligations that cannot be enumerated safely.
 #[derive(Debug, Default)]
 pub(crate) struct VariableObserverProjection {
     pub(crate) callbacks: Vec<VariableObserverCallback>,
-    pub(crate) possible_callbacks: Vec<String>,
+    pub(crate) possible_callbacks: Vec<VariableTracePrefix>,
     pub(crate) unknown_residual: bool,
 }
 
@@ -4515,7 +4920,7 @@ impl ResolveContext {
     pub(crate) fn unenumerated_observers_may_run(&self, access: &Place) -> bool {
         let closed_owner = match access.cell.as_ref().map(|cell| &cell.owner) {
             Some(CellOwner::Activation(identity)) => {
-                self.activation_observers_closed && self.activation.as_ref() == Some(identity)
+                self.activation_observers_closed() && self.activation.as_ref() == Some(identity)
             }
             Some(CellOwner::AllocatedInstance(allocation)) => self
                 .closed_observer_allocations
@@ -4528,8 +4933,9 @@ impl ResolveContext {
     /// An unresolved registration can select an existing caller or receiver.
     /// Revoke every affected fresh-owner receipt, not just the active frame.
     pub(crate) fn mark_unenumerated_variable_observers(&mut self) {
+        self.invalidate_original_contents();
         self.dynamic_traces = true;
-        self.activation_observers_closed = false;
+        self.activation_observer_inventory = ActivationObserverInventory::Open;
         self.closed_observer_allocations.clear();
         if let Some(caller) = &mut self.caller {
             std::sync::Arc::make_mut(caller).mark_unenumerated_variable_observers();
@@ -4665,33 +5071,6 @@ pub fn resolve_substitution_access(
         ctx,
         operation,
     )
-}
-
-/// Resolve the original substitution with its actually evaluated index. The
-/// source evaluator freezes this value before the final read; it is not a
-/// later lookup of the index's variable dependencies.
-#[must_use]
-pub(crate) fn resolve_evaluated_substitution_access(
-    spelling: &str,
-    evaluated_index: Option<&str>,
-    ctx: &ResolveContext,
-    registry: &CommandRegistry,
-    operation: tcl_registry::TraceOperation,
-) -> Place {
-    let config = ctx.invocation_dialect.map_or_else(
-        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-    );
-    let name = tcl_syntax::naming::var_reference_for_style(spelling, config.braced_var);
-    let braced = tcl_syntax::naming::split_braced_var_ref(spelling, config.braced_var).is_some();
-    let mut selected = resolve_place_value(name, ctx, false, registry, true, braced);
-    if !braced
-        && selected.kind == PlaceKind::ArrayElem
-        && let Some(index) = evaluated_index
-    {
-        selected.index = Some(Index::literal(index));
-    }
-    project_access(selected, ctx, operation)
 }
 
 /// Resolve a literal name operand and select its applicable trace callbacks.
@@ -5720,22 +6099,21 @@ mod tests {
         state.traced.extend([root_key.clone(), element_key.clone()]);
         state.trace_registrations.insert(
             root_key,
-            vec![
-                (vec![Write], "first".to_owned()),
-                (vec![Write], "last".to_owned()),
-            ],
+            vec![(vec![Write], "first".into()), (vec![Write], "last".into())],
         );
-        state.trace_registrations.insert(
-            element_key.clone(),
-            vec![(vec![Write], "element".to_owned())],
-        );
+        state
+            .trace_registrations
+            .insert(element_key.clone(), vec![(vec![Write], "element".into())]);
         let projection = state.variable_observers_at(&element, Write, registry);
         assert!(!projection.unknown_residual);
         assert_eq!(
             projection
                 .callbacks
                 .iter()
-                .map(|callback| callback.prefix.as_str())
+                .map(|callback| match &callback.prefix {
+                    VariableTracePrefix::Authored(prefix) => prefix.as_str(),
+                    VariableTracePrefix::Original(_) => panic!("authored fixture"),
+                })
                 .collect::<Vec<_>>(),
             ["last", "first", "element"]
         );
@@ -5867,10 +6245,7 @@ mod tests {
         context.traced.insert(trace_key(&target));
         context.trace_registrations.insert(
             trace_key(&target),
-            vec![(
-                vec![tcl_registry::TraceOperation::Read],
-                "callback".to_owned(),
-            )],
+            vec![(vec![tcl_registry::TraceOperation::Read], "callback".into())],
         );
         context.caller = Some(std::sync::Arc::new(ResolveContext::for_function(
             "::external",
@@ -5966,13 +6341,100 @@ mod root_contents_kind_tests {
 mod worker_execution_ingress_tests {
     use super::*;
 
+    fn retain_worker_namespace_geometry(context: &mut ResolveContext) {
+        use crate::command_binding::SourceNamespaceKey;
+        use tcl_core_types::ByteNamespacePath;
+        use tcl_runtime_api::native_compilation::{
+            NativeInterpreterIdentity, NativeNamespaceContext,
+        };
+        let key = |token, segments: &[&str]| {
+            SourceNamespaceKey::Native(NativeNamespaceContext {
+                interpreter: NativeInterpreterIdentity {
+                    owner: 1,
+                    interpreter: 2,
+                },
+                token,
+                path: ByteNamespacePath::from_segments(segments.iter().copied()),
+            })
+        };
+        let root = key(1, &[]);
+        context.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(
+            tcl_dialect::TclVersion::V8_6,
+        ));
+        context.hosted_execution_context = Some(tcl_registry::f5::BigIpExecutionContext::TmmIRule);
+        context.retain_namespace_world(
+            root.clone(),
+            [root, key(2, &["static"]), key(3, &["app", "static"])],
+            Some(tcl_syntax::naming::NativeNameProtocol::C(
+                tcl_dialect::TclVersion::V8_6,
+            )),
+        );
+        context.namespace_inventory = NamespaceInventoryClosure::Closed;
+    }
+
+    #[test]
+    fn execution_context_join_cannot_retain_equal_values_from_different_cells() {
+        // Implementation contract: naming.variable.event-cell-execution-isolation
+        // docs/design/analysis/name-resolution-proofs/variable-event-cell-execution-isolation.md
+        use tcl_registry::f5::WorkerExecution;
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let execution = WorkerExecution {
+            worker: Some(1),
+            initialisation_epoch: 2,
+            connection: Some(3),
+        };
+        let make = |execution| {
+            let mut context = ResolveContext::for_function("::event");
+            retain_worker_namespace_geometry(&mut context);
+            context.execution = execution;
+            context.define_literal("::static::counter", "7", registry);
+            assert_eq!(
+                context.literal_value("::static::counter", registry),
+                Some("7")
+            );
+            context
+        };
+        let first = make(Some(execution));
+        let mut same = first.clone();
+        same.join(&first);
+        assert_eq!(same.literal_value("::static::counter", registry), Some("7"));
+        assert!(!same.dynamic_bindings);
+        for other in [
+            Some(WorkerExecution {
+                worker: Some(4),
+                ..execution
+            }),
+            Some(WorkerExecution {
+                initialisation_epoch: 5,
+                ..execution
+            }),
+            Some(WorkerExecution {
+                connection: Some(6),
+                ..execution
+            }),
+            None,
+        ] {
+            let mut joined = first.clone();
+            joined.join(&make(other));
+            assert_eq!(joined.literal_value("::static::counter", registry), None);
+            assert!(joined.constant_values.is_empty());
+            assert!(joined.value_representations.is_empty());
+            assert!(joined.dynamic_bindings);
+            assert!(joined.dynamic_traces);
+            assert_ne!(
+                joined.original_contents_epoch(),
+                first.original_contents_epoch()
+            );
+            assert_ne!(joined.representation_epoch, first.representation_epoch);
+        }
+    }
+
     #[test]
     fn reached_helper_and_alias_retain_the_callers_worker_namespace() {
         use tcl_registry::f5::{VariableStorageDomain, WorkerExecution};
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let mut caller = ResolveContext::for_function("::event");
-        caller.known_namespaces.insert("::static".to_owned());
-        caller.known_namespaces.insert("::app::static".to_owned());
+        retain_worker_namespace_geometry(&mut caller);
         caller.execution = Some(WorkerExecution {
             initialisation_epoch: 7,
             worker: Some(2),
@@ -6016,6 +6478,98 @@ mod worker_execution_ingress_tests {
             nested.cell.as_ref().unwrap().storage_domain,
             cell.storage_domain
         );
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.hosted-storage-context
+    // docs/design/analysis/name-resolution-proofs/variable-hosted-storage-context.md
+    fn hosted_storage_requires_selected_context_and_retained_namespace_geometry() {
+        use tcl_registry::f5::{BigIpExecutionContext, VariableStorageDomain};
+        let irules = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let stock = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut context = ResolveContext::for_function("::event");
+        retain_worker_namespace_geometry(&mut context);
+        let target = resolve_literal_place("::static::counter", &context, false, stock);
+        assert_eq!(
+            target.cell.as_ref().unwrap().storage_domain,
+            Some(VariableStorageDomain::WorkerNamespace)
+        );
+        assert_eq!(
+            target.cell,
+            resolve_literal_place("::static::counter", &context, false, irules).cell
+        );
+        let root = resolve_literal_place("::counter", &context, false, stock);
+        assert_eq!(
+            root.cell.as_ref().unwrap().storage_domain,
+            Some(VariableStorageDomain::CmpGlobal)
+        );
+        let nested = resolve_literal_place("::app::static::counter", &context, false, stock);
+        assert_eq!(
+            nested.cell.as_ref().unwrap().storage_domain,
+            Some(VariableStorageDomain::InterpreterNamespace)
+        );
+        for host in BigIpExecutionContext::ALL {
+            if host != BigIpExecutionContext::TmmIRule {
+                let mut other = context.clone();
+                other.hosted_execution_context = Some(host);
+                let target = resolve_literal_place("::static::counter", &other, false, irules);
+                assert_eq!(
+                    target.cell.as_ref().unwrap().storage_domain,
+                    Some(VariableStorageDomain::InterpreterNamespace)
+                );
+            }
+        }
+        context.hosted_execution_context = None;
+        let target = resolve_literal_place("::static::counter", &context, false, irules);
+        assert_eq!(
+            target.cell.as_ref().unwrap().storage_domain,
+            Some(VariableStorageDomain::InterpreterNamespace)
+        );
+        let mut unavailable = ResolveContext::for_function("::event");
+        unavailable.hosted_execution_context = Some(BigIpExecutionContext::TmmIRule);
+        unavailable.known_namespaces.insert("::static".into());
+        assert_eq!(
+            resolve_literal_place("::static::counter", &unavailable, false, irules)
+                .cell
+                .unwrap()
+                .storage_domain,
+            None
+        );
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.hosted-storage-context
+    // docs/design/analysis/name-resolution-proofs/variable-hosted-storage-context.md
+    fn different_hosted_contexts_with_equal_values_withdraw_cell_contents() {
+        use tcl_registry::f5::BigIpExecutionContext;
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut first = ResolveContext::for_function("::event");
+        retain_worker_namespace_geometry(&mut first);
+        first.define_literal("::static::counter", "7", registry);
+        assert_eq!(
+            first.literal_value("::static::counter", registry),
+            Some("7")
+        );
+        let entered = first.enter_called_frame(&VariableExecutionFrame::Procedure {
+            namespace: "::".into(),
+            identity: "genuine helper".into(),
+        });
+        assert_eq!(
+            entered.hosted_execution_context,
+            first.hosted_execution_context
+        );
+        assert_eq!(
+            restore_execution_frame(&first, &entered).hosted_execution_context,
+            first.hosted_execution_context
+        );
+        let mut other = first.clone();
+        other.hosted_execution_context = Some(BigIpExecutionContext::IAppImplementation);
+        first.join(&other);
+        assert_eq!(first.hosted_execution_context, None);
+        assert_eq!(first.literal_value("::static::counter", registry), None);
+        assert!(first.constant_values.is_empty());
+        assert!(first.dynamic_bindings);
+        assert!(first.dynamic_traces);
     }
 }
 
@@ -6065,10 +6619,7 @@ mod possible_access_domain_tests {
             let mut observed = state.clone();
             observed.trace_registrations.insert(
                 trace_key(&parameter),
-                vec![(
-                    vec![tcl_registry::TraceOperation::Read],
-                    "callback".to_owned(),
-                )],
+                vec![(vec![tcl_registry::TraceOperation::Read], "callback".into())],
             );
             assert!(!observed.read_produces_value(&parameter, registry));
             let mut retired = parameter.clone();
@@ -6245,6 +6796,45 @@ mod possible_access_domain_tests {
         assert_eq!(
             assigned.closed_contents_presence(&read),
             Some(ContentsPresence::Defined)
+        );
+    }
+}
+
+#[cfg(test)]
+mod byte_cell_identity_tests {
+    use super::*;
+
+    #[test]
+    // Implementation contract: naming.variable.byte-cell-correspondence
+    // docs/design/analysis/name-resolution-proofs/variable.byte-cell-correspondence.md
+    fn retained_cell_key_uses_exact_bytes_independently_of_display() {
+        let owner = CellOwner::Activation("entered-call".into());
+        let mut first = place::scalar("same display", place::LOCAL_NS, false);
+        first.cell = Some(CellIdentity {
+            owner: owner.clone(),
+            name: b"v\xc0\x80tail".into(),
+            generation: CellGeneration::Incoming,
+            interpreter: None,
+            storage_domain: None,
+            execution: None,
+        });
+        let mut second = first.clone();
+        second.cell.as_mut().unwrap().name = b"v\0tail".into();
+        assert_ne!(cell_key(&first), cell_key(&second));
+        assert!(!place::overlap(&first, &second));
+        second.cell.as_mut().unwrap().name = b"v\xc0\x80tail".into();
+        second.name = "different advice".into();
+        assert_eq!(cell_key(&first), cell_key(&second));
+        assert!(place::overlap(&first, &second));
+        first.kind = PlaceKind::ArrayElem;
+        first.index = Some(Index::literal(b"k\xed\xa0\x80"));
+        second.kind = PlaceKind::ArrayElem;
+        second.index = Some(Index::literal(b"k\xed\xa0\x81"));
+        assert_ne!(canonical_place_key(&first), canonical_place_key(&second));
+        assert!(!place::overlap(&first, &second));
+        let selected = canonical_place_key(&first).unwrap();
+        assert!(
+            matches!(selected, VariableCellKey::Element { index, .. } if index.as_bytes() == b"k\xed\xa0\x80")
         );
     }
 }

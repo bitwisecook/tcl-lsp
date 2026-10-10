@@ -59,6 +59,8 @@ pub(crate) struct CallFrame {
     pub(crate) jim_local_commands: Vec<Value>,
     /// The sole lifetime owner for retained activation receipts.
     pub(crate) activation: Rc<ActivationIdentity>,
+    /// Original Jim link-frame storage; activation identity remains independently fresh.
+    pub(crate) jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot,
     /// Replacement command scheduled by native tailcall on this activation.
     pub tailcall: Option<crate::exec::TailcallReq>,
     /// Local variables by name.
@@ -114,6 +116,7 @@ impl CallFrame {
             jim_namespace: std::cell::RefCell::new(None),
             jim_local_commands: Vec::new(),
             activation: Rc::new(ActivationIdentity::new()),
+            jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot::default(),
             tailcall: None,
             locals: VarTable::new(),
             compiled_locals: Vec::new(),

@@ -513,6 +513,8 @@ mod tests {
         sccp: SccpResult,
     ) -> FunctionUnit {
         FunctionUnit {
+            source_metadata_input: None,
+            source_config: tcl_lexer::LexerConfig::default(),
             name: name.into(),
             cfg,
             ssa,
@@ -528,6 +530,7 @@ mod tests {
             complexity_guarded: false,
             base_offset: 0,
             method_facts: None,
+            irules_event_body: None,
             semantic_facts: crate::semantic_analysis::SemanticAnalysisBundle::unavailable(None),
         }
     }
@@ -560,11 +563,13 @@ mod tests {
             source: source.into(),
             ir_module: crate::ir::Module {
                 retained_source_bindings: None,
+                source_metadata_input: None,
                 lexer_config: tcl_lexer::LexerConfig::default(),
                 source_entry: crate::command_binding::SourceAnalysisEntry::default(),
                 future_call_sites: Vec::new(),
                 installed_procedure_body_units: std::collections::BTreeMap::default(),
                 original_declaration_body_units: std::collections::BTreeMap::default(),
+                irules_event_bodies: HashMap::new(),
                 procedure_implementation_bodies: std::sync::Arc::from([]),
                 top_level_kind: crate::ir::TopLevelKind::Script,
                 source: tcl_lexer::SourceImage::default(),

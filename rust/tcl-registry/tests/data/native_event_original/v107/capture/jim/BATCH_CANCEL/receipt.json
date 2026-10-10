@@ -1,0 +1,19 @@
+{
+  "id": "BATCH_CANCEL",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original107/jim/probe",
+    "2"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "8ebec0efa23fb3bed48ec1d0db995be30408fc922291f38386da00cc991b2c25",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|302e38342d392d6735626163376339",
+    "BATCH_CANCEL_INPUT|0|736574206c6f67207b7d3b2061667465722030207b6c617070656e64203a3a6c6f672046495253543b2061667465722063616e63656c20243a3a6c617465727d3b20736574203a3a6c61746572205b61667465722030207b6c617070656e64203a3a6c6f67205345434f4e447d5d3b207570646174653b20736574206c6f67",
+    "BATCH_CANCEL|0|4649525354",
+    "BATCH_CANCEL_OPTIONS_NOT_TESTED|0|no-C-return-options-api"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

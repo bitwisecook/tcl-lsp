@@ -45,7 +45,7 @@ fn original_each_emission_matches_85_native_auxiliary_and_local_windows() {
     for (profile, fixture) in engines {
         let profile = tcl_dialect::DialectProfile::find(profile).unwrap();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
         for row in fixture.lines().skip(1).take(19) {
             let columns = row.split('\t').collect::<Vec<_>>();
             let index = columns[0].parse::<usize>().unwrap();
@@ -148,7 +148,7 @@ fn compile_service_visits_original_each_values_before_body_locals() {
     ];
     for (environment, fixture) in engines {
         let profile = tcl_dialect::DialectProfile::find(environment).unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
         let (label, source) = inputs::CASES[10];
         assert_eq!(label, "each-values-before-body");
         let image = SourceImage::native(source);

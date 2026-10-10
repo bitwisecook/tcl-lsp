@@ -1,6 +1,6 @@
 //! C hidden error-variable traces retain private objects independently of globals.
 
-use super::{GLOBAL, Interp, TraceAccess, new_string};
+use super::{new_string, Interp, TraceAccess, GLOBAL};
 use crate::obj;
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
 
@@ -523,7 +523,7 @@ impl Interp {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{ExceptionState, default_host, obj_bytes};
+    use super::super::{default_host, obj_bytes, ExceptionState};
     use super::*;
     use crate::{counters, environment::profile_for_dialect};
     use tcl_registry::special_vars::NativeBootstrapInputs;
@@ -592,6 +592,8 @@ mod tests {
         );
     }
 
+    // Native proof: naming.variable.error-reset-distinct-episodes
+    // docs/design/analysis/name-resolution-proofs/variable.error-reset-distinct-episodes.md
     #[test]
     fn public_error_resets_preserve_global_headers_and_start_fresh_episodes() {
         use super::super::Code;
@@ -1004,6 +1006,8 @@ mod tests {
         }
     }
 
+    // Native proof: naming.variable.error-globals-bootstrap-and-legacy-copy
+    // docs/design/analysis/name-resolution-proofs/variable.error-globals-bootstrap-and-legacy-copy.md
     #[test]
     fn hidden_error_reads_and_unsets_match_original_native_objects() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1108,6 +1112,10 @@ mod tests {
         (count("explicit-error\t"), count("after-reset\t"))
     }
 
+    // Native proof: naming.variable.error-producer-reset-callback-order
+    // docs/design/analysis/name-resolution-proofs/variable.error-producer-reset-callback-order.md
+    // Native proof: naming.variable.error-producer-script-trace-reset-order
+    // docs/design/analysis/name-resolution-proofs/variable.error-producer-script-trace-reset-order.md
     #[test]
     fn original_private_error_primaries_and_script_reset_match_native_producers() {
         for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1221,37 +1229,31 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(interp.eval_str(b"proc hook {args} {}; trace add variable ::errorInfo read hook; trace remove variable ::errorInfo read hook"), super::super::Code::Ok);
-                assert!(
-                    interp
-                        .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
-                        .is_some()
-                );
+                assert!(interp
+                    .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
+                    .is_some());
                 assert_eq!(
                     interp.eval_str(b"array set ::errorInfo {k value}; unset ::errorInfo"),
                     super::super::Code::Ok
                 );
-                assert!(
-                    interp
-                        .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
-                        .is_some()
-                );
+                assert!(interp
+                    .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
+                    .is_some());
                 assert!(!interp.var_unset(b"::errorInfo"));
                 interp.delete_namespace_by_id(GLOBAL);
-                assert!(
-                    interp
-                        .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
-                        .is_some()
-                );
-                assert!(
-                    interp
-                        .native_error_variable_at(&interp.trace_identity(b"::errorCode"))
-                        .is_some()
-                );
+                assert!(interp
+                    .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
+                    .is_some());
+                assert!(interp
+                    .native_error_variable_at(&interp.trace_identity(b"::errorCode"))
+                    .is_some());
             }
             assert_eq!(counters::finalize(), 0, "{profile}");
         }
     }
 
+    // Native proof: naming.variable.error-info-append-original-object
+    // docs/design/analysis/name-resolution-proofs/variable.error-info-append-original-object.md
     #[test]
     fn error_info_byte_append_preserves_seed_primary_until_nonempty_mutation() {
         counters::reset();

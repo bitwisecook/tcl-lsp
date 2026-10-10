@@ -114,6 +114,108 @@ impl<'w> NativeCompilerWords<'w> {
         self.literals.get(original_index)?.as_deref()
     }
 
+    /// Original source extent of a static native-value range. Channel units
+    /// map through the shared literal owner; an escape maps only at its whole
+    /// selected token boundaries. Folded braced continuations and ambiguous
+    /// boundaries decline. This is readonly correspondence, without edit or
+    /// compilation authority.
+    #[must_use]
+    pub fn original_literal_extent(
+        &self,
+        original_index: usize,
+        native: std::ops::Range<usize>,
+    ) -> Option<tcl_lexer::Span> {
+        let value = self.literal(original_index)?;
+        if native.start > native.end || native.end > value.len() {
+            return None;
+        }
+        let word = self.original.get(original_index)?;
+        if word.group().kind == WordKind::Braced {
+            let content = word.content_span().ok()?;
+            let raw = word.image().bytes().get(content.as_range())?;
+            let literal = tcl_syntax::backslash::native_source_literal_bytes(
+                raw,
+                word.image().channel(),
+                self.protocol,
+            )
+            .ok()?;
+            if literal.as_ref() != value {
+                return None;
+            }
+            let extent = tcl_syntax::backslash::native_source_literal_extent(
+                raw,
+                word.image().channel(),
+                self.protocol,
+                native,
+            )?;
+            return Some(tcl_lexer::Span::new(
+                content
+                    .start()
+                    .checked_add(u32::try_from(extent.start).ok()?)?,
+                content
+                    .start()
+                    .checked_add(u32::try_from(extent.end).ok()?)?,
+            ));
+        }
+        let arena = word.executable_parts();
+        let mut offset = 0_usize;
+        let mut start = None;
+        let mut end = None;
+        for part in arena.list(arena.root()) {
+            let bytes = tcl_syntax::backslash::native_arena_text(
+                arena,
+                part,
+                word.config().escapes,
+                self.protocol,
+            )
+            .ok()?;
+            let next = offset.checked_add(bytes.len())?;
+            let point = |boundary: usize| {
+                let local = boundary.checked_sub(offset)?;
+                if local > bytes.len() {
+                    return None;
+                }
+                let local = match &part.part {
+                    ExecutablePart::Text(ExecutableText::Original) => {
+                        let raw = arena.bytes(part.span)?;
+                        tcl_syntax::backslash::native_source_literal_extent(
+                            raw,
+                            arena.image().channel(),
+                            self.protocol,
+                            local..local,
+                        )?
+                        .start
+                    }
+                    ExecutablePart::Text(ExecutableText::Decoded(_)) => {
+                        let raw = arena.bytes(part.span)?;
+                        tcl_syntax::backslash::native_source_string_extent(
+                            raw,
+                            arena.image().channel(),
+                            word.config().escapes,
+                            self.protocol,
+                            local..local,
+                        )?
+                        .start
+                    }
+                    _ => return None,
+                };
+                part.span.start().checked_add(u32::try_from(local).ok()?)
+            };
+            for (boundary, selected) in [(native.start, &mut start), (native.end, &mut end)] {
+                if offset <= boundary && boundary <= next {
+                    let original = point(boundary)?;
+                    if selected.is_some_and(|previous| previous != original) {
+                        return None;
+                    }
+                    *selected = Some(original);
+                }
+            }
+            offset = next;
+        }
+        (offset == value.len()).then_some(())?;
+        Some(tcl_lexer::Span::new(start?, end?))
+    }
+
     /// Independently selected source-word recipe used to form static values.
     #[must_use]
     pub const fn source_protocol(&self) -> NativeStringProtocol {
@@ -284,14 +386,29 @@ fn capture_word(
         let original = arena
             .bytes(span)
             .ok_or(NativeCompilerWordsUnavailable::SourceOwnership)?;
-        let value = tcl_syntax::backslash::source_braced_word_bytes(
+        let value = tcl_syntax::backslash::native_source_braced_word_bytes(
             original,
             word.image().channel(),
             word.config().brace_backslash_newline,
-        );
+            protocol,
+        )
+        .map_err(|error| {
+            NativeCompilerWordsUnavailable::Text(
+                tcl_syntax::backslash::NativeArenaTextUnavailable::Source(error),
+            )
+        })?;
         let continuation = value.as_ref()
-            != tcl_syntax::backslash::source_literal_bytes(original, word.image().channel())
-                .as_ref();
+            != tcl_syntax::backslash::native_source_literal_bytes(
+                original,
+                word.image().channel(),
+                protocol,
+            )
+            .map_err(|error| {
+                NativeCompilerWordsUnavailable::Text(
+                    tcl_syntax::backslash::NativeArenaTextUnavailable::Source(error),
+                )
+            })?
+            .as_ref();
         (
             if continuation && word.config().brace_backslash_newline.folds() {
                 Shape::BackslashLiteral
@@ -362,6 +479,70 @@ mod tests {
     }
 
     #[test]
+    fn original_document_words_match_native_character_channel_values() {
+        // Native proof: naming.source.document-native-utf-ingress
+        // docs/design/analysis/name-resolution-proofs/document-native-utf-ingress.md
+        let source = include_bytes!("../../tcl-syntax/tests/data/native_source_ingress/source.tcl");
+        let observations =
+            include_str!("../../tcl-syntax/tests/data/native_source_ingress/observations.tsv");
+        for version in TclVersion::ALL {
+            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            for channel in [
+                tcl_lexer::SourceChannel::Document,
+                tcl_lexer::SourceChannel::NativeValue,
+            ] {
+                let image = SourceImage::from_bytes(source.as_slice(), channel);
+                let commands = native_script_words_in(
+                    image.clone(),
+                    Span::new(0, u32::try_from(image.len()).unwrap()),
+                    LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap()
+                .commands;
+                for command in commands {
+                    let captured = NativeCompilerWords::capture(
+                        &command.words,
+                        NativeStringProtocol::C(version),
+                    )
+                    .unwrap();
+                    let name = std::str::from_utf8(captured.literal(1).unwrap()).unwrap();
+                    let path = if channel == tcl_lexer::SourceChannel::Document {
+                        "character-channel-source"
+                    } else {
+                        "counted-native-source"
+                    };
+                    let row = observations
+                        .lines()
+                        .filter(|row| !row.starts_with('#'))
+                        .map(|row| row.split('\t').collect::<Vec<_>>())
+                        .find(|row| {
+                            row[0].starts_with(version.version_string())
+                                && row[1] == path
+                                && row[2] == name
+                        })
+                        .unwrap();
+                    let expected = row[3]
+                        .as_bytes()
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|pair| {
+                            u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap()
+                        })
+                        .collect::<Vec<_>>();
+                    assert_eq!(
+                        captured.literal(2),
+                        Some(expected.as_slice()),
+                        "{version:?} {channel:?} {name}"
+                    );
+                    assert_eq!(command.words[2].image(), &image);
+                    assert_eq!(captured.source_protocol(), NativeStringProtocol::C(version));
+                }
+            }
+        }
+    }
+
+    #[test]
     fn byte_literals_remain_static_and_source_shapes_remain_original() {
         let original = words(b"list \xff\0tail \\u0000 $x {*}[get]");
         let captured =
@@ -381,6 +562,84 @@ mod tests {
             ]
         );
         assert_eq!(captured.original_words()[4].written_bytes(), b"{*}[get]");
+    }
+
+    #[test]
+    fn original_literal_extents_preserve_grouping_escapes_and_channel_units() {
+        // Implementation contract: naming.source.native-string-original-extents
+        // docs/design/analysis/name-resolution-proofs/native-string-original-extents.md
+        use tcl_syntax::naming::{NativeNameProtocol, NativeVariableInputForm};
+        for source in [
+            b"set ::N::v\\uD800(k) value".as_slice(),
+            b"set \"::N::v\\uD800(k)\" value",
+            b"set {::N::v\xed\xa0\x80(k)} value",
+        ] {
+            let original = words(source);
+            let captured =
+                NativeCompilerWords::capture(&original, NativeStringProtocol::C(TclVersion::V9_0))
+                    .unwrap();
+            let extent = NativeNameProtocol::C(TclVersion::V9_0)
+                .variable_root_tail_extent(NativeVariableInputForm::Combined(
+                    captured.literal(1).unwrap(),
+                ))
+                .unwrap();
+            let span = captured.original_literal_extent(1, extent).unwrap();
+            let expected = if source.contains(&b'\\') {
+                b"v\\uD800".as_slice()
+            } else {
+                b"v\xed\xa0\x80".as_slice()
+            };
+            assert_eq!(
+                original[1].image().bytes().get(span.as_range()),
+                Some(expected)
+            );
+        }
+        let original = words(b"set \\uD800 value");
+        let captured =
+            NativeCompilerWords::capture(&original, NativeStringProtocol::C(TclVersion::V9_0))
+                .unwrap();
+        assert_eq!(captured.literal(1), Some(b"\xed\xa0\x80".as_slice()));
+        assert!(captured.original_literal_extent(1, 0..1).is_none());
+        assert_eq!(
+            original[1].image().bytes().get(
+                captured
+                    .original_literal_extent(1, 0..3)
+                    .unwrap()
+                    .as_range()
+            ),
+            Some(b"\\uD800".as_slice())
+        );
+        let original = words(b"set {a\\\n b} value");
+        let captured =
+            NativeCompilerWords::capture(&original, NativeStringProtocol::C(TclVersion::V9_0))
+                .unwrap();
+        assert!(captured.original_literal_extent(1, 0..1).is_none());
+
+        let source = b"set {v\0tail} value";
+        let image = SourceImage::document(std::str::from_utf8(source).unwrap());
+        let original = native_script_words_in(
+            image.clone(),
+            Span::new(0, u32::try_from(image.len()).unwrap()),
+            LexerConfig::from_grammar(tcl_dialect::DialectProfile::find("tcl9.0").unwrap().grammar),
+        )
+        .unwrap()
+        .commands
+        .remove(0)
+        .words;
+        let captured =
+            NativeCompilerWords::capture(&original, NativeStringProtocol::C(TclVersion::V9_0))
+                .unwrap();
+        assert_eq!(captured.literal(1), Some(b"v\xc0\x80tail".as_slice()));
+        assert!(captured.original_literal_extent(1, 1..2).is_none());
+        assert_eq!(
+            image.bytes().get(
+                captured
+                    .original_literal_extent(1, 1..3)
+                    .unwrap()
+                    .as_range()
+            ),
+            Some(b"\0".as_slice())
+        );
     }
 
     #[test]

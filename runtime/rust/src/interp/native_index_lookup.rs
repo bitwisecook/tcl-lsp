@@ -134,26 +134,7 @@ impl Interp {
         exact: bool,
         noun: &'static str,
     ) -> Result<usize, tcl_cmd_core::CmdError> {
-        let dialect = self.native_invocation_dialect();
-        if dialect.native_string_protocol()
-            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
-        {
-            if obj::native_index::cache(original).is_some() {
-                return Err(
-                    ValueError::CommandProtocolUnavailable("foreign native Index origin").into(),
-                );
-            }
-            let bytes = self.native_string_bytes(&original)?;
-            let table = if exact {
-                tcl_cmd_core::prefix::OptionTable::exact_only(noun, words)
-            } else {
-                tcl_cmd_core::prefix::OptionTable::abbreviating(noun, words)
-            };
-            return table.index_of(&bytes).map_err(|message| {
-                tcl_cmd_core::CmdError::with_error_code_bytes(message, b"NONE")
-            });
-        }
-        self.native_index_operand(
+        self.native_original_static_option_index(
             original,
             &NativeStaticIndexTable::supported_backend_bytes(words),
             exact,
@@ -168,12 +149,41 @@ impl Interp {
         exact: bool,
         noun: &'static str,
     ) -> Result<usize, tcl_cmd_core::CmdError> {
-        self.native_index_operand(
+        self.native_original_static_option_index(
             original,
             &NativeStaticIndexTable::supported_backend(words),
             exact,
             noun,
         )
+    }
+
+    fn native_original_static_option_index(
+        &mut self,
+        original: *mut TclObj,
+        table: &NativeStaticIndexTable,
+        exact: bool,
+        noun: &'static str,
+    ) -> Result<usize, tcl_cmd_core::CmdError> {
+        if self
+            .native_invocation_dialect()
+            .native_jim_enum_protocol()
+            .is_some()
+        {
+            return self
+                .native_jim_enum_from_original(
+                    original,
+                    table,
+                    tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact),
+                    Some(noun.as_bytes()),
+                )?
+                .map_err(|message| {
+                    tcl_cmd_core::CmdError::with_error_code_bytes(
+                        message.unwrap_or_default(),
+                        b"NONE",
+                    )
+                });
+        }
+        self.native_index_operand(original, table, exact, noun)
     }
 
     pub(crate) fn native_index_operand(
@@ -360,6 +370,8 @@ mod tests {
 
     #[test]
     fn original_index_flags_and_offsets_match_all_native_31_windows() {
+        // Native proof: naming.index.original-temporary-table-flag
+        // docs/design/analysis/name-resolution-proofs/index-original-temporary-table-flag.md
         use tcl_core_types::NativeIndexLookupFlags as Flags;
         const FIELDS: &[&str] = &["provide", "padding", "present"];
         const FLAGS_WORDS: &[&str] = &["provide", "present", ""];

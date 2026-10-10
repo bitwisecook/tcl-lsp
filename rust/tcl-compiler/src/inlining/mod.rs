@@ -697,6 +697,12 @@ fn build_inlinable_map(
     summaries: &HashMap<String, ProcEscapeSummary>,
     registry: &CommandRegistry,
 ) -> HashMap<String, InlineSpec> {
+    // The transform binds ordinary positional cells, ordered defaults and a
+    // final rest slot. Name-only Jim headers cannot issue that activation;
+    // unknown axes preserve dispatch instead of borrowing C Tcl binding.
+    if module.parameter_grammar() != Some(tcl_dialect::ParameterGrammar::Tcl) {
+        return HashMap::new();
+    }
     let counts = count_static_calls(module, summaries);
     // The module's own dialect, resolved once here — the lowered module names
     // it, and this is the only point in the inliner's recursion that still
@@ -2210,14 +2216,18 @@ fn parse_params_with_defaults(
     param_str: &str,
     rules: WordValueRules,
 ) -> Option<Vec<(String, Option<String>)>> {
-    crate::signature_scan::params::parse_param_list_strict(param_str, rules)
-        .ok()
-        .map(|parameters| {
-            parameters
-                .into_iter()
-                .map(|parameter| (parameter.name, parameter.default))
-                .collect()
-        })
+    crate::signature_scan::params::parse_param_list_strict_in(
+        param_str,
+        rules,
+        tcl_dialect::ParameterGrammar::Tcl,
+    )
+    .ok()
+    .map(|parameters| {
+        parameters
+            .into_iter()
+            .map(|parameter| (parameter.name, parameter.default))
+            .collect()
+    })
 }
 
 /// Return True iff `text` can be safely spliced verbatim into a Tcl

@@ -1,0 +1,4 @@
+PATCHLEVEL 0.84-9-g5bac7c9
+RESULT literal_array_write 0 NEW NONE 0
+RESULT dynamic_array_write 0 NEW NONE 0
+RESULT procedure_array_write 0 NEW NONE 0

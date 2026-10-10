@@ -1,0 +1,157 @@
+[
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/manifest.json",
+    "sha256": "97b25f18972514555ff9e9af486c2a7ba42691a2c5c52af8c4efdda9cde00002",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.jim-decimal-string-switch"
+    ],
+    "reason": "Exact retained source hash and32 rows inspected; both errno groups and all input/value outcomes preserved. Original output checksum unrecorded and no object/expression numeric proof inferred."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/int/manifest.json",
+    "sha256": "7570c7e689881907b85bbdbe2f29a714981bf90fd2e909abf96eb120fc1c13ed",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.primitive-int-original-width-cache"
+    ],
+    "reason": "Exact source checksum verified; each embedded original JSON row array exactly matches its retained TSV projection for14 cases\u00d75 releases. No missing original full JSONL stdout/header/build/status data is invented."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/long84/manifest.json",
+    "sha256": "c87897b71108a7116232510ba74679eb4c4c7db376ac03bd0e27d6971c13849a",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.c84-long-wide-original-primary"
+    ],
+    "reason": "Source SHA and META/39 original windows inspected against capture metadata; explicit eight-byte host widths retained, compile/run0 and empty stderr, zero recorded Rust comparisons."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/number/manifest.json",
+    "sha256": "b8c0ec8b20cd84a914dc6183a68cc6e6d19747b46b3c6204ab416a7548968f20",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.get-number-null",
+      "naming.numeric.get-bignum-interpreter",
+      "naming.numeric.increment-original-object"
+    ],
+    "reason": "Exact source and six full JSONL SHA/status/row-count checks matched. Four\u00d748 numeric windows assigned by actual stage, and two single compile-out sentinels retained as non-attempt limitations, not guest unavailable claims."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/character-units-manifest.json",
+    "sha256": "dd298ee27c000f15669f25260924e997aeebaf985934864c8055d9e078a9e2d8",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.utf.native-unit-decode",
+      "naming.utf.native-isolated-unit-encode",
+      "naming.utf.native-previous-boundary"
+    ],
+    "reason": "All five exact source/output digests14 rows/run0 checked; decode, isolated encoding and reverse boundaries separately assigned, no strict UTF document/native ingress equivalence."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-manifest.json",
+    "sha256": "2cf9bd790a9fb140779a0c207e8000c95a1a959cef199ecacdcef822ebd54e93",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.units-wide-frontier",
+      "naming.numeric.units-double-frontier",
+      "naming.numeric.units-boolean-frontier"
+    ],
+    "reason": "Exact source hashes, recorded row counts/run0 and selected getter/storage/case axes inspected. Original receipt does not record a full stdout digest; each permanent stream checksum is current evidence, not an invented original checksum."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/octal-manifest.json",
+    "sha256": "6370e62c3ec2c4efe44a1d32159f33afb5466eefb268ef6d2f0c244a3f636e54",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.octal-wide-frontier",
+      "naming.numeric.octal-double-frontier",
+      "naming.numeric.octal-boolean-frontier"
+    ],
+    "reason": "Exact source hashes, recorded row counts/run0 and selected getter/storage/case axes inspected. Original receipt does not record a full stdout digest; each permanent stream checksum is current evidence, not an invented original checksum."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-manifest.json",
+    "sha256": "abd1aa67ce636d818931a02acf78f660c303699730941e699fd5b9f29e7ab6b1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.seeded-wide-frontier",
+      "naming.numeric.seeded-double-frontier",
+      "naming.numeric.seeded-boolean-frontier"
+    ],
+    "reason": "Exact source hashes, recorded row counts/run0 and selected getter/storage/case axes inspected. Original receipt does not record a full stdout digest; each permanent stream checksum is current evidence, not an invented original checksum."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/jim-error-state-manifest.json",
+    "sha256": "38a079fe74892a3dd82c9f0afc837b14bb7eb742be3dc502315fb902f5fae012",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.seeded-wide-frontier",
+      "naming.numeric.seeded-double-frontier",
+      "naming.numeric.seeded-boolean-frontier"
+    ],
+    "reason": "Exact distinct Jim source/output digest33 rows/run0 checked; eleven original fresh Strings for three getters, preserving its explicitly seeded variable state separately from C ByteArray/priming/primitive-result axes."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/manifest.json",
+    "sha256": "bb47d188ccf347a678bf3a4c9087579b30d93606a41c73fd5f094b6ae2b72924",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.expression.original-direct-arithmetic-error-stage",
+      "naming.expression.original-direct-boolean-error-stage",
+      "naming.expression.original-entered-command-error-stage"
+    ],
+    "reason": "All five exact probe/library/output hashes18 rows per release inspected and assigned by authentic route0/1/2; unrecorded process/build fields stay unrecorded, direct inside state not donated from later propagated result."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/manifest.json",
+    "sha256": "1fcd6050b8820dd07d75cd05b1fd36855b176afbf5baa191944616dfc92f9a8b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.increment-original-update-free-callbacks"
+    ],
+    "reason": "Exact source SHA and all five embedded full4-row output streams match retained files; callback cell/worker effects measured through compiled/generic routes, no quiet-source inference."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-increment-manifest.json",
+    "sha256": "cff27e95a2ff43b49e77c99f934797242bd0a1a3955a07595423b20a33451b11",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.increment-original-update-free-callbacks"
+    ],
+    "reason": "Distinct exact Jim source/output hashes/run0/four direct-alias update/free rows retained; no C compiler route or version/configure equivalence inferred."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-manifest.json",
+    "sha256": "1812590a1b0025e65eaa82f9cb78aff148c373683c62ca28529cbfab090ecdb4",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.sqrt-original-update-free-callbacks",
+      "naming.numeric.sin-original-update-free-callbacks",
+      "naming.numeric.double-original-update-free-callbacks",
+      "naming.numeric.abs-original-update-free-callbacks"
+    ],
+    "reason": "Exact C source SHA and five embedded full16-row streams equal retained files; four separate function questions, each actual compiler/generic and update/free input pair scoped."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-math-hooks-manifest.json",
+    "sha256": "e4e46bed7b5016ad10780ab5913664dc2194649641c0be0f6384558788450b5b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.sqrt-original-update-free-callbacks",
+      "naming.numeric.sin-original-update-free-callbacks",
+      "naming.numeric.double-original-update-free-callbacks",
+      "naming.numeric.abs-original-update-free-callbacks"
+    ],
+    "reason": "Exact distinct Jim source/output hashes16 rows/run0; each direct/alias function operand mutation scoped independently from C compiler/method lookup purposes."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-timing-manifest.json",
+    "sha256": "f7edbd8b16833aaafb6031e6c07eca23b080cf1566f5bc6ecf757ed779508c36",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric.sqrt-original-function-selection-timing"
+    ],
+    "reason": "Exact source hash, five embedded output streams and run0 checked. Original replacement math API/command branches and sqrt result-versus99 timing retained; different worker-mutation probe is not substituted."
+  }
+]

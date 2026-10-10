@@ -298,6 +298,15 @@ mod tests {
     }
     #[test]
     fn original_range_and_assignment_match_84_native_completion_and_original_header_pairs() {
+        // Native proof: naming.list.assignment-interleaved-target-effects
+        // docs/design/analysis/name-resolution-proofs/list.assignment-interleaved-target-effects.md
+
+        // Native proof: naming.list.original-assign-objects-and-instructions
+        // docs/design/analysis/name-resolution-proofs/list.original-assign-objects-and-instructions.md
+
+        // Native proof: naming.list.original-range-objects-and-instructions
+        // docs/design/analysis/name-resolution-proofs/list.original-range-objects-and-instructions.md
+
         let mut windows = 0;
         for &(engine, list, order) in LIST_TABLES {
             for (rows, bodies, cases) in [

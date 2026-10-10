@@ -67,6 +67,8 @@ pub(super) struct FactoryCandidate {
     /// Effective rooted constructed namespace key at the call site.
     pub(super) ns_prefix: String,
     pub(super) namespace_scope: Option<SignatureNamespaceScope>,
+    pub(super) original_head: Option<super::scope::SignatureSourceNameKey>,
+    pub(super) original_name: Option<super::scope::SignatureSourceNameKey>,
 }
 
 /// First-pass record of a proc body, used to identify factory
@@ -118,6 +120,9 @@ pub(super) struct ScanCtx<'r> {
     /// as command invocations.  `None` in `Default` (focused unit tests
     /// that bypass registry dispatch).
     pub(super) registry: Option<&'r tcl_registry::CommandRegistry>,
+    /// Optional exact-image inventory supplied by a caller that already owns
+    /// source analysis. Header-only callers never build this inventory here.
+    pub(super) original_bindings: Option<&'r crate::command_binding::SourceCommandBindings>,
     /// The document dialect's word-value rules — how a braced word's
     /// `\<newline>` folds and how list text divides — used by every
     /// re-parse of a scanned word (a proc's parameter list, an OO member's).
@@ -132,15 +137,162 @@ pub(super) struct ScanCtx<'r> {
     /// the registry's own profile.
     pub(super) config: tcl_lexer::LexerConfig,
     pub(super) namespace_scope: Option<SignatureNamespaceScope>,
+    /// Complete original document, distinct from decoded body display text.
+    pub(super) original_image: Option<tcl_lexer::SourceImage>,
+    /// Canonical current command vector, saved across recursive source walks.
+    pub(super) original_words: Vec<tcl_lexer::NativeWord>,
     pub(super) ambiguous_proc_names: std::collections::HashSet<String>,
 }
 
 impl ScanCtx<'_> {
+    pub(super) fn original_callback_prefix(
+        &self,
+        command: &crate::segmenter::SegmentedCommand,
+        written: usize,
+    ) -> Option<crate::command_binding::OriginalCallbackPrefix> {
+        let registry = self.registry?;
+        if let Some(bindings) = self.original_bindings {
+            let binding = bindings.invocation_at_source("", command.span.start());
+            let recorded = binding.original_recorded_command();
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CALLBACK").is_some() {
+                eprintln!(
+                    "ORIGINAL_CALLBACK_SCAN written={written} span={:?} recorded={:?}",
+                    command.span,
+                    recorded
+                        .as_ref()
+                        .map(|(original, _)| (original.span, original.argv == command.argv))
+                );
+            }
+            let (original, mut tokens) = recorded?;
+            if original.span != command.span || original.argv != command.argv {
+                return None;
+            }
+            tokens.source_binding = Some(binding.clone());
+            // Matching original inventory is authoritative, including refusal.
+            // A replaced/deleted installer never borrows a header's callback role.
+            return binding.original_callback_prefix(&tokens, written, registry);
+        }
+        // Without a matching site issuer, only a readonly static operand can
+        // survive. Registry metadata chooses its evaluator; lookup stays absent.
+        let dialect = crate::environment_ingress::authoring_invocation_dialect(
+            registry,
+            registry.profile(),
+            self.config,
+        );
+        let native = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+            &self.original_words,
+            dialect.native_string_protocol()?,
+        )
+        .ok()?;
+        let words: Vec<_> = self
+            .original_words
+            .iter()
+            .enumerate()
+            .map(|(ordinal, word)| {
+                if word.group().expand {
+                    return tcl_registry::InvocationWord::Expanded;
+                }
+                native
+                    .literal(ordinal)
+                    .and_then(|value| core::str::from_utf8(value).ok())
+                    .map_or(
+                        tcl_registry::InvocationWord::Dynamic,
+                        tcl_registry::InvocationWord::Literal,
+                    )
+            })
+            .collect();
+        let (head, arguments) = words.split_first()?;
+        let resolution = registry.resolve_structured_invocation(
+            tcl_registry::InvocationWords::structured(*head, arguments).with_dialect(dialect),
+            registry.own_surface_query(),
+        );
+        let facts = resolution.resolved()?.facts();
+        crate::command_binding::OriginalCallbackPrefix::from_original_static_operand(
+            self.original_words.get(written)?,
+            &facts,
+            written.checked_sub(1)?,
+            dialect,
+        )
+    }
+
     /// Pure source assistance; the policy never supplies a runtime lookup receipt.
     pub(super) fn name_policy(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
         self.registry?.profile().and_then(|profile| {
             tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
         })
+    }
+
+    pub(super) fn original_name_key(
+        &self,
+        span: tcl_lexer::Span,
+    ) -> Option<super::scope::SignatureSourceNameKey> {
+        let mut selected = self.original_words.iter().filter(|word| {
+            word.span() == span
+                || word
+                    .tokens()
+                    .first()
+                    .is_some_and(|token| token.span == span)
+        });
+        let word = selected.next()?;
+        if selected.next().is_some() {
+            return None;
+        }
+        super::scope::SignatureSourceNameKey::from_original_native_word(
+            word,
+            self.rules,
+            self.name_policy()?,
+        )
+    }
+
+    pub(super) fn formal_count(
+        &self,
+        span: tcl_lexer::Span,
+    ) -> super::formal_count::SourceFormalCount {
+        use super::formal_count::SourceFormalCount;
+        let Some(registry) = self.registry else {
+            return SourceFormalCount::Authored(tcl_dialect::ParameterGrammar::Tcl);
+        };
+        let dialect =
+            crate::environment_ingress::authoring_invocation_dialect(registry, None, self.config);
+        if dialect.authored_name_policy().is_none() {
+            return SourceFormalCount::Authored(
+                dialect
+                    .parameter_grammar()
+                    .unwrap_or(tcl_dialect::ParameterGrammar::Tcl),
+            );
+        }
+        self.original_name_key(span)
+            .as_ref()
+            .map_or(SourceFormalCount::Unknown, |input| {
+                SourceFormalCount::from_original_input(input, dialect)
+            })
+    }
+
+    pub(super) fn original_command_words(
+        &self,
+        command: &crate::segmenter::SegmentedCommand,
+    ) -> Option<Vec<tcl_lexer::NativeWord>> {
+        let plan = tcl_lexer::native_script_words_in(
+            self.original_image.clone()?,
+            command.span,
+            self.config,
+        )
+        .ok()?;
+        if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+            return None;
+        }
+        let original = &plan.commands[0];
+        if original.words.len() != command.argv.len()
+            || !original
+                .words
+                .iter()
+                .zip(&command.argv)
+                .all(|(word, token)| word.tokens().first() == Some(token))
+        {
+            return None;
+        }
+        Some(original.words.clone())
     }
 
     pub(super) fn current_namespace(&self, compatibility: &str) -> Option<SignatureNamespaceScope> {
@@ -154,6 +306,7 @@ impl ScanCtx<'_> {
         &self,
         namespace: &SignatureNamespaceScope,
         written: &str,
+        original: Option<&super::scope::SignatureSourceNameKey>,
     ) -> Option<(
         String,
         String,
@@ -170,10 +323,20 @@ impl ScanCtx<'_> {
                 None,
             ));
         };
-        let source_name = SignatureSourceCommand::procedure_in_context(policy, namespace, written)?;
-        let qualified = source_name.reported_full_name()?;
+        let source_name = match original {
+            Some(key) => SignatureSourceCommand::procedure_from_key(namespace, key)?,
+            None if self.original_image.is_none() => {
+                SignatureSourceCommand::procedure_in_context(policy, namespace, written)?
+            }
+            None => return None,
+        };
+        let qualified = source_name
+            .reported_full_name()
+            .unwrap_or_else(|| written.to_owned());
         let body_scope = source_name.body_scope()?;
-        let simple = source_name.simple_name()?;
+        let simple = source_name
+            .simple_name()
+            .unwrap_or_else(|| written.to_owned());
         Some((qualified, simple, body_scope, Some(source_name)))
     }
 
@@ -182,45 +345,60 @@ impl ScanCtx<'_> {
         namespace: &SignatureNamespaceScope,
         written: &str,
         purpose: tcl_syntax::naming::NativeNamePurpose,
+        span: tcl_lexer::Span,
     ) -> Option<(String, Option<SignatureSourceCommand>)> {
         let Some(policy) = self.name_policy() else {
             return Some((crate::naming::qualify(&namespace.display()?, written), None));
+        };
+        let original = self.original_name_key(span);
+        let bytes = match &original {
+            Some(key) => key.bytes(),
+            None if self.original_image.is_none() => written.as_bytes(),
+            None => return None,
         };
         let recipe = policy.recipe();
         let context = namespace.context()?;
         let slot = match purpose {
             tcl_syntax::naming::NativeNamePurpose::CommandPublication => {
-                recipe.command_publication_slot(context, written.as_bytes())
+                recipe.command_publication_slot(context, bytes)
             }
             tcl_syntax::naming::NativeNamePurpose::RenameDestination => {
-                recipe.rename_destination_slot(context, written.as_bytes())
+                recipe.rename_destination_slot(context, bytes)
             }
             tcl_syntax::naming::NativeNamePurpose::AliasPublication => {
-                recipe.alias_publication_slot(context, written.as_bytes())
+                recipe.alias_publication_slot(context, bytes)
+            }
+            tcl_syntax::naming::NativeNamePurpose::OoObjectPublication => {
+                recipe.oo_object_publication_slot(context, bytes)
             }
             _ => return None,
         }
         .ok()?;
-        let reported = if recipe.is_jim084()
-            && purpose != tcl_syntax::naming::NativeNamePurpose::AliasPublication
-        {
-            let reported = recipe
-                .jim_namespace_canonical_input(context, written.as_bytes())
-                .ok()?;
-            format!("::{}", std::str::from_utf8(reported.selected()).ok()?)
-        } else {
-            String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(&slot)).ok()?
+        let source_name = match purpose {
+            tcl_syntax::naming::NativeNamePurpose::OoObjectPublication => match original.as_ref() {
+                Some(key) => SignatureSourceCommand::object_from_key(namespace, key)?,
+                None => SignatureSourceCommand::object_in_context(policy, namespace, written)?,
+            },
+            _ => SignatureSourceCommand::new(policy, slot.clone()),
         };
-        Some((reported, Some(SignatureSourceCommand::new(policy, slot))))
+        let reported = source_name
+            .reported_full_name()
+            .unwrap_or_else(|| written.to_owned());
+        Some((reported, Some(source_name)))
     }
 
     pub(super) fn namespace_context(
         &self,
         namespace: &str,
         written: &str,
+        span: tcl_lexer::Span,
     ) -> Option<SignatureNamespaceScope> {
-        self.current_namespace(namespace)?
-            .child(written, self.name_policy())
+        let parent = self.current_namespace(namespace)?;
+        match self.original_name_key(span) {
+            Some(key) => parent.child_from_key(&key),
+            None if self.original_image.is_none() => parent.child(written, self.name_policy()),
+            None => None,
+        }
     }
 
     pub(super) fn record_proc(&mut self, declaration: SignatureProc) {

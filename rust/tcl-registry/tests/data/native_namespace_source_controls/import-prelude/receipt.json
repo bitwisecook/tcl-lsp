@@ -1,0 +1,116 @@
+[
+  {
+    "provider": "8.4.20",
+    "channel": "ASCII source-file shell ingress; decimal string-index scan-%c result units; no counted API/physical cache grant.",
+    "input_sha256": "36ca69186f9ac05b396ffa557d3e64b66d347c989fda63ef2105a6bc5b39f136",
+    "runner_sha256": "360f7f77864328f22a7b35c6c0be045269908466818dae87ed444a054c655338",
+    "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+    "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "/workspace/.proofs/current-namespace-import-prelude-controls91/cases.tcl"
+    ],
+    "reported_version": "8.4.20",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "f009714dbe41b9d301b7946b32384131c78e03797b227f760baecf60689e235f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 1,
+    "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+  },
+  {
+    "provider": "8.5.19",
+    "channel": "ASCII source-file shell ingress; decimal string-index scan-%c result units; no counted API/physical cache grant.",
+    "input_sha256": "36ca69186f9ac05b396ffa557d3e64b66d347c989fda63ef2105a6bc5b39f136",
+    "runner_sha256": "360f7f77864328f22a7b35c6c0be045269908466818dae87ed444a054c655338",
+    "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+    "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "/workspace/.proofs/current-namespace-import-prelude-controls91/cases.tcl"
+    ],
+    "reported_version": "8.5.19",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "f009714dbe41b9d301b7946b32384131c78e03797b227f760baecf60689e235f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 1,
+    "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+  },
+  {
+    "provider": "8.6.18",
+    "channel": "ASCII source-file shell ingress; decimal string-index scan-%c result units; no counted API/physical cache grant.",
+    "input_sha256": "36ca69186f9ac05b396ffa557d3e64b66d347c989fda63ef2105a6bc5b39f136",
+    "runner_sha256": "360f7f77864328f22a7b35c6c0be045269908466818dae87ed444a054c655338",
+    "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "/workspace/.proofs/current-namespace-import-prelude-controls91/cases.tcl"
+    ],
+    "reported_version": "8.6.18",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "f009714dbe41b9d301b7946b32384131c78e03797b227f760baecf60689e235f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 1,
+    "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+  },
+  {
+    "provider": "9.0.4",
+    "channel": "ASCII source-file shell ingress; decimal string-index scan-%c result units; no counted API/physical cache grant.",
+    "input_sha256": "36ca69186f9ac05b396ffa557d3e64b66d347c989fda63ef2105a6bc5b39f136",
+    "runner_sha256": "360f7f77864328f22a7b35c6c0be045269908466818dae87ed444a054c655338",
+    "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+    "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "/workspace/.proofs/current-namespace-import-prelude-controls91/cases.tcl"
+    ],
+    "reported_version": "9.0.4",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "f009714dbe41b9d301b7946b32384131c78e03797b227f760baecf60689e235f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 1,
+    "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+  },
+  {
+    "provider": "9.1.0",
+    "channel": "ASCII source-file shell ingress; decimal string-index scan-%c result units; no counted API/physical cache grant.",
+    "input_sha256": "36ca69186f9ac05b396ffa557d3e64b66d347c989fda63ef2105a6bc5b39f136",
+    "runner_sha256": "360f7f77864328f22a7b35c6c0be045269908466818dae87ed444a054c655338",
+    "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+    "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "/workspace/.proofs/current-namespace-import-prelude-controls91/cases.tcl"
+    ],
+    "reported_version": "9.1.0",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "f009714dbe41b9d301b7946b32384131c78e03797b227f760baecf60689e235f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 1,
+    "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+  },
+  {
+    "provider": "jim",
+    "channel": "ASCII source-file shell ingress; decimal string-index scan-%c result units; no counted API/physical cache grant.",
+    "input_sha256": "36ca69186f9ac05b396ffa557d3e64b66d347c989fda63ef2105a6bc5b39f136",
+    "runner_sha256": "360f7f77864328f22a7b35c6c0be045269908466818dae87ed444a054c655338",
+    "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/workspace/.proofs/current-namespace-import-prelude-controls91/cases.tcl"
+    ],
+    "reported_version": "0.84-9-g5bac7c9",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "5fce106c095529b59ce0dee9316a2661e405d7855cc87029478189929f4a4ba9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 1,
+    "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+  }
+]

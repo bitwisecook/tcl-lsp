@@ -42,7 +42,7 @@ pub(super) struct CompilationState {
 pub(super) struct CompilationExecution {
     scripts: Vec<ScriptActivation>,
     invocations: Vec<ActiveInvocation>,
-    builtin_identities: Vec<Option<Vec<u8>>>,
+    builtin_activations: Vec<NativeBuiltinActivation>,
     evaluating_arguments: usize,
     pending: Vec<Option<ScriptActivation>>,
 }
@@ -62,6 +62,12 @@ impl CompilationState {
     pub(super) fn swap_execution(&mut self, other: &mut CompilationExecution) {
         std::mem::swap(&mut self.execution, other);
     }
+}
+
+struct NativeBuiltinActivation {
+    identity: Option<Vec<u8>>,
+    // Actual dispatch selection only; a direct compiled helper has no token.
+    generation: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -122,6 +128,21 @@ impl Interp {
     pub fn host_refusal_pending(&self) -> bool {
         let state = self.native_compilation.borrow();
         state.admission_error.is_some() || state.native_access_refusal.is_some()
+    }
+
+    /// Transport a reached child host failure without manufacturing guest options.
+    /// Each interpreter retains its own actual state; no value or lookup identity
+    /// crosses this channel, and an earlier parent refusal remains authoritative.
+    pub(crate) fn transport_host_refusal_from(&mut self, origin: &Interp) -> super::Code {
+        let origin = origin.native_compilation.borrow();
+        let mut target = self.native_compilation.borrow_mut();
+        if target.admission_error.is_none() {
+            target.admission_error = origin.admission_error;
+        }
+        if target.native_access_refusal.is_none() {
+            target.native_access_refusal = origin.native_access_refusal;
+        }
+        super::Code::Error
     }
 
     pub(crate) fn refuse_unicode_access(
@@ -351,10 +372,8 @@ impl Interp {
         let parse::WordBody::Literal(head) = &first.body else {
             return None;
         };
-        let lookup_generation = self
-            .namespaces
-            .borrow()
-            .resolve_generation(namespace, head)?;
+        let (_, lookup_generation) = self.resolve_dispatchable_with_generation(namespace, head)?;
+        let lookup_generation = lookup_generation?;
         let (identity, spec, handler) = {
             let namespaces = self.namespaces.borrow();
             match namespaces.native_compiler_recipe(lookup_generation)? {
@@ -966,11 +985,78 @@ impl Interp {
             return Err(self.report_cmd_error(error.into()));
         }
 
-        // Pre-link a TclOO method's declared instance variables: each name in
-        // the frame becomes a link to the object's namespace variable (`ns`), so
-        // the method sees instance state without an explicit `variable`.
-        for (local, target) in meta.link_vars {
-            self.make_tcloo_variable_mapped(ns, local, target);
+        if let Some(resolver) = meta.oo_variable_resolver.take() {
+            let installed = self
+                .frames
+                .borrow_mut()
+                .install_tcloo_variable_resolver(resolver);
+            if let Err(error) = installed {
+                let popped = self.pop_native_call_frame();
+                self.current_ns.set(saved_ns);
+                self.leave_namespace_activation(popped);
+                self.recursion_depth.set(self.recursion_depth.get() - 1);
+                return Err(crate::builtins::var_error(self, usage_called, error));
+            }
+        }
+        if let Some(layout) = compiled_layout {
+            let protocol = match self.require_variable_name_protocol() {
+                Ok(protocol) => protocol,
+                Err(error) => {
+                    let popped = self.pop_native_call_frame();
+                    self.current_ns.set(saved_ns);
+                    self.leave_namespace_activation(popped);
+                    self.recursion_depth.set(self.recursion_depth.get() - 1);
+                    return Err(crate::builtins::var_error(self, usage_called, error));
+                }
+            };
+            // C compiled-local initialisers exclude arguments and temporaries:
+            // TclInitCompiledLocals in C8, InitResolvedLocals in C9. Actual
+            // formal slots keep their local cells; retained layout None entries
+            // independently exclude unnamed temporaries.
+            // naming.procedure.compiled-local-resolver-formal-exclusion
+            // docs/design/analysis/name-resolution-proofs/procedure-compiled-local-resolver-formal-exclusion.md
+            for (slot, primary) in layout.names.iter().enumerate().skip(params.len()) {
+                let Some(primary) = primary else { continue };
+                for (local, target) in meta.link_vars {
+                    let selected = tcl_syntax::naming::native_oo_variable_resolver_matches(
+                        protocol,
+                        tcl_syntax::naming::NativeOoVariableResolverPurpose::CompiledPrimary,
+                        local,
+                        primary.as_bytes(),
+                    );
+                    match selected {
+                        Ok(false) => continue,
+                        Ok(true) => {}
+                        Err(_) => {
+                            let popped = self.pop_native_call_frame();
+                            self.current_ns.set(saved_ns);
+                            self.leave_namespace_activation(popped);
+                            self.recursion_depth.set(self.recursion_depth.get() - 1);
+                            return Err(self.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "TclOO compiled variable resolver",
+                                )
+                                .into(),
+                            ));
+                        }
+                    }
+                    let bound = crate::vars::make_tcloo_compiled_variable(
+                        &mut self.frames.borrow_mut(),
+                        &mut self.namespaces.borrow_mut(),
+                        ns,
+                        slot,
+                        target,
+                    );
+                    if let Err(error) = bound {
+                        let popped = self.pop_native_call_frame();
+                        self.current_ns.set(saved_ns);
+                        self.leave_namespace_activation(popped);
+                        self.recursion_depth.set(self.recursion_depth.get() - 1);
+                        return Err(crate::builtins::var_error(self, primary.as_bytes(), error));
+                    }
+                    break;
+                }
+            }
         }
 
         for binding in bindings {
@@ -1189,8 +1275,11 @@ impl Interp {
         });
         self.native_compilation
             .borrow_mut()
-            .builtin_identities
-            .push(identity);
+            .builtin_activations
+            .push(NativeBuiltinActivation {
+                identity,
+                generation,
+            });
         let selected =
             generation.and_then(|generation| self.runtime_native_invocation(generation, argv));
         let body = selected.is_some_and(|selected| {
@@ -1222,10 +1311,18 @@ impl Interp {
     pub(crate) fn active_native_builtin_identity(&self) -> Option<Vec<u8>> {
         self.native_compilation
             .borrow()
-            .builtin_identities
+            .builtin_activations
             .last()
-            .cloned()
-            .flatten()
+            .and_then(|activation| activation.identity.clone())
+    }
+
+    /// Actual selected builtin registration generation, independent of argv/report.
+    pub(crate) fn active_builtin_command_generation(&self) -> Option<u64> {
+        self.native_compilation
+            .borrow()
+            .builtin_activations
+            .last()?
+            .generation
     }
 
     fn runtime_native_invocation(
@@ -1310,8 +1407,11 @@ impl Interp {
         };
         self.native_compilation
             .borrow_mut()
-            .builtin_identities
-            .push(Some(selected.identity.clone()));
+            .builtin_activations
+            .push(NativeBuiltinActivation {
+                identity: Some(selected.identity.clone()),
+                generation: None,
+            });
         self.native_compilation
             .borrow_mut()
             .invocations
@@ -1436,7 +1536,7 @@ pub(super) struct NativeBuiltinAdmission {
 impl Drop for NativeBuiltinAdmission {
     fn drop(&mut self) {
         let mut state = self.interpreter.native_compilation.borrow_mut();
-        state.builtin_identities.pop();
+        state.builtin_activations.pop();
         if self.body {
             state.invocations.pop();
         }

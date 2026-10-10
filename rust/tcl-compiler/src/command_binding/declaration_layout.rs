@@ -27,6 +27,12 @@ pub(super) enum OriginalDiagnosticFrameEntry {
         frame: crate::var_resolve::VariableExecutionFrame,
         namespace: super::SourceNamespaceKey,
     },
+    ScriptActivation {
+        source: super::ExecutedScriptSource,
+        frame: crate::var_resolve::VariableExecutionFrame,
+        namespace: super::SourceNamespaceKey,
+        config: tcl_lexer::LexerConfig,
+    },
 }
 
 impl OriginalDiagnosticFrameEntry {
@@ -38,7 +44,9 @@ impl OriginalDiagnosticFrameEntry {
             Self::Body(body) => body.namespace_context(),
             Self::DeclaredReceiver(_) => None,
             Self::DeclaredProcedure(body) => Some(&body.namespace),
-            Self::RootScript { namespace, .. } => Some(namespace),
+            Self::RootScript { namespace, .. } | Self::ScriptActivation { namespace, .. } => {
+                Some(namespace)
+            }
         };
         SourceCommandBindings::context_owns_frame(context, self.frame(), namespace)
     }
@@ -48,7 +56,7 @@ impl OriginalDiagnosticFrameEntry {
             Self::Body(body) => body.source(),
             Self::DeclaredReceiver(body) => body.source(),
             Self::DeclaredProcedure(body) => &body.source,
-            Self::RootScript { source, .. } => source,
+            Self::RootScript { source, .. } | Self::ScriptActivation { source, .. } => source,
         }
     }
 
@@ -57,7 +65,7 @@ impl OriginalDiagnosticFrameEntry {
             Self::Body(body) => body.frame(),
             Self::DeclaredReceiver(body) => body.preview_frame(),
             Self::DeclaredProcedure(body) => &body.frame,
-            Self::RootScript { frame, .. } => frame,
+            Self::RootScript { frame, .. } | Self::ScriptActivation { frame, .. } => frame,
         }
     }
 
@@ -66,7 +74,18 @@ impl OriginalDiagnosticFrameEntry {
             Self::Body(body) => body.parameters(),
             Self::DeclaredReceiver(body) => body.parameters(),
             Self::DeclaredProcedure(body) => &body.parameters,
-            Self::RootScript { .. } => &[],
+            Self::RootScript { .. } | Self::ScriptActivation { .. } => &[],
+        }
+    }
+
+    pub(super) fn original_formal_topology(
+        &self,
+    ) -> Option<&super::formal_topology::OriginalFormalTopology> {
+        match self {
+            Self::Body(body) => body.original_formal_topology(),
+            Self::DeclaredReceiver(body) => body.original_formal_topology(),
+            Self::DeclaredProcedure(body) => body.original_parameters.as_ref(),
+            Self::RootScript { .. } | Self::ScriptActivation { .. } => None,
         }
     }
 
@@ -75,6 +94,32 @@ impl OriginalDiagnosticFrameEntry {
         &source.origin == origin
             && offset >= source.base()
             && u64::from(offset) < u64::from(source.base()) + source.text.len() as u64
+    }
+
+    /// A readonly insertion cursor immediately before an unchanged body's
+    /// closer belongs to that body's naming frame. Source occurrences remain
+    /// half-open; materialised body values cannot borrow this end affinity.
+    fn owns_source_cursor(&self, origin: &Arc<super::SourceOriginId>, offset: u32) -> bool {
+        if self.owns_source(origin, offset) {
+            return true;
+        }
+        let source = self.source();
+        let super::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
+            return false;
+        };
+        let Some(end) = u32::try_from(source.text.len())
+            .ok()
+            .and_then(|length| base.checked_add(length))
+        else {
+            return false;
+        };
+        &source.origin == origin
+            && offset == end
+            && origin
+                .source_image()
+                .bytes()
+                .get(base as usize..end as usize)
+                == Some(source.text.bytes())
     }
 
     #[cfg(test)]
@@ -93,9 +138,48 @@ impl OriginalDiagnosticFrameEntry {
             Self::DeclaredProcedure(body) => &body.frame == frame,
             Self::RootScript {
                 frame: expected, ..
+            }
+            | Self::ScriptActivation {
+                frame: expected, ..
             } => expected == frame,
         }
     }
+}
+
+fn original_alias_place_matches(
+    row: &DeclarationLayoutObservation,
+    input: &crate::signature_scan::scope::SignatureSourceNameInput,
+    alias: &crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt,
+    place: &crate::place::Place,
+) -> bool {
+    use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+    let Some(cell) = place.cell.as_ref() else {
+        return false;
+    };
+    let crate::place::CellOwner::NamespaceIdentity(owner) = &cell.owner else {
+        return false;
+    };
+    if place.dynamic || place.kind == crate::place::PlaceKind::Unknown {
+        return false;
+    }
+    let matched = match alias.target().slot() {
+        SignatureSourceVariableSlot::C { namespace, simple } => {
+            &cell.name == simple
+                && row
+                    .snapshot
+                    .state
+                    .original_namespace_geometry(owner, input.policy())
+                    == Some(crate::signature_scan::scope::SignatureNamespaceScope::C(
+                        namespace.clone(),
+                    ))
+        }
+        SignatureSourceVariableSlot::Jim(key) => &cell.name == key,
+        SignatureSourceVariableSlot::Local { .. } => false,
+    };
+    if !matched {
+        return false;
+    }
+    true
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,7 +206,37 @@ pub(super) fn original_declaration_layouts(
     let original = observations
         .iter()
         .filter(|observation| observation.issuer == DeclarationLayoutIssuer::OriginalDeclaration);
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some()
+        && original.clone().next().is_none()
+    {
+        eprintln!(
+            "ORIGINAL_DECLARATION stage=no-original observations={}",
+            observations.len()
+        );
+    }
     let first = original.clone().next()?;
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+        for observation in original.clone() {
+            eprintln!(
+                "ORIGINAL_DECLARATION offset={} stage=owner entry={} config={} words={} frame={} origin={} context={}",
+                observation
+                    .words
+                    .first()
+                    .map_or(0, |word| word.source().span.start()),
+                observation.entry == first.entry,
+                observation.config == first.config,
+                observation.words == first.words,
+                observation.snapshot.state.variable_frame == *observation.entry.frame(),
+                observation.snapshot.state.current_source_origin.as_ref()
+                    == Some(&observation.entry.source().origin),
+                observation
+                    .entry
+                    .owns_original_context(&observation.snapshot.state.source_variables),
+            );
+        }
+    }
     if original.clone().any(|observation| {
         observation.entry != first.entry
             || observation.config != first.config
@@ -153,6 +267,852 @@ impl Hash for DeclarationLayoutObservation {
 
 pub(super) type DeclarationLayouts =
     BTreeMap<CommandAllocationSite, Vec<DeclarationLayoutObservation>>;
+
+fn original_local_primary_is_byte_unique(
+    state: &ModuleCommandBindings,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    name: &[u8],
+) -> bool {
+    let options = super::SourceAnalysisOptions {
+        native_entry: state.baseline.native_entry.as_deref(),
+        invocation_dialect: state.baseline.dialect,
+        compiled_variable_provider: state.baseline.compiled_variable_provider,
+        ..Default::default()
+    };
+    if options.execution_name_policy()
+        != Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
+            policy,
+        ))
+    {
+        return false;
+    }
+    if policy.recipe().is_jim084() {
+        // Jim installs formals through its selected general setter. It has no
+        // C compiled-local primary to donate; the caller still checks the
+        // exact direct scalar installation and any current alias separately.
+        return true;
+    }
+    options
+        .compiled_variable_protocol()
+        .is_some_and(|compiler| {
+            compiler.compiled_local_name_is_byte_unique(name)
+                && state
+                    .source_variables
+                    .original_formal_topology
+                    .as_ref()
+                    .and_then(|topology| topology.first_compiled_formal_name(name, compiler, false))
+                    .is_none_or(|primary| primary == name)
+        })
+}
+
+/// Immutable original local-frame naming owner. This is a conditional source
+/// declaration identity, not an entered activation or a physical local table.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SourceOriginalVariableFrame {
+    source: super::ExecutedScriptSource,
+    frame: crate::var_resolve::VariableExecutionFrame,
+    config: tcl_lexer::LexerConfig,
+}
+
+impl SourceOriginalVariableFrame {
+    /// Genuine original procedure/method frame selected by its body recipe.
+    #[must_use]
+    pub const fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+        &self.frame
+    }
+
+    /// Complete retained source owner and its truthful body mapping.
+    #[must_use]
+    pub const fn source(&self) -> &super::ExecutedScriptSource {
+        &self.source
+    }
+
+    /// Original full parser configuration retained with the frame recipe.
+    #[must_use]
+    pub const fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        self.config
+    }
+}
+
+impl SourceCommandBindings {
+    pub(super) fn retain_original_script_activation(
+        &mut self,
+        image: &tcl_lexer::SourceImage,
+        base: u32,
+        state: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) {
+        if !matches!(
+            state.variable_frame.layout(),
+            crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+        ) || &state.variable_frame != context.frame
+        {
+            return;
+        }
+        let Some(origin) = state.current_source_origin.as_ref() else {
+            return;
+        };
+        if self.root_origin.as_ref() != Some(origin) {
+            return;
+        }
+        let namespace = context.namespace_identity();
+        if state.source_variables.namespace_identity.as_ref() != Some(&namespace) {
+            return;
+        }
+        let Some(source) =
+            super::ExecutedScriptSource::contiguous_image(Arc::clone(origin), image.clone(), base)
+        else {
+            return;
+        };
+        let entry = Arc::new(OriginalDiagnosticFrameEntry::ScriptActivation {
+            source,
+            frame: state.variable_frame.clone(),
+            namespace,
+            config: context.config,
+        });
+        if !self.original_script_activations.contains(&entry) {
+            self.original_script_activations.push(entry);
+        }
+    }
+
+    fn original_script_activation_at(
+        &self,
+        state: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        origin: &Arc<super::SourceOriginId>,
+        offset: u32,
+    ) -> Option<OriginalDiagnosticFrameEntry> {
+        let namespace = context.namespace_identity();
+        let mut matching = self.original_script_activations.iter().filter(|entry| {
+            matches!(entry.as_ref(), OriginalDiagnosticFrameEntry::ScriptActivation {
+                frame, namespace: selected, config, ..
+            } if frame == &state.variable_frame && frame == context.frame && selected == &namespace && *config == context.config)
+                && entry.owns_source(origin, offset)
+                && entry.owns_original_context(&state.source_variables)
+        });
+        let first = matching.next()?;
+        matching
+            .all(|entry| entry == first)
+            .then(|| first.as_ref().clone())
+    }
+
+    pub(crate) fn original_namespace_variable_symbol_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<(
+        crate::signature_scan::scope::SignatureNamespaceScope,
+        tcl_core_types::NameBytes,
+    )> {
+        if !matches!(
+            receiver,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::LexicalRoot
+                | crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::Operand(
+                    _
+                )
+        ) {
+            return None;
+        }
+        let form = receiver.input_form(input)?;
+        let origin = self.root_origin.as_ref()?;
+        let frame = self.original_variable_frame_at_span(span, config);
+        let mut selected = None;
+        for (site, rows) in &self.declaration_layouts {
+            if &site.source != origin || site.offset > span.start() {
+                continue;
+            }
+            let Some(rows) = original_declaration_layouts(rows) else {
+                continue;
+            };
+            let first = rows.clone().next()?;
+            if first.config != config
+                || !first.entry.owns_source(origin, span.start())
+                || frame.as_ref().is_some_and(|frame| {
+                    first.entry.frame() != frame.frame() || first.entry.source() != frame.source()
+                })
+                || !first.words.iter().any(|word| {
+                    word.source().span.start() <= span.start()
+                        && span.end() <= word.source().span.end()
+                })
+            {
+                continue;
+            }
+            for row in rows {
+                let state = &row.snapshot.state;
+                let context = &state.source_variables;
+                input.is_current(context).then_some(())?;
+                let place = crate::var_resolve::resolve_evaluated_variable_input(
+                    form,
+                    context,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Read,
+                );
+                if place.dynamic || place.kind == crate::place::PlaceKind::Unknown {
+                    return None;
+                }
+                let cell = place.cell.as_ref()?;
+                let crate::place::CellOwner::NamespaceIdentity(owner) = &cell.owner else {
+                    return None;
+                };
+                let value = (
+                    state.original_namespace_geometry(owner, input.policy())?,
+                    cell.name.clone(),
+                );
+                if selected.as_ref().is_some_and(|previous| previous != &value) {
+                    return None;
+                }
+                selected = Some(value);
+            }
+        }
+        selected
+    }
+
+    /// Original local root selected unanimously in the declaration's own
+    /// point. Aliases and unknown bindings cannot borrow the displayed scope.
+    pub(crate) fn original_local_variable_symbol_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<(SourceOriginalVariableFrame, tcl_core_types::NameBytes)> {
+        use tcl_syntax::naming::{
+            NativeNameContext, NativeVariableInputForm, NativeVariableRootGeometry,
+        };
+        let frame = self.original_variable_frame_at_span(span, config);
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+            eprintln!(
+                "ORIGINAL_VARIABLE_LOCAL span={span:?} bytes={:?} frame={} rows={}",
+                input.bytes(),
+                frame.is_some(),
+                self.declaration_layouts.len()
+            );
+        }
+        let frame = frame?;
+        let protocol = input.policy().recipe();
+        if !matches!(
+            receiver,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::LexicalRoot
+                | crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::Operand(
+                    _
+                )
+        ) {
+            return None;
+        }
+        let form = receiver.input_form(input)?;
+        let selected = match form {
+            NativeVariableInputForm::Combined(bytes) => protocol.combined_variable_input(bytes),
+            NativeVariableInputForm::Separate { root, element } => {
+                protocol.separate_variable_input(root, element)
+            }
+        };
+        let NativeVariableRootGeometry::Local(simple) =
+            protocol.variable_root_geometry(NativeNameContext::root(), selected.root().selected())
+        else {
+            return None;
+        };
+        let origin = self.root_origin.as_ref()?;
+        let mut found = false;
+        for (site, rows) in &self.declaration_layouts {
+            if &site.source != origin || site.offset > span.start() {
+                continue;
+            }
+            let Some(rows) = original_declaration_layouts(rows) else {
+                continue;
+            };
+            let first = rows.clone().next()?;
+            if first.config != config
+                || first.entry.frame() != frame.frame()
+                || first.entry.source() != frame.source()
+                || !first.words.iter().any(|word| {
+                    word.source().span.start() <= span.start()
+                        && span.end() <= word.source().span.end()
+                })
+            {
+                continue;
+            }
+            for row in rows {
+                let state = &row.snapshot.state;
+                let context = &state.source_variables;
+                if !input.is_current(context) {
+                    return None;
+                }
+                // The lexical/compiler and runtime projections must select
+                // this same exact primary. A raw-NUL LVT match cannot use this
+                // deliberately value-free uniform naming projection.
+                if !original_local_primary_is_byte_unique(state, input.policy(), simple.as_bytes())
+                {
+                    return None;
+                }
+                let place = crate::var_resolve::resolve_evaluated_variable_input(
+                    form,
+                    context,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Read,
+                );
+                let cell = place.cell.as_ref()?;
+                #[cfg(test)]
+                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+                    eprintln!(
+                        "ORIGINAL_VARIABLE_LOCAL_POINT span={span:?} site={} kind={:?} dynamic={} owner={:?} name={:?} activation={:?} bindings_unknown={}",
+                        site.offset,
+                        place.kind,
+                        place.dynamic,
+                        cell.owner,
+                        cell.name,
+                        context.activation,
+                        context.dynamic_bindings
+                    );
+                }
+                if place.dynamic
+                    || place.kind == crate::place::PlaceKind::Unknown
+                    || !matches!(&cell.owner, crate::place::CellOwner::Activation(activation) if context.activation.as_ref() == Some(activation))
+                    || cell.name != simple
+                {
+                    return None;
+                }
+                found = true;
+            }
+        }
+        found.then_some((frame, simple))
+    }
+
+    pub(crate) fn original_variable_uses_global_frame_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        let Some(origin) = &self.root_origin else {
+            return false;
+        };
+        let mut found = false;
+        for (site, rows) in &self.declaration_layouts {
+            if &site.source != origin || site.offset > span.start() {
+                continue;
+            }
+            let Some(rows) = original_declaration_layouts(rows) else {
+                continue;
+            };
+            let Some(first) = rows.clone().next() else {
+                continue;
+            };
+            if first.config != config
+                || !first.entry.owns_source(origin, span.start())
+                || !first.words.iter().any(|word| {
+                    word.source().span.start() <= span.start()
+                        && span.end() <= word.source().span.end()
+                })
+            {
+                continue;
+            }
+            if rows.clone().any(|row| {
+                row.entry.frame().layout() != &crate::var_resolve::VariableExecutionFrame::Global
+            }) {
+                return false;
+            }
+            found = true;
+        }
+        found
+    }
+
+    pub(crate) fn original_variable_alias_frame_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(SourceOriginalVariableFrame, u32)> {
+        let frame = self.original_variable_frame_at_span(span, config)?;
+        let origin = self.root_origin.as_ref()?;
+        let mut found = None;
+        for (site, rows) in &self.declaration_layouts {
+            if &site.source != origin || site.offset > span.start() {
+                continue;
+            }
+            let Some(rows) = original_declaration_layouts(rows) else {
+                continue;
+            };
+            let first = rows.clone().next()?;
+            if first.config == config
+                && first.entry.frame() == frame.frame()
+                && first.entry.source() == frame.source()
+                && first.words.iter().any(|word| word.source().span == span)
+            {
+                if found.is_some_and(|offset| offset != site.offset) {
+                    return None;
+                }
+                found = Some(site.offset);
+            }
+        }
+        Some((frame, found?))
+    }
+
+    /// Original local spelling and declaration frame for a conditional source
+    /// alias template. Physical-cell matching remains a separate operation.
+    pub(crate) fn original_variable_alias_template_matches_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+        alias: &crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        use tcl_syntax::naming::{
+            NativeNameContext, NativeVariableInputForm, NativeVariableRootGeometry,
+        };
+        if input.policy() != alias.target().policy() || alias.frame().lexer_config() != config {
+            return false;
+        }
+        let Some(form) = receiver.input_form(input) else {
+            return false;
+        };
+        let protocol = input.policy().recipe();
+        let selected = match form {
+            NativeVariableInputForm::Combined(bytes) => protocol.combined_variable_input(bytes),
+            NativeVariableInputForm::Separate { root, element } => {
+                protocol.separate_variable_input(root, element)
+            }
+        };
+        let declaration =
+            crate::signature_scan::variable_symbol::OriginalVariableAliasAdvice::from_receipt(
+                alias,
+            );
+        if span != declaration.span()
+            && !matches!(protocol.variable_root_geometry(NativeNameContext::root(), selected.root().selected()), NativeVariableRootGeometry::Local(ref name) if name == alias.local())
+        {
+            return false;
+        }
+        let Some(frame) = self.original_variable_frame_at_span(span, config) else {
+            return false;
+        };
+        if &frame != alias.frame() {
+            return false;
+        }
+        let Some(origin) = &self.root_origin else {
+            return false;
+        };
+        let mut found = false;
+        for (site, observations) in &self.declaration_layouts {
+            if &site.source != origin
+                || site.offset < alias.invocation_offset()
+                || site.offset > span.start()
+            {
+                continue;
+            }
+            let Some(rows) = original_declaration_layouts(observations) else {
+                continue;
+            };
+            let Some(first) = rows.clone().next() else {
+                continue;
+            };
+            if first.config != config
+                || first.entry.frame() != frame.frame()
+                || first.entry.source() != frame.source()
+                || !first.words.iter().any(|word| {
+                    word.source().span.start() <= span.start()
+                        && span.end() <= word.source().span.end()
+                })
+            {
+                continue;
+            }
+            for row in rows {
+                if !input.is_current(&row.snapshot.state.source_variables)
+                    || !original_local_primary_is_byte_unique(
+                        &row.snapshot.state,
+                        input.policy(),
+                        alias.local().as_bytes(),
+                    )
+                {
+                    return false;
+                }
+                found = true;
+            }
+        }
+        found
+    }
+
+    pub(crate) fn original_variable_alias_matches_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+        alias: &crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        use tcl_syntax::naming::{
+            NativeNameContext, NativeVariableInputForm, NativeVariableRootGeometry,
+        };
+        let protocol = input.policy().recipe();
+        if input.policy() != alias.target().policy() || alias.frame().lexer_config() != config {
+            return false;
+        }
+        if !matches!(
+            receiver,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::LexicalRoot
+                | crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::Operand(
+                    _
+                )
+        ) {
+            return false;
+        }
+        let Some(form) = receiver.input_form(input) else {
+            return false;
+        };
+        let projection = match form {
+            NativeVariableInputForm::Combined(bytes) => protocol.combined_variable_input(bytes),
+            NativeVariableInputForm::Separate { root, element } => {
+                protocol.separate_variable_input(root, element)
+            }
+        };
+        if !matches!(protocol.variable_root_geometry(NativeNameContext::root(), projection.root().selected()), NativeVariableRootGeometry::Local(ref name) if name == alias.local())
+        {
+            return false;
+        }
+        let Some(origin) = &self.root_origin else {
+            return false;
+        };
+        let mut found = false;
+        for (site, rows) in &self.declaration_layouts {
+            if &site.source != origin
+                || site.offset < alias.invocation_offset()
+                || site.offset > span.start()
+            {
+                continue;
+            }
+            let Some(rows) = original_declaration_layouts(rows) else {
+                continue;
+            };
+            let Some(first) = rows.clone().next() else {
+                continue;
+            };
+            if first.config != config
+                || first.entry.frame() != alias.frame().frame()
+                || first.entry.source() != alias.frame().source()
+                || !first.words.iter().any(|word| {
+                    word.source().span.start() <= span.start()
+                        && span.end() <= word.source().span.end()
+                })
+            {
+                continue;
+            }
+            for row in rows {
+                let context = &row.snapshot.state.source_variables;
+                if !input.is_current(context) {
+                    return false;
+                }
+                if !original_local_primary_is_byte_unique(
+                    &row.snapshot.state,
+                    input.policy(),
+                    alias.local().as_bytes(),
+                ) {
+                    return false;
+                }
+                let place = crate::var_resolve::resolve_evaluated_variable_input(
+                    form,
+                    context,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Read,
+                );
+                if place.cell.is_none() {
+                    #[cfg(test)]
+                    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+                        eprintln!(
+                            "ORIGINAL_VARIABLE_ALIAS_POINT span={span:?} producer={} site={} local={:?} kind={:?} dynamic={} bindings_unknown={} missing_cell",
+                            alias.invocation_offset(),
+                            site.offset,
+                            alias.local(),
+                            place.kind,
+                            place.dynamic,
+                            context.dynamic_bindings
+                        );
+                    }
+                    return false;
+                }
+                if !original_alias_place_matches(row, input, alias, &place) {
+                    return false;
+                }
+                found = true;
+            }
+        }
+        found
+    }
+
+    pub(crate) fn original_variable_formal_occurrences(
+        &self,
+        config: tcl_lexer::LexerConfig,
+    ) -> Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence;
+        let Some(origin) = &self.root_origin else {
+            return Vec::new();
+        };
+        let mut result = Vec::new();
+        let mut seen = Vec::new();
+        for rows in self.declaration_layouts.values() {
+            let Some(rows) = original_declaration_layouts(rows) else {
+                continue;
+            };
+            let Some(row) = rows.clone().next() else {
+                continue;
+            };
+            if row.config != config
+                || &row.entry.source().origin != origin
+                || !matches!(
+                    row.entry.frame().layout(),
+                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                )
+            {
+                continue;
+            }
+            if seen.contains(&row.entry) {
+                continue;
+            }
+            seen.push(row.entry.clone());
+            let Some(topology) = row.entry.original_formal_topology() else {
+                continue;
+            };
+            let Some(fields) = topology.original_name_fields() else {
+                continue;
+            };
+            let frame = SourceOriginalVariableFrame {
+                source: row.entry.source().clone(),
+                frame: row.entry.frame().clone(),
+                config,
+            };
+            for field in fields {
+                let agrees = rows.clone().all(|row| {
+                    original_local_primary_is_byte_unique(
+                        &row.snapshot.state,
+                        field.input.policy(),
+                        field.name.as_bytes(),
+                    ) && field.input.is_current(&row.snapshot.state.source_variables)
+                });
+                if !agrees {
+                    continue;
+                }
+                result.push(
+                    SignatureSourceVariableOccurrence::from_original_formal_input(
+                        field.span,
+                        field.input,
+                        frame.clone(),
+                        field.name,
+                        field.recipe,
+                    ),
+                );
+            }
+        }
+        result
+    }
+
+    pub(crate) fn original_variable_formal_name_is_unrepresented(
+        &self,
+        symbol: &crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    ) -> bool {
+        let crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local {
+            frame,
+            simple,
+        } = symbol.slot()
+        else {
+            return false;
+        };
+        let represented = self.original_variable_formal_occurrences(frame.lexer_config());
+        let mut found = false;
+        for rows in self.declaration_layouts.values() {
+            let Some(rows) = original_declaration_layouts(rows) else {
+                continue;
+            };
+            for row in rows {
+                if row.entry.frame() != frame.frame()
+                    || row.entry.source() != frame.source()
+                    || row.config != frame.lexer_config()
+                {
+                    continue;
+                }
+                found = true;
+                let Some(topology) = row.entry.original_formal_topology() else {
+                    if matches!(
+                        row.entry.as_ref(),
+                        OriginalDiagnosticFrameEntry::ScriptActivation { .. }
+                    ) {
+                        continue;
+                    }
+                    return true;
+                };
+                if topology
+                    .parameters()
+                    .iter()
+                    .any(|parameter| parameter.name.as_slice() == simple.as_bytes())
+                    && !represented
+                        .iter()
+                        .any(|occurrence| occurrence.symbol() == symbol)
+                {
+                    return true;
+                }
+            }
+        }
+        !found
+    }
+
+    /// Select the innermost original local naming frame owning a source cursor.
+    /// Whitespace belongs to the retained body image; command words and display
+    /// scope spans do not manufacture a frame.
+    pub(crate) fn original_variable_frame_at_offset(
+        &self,
+        offset: u32,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<SourceOriginalVariableFrame> {
+        let origin = self.root_origin.as_ref()?;
+        let mut found: Option<SourceOriginalVariableFrame> = None;
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some() {
+            eprintln!(
+                "ORIGINAL_VARIABLE_FRAME offset={offset} layouts={} deferred={}",
+                self.declaration_layouts.len(),
+                self.deferred.len(),
+            );
+        }
+        for observations in self.declaration_layouts.values() {
+            #[cfg(debug_assertions)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some() {
+                for row in observations {
+                    if row.entry.owns_source_cursor(origin, offset) {
+                        let layout = match row.entry.frame().layout() {
+                            crate::var_resolve::VariableExecutionFrame::Global => "global",
+                            crate::var_resolve::VariableExecutionFrame::Procedure { .. } => {
+                                "procedure"
+                            }
+                            crate::var_resolve::VariableExecutionFrame::ReceiverMethod {
+                                ..
+                            } => "receiver",
+                            crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+                                ..
+                            } => "namespace-activation",
+                            _ => "other",
+                        };
+                        eprintln!(
+                            "ORIGINAL_VARIABLE_FRAME offset={offset} site={} issuer={:?} layout={layout} source_base={} source_bytes={} config={} frame={} origin={} context={}",
+                            row.words
+                                .first()
+                                .map_or(0, |word| word.source().span.start()),
+                            row.issuer,
+                            row.entry.source().base(),
+                            row.entry.source().text.len(),
+                            row.config == config,
+                            row.snapshot.state.variable_frame == *row.entry.frame(),
+                            row.snapshot.state.current_source_origin.as_ref()
+                                == Some(&row.entry.source().origin),
+                            row.entry
+                                .owns_original_context(&row.snapshot.state.source_variables),
+                        );
+                    }
+                }
+            }
+            let Some(original) = original_declaration_layouts(observations) else {
+                continue;
+            };
+            let first = original.clone().next()?;
+            if first.config != config
+                || !first.entry.owns_source_cursor(origin, offset)
+                || !matches!(
+                    first.entry.frame().layout(),
+                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                        | crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                )
+            {
+                continue;
+            }
+            let frame = SourceOriginalVariableFrame {
+                source: first.entry.source().clone(),
+                frame: first.entry.frame().clone(),
+                config,
+            };
+            match &found {
+                Some(previous) if previous.source.text.len() < frame.source.text.len() => {}
+                Some(previous) if previous.source.text.len() == frame.source.text.len() => {
+                    if previous != &frame {
+                        #[cfg(debug_assertions)]
+                        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some()
+                        {
+                            eprintln!(
+                                "ORIGINAL_VARIABLE_FRAME offset={offset} stage=conflicting-owners source_bytes={}",
+                                frame.source.text.len(),
+                            );
+                        }
+                        return None;
+                    }
+                }
+                _ => found = Some(frame),
+            }
+        }
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some() {
+            eprintln!(
+                "ORIGINAL_VARIABLE_FRAME offset={offset} stage=selected found={}",
+                found.is_some(),
+            );
+        }
+        found
+    }
+
+    /// Select a local naming frame solely from authentic original body rows.
+    /// Entered caller alternatives, unknown frames and disagreeing recipes
+    /// cannot donate a declaration identity from their displayed scope names.
+    pub(crate) fn original_variable_frame_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<SourceOriginalVariableFrame> {
+        let origin = self.root_origin.as_ref()?;
+        let mut found: Option<SourceOriginalVariableFrame> = None;
+        for (site, observations) in &self.declaration_layouts {
+            if &site.source != origin || site.offset > span.start() {
+                continue;
+            }
+            let Some(original) = original_declaration_layouts(observations) else {
+                continue;
+            };
+            let first = original.clone().next()?;
+            if first.config != config
+                || !first.entry.owns_source(origin, span.start())
+                || !first.words.iter().any(|word| {
+                    word.source().span.start() <= span.start()
+                        && span.end() <= word.source().span.end()
+                })
+                || !matches!(
+                    first.entry.frame().layout(),
+                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                        | crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                )
+            {
+                continue;
+            }
+            let frame = SourceOriginalVariableFrame {
+                source: first.entry.source().clone(),
+                frame: first.entry.frame().clone(),
+                config,
+            };
+            match &found {
+                Some(previous) if previous.source.text.len() < frame.source.text.len() => {}
+                Some(previous) if previous.source.text.len() == frame.source.text.len() => {
+                    if previous != &frame {
+                        return None;
+                    }
+                }
+                _ => found = Some(frame),
+            }
+        }
+        found
+    }
+}
 
 pub(super) fn root_diagnostic_namespace(
     state: &ModuleCommandBindings,
@@ -322,6 +1282,7 @@ impl SourceCommandBindings {
                 &tokens,
                 &snapshot,
                 &context.namespace_identity(),
+                context.config,
             ) else {
                 break;
             };
@@ -390,6 +1351,10 @@ impl SourceCommandBindings {
                 OriginalDiagnosticFrameEntry::DeclaredReceiver(body),
                 namespace,
             )
+        } else if let Some(entry) =
+            self.original_script_activation_at(state, context, origin, offset)
+        {
+            (entry, context.namespace_identity())
         } else {
             let Some(namespace) = root_diagnostic_namespace(state, &context.namespace_identity())
             else {
@@ -437,6 +1402,198 @@ impl SourceCommandBindings {
         if !observations.contains(&observation) {
             observations.push(observation);
         }
+    }
+
+    /// Logical source metadata meets all genuine pre-operand occurrences of a
+    /// complete head. Runtime opacity is not replaced by a Native lookup.
+    pub(crate) fn lexical_source_header_unpositioned(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        name: &str,
+    ) -> Option<String> {
+        // naming.minifier.logical-source-header
+        // docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md
+        if !self.matches_original_source_image(image, config) {
+            return None;
+        }
+        let origin = self.root_origin.as_ref()?;
+        let mut selected = None;
+        for (site, observations) in &self.declaration_layouts {
+            if &site.source != origin {
+                continue;
+            }
+            let rows = original_declaration_layouts(observations)?;
+            for row in rows {
+                if row.config != config || !row.entry.owns_source(origin, site.offset) {
+                    return None;
+                }
+                let words = crate::registry_invocation::original_native_compiler_words(
+                    image,
+                    &row.words,
+                    site.offset,
+                    config,
+                )?;
+                let values = words
+                    .iter()
+                    .map(|word| {
+                        tcl_syntax::word_rules::original_static_word_ascii_presentation(word)
+                    })
+                    .collect::<Vec<_>>();
+                if values.first()?.as_deref() != Some(name.as_bytes()) {
+                    continue;
+                }
+                let state = &row.snapshot.state;
+                if values.iter().any(Option::is_none)
+                    || state.baseline.native_entry.is_some()
+                    || state.baseline.execution_name_policy.is_some()
+                    || state.baseline.hosted_execution_context.is_some()
+                    || state.baseline.unknown_entry
+                {
+                    return None;
+                }
+                let binding = super::source_binding_projection_in(
+                    state,
+                    name,
+                    &row.namespace,
+                    super::CommandTargetLookup::NamedSlots,
+                );
+                let target = binding.proved_target()?;
+                if !target.registry_backed || !target.prepended.is_empty() {
+                    return None;
+                }
+                if selected
+                    .as_ref()
+                    .is_some_and(|prior| prior != &target.command)
+                {
+                    return None;
+                }
+                selected = Some(target.command.clone());
+            }
+        }
+        selected
+    }
+
+    pub(super) fn original_logical_source_header_rows(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        words: &[tcl_lexer::NativeWord],
+    ) -> Option<(String, Arc<[DeclarationLayoutObservation]>)> {
+        let image = words.first()?.image();
+        let config = input.lexer_config();
+        if self.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_original_source_image(image, config)
+        {
+            return None;
+        }
+        let origin = self.root_origin.as_ref()?;
+        let offset = words.first()?.tokens().first()?.span.start();
+        let site = CommandAllocationSite {
+            source: Arc::clone(origin),
+            offset,
+        };
+        let rows = original_declaration_layouts(self.declaration_layouts.get(&site)?)?;
+        let head = tcl_syntax::word_rules::original_static_word_ascii_presentation(words.first()?)?;
+        let name = std::str::from_utf8(&head).ok()?;
+        let mut selected = None;
+        let mut retained = Vec::new();
+        for row in rows {
+            let original = crate::registry_invocation::original_native_compiler_words(
+                image, &row.words, offset, config,
+            )?;
+            let state = &row.snapshot.state;
+            if row.config != config
+                || !row.entry.owns_source(origin, offset)
+                || original.as_slice() != words
+                || state.logical_source_name_advice_input() != Some(input)
+            {
+                return None;
+            }
+            let binding = super::source_binding_projection_in(
+                state,
+                name,
+                &row.namespace,
+                super::CommandTargetLookup::NamedSlots,
+            );
+            // Retain actual positioned alternatives even when the conditional
+            // entry has unenumerated runtime lookup. A known user target,
+            // captured prefix or no represented Registry target is terminal.
+            if binding.targets.is_empty() {
+                return None;
+            }
+            for target in &binding.targets {
+                if !target.registry_backed
+                    || !target.prepended.is_empty()
+                    || selected
+                        .as_ref()
+                        .is_some_and(|prior| prior != &target.command)
+                {
+                    return None;
+                }
+                selected = Some(target.command.clone());
+            }
+            retained.push(row.clone());
+        }
+        Some((selected?, Arc::from(retained)))
+    }
+
+    /// Positioned Logical metadata keeps the exact original vector while
+    /// retaining unknown operand values. This is the before-argv candidate,
+    /// not a proof that argument effects preserve runtime dispatch.
+    pub(crate) fn lexical_source_header_for_words(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        words: &[tcl_lexer::NativeWord],
+    ) -> Option<String> {
+        // naming.minifier.complete-logical-metadata
+        // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
+        if !self.matches_original_source_image(image, config) {
+            return None;
+        }
+        let origin = self.root_origin.as_ref()?;
+        let offset = words.first()?.tokens().first()?.span.start();
+        let site = CommandAllocationSite {
+            source: Arc::clone(origin),
+            offset,
+        };
+        let rows = original_declaration_layouts(self.declaration_layouts.get(&site)?)?;
+        let head = tcl_syntax::word_rules::original_static_word_ascii_presentation(words.first()?)?;
+        let name = std::str::from_utf8(&head).ok()?;
+        let mut selected = None;
+        for row in rows {
+            let original = crate::registry_invocation::original_native_compiler_words(
+                image, &row.words, offset, config,
+            )?;
+            let state = &row.snapshot.state;
+            if row.config != config
+                || !row.entry.owns_source(origin, offset)
+                || original.as_slice() != words
+                || state.baseline.native_entry.is_some()
+                || state.baseline.execution_name_policy.is_some()
+                || state.baseline.hosted_execution_context.is_some()
+                || state.baseline.unknown_entry
+            {
+                return None;
+            }
+            let binding = super::source_binding_projection_in(
+                state,
+                name,
+                &row.namespace,
+                super::CommandTargetLookup::NamedSlots,
+            );
+            let target = binding.proved_target()?;
+            if !target.registry_backed
+                || !target.prepended.is_empty()
+                || selected
+                    .as_ref()
+                    .is_some_and(|prior| prior != &target.command)
+            {
+                return None;
+            }
+            selected = Some(target.command.clone());
+        }
+        selected
     }
 
     /// Retain only original declaration observations from a separate preview.
@@ -508,16 +1665,10 @@ impl SourceCommandBindings {
                 })
                 .map(|observations| Arc::from(observations.as_slice()))
         });
-        binding.declaration_flow_inventory =
-            binding.declaration_layout_observations.as_ref().map(|_| {
-                Arc::new(super::declaration_flow::DeclarationFlowInventory::new(
-                    self.declaration_layouts.shared(),
-                    self.variable_accesses.shared(),
-                    self.origin_variable_accesses.shared(),
-                    self.points.shared(),
-                    self.origin_points.shared(),
-                ))
-            });
+        binding.declaration_flow_inventory = binding
+            .declaration_layout_observations
+            .as_ref()
+            .map(|_| self.current_declaration_flow_inventory());
         // Original geometry remains available even when no argv or dispatch
         // was reached. Its issuer is the immutable declaration observation;
         // targets, runtime reachability and compiler authority stay unchanged.
@@ -532,6 +1683,56 @@ impl SourceCommandBindings {
 }
 
 impl super::SourceInvocationBinding {
+    /// Conditional diagnostic cell keys selected by exact original static
+    /// operands at their own original point. Alias bindings and byte names
+    /// come from every retained snapshot, never from reporting spellings or
+    /// the caller's current table. This grants no Must destruction or Normal.
+    pub(crate) fn declaration_variable_argument_keys(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        arguments: &[usize],
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Vec<crate::var_resolve::VariableCellKey>> {
+        self.declaration_operand_layout_advice(tokens)?;
+        let rows = original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
+        let mut unanimous = None;
+        for row in rows {
+            let state = &row.snapshot.state;
+            let context = &state.source_variables;
+            let policy = context.execution_name_policy?.native_recipe()?;
+            let mut keys = Vec::new();
+            for &argument in arguments {
+                let word = tokens.words().get(argument.checked_add(1)?)?;
+                let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+                    self.original_source_name_key_at_span(
+                        word.source().span,
+                        row.config,
+                        context.invocation_dialect?.word_values,
+                        policy,
+                    )?,
+                );
+                let selected = policy.recipe().combined_variable_input(input.bytes());
+                if !original_local_primary_is_byte_unique(state, policy, selected.root().selected())
+                {
+                    return None;
+                }
+                let place = crate::var_resolve::resolve_original_name_input(
+                    &input,
+                    context,
+                    registry,
+                    false,
+                    tcl_registry::TraceOperation::Read,
+                );
+                keys.push(crate::var_resolve::canonical_binding_value_key(&place)?);
+            }
+            if unanimous.as_ref().is_some_and(|previous| previous != &keys) {
+                return None;
+            }
+            unanimous = Some(keys);
+        }
+        unanimous
+    }
+
     /// Original direct operand reads whose source and declaration-local scope
     /// agree across every retained observation. Aliases, formal inputs,
     /// qualified names and unavailable geometry provide no local advice.
@@ -724,7 +1925,7 @@ impl super::SourceInvocationBinding {
         self.original_declared_layout_advice(tokens, false)
     }
 
-    fn original_declared_layout_advice(
+    pub(super) fn original_declared_layout_advice(
         &self,
         tokens: &crate::ir::CommandTokens,
         source_calls: bool,
@@ -750,6 +1951,7 @@ impl super::SourceInvocationBinding {
                 tokens,
                 &observation.snapshot,
                 &observation.namespace,
+                observation.config,
             )?;
             if unanimous.as_ref().is_some_and(|previous| {
                 previous.targets != advice.targets
@@ -881,6 +2083,73 @@ mod tests {
                 ]
             })
             .collect()
+    }
+
+    #[test]
+    fn original_variable_cursor_at_body_end_keeps_occurrence_membership_half_open() {
+        // Implementation contract: naming.variable.original-body-cursor-frame
+        // docs/design/analysis/name-resolution-proofs/original-body-cursor-frame.md
+        let source = concat!(
+            "set shared 1\n",
+            "proc first {argument} {set local 1; global shared; upvar #0 shared link; puts $}\n",
+            "proc second {argument} {set foreign 1; puts $}\n",
+        );
+        let mut analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.global_scope.variables.clear();
+        analysis.all_procs.clear();
+        let first_end = u32::try_from(source.find("puts $").unwrap() + "puts $".len()).unwrap();
+        let second_end = u32::try_from(source.rfind("puts $").unwrap() + "puts $".len()).unwrap();
+        let frame = |offset| analysis.original_variable_frame_in_source(&image, config, offset);
+        let first = frame(first_end).expect("the cursor precedes the first authentic body closer");
+        let second =
+            frame(second_end).expect("the cursor precedes the second authentic body closer");
+        assert_eq!(frame(first_end - 1), Some(first.clone()));
+        assert_eq!(frame(second_end - 1), Some(second.clone()));
+        assert_ne!(first, second);
+        assert_eq!(frame(first_end + 1), None);
+        assert_eq!(frame(second_end + 1), None);
+        let bindings = analysis
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        let origin = bindings.root_origin.as_ref().unwrap();
+        let entry = bindings
+            .declaration_layouts
+            .values()
+            .find_map(|rows| {
+                super::original_declaration_layouts(rows)?.find_map(|row| {
+                    (row.entry.frame() == first.frame() && row.entry.source() == first.source())
+                        .then(|| row.entry.clone())
+                })
+            })
+            .expect("the frame has its independent original declaration entry");
+        assert!(entry.owns_source(origin, first_end - 1));
+        assert!(!entry.owns_source(origin, first_end));
+        assert!(entry.owns_source_cursor(origin, first_end));
+        assert!(!entry.owns_source_cursor(origin, first_end + 1));
+        assert!(
+            analysis
+                .original_variable_frame_in_source(
+                    &tcl_lexer::SourceImage::document(&format!("{source} ")),
+                    config,
+                    first_end,
+                )
+                .is_none()
+        );
+        assert!(
+            analysis
+                .original_variable_frame_in_source(
+                    &image,
+                    tcl_lexer::LexerConfig {
+                        expand_syntax: !config.expand_syntax,
+                        ..config
+                    },
+                    first_end,
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -1161,6 +2430,40 @@ mod tests {
             assert!(
                 binding
                     .declaration_variable_operand_advice(registry, &tokens, &changed)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_destruction_operand_keys_follow_the_retained_alias_point() {
+        // Implementation contract: naming.variable.original-destruction-operand-keys
+        // docs/design/analysis/name-resolution-proofs/original-destruction-operand-keys.md
+        let source = "proc f {} {set original 1; upvar 0 original linked; unset linked}";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let (_, tokens) = original_tokens_in(
+                dialect,
+                source,
+                "unset linked",
+                source.find("unset").unwrap(),
+            );
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let keys = binding
+                .declaration_variable_argument_keys(&tokens, &[0], registry)
+                .unwrap_or_else(|| panic!("{dialect}: original destruction operand"));
+            let [crate::var_resolve::VariableCellKey::Activation { simple, .. }] = keys.as_slice()
+            else {
+                panic!("{dialect}: independently owned activation key");
+            };
+            assert_eq!(
+                simple.as_bytes(),
+                b"original",
+                "{dialect}: followed original alias, not reporting linked"
+            );
+            assert!(
+                binding
+                    .declaration_variable_argument_keys(&tokens, &[1], registry)
                     .is_none()
             );
         }

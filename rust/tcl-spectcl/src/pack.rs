@@ -68,11 +68,14 @@ pub struct PackNotice {
     pub message: String,
     /// How loudly to show it.
     pub severity: Severity,
+    /// Actual loader-issued source subject, independent of rendered notice text.
+    pub subject: Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject>,
 }
 
 impl PackNotice {
     fn from_loader(path: &Path, notice: &Notice) -> Self {
         Self {
+            subject: notice.subject.clone(),
             path: path.to_path_buf(),
             line: notice.line,
             context: notice.context.clone(),
@@ -87,6 +90,7 @@ impl PackNotice {
     #[must_use]
     pub fn whole_file(path: &Path, message: impl Into<String>, severity: Severity) -> Self {
         Self {
+            subject: None,
             path: path.to_path_buf(),
             line: 1,
             context: "pack".to_owned(),
@@ -490,6 +494,7 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
                 // This one replaces the standing claim; the notice belongs on
                 // the declaration that just lost its place.
                 out.push(PackNotice {
+                    subject: None,
                     path: prior_file.clone(),
                     line: prior_line,
                     context: format!("command {}", command.spec.name),
@@ -509,6 +514,7 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
                 standing[idx] = claim;
             } else {
                 out.push(PackNotice {
+                    subject: None,
                     path: command.file.clone(),
                     line: command.line,
                     context: format!("command {}", command.spec.name),
@@ -569,6 +575,7 @@ fn cross_pack_extension_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
             };
             match owner.get(&row.extension) {
                 Some((prior_pack, prior_dialect)) => out.push(PackNotice {
+                    subject: None,
                     // The row's *own* file, not the merged pack's first one:
                     // a logical pack can span several files, and `row.line` is
                     // a line in this one.
@@ -682,6 +689,7 @@ fn merge_group(
             command.file.clone_from(&file.path);
             if let Some((first_path, first_line)) = first_seen.get(command.spec.name) {
                 notices.push(PackNotice {
+                    subject: None,
                     path: file.path.clone(),
                     // The *ignored* declaration's own line, not line 1. The
                     // squiggle belongs on the duplicate the author can delete,
@@ -757,6 +765,7 @@ pub fn collision_notices(packs: &PackSet, registry: &CommandRegistry) -> Vec<Pac
             }
             let file = pack.files.first().cloned().unwrap_or_default();
             out.push(PackNotice {
+                subject: None,
                 path: file,
                 line: 1,
                 context: format!("command {}", command.spec.name),

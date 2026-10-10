@@ -1,0 +1,1903 @@
+{
+  "protocol": "Exact offline input/hash/row-field checks; no native compiler, interpreter or Rust execution.",
+  "providers": [
+    {
+      "variant": "v1",
+      "provider": "8.4.20",
+      "reported_version": "8.4.20",
+      "receipt_sha256": "b07faf62c88aade5b504df6a76e036bcdc5806b39c1ce4fc9c9144322978066b",
+      "stdout_sha256": "6ca2d0323499b81e5b0ed115f86338a0de27be2abbd9839e32df96a660b5f064",
+      "row_count": 50,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "382e342e3230",
+          "result_ascii": "8.4.20",
+          "options_line": null
+        },
+        {
+          "case": "availability",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 6,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": null
+        },
+        {
+          "case": "namespace-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 10,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b696422",
+          "result_ascii": "invalid command name \"::N::kid\"",
+          "options_line": null
+        },
+        {
+          "case": "namespace-rename-delete",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 14,
+          "result_hex": "7b7d207b7d207b7d",
+          "result_ascii": "{} {} {}",
+          "options_line": null
+        },
+        {
+          "case": "replace-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 18,
+          "result_hex": "7b7d205245504c4143454d454e54",
+          "result_ascii": "{} REPLACEMENT",
+          "options_line": null
+        },
+        {
+          "case": "delete-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 22,
+          "result_hex": "7b7d207b7d",
+          "result_ascii": "{} {}",
+          "options_line": null
+        },
+        {
+          "case": "rename-delete-recreate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 26,
+          "result_hex": "6b6964207b7d2030",
+          "result_ascii": "kid {} 0",
+          "options_line": null
+        },
+        {
+          "case": "namespace-delete-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 30,
+          "result_hex": "6b6964207b7d",
+          "result_ascii": "kid {}",
+          "options_line": null
+        },
+        {
+          "case": "active-child-script-recreation",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 34,
+          "result_hex": "31207b617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e7465727072657465727d20312030",
+          "result_ascii": "1 {attempt to call eval in deleted interpreter} 1 0",
+          "options_line": null
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "setup",
+          "code": 0,
+          "result_line": 37,
+          "result_hex": "4f4c44",
+          "result_ascii": "OLD",
+          "options_line": null
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "alias-setup",
+          "code": 0,
+          "result_line": 40,
+          "result_hex": "73776170",
+          "result_ascii": "swap",
+          "options_line": null
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "active-evaluation",
+          "code": 1,
+          "result_line": 45,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": null
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "after-return",
+          "code": 0,
+          "result_line": 48,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": null
+        }
+      ],
+      "allocation_observations": [
+        {
+          "line": 42,
+          "fields": [
+            "active-original-allocation",
+            "callback-before",
+            "parent-selected",
+            "1",
+            "original-deleted",
+            "0"
+          ]
+        },
+        {
+          "line": 43,
+          "fields": [
+            "active-original-allocation",
+            "callback-after",
+            "code",
+            "0",
+            "original-deleted",
+            "1",
+            "replacement-present",
+            "1",
+            "different-allocation",
+            "1"
+          ]
+        },
+        {
+          "line": 50,
+          "fields": [
+            "active-original-allocation",
+            "after-return",
+            "callback-count",
+            "1",
+            "original-deleted",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "v1",
+      "provider": "8.5.19",
+      "reported_version": "8.5.19",
+      "receipt_sha256": "5686776c1b523407dbab8a21d02cd4968c7503a0369a6386d42e3a6937dca42c",
+      "stdout_sha256": "0d1f4f8fa4f4d891bcc870295274bfdbe4c7918b31b0d0567fdac6d4f077c606",
+      "row_count": 50,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "382e352e3139",
+          "result_ascii": "8.5.19",
+          "options_line": 3
+        },
+        {
+          "case": "availability",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 6,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 7
+        },
+        {
+          "case": "namespace-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 10,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b696422",
+          "result_ascii": "invalid command name \"::N::kid\"",
+          "options_line": 11
+        },
+        {
+          "case": "namespace-rename-delete",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 14,
+          "result_hex": "7b7d207b7d207b7d",
+          "result_ascii": "{} {} {}",
+          "options_line": 15
+        },
+        {
+          "case": "replace-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 18,
+          "result_hex": "7b7d205245504c4143454d454e54",
+          "result_ascii": "{} REPLACEMENT",
+          "options_line": 19
+        },
+        {
+          "case": "delete-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 22,
+          "result_hex": "7b7d207b7d",
+          "result_ascii": "{} {}",
+          "options_line": 23
+        },
+        {
+          "case": "rename-delete-recreate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 26,
+          "result_hex": "6b6964207b7d2030",
+          "result_ascii": "kid {} 0",
+          "options_line": 27
+        },
+        {
+          "case": "namespace-delete-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 30,
+          "result_hex": "6b6964207b7d",
+          "result_ascii": "kid {}",
+          "options_line": 31
+        },
+        {
+          "case": "active-child-script-recreation",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 34,
+          "result_hex": "31207b617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e7465727072657465727d20312030",
+          "result_ascii": "1 {attempt to call eval in deleted interpreter} 1 0",
+          "options_line": 35
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "setup",
+          "code": 0,
+          "result_line": 37,
+          "result_hex": "4f4c44",
+          "result_ascii": "OLD",
+          "options_line": 38
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "alias-setup",
+          "code": 0,
+          "result_line": 40,
+          "result_hex": "73776170",
+          "result_ascii": "swap",
+          "options_line": 41
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "active-evaluation",
+          "code": 1,
+          "result_line": 45,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 46
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "after-return",
+          "code": 0,
+          "result_line": 48,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 49
+        }
+      ],
+      "allocation_observations": [
+        {
+          "line": 42,
+          "fields": [
+            "active-original-allocation",
+            "callback-before",
+            "parent-selected",
+            "1",
+            "original-deleted",
+            "0"
+          ]
+        },
+        {
+          "line": 43,
+          "fields": [
+            "active-original-allocation",
+            "callback-after",
+            "code",
+            "0",
+            "original-deleted",
+            "1",
+            "replacement-present",
+            "1",
+            "different-allocation",
+            "1"
+          ]
+        },
+        {
+          "line": 50,
+          "fields": [
+            "active-original-allocation",
+            "after-return",
+            "callback-count",
+            "1",
+            "original-deleted",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "v1",
+      "provider": "8.6.18",
+      "reported_version": "8.6.18",
+      "receipt_sha256": "baa4851657c450720005c7ad4de6583d99896f5d25fb3f136eca9a3865b8c5ca",
+      "stdout_sha256": "f7732d84297c80bf046ea41ebafd4db31fb4467cfed61d7fe1f1652dd2a99655",
+      "row_count": 50,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "382e362e3138",
+          "result_ascii": "8.6.18",
+          "options_line": 3
+        },
+        {
+          "case": "availability",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 6,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 7
+        },
+        {
+          "case": "namespace-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 10,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b696422",
+          "result_ascii": "invalid command name \"::N::kid\"",
+          "options_line": 11
+        },
+        {
+          "case": "namespace-rename-delete",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 14,
+          "result_hex": "7b7d207b7d207b7d",
+          "result_ascii": "{} {} {}",
+          "options_line": 15
+        },
+        {
+          "case": "replace-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 18,
+          "result_hex": "7b7d205245504c4143454d454e54",
+          "result_ascii": "{} REPLACEMENT",
+          "options_line": 19
+        },
+        {
+          "case": "delete-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 22,
+          "result_hex": "7b7d207b7d",
+          "result_ascii": "{} {}",
+          "options_line": 23
+        },
+        {
+          "case": "rename-delete-recreate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 26,
+          "result_hex": "6b6964207b7d2030",
+          "result_ascii": "kid {} 0",
+          "options_line": 27
+        },
+        {
+          "case": "namespace-delete-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 30,
+          "result_hex": "6b6964207b7d",
+          "result_ascii": "kid {}",
+          "options_line": 31
+        },
+        {
+          "case": "active-child-script-recreation",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 34,
+          "result_hex": "31207b617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e7465727072657465727d20312030",
+          "result_ascii": "1 {attempt to call eval in deleted interpreter} 1 0",
+          "options_line": 35
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "setup",
+          "code": 0,
+          "result_line": 37,
+          "result_hex": "4f4c44",
+          "result_ascii": "OLD",
+          "options_line": 38
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "alias-setup",
+          "code": 0,
+          "result_line": 40,
+          "result_hex": "73776170",
+          "result_ascii": "swap",
+          "options_line": 41
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "active-evaluation",
+          "code": 1,
+          "result_line": 45,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 46
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "after-return",
+          "code": 0,
+          "result_line": 48,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 49
+        }
+      ],
+      "allocation_observations": [
+        {
+          "line": 42,
+          "fields": [
+            "active-original-allocation",
+            "callback-before",
+            "parent-selected",
+            "1",
+            "original-deleted",
+            "0"
+          ]
+        },
+        {
+          "line": 43,
+          "fields": [
+            "active-original-allocation",
+            "callback-after",
+            "code",
+            "0",
+            "original-deleted",
+            "1",
+            "replacement-present",
+            "1",
+            "different-allocation",
+            "1"
+          ]
+        },
+        {
+          "line": 50,
+          "fields": [
+            "active-original-allocation",
+            "after-return",
+            "callback-count",
+            "1",
+            "original-deleted",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "v1",
+      "provider": "9.0.4",
+      "reported_version": "9.0.4",
+      "receipt_sha256": "995767a2b44029bebd1a7ea920c3b6f7ee578298e1b076596badd009ec5ad3fd",
+      "stdout_sha256": "e7e21eb4eddbff5feacaa083629ed0fa56d3b68dab2ba21940a0563f216074f1",
+      "row_count": 50,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "392e302e34",
+          "result_ascii": "9.0.4",
+          "options_line": 3
+        },
+        {
+          "case": "availability",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 6,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 7
+        },
+        {
+          "case": "namespace-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 10,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b696422",
+          "result_ascii": "invalid command name \"::N::kid\"",
+          "options_line": 11
+        },
+        {
+          "case": "namespace-rename-delete",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 14,
+          "result_hex": "7b7d207b7d207b7d",
+          "result_ascii": "{} {} {}",
+          "options_line": 15
+        },
+        {
+          "case": "replace-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 18,
+          "result_hex": "7b7d205245504c4143454d454e54",
+          "result_ascii": "{} REPLACEMENT",
+          "options_line": 19
+        },
+        {
+          "case": "delete-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 22,
+          "result_hex": "7b7d207b7d",
+          "result_ascii": "{} {}",
+          "options_line": 23
+        },
+        {
+          "case": "rename-delete-recreate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 26,
+          "result_hex": "6b6964207b7d2030",
+          "result_ascii": "kid {} 0",
+          "options_line": 27
+        },
+        {
+          "case": "namespace-delete-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 30,
+          "result_hex": "6b6964207b7d",
+          "result_ascii": "kid {}",
+          "options_line": 31
+        },
+        {
+          "case": "active-child-script-recreation",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 34,
+          "result_hex": "31207b617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e7465727072657465727d20312030",
+          "result_ascii": "1 {attempt to call eval in deleted interpreter} 1 0",
+          "options_line": 35
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "setup",
+          "code": 0,
+          "result_line": 37,
+          "result_hex": "4f4c44",
+          "result_ascii": "OLD",
+          "options_line": 38
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "alias-setup",
+          "code": 0,
+          "result_line": 40,
+          "result_hex": "73776170",
+          "result_ascii": "swap",
+          "options_line": 41
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "active-evaluation",
+          "code": 1,
+          "result_line": 45,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 46
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "after-return",
+          "code": 0,
+          "result_line": 48,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 49
+        }
+      ],
+      "allocation_observations": [
+        {
+          "line": 42,
+          "fields": [
+            "active-original-allocation",
+            "callback-before",
+            "parent-selected",
+            "1",
+            "original-deleted",
+            "0"
+          ]
+        },
+        {
+          "line": 43,
+          "fields": [
+            "active-original-allocation",
+            "callback-after",
+            "code",
+            "0",
+            "original-deleted",
+            "1",
+            "replacement-present",
+            "1",
+            "different-allocation",
+            "1"
+          ]
+        },
+        {
+          "line": 50,
+          "fields": [
+            "active-original-allocation",
+            "after-return",
+            "callback-count",
+            "1",
+            "original-deleted",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "v1",
+      "provider": "9.1.0",
+      "reported_version": "9.1.0",
+      "receipt_sha256": "ee8889ac77f13992d05d329124288d8023db67e773b277d548615983af2fb02c",
+      "stdout_sha256": "b32896666068f647d6b0fad812a204aeb03adcc7cfce0e0438a620f2deb715b9",
+      "row_count": 50,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "392e312e30",
+          "result_ascii": "9.1.0",
+          "options_line": 3
+        },
+        {
+          "case": "availability",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 6,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 7
+        },
+        {
+          "case": "namespace-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 10,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b696422",
+          "result_ascii": "invalid command name \"::N::kid\"",
+          "options_line": 11
+        },
+        {
+          "case": "namespace-rename-delete",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 14,
+          "result_hex": "7b7d207b7d207b7d",
+          "result_ascii": "{} {} {}",
+          "options_line": 15
+        },
+        {
+          "case": "replace-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 18,
+          "result_hex": "7b7d205245504c4143454d454e54",
+          "result_ascii": "{} REPLACEMENT",
+          "options_line": 19
+        },
+        {
+          "case": "delete-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 22,
+          "result_hex": "7b7d207b7d",
+          "result_ascii": "{} {}",
+          "options_line": 23
+        },
+        {
+          "case": "rename-delete-recreate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 26,
+          "result_hex": "6b6964207b7d2030",
+          "result_ascii": "kid {} 0",
+          "options_line": 27
+        },
+        {
+          "case": "namespace-delete-child-command",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 30,
+          "result_hex": "6b6964207b7d",
+          "result_ascii": "kid {}",
+          "options_line": 31
+        },
+        {
+          "case": "active-child-script-recreation",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 34,
+          "result_hex": "31207b617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e7465727072657465727d20312030",
+          "result_ascii": "1 {attempt to call eval in deleted interpreter} 1 0",
+          "options_line": 35
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "setup",
+          "code": 0,
+          "result_line": 37,
+          "result_hex": "4f4c44",
+          "result_ascii": "OLD",
+          "options_line": 38
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "alias-setup",
+          "code": 0,
+          "result_line": 40,
+          "result_hex": "73776170",
+          "result_ascii": "swap",
+          "options_line": 41
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "active-evaluation",
+          "code": 1,
+          "result_line": 45,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 46
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "after-return",
+          "code": 0,
+          "result_line": 48,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 49
+        }
+      ],
+      "allocation_observations": [
+        {
+          "line": 42,
+          "fields": [
+            "active-original-allocation",
+            "callback-before",
+            "parent-selected",
+            "1",
+            "original-deleted",
+            "0"
+          ]
+        },
+        {
+          "line": 43,
+          "fields": [
+            "active-original-allocation",
+            "callback-after",
+            "code",
+            "0",
+            "original-deleted",
+            "1",
+            "replacement-present",
+            "1",
+            "different-allocation",
+            "1"
+          ]
+        },
+        {
+          "line": 50,
+          "fields": [
+            "active-original-allocation",
+            "after-return",
+            "callback-count",
+            "1",
+            "original-deleted",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "v1",
+      "provider": "jim",
+      "reported_version": "0.84-9-g5bac7c9",
+      "receipt_sha256": "263fdc06d03fcd5fe037ce5ecaf0ab0f0155afe56e0b8eaa47db55b62f298dab",
+      "stdout_sha256": "7873460480ac94b55acabd91f2094a5548ee79f10a2667c812de6b9f03c7e319",
+      "row_count": 36,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "302e38342d392d6735626163376339",
+          "result_ascii": "0.84-9-g5bac7c9",
+          "options_line": null
+        },
+        {
+          "case": "availability",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 6,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "namespace-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 10,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "namespace-rename-delete",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 14,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "replace-child-command",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 18,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "delete-child-command",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 22,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "rename-delete-recreate",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 26,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "namespace-delete-child-command",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 30,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "active-child-script-recreation",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 34,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        }
+      ],
+      "allocation_observations": []
+    },
+    {
+      "variant": "v2",
+      "provider": "8.4.20",
+      "reported_version": "8.4.20",
+      "receipt_sha256": "6e2f488c1087f2588b41da174a63c51d9af3441b8a07bcde43e11e09215e2dbb",
+      "stdout_sha256": "68f1ba0fa17be64272f8aa15670e503447c14b5e5335722ea2440fe7b0aabf1e",
+      "row_count": 54,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "382e342e3230",
+          "result_ascii": "8.4.20",
+          "options_line": null
+        },
+        {
+          "case": "namespace-publication-intermediate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 6,
+          "result_hex": "6b6964207b6b6964207b7d203a3a6b69647d2031207b696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b6964227d2030",
+          "result_ascii": "kid {kid {} ::kid} 1 {invalid command name \"::N::kid\"} 0",
+          "options_line": null
+        },
+        {
+          "case": "namespace-relative-root-lookup",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 10,
+          "result_hex": "6b6964203a3a6b6964207b7d203020302031207b696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b6964227d",
+          "result_ascii": "kid ::kid {} 0 0 1 {invalid command name \"::N::kid\"}",
+          "options_line": null
+        },
+        {
+          "case": "namespace-root-child-survives-delete",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 14,
+          "result_hex": "6b6964203a3a6b69642030",
+          "result_ascii": "kid ::kid 0",
+          "options_line": null
+        },
+        {
+          "case": "namespace-qualified-publication",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 18,
+          "result_hex": "3a3a4e3a3a6b6964203a3a4e3a3a6b6964207b7d2030",
+          "result_ascii": "::N::kid ::N::kid {} 0",
+          "options_line": null
+        },
+        {
+          "case": "namespace-relative-qualified-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 22,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b696422",
+          "result_ascii": "invalid command name \"::N::kid\"",
+          "options_line": null
+        },
+        {
+          "case": "namespace-renamed-child-deleted-with-namespace",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 26,
+          "result_hex": "7b7d207b7d207b7d",
+          "result_ascii": "{} {} {}",
+          "options_line": null
+        },
+        {
+          "case": "renamed-child-delete-recreate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 30,
+          "result_hex": "6b6964207b7d2030",
+          "result_ascii": "kid {} 0",
+          "options_line": null
+        },
+        {
+          "case": "active-child-continuation-errors",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 34,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": null
+        },
+        {
+          "case": "active-child-replacement-survives-error",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 38,
+          "result_hex": "31207b617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e7465727072657465727d20312030",
+          "result_ascii": "1 {attempt to call eval in deleted interpreter} 1 0",
+          "options_line": null
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "setup",
+          "code": 0,
+          "result_line": 41,
+          "result_hex": "4f4c44",
+          "result_ascii": "OLD",
+          "options_line": null
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "alias-setup",
+          "code": 0,
+          "result_line": 44,
+          "result_hex": "73776170",
+          "result_ascii": "swap",
+          "options_line": null
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "active-evaluation",
+          "code": 1,
+          "result_line": 49,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": null
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "after-return",
+          "code": 0,
+          "result_line": 52,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": null
+        }
+      ],
+      "allocation_observations": [
+        {
+          "line": 46,
+          "fields": [
+            "active-original-allocation",
+            "callback-before",
+            "parent-selected",
+            "1",
+            "original-deleted",
+            "0"
+          ]
+        },
+        {
+          "line": 47,
+          "fields": [
+            "active-original-allocation",
+            "callback-after",
+            "code",
+            "0",
+            "original-deleted",
+            "1",
+            "replacement-present",
+            "1",
+            "different-allocation",
+            "1"
+          ]
+        },
+        {
+          "line": 54,
+          "fields": [
+            "active-original-allocation",
+            "after-return",
+            "callback-count",
+            "1",
+            "original-deleted",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "v2",
+      "provider": "8.5.19",
+      "reported_version": "8.5.19",
+      "receipt_sha256": "41d750abf06c81d6a217c7a6cbc1d0327acc29a6b223f3f9cfc15977d396ec1f",
+      "stdout_sha256": "61eb1c57f65ba1675789bf3db2b7aab4ee79bc9f082b32650b596d3669b6634b",
+      "row_count": 54,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "382e352e3139",
+          "result_ascii": "8.5.19",
+          "options_line": 3
+        },
+        {
+          "case": "namespace-publication-intermediate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 6,
+          "result_hex": "6b6964207b6b6964207b7d203a3a6b69647d2031207b696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b6964227d2030",
+          "result_ascii": "kid {kid {} ::kid} 1 {invalid command name \"::N::kid\"} 0",
+          "options_line": 7
+        },
+        {
+          "case": "namespace-relative-root-lookup",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 10,
+          "result_hex": "6b6964203a3a6b6964207b7d203020302031207b696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b6964227d",
+          "result_ascii": "kid ::kid {} 0 0 1 {invalid command name \"::N::kid\"}",
+          "options_line": 11
+        },
+        {
+          "case": "namespace-root-child-survives-delete",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 14,
+          "result_hex": "6b6964203a3a6b69642030",
+          "result_ascii": "kid ::kid 0",
+          "options_line": 15
+        },
+        {
+          "case": "namespace-qualified-publication",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 18,
+          "result_hex": "3a3a4e3a3a6b6964203a3a4e3a3a6b6964207b7d2030",
+          "result_ascii": "::N::kid ::N::kid {} 0",
+          "options_line": 19
+        },
+        {
+          "case": "namespace-relative-qualified-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 22,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b696422",
+          "result_ascii": "invalid command name \"::N::kid\"",
+          "options_line": 23
+        },
+        {
+          "case": "namespace-renamed-child-deleted-with-namespace",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 26,
+          "result_hex": "7b7d207b7d207b7d",
+          "result_ascii": "{} {} {}",
+          "options_line": 27
+        },
+        {
+          "case": "renamed-child-delete-recreate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 30,
+          "result_hex": "6b6964207b7d2030",
+          "result_ascii": "kid {} 0",
+          "options_line": 31
+        },
+        {
+          "case": "active-child-continuation-errors",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 34,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 35
+        },
+        {
+          "case": "active-child-replacement-survives-error",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 38,
+          "result_hex": "31207b617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e7465727072657465727d20312030",
+          "result_ascii": "1 {attempt to call eval in deleted interpreter} 1 0",
+          "options_line": 39
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "setup",
+          "code": 0,
+          "result_line": 41,
+          "result_hex": "4f4c44",
+          "result_ascii": "OLD",
+          "options_line": 42
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "alias-setup",
+          "code": 0,
+          "result_line": 44,
+          "result_hex": "73776170",
+          "result_ascii": "swap",
+          "options_line": 45
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "active-evaluation",
+          "code": 1,
+          "result_line": 49,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 50
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "after-return",
+          "code": 0,
+          "result_line": 52,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 53
+        }
+      ],
+      "allocation_observations": [
+        {
+          "line": 46,
+          "fields": [
+            "active-original-allocation",
+            "callback-before",
+            "parent-selected",
+            "1",
+            "original-deleted",
+            "0"
+          ]
+        },
+        {
+          "line": 47,
+          "fields": [
+            "active-original-allocation",
+            "callback-after",
+            "code",
+            "0",
+            "original-deleted",
+            "1",
+            "replacement-present",
+            "1",
+            "different-allocation",
+            "1"
+          ]
+        },
+        {
+          "line": 54,
+          "fields": [
+            "active-original-allocation",
+            "after-return",
+            "callback-count",
+            "1",
+            "original-deleted",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "v2",
+      "provider": "8.6.18",
+      "reported_version": "8.6.18",
+      "receipt_sha256": "20d2e9cfeb866c5311438c40cefb94c4a0f91908e7a7056bffb39a2df1b78fcf",
+      "stdout_sha256": "6c863d9d8fa2aa94a384ad988da585fc6234dc408523261a03b147ce843218b7",
+      "row_count": 54,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "382e362e3138",
+          "result_ascii": "8.6.18",
+          "options_line": 3
+        },
+        {
+          "case": "namespace-publication-intermediate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 6,
+          "result_hex": "6b6964207b6b6964207b7d203a3a6b69647d2031207b696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b6964227d2030",
+          "result_ascii": "kid {kid {} ::kid} 1 {invalid command name \"::N::kid\"} 0",
+          "options_line": 7
+        },
+        {
+          "case": "namespace-relative-root-lookup",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 10,
+          "result_hex": "6b6964203a3a6b6964207b7d203020302031207b696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b6964227d",
+          "result_ascii": "kid ::kid {} 0 0 1 {invalid command name \"::N::kid\"}",
+          "options_line": 11
+        },
+        {
+          "case": "namespace-root-child-survives-delete",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 14,
+          "result_hex": "6b6964203a3a6b69642030",
+          "result_ascii": "kid ::kid 0",
+          "options_line": 15
+        },
+        {
+          "case": "namespace-qualified-publication",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 18,
+          "result_hex": "3a3a4e3a3a6b6964203a3a4e3a3a6b6964207b7d2030",
+          "result_ascii": "::N::kid ::N::kid {} 0",
+          "options_line": 19
+        },
+        {
+          "case": "namespace-relative-qualified-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 22,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b696422",
+          "result_ascii": "invalid command name \"::N::kid\"",
+          "options_line": 23
+        },
+        {
+          "case": "namespace-renamed-child-deleted-with-namespace",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 26,
+          "result_hex": "7b7d207b7d207b7d",
+          "result_ascii": "{} {} {}",
+          "options_line": 27
+        },
+        {
+          "case": "renamed-child-delete-recreate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 30,
+          "result_hex": "6b6964207b7d2030",
+          "result_ascii": "kid {} 0",
+          "options_line": 31
+        },
+        {
+          "case": "active-child-continuation-errors",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 34,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 35
+        },
+        {
+          "case": "active-child-replacement-survives-error",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 38,
+          "result_hex": "31207b617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e7465727072657465727d20312030",
+          "result_ascii": "1 {attempt to call eval in deleted interpreter} 1 0",
+          "options_line": 39
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "setup",
+          "code": 0,
+          "result_line": 41,
+          "result_hex": "4f4c44",
+          "result_ascii": "OLD",
+          "options_line": 42
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "alias-setup",
+          "code": 0,
+          "result_line": 44,
+          "result_hex": "73776170",
+          "result_ascii": "swap",
+          "options_line": 45
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "active-evaluation",
+          "code": 1,
+          "result_line": 49,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 50
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "after-return",
+          "code": 0,
+          "result_line": 52,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 53
+        }
+      ],
+      "allocation_observations": [
+        {
+          "line": 46,
+          "fields": [
+            "active-original-allocation",
+            "callback-before",
+            "parent-selected",
+            "1",
+            "original-deleted",
+            "0"
+          ]
+        },
+        {
+          "line": 47,
+          "fields": [
+            "active-original-allocation",
+            "callback-after",
+            "code",
+            "0",
+            "original-deleted",
+            "1",
+            "replacement-present",
+            "1",
+            "different-allocation",
+            "1"
+          ]
+        },
+        {
+          "line": 54,
+          "fields": [
+            "active-original-allocation",
+            "after-return",
+            "callback-count",
+            "1",
+            "original-deleted",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "v2",
+      "provider": "9.0.4",
+      "reported_version": "9.0.4",
+      "receipt_sha256": "6aed0c39ed050a2888da8187b526442565b35cc9c5a7b1fe9bea3143176760ee",
+      "stdout_sha256": "4276877573d851659dbfde07c5ac18f28f3369dd81c3329ecc6221fb0a87a773",
+      "row_count": 54,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "392e302e34",
+          "result_ascii": "9.0.4",
+          "options_line": 3
+        },
+        {
+          "case": "namespace-publication-intermediate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 6,
+          "result_hex": "6b6964207b6b6964207b7d203a3a6b69647d2031207b696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b6964227d2030",
+          "result_ascii": "kid {kid {} ::kid} 1 {invalid command name \"::N::kid\"} 0",
+          "options_line": 7
+        },
+        {
+          "case": "namespace-relative-root-lookup",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 10,
+          "result_hex": "6b6964203a3a6b6964207b7d203020302031207b696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b6964227d",
+          "result_ascii": "kid ::kid {} 0 0 1 {invalid command name \"::N::kid\"}",
+          "options_line": 11
+        },
+        {
+          "case": "namespace-root-child-survives-delete",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 14,
+          "result_hex": "6b6964203a3a6b69642030",
+          "result_ascii": "kid ::kid 0",
+          "options_line": 15
+        },
+        {
+          "case": "namespace-qualified-publication",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 18,
+          "result_hex": "3a3a4e3a3a6b6964203a3a4e3a3a6b6964207b7d2030",
+          "result_ascii": "::N::kid ::N::kid {} 0",
+          "options_line": 19
+        },
+        {
+          "case": "namespace-relative-qualified-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 22,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b696422",
+          "result_ascii": "invalid command name \"::N::kid\"",
+          "options_line": 23
+        },
+        {
+          "case": "namespace-renamed-child-deleted-with-namespace",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 26,
+          "result_hex": "7b7d207b7d207b7d",
+          "result_ascii": "{} {} {}",
+          "options_line": 27
+        },
+        {
+          "case": "renamed-child-delete-recreate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 30,
+          "result_hex": "6b6964207b7d2030",
+          "result_ascii": "kid {} 0",
+          "options_line": 31
+        },
+        {
+          "case": "active-child-continuation-errors",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 34,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 35
+        },
+        {
+          "case": "active-child-replacement-survives-error",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 38,
+          "result_hex": "31207b617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e7465727072657465727d20312030",
+          "result_ascii": "1 {attempt to call eval in deleted interpreter} 1 0",
+          "options_line": 39
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "setup",
+          "code": 0,
+          "result_line": 41,
+          "result_hex": "4f4c44",
+          "result_ascii": "OLD",
+          "options_line": 42
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "alias-setup",
+          "code": 0,
+          "result_line": 44,
+          "result_hex": "73776170",
+          "result_ascii": "swap",
+          "options_line": 45
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "active-evaluation",
+          "code": 1,
+          "result_line": 49,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 50
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "after-return",
+          "code": 0,
+          "result_line": 52,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 53
+        }
+      ],
+      "allocation_observations": [
+        {
+          "line": 46,
+          "fields": [
+            "active-original-allocation",
+            "callback-before",
+            "parent-selected",
+            "1",
+            "original-deleted",
+            "0"
+          ]
+        },
+        {
+          "line": 47,
+          "fields": [
+            "active-original-allocation",
+            "callback-after",
+            "code",
+            "0",
+            "original-deleted",
+            "1",
+            "replacement-present",
+            "1",
+            "different-allocation",
+            "1"
+          ]
+        },
+        {
+          "line": 54,
+          "fields": [
+            "active-original-allocation",
+            "after-return",
+            "callback-count",
+            "1",
+            "original-deleted",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "v2",
+      "provider": "9.1.0",
+      "reported_version": "9.1.0",
+      "receipt_sha256": "a272b31e65048d6e6809b86e2495f97c1dc5ed18de9515a3c92bef4e8a08e576",
+      "stdout_sha256": "f992a3ca450d11422b0583a6a6cceb4d5b1529a0bb259d0afeaa5c81e675e479",
+      "row_count": 54,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "392e312e30",
+          "result_ascii": "9.1.0",
+          "options_line": 3
+        },
+        {
+          "case": "namespace-publication-intermediate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 6,
+          "result_hex": "6b6964207b6b6964207b7d203a3a6b69647d2031207b696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b6964227d2030",
+          "result_ascii": "kid {kid {} ::kid} 1 {invalid command name \"::N::kid\"} 0",
+          "options_line": 7
+        },
+        {
+          "case": "namespace-relative-root-lookup",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 10,
+          "result_hex": "6b6964203a3a6b6964207b7d203020302031207b696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b6964227d",
+          "result_ascii": "kid ::kid {} 0 0 1 {invalid command name \"::N::kid\"}",
+          "options_line": 11
+        },
+        {
+          "case": "namespace-root-child-survives-delete",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 14,
+          "result_hex": "6b6964203a3a6b69642030",
+          "result_ascii": "kid ::kid 0",
+          "options_line": 15
+        },
+        {
+          "case": "namespace-qualified-publication",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 18,
+          "result_hex": "3a3a4e3a3a6b6964203a3a4e3a3a6b6964207b7d2030",
+          "result_ascii": "::N::kid ::N::kid {} 0",
+          "options_line": 19
+        },
+        {
+          "case": "namespace-relative-qualified-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 22,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a4e3a3a6b696422",
+          "result_ascii": "invalid command name \"::N::kid\"",
+          "options_line": 23
+        },
+        {
+          "case": "namespace-renamed-child-deleted-with-namespace",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 26,
+          "result_hex": "7b7d207b7d207b7d",
+          "result_ascii": "{} {} {}",
+          "options_line": 27
+        },
+        {
+          "case": "renamed-child-delete-recreate",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 30,
+          "result_hex": "6b6964207b7d2030",
+          "result_ascii": "kid {} 0",
+          "options_line": 31
+        },
+        {
+          "case": "active-child-continuation-errors",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 34,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 35
+        },
+        {
+          "case": "active-child-replacement-survives-error",
+          "phase": "direct",
+          "code": 0,
+          "result_line": 38,
+          "result_hex": "31207b617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e7465727072657465727d20312030",
+          "result_ascii": "1 {attempt to call eval in deleted interpreter} 1 0",
+          "options_line": 39
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "setup",
+          "code": 0,
+          "result_line": 41,
+          "result_hex": "4f4c44",
+          "result_ascii": "OLD",
+          "options_line": 42
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "alias-setup",
+          "code": 0,
+          "result_line": 44,
+          "result_hex": "73776170",
+          "result_ascii": "swap",
+          "options_line": 45
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "active-evaluation",
+          "code": 1,
+          "result_line": 49,
+          "result_hex": "617474656d707420746f2063616c6c206576616c20696e2064656c6574656420696e746572707265746572",
+          "result_ascii": "attempt to call eval in deleted interpreter",
+          "options_line": 50
+        },
+        {
+          "case": "active-original-allocation",
+          "phase": "after-return",
+          "code": 0,
+          "result_line": 52,
+          "result_hex": "312030",
+          "result_ascii": "1 0",
+          "options_line": 53
+        }
+      ],
+      "allocation_observations": [
+        {
+          "line": 46,
+          "fields": [
+            "active-original-allocation",
+            "callback-before",
+            "parent-selected",
+            "1",
+            "original-deleted",
+            "0"
+          ]
+        },
+        {
+          "line": 47,
+          "fields": [
+            "active-original-allocation",
+            "callback-after",
+            "code",
+            "0",
+            "original-deleted",
+            "1",
+            "replacement-present",
+            "1",
+            "different-allocation",
+            "1"
+          ]
+        },
+        {
+          "line": 54,
+          "fields": [
+            "active-original-allocation",
+            "after-return",
+            "callback-count",
+            "1",
+            "original-deleted",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "v2",
+      "provider": "jim",
+      "reported_version": "0.84-9-g5bac7c9",
+      "receipt_sha256": "9d7a544bd2e6c67684814470aeb6f773c8a681294afca630255511621a76b55e",
+      "stdout_sha256": "bebe4ef00ab531c00595e3e3a4fa4ee4fca155aa0040dbd8950095b8d10b5e00",
+      "row_count": 40,
+      "observations": [
+        {
+          "case": "startup",
+          "phase": "version",
+          "code": 0,
+          "result_line": 2,
+          "result_hex": "302e38342d392d6735626163376339",
+          "result_ascii": "0.84-9-g5bac7c9",
+          "options_line": null
+        },
+        {
+          "case": "namespace-publication-intermediate",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 6,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "namespace-relative-root-lookup",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 10,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "namespace-root-child-survives-delete",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 14,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "namespace-qualified-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 18,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "namespace-relative-qualified-publication",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 22,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "namespace-renamed-child-deleted-with-namespace",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 26,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "renamed-child-delete-recreate",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 30,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "active-child-continuation-errors",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 34,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        },
+        {
+          "case": "active-child-replacement-survives-error",
+          "phase": "direct",
+          "code": 1,
+          "result_line": 38,
+          "result_hex": "77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+          "result_ascii": "wrong # args: should be \"interp\"",
+          "options_line": null
+        }
+      ],
+      "allocation_observations": []
+    }
+  ]
+}

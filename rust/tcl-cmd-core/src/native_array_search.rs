@@ -54,12 +54,25 @@ pub fn dispatch<O: NativeArraySearchBackend>(
     rest: &[<O as ValueOps>::Value],
     target: Option<&ArrayTarget>,
 ) -> Option<Result<<O as ValueOps>::Value, CmdError>> {
-    if !matches!(
-        sub,
-        "startsearch" | "anymore" | "nextelement" | "donesearch"
-    ) {
-        return None;
-    }
+    dispatch_bytes(ops, sub.as_bytes(), rest, target)
+}
+
+/// Dispatch selected native subcommand bytes. Only an exact authored worker
+/// name crosses into the backend's canonical-name API; opaque input is never
+/// repaired, clipped, or used to issue the independent search protocol.
+pub fn dispatch_bytes<O: NativeArraySearchBackend>(
+    ops: &mut O,
+    sub: &[u8],
+    rest: &[<O as ValueOps>::Value],
+    target: Option<&ArrayTarget>,
+) -> Option<Result<<O as ValueOps>::Value, CmdError>> {
+    let sub = match sub {
+        b"startsearch" => "startsearch",
+        b"anymore" => "anymore",
+        b"nextelement" => "nextelement",
+        b"donesearch" => "donesearch",
+        _ => return None,
+    };
     Some((|| {
         let protocol =
             ops.array_search_protocol()

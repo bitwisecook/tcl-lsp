@@ -167,6 +167,7 @@ impl ResolveContext {
     ) {
         self.constant_values.retain(|key, _| keep(key));
         self.closed_literal_contents.retain(|key, _| keep(key));
+        self.original_name_values.retain(|key, _| keep(key));
     }
 
     pub(crate) fn forget_literal_value<Q: crate::var_resolve::VariableCellKeyQuery + ?Sized>(
@@ -175,6 +176,7 @@ impl ResolveContext {
     ) {
         self.constant_values.remove(key);
         self.closed_literal_contents.remove(key);
+        self.original_name_values.remove(key);
     }
 
     pub(crate) fn store_literal_value(
@@ -184,6 +186,7 @@ impl ResolveContext {
     ) {
         let key = key.into();
         self.closed_literal_contents.remove(&key);
+        self.original_name_values.remove(&key);
         self.constant_values.insert(key, value);
     }
 

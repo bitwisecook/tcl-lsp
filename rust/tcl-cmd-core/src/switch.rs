@@ -1173,30 +1173,57 @@ mod tests {
 
     #[test]
     fn integer_option_exists_only_from_tcl91() {
-        // tclsh 9.0.4:
-        //   % switch -integer 1 {1 {}}
-        //   bad option "-integer": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --
-        for v in [
-            TclVersion::V8_4,
-            TclVersion::V8_5,
-            TclVersion::V8_6,
-            TclVersion::V9_0,
+        // naming.switch-original-options-and-callback-observation
+        // docs/design/analysis/name-resolution-proofs/switch-original-options-and-callback-observation.md
+        // The unchanged integer RESULT rows observe each release's option
+        // enumeration. Their header/callback columns are not checked here.
+        for (v, rows) in [
+            (
+                TclVersion::V8_4,
+                include_str!("../tests/data/native_jim_switch/8.4.20.tsv"),
+            ),
+            (
+                TclVersion::V8_5,
+                include_str!("../tests/data/native_jim_switch/8.5.19.tsv"),
+            ),
+            (
+                TclVersion::V8_6,
+                include_str!("../tests/data/native_jim_switch/8.6.18.tsv"),
+            ),
+            (
+                TclVersion::V9_0,
+                include_str!("../tests/data/native_jim_switch/9.0.4.tsv"),
+            ),
         ] {
+            let original: Vec<_> = rows
+                .lines()
+                .map(|line| line.split('\t').collect::<Vec<_>>())
+                .find(|fields| {
+                    fields.first() == Some(&"RESULT") && fields.get(2) == Some(&"integer")
+                })
+                .unwrap();
+            assert_eq!(original[3], "1", "{v:?}: original guest error");
             let Err(e) = parse_at(v, &["-integer", "1", "{1 {}}"]) else {
                 panic!("-integer must be refused on {v:?}");
             };
             assert_eq!(
-                e.message().unwrap(),
-                "bad option \"-integer\": must be -exact, -glob, -indexvar, \
-                 -matchvar, -nocase, -regexp, or --"
+                e.message_bytes(),
+                crate::binary::hex_decode(original[5].as_bytes()).unwrap(),
+                "{v:?}: original option enumeration"
             );
-            // Before 9.1 `-i` is a unique prefix of `-indexvar`.
+            // The portable String adapter supplies this error-code transport;
+            // the retained RESULT row does not observe native errorCode.
             assert_eq!(
                 e.error_code().unwrap(),
                 Some("TCL LOOKUP INDEX option -integer"),
                 "{v:?}"
             );
-            assert!(parse_at(v, &["-regexp", "-i", "x", "1", "{1 {}}"]).is_ok());
+            // C8.4 has no indexvar option. C8.5–9.0 give it unique -i.
+            assert_eq!(
+                parse_at(v, &["-regexp", "-i", "x", "1", "{1 {}}"]).is_ok(),
+                v != TclVersion::V8_4,
+                "{v:?}"
+            );
         }
         let opts = parse_at(TclVersion::V9_1, &["-int", "1", "{1 {}}"]).unwrap();
         assert!(opts.mode == Mode::Integer);

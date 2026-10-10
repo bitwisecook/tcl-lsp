@@ -1,0 +1,124 @@
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-dialect)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-host-c-abi)
+   Compiling tcl-host-native v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-host-native)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-version)
+   Compiling tcl-cli v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-cli)
+   Compiling tcl-lexer v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-bytecode)
+   Compiling tcl-pkg v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-pkg)
+   Compiling tcl-regex v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-registry)
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-compiler)
+warning: `tcl-registry` (lib) generated 1 warning
+   Compiling tcl-vm v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-vm)
+warning: function `lookup_var_error_code` is never used
+    --> rust/tcl-vm/src/command.rs:3070:4
+     |
+3070 | fn lookup_var_error_code(name: &str) -> String {
+     |    ^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `bad_link_name` is never used
+    --> rust/tcl-vm/src/command.rs:3078:4
+     |
+3078 | fn bad_link_name(name: &str) -> Completion<Value> {
+     |    ^^^^^^^^^^^^^
+
+warning: function `upvar_link_error` is never used
+    --> rust/tcl-vm/src/command.rs:3088:15
+     |
+3088 | pub(crate) fn upvar_link_error(
+     |               ^^^^^^^^^^^^^^^^
+
+warning: `tcl-vm` (lib) generated 3 warnings
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling tcl-sslictcl v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-lsp-core)
+warning: field `source` is never read
+  --> rust/tcl-lsp-core/src/original_invocation.rs:26:16
+   |
+19 | pub(crate) struct OriginalRegistryWords {
+   |                   --------------------- field in this struct
+...
+26 |     pub(crate) source: OriginalRegistrySource,
+   |                ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-compiler` (lib) generated 1 warning
+   Compiling tcl-spectcl v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-spectcl)
+warning: `tcl-lsp-core` (lib) generated 2 warnings
+   Compiling tcl-spec-studio v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-spec-studio)
+   Compiling tcl-explorer v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-explorer)
+   Compiling tcl-cli-support v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-cli-support)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-bigip-query)
+   Compiling tcl-bigip-io v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-bigip-io)
+   Compiling tcl-irule-test v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-irule-test)
+   Compiling tcl-diagram v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-diagram)
+warning: unused import: `formatting_with`
+  --> rust/tcl-cli/src/commands/transform.rs:30:62
+   |
+30 | use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
+   |                                                              ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling f5-cli v0.1.0 (/workspace/.checkpoints/naming091/rust/f5-cli)
+warning: `tcl-cli` (lib) generated 1 warning (run `cargo fix --lib -p tcl-cli` to apply 1 suggestion)
+   Compiling f5-xc v0.1.0 (/workspace/.checkpoints/naming091/rust/f5-xc)
+   Compiling tcl-mcp v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-mcp)
+    Finished `test` profile [unoptimized] target(s) in 1m 28s
+     Running unittests src/main.rs (/workspace/.targets/naming/debug/deps/tcl_mcp-f85cd23baacbb0f9)
+
+running 6 tests
+test datagroup::tests::original_datagroup_suggestions_separate_heuristics_from_current_edit_eligibility ... ok
+test tools::docstring_tests::original_doc_tools_preserve_opaque_names_and_repeated_declarations ... ok
+test tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps ... 
+thread 'tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps' (376856) panicked at rust/tcl-mcp/src/tools.rs:2418:9:
+assertion failed: detect_events(shadow, &analyse(shadow, "f5-irules")).is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test tools::original_refactor_request_tests::original_code_action_responses_retain_disabled_rewrite_obligations ... ok
+test tools::original_refactor_request_tests::original_refactor_requests_do_not_replace_native_or_vendor_policy_with_irules ... ok
+test tools::original_refactor_request_tests::original_refactor_requests_use_the_selected_analysis_for_shadowed_heads ... ok
+
+failures:
+
+failures:
+    tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 82 filtered out; finished in 8.76s
+
+error: test failed, to rerun pass `-p tcl-mcp --bin tcl-mcp`

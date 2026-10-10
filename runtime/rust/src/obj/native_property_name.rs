@@ -40,7 +40,7 @@ pub(crate) fn accessor(
     check_native_liveness(value)?;
     if !is_cached(value) {
         let bytes = crate::dict::native_object_bytes(value, recipe.strings())?;
-        let (reader, writer) = recipe.accessor_names(&bytes);
+        let (reader, writer) = recipe.member_accessor_names(&bytes);
         let reader = Owned::fresh(new_string_bytes(&reader));
         let writer = Owned::fresh(new_string_bytes(&writer));
         let materialization = recipe.materialization();
@@ -65,6 +65,8 @@ mod tests {
     use super::*;
     #[test]
     fn original_property_name_duplicate_reuses_and_releases_accessor_children() {
+        // Native proof: naming.property.original-accessor-name-cache-children
+        // docs/design/analysis/name-resolution-proofs/property-original-accessor-name-cache-children.md
         let dialect = tcl_registry::InvocationDialect::of_profile(
             crate::environment::profile_for_dialect("tcl9.1"),
         );

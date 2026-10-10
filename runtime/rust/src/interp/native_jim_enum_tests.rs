@@ -6,6 +6,52 @@ use tcl_registry::native_jim_enum::NativeJimEnumFlags;
 const WORDS: &[&str] = &["provide", "present", "--"];
 const OTHER: &[&str] = &["present", "provide"];
 const BOGUS: &[&str] = &["bogus"];
+
+#[test]
+fn original_static_option_facades_keep_jim_counted_enum_currency() {
+    // Native proof: naming.interpreter.selector-and-property-index-currency
+    // docs/design/analysis/name-resolution-proofs/interpreter-selector-and-property-index-currency.md
+    let mut backend = Interp::new();
+    backend.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+    );
+    let original = obj::Owned::fresh(obj::new_string_bytes(b"provide\0x"));
+    assert_eq!(
+        backend
+            .native_static_string_option_index(original.as_ptr(), WORDS, true, "subcommand")
+            .unwrap(),
+        0
+    );
+    assert!(matches!(
+        obj::native_jim_enum::cache(original.as_ptr()),
+        Some(NativeJimOptionCache::Enum { flags: 1, .. })
+    ));
+    assert!(obj::native_index::cache(original.as_ptr()).is_none());
+    assert_eq!(
+        backend
+            .native_string_bytes(&original.as_ptr())
+            .unwrap()
+            .as_ref(),
+        b"provide\0x"
+    );
+
+    const BYTE_WORDS: &[&[u8]] = &[b"provide", b"present", b"--"];
+    let prefix = obj::Owned::fresh(obj::new_string_bytes(b"pro"));
+    assert_eq!(
+        backend
+            .native_static_option_index(prefix.as_ptr(), BYTE_WORDS, false, "subcommand")
+            .unwrap(),
+        0
+    );
+    assert!(backend
+        .native_static_option_index(prefix.as_ptr(), BYTE_WORDS, true, "subcommand")
+        .is_err());
+    assert!(matches!(
+        obj::native_jim_enum::cache(prefix.as_ptr()),
+        Some(NativeJimOptionCache::Enum { flags: 3, .. })
+    ));
+}
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }

@@ -1,0 +1,19 @@
+{
+  "provider": "8.5.19",
+  "channel": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.",
+  "input_sha256": "c5ce25bcb86f2cf8a803faac0816c985c3fd265873f1da05a59d707a6b5aef8f",
+  "runner_sha256": "3af3a56d4d498527632ab3ae7545b00b7b2224e7638c6c95285d665991e5bcf2",
+  "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+  "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+  "command": [
+    "/workspace/.proofs/oracle-bin/tclsh8.5",
+    "/workspace/.proofs/current-native-info-controls085/cases.tcl"
+  ],
+  "reported_version": "8.5.19",
+  "version_exit": 0,
+  "exit": 0,
+  "stdout_sha256": "574f010724d99ba99ed9dd027d48a7cb7b8be21524cc19ae36e30a5bdc2268c4",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": 12,
+  "limits": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant."
+}

@@ -1,0 +1,47 @@
+{
+  "question": "Does the exact unchanged original integer-updater probe produce the same complete812 rows for the current independently pinned C8.4archive and its separately loaded image, matching the immutable earlier observations?",
+  "source": "/workspace/.proofs/native-integer-formatter216-request/probe.c",
+  "source_sha256": "2c1e656d0a1bdc6a86f84a08a8601cb414eef16ce7f53ec9b1d882c99f91ff6e",
+  "archive": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+  "archive_sha256": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+  "header": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+  "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+  "output_directory": "/workspace/.proofs/native-integer-formatter216",
+  "link_command": [
+    "cc",
+    "-shared",
+    "-Wl,--whole-archive",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-Wl,--no-whole-archive",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/native-integer-formatter216/libtcl8.4-observed.so"
+  ],
+  "probe_compile_command": [
+    "cc",
+    "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+    "/workspace/.proofs/native-integer-formatter216-request/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/native-integer-formatter216/probe"
+  ],
+  "native_commands": [
+    [
+      "/workspace/.proofs/native-integer-formatter216/probe"
+    ],
+    [
+      "/workspace/.proofs/native-integer-formatter216/probe",
+      "/workspace/.proofs/native-integer-formatter216/libtcl8.4-observed.so"
+    ]
+  ],
+  "original_observations": "/workspace/tcl-lsp/rust/tcl-host-c-abi/testdata/native_integer_formatter/observations.tsv",
+  "scope": "Original byteidenticalCAPI probe, fresh public object allocation and reached updater; archive and independently loaded image compared as distinct producers. No C9/Jim claim or relaxation of immutable build admission."
+}

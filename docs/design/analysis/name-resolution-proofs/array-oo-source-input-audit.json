@@ -1,0 +1,68 @@
+[
+  {
+    "provider": "8.4.20",
+    "source_hash_verified": true,
+    "all25_case_literals_match_json": true,
+    "aggregate_matches_individual_receipt": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "stdout_hash_verified": true,
+    "stderr_hash_verified": true,
+    "result_lengths_verified": true
+  },
+  {
+    "provider": "8.5.19",
+    "source_hash_verified": true,
+    "all25_case_literals_match_json": true,
+    "aggregate_matches_individual_receipt": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "stdout_hash_verified": true,
+    "stderr_hash_verified": true,
+    "result_lengths_verified": true
+  },
+  {
+    "provider": "8.6.18",
+    "source_hash_verified": true,
+    "all25_case_literals_match_json": true,
+    "aggregate_matches_individual_receipt": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "stdout_hash_verified": true,
+    "stderr_hash_verified": true,
+    "result_lengths_verified": true
+  },
+  {
+    "provider": "9.0.4",
+    "source_hash_verified": true,
+    "all25_case_literals_match_json": true,
+    "aggregate_matches_individual_receipt": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "stdout_hash_verified": true,
+    "stderr_hash_verified": true,
+    "result_lengths_verified": true
+  },
+  {
+    "provider": "9.1.0",
+    "source_hash_verified": true,
+    "all25_case_literals_match_json": true,
+    "aggregate_matches_individual_receipt": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "stdout_hash_verified": true,
+    "stderr_hash_verified": true,
+    "result_lengths_verified": true
+  },
+  {
+    "provider": "0.84-9-g5bac7c9",
+    "source_hash_verified": true,
+    "all25_case_literals_match_json": true,
+    "aggregate_matches_individual_receipt": true,
+    "compile_exit": 0,
+    "process_exit": 0,
+    "stdout_hash_verified": true,
+    "stderr_hash_verified": true,
+    "result_lengths_verified": true
+  }
+]

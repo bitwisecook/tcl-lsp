@@ -1,0 +1,14 @@
+META patchlevel 9.1.0 configurable_command 1
+DEFINITION label option_like_getter method <ReadProp-p> code 0 definition {{} -set}
+DEFINITION label option_like_getter method <WriteProp-p> code 0 definition {value {set ::property_width_seen $value}}
+CALL label option_like_getter operation read code 0 result getter_option_value
+CALL label option_like_getter operation write code 0 result {} seen setter_value
+DEFINITION label multiple_names_abbreviations method <ReadProp-p> code 0 definition {{} -set}
+DEFINITION label multiple_names_abbreviations method <ReadProp-q> code 1 definition {definition not available for this kind of method}
+DEFINITION label multiple_names_abbreviations method <WriteProp-q> code 0 definition {value {set ::property_width_q $value}}
+DEFINITION label repeated_getter method <ReadProp-p> code 0 definition {{} -set}
+DEFINITION label repeated_getter method <WriteProp-p> code 0 definition {value {set ::property_width_repeat_seen $value}}
+DECL label missing_value code 1 result {missing body to go with -get option} errorCode {TCL WRONGARGS}
+DECL label unknown_option code 1 result {bad option "-unknown": must be -get, -kind, or -set} errorCode {TCL LOOKUP INDEX option -unknown}
+DECL label ambiguous_option code 1 result {ambiguous option "-": must be -get, -kind, or -set} errorCode {TCL LOOKUP INDEX option -}
+DECL label invalid_kind code 1 result {ambiguous kind "r": must be readable, readwrite, or writable} errorCode {TCL LOOKUP INDEX kind r}

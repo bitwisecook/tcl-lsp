@@ -1,0 +1,43 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-lambda-namespace188/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.012019307992886752,
+  "reported_version": "9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "f2cf19f936f7bb9c252c50a79f40899011b3644d5ac88bc62cfe368f97bfc4cb",
+  "runner_sha256": "65ee1b73a04ce12a6e7f088b55fa3864782572b16a780c11daa026554d9aeb47",
+  "stdout_sha256": "9e29e77e250e937780e1879ba148d1b27a7e79addf62babffcff74ab04e0ea33",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "rows": [
+    "version 9.1.0",
+    "observation ns-create status 0 result {} errorCode {}",
+    "observation colon-ns-create status 0 result {} errorCode {}",
+    "observation relative-colon status 0 result ::ns errorCode {}",
+    "observation absolute-colon status 0 result ::ns errorCode {}",
+    "observation relative-plain status 0 result ::ns errorCode {}",
+    "observation absolute-plain status 0 result ::ns errorCode {}",
+    "observation default-root status 0 result :: errorCode {}",
+    "observation empty-root status 0 result :: errorCode {}",
+    "observation counted-relative-colon status 1 result {namespace \":::ns\u0000suffix\" not found} errorCode {TCL LOOKUP NAMESPACE :::ns\u0000suffix}",
+    "observation counted-absolute status 1 result {namespace \"::ns\u0000suffix\" not found} errorCode {TCL LOOKUP NAMESPACE ::ns\u0000suffix}",
+    "observation counted-leading-null status 1 result {namespace \"::\u0000suffix\" not found} errorCode {TCL LOOKUP NAMESPACE ::\u0000suffix}",
+    "observation unicode-ns-create status 0 result {} errorCode {}",
+    "observation unicode-relative-colon status 0 result ::\u00e9 errorCode {}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; binary-produced counted NUL and explicit Unicode Tcl escape",
+  "boundary": "Question: which namespace current result does direct Apply select for the fixed original namespace values, including relative colon, binary-produced NUL and escaped Unicode? Sequential catches retain unsupported Apply surfaces. No original physical object/token/header, entered-frame correspondence, arbitrary Normal or compiler admission is inferred."
+}

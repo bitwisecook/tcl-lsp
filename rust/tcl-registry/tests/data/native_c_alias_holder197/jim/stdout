@@ -1,0 +1,5 @@
+version 0.84-9-g5bac7c9 interp_available interp
+relative_qualified 1 {wrong # args: should be "interp"} {} {}
+relative_calls 1 {invalid command name "::N::q::a"} 1 {invalid command name "::q::a"}
+unqualified 1 {wrong # args: should be "interp"} {} {}
+explicitly_rooted 1 {wrong # args: should be "interp"} {} 1 {invalid command name "::N::q::rooted"}

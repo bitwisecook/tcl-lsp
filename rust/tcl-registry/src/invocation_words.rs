@@ -80,13 +80,17 @@ pub enum NativeScriptParseTiming {
 
 /// The source-level knowledge available for one Tcl invocation word.
 ///
-/// Only [`Self::Literal`] exposes a string.  The remaining variants
-/// deliberately retain no raw spelling: treating source text such as `$kind`
-/// as its runtime value would make a registry decision unsound.
+/// Only [`Self::Literal`] exposes a logical string. [`Self::KnownBytes`]
+/// retains an independently produced native byte value without a Unicode
+/// projection. Neither facet certifies an object, source word or execution
+/// binding; computed source spelling such as `$kind` is never a value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InvocationWord<'w> {
     /// A word whose Tcl value is known to be exactly this literal string.
     Literal(&'w str),
+    /// One actual argv operand with an exact native byte value. This carries
+    /// neither logical text nor a native object, name or compiler receipt.
+    KnownBytes(&'w [u8]),
     /// One non-expanded argv word whose value is produced by substitution.
     Dynamic,
     /// One substituted argv word whose non-empty literal prefix proves its
@@ -114,6 +118,8 @@ pub enum InvocationWord<'w> {
 pub enum InvocationWordKind {
     /// The word has a known literal value.
     Literal,
+    /// The native byte value is known, without a logical string projection.
+    KnownBytes,
     /// The word's value is computed by substitution.
     Dynamic,
     /// The word expands a runtime Tcl list into argv entries.
@@ -128,11 +134,21 @@ impl<'w> InvocationWord<'w> {
     pub const fn literal(self) -> Option<&'w str> {
         match self {
             Self::Literal(value) => Some(value),
-            Self::Dynamic
+            Self::KnownBytes(_)
+            | Self::Dynamic
             | Self::DynamicNonOption
             | Self::ArrayElementName { .. }
             | Self::Expanded
             | Self::Opaque => None,
+        }
+    }
+
+    /// Borrow the exact native byte facet, without encoding a logical string.
+    #[must_use]
+    pub const fn native_bytes(self) -> Option<&'w [u8]> {
+        match self {
+            Self::KnownBytes(value) => Some(value),
+            _ => None,
         }
     }
 
@@ -142,6 +158,7 @@ impl<'w> InvocationWord<'w> {
     pub const fn kind(self) -> InvocationWordKind {
         match self {
             Self::Literal(_) => InvocationWordKind::Literal,
+            Self::KnownBytes(_) => InvocationWordKind::KnownBytes,
             Self::Dynamic | Self::DynamicNonOption | Self::ArrayElementName { .. } => {
                 InvocationWordKind::Dynamic
             }
@@ -157,6 +174,7 @@ impl<'w> InvocationWord<'w> {
         matches!(
             self,
             Self::Literal(_)
+                | Self::KnownBytes(_)
                 | Self::Dynamic
                 | Self::DynamicNonOption
                 | Self::ArrayElementName { .. }
@@ -168,6 +186,7 @@ impl<'w> InvocationWord<'w> {
     pub fn proves_non_option(self) -> bool {
         match self {
             Self::DynamicNonOption => true,
+            Self::KnownBytes(value) => value.first().is_some_and(|first| *first != b'-'),
             Self::ArrayElementName { root } => !root.starts_with('-'),
             _ => false,
         }
@@ -973,6 +992,22 @@ impl InvocationDialect {
             .flatten()
             .map(DialectPoint::for_tcl_version)
     }
+
+    /// Compare complete invocation policies after resolving their independently
+    /// selected execution points. Static C profiles may store a typed release
+    /// where a retained runtime stores its equivalent canonical point. Every
+    /// other policy field must still match; foreign, conflicting or unknown
+    /// points are not interchangeable. This comparison supplies no runtime
+    /// entry, compiler admission, original object or cache capability.
+    #[must_use]
+    pub fn has_same_execution_policy(mut self, mut other: Self) -> bool {
+        let (Some(left), Some(right)) = (self.execution_point(), other.execution_point()) else {
+            return false;
+        };
+        self.core_point = Some(left);
+        other.core_point = Some(right);
+        self == other
+    }
 }
 
 /// A borrowed, allocation-free view of post-head invocation words.
@@ -1103,6 +1138,7 @@ impl<'w> InvocationArguments<'w> {
                             return InvocationArgument::Indeterminate;
                         }
                         InvocationWord::Literal(_)
+                        | InvocationWord::KnownBytes(_)
                         | InvocationWord::Dynamic
                         | InvocationWord::DynamicNonOption
                         | InvocationWord::ArrayElementName { .. } => {
@@ -1122,6 +1158,13 @@ impl<'w> InvocationArguments<'w> {
     #[must_use]
     pub fn literal_at(self, index: usize) -> Option<&'w str> {
         self.get(index).and_then(InvocationWord::literal)
+    }
+
+    /// Borrow an actual native byte value at this source position. Logical
+    /// literals are not encoded into native units by this metadata query.
+    #[must_use]
+    pub fn native_bytes_at(self, index: usize) -> Option<&'w [u8]> {
+        self.get(index).and_then(InvocationWord::native_bytes)
     }
 
     /// Proved array-root shape at one final argv position, excluding uncertain expansion offsets.
@@ -1210,14 +1253,14 @@ impl<'w> InvocationArguments<'w> {
 
 /// Inputs supplied to a registry command-prefix resolver.
 ///
-/// `spellings` preserves the compatibility view used by position-only
-/// resolvers. `words` is the source-aware truth used by any resolver whose
+/// Optional `spellings` retain an explicitly supplied compatibility view.
+/// `words` is the source-aware truth used by any resolver whose
 /// appended arity depends on a literal argument value. Such a resolver must
 /// use [`Self::literal_at`] and abstain when it returns `None`, never interpret
 /// a dynamic word's source spelling as its runtime value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CommandPrefixArguments<'w> {
-    spellings: &'w [&'w str],
+    spellings: Option<&'w [&'w str]>,
     words: InvocationArguments<'w>,
 }
 
@@ -1226,7 +1269,7 @@ impl<'w> CommandPrefixArguments<'w> {
     #[must_use]
     pub const fn literals(spellings: &'w [&'w str]) -> Self {
         Self {
-            spellings,
+            spellings: Some(spellings),
             words: InvocationArguments::literals(spellings),
         }
     }
@@ -1236,9 +1279,18 @@ impl<'w> CommandPrefixArguments<'w> {
     #[must_use]
     pub fn structured(spellings: &'w [&'w str], words: &'w [InvocationWord<'w>]) -> Option<Self> {
         (spellings.len() == words.len()).then_some(Self {
-            spellings,
+            spellings: Some(spellings),
             words: InvocationArguments::structured(words),
         })
+    }
+
+    /// Retain actual argument knowledge without reconstructing source spellings.
+    #[must_use]
+    pub const fn from_invocation_arguments(words: InvocationArguments<'w>) -> Self {
+        Self {
+            spellings: None,
+            words,
+        }
     }
 
     /// Number of post-head source words.
@@ -1253,10 +1305,11 @@ impl<'w> CommandPrefixArguments<'w> {
         self.words.is_empty()
     }
 
-    /// Reconstructed source spellings for position-only compatibility
-    /// resolvers. Do not use these to make a value-dependent decision.
+    /// Explicit compatibility spellings, when the caller supplied them.
+    /// Actual argument-only ingress returns `None`; unknown values are never
+    /// reconstructed as empty strings. Do not use spellings for value decisions.
     #[must_use]
-    pub const fn spellings(self) -> &'w [&'w str] {
+    pub const fn spellings(self) -> Option<&'w [&'w str]> {
         self.spellings
     }
 
@@ -1280,7 +1333,9 @@ impl<'w> CommandPrefixArguments<'w> {
     #[must_use]
     pub fn slice_from(self, start: usize) -> Self {
         Self {
-            spellings: self.spellings.get(start..).unwrap_or(&[]),
+            spellings: self
+                .spellings
+                .map(|words| words.get(start..).unwrap_or(&[])),
             words: self.words.slice_from(start),
         }
     }
@@ -1466,6 +1521,57 @@ mod tests {
     }
 
     #[test]
+    fn execution_policy_comparison_normalises_only_the_selected_point() {
+        // Implementation proof: naming.invocation.execution-policy-canonical-point
+        // docs/design/analysis/name-resolution-proofs/invocation-execution-policy-canonical-point.md
+        use tcl_dialect::model::{BuildProfileId, DialectPoint, Family, Release};
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name())
+                .expect("explicit C profile");
+            let selected = InvocationDialect::of_profile(profile);
+            let mut retained = selected;
+            retained.core_point = selected.execution_point();
+            assert!(selected.core_point.is_none());
+            assert!(retained.core_point.is_some());
+            assert!(retained.has_same_execution_policy(selected));
+            assert!(selected.has_same_execution_policy(retained));
+
+            let mut changed = selected;
+            changed.characters = None;
+            assert!(!retained.has_same_execution_policy(changed));
+            changed = selected;
+            changed.lexer_grammar.expand_syntax = !changed.lexer_grammar.expand_syntax;
+            assert!(!retained.has_same_execution_policy(changed));
+            changed = selected;
+            changed.namespace_import_binding = None;
+            assert!(!retained.has_same_execution_policy(changed));
+            changed = selected;
+            changed.native_family = Some(Family::F5Irules);
+            assert!(!retained.has_same_execution_policy(changed));
+            changed = selected;
+            changed.core_point = Some(DialectPoint::for_tcl_version(
+                if version == tcl_dialect::TclVersion::V9_1 {
+                    tcl_dialect::TclVersion::V8_4
+                } else {
+                    tcl_dialect::TclVersion::V9_1
+                },
+            ));
+            assert!(!retained.has_same_execution_policy(changed));
+            changed = selected;
+            changed.native_family = None;
+            assert!(!retained.has_same_execution_policy(changed));
+        }
+        let jim = InvocationDialect::of_point(DialectPoint::canonical(Release::JIM_0_84));
+        assert!(jim.has_same_execution_policy(jim));
+        let mut different_build = jim;
+        different_build.core_point = Some(DialectPoint::new(
+            Release::JIM_0_84,
+            BuildProfileId::JimFull,
+        ));
+        assert!(!jim.has_same_execution_policy(different_build));
+    }
+
+    #[test]
     fn scalar_numeric_input_retains_actual_family_without_an_explicit_point() {
         use tcl_syntax::number::NativeScalarNumericInputPolicy as Policy;
         for version in tcl_dialect::TclVersion::ALL {
@@ -1629,6 +1735,34 @@ mod tests {
         assert_eq!(
             InvocationArguments::structured(&structured).literal_values(),
             Some(vec!["first", "second"])
+        );
+    }
+
+    #[test]
+    fn known_native_bytes_keep_argv_shape_without_a_logical_value() {
+        // Implementation contract: naming.invocation.known-native-byte-values
+        // docs/design/analysis/name-resolution-proofs/known-native-byte-values.md
+        let payload = [b'n', 0, 0xff, 0xed, 0xa0, 0x80];
+        let words = [
+            InvocationWord::KnownBytes(&payload),
+            InvocationWord::Literal("tail"),
+        ];
+        let arguments = InvocationArguments::structured(&words);
+        assert_eq!(arguments.exact_argv_len(), Some(2));
+        assert_eq!(arguments.argv_at(0), InvocationArgument::Word(words[0]));
+        assert_eq!(arguments.argv_at(1), InvocationArgument::Word(words[1]));
+        assert_eq!(arguments.native_bytes_at(0), Some(payload.as_slice()));
+        assert_eq!(arguments.native_bytes_at(1), None);
+        assert_eq!(arguments.literal_at(0), None);
+        assert_eq!(arguments.literal_values(), None);
+        assert_eq!(words[0].kind(), InvocationWordKind::KnownBytes);
+        assert!(words[0].proves_non_option());
+        assert!(!InvocationWord::KnownBytes(b"-opaque\xff").proves_non_option());
+        assert!(!InvocationWord::KnownBytes(b"").proves_non_option());
+        let expanded = [InvocationWord::Expanded, words[0]];
+        assert_eq!(
+            InvocationArguments::structured(&expanded).argv_at(1),
+            InvocationArgument::Indeterminate
         );
     }
 

@@ -22,9 +22,125 @@ use std::{
 };
 use tcl_registry::CommandRegistry;
 
+macro_rules! trace_formal {
+    ($source:expr, $stage:literal, $available:expr) => {
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
+            eprintln!(
+                "ORIGINAL_FORMAL_VALUE span={:?} stage={} available={}",
+                $source.span, $stage, $available
+            );
+        }
+    };
+}
+
 enum FormalValueSource<'a> {
     Incoming(String),
     Copy(&'a SourceVariableAccess),
+}
+
+fn direct_formal_argument_value(
+    site: &super::CommandAllocationSite,
+    observation: &super::declaration_layout::DeclarationLayoutObservation,
+    source: &SourceSite,
+    index: usize,
+    parameters: &[&str],
+    registry: &CommandRegistry,
+) -> Option<(CommandTokens, String)> {
+    // naming.tcloo.original-declared-receiver-caller-traits
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
+    let context = &observation.snapshot.state.source_variables;
+    // Command-table uncertainty cannot change this conditional input.
+    // Only independently retained caller-frame aliases may precede a
+    // receiver declaration's formal fetch; other aliases remain terminal.
+    // The shared resolver, incoming-value graph and original operand
+    // checks below still own this formal's slot, writes and observers.
+    trace_formal!(source, "static-bindings", !context.dynamic_bindings);
+    if context.dynamic_bindings
+        || !context.traced.is_empty()
+        || !context.untracked_traces.is_empty()
+        || !context.trace_registrations.is_empty()
+        || !context.possible_trace_registrations.is_empty()
+    {
+        return None;
+    }
+    trace_formal!(
+        source,
+        "original-topology",
+        observation.entry.original_formal_topology().is_some()
+    );
+    let topology = observation.entry.original_formal_topology()?;
+    if topology.parameters().len() != parameters.len()
+        || !topology
+            .parameters()
+            .iter()
+            .zip(parameters)
+            .all(|(formal, expected)| formal.name.as_slice() == expected.as_bytes())
+    {
+        return None;
+    }
+    let tokens = super::declaration_preview::declaration_tokens(site, observation)?;
+    let native = crate::registry_invocation::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        observation.config,
+    )?;
+    let word = native.get(index)?;
+    let arena = word.executable_parts();
+    let [part] = arena.list(arena.root()) else {
+        return None;
+    };
+    if !matches!(
+        part.part,
+        tcl_lexer::ExecutablePart::Variable { index: None, .. }
+    ) {
+        return None;
+    }
+    let root =
+        crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+            word,
+            part.span,
+            tcl_syntax::word_rules::WordValueRules::from_config(&observation.config),
+            topology.original_input().policy(),
+        )?;
+    let receiver = crate::var_resolve::resolve_evaluated_variable_input(
+        tcl_syntax::naming::NativeVariableInputForm::Separate {
+            root: root.bytes(),
+            element: None,
+        },
+        context,
+        false,
+        registry,
+        tcl_registry::TraceOperation::Read,
+    );
+    trace_formal!(
+        source,
+        "fresh-scalar-formal",
+        topology.fresh_scalar_formal_name(&receiver, context)
+    );
+    if !topology.fresh_scalar_formal_name(&receiver, context) {
+        return None;
+    }
+    let value = std::str::from_utf8(receiver.cell.as_ref()?.name.as_bytes())
+        .ok()?
+        .to_owned();
+    Some((tokens, value))
+}
+
+fn original_formal_observation_binding(
+    site: &super::CommandAllocationSite,
+    observation: &super::declaration_layout::DeclarationLayoutObservation,
+) -> super::SourceInvocationBinding {
+    super::SourceInvocationBinding {
+        dispatch_site: Some(site.clone()),
+        declaration_layout_observations: Some(vec![observation.clone()].into()),
+        lookup_state: Some(Arc::clone(&observation.snapshot)),
+        lookup_namespace_key: observation.namespace.clone(),
+        variable_context: Arc::clone(&observation.snapshot.state.source_variables),
+        variable_frame: observation.entry.frame().clone(),
+        ..Default::default()
+    }
 }
 
 impl SourceCommandBindings {
@@ -57,31 +173,52 @@ impl SourceCommandBindings {
         parameters: &[&str],
         registry: &CommandRegistry,
     ) -> Option<String> {
+        // naming.tcloo.original-declared-receiver-caller-traits
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
+        trace_formal!(
+            source,
+            "root-origin",
+            self.root_origin.as_ref() == Some(origin)
+        );
+        trace_formal!(
+            source,
+            "conditional-entry",
+            self.conditional_body_entry_at(origin, source.span.start())
+                .is_some()
+        );
+        trace_formal!(
+            source,
+            "variable-access",
+            self.variable_access_at(source, spelling).is_some()
+        );
         if self.root_origin.as_ref() != Some(origin) {
             return None;
         }
-        let entry = self.conditional_body_entry_at(origin, source.span.start())?;
-        if !entry.matches_parameters(parameters) {
-            return None;
+        if let Some(entry) = self.conditional_body_entry_at(origin, source.span.start())
+            && entry.matches_parameters(parameters)
+            && let Some(access) = self.variable_access_at(source, spelling)
+            && let Some(value) = self.formal_value_for_access(&entry, access, registry, true)
+        {
+            return Some(value);
         }
-        if let Some(access) = self.variable_access_at(source, spelling) {
-            return self.formal_value_for_access(&entry, access, registry, true);
-        }
-        self.original_direct_formal_value(&entry, source, spelling, registry)
+        let value =
+            self.original_direct_formal_value(origin, source, spelling, parameters, registry);
+        trace_formal!(source, "original-direct-result", value.is_some());
+        value
     }
 
     fn original_direct_formal_value(
         &self,
-        entry: &SourceConditionalBodyEntry,
+        origin: &Arc<SourceOriginId>,
         source: &SourceSite,
         spelling: &str,
+        parameters: &[&str],
         registry: &CommandRegistry,
     ) -> Option<String> {
         let mut agreed = None;
         let mut observed = false;
         for (site, observations) in &self.declaration_layouts {
-            if site.source != entry.source().origin || !entry.owns_source(&site.source, site.offset)
-            {
+            if &site.source != origin {
                 continue;
             }
             let Some(observations) =
@@ -90,7 +227,16 @@ impl SourceCommandBindings {
                 continue;
             };
             for observation in observations {
-                if !matches!(observation.entry.as_ref(), super::declaration_layout::OriginalDiagnosticFrameEntry::Body(body) if body.as_ref() == entry)
+                if !matches!(
+                    observation.entry.as_ref(),
+                    super::declaration_layout::OriginalDiagnosticFrameEntry::Body(_)
+                        | super::declaration_layout::OriginalDiagnosticFrameEntry::DeclaredProcedure(
+                            _
+                        )
+                        | super::declaration_layout::OriginalDiagnosticFrameEntry::DeclaredReceiver(
+                            _
+                        )
+                ) || !observation.entry.owns_source(origin, source.span.start())
                 {
                     continue;
                 }
@@ -101,32 +247,48 @@ impl SourceCommandBindings {
                 else {
                     continue;
                 };
-                let context = &observation.snapshot.state.source_variables;
-                if observation.snapshot.state.has_opaque_domain() {
+                trace_formal!(source, "matching-declaration-word", true);
+                if !self.original_formal_alias_prefix_preserves_input(site, observation, registry) {
                     return None;
                 }
-                let dialect = context.invocation_dialect?;
-                if observation.words[..index].iter().any(|word| {
-                    crate::registry_invocation::effective_invocation_word(
-                        word,
-                        dialect.lexer_grammar.escapes,
-                        dialect.word_values,
-                    )
-                    .literal_bytes()
-                    .is_none()
-                }) {
+                let (mut tokens, value) = direct_formal_argument_value(
+                    site,
+                    observation,
+                    source,
+                    index,
+                    parameters,
+                    registry,
+                )?;
+                let binding = original_formal_observation_binding(site, observation);
+                trace_formal!(
+                    source,
+                    "operand-lookup",
+                    binding.original_operands_preserve_lookup(&tokens, registry, observation, 0)
+                );
+                if !binding.original_operands_preserve_lookup(&tokens, registry, observation, 0) {
                     return None;
                 }
-                if !Self::declared_body_owns_context(entry, context) {
-                    continue;
-                }
-                let value = declared_incoming_formal_name(entry, spelling, context)?;
-                let tokens = self.declaration_original_tokens_at(entry, site.offset)?;
+                tokens.source_binding = Some(self.attach_declaration_operand_layout(
+                    binding,
+                    Some(origin),
+                    site.offset,
+                ));
+                // naming.compiler.original-formal-argument-entry
+                // docs/design/analysis/name-resolution-proofs/original-formal-argument-entry.md
+                // Source entry precedes this handler. All original operand
+                // effects were independently closed above, so unavailable
+                // dispatch cannot erase the incoming formal fetch; prior
+                // writers/aliases/observers still withdraw the report facet.
                 let report = tokens
                     .source_binding
                     .as_ref()?
                     .declaration_flow_report(registry)?;
-                if !report.conditional_handler_keeps_incoming(site, &value) {
+                trace_formal!(
+                    source,
+                    "incoming-argument-entry",
+                    report.conditional_argument_keeps_incoming(site, &value)
+                );
+                if !report.conditional_argument_keeps_incoming(site, &value) {
                     return None;
                 }
                 if agreed.as_ref().is_some_and(|previous| previous != &value) {
@@ -137,6 +299,42 @@ impl SourceCommandBindings {
             }
         }
         observed.then_some(agreed).flatten()
+    }
+
+    fn original_formal_alias_prefix_preserves_input(
+        &self,
+        site: &super::CommandAllocationSite,
+        observation: &super::declaration_layout::DeclarationLayoutObservation,
+        registry: &CommandRegistry,
+    ) -> bool {
+        // naming.tcloo.original-declared-receiver-caller-traits
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
+        let context = &observation.snapshot.state.source_variables;
+        if matches!(
+            observation.entry.as_ref(),
+            super::declaration_layout::OriginalDiagnosticFrameEntry::DeclaredReceiver(_)
+        ) {
+            // An unresolved alias transition can withdraw the prefix without
+            // installing an enumerable alias. Empty maps cannot discharge it.
+            return observation.entry.owns_original_context(context)
+                && self
+                    .original_formal_prefix_report(site, observation, registry)
+                    .is_some_and(|report| report.conditional_alias_prefix_targets_caller(site));
+        }
+        context.alias_bindings.is_empty()
+            && context.name_alias_bindings.is_empty()
+            && context.upvar_aliases.is_empty()
+    }
+
+    fn original_formal_prefix_report(
+        &self,
+        site: &super::CommandAllocationSite,
+        observation: &super::declaration_layout::DeclarationLayoutObservation,
+        registry: &CommandRegistry,
+    ) -> Option<Arc<super::declaration_flow::DeclarationFlowReport>> {
+        let binding = original_formal_observation_binding(site, observation);
+        self.attach_declaration_operand_layout(binding, Some(&site.source), site.offset)
+            .declaration_flow_report(registry)
     }
 
     /// Direct original argument components in the declaration's owned frame.
@@ -255,6 +453,7 @@ impl SourceCommandBindings {
             }) {
                 sources.push(self.formal_value_in_context(entry, read, context, registry)?);
             }
+            trace_formal!(&read.source, "owned-read-context", !sources.is_empty());
             if sources.is_empty() {
                 return None;
             }
@@ -276,6 +475,16 @@ impl SourceCommandBindings {
         context: &ResolveContext,
         registry: &CommandRegistry,
     ) -> Option<FormalValueSource<'a>> {
+        trace_formal!(
+            &access.source,
+            "context-static-bindings",
+            !context.dynamic_bindings
+        );
+        trace_formal!(
+            &access.source,
+            "incoming-formal",
+            incoming_formal_value(entry, &access.original_spelling, context, registry).is_some()
+        );
         if context.dynamic_bindings {
             return None;
         }
@@ -435,45 +644,6 @@ impl SourceCommandBindings {
     }
 }
 
-/// Identity of an ordinary declared formal, conditional on the untouched
-/// declaration prefix. This does not require or construct an activation cell.
-fn declared_incoming_formal_name(
-    entry: &SourceConditionalBodyEntry,
-    spelling: &str,
-    context: &ResolveContext,
-) -> Option<String> {
-    if context.dynamic_bindings || context.dynamic_traces {
-        return None;
-    }
-    let dialect = context.invocation_dialect?;
-    let name =
-        tcl_syntax::naming::var_reference_for_style(spelling, dialect.lexer_grammar.braced_var);
-    if tcl_syntax::naming::is_qualified(name.as_bytes())
-        || tcl_syntax::naming::split_element_ref(name).is_some()
-        || super::declaration_layout::local_read_scope_is_excluded(context, name)
-    {
-        return None;
-    }
-    let plan = tcl_syntax::formal_params::bind_formal_arguments(
-        entry.parameters(),
-        entry.parameters().len(),
-        dialect.parameter_grammar()?,
-    )
-    .ok()?;
-    plan.into_iter().find_map(|binding| {
-        use tcl_syntax::formal_params::FormalArgumentBinding;
-        let (parameter, slot) = match binding {
-            FormalArgumentBinding::Value { parameter, .. }
-            | FormalArgumentBinding::Default { parameter }
-            | FormalArgumentBinding::Rest { parameter, .. } => {
-                (parameter, entry.parameters()[parameter].name.as_str())
-            }
-            FormalArgumentBinding::CallerLink { .. } => return None,
-        };
-        (name == slot).then(|| entry.parameters()[parameter].name.clone())
-    })
-}
-
 fn incoming_formal_value(
     entry: &SourceConditionalBodyEntry,
     spelling: &str,
@@ -515,41 +685,298 @@ fn incoming_formal_value(
 #[cfg(test)]
 mod tests {
     #[test]
-    fn declaration_formal_identity_does_not_donate_activation_contents() {
-        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    fn original_receiver_formal_value_uses_its_unentered_declaration() {
+        // naming.tcloo.original-declared-receiver-caller-traits
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
+        for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+            let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+            let text = "oo::class create C {method pick {input} {upvar $input alias}}";
+            let mut inventory = super::SourceCommandBindings::analyse(text, config, registry);
+            let origin = inventory.root_origin.as_ref().unwrap().clone();
+            let offset = u32::try_from(text.find("upvar").unwrap()).unwrap();
+            let site = super::super::CommandAllocationSite {
+                source: origin.clone(),
+                offset,
+            };
+            let observation = super::super::declaration_layout::original_declaration_layouts(
+                inventory.declaration_layouts.get(&site).unwrap(),
+            )
+            .unwrap()
+            .next()
+            .unwrap();
+            assert!(matches!(
+                observation.entry.as_ref(),
+                super::super::declaration_layout::OriginalDiagnosticFrameEntry::DeclaredReceiver(_)
+            ));
+            let tokens =
+                super::super::declaration_preview::declaration_tokens(&site, observation).unwrap();
+            let (spelling, source) = tokens.words()[1].sole_variable_substitution().unwrap();
+            inventory.points.clear();
+            inventory.dispatch_points.clear();
+            inventory.origin_points.clear();
+            inventory.variable_accesses.clear();
+            inventory.origin_variable_accesses.clear();
+            assert_eq!(
+                inventory
+                    .symbolic_declaration_formal_value_at(
+                        &origin,
+                        source,
+                        spelling,
+                        &["input"],
+                        registry,
+                    )
+                    .as_deref(),
+                Some("input"),
+                "{profile}"
+            );
+            assert!(
+                inventory
+                    .symbolic_formal_value_at(&origin, source, spelling, &["input"], registry,)
+                    .is_none(),
+                "{profile}: no entered receiver value is supplied"
+            );
+            for changed in ["$::input", "$input(index)", "$other"] {
+                assert!(
+                    inventory
+                        .symbolic_declaration_formal_value_at(
+                            &origin,
+                            source,
+                            changed,
+                            &["input"],
+                            registry,
+                        )
+                        .is_none(),
+                    "{profile}: {changed}"
+                );
+            }
+            assert!(
+                inventory
+                    .symbolic_declaration_formal_value_at(
+                        &origin,
+                        source,
+                        spelling,
+                        &["different"],
+                        registry,
+                    )
+                    .is_none()
+            );
+        }
+    }
+
+    fn assert_receiver_formal_prefix(profile: &str, prefix: &str, expected: Option<&str>) {
+        let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
         let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-        let source = "proc p {target} {upvar 1 $target v}";
-        let inventory = super::SourceCommandBindings::analyse(source, config, registry);
-        let origin = inventory.root_origin.as_ref().unwrap();
-        let offset = u32::try_from(source.find("upvar").unwrap()).unwrap();
-        let entry = inventory.conditional_body_entry_at(origin, offset).unwrap();
-        let observation = &inventory.declaration_layouts[&super::super::CommandAllocationSite {
+        let text =
+            format!("oo::class create C {{method pick {{input}} {{{prefix} upvar $input alias}}}}");
+        let mut inventory = super::SourceCommandBindings::analyse(&text, config, registry);
+        let origin = inventory.root_origin.as_ref().unwrap().clone();
+        let offset = u32::try_from(text.rfind("upvar").unwrap()).unwrap();
+        let site = super::super::CommandAllocationSite {
             source: origin.clone(),
             offset,
-        }][0];
-        let mut context = observation.snapshot.state.source_variables.as_ref().clone();
-        context.define_unknown_contents("target", registry);
-        assert!(
-            context
-                .incoming_activation_slot("$target", "target", registry)
-                .is_none()
-        );
+        };
+        let observation = super::super::declaration_layout::original_declaration_layouts(
+            inventory.declaration_layouts.get(&site).unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        assert!(matches!(
+            observation.entry.as_ref(),
+            super::super::declaration_layout::OriginalDiagnosticFrameEntry::DeclaredReceiver(_)
+        ));
+        let tokens =
+            super::super::declaration_preview::declaration_tokens(&site, observation).unwrap();
+        let (spelling, source) = tokens.words()[1].sole_variable_substitution().unwrap();
+        inventory.points.clear();
+        inventory.dispatch_points.clear();
+        inventory.origin_points.clear();
+        inventory.variable_accesses.clear();
+        inventory.origin_variable_accesses.clear();
         assert_eq!(
-            super::declared_incoming_formal_name(&entry, "${target}", &context).as_deref(),
-            Some("target")
+            inventory
+                .symbolic_declaration_formal_value_at(
+                    &origin,
+                    source,
+                    spelling,
+                    &["input"],
+                    registry,
+                )
+                .as_deref(),
+            expected,
+            "{profile}: {prefix}"
         );
-        assert!(super::declared_incoming_formal_name(&entry, "$::target", &context).is_none());
-        assert!(super::declared_incoming_formal_name(&entry, "$target(index)", &context).is_none());
         assert!(
-            context
-                .incoming_activation_slot("$target", "target", registry)
+            inventory
+                .symbolic_formal_value_at(&origin, source, spelling, &["input"], registry)
+                .is_none(),
+            "{profile}: conditional source input grants no entered receiver value"
+        );
+    }
+
+    #[test]
+    fn original_receiver_formal_prefix_keeps_unrelated_aliases_and_refuses_clobbers() {
+        // naming.tcloo.original-declared-receiver-caller-traits
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
+        for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (prefix, expected) in [
+                ("upvar name local; set local VALUE;", Some("input")),
+                ("upvar 1 name local; set local VALUE;", Some("input")),
+                ("set input CHANGED;", None),
+                ("upvar name input;", None),
+                ("upvar 0 input local; set local CHANGED;", None),
+                (
+                    "upvar name local; upvar 0 input local; set local CHANGED;",
+                    None,
+                ),
+                ("upvar $unknown local;", None),
+                ("upvar $level input local; set local CHANGED;", None),
+                ("trace add variable input read callback;", None),
+                ("opaque;", None),
+            ] {
+                assert_receiver_formal_prefix(profile, prefix, expected);
+            }
+        }
+    }
+
+    #[test]
+    fn declaration_formal_identity_does_not_donate_activation_contents() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+            let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+            let text = "proc p {target} {upvar 1 ${target} v}";
+            let mut inventory = super::SourceCommandBindings::analyse(text, config, registry);
+            let origin = inventory.root_origin.as_ref().unwrap().clone();
+            let offset = u32::try_from(text.find("upvar").unwrap()).unwrap();
+            let site = super::super::CommandAllocationSite {
+                source: origin.clone(),
+                offset,
+            };
+            let observation = super::super::declaration_layout::original_declaration_layouts(
+                inventory.declaration_layouts.get(&site).unwrap(),
+            )
+            .unwrap()
+            .next()
+            .unwrap();
+            let tokens =
+                super::super::declaration_preview::declaration_tokens(&site, observation).unwrap();
+            let (spelling, source) = tokens.words()[2].sole_variable_substitution().unwrap();
+            inventory.points.clear();
+            inventory.dispatch_points.clear();
+            inventory.origin_points.clear();
+            inventory.variable_accesses.clear();
+            inventory.origin_variable_accesses.clear();
+            assert_eq!(
+                inventory
+                    .symbolic_declaration_formal_value_at(
+                        &origin,
+                        source,
+                        spelling,
+                        &["target"],
+                        registry,
+                    )
+                    .as_deref(),
+                Some("target"),
+                "{profile}"
+            );
+            for changed in ["$::target", "$target(index)", "$other"] {
+                assert!(
+                    inventory
+                        .symbolic_declaration_formal_value_at(
+                            &origin,
+                            source,
+                            changed,
+                            &["target"],
+                            registry,
+                        )
+                        .is_none(),
+                    "{profile}: {changed}"
+                );
+            }
+            assert!(
+                inventory
+                    .symbolic_declaration_formal_value_at(
+                        &origin,
+                        source,
+                        spelling,
+                        &["different"],
+                        registry,
+                    )
+                    .is_none()
+            );
+            assert!(
+                inventory
+                    .symbolic_formal_value_at(&origin, source, spelling, &["target"], registry,)
+                    .is_none()
+            );
+        }
+    }
+
+    fn assert_unentered_formal_case(
+        source: &str,
+        expected: Option<&str>,
+        registry: &tcl_registry::CommandRegistry,
+        profile: &str,
+        config: tcl_lexer::LexerConfig,
+    ) {
+        let mut inventory = super::SourceCommandBindings::analyse(source, config, registry);
+        let origin = inventory.root_origin.as_ref().unwrap().clone();
+        let offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
+        let entry = inventory
+            .conditional_body_entry_at(&origin, offset)
+            .unwrap();
+        inventory.points.clear();
+        inventory.dispatch_points.clear();
+        inventory.origin_points.clear();
+        inventory.variable_accesses.clear();
+        inventory.origin_variable_accesses.clear();
+        let Some(tokens) = inventory.declaration_original_tokens_at(&entry, offset) else {
+            assert_eq!(expected, None, "{profile}: unavailable original {source}");
+            return;
+        };
+        let word = tokens
+            .words()
+            .iter()
+            .find(|word| {
+                word.sole_variable_substitution()
+                    .is_some_and(|(spelling, _)| spelling == "$target")
+            })
+            .unwrap();
+        let (spelling, source_site) = word.sole_variable_substitution().unwrap();
+        assert_eq!(
+            inventory
+                .symbolic_declaration_formal_value_at(
+                    &origin,
+                    source_site,
+                    spelling,
+                    &["target"],
+                    registry
+                )
+                .as_deref(),
+            expected,
+            "{profile}: {source}"
+        );
+        assert!(
+            inventory
+                .symbolic_declaration_formal_value_at(
+                    &origin,
+                    source_site,
+                    "$different",
+                    &["target"],
+                    registry
+                )
                 .is_none()
         );
-        context.dynamic_bindings = true;
-        assert!(super::declared_incoming_formal_name(&entry, "$target", &context).is_none());
-        context.dynamic_bindings = false;
-        context.dynamic_traces = true;
-        assert!(super::declared_incoming_formal_name(&entry, "$target", &context).is_none());
+        assert!(
+            inventory
+                .symbolic_formal_value_at(&origin, source_site, spelling, &["target"], registry)
+                .is_none()
+        );
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.proved_execution_target().is_none());
+        assert!(binding.compiler_lookup_state.is_none());
+        assert!(binding.original_normal_result(&tokens).is_none());
     }
 
     #[test]
@@ -557,8 +984,31 @@ mod tests {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
             let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+            // naming.compiler.original-formal-source-domain
+            // docs/design/analysis/name-resolution-proofs/original-formal-source-domain.md
             for (source, expected) in [
                 ("proc p {target} {upvar 1 $target v}", Some("target")),
+                ("proc p\\uD800 {target} {upvar 1 $target v}", Some("target")),
+                ("proc p\\uD801 {target} {upvar 1 $target v}", Some("target")),
+                // naming.compiler.original-formal-argument-entry
+                // docs/design/analysis/name-resolution-proofs/original-formal-argument-entry.md
+                (
+                    "proc p\\uD800 {target} {upvar 1 $target local; set local 1}\nproc p\\uD801 {target} {upvar 1 $target local; set local}\np\\uD800 written\np\\uD801 read",
+                    Some("target"),
+                ),
+                (
+                    "proc p\\uD800 {target} {upvar 1 $target local}\nproc p\\uD801 {target} {opaque; upvar 1 $target local}",
+                    None,
+                ),
+                (
+                    "proc p\\uD800 {target} {upvar 1 $target local}\nproc p\\uD801 {target} {set target overwritten; upvar 1 $target local}",
+                    None,
+                ),
+                ("proc p\\uD800 {target} {opaque; upvar 1 $target v}", None),
+                (
+                    "proc p\\uD800 {target} {trace add variable target read callback; upvar 1 $target v}",
+                    None,
+                ),
                 (
                     "proc p {target} {set target overwritten; upvar 1 $target v}",
                     None,
@@ -578,69 +1028,7 @@ mod tests {
                     None,
                 ),
             ] {
-                let mut inventory = super::SourceCommandBindings::analyse(source, config, registry);
-                let origin = inventory.root_origin.as_ref().unwrap().clone();
-                let offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
-                let entry = inventory
-                    .conditional_body_entry_at(&origin, offset)
-                    .unwrap();
-                inventory.points.clear();
-                inventory.dispatch_points.clear();
-                inventory.origin_points.clear();
-                inventory.variable_accesses.clear();
-                inventory.origin_variable_accesses.clear();
-                let Some(tokens) = inventory.declaration_original_tokens_at(&entry, offset) else {
-                    assert_eq!(expected, None, "{profile}: unavailable original {source}");
-                    continue;
-                };
-                let word = tokens
-                    .words()
-                    .iter()
-                    .find(|word| {
-                        word.sole_variable_substitution()
-                            .is_some_and(|(spelling, _)| spelling == "$target")
-                    })
-                    .unwrap();
-                let (spelling, source_site) = word.sole_variable_substitution().unwrap();
-                assert_eq!(
-                    inventory
-                        .symbolic_declaration_formal_value_at(
-                            &origin,
-                            source_site,
-                            spelling,
-                            &["target"],
-                            registry
-                        )
-                        .as_deref(),
-                    expected,
-                    "{profile}: {source}"
-                );
-                assert!(
-                    inventory
-                        .symbolic_declaration_formal_value_at(
-                            &origin,
-                            source_site,
-                            "$different",
-                            &["target"],
-                            registry
-                        )
-                        .is_none()
-                );
-                assert!(
-                    inventory
-                        .symbolic_formal_value_at(
-                            &origin,
-                            source_site,
-                            spelling,
-                            &["target"],
-                            registry
-                        )
-                        .is_none()
-                );
-                let binding = tokens.source_binding.as_ref().unwrap();
-                assert!(binding.proved_execution_target().is_none());
-                assert!(binding.compiler_lookup_state.is_none());
-                assert!(binding.original_normal_result(&tokens).is_none());
+                assert_unentered_formal_case(source, expected, registry, profile, config);
             }
         }
     }

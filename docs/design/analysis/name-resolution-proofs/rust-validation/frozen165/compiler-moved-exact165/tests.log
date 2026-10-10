@@ -1,0 +1,109 @@
+
+running 1 test
+test command_binding::source_transition_advice::interpreter_handle::tests::original_created_handle_moves_keep_child_path_and_parent_lineage_separate ... CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[109, 111, 118, 101, 100] present=true created=true uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[109, 111, 118, 101, 100] present=true created=true uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[109, 111, 118, 101, 100] present=true created=true uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[109, 111, 118, 101, 100] present=true created=true uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[109, 111, 118, 101, 100] present=true created=true uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(39) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=39 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=60 bytes=[115, 101, 99, 111, 110, 100] present=true created=true uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(39) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=39 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=60 bytes=[115, 101, 99, 111, 110, 100] present=true created=true uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(39) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=39 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=60 bytes=[115, 101, 99, 111, 110, 100] present=true created=true uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(39) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=39 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=60 bytes=[115, 101, 99, 111, 110, 100] present=true created=true uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(39) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=39 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=60 bytes=[115, 101, 99, 111, 110, 100] present=true created=true uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[110, 97, 109, 101, 115, 112, 97, 99, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=namespace receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=namespace applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=44 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(44) descriptor=rename receipt=false facts=2
+CREATED_SOURCE_HEAD site=64 bytes=[58, 58, 78, 58, 58, 104, 101, 108, 100] present=false created=false uncertain=1
+
+thread 'command_binding::source_transition_advice::interpreter_handle::tests::original_created_handle_moves_keep_child_path_and_parent_lineage_separate' (630214) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs:381:22:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::interpreter_handle::tests::original_created_handle_moves_keep_child_path_and_parent_lineage_separate
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8225 filtered out; finished in 8.34s
+

@@ -1,0 +1,127 @@
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-core` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.13s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_core-f816994f92f0f9f0)
+
+running 2 tests
+test original_member_rename::tests::original_member_rename_checks_builtin_roster_visibility_and_source_family_closure ... ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_CONSTRUCTOR_DEFINITION site=50 dispatcher=false lifecycle_closed=true generation_match=true dependencies=true constructor=false destructor=false factory=true words=3 written=Some(3)
+ORIGINAL_CONSTRUCTOR_INPUTS site=50 selector=Some([99, 114, 101, 97, 116, 101]) name=Some([111, 98, 106, 101, 99, 116])
+ORIGINAL_NAMED_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([111, 98, 106, 101, 99, 116]) } current=true namespace=true unknown_holder=false cell=Some({Missing})
+ORIGINAL_NAMED_ALLOCATION site=50 command_incarnation=First object_incarnation=First same_site=true same_namespace=true same_token=true
+ORIGINAL_CONSTRUCTOR_ALLOCATION site=50 retained_named=true current=true
+ORIGINAL_PROCEDURE_CLOSURE offset=36 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_COMPLETED_WORLD root_state=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_CONSTRUCTOR_DEFINITION site=50 dispatcher=false lifecycle_closed=true generation_match=true dependencies=true constructor=false destructor=false factory=true words=3 written=Some(3)
+ORIGINAL_CONSTRUCTOR_INPUTS site=50 selector=Some([99, 114, 101, 97, 116, 101]) name=Some([111, 98, 106, 101, 99, 116])
+ORIGINAL_NAMED_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([111, 98, 106, 101, 99, 116]) } current=true namespace=true unknown_holder=false cell=Some({Missing})
+ORIGINAL_NAMED_ALLOCATION site=50 command_incarnation=First object_incarnation=First same_site=true same_namespace=true same_token=true
+ORIGINAL_CONSTRUCTOR_ALLOCATION site=50 retained_named=true current=true
+ORIGINAL_PROCEDURE_CLOSURE offset=36 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_ROSTER_BEGIN kind=Class source=true native=false opaque=false unavailable=false step=false quiet=true taint=false own_tables=0
+ORIGINAL_ROSTER_PUBLICATIONS count=1
+ORIGINAL_ROSTER_TARGET kind=Class terminal=true registry=false prefix=0 allocation=true token_allocation=true runtime=false observed=false taint=false definition=true
+ORIGINAL_ROSTER_DEFINITION generation=true dispatcher=false ancestors=0 dependencies=true factory=true support=false inventory=true entries=1
+ORIGINAL_ROSTER_BEGIN kind=Class source=true native=false opaque=false unavailable=false step=false quiet=true taint=false own_tables=0
+ORIGINAL_ROSTER_PUBLICATIONS count=1
+ORIGINAL_ROSTER_TARGET kind=Class terminal=true registry=false prefix=0 allocation=true token_allocation=true runtime=false observed=false taint=false definition=true
+ORIGINAL_ROSTER_DEFINITION generation=true dispatcher=false ancestors=0 dependencies=true factory=true support=false inventory=true entries=1
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=55 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_COMPLETED_WORLD root_state=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=55 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_NAMESPACE_BODY_CAPTURE site=0 delegation=false quiet=true argc=Some(3) arity=Some(true) callbacks=CallbackEffect { kinds: CallbackKinds(6), reentrancy: CurrentInterpreter } namespace_activation=false entered_frame=true namespace_identity=true namespace_known=true
+ORIGINAL_COMPLETED_WORLD root_state=false
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_NAMESPACE_BODY_CAPTURE site=0 delegation=false quiet=true argc=Some(3) arity=Some(true) callbacks=CallbackEffect { kinds: CallbackKinds(6), reentrancy: CurrentInterpreter } namespace_activation=false entered_frame=true namespace_identity=true namespace_known=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_CONSTRUCTOR_DEFINITION site=51 dispatcher=false lifecycle_closed=true generation_match=true dependencies=true constructor=false destructor=false factory=true words=3 written=Some(3)
+ORIGINAL_CONSTRUCTOR_INPUTS site=51 selector=Some([99, 114, 101, 97, 116, 101]) name=Some([111, 98, 106, 101, 99, 116])
+ORIGINAL_NAMED_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([111, 98, 106, 101, 99, 116]) } current=true namespace=true unknown_holder=false cell=Some({Missing})
+ORIGINAL_NAMED_ALLOCATION site=51 command_incarnation=First object_incarnation=First same_site=true same_namespace=true same_token=true
+ORIGINAL_CONSTRUCTOR_ALLOCATION site=51 retained_named=true current=true
+ORIGINAL_PROCEDURE_CLOSURE offset=68 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=36 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=36 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_COMPLETED_WORLD root_state=false
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_CONSTRUCTOR_DEFINITION site=51 dispatcher=false lifecycle_closed=true generation_match=true dependencies=true constructor=false destructor=false factory=true words=3 written=Some(3)
+ORIGINAL_CONSTRUCTOR_INPUTS site=51 selector=Some([99, 114, 101, 97, 116, 101]) name=Some([111, 98, 106, 101, 99, 116])
+ORIGINAL_NAMED_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([111, 98, 106, 101, 99, 116]) } current=true namespace=true unknown_holder=false cell=Some({Missing})
+ORIGINAL_NAMED_ALLOCATION site=51 command_incarnation=First object_incarnation=First same_site=true same_namespace=true same_token=true
+ORIGINAL_CONSTRUCTOR_ALLOCATION site=51 retained_named=true current=true
+ORIGINAL_PROCEDURE_CLOSURE offset=68 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=36 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=36 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=51 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=36 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_COMPLETED_WORLD root_state=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=51 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=36 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ok
+test original_member_rename::tests::original_member_rename_keeps_actual_selectors_and_opaque_declarations_after_ui_clear ... ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_CONSTRUCTOR_DEFINITION site=50 dispatcher=false lifecycle_closed=true generation_match=true dependencies=true constructor=false destructor=false factory=true words=3 written=Some(3)
+ORIGINAL_CONSTRUCTOR_INPUTS site=50 selector=Some([99, 114, 101, 97, 116, 101]) name=Some([111, 98, 106, 101, 99, 116])
+ORIGINAL_NAMED_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([111, 98, 106, 101, 99, 116]) } current=true namespace=true unknown_holder=false cell=Some({Missing})
+ORIGINAL_NAMED_ALLOCATION site=50 command_incarnation=First object_incarnation=First same_site=true same_namespace=true same_token=true
+ORIGINAL_CONSTRUCTOR_ALLOCATION site=50 retained_named=true current=true
+ORIGINAL_PROCEDURE_CLOSURE offset=36 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_COMPLETED_WORLD root_state=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_CONSTRUCTOR_DEFINITION site=50 dispatcher=false lifecycle_closed=true generation_match=true dependencies=true constructor=false destructor=false factory=true words=3 written=Some(3)
+ORIGINAL_CONSTRUCTOR_INPUTS site=50 selector=Some([99, 114, 101, 97, 116, 101]) name=Some([111, 98, 106, 101, 99, 116])
+ORIGINAL_NAMED_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([111, 98, 106, 101, 99, 116]) } current=true namespace=true unknown_holder=false cell=Some({Missing})
+ORIGINAL_NAMED_ALLOCATION site=50 command_incarnation=First object_incarnation=First same_site=true same_namespace=true same_token=true
+ORIGINAL_CONSTRUCTOR_ALLOCATION site=50 retained_named=true current=true
+ORIGINAL_PROCEDURE_CLOSURE offset=36 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_ROSTER_BEGIN kind=Class source=true native=false opaque=false unavailable=false step=false quiet=true taint=false own_tables=0
+ORIGINAL_ROSTER_PUBLICATIONS count=1
+ORIGINAL_ROSTER_TARGET kind=Class terminal=true registry=false prefix=0 allocation=true token_allocation=true runtime=false observed=false taint=false definition=true
+ORIGINAL_ROSTER_DEFINITION generation=true dispatcher=false ancestors=0 dependencies=true factory=true support=false inventory=true entries=1
+
+thread 'original_member_rename::tests::original_member_rename_keeps_actual_selectors_and_opaque_declarations_after_ui_clear' (377346) panicked at rust/tcl-lsp-core/src/original_member_rename.rs:550:88:
+called `Result::unwrap()` on an `Err` value: IncompleteCoverage
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    original_member_rename::tests::original_member_rename_keeps_actual_selectors_and_opaque_declarations_after_ui_clear
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 2522 filtered out; finished in 4.24s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

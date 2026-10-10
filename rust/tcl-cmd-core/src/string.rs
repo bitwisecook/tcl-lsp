@@ -30,6 +30,10 @@
 //! runtime still implements itself, so a host can fall back to its own
 //! body for the few not routed here.
 
+mod native_compiled;
+pub use native_compiled::{
+    compiled_find, compiled_index, compiled_qualifiers, compiled_range, compiled_tail,
+};
 mod native_trim;
 pub use native_trim::compiled_trim;
 

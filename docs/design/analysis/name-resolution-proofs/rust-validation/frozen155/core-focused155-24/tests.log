@@ -1,0 +1,6 @@
+
+running 1 test
+test inlay_hints::retained_hint_context_tests::logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2650 filtered out; finished in 4.21s
+

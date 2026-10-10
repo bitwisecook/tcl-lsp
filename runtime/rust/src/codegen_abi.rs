@@ -1487,7 +1487,7 @@ pub unsafe extern "C" fn tcl_codegen_log_command(line: i32, src_ptr: *const u8, 
     // rather than a silently dropped one.
     let line = u32::try_from(line).unwrap_or(1).max(1);
     // SAFETY: the bootstrap installed a live current interpreter.
-    unsafe { (*interp).log_command_bytes(line, src) };
+    unsafe { (*interp).log_evaluated_command_bytes(line, src) };
 }
 
 /// Record the pending `return -level`/`-code` state, exactly as the `return`
@@ -3163,8 +3163,16 @@ mod tests {
     /// real error options instead of an empty placeholder.
     #[test]
     fn invoke_argv_reports_unknown_error_with_options() {
+        // naming.runtime.original-procedure-error-context
+        // docs/design/analysis/name-resolution-proofs/runtime-original-procedure-error-context.md
+        // The default ABI interpreter selects C9.0. Native295's ordinary-miss
+        // public errorCode differs from the namespace-origin error producer.
         leak_free(|| unsafe {
             let interp = tcl_runtime_create_interp();
+            assert_eq!(
+                (*interp).native_invocation_dialect().tcl_version,
+                Some(tcl_dialect::TclVersion::V9_0)
+            );
             tcl_runtime_set_current_interp(interp);
             let words = [owned_word(b"definitely_missing_command")];
 
@@ -3173,7 +3181,10 @@ mod tests {
             assert!(obj_bytes(completion.result).starts_with(b"invalid command name"));
             assert_eq!(option(&completion, b"-code"), b"1");
             assert_eq!(option(&completion, b"-level"), b"0");
-            assert_eq!(option(&completion, b"-errorcode"), b"NONE");
+            assert_eq!(
+                option(&completion, b"-errorcode"),
+                b"TCL LOOKUP COMMAND definitely_missing_command"
+            );
             assert!(option(&completion, b"-errorinfo").starts_with(b"invalid command name"));
 
             tcl_completion_release(&mut completion);
@@ -3481,15 +3492,21 @@ mod tests {
         });
     }
 
-    /// An explicit compiled activation is an eval-loop activation: an uncaught
-    /// error inside it is *not* published while it is held (the enclosing
-    /// activation, not the dispatch, is the outermost one), and the matching
-    /// leave publishes `::errorInfo`/`::errorCode` exactly as the eval loop's
-    /// tail does.
+    /// A compiled activation's matching leave retains the native error
+    /// objects. Public original-name reads reach their hidden core read hooks
+    /// without starting an eval loop or resetting the error episode.
     #[test]
-    fn compiled_activation_defers_error_publication_to_its_own_leave() {
+    fn compiled_activation_leave_retains_native_errors_for_public_read() {
+        // naming.runtime.compiled-procedure-fallback-and-source-log
+        // docs/design/analysis/name-resolution-proofs/compiled-procedure-fallback-and-source-log.md
         leak_free(|| unsafe {
-            let interp = tcl_runtime_create_interp();
+            let native = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("tcl9.0"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let interp = Box::into_raw(Box::new(native));
             tcl_runtime_set_current_interp(interp);
 
             assert_eq!(tcl_codegen_activation_enter(), 0);
@@ -3497,24 +3514,25 @@ mod tests {
             let mut completion = invoke(&words);
             assert_eq!(completion.code, 1);
 
-            // Still inside the activation, so the globals are untouched — the
-            // eval loop would not have published at depth 1 either. Read them
-            // straight out of the interpreter: an intervening `eval` would
-            // reset the very error episode under test.
+            // The ordinary cell has no eager write. This is not a claim that
+            // a public Read cannot reach an active native private exception.
+            // An intervening eval would reset the error episode under test.
             assert!(
                 (*interp).var_get(b"::errorInfo").is_none(),
-                "a held activation is not the outermost one"
+                "no eager ordinary error-variable cell write"
             );
 
             tcl_codegen_activation_leave(1);
+            let info_name = obj::Owned::fresh(obj::new_string_bytes(b"::errorInfo"));
             let published = (*interp)
-                .var_get(b"::errorInfo")
-                .expect("leaving the outermost activation publishes the trace");
+                .read_original_named_variable(info_name.as_ptr())
+                .expect("the public Read reaches the published native trace");
             assert!(obj_bytes(published).starts_with(b"boom"));
-            assert_eq!(
-                obj_bytes((*interp).var_get(b"::errorCode").expect("::errorCode")),
-                b"NONE"
-            );
+            let code_name = obj::Owned::fresh(obj::new_string_bytes(b"::errorCode"));
+            let published = (*interp)
+                .read_original_named_variable(code_name.as_ptr())
+                .expect("the public Read reaches the published native error code");
+            assert_eq!(obj_bytes(published), b"NONE");
 
             tcl_completion_release(&mut completion);
             release_words(&words);
@@ -4389,6 +4407,8 @@ mod tests {
 
     #[test]
     fn a_declining_entry_falls_back_to_the_source_body_observably_unchanged() {
+        // naming.runtime.compiled-procedure-fallback-and-source-log
+        // docs/design/analysis/name-resolution-proofs/compiled-procedure-fallback-and-source-log.md
         leak_free(|| unsafe {
             with_current_interp(|interp| {
                 // The same proc, same name, same body — once with a
@@ -4597,12 +4617,14 @@ mod tests {
         });
     }
 
-    /// With the statement's site logged, a compiled body's error is
-    /// indistinguishable from the interpreted one — the whole point of
-    /// `tcl_codegen_log_command`, proved here with a stub standing in for the
-    /// emitter so the emitter has a target rather than a guess.
+    /// Source logging reproduces the public source trace. A generic argv
+    /// invocation retains its own inner error-stack context, independently from
+    /// the original body's selected native instruction.
     #[test]
-    fn a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one() {
+    fn a_logged_statement_site_preserves_the_source_trace_without_instruction_identity() {
+        // naming.runtime.compiled-procedure-fallback-and-source-log
+        // docs/design/analysis/name-resolution-proofs/compiled-procedure-fallback-and-source-log.md
+        // This ABI stub exercises source logging, not native returnImm admission.
         leak_free(|| unsafe {
             with_current_interp(|interp| {
                 define_native(b"boom", b"a", BOOM_BODY, None);
@@ -4619,7 +4641,15 @@ mod tests {
                 assert_eq!(tcl_codegen_native_proc_dispatches(), 1);
 
                 assert_eq!(eval(interp, "dict get $o -errorinfo").1, source_info);
-                assert_eq!(eval(interp, "dict get $o -errorstack").1, source_stack);
+                assert_eq!(
+                    source_stack, b"INNER {returnImm {bad Q} {}} CALL {boom Q}",
+                    "the source body owns its selected native instruction context"
+                );
+                assert_eq!(
+                    eval(interp, "dict get $o -errorstack").1,
+                    b"INNER {error \"bad $a\"} CALL {boom Q}",
+                    "logging source text does not grant an instruction context"
+                );
                 assert_eq!(
                     String::from_utf8_lossy(&source_info),
                     "bad Q\n    while executing\n\"error \"bad $a\"\"\n    \

@@ -585,6 +585,7 @@ fn classify_intra_iteration_thunk(
 /// the (self-referential) variable with two distinct intreps within one
 /// iteration ([`classify_intra_iteration_thunk`]).
 #[must_use]
+#[cfg(test)]
 pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -593,6 +594,25 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     registry: &tcl_registry::CommandRegistry,
     extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<ThunkingWarning> {
+    find_thunking_warnings_with_context(
+        cfg,
+        ssa,
+        types,
+        executable_blocks,
+        super::ShimmerContext::standalone(registry),
+        extra_scope_aliases,
+    )
+}
+
+pub(crate) fn find_thunking_warnings_with_context<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    types: &HashMap<ValueKey, TypeLattice>,
+    executable_blocks: &HashSet<BlockId>,
+    context: super::ShimmerContext<'_>,
+    extra_scope_aliases: Option<&HashSet<String, S>>,
+) -> Vec<ThunkingWarning> {
+    let registry = context.registry();
     let loop_blocks = loop_body_blocks(cfg);
     let succs = build_successors(cfg);
     let def_map = def_range_map(ssa);
@@ -606,7 +626,11 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     // in this body, plus the caller-supplied implicit set (a method's
     // class-declared instance variables, which never appear as statements
     // in the method's own CFG).
-    let mut scope_aliases = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
+    let mut scope_aliases = crate::optimiser::elimination::scan_scope_aliases_with_metadata_context(
+        cfg,
+        registry,
+        context.metadata(),
+    );
     if let Some(extra) = extra_scope_aliases {
         scope_aliases.extend(extra.iter().cloned());
     }

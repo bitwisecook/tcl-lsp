@@ -224,6 +224,7 @@ const ROW_WORDS: &[&str] = &[
     "safe_on_uninit",
     "deprecated_replacement",
     "deprecated_replacement_drop_in",
+    "source_deprecation_advice",
     "xc_translatable",
     "arg",
     "repeat",
@@ -238,6 +239,7 @@ const ROW_WORDS: &[&str] = &[
     "procedure_definition",
     "native_compilation",
     "successful_handler",
+    "variable_receivers",
     "allow_unknown_subcommands",
     "dynamic_surface",
     "unknown_members",
@@ -778,6 +780,7 @@ fn capture_stmt(word: &str, args: &[String], line: u32) -> Stmt {
 
 fn eval_notice(context: &str, line: u32, class: VocabularyClass, message: String) -> Notice {
     Notice {
+        subject: None,
         context: context.to_owned(),
         line,
         message,
@@ -1767,6 +1770,7 @@ fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
         }
     };
     pack.notices.push(Notice {
+        subject: None,
         context: "pack".to_owned(),
         line: state.speclib.as_ref().map_or(1, |s| s.line),
         class: VocabularyClass::Semantic,
@@ -1899,6 +1903,7 @@ fn provenance_violation_in(registrations: &[Registration], tier: Tier) -> Option
 fn replay(state: State, options: &EvalOptions) -> Pack {
     let mut log = Log {
         context: "pack".to_owned(),
+        source: Some(std::sync::Arc::from(state.verbatim.source.as_ref())),
         ..Log::default()
     };
     let mut pack = empty_pack();
@@ -1948,6 +1953,7 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     {
         let error = LoadError::Provenance(message.clone());
         pack.notices.push(Notice {
+            subject: None,
             context: "pack".to_owned(),
             line,
             class: VocabularyClass::Semantic,

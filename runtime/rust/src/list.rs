@@ -49,7 +49,9 @@ struct TclList {
 
 #[path = "list/native_list_storage.rs"]
 mod native_list_storage;
-pub(crate) use native_list_storage::{native_list_range, replace_prepared_native_elements};
+pub(crate) use native_list_storage::{
+    native_list_command_range, native_list_range, replace_prepared_native_elements,
+};
 
 struct NativeListElements(
     Vec<*mut TclObj>,
@@ -668,6 +670,35 @@ pub(crate) fn list_elements_native_checked(
     })
 }
 
+/// Enter ordinary `SetListFromAny`; abstract Index hooks create fresh members
+/// before the original primary is retired. Resident string storage is retained.
+pub(crate) fn ordinary_list_elements_native_checked(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
+    if !crate::native_arithseries::is_series(value) {
+        return list_elements_native_checked(value, protocol);
+    }
+    let members = crate::native_arithseries::ordinary_members(value, protocol)?;
+    let elements: Vec<_> = members.iter().map(obj::Owned::as_ptr).collect();
+    for &element in &elements {
+        // SAFETY: each fresh member remains owned until the List takes its ref.
+        unsafe { obj::incr_ref_count(element) };
+    }
+    let backing = Box::new(TclList {
+        elems: NativeListStorage::new(elements),
+        canonical: Rc::new(Cell::new(false)),
+        string_protocol: Cell::new(Some(protocol)),
+    });
+    obj::change_type(
+        value,
+        &TCL_LIST_TYPE,
+        Box::into_raw(backing) as usize as u64,
+    );
+    drop(members);
+    list_elements_native_checked(value, protocol)
+}
+
 /// Reach C8.5+ TclListObjCopy: ordinary Lists retain their member backing in a
 /// fresh absent-string header; abstract length-hook objects duplicate directly.
 pub(crate) fn native_list_copy(
@@ -909,14 +940,14 @@ fn list_elements_using(
     }
     if obj::obj_type_ptr(value) != &TCL_LIST_TYPE {
         let bytes = obj::bytes_of(value);
-        let parsed = match native {
-            Some(protocol) => tcl_syntax::list::split_native_list_elements(&bytes, protocol)?,
+        let parsed: Vec<_> = match native {
+            Some(protocol) => tcl_syntax::list::split_native_list_elements(&bytes, protocol)?
+                .into_iter()
+                .map(|element| (element.value, element.line_delta))
+                .collect(),
             None => tcl_syntax::list::split_list_bytes_in(&bytes, syntax, escapes)?
                 .into_iter()
-                .map(|value| tcl_syntax::list::NativeListElement {
-                    value,
-                    line_delta: 0,
-                })
+                .map(|value| (value, 0))
                 .collect(),
         };
         if source.is_some() {
@@ -933,14 +964,14 @@ fn list_elements_using(
         }
         let elems = parsed
             .iter()
-            .map(|element| {
-                let member = obj::new_string_bytes(&element.value);
+            .map(|(value, line_delta)| {
+                let member = obj::new_string_bytes(value);
                 if let Some((context, info)) = &source {
                     crate::native_source::install_source(
                         member,
                         crate::native_source::NativeJimSourceInfo {
                             filename: info.filename.clone(),
-                            line: info.line.wrapping_add_unsigned(element.line_delta),
+                            line: info.line.wrapping_add_unsigned(*line_delta),
                         },
                         context,
                     )
@@ -1357,7 +1388,7 @@ mod tests {
     }
     use super::*;
     use crate::counters;
-    use crate::obj::{new_string_bytes, TclObj};
+    use crate::obj::{TclObj, new_string_bytes};
 
     fn leak_free(body: impl FnOnce()) {
         counters::reset();
@@ -1432,6 +1463,8 @@ mod tests {
             let parent = obj::Owned::fresh(test_list(&[child.as_ptr()]));
             let view = native_list_backing(parent.as_ptr()).unwrap();
             let another_view = view.clone();
+            assert_eq!(&*view.elements().unwrap(), &[child.as_ptr()]);
+            assert_eq!(&*another_view.elements().unwrap(), &[child.as_ptr()]);
             assert_eq!(
                 native_header_reference_count(parent.as_ptr()).unwrap(),
                 Some(1)
@@ -1439,11 +1472,18 @@ mod tests {
             let extra = obj::Owned::fresh(obj::new_string_bytes(b"EXTRA"));
             list_append(parent.as_ptr(), extra.as_ptr()).unwrap();
             assert_eq!(unsafe { (*child.as_ptr()).ref_count }, 2);
+            // Lifetime views keep allocation safety without authorising a new
+            // member-vector generation or adding native List header owners.
+            let changed = tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "changed native List member vector",
+            );
+            assert_eq!(view.elements().unwrap_err(), changed);
+            assert_eq!(another_view.elements().unwrap_err(), changed);
+            let current = native_list_backing(parent.as_ptr()).unwrap();
             assert_eq!(
-                &*view.elements().unwrap(),
+                &*current.elements().unwrap(),
                 &[child.as_ptr(), extra.as_ptr()]
             );
-            assert_eq!(another_view.elements().unwrap().len(), 2);
             let copy = obj::Owned::fresh(obj::duplicate(parent.as_ptr()));
             assert_eq!(
                 native_header_reference_count(parent.as_ptr()).unwrap(),
@@ -1463,7 +1503,10 @@ mod tests {
                 Some(1)
             );
             assert_eq!(unsafe { (*child.as_ptr()).ref_count }, 3);
-            assert_eq!(view.elements().unwrap().len(), 2);
+            // Mutating the copied header detaches its backing; the original
+            // current vector remains readable without forcing member COW.
+            assert_eq!(current.elements().unwrap().len(), 2);
+            assert_eq!(view.elements().unwrap_err(), changed);
         });
     }
 

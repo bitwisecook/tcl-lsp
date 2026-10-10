@@ -27,7 +27,6 @@
 //! - [`build_cfg_function`] — build a CFG for a single script body.
 
 use std::collections::{BTreeSet, HashMap};
-#[cfg(test)]
 use std::sync::Arc;
 
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -1423,23 +1422,10 @@ impl<'a> CfgBuilder<'a> {
         if let Statement::Call { span, .. } | Statement::Barrier { span, .. } = stmt
             && self.block_mut(current).terminator.is_none()
         {
-            let context = self
-                .registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-            let route = crate::registry_invocation::resolved_statement_invocation(
-                self.registry,
-                context,
-                stmt,
-            )
-            .map(|invocation| invocation.completion_route(self.registry))
-            .or_else(|| {
-                crate::registry_invocation::logical_structured_invocation(
-                    self.registry,
-                    stmt.tokens()?,
-                    None,
-                )
-                .map(|invocation| invocation.conditional_completion_route(self.registry))
+            let route = self.command_classes.completion_route(stmt).or_else(|| {
+                self.command_classes
+                    .logical_structured_invocation(stmt.tokens()?)
+                    .map(|invocation| invocation.conditional_completion_route(self.registry))
             });
             let Some(route) = route else {
                 return;
@@ -2646,12 +2632,26 @@ pub type CfgContext = (
 
 /// Prepared module facts shared by every CFG builder in one lowering pipeline.
 /// The tuple [`CfgContext`] remains the public compatibility boundary.
-pub(crate) struct PreparedCfgContext {
+pub struct PreparedCfgContext {
     pub(crate) context: CfgContext,
     command_classes: CfgCommandClasses,
 }
 
 impl PreparedCfgContext {
+    /// Retain the source producer's complete availability for body CFGs.
+    /// Missing input refuses metadata; it never selects standalone advice.
+    #[must_use]
+    pub fn from_source_input(
+        context: CfgContext,
+        registry: &CommandRegistry,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> Self {
+        Self {
+            context,
+            command_classes: CfgCommandClasses::from_source_input(registry, input),
+        }
+    }
+
     /// Borrow the closed binding lattice shared by downstream CFG and codegen
     /// consumers.
     pub(crate) fn command_bindings(&self) -> &ModuleCommandBindings {
@@ -2713,7 +2713,10 @@ pub(crate) fn prepare_cfg_context_bundle(
             global_write_procs,
             command_bindings,
         ),
-        command_classes: CfgCommandClasses::from_registry(registry),
+        command_classes: CfgCommandClasses::from_source_input(
+            registry,
+            module.source_metadata_input.as_ref(),
+        ),
     }
 }
 
@@ -2985,12 +2988,21 @@ pub(crate) fn build_analysis_body(
     namespace: crate::ir::ExecutionNamespace,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
+    metadata: Arc<tcl_registry::model::ContextRegistry>,
 ) -> Function {
-    CfgBuilder::new(true, registry)
-        .with_faithful_exceptions()
-        .with_lexer_config(config)
-        .with_invocation_namespace(script.execution_namespace(namespace))
-        .build_function(name, script)
+    CfgBuilder::new_with_upvars_and_classes(
+        true,
+        HashMap::new(),
+        HashMap::new(),
+        HashMap::new(),
+        ModuleCommandBindings::default(),
+        registry,
+        CfgCommandClasses::from_metadata(registry, Some(metadata)),
+    )
+    .with_faithful_exceptions()
+    .with_lexer_config(config)
+    .with_invocation_namespace(script.execution_namespace(namespace))
+    .build_function(name, script)
 }
 
 /// Build a CFG for one body with the registry-owned module context prepared by
@@ -3042,7 +3054,9 @@ pub fn build_cfg_function_with_upvars_and_config(
 }
 
 /// Build an ordinary body CFG using the module's already-prepared facts.
-pub(crate) fn build_cfg_function_with_prepared_context(
+/// Missing or foreign original metadata refuses command assistance.
+#[must_use]
+pub fn build_cfg_function_with_prepared_context(
     name: &str,
     script: &Script,
     inline_loops: bool,
@@ -3196,12 +3210,20 @@ fn dedup_preserve_order(v: &mut Vec<String>) {
 // The owning [`CfgBuilder`] carries the classes derived for its module and
 // passes them through the recursive flow-fact helpers below.
 
-/// Name sets for the command classifications the CFG builder keys
-/// control-flow shape on, each derived from one registry trait.
+/// The actual source metadata owner, separate from explicit compatibility.
+#[derive(Clone)]
+enum CfgMetadataContext {
+    Standalone,
+    Supplied(Arc<tcl_registry::model::ContextRegistry>),
+    Unavailable,
+}
+
+/// Shared command surface and availability for every CFG in one module.
 #[derive(Clone)]
 struct CfgCommandClasses {
     /// Actual immutable command surface used by the shared invocation owner.
     registry: tcl_registry::RegistrySnapshot,
+    metadata: CfgMetadataContext,
     /// The registry's one effective-spec index, shared with command-binding
     /// analysis. Classification stays trait-driven without rebuilding five
     /// complete name sets for every compilation unit.
@@ -3221,6 +3243,7 @@ impl CfgCommandClasses {
     fn from_registry(registry: &CommandRegistry) -> Self {
         Self {
             registry: registry.snapshot(),
+            metadata: CfgMetadataContext::Standalone,
             #[cfg(test)]
             semantics: registry.effective_semantics_for_dialect(
                 crate::environment_ingress::authoring_invocation_dialect(
@@ -3232,16 +3255,109 @@ impl CfgCommandClasses {
         }
     }
 
+    fn from_source_input(
+        registry: &CommandRegistry,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> Self {
+        Self::from_metadata(registry, input.map(|input| input.context_registry()))
+    }
+
+    fn from_metadata(
+        registry: &CommandRegistry,
+        metadata: Option<Arc<tcl_registry::model::ContextRegistry>>,
+    ) -> Self {
+        let mut classes = Self::from_registry(registry);
+        classes.metadata = metadata.map_or(
+            CfgMetadataContext::Unavailable,
+            CfgMetadataContext::Supplied,
+        );
+        classes
+    }
+
+    fn metadata_context(
+        &self,
+    ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
+        let context: Option<crate::registry_invocation::InvocationMetadataContext<'_>> =
+            match &self.metadata {
+                CfgMetadataContext::Supplied(context) => Some(context.as_ref().into()),
+                CfgMetadataContext::Standalone => self
+                    .registry
+                    .registry()
+                    .profile()
+                    .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                    .map(crate::registry_invocation::InvocationMetadataContext::from),
+                CfgMetadataContext::Unavailable => return None,
+            };
+        context
+            .is_none_or(|context| context.matches_registry(self.registry.registry()))
+            .then_some(context)
+    }
+
+    fn resolved_tokens(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::ResolvedStatementInvocation> {
+        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            self.registry.registry(),
+            self.metadata_context()?,
+            tokens,
+        )
+    }
+
+    fn logical_structured_invocation(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::LogicalStructuredInvocation> {
+        match &self.metadata {
+            CfgMetadataContext::Supplied(context) => {
+                crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                    self.registry.registry(),
+                    context.as_ref().into(),
+                    tokens,
+                    None,
+                )
+            }
+            CfgMetadataContext::Standalone => {
+                crate::registry_invocation::logical_structured_invocation(
+                    self.registry.registry(),
+                    tokens,
+                    None,
+                )
+            }
+            CfgMetadataContext::Unavailable => None,
+        }
+    }
+
+    fn exact_completion(
+        &self,
+        stmt: &Statement,
+        resolve: &dyn Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead>,
+    ) -> Option<tcl_registry::registry::ExactInvocationCompletion> {
+        exact_statement_completion(
+            stmt,
+            self.registry.registry(),
+            resolve,
+            self.metadata_context()?
+                .map(|context| context.context().authoring_query()),
+        )
+    }
+
+    fn exits_process(
+        &self,
+        stmt: &Statement,
+        resolve: &dyn Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead>,
+    ) -> bool {
+        self.exact_completion(stmt, resolve)
+            == Some(tcl_registry::registry::ExactInvocationCompletion::ProcessExit)
+    }
+
     fn completion_route(
         &self,
         stmt: &Statement,
     ) -> Option<tcl_registry::completion_route::InvocationCompletionRoute> {
         Self::proved_statement_command(stmt)?;
         let registry = self.registry.registry();
-        let context = registry
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-        crate::registry_invocation::resolved_statement_invocation(registry, context, stmt)
+        self.resolved_tokens(stmt.tokens()?)
             .map(|invocation| invocation.completion_route(registry))
     }
 
@@ -3361,15 +3477,6 @@ pub(crate) enum Completion {
 /// literal and a status the registry says it accepts, and an enclosing
 /// construct is never looked through. Missing a real exit
 /// costs an O107; accepting a false one rewrote a live program.
-fn always_exits_process(
-    stmt: &Statement,
-    registry: &CommandRegistry,
-    resolve: &dyn Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead>,
-) -> bool {
-    exact_statement_completion(stmt, registry, resolve)
-        == Some(tcl_registry::registry::ExactInvocationCompletion::ProcessExit)
-}
-
 /// The completion `stmt` certainly produces, when the registry can say:
 /// every word literal, the call resolved by the command-binding owner to one
 /// registry-backed target, and that target's alias prefix joined to the
@@ -3381,10 +3488,11 @@ fn always_exits_process(
 /// `::foo` — raises "expected integer" (found in review). Whether a literal
 /// is a status the command accepts is the registry's release-aware answer:
 /// `exit 09` is an invalid octal in 8.x but status 9 in 9.0.
-pub(super) fn exact_statement_completion(
+fn exact_statement_completion(
     stmt: &Statement,
     registry: &CommandRegistry,
     resolve: &dyn Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead>,
+    query: Option<tcl_dialect::model::SurfaceQuery<'_>>,
 ) -> Option<tcl_registry::registry::ExactInvocationCompletion> {
     let (Statement::Call {
         command, tokens, ..
@@ -3463,13 +3571,7 @@ pub(super) fn exact_statement_completion(
     if let Some(dialect) = dialect {
         arguments = arguments.with_dialect(dialect);
     }
-    registry.exact_invocation_completion_words(
-        &target,
-        arguments,
-        registry
-            .profile()
-            .map(tcl_dialect::DialectProfile::surface_query),
-    )
+    registry.exact_invocation_completion_words(&target, arguments, query)
 }
 
 /// `(must-defines, completion)` for a single statement.
@@ -4234,6 +4336,150 @@ mod tests {
         // projections query the same frozen registry generation.
         assert!(bindings.effective_semantics().command("set").is_some());
         assert!(classes.semantics.command("set").is_some());
+    }
+
+    #[test]
+    fn prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let context = Arc::new(generation.with_command_store(Arc::clone(generation.commands())));
+        let registry = generation.commands();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+            .with_dialect(registry.profile())
+            .with_context_registry(Arc::clone(&context));
+        let module = lowerer.lower("throw ERROR payload").clone();
+        let statement = &module.top_level.statements[0];
+        let tokens = statement.tokens().expect("original command words");
+        let prepared = prepare_cfg_context_bundle(&module, registry);
+        assert!(
+            prepared
+                .command_classes
+                .logical_structured_invocation(tokens)
+                .is_some()
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        let original = module
+            .source_metadata_input
+            .as_ref()
+            .expect("retained metadata");
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            original.analyser_profile(),
+            original.unit_profile(),
+            older,
+            original.lexer_config(),
+        );
+        let unavailable =
+            PreparedCfgContext::from_source_input(prepared.context.clone(), registry, Some(&input));
+        assert!(
+            unavailable
+                .command_classes
+                .logical_structured_invocation(tokens)
+                .is_none()
+        );
+        assert!(
+            unavailable
+                .command_classes
+                .completion_route(statement)
+                .is_none()
+        );
+        let foreign = CfgCommandClasses::from_metadata(
+            registry,
+            Some(tcl_registry::model::ingress::context_for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
+            )),
+        );
+        assert!(foreign.logical_structured_invocation(tokens).is_none());
+        assert!(foreign.resolved_tokens(tokens).is_none());
+        let absent =
+            PreparedCfgContext::from_source_input(prepared.context.clone(), registry, None);
+        assert!(
+            absent
+                .command_classes
+                .logical_structured_invocation(tokens)
+                .is_none()
+        );
+        assert!(absent.command_classes.resolved_tokens(tokens).is_none());
+        assert!(
+            absent
+                .command_classes
+                .exact_completion(statement, &|_| None)
+                .is_none()
+        );
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        assert!(
+            prepare_cfg_context_bundle(&missing, registry)
+                .command_classes
+                .logical_structured_invocation(tokens)
+                .is_none()
+        );
+        assert!(
+            CfgCommandClasses::from_registry(registry)
+                .logical_structured_invocation(tokens)
+                .is_some(),
+            "explicit standalone control"
+        );
+        let mut incomplete = tokens.clone();
+        incomplete.source_binding = None;
+        assert!(
+            prepared
+                .command_classes
+                .logical_structured_invocation(&incomplete)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn prepared_cfg_source_metadata_is_shared_by_module_and_body_builders() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context = tcl_registry::model::ingress::context_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let registry = context.commands();
+        let mut lowerer = crate::lowering::Lowerer::with_config(
+            registry,
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        )
+        .with_dialect(registry.profile())
+        .with_context_registry(Arc::clone(&context));
+        let module = lowerer.lower("throw ERROR payload; set reached 1").clone();
+        let prepared = prepare_cfg_context_bundle(&module, registry);
+        let shared = PreparedCfgContext::from_source_input(
+            prepared.context.clone(),
+            registry,
+            module.source_metadata_input.as_ref(),
+        );
+        let CfgMetadataContext::Supplied(retained) = &shared.command_classes.metadata else {
+            panic!("the actual body request retains its original context");
+        };
+        assert!(Arc::ptr_eq(retained, &context));
+        let cfg = build_cfg_with_registry(&module, false, registry);
+        let body = build_cfg_function_with_prepared_context(
+            "::top",
+            &module.top_level,
+            true,
+            registry,
+            module.plain_command_dispatch,
+            &shared,
+            module.lexer_config,
+        );
+        let expected = Some(Terminator::Complete {
+            route: tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                tcl_registry::CompletionCode::Error,
+            ),
+            span: Some(module.top_level.statements[0].span()),
+        });
+        assert_eq!(
+            cfg.top_level.blocks[&cfg.top_level.entry].terminator,
+            expected
+        );
+        assert_eq!(body.blocks[&body.entry].terminator, expected);
     }
 
     #[test]

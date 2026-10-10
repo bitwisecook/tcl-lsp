@@ -125,6 +125,20 @@ pub fn ancestor_requires<S: BuildHasher>(
     edges: &[(String, String)],
     requires: &HashMap<String, Vec<String>, S>,
 ) -> Vec<String> {
+    let mut requirements = ancestor_requirements(target, edges, requires);
+    requirements.sort();
+    requirements
+}
+
+/// Traverse source ancestors while preserving each caller-owned requirement
+/// key. Graph reachability supplies advisory inheritance, not package loading
+/// or source execution. Document identifiers are distinct from Tcl names.
+#[must_use]
+pub fn ancestor_requirements<K: Clone + Eq + std::hash::Hash, S: BuildHasher>(
+    target: &str,
+    edges: &[(String, String)],
+    requires: &HashMap<String, Vec<K>, S>,
+) -> Vec<K> {
     // child -> parents that source it.
     let mut parents_of: HashMap<&str, Vec<&str>> = HashMap::new();
     for (parent, child) in edges {
@@ -147,14 +161,16 @@ pub fn ancestor_requires<S: BuildHasher>(
             }
         }
     }
-    let mut out: Vec<String> = ancestors
+    let mut ancestors = ancestors.into_iter().collect::<Vec<_>>();
+    ancestors.sort_unstable();
+    let mut seen = HashSet::new();
+    let out: Vec<K> = ancestors
         .iter()
         .filter_map(|a| requires.get(*a))
         .flatten()
+        .filter(|key| seen.insert((*key).clone()))
         .cloned()
         .collect();
-    out.sort();
-    out.dedup();
     out
 }
 
@@ -165,9 +181,9 @@ pub fn ancestor_requires<S: BuildHasher>(
 /// runs the child inline at that statement, so a command needing the package
 /// is satisfied *after* the `source` and unsatisfied *before* it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlacedRequire {
+pub struct PlacedRequirement<K> {
     /// The `package require`d name, as written in the sourced file.
-    pub name: String,
+    pub name: K,
     /// Byte offset, **in the document that asked**, of the `source` statement
     /// that brings the package in.
     pub at: u32,
@@ -178,6 +194,9 @@ pub struct PlacedRequire {
     /// body (the whole file loads before any body runs).
     pub enclosing_body: Option<tcl_lexer::Span>,
 }
+
+/// Positioned package-name reporting for compatibility consumers.
+pub type PlacedRequire = PlacedRequirement<String>;
 
 /// The `package require`s a document acquires from the files it (transitively)
 /// `source`s — the **up** direction of the graph.
@@ -207,7 +226,22 @@ pub fn descendant_requires<S: BuildHasher>(
     edges: &[RunEdge],
     requires: &HashMap<String, Vec<String>, S>,
 ) -> Vec<PlacedRequire> {
-    let mut out: Vec<PlacedRequire> = Vec::new();
+    let mut requirements = descendant_requirements(target, edges, requires);
+    requirements.sort_by(|a, b| a.name.cmp(&b.name).then(a.at.cmp(&b.at)));
+    requirements
+}
+
+/// Traverse positioned source descendants without converting the requirement
+/// keys. Original byte policies and document-owned metadata remain separate
+/// from this graph's advisory execution bounds.
+#[must_use]
+pub fn descendant_requirements<K: Clone + Eq + std::hash::Hash, S: BuildHasher>(
+    target: &str,
+    edges: &[RunEdge],
+    requires: &HashMap<String, Vec<K>, S>,
+) -> Vec<PlacedRequirement<K>> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
     for edge in edges
         .iter()
         .filter(|e| e.parent == target && e.kind == RunEdgeKind::Source && e.child != target)
@@ -222,11 +256,16 @@ pub fn descendant_requires<S: BuildHasher>(
                 continue;
             }
             if let Some(names) = requires.get(node) {
-                out.extend(names.iter().map(|name| PlacedRequire {
-                    name: name.clone(),
-                    at: edge.at,
-                    enclosing_body: edge.enclosing_body,
-                }));
+                out.extend(
+                    names
+                        .iter()
+                        .filter(|name| seen.insert(((*name).clone(), edge.at, edge.enclosing_body)))
+                        .map(|name| PlacedRequirement {
+                            name: name.clone(),
+                            at: edge.at,
+                            enclosing_body: edge.enclosing_body,
+                        }),
+                );
             }
             for next in edges
                 .iter()
@@ -236,8 +275,6 @@ pub fn descendant_requires<S: BuildHasher>(
             }
         }
     }
-    out.sort_by(|a, b| a.name.cmp(&b.name).then(a.at.cmp(&b.at)));
-    out.dedup();
     out
 }
 

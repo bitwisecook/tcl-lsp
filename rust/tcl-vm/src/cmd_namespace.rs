@@ -268,7 +268,6 @@ fn cmd_namespace_in(
     let selected_sub = name_policy
         .recipe()
         .namespace_subcommand_input(&original_sub);
-    let sub_word = std::str::from_utf8(selected_sub.selected()).ok();
     // Availability follows the interpreter's command surface. An embedding
     // host may provide broader private machinery than the source grammar.
     let profile = vm.command_surface_profile();
@@ -278,7 +277,7 @@ fn cmd_namespace_in(
         .get_for_surface("namespace", dialect)
         .expect("the core namespace command is registered for every Tcl release");
     let Some(subcommand) =
-        sub_word.and_then(|word| spec.resolve_subcommand_for_dialect(word, dialect))
+        spec.resolve_subcommand_bytes_for_dialect(selected_sub.selected(), dialect)
     else {
         let available: Vec<&str> = spec
             .subcommands
@@ -617,7 +616,7 @@ fn cmd_namespace_in(
             }
             ok(Value::empty())
         }
-        "ensemble" => ns_ensemble(vm, rest),
+        "ensemble" => ns_ensemble(vm, sub, rest),
         // `namespace unknown ?handler?` (TIP 181) — get/set the CURRENT
         // namespace's resolution-miss handler (a command prefix). Handlers
         // are per-namespace, NOT inherited by children; the global
@@ -856,7 +855,45 @@ fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `tclEnsemble.c:140`). The subcommand word resolves through the shared
 /// `ensembleSubcommands` table, so `namespace ensemble cr` is `create` and a
 /// miss reads `bad subcommand "…": must be configure, create, or exists`.
-fn ns_ensemble(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+fn ns_ensemble(vm: &mut Vm, selector: &Value, rest: &[Value]) -> Completion<Value> {
+    if !rest.is_empty() {
+        let original = match vm.native_name_operand_bytes(selector) {
+            Ok(original) => original,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        if let Some(helper) = vm
+            .native_invocation_dialect()
+            .native_namespace_scripted_helper(&original)
+        {
+            let target = Value::from_native_string_bytes(helper);
+            return vm.invoke_command_value_at(
+                vm.current_ns_id(),
+                &target,
+                rest,
+                &[],
+                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+            );
+        }
+    }
+    if let Some(protocol) = vm
+        .native_invocation_dialect()
+        .native_ensemble_configuration_protocol()
+    {
+        let lifecycle = match vm.native_namespace_name_token(vm.current_ns_id()) {
+            Ok(token) => token.lifecycle(),
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        if !protocol.permits_namespace_lifecycle(lifecycle) {
+            return crate::command::completion_from_cmd_error(
+                vm,
+                tcl_cmd_core::CmdError::with_error_code_bytes(
+                    b"tried to manipulate ensemble of deleted namespace".to_vec(),
+                    b"TCL ENSEMBLE DEAD".to_vec(),
+                ),
+            );
+        }
+    }
+
     let Some((op, args)) = rest.split_first() else {
         return crate::command::native_wrong_arguments_message(
             vm,
@@ -1428,6 +1465,8 @@ fn ensemble_option_value(
 
 /// Native namespace text reporting selects its purpose-specific input extent.
 fn ns_text_op(vm: &mut Vm, rest: &[Value], tail: bool) -> Completion<Value> {
+    use tcl_syntax::naming::NativeNamespaceTextResult;
+
     let Some(original) = rest.first() else {
         return crate::command::native_wrong_arguments_message(
             vm,
@@ -1445,12 +1484,30 @@ fn ns_text_op(vm: &mut Vm, rest: &[Value], tail: bool) -> Completion<Value> {
     let Some(policy) = vm.name_policy_protocol() else {
         return vm.refuse_host_command("native namespace text protocol is unavailable".into());
     };
-    let selected = if tail {
-        policy.recipe().namespace_tail_bytes(&bytes)
-    } else {
-        policy.recipe().namespace_qualifier_bytes(&bytes)
+    let result = match policy.recipe().namespace_text_result(&bytes, tail) {
+        NativeNamespaceTextResult::Original => original.clone(),
+        NativeNamespaceTextResult::Counted(bytes) => Value::from_native_string_bytes(bytes),
+        NativeNamespaceTextResult::Append(bytes) => {
+            let Some(append) = vm
+                .native_invocation_dialect()
+                .native_object_append_protocol(None)
+            else {
+                return vm
+                    .refuse_host_command("namespace text append protocol is unavailable".into());
+            };
+            let receiver = Value::new_native_string_bytes(b"".as_slice());
+            match tcl_cmd_core::native_append::append_counted_bytes(
+                &crate::value::VmAppendObjects,
+                append.recipe(),
+                &receiver,
+                bytes,
+            ) {
+                Ok(result) => result,
+                Err(error) => return vm.refuse_host_command(error.to_string()),
+            }
+        }
     };
-    ok(Value::from_native_string_bytes(selected))
+    ok(result)
 }
 
 fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
@@ -1835,6 +1892,8 @@ mod native_upvar_fixture_tests {
             .collect()
     }
 
+    // Native proof: naming.variable.namespace-upvar-target-and-empty-pair-grammar
+    // docs/design/analysis/name-resolution-proofs/variable.namespace-upvar-target-and-empty-pair-grammar.md
     #[test]
     fn namespace_upvar_grammar_and_target_cells_match_36_native_results() {
         const CASES: &str = include_str!("../tests/data/native_namespace_upvar/cases.tsv");
@@ -2197,3 +2256,6 @@ mod original_ensemble_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod native_store_tests;

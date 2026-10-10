@@ -302,10 +302,12 @@ fn switch_pairs(
                 .start()
                 .checked_add(u32::try_from(element.value.end).map_err(|_| Error::Geometry)?)
                 .ok_or(Error::Geometry)?;
-            let value = tcl_syntax::backslash::source_literal_bytes(
+            let value = tcl_syntax::backslash::native_source_literal_bytes(
                 &bytes[element.value.clone()],
                 image.channel(),
+                words.source_protocol(),
             )
+            .map_err(|_| Error::Geometry)?
             .into_owned();
             pairs.push((value, Span::new(start, end)));
             offset = element.next;

@@ -1,0 +1,15 @@
+
+running 1 test
+test variable_symbol::logical_formal_tests::logical_navigation_reuses_declared_formal_scope_and_exact_reads ... 
+thread 'variable_symbol::logical_formal_tests::logical_navigation_reuses_declared_formal_scope_and_exact_reads' (576443) panicked at rust/tcl-lsp-core/src/variable_symbol.rs:638:13:
+original Logical formal selection is unavailable
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    variable_symbol::logical_formal_tests::logical_navigation_reuses_declared_formal_scope_and_exact_reads
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2631 filtered out; finished in 1.73s
+

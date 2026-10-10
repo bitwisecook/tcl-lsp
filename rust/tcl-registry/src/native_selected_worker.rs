@@ -190,9 +190,9 @@ pub fn compile_original_selected_worker(
     let OriginalSelectedWorkerInvocation {
         words,
         operand_from,
-        replacements,
         dialect,
         context,
+        ..
     } = invocation;
     let Some(arguments_from) = operand_from.checked_sub(1) else {
         return Result::Unavailable;
@@ -201,19 +201,7 @@ pub fn compile_original_selected_worker(
         return Result::PublicGeneric;
     }
     let name = tcl_syntax::naming::native_command_full_name_bytes(&worker.slot);
-    let fallback = || match crate::native_ensemble::no_hook_worker_is_named(Some(dialect)) {
-        Some(false) => Result::PublicGeneric,
-        Some(true) => crate::native_instruction_plan::native_named_invocation_instruction(
-            words,
-            dialect,
-            &name,
-            arguments_from,
-            NativeNamedInvocationProtocol::EnsembleRewrite,
-            replacements,
-        )
-        .map_or(Result::Unavailable, Result::Named),
-        None => Result::Unavailable,
-    };
+    let fallback = || selected_worker_fallback(invocation, &name, arguments_from);
     match worker.compiler_hook {
         NativeCompilerHookPresence::Absent => return fallback(),
         NativeCompilerHookPresence::Unknown => return Result::Unavailable,
@@ -248,20 +236,18 @@ pub fn compile_original_selected_worker(
     }
     let selection =
         spec.select_registered_worker_native_words(words, operand_from, Some(dialect), context);
-    let preparations = match dialect.tcl_version.and_then(|version| {
-        crate::native_instruction_plan::original_dictionary_preparations(
-            spec,
-            words,
-            operand_from,
-            version,
-            context,
-        )
-    }) {
-        Some(Ok(preparations)) => preparations,
-        Some(Err(_)) => return Result::Unavailable,
-        None => Vec::new(),
+    let Some(preparations) = selected_worker_preparations(spec, invocation) else {
+        return Result::Unavailable;
     };
     match selection {
+        NativeCompilationSelection::Generic
+            if matches!(
+                spec.grammar,
+                crate::native_compilation::NativeCompilationGrammar::Array { .. }
+            ) =>
+        {
+            selected_worker_operation(spec, selection, invocation)
+        }
         NativeCompilationSelection::Generic => match fallback() {
             Result::Named(mut recipe) => {
                 recipe.preparations = preparations;
@@ -289,20 +275,157 @@ pub fn compile_original_selected_worker(
             })
         }
         NativeCompilationSelection::Inline { .. } | NativeCompilationSelection::CompileError => {
-            crate::native_instruction_plan::native_registered_worker_instruction_plan(
-                spec,
-                selection,
-                words,
-                operand_from,
-                dialect,
-                context,
-            )
-            .map_or(Result::Unavailable, |plan| Result::Operation {
-                spec,
-                selection,
-                plan: Box::new(plan),
-            })
+            selected_worker_operation(spec, selection, invocation)
         }
         NativeCompilationSelection::Unknown => Result::Unavailable,
+    }
+}
+
+fn selected_worker_operation(
+    spec: NativeCompilationSpec,
+    selection: NativeCompilationSelection,
+    invocation: OriginalSelectedWorkerInvocation<'_>,
+) -> OriginalSelectedWorkerCompilation {
+    use OriginalSelectedWorkerCompilation as Result;
+    crate::native_instruction_plan::native_registered_worker_instruction_plan(
+        spec,
+        selection,
+        invocation.words,
+        invocation.operand_from,
+        invocation.dialect,
+        invocation.context,
+    )
+    .map_or(Result::Unavailable, |plan| Result::Operation {
+        spec,
+        selection,
+        plan: Box::new(plan),
+    })
+}
+
+fn selected_worker_preparations(
+    spec: crate::native_compilation::NativeCompilationSpec,
+    invocation: OriginalSelectedWorkerInvocation<'_>,
+) -> Option<Vec<crate::native_control_compilation::NativeControlPreparationStep>> {
+    match invocation.dialect.tcl_version.and_then(|version| {
+        crate::native_instruction_plan::original_dictionary_preparations(
+            spec,
+            invocation.words,
+            invocation.operand_from,
+            version,
+            invocation.context,
+        )
+    }) {
+        Some(Ok(preparations)) => Some(preparations),
+        Some(Err(_)) => None,
+        None => Some(Vec::new()),
+    }
+}
+
+fn selected_worker_fallback(
+    invocation: OriginalSelectedWorkerInvocation<'_>,
+    name: &[u8],
+    arguments_from: usize,
+) -> OriginalSelectedWorkerCompilation {
+    use OriginalSelectedWorkerCompilation as Result;
+    match crate::native_ensemble::no_hook_worker_is_named(Some(invocation.dialect)) {
+        Some(false) => Result::PublicGeneric,
+        Some(true) => crate::native_instruction_plan::native_named_invocation_instruction(
+            invocation.words,
+            invocation.dialect,
+            name,
+            arguments_from,
+            NativeNamedInvocationProtocol::EnsembleRewrite,
+            invocation.replacements,
+        )
+        .map_or(Result::Unavailable, Result::Named),
+        None => Result::Unavailable,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_dialect::TclVersion;
+    use tcl_runtime_api::native_compilation::{NativeCommandCompiler, NativeCommandImplementation};
+
+    #[test]
+    fn declined_original_array_worker_keeps_completed_declarations_without_inline_admission() {
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        // Native case17 observes left,right,a despite generic invocation.
+        // This separately authored registration fixture checks the shared
+        // selector contract; its tokens are not native process observations.
+        let registry = CommandRegistry::build_default();
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let dialect = InvocationDialect::for_version(version);
+            let source = b"array exists a(k)";
+            let parsed = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::native(source.as_slice()),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            )
+            .unwrap();
+            let words = NativeCompilerWords::capture(
+                &parsed.commands[0].words,
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            let mut worker = NativeCompilationBinding {
+                slot: tcl_core_types::NativeByteCommandSlot::new(
+                    tcl_core_types::ByteNamespacePath::root(),
+                    b"worker".as_slice().into(),
+                ),
+                namespace_token: 1,
+                token: 2,
+                implementation_generation: 3,
+                implementation: NativeCommandImplementation::Opaque,
+                compiler_hook: NativeCompilerHookPresence::Present,
+                compiler: Some(NativeCommandCompiler {
+                    registry_identity: "tcl::array::exists".into(),
+                    ensemble: None,
+                }),
+                procedure_header: None,
+                has_execution_trace: false,
+            };
+            let invocation = OriginalSelectedWorkerInvocation {
+                words: &words,
+                operand_from: 2,
+                replacements: &[],
+                dialect,
+                context: NativeCompilationContext {
+                    mode: crate::native_compilation::NativeCompilationMode::BytecodeObject,
+                    frame: crate::native_compilation::NativeCompilationFrame::ProcedureCode,
+                    loop_depth: 0,
+                    catch_depth: Some(0),
+                },
+            };
+            let OriginalSelectedWorkerCompilation::Operation {
+                selection, plan, ..
+            } = compile_original_selected_worker(&registry, &worker, invocation)
+            else {
+                panic!("{version:?}: declined worker must retain preparation");
+            };
+            assert_eq!(selection, NativeCompilationSelection::Generic);
+            let NativeInstructionPlan::Array(prepared) = *plan else {
+                panic!("original Array prefix");
+            };
+            assert_eq!(prepared.declarations, vec![b"a".to_vec()]);
+            assert!(
+                prepared.instruction.is_none(),
+                "decline cannot acquire an inline instruction"
+            );
+            worker.compiler_hook = NativeCompilerHookPresence::Unknown;
+            assert_eq!(
+                compile_original_selected_worker(&registry, &worker, invocation),
+                OriginalSelectedWorkerCompilation::Unavailable
+            );
+            worker.compiler_hook = NativeCompilerHookPresence::Present;
+            worker.has_execution_trace = true;
+            assert_eq!(
+                compile_original_selected_worker(&registry, &worker, invocation),
+                OriginalSelectedWorkerCompilation::PublicGeneric,
+                "an observer veto occurs before preparation"
+            );
+        }
     }
 }

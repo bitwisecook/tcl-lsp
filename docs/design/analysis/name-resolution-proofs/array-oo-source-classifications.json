@@ -1,0 +1,122 @@
+[
+  {
+    "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/cases.json",
+    "sha256": "b51abb476ac87f9a1957ab81d092896f6a64b460b2aee7d178b2cff669a760d0",
+    "classification": "input-fixture",
+    "proof_ids": [
+      "naming.array-source.combined-set-receiver",
+      "naming.array-source.scalar-element-storage",
+      "naming.array-source.combined-read-enumeration",
+      "naming.array-source.combined-unset",
+      "naming.tcloo.source-superclass-slot-forms",
+      "naming.tcloo.source-mixin-slot-forms",
+      "naming.tcloo.source-generated-zero-option-classification"
+    ],
+    "reason": "Exact25 named ASCII scripts independently matched to the compiled C literal vector; input data is not a provider observation."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/receipt.json",
+    "sha256": "dc1651ef2421ed9870620095c74e5232942948426b0b1d797a2c821f492bf8b9",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array-source.combined-set-receiver",
+      "naming.array-source.scalar-element-storage",
+      "naming.array-source.combined-read-enumeration",
+      "naming.array-source.combined-unset",
+      "naming.tcloo.source-superclass-slot-forms",
+      "naming.tcloo.source-mixin-slot-forms",
+      "naming.tcloo.source-generated-zero-option-classification"
+    ],
+    "reason": "Exact original150 source completions retained through aggregate/independent provider receipts; all source/stream hashes/statuses verified. Array receivers, slot forms and runtime-generated-zero classification are seven separate finite questions, unsupported OO doors retained."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/receipt.json",
+    "sha256": "d7a6e52a209c1b943b4a84fc9e91bc9f9c7a8384d1e9fb12532fd805e9f3a812",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array-source.combined-set-receiver",
+      "naming.array-source.scalar-element-storage",
+      "naming.array-source.combined-read-enumeration",
+      "naming.array-source.combined-unset",
+      "naming.tcloo.source-superclass-slot-forms",
+      "naming.tcloo.source-mixin-slot-forms",
+      "naming.tcloo.source-generated-zero-option-classification"
+    ],
+    "reason": "Exact original150 source completions retained through aggregate/independent provider receipts; all source/stream hashes/statuses verified. Array receivers, slot forms and runtime-generated-zero classification are seven separate finite questions, unsupported OO doors retained."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/receipt.json",
+    "sha256": "e377a2831dd7b6fdf2ac5383df71ddc7c4dfd075e20bf3da8bd358eaa7ce188d",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array-source.combined-set-receiver",
+      "naming.array-source.scalar-element-storage",
+      "naming.array-source.combined-read-enumeration",
+      "naming.array-source.combined-unset",
+      "naming.tcloo.source-superclass-slot-forms",
+      "naming.tcloo.source-mixin-slot-forms",
+      "naming.tcloo.source-generated-zero-option-classification"
+    ],
+    "reason": "Exact original150 source completions retained through aggregate/independent provider receipts; all source/stream hashes/statuses verified. Array receivers, slot forms and runtime-generated-zero classification are seven separate finite questions, unsupported OO doors retained."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/receipt.json",
+    "sha256": "306279e54d4ba01cbf6fd790977a70707dcc82eabb75b5cbd36ff8311f369e65",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array-source.combined-set-receiver",
+      "naming.array-source.scalar-element-storage",
+      "naming.array-source.combined-read-enumeration",
+      "naming.array-source.combined-unset",
+      "naming.tcloo.source-superclass-slot-forms",
+      "naming.tcloo.source-mixin-slot-forms",
+      "naming.tcloo.source-generated-zero-option-classification"
+    ],
+    "reason": "Exact original150 source completions retained through aggregate/independent provider receipts; all source/stream hashes/statuses verified. Array receivers, slot forms and runtime-generated-zero classification are seven separate finite questions, unsupported OO doors retained."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/receipt.json",
+    "sha256": "8a8cbca290a90c9df76b8241c7e9e87c14dfd3900fc06857ff8b485514c64eab",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array-source.combined-set-receiver",
+      "naming.array-source.scalar-element-storage",
+      "naming.array-source.combined-read-enumeration",
+      "naming.array-source.combined-unset",
+      "naming.tcloo.source-superclass-slot-forms",
+      "naming.tcloo.source-mixin-slot-forms",
+      "naming.tcloo.source-generated-zero-option-classification"
+    ],
+    "reason": "Exact original150 source completions retained through aggregate/independent provider receipts; all source/stream hashes/statuses verified. Array receivers, slot forms and runtime-generated-zero classification are seven separate finite questions, unsupported OO doors retained."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/receipt.json",
+    "sha256": "29114d00f323c483dc653643f87d5f6315b046baa9d09e2c58d35f27c2b5d258",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array-source.combined-set-receiver",
+      "naming.array-source.scalar-element-storage",
+      "naming.array-source.combined-read-enumeration",
+      "naming.array-source.combined-unset",
+      "naming.tcloo.source-superclass-slot-forms",
+      "naming.tcloo.source-mixin-slot-forms",
+      "naming.tcloo.source-generated-zero-option-classification"
+    ],
+    "reason": "Exact original150 source completions retained through aggregate/independent provider receipts; all source/stream hashes/statuses verified. Array receivers, slot forms and runtime-generated-zero classification are seven separate finite questions, unsupported OO doors retained."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/receipt.json",
+    "sha256": "52868889195e2450bbcf139dd0e187a54ad084d478174d88ee6b9a5a03280455",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array-source.combined-set-receiver",
+      "naming.array-source.scalar-element-storage",
+      "naming.array-source.combined-read-enumeration",
+      "naming.array-source.combined-unset",
+      "naming.tcloo.source-superclass-slot-forms",
+      "naming.tcloo.source-mixin-slot-forms",
+      "naming.tcloo.source-generated-zero-option-classification"
+    ],
+    "reason": "Exact original150 source completions retained through aggregate/independent provider receipts; all source/stream hashes/statuses verified. Array receivers, slot forms and runtime-generated-zero classification are seven separate finite questions, unsupported OO doors retained."
+  }
+]

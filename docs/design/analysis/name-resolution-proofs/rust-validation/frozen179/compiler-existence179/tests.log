@@ -1,0 +1,7 @@
+
+running 2 tests
+test existence_query::tests::original_existence_advice_is_a_name_dependency_without_actual_presence ... ok
+test existence_query::tests::original_existence_advice_tracks_selected_alias_and_imported_handlers ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 8297 filtered out; finished in 12.20s
+

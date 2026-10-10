@@ -32,6 +32,15 @@ use tcl_syntax::value::ValueOps;
 #[cfg(test)]
 mod native_name_tests;
 
+#[cfg(test)]
+mod native_formal_alpha_tests;
+
+#[cfg(test)]
+mod native_lambda_tests;
+
+#[cfg(test)]
+mod native_static_original_tests;
+
 /// Register `proc`, `apply`, and `puts`.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"proc", proc_cmd);
@@ -40,9 +49,22 @@ pub fn install(interp: &mut Interp) {
 
 /// Install audited distribution wrappers without replacing host or user commands.
 pub(crate) fn install_stock_scripted_wrappers(interp: &mut Interp) {
-    for wrapper in
-        tcl_registry::dictionary_scope::stock_scripted_wrappers(interp.native_invocation_dialect())
-    {
+    use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
+    for &library in NativeScriptedLibrary::ALL {
+        install_stock_scripted_library(interp, library);
+    }
+}
+
+/// Explicit source-library entry, independent of core construction. Existing
+/// host or user bindings are preserved; calls keep using mutable lookup.
+pub(crate) fn install_stock_scripted_library(
+    interp: &mut Interp,
+    library: tcl_registry::native_scripted_distribution::NativeScriptedLibrary,
+) {
+    for wrapper in tcl_registry::native_scripted_distribution::procedures(
+        interp.native_invocation_dialect(),
+        library,
+    ) {
         let qualified_name = tcl_syntax::naming::qualify("::", wrapper.command);
         if interp.command_exists(qualified_name.as_bytes()) {
             continue;
@@ -158,9 +180,9 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(error) => return interp.report_cmd_error(error),
     };
     let statics = if let Some(index) = definition.statics_at {
-        match prepare_static_variables(interp, &obj_bytes(argv[index + 1])) {
+        match prepare_static_variables(interp, argv[index + 1]) {
             Ok(statics) => Some(std::rc::Rc::new(statics)),
-            Err(error) => return interp.set_error(&error),
+            Err(error) => return interp.report_cmd_error(error),
         }
     } else {
         None
@@ -185,47 +207,82 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn prepare_static_variables(
     interp: &mut Interp,
-    source: &[u8],
-) -> Result<crate::frame::StaticVariables, Vec<u8>> {
-    use tcl_registry::native_procedure::{StaticVariableInitialiser, parse_static_variables};
-    let source = core::str::from_utf8(source)
-        .map_err(|_| b"invalid statics list (not valid UTF-8)".to_vec())?;
-    let declarations =
-        parse_static_variables(source).map_err(|error| error.message().into_bytes())?;
+    original: *mut TclObj,
+) -> Result<crate::frame::StaticVariables, CmdError> {
+    // naming.procedure-static.original-member-object-boundaries
+    // docs/design/analysis/name-resolution-proofs/procedure-static-original-member-object-boundaries.md
+    use tcl_registry::native_procedure::{
+        StaticVariableValueError as Error, StaticVariableValueInitialiser as Initialiser,
+    };
+    let dialect = interp.native_invocation_dialect();
+    if !dialect
+        .native_scalar_getter_protocol()
+        .is_some_and(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::is_jim084)
+    {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native procedure statics protocol",
+        )
+        .into());
+    }
+    let outer = ValueOps::list_elements(interp, &original)?;
     let mut statics = crate::frame::StaticVariables::default();
-    for declaration in declarations {
-        let name = declaration.name.as_bytes();
-        match declaration.initialiser {
-            StaticVariableInitialiser::Literal(value) => {
-                statics.insert_literal(name, crate::interp::new_string(value.as_bytes()));
-            }
-            initializer @ (StaticVariableInitialiser::CopyCurrent(_)
-            | StaticVariableInitialiser::CaptureCurrentCell(_)) => {
-                let reference = matches!(
-                    initializer,
-                    StaticVariableInitialiser::CaptureCurrentCell(_)
-                );
-                let source_name = match initializer {
-                    StaticVariableInitialiser::CopyCurrent(source)
-                    | StaticVariableInitialiser::CaptureCurrentCell(source) => source,
-                    StaticVariableInitialiser::Literal(_) => unreachable!(),
-                };
-                let Some(source) = crate::vars::capture_static_source(
+    let mut names = std::collections::BTreeSet::new();
+    for specifier in outer {
+        let fields = ValueOps::list_elements(interp, &specifier)?;
+        if !matches!(fields.len(), 1 | 2) {
+            let bytes = interp.native_object_string_bytes(specifier)?;
+            return Err(CmdError::new_bytes(Error::Fields.message(&bytes)));
+        }
+        let bytes = interp.native_object_string_bytes(fields[0])?;
+        let declaration = tcl_registry::native_procedure::static_variable_value_specifier(
+            dialect,
+            fields.len(),
+            Some(&bytes),
+        )
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native procedure static specifier",
+        ))?
+        .map_err(|error| {
+            let name = if bytes.first() == Some(&b'&') {
+                &bytes[1..]
+            } else {
+                bytes.as_ref()
+            };
+            CmdError::new_bytes(error.message(name))
+        })?;
+        let reference = declaration.initialiser == Initialiser::CaptureCurrentCell;
+        let source = if declaration.initialiser == Initialiser::LiteralValue {
+            None
+        } else {
+            Some(
+                crate::vars::capture_static_source(
                     &interp.frames.borrow(),
                     &interp.namespaces(),
                     interp.current_ns(),
-                    source_name.as_bytes(),
+                    &declaration.name,
                     reference,
-                ) else {
-                    return Err(format!(
-                        "variable for initialization of static \"{}\" not found in the local context",
-                        declaration.name,
-                    ).into_bytes());
-                };
-                if reference {
-                    statics.insert_capture(name, source);
-                } else {
-                    assert!(statics.insert_copy(name, source));
+                )
+                .ok_or_else(|| {
+                    CmdError::new_bytes(Error::MissingCurrent.message(&declaration.name))
+                })?,
+            )
+        };
+        if !names.insert(declaration.name.clone()) {
+            return Err(CmdError::new_bytes(
+                Error::Duplicate.message(&declaration.name),
+            ));
+        }
+        match declaration.initialiser {
+            Initialiser::LiteralValue => statics.insert_literal(&declaration.name, fields[1]),
+            Initialiser::CaptureCurrentCell => {
+                statics.insert_capture(&declaration.name, source.expect("selected raw cell"));
+            }
+            Initialiser::CopyCurrent => {
+                if !statics.insert_copy(&declaration.name, source.expect("selected contents cell"))
+                {
+                    return Err(CmdError::new_bytes(
+                        Error::MissingCurrent.message(&declaration.name),
+                    ));
                 }
             }
         }
@@ -261,10 +318,8 @@ fn split_formal_objects(
         Some(tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5)
     ) {
         let original = ValueOps::native_string_bytes(interp, &pointer)?;
-        let bytes = &original[..original
-            .iter()
-            .position(|byte| *byte == 0)
-            .unwrap_or(original.len())];
+        let selected = protocol.formal_parameter_list_input(&original);
+        let bytes = selected.selected();
         return tcl_syntax::list::split_native_list_bytes(bytes, string_protocol)
             .map(|elements| {
                 elements
@@ -313,7 +368,11 @@ pub(crate) fn parse_params_object(
     .map_err(|error| match error {
         FormalParameterValueError::Access(error) => error,
         FormalParameterValueError::Format(error) => {
-            CmdError::new_bytes(error.message_for_definition(protocol, procedure))
+            let message = error.message_for_definition(protocol, procedure);
+            match error.error_code_for_definition(protocol) {
+                Some(code) => CmdError::with_error_code_bytes(message, code.to_vec()),
+                None => CmdError::new_bytes(message),
+            }
         }
     })?;
     if protocol.is_jim084() {
@@ -337,6 +396,21 @@ pub(crate) fn parse_params_object(
         .collect())
 }
 
+fn lambda_list_error(
+    interp: &mut Interp,
+    original: &Owned,
+    diagnostics: tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol,
+    failure: tcl_syntax::value::ValueError,
+) -> CmdError {
+    if !diagnostics.wraps_list_failure(&failure) {
+        return failure.into();
+    }
+    match ValueOps::native_string_bytes(interp, &original.as_ptr()) {
+        Ok(bytes) => diagnostics.conversion_error(&bytes),
+        Err(error) => error.into(),
+    }
+}
+
 /// `apply {params body ?namespace?} ?arg ...?` — invoke an anonymous procedure.
 /// The lambda runs in `namespace` (default global), via the shared proc-call
 /// protocol (`Interp::run_proc`).
@@ -349,30 +423,42 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("lambda list").into(),
         );
     };
+    let Some(diagnostics) = tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol::select(
+        interp.native_invocation_dialect(),
+    ) else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("lambda diagnostics").into(),
+        );
+    };
     let original = Owned::retain(argv[1]);
     if interp
         .native_invocation_dialect()
         .native_string_protocol()
         .is_some_and(|protocol| protocol.tcl_version().is_some())
     {
-        return apply_native_c(interp, argv, &original, protocol);
+        return apply_native_c(interp, argv, &original, protocol, diagnostics);
     }
-    let mut parts = match split_formal_objects(interp, &original, protocol) {
-        Ok(parts) => parts,
-        Err(error) => return interp.report_cmd_error(error),
+    let mut parts = match ValueOps::list_elements(interp, &original.as_ptr()) {
+        Ok(parts) => parts.into_iter().map(Owned::retain).collect::<Vec<_>>(),
+        Err(error) => {
+            let error = lambda_list_error(interp, &original, diagnostics, error);
+            return interp.report_cmd_error(error);
+        }
     };
-    let lambda = obj_bytes(argv[1]);
-    if parts.len() < 2 || parts.len() > 3 {
-        let mut m = b"can't interpret \"".to_vec();
-        m.extend_from_slice(&lambda);
-        m.extend_from_slice(b"\" as a lambda expression");
-        return interp.set_error(&m);
+    let lambda = match ValueOps::native_string_bytes(interp, &original.as_ptr()) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    if !(2..=3).contains(&parts.len()) {
+        return interp.report_cmd_error(diagnostics.conversion_error(&lambda));
     }
     let params = match parse_params_object(interp, parts[0].as_ptr(), b"") {
         Ok(parameters) => parameters,
         Err(error) => {
             let code = interp.report_cmd_error(error);
-            interp.append_lambda_parse_frame(&lambda);
+            if let Some(frame) = diagnostics.parameter_error_frame(&lambda) {
+                interp.append_lambda_parse_frame(&frame);
+            }
             return code;
         }
     };
@@ -402,12 +488,24 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(bytes) => bytes,
             Err(error) => return interp.report_cmd_error(error.into()),
         };
-        let full: Vec<u8> = if namespace.starts_with(b"::") {
-            namespace.to_vec()
-        } else {
-            let mut f = b"::".to_vec();
-            f.extend_from_slice(&namespace);
-            f
+        let Some(recipe) = interp.native_invocation_dialect().native_name_protocol() else {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "lambda namespace recipe",
+                )
+                .into(),
+            );
+        };
+        let full = match recipe.lambda_namespace_input(&namespace) {
+            Ok(input) => input.selected().to_vec(),
+            Err(_) => {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "lambda namespace recipe",
+                    )
+                    .into(),
+                );
+            }
         };
         match interp.find_namespace_id(&full) {
             Some(id) => id,
@@ -455,6 +553,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             source,
             body_line_base,
             link_vars: &[],
+            oo_variable_resolver: None,
             keep_loop_codes: false,
             same_level: false,
             usage_prefix: None,
@@ -478,6 +577,7 @@ fn apply_native_c(
     argv: &[*mut TclObj],
     original: &Owned,
     protocol: tcl_syntax::naming::NativeNameProtocol,
+    diagnostics: tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol,
 ) -> Code {
     let interpreter = interp.native_callable_interpreter();
     let (owner, namespace, lambda) =
@@ -495,17 +595,17 @@ fn apply_native_c(
                     protocol.string_protocol(),
                 ) {
                     Ok(parts) => parts,
-                    Err(error) => return interp.report_cmd_error(error.into()),
+                    Err(error) => {
+                        let error = lambda_list_error(interp, original, diagnostics, error);
+                        return interp.report_cmd_error(error);
+                    }
                 };
                 let lambda = match ValueOps::native_string_bytes(interp, &original.as_ptr()) {
                     Ok(bytes) => bytes,
                     Err(error) => return interp.report_cmd_error(error.into()),
                 };
                 if !(2..=3).contains(&parts.len()) {
-                    let mut message = b"can't interpret \"".to_vec();
-                    message.extend_from_slice(&lambda);
-                    message.extend_from_slice(b"\" as a lambda expression");
-                    return interp.error_with_code(&message, b"TCL VALUE LAMBDA");
+                    return interp.report_cmd_error(diagnostics.conversion_error(&lambda));
                 }
                 let chosen = match interp.choose_original_procedure_body(parts[1]) {
                     Ok(chosen) => chosen,
@@ -515,7 +615,9 @@ fn apply_native_c(
                     Ok(params) => params,
                     Err(error) => {
                         let code = interp.report_cmd_error(error);
-                        interp.append_lambda_parse_frame(&lambda);
+                        if let Some(frame) = diagnostics.parameter_error_frame(&lambda) {
+                            interp.append_lambda_parse_frame(&frame);
+                        }
                         return code;
                     }
                 };
@@ -538,12 +640,21 @@ fn apply_native_c(
                         Ok(bytes) => bytes,
                         Err(error) => return interp.report_cmd_error(error.into()),
                     };
-                    if bytes.starts_with(b"::") {
+                    let selected = match protocol.lambda_namespace_input(&bytes) {
+                        Ok(input) => input,
+                        Err(_) => {
+                            return interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "lambda namespace recipe",
+                                )
+                                .into(),
+                            );
+                        }
+                    };
+                    if selected.selected() == bytes.as_ref() {
                         Owned::retain(parts[2])
                     } else {
-                        let mut absolute = b"::".to_vec();
-                        absolute.extend_from_slice(&bytes);
-                        Owned::fresh(obj::new_string_bytes(&absolute))
+                        Owned::fresh(obj::new_string_bytes(selected.selected()))
                     }
                 };
                 let namespace_ptr = namespace.as_ptr();
@@ -598,6 +709,7 @@ fn apply_native_c(
             source: procedure.source.clone(),
             body_line_base: procedure.body_line_base,
             link_vars: &[],
+            oo_variable_resolver: None,
             keep_loop_codes: false,
             same_level: false,
             usage_prefix: None,
@@ -722,6 +834,10 @@ mod tests {
 
     #[test]
     fn native_formals_keep_storage_keys_and_original_default_objects() {
+        // Native proof naming.formal.original-string-zero-storage-and-lookup:
+        // docs/design/analysis/name-resolution-proofs/formal-original-string-zero-storage-and-lookup.md
+        // Native proof naming.formal.original-default-double-object-identity:
+        // docs/design/analysis/name-resolution-proofs/formal-original-default-double-object-identity.md
         use crate::obj::{self, Owned};
         let native_defaults = [
             include_str!(
@@ -823,6 +939,8 @@ mod tests {
 
     #[test]
     fn jim_static_cells_match_native_definition_and_retirement() {
+        // naming.procedure-static.jim-primary-table-unset
+        // docs/design/analysis/name-resolution-proofs/procedure-static-jim-primary-table-unset.md
         const CASES: &[(&[u8], Code, &[u8])] = &[
             (b"proc p {} {{x 0}} {incr x}; list [p] [p]", Code::Ok, b"1 2"),
             (b"set x OLD; proc p {} {x} {set x}; set x NEW; list [p] $x", Code::Ok, b"OLD NEW"),
@@ -1057,3 +1175,6 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+mod native_apply_original_tests;

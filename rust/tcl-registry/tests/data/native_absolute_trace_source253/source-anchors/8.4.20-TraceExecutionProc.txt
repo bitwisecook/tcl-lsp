@@ -1,0 +1,7 @@
+	     * including deleting the trace, the command being
+	     * traced, or even the interpreter.
+	     */
+	    traceCode = Tcl_Eval(interp, Tcl_DStringValue(&cmd));
+	    tcmdPtr->flags &= ~TCL_TRACE_EXEC_IN_PROGRESS;
+
+	    /*

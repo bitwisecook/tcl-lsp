@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/consumer-variable-array-write156/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.007418833993142471,
+  "reported_version": "8.5.19",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "source_sha256": "abd07fc77cfe05018d6fa00f25ccae83c169eee4ad60d552fc88f3bf4c41de67",
+  "runner_sha256": "5da55717a7144d067717056524ec6d5a7ee560d68e75ca06a8f36db0a41825db",
+  "stdout_sha256": "9f280e40716c5c3b8689dba663ccbda65c9dc9ad5ae029f249a268f81dc745b4",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "rows": [
+    "PATCHLEVEL 8.5.19",
+    "RESULT literal_array_write 1 {can't set \"a\": variable is array} NONE 1",
+    "RESULT dynamic_array_write 1 {can't set \"a\": variable is array} NONE 1",
+    "RESULT procedure_array_write 1 {can't set \"a\": variable is array} NONE 1"
+  ],
+  "input_channel": "ASCII LF source-file CLI; three existing-array root variable write cases",
+  "boundary": "Three labelled existing-array root variable write cases across literal, dynamic and procedure source entries. Full native result and error outcomes are retained independently by provider. No physical object/header/cache or compiler admission proof is inferred from CLI results."
+}

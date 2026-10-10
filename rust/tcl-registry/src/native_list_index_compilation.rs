@@ -182,6 +182,12 @@ mod tests {
     ];
     #[test]
     fn original_list_index_recipes_match_95_native_instruction_and_result_windows() {
+        // Native proof naming.list-index.literal-native-instruction-coordinates:
+        // docs/design/analysis/name-resolution-proofs/list-index-literal-native-instruction-coordinates.md
+        // Native proof naming.list-index.multi-path-and-empty-validation:
+        // docs/design/analysis/name-resolution-proofs/list-index-multi-path-and-empty-validation.md
+        // Native proof naming.list-index.expansion-and-abrupt-child-boundaries:
+        // docs/design/analysis/name-resolution-proofs/list-index-expansion-and-abrupt-child-boundaries.md
         let registry = crate::CommandRegistry::build_default();
         let mut windows = 0;
         for &(version, table) in TABLES {

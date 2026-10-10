@@ -32,13 +32,24 @@ impl NativeVariableTraceOperation {
     /// Select a reached operation, without interpreting variable names.
     #[must_use]
     pub fn from_name(name: &str) -> Option<Self> {
+        Self::from_bytes(name.as_bytes())
+    }
+    /// Select a reached byte operation without decoding variable-name input.
+    #[must_use]
+    pub fn from_bytes(name: &[u8]) -> Option<Self> {
         match name {
-            "read" => Some(Self::Read),
-            "write" => Some(Self::Write),
-            "unset" => Some(Self::Unset),
-            "array" => Some(Self::Array),
+            b"read" => Some(Self::Read),
+            b"write" => Some(Self::Write),
+            b"unset" => Some(Self::Unset),
+            b"array" => Some(Self::Array),
             _ => None,
         }
+    }
+    /// Destruction delivers the old cell's callbacks independently of its active flag.
+    /// The containing array retains its separate reentrancy guard.
+    #[must_use]
+    pub const fn uses_destroyed_cell_callbacks(self) -> bool {
+        matches!(self, Self::Unset)
     }
 }
 /// Borrowed native reported name parts at the actual callback boundary.

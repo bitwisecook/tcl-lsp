@@ -127,6 +127,17 @@ pack looks like data and invites the assumption that it is not a script.
 | dialect set | `dialects {all-tcl f5-irules}` | the 1.x word; members verbatim, plus the set words below |
 | availability | `available {tcl 8.6-} {package Tk 8.5-8.6}` | the 2.0 spelling of the same claim, one provider per braced word: `tcl RANGE`, `jim RANGE`, `f5-irules`, `package NAME ?RANGE?`; `RANGE` in Tcl requirement syntax, a bare release naming that line only |
 
+`variable_receivers {0 2}` declares combined argv variable-name positions
+relative to the selected command or subcommand. A refinement may replace that
+list. Omission or `variable_receivers inherit` inherits the applicable parent;
+`variable_receivers {}` explicitly withdraws the grammar. Positions must be
+unique integers from 0 to 255. The metadata requires a matching selected
+`VarRead` or `VarWrite` role and accepted arity before a consumer uses it. It
+selects naming geometry only: an element-shaped receiver may still produce a
+guest error, and this row supplies no native handler, compiler local, cell
+lifetime or normal-completion proof. Alias and lexical substitution purposes
+have separate descriptors.
+
 **Dialect set words.** Members are exactly as `fields.md` spells them
 (`tcl8.4` … `tcl9.1`, `f5-irules`, `f5-iapps`, `tk`, `expect`, `bpf`,
 `f5-tmsh`, `f5-bigip`). Two shorthands are added because writing five
@@ -414,7 +425,7 @@ the descriptor's own field names, so nothing new has to be learnt:
 "Definer grammars and scoped bodies" below.
 
 Native result dependencies (`native_result`) are currently native descriptors,
-with an explicit Spec Studio `GAPS` entry. Their selected-cell observer phases,
+with an explicit Spec Studio `GAPS` entry. Their selected-cell observer callbacks,
 return result grammar and retained list representation require actual runtime
 implementation proofs; the loadable authoring surface does not provide those.
 The Studio schema and coverage inventory retain this loss explicitly.
@@ -533,7 +544,7 @@ That is exactly the `args: &[&str]` every current hook receives.
 | `command` | the resolved command name |
 | `subcommand` | the resolved subcommand word, or empty |
 | `nwords` | `[llength $words]`, for symmetry with the argv-shaped hooks |
-| `kinds` | one word per element of `words`: `literal`, `dynamic`, `expanded`, or `opaque` |
+| `kinds` | one word per element of `words`: `literal`, `known-bytes`, `dynamic`, `expanded`, or `opaque`; `known-bytes` retains one native-value argv position while the logical `words` entry remains unavailable |
 | `tcl-version` | `8.4` … `9.1`, or empty when the profile names no release |
 | `dialect` | the active dialect member word |
 | `in-event-body` | `0` / `1` — the one lexical fact `context_gate` takes today |
@@ -828,7 +839,7 @@ the summary is:
 | `completion` | a compiler proof obligation, not a description of the command. See the rationale below. |
 | `dispatch_dependencies` | specialisation-proof machinery whose meaning is defined by the optimiser; `fields.md` itself says "leave unset". |
 | `data_collection`, `bpf_op` | shared named descriptors, referenced by name — the boundary spec-packs.md's bucket 2 draws. `data_collection`'s descriptor is paired with protocol machinery outside the registry; `bpf_op` is a closed compiler catalogue. |
-| the `resolver` of `world_effects` / `state_transitions` | a function producing typed transition facts; the resolver is `-native`, `none`, or a derivation keyword. The surrounding typed data is not authorable: `world_effects_value` and `state_transitions_value` accept the `composition` row and drop unsupported rows with a notice. See [`spec-packs.md`](../registry/spec-packs.md) for the supported pack boundary. |
+| the `resolver` of `world_effects` / `state_transitions` | a function producing typed transition facts; the resolver is `-native`, `none`, or a derivation keyword. The surrounding typed data is not authorable: `world_effects_value` and `state_transitions_value` accept the `composition` row. Unsupported or invalid semantic rows exclude the command from strong analysis; they cannot become an empty descriptor. See [`spec-packs.md`](../registry/spec-packs.md) for the supported pack boundary. |
 
 ### Why `completion` is excluded and `const_fold` is not
 
@@ -1171,8 +1182,8 @@ schema order. "excluded" rows carry the reason.
 | `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per effect; the three releases are `SideEffect.lifecycle` |
-| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice; this includes native `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
-| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID`. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice; this includes native success-edge resolvers and `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
+| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; other rows exclude the command from strong analysis with a semantic notice; this includes native `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
+| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID`. **Only `composition` is loaded**; other rows exclude the command from strong analysis with a semantic notice; this includes native success-edge resolvers and `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
@@ -1194,6 +1205,7 @@ schema order. "excluded" rows carry the reason.
 | `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table, whose rows carry `-min-tcl` (the Tcl axis) and the three releases (the package axis) independently |
 | `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate; the command-level mirror of the subcommand rows, legal at either scope since 1.1 |
 | `body_kind` | `body_kind Plain\|Structural` |  |
+| `script_lookup_scope` | `script_lookup_scope InvokingFrame\|GlobalFrame\|TriggerFrame` | independent executable entry frame; no callback reach or future command table grant |
 | `body_arg_implicit_args` | `body_arg_implicit_args N` |  |
 | `taint_output_sink` | `taint_output_sink CODE` |  |
 | `taint_output_sink_subcommands` | `taint_output_sink_subcommands {NAME …}` |  |
@@ -1296,6 +1308,7 @@ schema order. "excluded" rows carry the reason.
 | `creates_scope_alias` | `creates_scope_alias ?yes\|no?` |  |
 | `inferred_storage_type` | `inferred_storage_type Dict\|List\|Array` |  |
 | `body_kind` | `body_kind Plain\|Structural` |  |
+| `script_lookup_scope` | `script_lookup_scope InvokingFrame\|GlobalFrame\|TriggerFrame` | independent executable entry frame; no callback reach or future command table grant |
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
 | `closed_value_args` | `arg N -closed` |  |
 | `arg_values_accept_prefix` | `arg_values_accept_prefix ?yes\|no?` |  |
@@ -1309,8 +1322,8 @@ schema order. "excluded" rows carry the reason.
 | `pattern_type` | `pattern_type Glob\|Regex` |  |
 | `format_string_type` | `format_string_type Sprintf\|Clock\|Binary\|Regsub` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}?` | one row per effect |
-| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice; this includes native `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
-| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID`. **Only `composition` is loaded**; the rest is documented vocabulary dropped with a notice; this includes native success-edge resolvers and `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
+| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; other rows exclude the command from strong analysis with a semantic notice; this includes native `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
+| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID`. **Only `composition` is loaded**; other rows exclude the command from strong analysis with a semantic notice; this includes native success-edge resolvers and `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
@@ -1319,7 +1332,7 @@ schema order. "excluded" rows carry the reason.
 | `returns_path` | `returns_path ?yes\|no?` |  |
 | `is_unescape` | `is_unescape ?yes\|no?` |  |
 | `cfg_rewrite_name` | `cfg_rewrite_name NAME` |  |
-| `sub_subcommands` | `sub_subcommand NAME ?-detail {…}? ?-synopsis {…}? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V? ?{ option … }?` | one row per second-level word; the three releases are `SubSubCommand.lifecycle`. The optional trailing block holds `option` rows and is `SubSubCommand.options` — write it only where the operation's option table genuinely differs from its siblings' (`namespace ensemble create` has `-command`, `configure` has `-namespace`), because a consumer that can read the dispatch word takes this table *instead of* the subcommand's, not merged with it. Omitting the block leaves the field unset and inherits; an **empty** block `{}` declares that the operation takes no options at all (`namespace ensemble exists`) |
+| `sub_subcommands` | `sub_subcommand NAME ?-detail {…}? ?-synopsis {…}? ?-option_prefix_words N? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V? ?{ option … }?` | one row per second-level word; the three releases are `SubSubCommand.lifecycle`. The optional trailing block holds `option` rows and is `SubSubCommand.options` — write it only where the operation's option table genuinely differs from its siblings' (`namespace ensemble create` has `-command`, `configure` has `-namespace`), because a consumer that can read the dispatch word takes this table *instead of* the subcommand's, not merged with it. `-option_prefix_words N` counts required positional words after this nested selector before its own options (`configure` consumes one command name). Omitting the block leaves the field unset and inherits; an **empty** block `{}` declares that the operation takes no options at all (`namespace ensemble exists`) |
 | `defines_command_at` | `defines_command_at N` |  |
 | `max_leading_option_words` | `max_leading_option_words N` |  |
 

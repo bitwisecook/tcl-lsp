@@ -1,0 +1,119 @@
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+error: unused import: `AdviceNamingPolicy`
+ --> rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs:8:73
+  |
+8 |     AdviceCell, AdviceGraph, AdviceInvocation, AdviceInvocationContext, AdviceNamingPolicy,
+  |                                                                         ^^^^^^^^^^^^^^^^^^
+  |
+  = note: `-D unused-imports` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: function `statically_known_word` is never used
+   --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:325:4
+    |
+325 | fn statically_known_word(text: &str, token: Option<&tcl_lexer::Token>) -> bool {
+    |    ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `-D dead-code` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: function `scan_invocation_words` is never used
+   --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:357:28
+    |
+357 | pub(in crate::analyser) fn scan_invocation_words(
+    |                            ^^^^^^^^^^^^^^^^^^^^^
+
+error: this argument is passed by value, but not consumed in the function body
+   --> rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs:111:12
+    |
+111 |     words: Arc<OriginalSourceRegisteredInstanceWords>,
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value
+    = note: `-D clippy::needless-pass-by-value` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_pass_by_value)]`
+help: consider taking a reference instead
+    |
+111 |     words: &Arc<OriginalSourceRegisteredInstanceWords>,
+    |            +
+
+error: item in documentation is missing backticks
+   --> rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs:195:9
+    |
+195 |     /// ContextRegistry, preserving known shadow, deletion and alias barriers.
+    |         ^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#doc_markdown
+    = note: `-D clippy::doc-markdown` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+    |
+195 -     /// ContextRegistry, preserving known shadow, deletion and alias barriers.
+195 +     /// `ContextRegistry`, preserving known shadow, deletion and alias barriers.
+    |
+
+error: returning the result of a `let` binding from a block
+   --> rust/tcl-compiler/src/analyser/interp_visibility.rs:579:9
+    |
+578 |         let child = namespace.child_from_input(&name);
+    |         ---------------------------------------------- unnecessary `let` binding
+579 |         child
+    |         ^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#let_and_return
+    = note: `-D clippy::let-and-return` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::let_and_return)]`
+help: return the expression directly
+    |
+578 ~         
+579 ~         namespace.child_from_input(&name)
+    |
+
+error: returning the result of a `let` binding from a block
+   --> rust/tcl-compiler/src/analyser/interp_visibility.rs:621:9
+    |
+618 | /         let selected = crate::signature_scan::scope::SignatureSourceCommand::procedure_from_key(
+619 | |             &namespace, key,
+620 | |         );
+    | |__________- unnecessary `let` binding
+621 |           selected
+    |           ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#let_and_return
+help: return the expression directly
+    |
+618 ~         
+619 ~         crate::signature_scan::scope::SignatureSourceCommand::procedure_from_key(
+620 +             &namespace, key,
+621 +         )
+    |
+
+error: unused `self` argument
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs:705:9
+    |
+705 |         &self,
+    |         ^^^^^
+    |
+    = help: consider refactoring to an associated function
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#unused_self
+    = note: `-D clippy::unused-self` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unused_self)]`
+
+error: this function has too many lines (111/100)
+    --> rust/tcl-compiler/src/command_binding/source_transition_advice.rs:1436:5
+     |
+1436 | /     pub(crate) fn original_source_transition_advice_tape(
+1437 | |         &self,
+1438 | |         context: &ContextRegistry,
+1439 | |     ) -> Option<OriginalSourceTransitionAdviceTape> {
+     | |___________________________________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+     = note: `-D clippy::too-many-lines` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: could not compile `tcl-compiler` (lib) due to 9 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 9 previous errors

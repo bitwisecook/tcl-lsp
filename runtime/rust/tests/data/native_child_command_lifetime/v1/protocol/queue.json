@@ -1,0 +1,14 @@
+{
+  "command": [
+    "python3",
+    "/workspace/.proofs/native-child-command-lifetime078/capture.py"
+  ],
+  "output": "/workspace/.proofs/captured-native-child-command-lifetime078",
+  "pins": {
+    "probe.c": "5463f0f9a49c2ab6bca0629260fb25fb5cc98942c970d2033d1709037217b04b",
+    "capture.py": "ac8ef4733872ad222e0e8076e6905311d5a87ea26f3dfc54f706182d9e3e0fa3",
+    "cases.h": "9aee94cdb78c410a747d6ab88d2785530cd9d34ca3f793b8cb04903379fdbaa0",
+    "inputs.json": "d0cd61c12de20a0e1c9a1a400ef684ef48a34057a954f231ee288c2729576f3b"
+  },
+  "limits": "Root sole launcher. Eight independent fresh interpreter source controls and one C API active-allocation control; Jim availability is actually attempted, C API explicitly not tested. No arbitrary teardown/alias equivalence grant."
+}

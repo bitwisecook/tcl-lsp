@@ -1,0 +1,14 @@
+{
+  "source_sha256": "94e8c02f0fb2abd9b0f56800072498c2cca8fdee026500d75b2cc58747c13498",
+  "question": "Does interp alias publication in the same interpreter use the current namespace holder for an unqualified or relative-qualified alias name, or the root holder, and how do explicit root names compare?",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "jim_expected_version": "0.84-9-g5bac7c9",
+  "channel": "ASCII source file, LF endings, no counted NUL or Unicode; public same-interpreter alias creation and info commands/calls only"
+}

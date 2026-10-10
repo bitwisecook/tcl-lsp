@@ -23,13 +23,19 @@ use crate::prelude::*;
 /// `string match ?-nocase? pattern string` — the declared option prefix shifts
 /// the pattern.  The shared descriptor walk also accepts Tcl's unambiguous
 /// `-noc` abbreviation without teaching any consumer about this subcommand.
-fn match_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let index = leading_option_word_count(MATCH_OPTIONS, args);
-    (index < args.len())
-        .then(|| u8::try_from(index).ok().map(|i| (i, ArgRole::Pattern)))
-        .flatten()
-        .into_iter()
-        .collect()
+fn match_arg_roles(
+    args: crate::InvocationArguments<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    // naming.core.original-pattern-retained-context
+    // docs/design/analysis/name-resolution-proofs/original-pattern-retained-context.md
+    let count = args.exact_argv_len()?;
+    let index = options.leading_word_count(args)?;
+    Some(if index < count {
+        vec![(u8::try_from(index).ok()?, ArgRole::Pattern)]
+    } else {
+        Vec::new()
+    })
 }
 
 const MATCH_OPTIONS: &[OptionSpec] = &[OptionSpec {
@@ -992,6 +998,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "compare",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringCompare)),
         arity: Arity::at_least(2),
+        reserved_trailing_words: 2,
         detail: "Compare two strings lexicographically.",
         synopsis: "string compare ?-nocase? ?-length length? string1 string2",
         successful_handler: Some(
@@ -1055,6 +1062,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringEqual)),
         arity: Arity::at_least(2),
+        reserved_trailing_words: 2,
         detail: "Test string equality.",
         synopsis: "string equal ?-nocase? ?-length length? string1 string2",
         successful_handler: Some(
@@ -1575,7 +1583,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         const_fold: Some(fold_match),
         return_type: Some(TclType::Boolean),
         options: MATCH_OPTIONS,
-        arg_role_resolver: Some(match_arg_roles),
+        arg_role_layout_resolver: Some(match_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Pattern],
         pattern_type: Some(PatternType::Glob),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT

@@ -1,0 +1,27 @@
+regexp 0 0 0 0 ABSENT
+regexp_nocase 0 0 0 0 ABSENT
+regexp_expanded_plain 0 0 0 0 ABSENT
+regexp_expanded_space 0 0 1 1 ab
+scan_decimal 0 0 0 0 ABSENT
+scan_hex 0 0 0 0 ABSENT
+scan_literal 0 0 0 0 ABSENT
+scan_match 0 0 1 1 42
+regexp 1 0 0 1 OLD
+regexp_nocase 1 0 0 1 OLD
+regexp_expanded_plain 1 0 0 1 OLD
+regexp_expanded_space 1 0 1 1 ab
+scan_decimal 1 0 0 1 OLD
+scan_hex 1 0 0 1 OLD
+scan_literal 1 0 0 1 OLD
+scan_match 1 0 1 1 42
+alias_capability 1
+captured_alias 0 0 0 0 ABSENT
+captured_alias 1 0 0 1 OLD
+moved_alias 0 0 0 0 ABSENT
+moved_alias 1 0 0 1 OLD
+moved_builtin 0 0 0 0 ABSENT
+moved_builtin 1 0 0 1 OLD
+replaced_stock 0 0 1 1 CUSTOM
+replaced_stock 1 0 1 1 CUSTOM
+custom_same_tail 0 0 1 1 TAIL
+custom_same_tail 1 0 1 1 TAIL

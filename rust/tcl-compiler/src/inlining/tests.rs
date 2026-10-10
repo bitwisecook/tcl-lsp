@@ -812,3 +812,85 @@ fn classify_large_single_call_is_if_single_call() {
     let inlined = inline_module(module, &CommandRegistry::build_default());
     assert_eq!(top_calls_to(&inlined, "big"), 1);
 }
+
+#[test]
+fn original_inlining_activation_requires_selected_c_parameter_grammar() {
+    // naming.variable.original-readonly-formal-topology
+    // docs/design/analysis/name-resolution-proofs/original-readonly-formal-topology.md
+    // IR transform capability only; no native procedure activation is asserted.
+    let source = "proc ::noop {} {}\nnoop\nputs after";
+    let mut profile = tcl_dialect::DialectProfile::projected_from_point(
+        "logical-inlining-control",
+        &[],
+        "Logical inlining control",
+        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+    );
+    // Explicit authored C formal/activation axis in a Logical model. This
+    // profile supplies no current Jim or native C naming recipe.
+    profile.runtime_base = Some(tcl_dialect::TclVersion::V8_6);
+    let profile = profile.intern();
+    let context =
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+    let registry = context.commands();
+    let input = crate::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::clone(&context),
+        tcl_lexer::LexerConfig::for_profile(Some(profile)),
+    );
+    assert!(input.has_logical_source_name_context());
+    let entry = crate::command_binding::SourceAnalysisEntry {
+        logical_source_input: Some(input.clone()),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        ..Default::default()
+    };
+    let original = CompilationUnit::build_with_source_entry(
+        source,
+        crate::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        &entry,
+    )
+    .ir_module;
+    let native_source_only = module_for(source);
+    assert_eq!(
+        top_calls_to(&inline_module(native_source_only, registry), "noop"),
+        1,
+        "C source grammar alone cannot issue an activation"
+    );
+    assert!(original.source_entry.native_entry.is_none());
+    assert_eq!(
+        original.parameter_grammar(),
+        Some(tcl_dialect::ParameterGrammar::Tcl)
+    );
+    assert_eq!(top_calls_to(&original, "noop"), 1);
+    assert_eq!(
+        top_calls_to(&inline_module(original.clone(), registry), "noop"),
+        0,
+        "the C control must exercise an eligible transform"
+    );
+    let jim = tcl_registry::InvocationDialect::of_point(
+        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+    );
+    let unknown = tcl_registry::InvocationDialect {
+        variable_lookup_policy: None,
+        ..jim
+    };
+    for axis in [jim, unknown] {
+        let mut refused = original.clone();
+        refused.source_entry.invocation_dialect = Some(axis);
+        assert_ne!(
+            refused.parameter_grammar(),
+            Some(tcl_dialect::ParameterGrammar::Tcl)
+        );
+        let expected = refused.top_level.clone();
+        let result = inline_module(refused, registry);
+        assert_eq!(result.top_level, expected);
+        assert_eq!(top_calls_to(&result, "noop"), 1);
+    }
+}

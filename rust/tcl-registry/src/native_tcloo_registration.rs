@@ -23,6 +23,8 @@
 //! tclBasic.c initializes it to NULL. Definition slots in tclOODefineCmds.c
 //! are object commands created by `AllocObject`, also without compileProc.
 //! Helpers next/nextto/self explicitly install hooks and are excluded here.
+//! Per-object my/myclass registrations use the same null-compiler command
+//! constructor; their NRE wrapper changes nreProc independently of compileProc.
 
 use crate::native_compilation::{
     NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
@@ -207,19 +209,62 @@ pub fn compilation(identity: &str, dialect: InvocationDialect) -> Option<NativeC
                 | "oo::configuresupport::writableproperties"
                 | "oo::configuresupport::objreadableproperties"
                 | "oo::configuresupport::objwritableproperties"
+                | "oo::configuresupport::configurableclass::property"
+                | "oo::configuresupport::configurableclass::properties"
+                | "oo::configuresupport::configurableobject::property"
+                | "oo::configuresupport::configurableobject::properties"
         );
-    (definition || core_helper || identity == "oo::UnknownDefinition").then_some(
-        NativeCompilationSpec {
+    let private_dispatch =
+        identity == "my" || (version >= TclVersion::V9_0 && identity == "myclass");
+    (definition || core_helper || private_dispatch || identity == "oo::UnknownDefinition")
+        .then_some(NativeCompilationSpec {
             grammar: NativeCompilationGrammar::NoHook,
             operation: SemanticOperationId::Invoke,
             body: NativeBodyCompilation::Inherit,
-        },
-    )
+        })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_dispatch_registration_keeps_null_hooks_separate_from_helper_compilers() {
+        // Native proof: naming.tcloo.private-dispatch-null-compiler
+        // docs/design/analysis/name-resolution-proofs/private-dispatch-null-compiler.md
+        let registry = crate::CommandRegistry::build_default();
+        for version in TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(version);
+            for (identity, first) in [("my", TclVersion::V8_6), ("myclass", TclVersion::V9_0)] {
+                let descriptor = registry.native_compilation_for_registration(identity, dialect);
+                assert_eq!(
+                    descriptor.is_some(),
+                    version >= first,
+                    "{version:?}/{identity}"
+                );
+                if let Some(descriptor) = descriptor {
+                    assert_eq!(descriptor.compiler_hook_presence(dialect), Some(false));
+                }
+            }
+            for helper in ["next", "nextto", "self"] {
+                assert_eq!(compilation(helper, dialect), None, "{version:?}/{helper}");
+            }
+        }
+        let jim = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        assert_eq!(compilation("my", jim), None);
+        let mut unknown = InvocationDialect::for_version(TclVersion::V9_1);
+        unknown.native_family = None;
+        assert_eq!(compilation("my", unknown), None);
+        assert_eq!(
+            compilation(
+                "replacement::my",
+                InvocationDialect::for_version(TclVersion::V9_1)
+            ),
+            None
+        );
+    }
 
     #[test]
     fn definition_registration_absence_requires_exact_native_context_and_release() {

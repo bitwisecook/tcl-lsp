@@ -18,6 +18,7 @@
 
 //! Compiler traversal precedes execution, including unreachable inline bodies.
 
+pub(super) mod ordered_locals;
 mod original_preparation;
 
 use super::{
@@ -264,13 +265,19 @@ pub(super) fn preflight_image(
     let mut scanner = CompilerTraversal {
         state,
         snapshot,
-        chunk,
+        chunk: chunk.clone(),
         possible_error: false,
         compiler_dependencies: Vec::new(),
         math_table_prerequisite: None,
         before_next_context: Vec::new(),
         compiler_invocations: std::collections::BTreeMap::new(),
         compiled_children: std::collections::BTreeMap::new(),
+        locals: ordered_locals::SourceCompilerLocalInventory::at_entry(
+            chunk.clone(),
+            image.len(),
+            state,
+            context,
+        ),
     };
     let mut failure = scanner.script(image, base, context);
     if let Some(failure) = &mut failure {
@@ -303,6 +310,18 @@ pub(super) fn preflight_image(
         failure.failure.error_code = None;
         failure.failure.error_info = None;
         failure.contexts.clear();
+    }
+    scanner.snapshot.source_locals = scanner
+        .locals
+        .take()
+        .filter(|_| failure.is_none() && !scanner.possible_error)
+        .map(Arc::new);
+    for invocations in scanner.compiler_invocations.values_mut() {
+        for invocation in invocations {
+            invocation
+                .source_locals
+                .clone_from(&scanner.snapshot.source_locals);
+        }
     }
     if !scanner.compiled_children.is_empty() {
         let visits = Arc::new(scanner.compiler_invocations.clone());
@@ -360,6 +379,7 @@ struct CompilerTraversal<'a> {
     snapshot: &'a mut NativeCompilationSnapshot,
     chunk: CommandAllocationSite,
     possible_error: bool,
+    locals: Option<ordered_locals::SourceCompilerLocalInventory>,
     compiler_dependencies: Vec<SourceNativeCompilationDependency>,
     math_table_prerequisite:
         Option<tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite>,
@@ -374,6 +394,7 @@ struct CompilerTraversal<'a> {
 impl CompilerTraversal<'_> {
     fn require_provider(&mut self) {
         self.possible_error = true;
+        self.locals = None;
     }
 
     fn script(
@@ -496,7 +517,15 @@ impl CompilerTraversal<'_> {
             },
             offset,
         );
+        if selected
+            .admission
+            .is_none_or(|selection| selection == NativeCompilationSelection::Unknown)
+            || selected.original_words.is_none()
+        {
+            self.locals = None;
+        }
         let invocation = super::compiler_inventory::SourceCompilerInvocation {
+            source_locals: None,
             selection: selected.admission,
             admitted: selected.admitted.clone(),
             operand_layout: selected.operand_layout.clone(),
@@ -606,12 +635,7 @@ impl CompilerTraversal<'_> {
         let Some(target) = self.command_target(head, &context.namespace_identity()) else {
             return self.substitutions(words, context);
         };
-        let dependency = self.command_dependency(&target, head, context);
-        if dependency.compiler_prerequisite.is_some()
-            || (target.registry_backed && target.prepended.is_empty())
-        {
-            self.retain_prefix_dependency(dependency);
-        }
+        self.retain_command_head_dependency(&target, head, context);
         let arguments = written
             .iter()
             .skip(1)
@@ -628,22 +652,27 @@ impl CompilerTraversal<'_> {
                 }
             });
         }
-        let (invocation, mut facts) = self.command_facts(&target, &arguments, context)?;
+        let Some((invocation, mut facts)) = self.command_facts(&target, &arguments, context) else {
+            // No retained compiler descriptor represents attempted local
+            // allocations for this target. Its ordinary words still compile.
+            self.locals = None;
+            return self.substitutions(words, context);
+        };
         let Some(spec) = self.original_compilation_spec(words, head, offset, &mut facts, context)
         else {
             return self.substitutions(words, context);
         };
         let (shapes, selection, preparation) =
             compilation_selection(spec, invocation, &facts, words, offset, self.state, context);
+        // A rejected hook can reserve locals before generic fallback. Only an
+        // explicit attempted preparation represents that prefix completely.
+        if self.incomplete_compiler_preparation(selection, spec, preparation.as_ref()) {
+            self.locals = None;
+        }
 
         if let Some(recipe) = preparation.as_ref().and_then(|recipe| recipe.structured()) {
-            let mut failure = self.structured_compilation(words, offset, recipe, context);
-            if let Some(failure) = &mut failure {
-                failure
-                    .dependencies
-                    .push(self.command_dependency(&target, head, context));
-            }
-            return failure;
+            let failure = self.structured_compilation(words, offset, recipe, context);
+            return self.with_command_dependency(failure, &target, head, context);
         }
         if let Some(failure) =
             self.selected_failure(spec, selection, invocation, &facts, words, head)
@@ -655,13 +684,8 @@ impl CompilerTraversal<'_> {
             ));
         }
         if let Some(recipe) = preparation.as_ref().and_then(|recipe| recipe.switch()) {
-            let mut failure = self.switch_compilation(words, offset, recipe, context);
-            if let Some(failure) = &mut failure {
-                failure
-                    .dependencies
-                    .push(self.command_dependency(&target, head, context));
-            }
-            return failure;
+            let failure = self.switch_compilation(words, offset, recipe, context);
+            return self.with_command_dependency(failure, &target, head, context);
         }
         let namespace_bindings = preparation
             .as_ref()
@@ -694,6 +718,52 @@ impl CompilerTraversal<'_> {
                 .push(self.command_dependency(&target, head, context));
         }
         Some(failure)
+    }
+
+    fn with_command_dependency(
+        &self,
+        mut failure: Option<SourceNativeCompilationFailure>,
+        target: &super::SourceCommandTarget,
+        head: &str,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        if let Some(failure) = &mut failure {
+            failure
+                .dependencies
+                .push(self.command_dependency(target, head, context));
+        }
+        failure
+    }
+
+    fn retain_command_head_dependency(
+        &mut self,
+        target: &super::SourceCommandTarget,
+        head: &str,
+        context: SourceExecutionContext<'_>,
+    ) {
+        let dependency = self.command_dependency(target, head, context);
+        if dependency.compiler_prerequisite.is_some()
+            || (target.registry_backed && target.prepended.is_empty())
+        {
+            self.retain_prefix_dependency(dependency);
+        }
+    }
+
+    fn incomplete_compiler_preparation(
+        &self,
+        selection: NativeCompilationSelection,
+        spec: tcl_registry::native_compilation::NativeCompilationSpec,
+        preparation: Option<&crate::registry_invocation::OriginalNativeCompilerPreparation>,
+    ) -> bool {
+        selection == NativeCompilationSelection::Generic
+            && self
+                .state
+                .baseline
+                .compilation_dialect()
+                .is_none_or(|dialect| spec.compiler_hook_presence(dialect) != Some(false))
+            && preparation.is_none_or(|preparation| {
+                preparation.structured().is_none() && preparation.namespace_bindings().is_none()
+            })
     }
 
     fn original_compilation_spec(
@@ -829,7 +899,12 @@ impl CompilerTraversal<'_> {
                 false,
                 self.structured_compilation(words, offset, &recipe, context),
             )),
-            super::ensemble_compilation::ActualEnsemblePlan::Generic => Some((true, None)),
+            super::ensemble_compilation::ActualEnsemblePlan::Generic => {
+                // A public generic fallback does not retain whether a worker
+                // hook attempted local allocations before declining.
+                self.locals = None;
+                Some((true, None))
+            }
             super::ensemble_compilation::ActualEnsemblePlan::Named { preparations, .. } => Some((false, self.structured_compilation(words, offset, &tcl_registry::native_instruction_plan::NativeInstructionPlan::GenericPreparation(preparations), context))),
             super::ensemble_compilation::ActualEnsemblePlan::Unknown => {
                 // A registered recipe can describe the delegated compiler
@@ -963,8 +1038,10 @@ impl CompilerTraversal<'_> {
                     }
                 }
                 // These compiler visits retain geometry, not a live cell.
-                NativeNamespaceBindingVisit::DeclareLocal(_)
-                | NativeNamespaceBindingVisit::Literal(_)
+                NativeNamespaceBindingVisit::DeclareLocal(name) => {
+                    self.declare_source_local(Some(name));
+                }
+                NativeNamespaceBindingVisit::Literal(_)
                 | NativeNamespaceBindingVisit::Word(
                     NativeCompilerWordOperand::LiteralExpansion { .. },
                 ) => {}
@@ -1014,6 +1091,7 @@ impl CompilerTraversal<'_> {
                     native.1,
                 ),
                 NativeCompilationStep::Expression(expression) => {
+                    self.locals = None;
                     self.expression(words, offset, expression, context)
                 }
             };
@@ -1412,13 +1490,19 @@ impl CompilerTraversal<'_> {
                     WordPart::CommandSubstitution { spelling, source } => {
                         self.brackets(spelling, source, context)
                     }
-                    WordPart::Variable { source, .. } => self.variable_indices(source, context),
+                    WordPart::Variable { source, .. } => {
+                        self.source_local_substitution(word, source, context);
+                        self.variable_indices(word, source, context)
+                    }
                     _ => None,
                 }),
                 WordExpr::Expand { word, .. } => {
                     self.substitutions(std::slice::from_ref(word), context)
                 }
-                WordExpr::Variable { source, .. } => self.variable_indices(source, context),
+                WordExpr::Variable { source, .. } => {
+                    self.source_local_substitution(word, source, context);
+                    self.variable_indices(word, source, context)
+                }
                 _ => None,
             };
             if failure.is_some() {
@@ -1428,30 +1512,88 @@ impl CompilerTraversal<'_> {
         None
     }
 
+    fn source_local_substitution(
+        &mut self,
+        word: &WordExpr,
+        site: &crate::ir::SourceSite,
+        context: SourceExecutionContext<'_>,
+    ) {
+        if self.locals.is_none() {
+            return;
+        }
+        let root = (|| {
+            let original =
+                super::original_name_value::original_native_word(word, self.state, context.config)?;
+            let policy = self
+                .state
+                .source_variables
+                .execution_name_policy?
+                .native_recipe()?;
+            crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+                &original,
+                site.span,
+                tcl_syntax::word_rules::WordValueRules::from_config(&context.config),
+                policy,
+            )
+        })();
+        let Some(root) = root else {
+            self.locals = None;
+            return;
+        };
+        if self.locals.as_mut().is_some_and(|locals| {
+            !locals.substitution_name(root.bytes(), root.is_separate_array_root())
+        }) {
+            self.locals = None;
+        }
+    }
+
+    fn declare_source_local(&mut self, name: Option<&[u8]>) {
+        if self
+            .locals
+            .as_mut()
+            .is_some_and(|locals| !locals.declare(name))
+        {
+            self.locals = None;
+        }
+    }
+
+    fn source_local_command(&mut self, name: &[u8]) {
+        if self
+            .locals
+            .as_mut()
+            .is_some_and(|locals| !locals.command_name(name))
+        {
+            self.locals = None;
+        }
+    }
+
     fn variable_indices(
         &mut self,
+        word: &WordExpr,
         site: &crate::ir::SourceSite,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceNativeCompilationFailure> {
-        let image = self.chunk.source.source_image().clone();
-        let original = image.try_text().ok()?;
-        let (spelling, source) =
-            super::original_variable_source(original, 0, site, context.config)?;
-        let input = tcl_lexer::SourceImage::native(spelling.as_bytes());
-        let Ok(length) = u32::try_from(input.len()) else {
+        let Some(original) =
+            super::original_name_value::original_native_word(word, self.state, context.config)
+        else {
             self.require_provider();
             return None;
         };
-        let Ok(arena) = tcl_lexer::ExecutablePartArena::decompose(
-            input,
-            tcl_lexer::Span::new(0, length),
-            tcl_lexer::SubstFlags::default(),
-            context.config,
-        ) else {
+        let arena = original.executable_parts();
+        let Some(variable) = arena.all_parts().find(|part| {
+            matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. })
+                && (part.span == site.span || arena.source_span(part) == Some(site.span))
+        }) else {
             self.require_provider();
             return None;
         };
-        let mut pending = vec![(arena.root(), 0, context.depth)];
+        let tcl_lexer::ExecutablePart::Variable {
+            index: Some(index), ..
+        } = variable.part
+        else {
+            return None;
+        };
+        let mut pending = vec![(index, 0, context.depth)];
         while let Some((list, next, depth)) = pending.pop() {
             if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
                 self.require_provider();
@@ -1467,13 +1609,9 @@ impl CompilerTraversal<'_> {
                         self.require_provider();
                         continue;
                     };
-                    let Some(offset) = source.span.start().checked_add(body.start()) else {
-                        self.require_provider();
-                        continue;
-                    };
                     if let Some(failure) = self.script(
-                        &tcl_lexer::SourceImage::native(script),
-                        offset,
+                        &tcl_lexer::SourceImage::from_bytes(script, arena.image().channel()),
+                        body.start(),
                         SourceExecutionContext {
                             depth: depth + 1,
                             ..context
@@ -1482,14 +1620,29 @@ impl CompilerTraversal<'_> {
                         return Some(failure);
                     }
                 }
-                tcl_lexer::ExecutablePart::Variable {
-                    index: Some(index), ..
-                } => {
-                    pending.push((index, 0, depth + 1));
+                tcl_lexer::ExecutablePart::Variable { index, .. } => {
+                    let root = self.state.source_variables.execution_name_policy
+                        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                        .and_then(|policy| crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_executable(
+                            arena, arena.image(), context.config, component.span,
+                            tcl_syntax::word_rules::WordValueRules::from_config(&context.config), policy,
+                        ));
+                    if let Some(root) = root {
+                        if self.locals.as_mut().is_some_and(|locals| {
+                            !locals.substitution_name(root.bytes(), root.is_separate_array_root())
+                        }) {
+                            self.locals = None;
+                        }
+                    } else {
+                        self.locals = None;
+                    }
+                    if let Some(index) = index {
+                        pending.push((index, 0, depth + 1));
+                    }
                 }
                 tcl_lexer::ExecutablePart::Expression { .. }
-                | tcl_lexer::ExecutablePart::ParseError(_) => self.possible_error = true,
-                _ => {}
+                | tcl_lexer::ExecutablePart::ParseError(_) => self.require_provider(),
+                tcl_lexer::ExecutablePart::Text(_) => {}
             }
         }
         None
@@ -2065,6 +2218,7 @@ mod tests {
             compilation,
             compilation_snapshot: None,
             selected_compilation: None,
+            original_variable_compilation: None,
             namespace: "::",
             config,
             registry,
@@ -2072,8 +2226,10 @@ mod tests {
             frame,
             invocation_offset: offset,
             variable_read_owner: None,
+            original_written_projection: None,
             written_arguments: None,
             written_values: None,
+            written_name_values: None,
             written_representations: None,
             written_objects: None,
             written_method_prefixes: None,

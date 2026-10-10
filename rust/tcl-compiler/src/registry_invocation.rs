@@ -25,9 +25,67 @@
 //! an explicitly supplied [`SemanticContext`] — the resolved environment the
 //! document is assisted under (redesign §11.2 D1).
 
+mod metadata_context;
+pub use metadata_context::InvocationMetadataContext;
+pub(crate) use metadata_context::retained_source_metadata_context;
+mod symbol_advice;
+pub(crate) use symbol_advice::{
+    OriginalSymbolDeclarationAdvice, original_symbol_declaration_advice,
+    vendor_symbol_declaration_advice,
+};
+mod conditional_vendor_metadata;
+pub(crate) use conditional_vendor_metadata::original_vendor_occurrence_registry_metadata;
+pub use conditional_vendor_metadata::{
+    OriginalConditionalVendorRegistryMetadata, original_conditional_vendor_registry_metadata,
+};
+mod conditional_metadata;
+pub use conditional_metadata::{
+    OriginalConditionalRegistryMetadata, original_conditional_registry_metadata,
+};
+/// Original Logical formal binding identity and bounded alpha source coverage.
+pub mod logical_formals;
+mod source_availability;
+pub use source_availability::{
+    CommandSourceAvailabilityDomain, OriginalSourceCommandAvailability,
+    original_source_command_availability,
+};
+mod source_publication;
+pub use source_publication::{
+    OriginalSourceCommandPublication, OriginalSourceHandleClassAdvice,
+    OriginalSourceHandleConstruction,
+};
+mod source_scoped_body;
+/// Sealed readonly original argv and Registry source-role structure.
+pub mod source_structure;
+pub use source_scoped_body::{
+    OriginalDeclaredSourceScriptBody, OriginalSourceDefinitionMemberReference,
+    OriginalSourceDefinitionMemberRegion, OriginalSourceDefinitionMemberScriptBody,
+    OriginalSourceScopedBody, OriginalSourceScriptBody, OriginalSourceScriptPurpose,
+};
+pub(crate) use source_scoped_body::{
+    OriginalSourceScriptBodyOrigin, declared_source_script_bodies_for,
+    original_source_scoped_bodies,
+};
+mod source_taint;
+pub use source_taint::HostedSourceTaintContext;
+pub(crate) use source_taint::hosted_source_taint_invocation;
+mod vendor_advice;
+mod vendor_source_barriers;
+pub use vendor_advice::{VendorRegistryInvocationShape, vendor_registry_invocation_shape};
+pub use vendor_source_barriers::VendorSourceCatalogueBarriers;
+
+mod variable_write_advice;
+pub(crate) use variable_write_advice::{
+    original_variable_write_advice, vendor_variable_write_advice,
+};
+
 mod declaration_assistance;
-pub(crate) use declaration_assistance::original_declaration_assistance;
-pub use declaration_assistance::{DeclarationArgument, OriginalDeclarationAssistance};
+pub use declaration_assistance::{
+    DeclarationArgument, DeclarationVariableAliasPurpose, OriginalDeclarationAssistance,
+};
+pub(crate) use declaration_assistance::{
+    OriginalSourceVariableAliasOperands, original_declaration_assistance,
+};
 
 mod declaration_flow;
 pub(crate) use declaration_flow::{
@@ -39,9 +97,10 @@ mod interval_advice;
 pub(crate) use interval_advice::declaration_increment_advice;
 
 mod native_compilation_source;
+pub use native_compilation_source::original_native_compiler_words;
 pub(crate) use native_compilation_source::{
     OriginalNativeCompilerInvocation, OriginalNativeCompilerPreparation,
-    original_native_compilation, original_native_compiler_words,
+    original_native_compilation,
 };
 
 mod store_advice;
@@ -182,6 +241,19 @@ impl LogicalStructuredInvocation {
         &self.invocation.facts.canonical_command
     }
 
+    /// Borrow selected source descriptors under the genuine supplied generation.
+    /// Original direct-word correspondence remains part of this issuer.
+    pub(crate) fn with_metadata_schema<T>(
+        &self,
+        registry: &CommandRegistry,
+        context: InvocationMetadataContext<'_>,
+        realm: tcl_dialect::model::InvocationRealm,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        self.invocation
+            .with_metadata_schema(registry, context, realm, apply)
+    }
+
     pub(crate) fn lowering_hook(&self) -> Option<tcl_registry::hooks::LoweringHookId> {
         self.invocation.facts.lowering_hook
     }
@@ -194,11 +266,15 @@ impl LogicalStructuredInvocation {
         self.invocation.facts.traits
     }
 
-    pub(crate) fn body_scope(
+    pub(crate) fn body_scope<'a>(
         &self,
         registry: &CommandRegistry,
-        context: SemanticContext,
+        context: impl Into<InvocationMetadataContext<'a>>,
     ) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
+        let context = context.into();
+        if !context.matches_registry(registry) {
+            return None;
+        }
         context
             .context()
             .resolve_spec(registry, self.canonical_command())?
@@ -226,17 +302,32 @@ pub(crate) fn logical_structured_invocation(
     tokens: &CommandTokens,
     bindings: Option<&crate::command_binding::SourceCommandBindings>,
 ) -> Option<LogicalStructuredInvocation> {
+    let context = body_assistance_context(registry, tokens)?;
+    logical_structured_invocation_with_metadata_context(registry, context.into(), tokens, bindings)
+}
+
+/// Select source structure using the caller's complete immutable context.
+/// Missing or foreign context refuses; this supplies no executed body/frame.
+pub(crate) fn logical_structured_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    bindings: Option<&crate::command_binding::SourceCommandBindings>,
+) -> Option<LogicalStructuredInvocation> {
+    if !context.matches_registry(registry) {
+        return None;
+    }
     if bindings.is_some_and(|bindings| bindings.original_arguments_rejected_before_handler(tokens))
     {
         return None;
     }
-    let context = body_assistance_context(registry, tokens)?;
-    let selected = resolved_handler_invocation(registry, Some(context), tokens)
-        .or_else(|| {
-            owned_body_layout_invocation(registry, context, tokens, bindings?)
-                .map(|owned| owned.invocation)
-        })
-        .or_else(|| original_declared_structured_invocation(registry, context, tokens))?;
+    let selected =
+        resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
+            .or_else(|| {
+                owned_body_layout_invocation(registry, context, tokens, bindings?)
+                    .map(|owned| owned.invocation)
+            })
+            .or_else(|| original_declared_structured_invocation(registry, context, tokens))?;
     // Source-shape lowering requires each operand to retain its original slot.
     // Alias prefixes, selector rewriting and expanded elements use generic IR
     // until a lowerer explicitly accepts their composed operand projection.
@@ -268,15 +359,47 @@ pub(crate) fn logical_structured_invocation(
     })
 }
 
-/// Original declaration grammar, without a completed handler or CPP receipt.
-fn original_declared_structured_invocation(
+/// Conditional structure of one unchanged original source invocation.
+/// The shared issuer requires closed original lookup, complete roles, accepted
+/// arity and direct written operand correspondence. It can describe an
+/// unentered declaration body; it grants no Normal completion, native compiler
+/// admission, physical frame or executed store.
+#[must_use]
+pub fn original_structured_invocation(
     registry: &CommandRegistry,
-    context: SemanticContext,
     tokens: &CommandTokens,
 ) -> Option<ResolvedStatementInvocation> {
+    logical_structured_invocation(registry, tokens, None).map(|selected| selected.invocation)
+}
+
+/// Original declaration grammar, without a completed handler or CPP receipt.
+fn original_declared_structured_invocation<'a>(
+    registry: &CommandRegistry,
+    context: impl Into<InvocationMetadataContext<'a>>,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    let context = context.into();
+    if !context.matches_registry(registry) {
+        return None;
+    }
     let binding = tokens.source_binding.as_ref()?;
     let advice = binding.declaration_operand_layout_advice(tokens)?;
     if !advice.closed_lookup() {
+        return None;
+    }
+    resolve_original_declared_layout(registry, context, tokens, &advice)
+}
+
+/// The source-role consumer chooses its purpose-specific closure before this
+/// shared full-vector/schema resolution. This helper supplies no completion.
+fn resolve_original_declared_layout<'a>(
+    registry: &CommandRegistry,
+    context: impl Into<InvocationMetadataContext<'a>>,
+    tokens: &CommandTokens,
+    advice: &crate::command_binding::OriginalCompilationLookupAdvice,
+) -> Option<ResolvedStatementInvocation> {
+    let context = context.into();
+    if !context.matches_registry(registry) {
         return None;
     }
     let dialect = advice.dialect();
@@ -298,14 +421,15 @@ fn original_declared_structured_invocation(
             .iter()
             .map(EffectiveInvocationWord::as_registry_word)
             .collect();
-        let RegistryInvocationResolution::Resolved(facts) = resolve_registry_words_in_realm(
-            registry,
-            Some(context),
-            &words,
-            Some(dialect),
-            advice.realm(),
-        )
-        .ok()?
+        let RegistryInvocationResolution::Resolved(facts) =
+            resolve_registry_words_in_realm_with_metadata_context(
+                registry,
+                Some(context),
+                &words,
+                Some(dialect),
+                advice.realm(),
+            )
+            .ok()?
         else {
             return None;
         };
@@ -344,7 +468,30 @@ pub fn resolved_statement_invocation(
     context: Option<SemanticContext>,
     statement: &crate::ir::Statement,
 ) -> Option<ResolvedStatementInvocation> {
-    resolved_tokens_invocation(registry, context, statement.tokens()?)
+    resolved_statement_invocation_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        statement,
+    )
+}
+
+pub(crate) fn resolved_statement_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    statement: &crate::ir::Statement,
+) -> Option<ResolvedStatementInvocation> {
+    resolved_tokens_invocation_with_metadata_context(registry, context, statement.tokens()?)
+}
+
+/// Resolve an original statement under the retained availability generation.
+/// Synthetic boundaries and statements without genuine invocation tokens do
+/// not acquire a command operation through this metadata context.
+#[must_use]
+pub fn resolved_statement_invocation_in_context(
+    context: &tcl_registry::model::ContextRegistry,
+    statement: &crate::ir::Statement,
+) -> Option<ResolvedStatementInvocation> {
+    resolved_tokens_invocation_in_context(context, statement.tokens()?)
 }
 
 /// Resolve a complete retained invocation, including a nested substitution,
@@ -355,11 +502,38 @@ pub fn resolved_tokens_invocation(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<ResolvedStatementInvocation> {
+    resolved_tokens_invocation_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+/// Resolve the retained invocation under the supplied availability generation.
+/// Command identity, native implementation and argument completion remain
+/// independently required; this context supplies none of their missing proof.
+#[must_use]
+pub fn resolved_tokens_invocation_in_context(
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    resolved_tokens_invocation_with_metadata_context(
+        context.commands(),
+        Some(context.into()),
+        tokens,
+    )
+}
+
+pub(crate) fn resolved_tokens_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
     if tokens.synthetic.is_some() {
         return None;
     }
     let RegistryInvocationResolution::Resolved(facts) =
-        resolve_command_tokens(registry, context, tokens).ok()?
+        resolve_command_tokens_with_metadata_context(registry, context, tokens).ok()?
     else {
         return None;
     };
@@ -595,6 +769,7 @@ pub struct NormalTransferInvocation {
     compilation: tcl_registry::native_compilation::NativeCompilationSelection,
     alias_frame: tcl_registry::VariableAliasFrame,
     captured_outputs: bool,
+    original_operands: Option<std::sync::Arc<crate::variable_bindings::OriginalVariableInvocation>>,
 }
 
 /// Element evolution of one proved normal, unobserved container store.
@@ -863,11 +1038,16 @@ impl NormalTransferInvocation {
             return Vec::new();
         }
         self.with_arguments(|arguments| {
+            if state.execution_name_policy.is_some() {
+                return self.original_operands.as_deref().map_or_else(
+                    || vec![crate::place::unknown_top()],
+                    |operands| crate::variable_bindings::source_variable_read_places_with_original_operands(
+                        &self.invocation.facts, arguments, state, registry, operands,
+                    ),
+                );
+            }
             crate::variable_bindings::source_variable_read_places(
-                &self.invocation.facts,
-                arguments,
-                state,
-                registry,
+                &self.invocation.facts, arguments, state, registry,
             )
         })
     }
@@ -883,11 +1063,17 @@ impl NormalTransferInvocation {
             return self.definition_places(state, registry);
         }
         self.with_arguments(|arguments| {
+            if state.execution_name_policy.is_some() {
+                return self.original_operands.as_deref().map_or_else(
+                    || vec![crate::place::unknown_top()],
+                    |operands| crate::variable_bindings::source_variable_write_places_with_output_order_and_original_operands(
+                        &self.invocation.facts, arguments, state, registry,
+                        self.variable_output_arguments().as_deref(), operands,
+                    ),
+                );
+            }
             crate::variable_bindings::source_variable_write_places_with_output_order(
-                &self.invocation.facts,
-                arguments,
-                state,
-                registry,
+                &self.invocation.facts, arguments, state, registry,
                 self.variable_output_arguments().as_deref(),
             )
         })
@@ -905,12 +1091,10 @@ impl NormalTransferInvocation {
         {
             return Vec::new();
         }
-        crate::place_bridge::resolved_invocation_def_places_with_output_order(
-            &self.invocation,
-            state,
-            registry,
-            self.variable_output_arguments().as_deref(),
-        )
+        self.definition_operands(state, registry)
+            .into_iter()
+            .map(|(_, place)| place)
+            .collect()
     }
 
     /// Original written output arguments paired with their selected normal
@@ -927,15 +1111,42 @@ impl NormalTransferInvocation {
         {
             return Vec::new();
         }
+        self.definition_operands(state, registry)
+            .into_iter()
+            .filter_map(|(effective, place)| Some((self.written_argument(effective)?, place)))
+            .collect()
+    }
+
+    fn definition_operands(
+        &self,
+        state: &crate::var_resolve::ResolveContext,
+        registry: &CommandRegistry,
+    ) -> Vec<(usize, crate::place::Place)> {
+        if state.execution_name_policy.is_some() {
+            let Some(operands) = self
+                .original_operands
+                .as_deref()
+                .filter(|operands| operands.argument_count() == self.argument_count())
+            else {
+                return Vec::new();
+            };
+            return self.with_arguments(|arguments| {
+                crate::variable_bindings::source_variable_definitions_with_original_operands(
+                    &self.invocation.facts,
+                    arguments,
+                    state,
+                    registry,
+                    self.variable_output_arguments().as_deref(),
+                    operands,
+                )
+            });
+        }
         crate::place_bridge::resolved_invocation_variable_definitions(
             &self.invocation,
             state,
             registry,
             self.variable_output_arguments().as_deref(),
         )
-        .into_iter()
-        .filter_map(|(effective, place)| Some((self.written_argument(effective)?, place)))
-        .collect()
     }
 
     /// Apply only the variable owner's normal continuation effects.
@@ -963,7 +1174,10 @@ impl NormalTransferInvocation {
                 &self.invocation.facts,
                 arguments,
                 registry,
-                self.variable_output_arguments().as_deref(),
+                (
+                    self.variable_output_arguments().as_deref(),
+                    self.original_operands.as_deref(),
+                ),
             );
         });
     }
@@ -1037,6 +1251,47 @@ impl NormalTransferInvocation {
             .collect()
     }
 
+    /// Select one named storage operand from this retained normal invocation.
+    /// Original execution uses its exact byte/compiler descriptor; the label
+    /// returned by `argument_literal` is never an address producer.
+    pub(crate) fn variable_operand_place(
+        &self,
+        argument: usize,
+        state: &crate::var_resolve::ResolveContext,
+        registry: &CommandRegistry,
+    ) -> Option<crate::place::Place> {
+        let role = self
+            .variable_roles()
+            .into_iter()
+            .find_map(|(index, role)| (index == argument).then_some(role))?;
+        self.with_arguments(|arguments| {
+            if role == tcl_registry::ArgRole::VarWrite {
+                return if state.execution_name_policy.is_some() {
+                    self.original_operands.as_deref().map(|operands| {
+                        crate::variable_bindings::variable_output_operand_access_with_original_operands(
+                            &self.invocation.facts, arguments, argument, state, registry, operands,
+                        )
+                    })
+                } else {
+                    Some(crate::variable_bindings::variable_output_operand_access(
+                        &self.invocation.facts, arguments, argument, state, registry,
+                    ))
+                };
+            }
+            if state.execution_name_policy.is_some() {
+                return self.original_operands.as_deref()
+                    .filter(|operands| operands.argument_count() == arguments.len())
+                    .map(|operands| operands.access(argument, state, registry,
+                        tcl_registry::TraceOperation::Read,
+                        self.variable_traits().contains(tcl_registry::Traits::WHOLE_ARRAY_ARG)));
+            }
+            Some(crate::variable_bindings::variable_operand_access(
+                arguments, argument, state, registry, tcl_registry::TraceOperation::Read,
+                self.variable_traits().contains(tcl_registry::Traits::WHOLE_ARRAY_ARG),
+            ))
+        })
+    }
+
     /// One variable operand's frozen name shape. A known array root remains
     /// bounded even when its element index is computed; source spelling and
     /// mathematical contents facts cannot replace this actual argv projection.
@@ -1101,28 +1356,65 @@ pub fn normal_transfer_invocation(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<NormalTransferInvocation> {
+    normal_transfer_invocation_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+/// Resolve retained normal transfer metadata under the complete supplied availability generation.
+/// Existing original identity, argument and handler premises remain required.
+#[must_use]
+pub fn normal_transfer_invocation_in_context(
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+) -> Option<NormalTransferInvocation> {
+    normal_transfer_invocation_with_metadata_context(
+        context.commands(),
+        Some(context.into()),
+        tokens,
+    )
+}
+
+pub(crate) fn normal_transfer_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<NormalTransferInvocation> {
     if tokens.synthetic == Some(crate::ir::SyntheticMarker::CapturedCatchOutputs) {
         let mut original = tokens.clone();
         original.synthetic = None;
-        let mut normal = normal_transfer_invocation(registry, context, &original)?;
+        let mut normal =
+            normal_transfer_invocation_with_metadata_context(registry, context, &original)?;
         normal.captured_outputs = true;
         return Some(normal);
     }
-    if let Some(invocation) = resolved_tokens_invocation(registry, context, tokens) {
+    if let Some(invocation) =
+        resolved_tokens_invocation_with_metadata_context(registry, context, tokens)
+    {
         return Some(NormalTransferInvocation {
             invocation,
             compilation: normal_output_compilation(tokens),
             alias_frame: normal_alias_frame(tokens),
             captured_outputs: false,
+            original_operands: tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.original_variable_operands_for_tokens(tokens))
+                .cloned(),
         });
     }
     let binding = tokens.source_binding.as_ref()?;
-    let invocation = resolved_handler_invocation(registry, context, tokens)?;
+    let invocation = resolved_handler_invocation_with_metadata_context(registry, context, tokens)?;
     let normal = NormalTransferInvocation {
         invocation,
         compilation: normal_output_compilation(tokens),
         alias_frame: normal_alias_frame(tokens),
         captured_outputs: false,
+        original_operands: binding
+            .original_variable_operands_for_tokens(tokens)
+            .cloned(),
     };
     normal.with_arguments(|arguments| {
         normal
@@ -1209,6 +1501,35 @@ pub fn possible_variable_alias_transitions(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<PossibleVariableAliasTransitions> {
+    possible_variable_alias_transitions_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+/// Candidate alias declarations under complete supplied source availability.
+/// This grants exposure advice, never a completed link or physical cell.
+#[must_use]
+pub fn possible_variable_alias_transitions_in_context(
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+) -> Option<PossibleVariableAliasTransitions> {
+    possible_variable_alias_transitions_with_metadata_context(
+        context.commands(),
+        Some(context.into()),
+        tokens,
+    )
+}
+
+pub(crate) fn possible_variable_alias_transitions_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<PossibleVariableAliasTransitions> {
+    if context.is_some_and(|context| !context.matches_registry(registry)) {
+        return None;
+    }
     if tokens.synthetic.is_some() {
         return None;
     }
@@ -1230,13 +1551,15 @@ pub fn possible_variable_alias_transitions(
         let values = frozen_argument_words(tokens, &effective);
         let mut words = vec![InvocationWord::Literal(&target.command)];
         words.extend(values.iter().map(EffectiveInvocationWord::as_registry_word));
-        let Ok(RegistryInvocationResolution::Resolved(facts)) = resolve_registry_words_in_realm(
-            registry,
-            context,
-            &words,
-            dialect,
-            binding.invocation_realm().unwrap_or_default(),
-        ) else {
+        let Ok(RegistryInvocationResolution::Resolved(facts)) =
+            resolve_registry_words_in_realm_with_metadata_context(
+                registry,
+                context,
+                &words,
+                dialect,
+                binding.invocation_realm().unwrap_or_default(),
+            )
+        else {
             footprint.unknown_residual = true;
             continue;
         };
@@ -1268,6 +1591,7 @@ pub fn possible_variable_alias_transitions(
 pub struct PossibleVariableTraceTransitions {
     traces: Vec<tcl_registry::TraceTransition>,
     unknown_residual: bool,
+    metadata_unavailable: bool,
 }
 
 impl PossibleVariableTraceTransitions {
@@ -1281,6 +1605,13 @@ impl PossibleVariableTraceTransitions {
     pub const fn unknown_residual(&self) -> bool {
         self.unknown_residual
     }
+
+    /// An original candidate has no descriptor in the supplied generation.
+    /// The observer inventory cannot be closed from a catalogue fallback.
+    #[must_use]
+    pub const fn metadata_unavailable(&self) -> bool {
+        self.metadata_unavailable
+    }
 }
 
 /// Retain observer hazards even when receiver lookup cannot prove one handler.
@@ -1291,6 +1622,35 @@ pub fn possible_variable_trace_transitions(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<PossibleVariableTraceTransitions> {
+    possible_variable_trace_transitions_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+/// May observer transitions under the complete supplied availability generation.
+/// This does not establish a completed registration or physical observer table.
+#[must_use]
+pub fn possible_variable_trace_transitions_in_context(
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+) -> Option<PossibleVariableTraceTransitions> {
+    possible_variable_trace_transitions_with_metadata_context(
+        context.commands(),
+        Some(context.into()),
+        tokens,
+    )
+}
+
+pub(crate) fn possible_variable_trace_transitions_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<PossibleVariableTraceTransitions> {
+    if context.is_some_and(|context| !context.matches_registry(registry)) {
+        return None;
+    }
     if tokens.synthetic.is_some() {
         return None;
     }
@@ -1298,6 +1658,7 @@ pub fn possible_variable_trace_transitions(
     let mut footprint = PossibleVariableTraceTransitions {
         traces: Vec::new(),
         unknown_residual: binding.execution_is_unknown() || binding.execution_may_be_absent(),
+        metadata_unavailable: false,
     };
     for target in binding
         .execution_targets()
@@ -1307,17 +1668,28 @@ pub fn possible_variable_trace_transitions(
             footprint.unknown_residual = true;
             continue;
         }
+        let realm = binding.invocation_realm().unwrap_or_default();
+        if context.is_some_and(|context| {
+            context
+                .context()
+                .resolve_spec_in_realm(registry, &target.command, realm)
+                .is_none()
+        }) {
+            footprint.metadata_unavailable = true;
+        }
         let effective = effective_words_for_target(tokens, target)?;
         let values = frozen_argument_words(tokens, &effective);
         let mut words = vec![InvocationWord::Literal(&target.command)];
         words.extend(values.iter().map(EffectiveInvocationWord::as_registry_word));
-        let Ok(RegistryInvocationResolution::Resolved(facts)) = resolve_registry_words_in_realm(
-            registry,
-            context,
-            &words,
-            binding.variable_context.invocation_dialect,
-            binding.invocation_realm().unwrap_or_default(),
-        ) else {
+        let Ok(RegistryInvocationResolution::Resolved(facts)) =
+            resolve_registry_words_in_realm_with_metadata_context(
+                registry,
+                context,
+                &words,
+                binding.variable_context.invocation_dialect,
+                binding.invocation_realm().unwrap_or_default(),
+            )
+        else {
             footprint.unknown_residual = true;
             continue;
         };
@@ -1436,6 +1808,36 @@ pub fn possible_variable_name_operands(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<PossibleVariableNameOperands> {
+    possible_variable_name_operands_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+/// Resolve retained possible variable name operands under the complete supplied availability generation.
+/// Existing original identity, argument and handler premises remain required.
+#[must_use]
+pub fn possible_variable_name_operands_in_context(
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+) -> Option<PossibleVariableNameOperands> {
+    possible_variable_name_operands_with_metadata_context(
+        context.commands(),
+        Some(context.into()),
+        tokens,
+    )
+}
+
+pub(crate) fn possible_variable_name_operands_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<PossibleVariableNameOperands> {
+    if context.is_some_and(|context| !context.matches_registry(registry)) {
+        return None;
+    }
+
     if !matches!(
         tokens.synthetic,
         None | Some(
@@ -1464,13 +1866,13 @@ pub fn possible_variable_name_operands(
                     matches!(
                         word,
                         EffectiveInvocationWord::Expanded
-                            | EffectiveInvocationWord::KnownExpansion(_)
+                            | EffectiveInvocationWord::KnownExpansion(_) | EffectiveInvocationWord::KnownByteExpansion(_)
                     )
                 });
                 let mut words = vec![InvocationWord::Literal(&target.command)];
                 words.extend(values.iter().map(EffectiveInvocationWord::as_registry_word));
                 let Ok(RegistryInvocationResolution::Resolved(facts)) =
-                    resolve_registry_words_in_realm(
+                    resolve_registry_words_in_realm_with_metadata_context(
                         registry,
                         context,
                         &words,
@@ -1730,9 +2132,22 @@ pub(crate) struct ConditionalIndexAccessAdvice {
 /// Original declaration-owned lookup and accepted operand layout for bounds
 /// diagnostics. Every native candidate must agree. Runtime residuals remain
 /// and consumers need independent source-read and interval evidence.
+#[cfg(test)]
 pub(crate) fn conditional_index_access_advice(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
+    tokens: &CommandTokens,
+) -> Option<ConditionalIndexAccessAdvice> {
+    conditional_index_access_advice_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+pub(crate) fn conditional_index_access_advice_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
 ) -> Option<ConditionalIndexAccessAdvice> {
     use NormalIndexAccessKind as Kind;
@@ -1757,14 +2172,15 @@ pub(crate) fn conditional_index_access_advice(
             .iter()
             .map(EffectiveInvocationWord::as_registry_word)
             .collect();
-        let RegistryInvocationResolution::Resolved(facts) = resolve_registry_words_in_realm(
-            registry,
-            context,
-            &words,
-            Some(dialect),
-            advice.realm(),
-        )
-        .ok()?
+        let RegistryInvocationResolution::Resolved(facts) =
+            resolve_registry_words_in_realm_with_metadata_context(
+                registry,
+                context,
+                &words,
+                Some(dialect),
+                advice.realm(),
+            )
+            .ok()?
         else {
             return None;
         };
@@ -2404,15 +2820,19 @@ impl NormalRepresentationInvocation {
         })
     }
 
-    /// Positioned expression operand reads on normal evaluation only.
-    #[must_use]
-    pub(crate) fn source_expression(
+    /// Normal expression read projection under the caller's retained full grammar.
+    pub(crate) fn source_expression_with_syntax_context(
         &self,
-        profile: Option<&tcl_dialect::DialectProfile>,
+        parser: tcl_syntax::expr::parser::ExprParseContext,
         span: tcl_lexer::Span,
         parent: Option<crate::command_binding::CommandAllocationSite>,
     ) -> Option<crate::word_subst::LiftedSourceExpression> {
-        crate::word_subst::source_expression_from_invocation(self.handler()?, profile, span, parent)
+        crate::word_subst::source_expression_from_invocation_with_syntax_context(
+            self.handler()?,
+            parser,
+            span,
+            parent,
+        )
     }
 }
 
@@ -2436,6 +2856,33 @@ pub fn normal_representation_invocation(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<NormalRepresentationInvocation> {
+    normal_representation_invocation_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+/// Successful representation metadata under the actual availability generation.
+/// This retains all normal-handler and operand requirements of the typed owner;
+/// availability does not create a successful handler or a native invocation.
+#[must_use]
+pub fn normal_representation_invocation_in_context(
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+) -> Option<NormalRepresentationInvocation> {
+    normal_representation_invocation_with_metadata_context(
+        context.commands(),
+        Some(context.into()),
+        tokens,
+    )
+}
+
+pub(crate) fn normal_representation_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<NormalRepresentationInvocation> {
     if let Some(crate::ir::SyntheticMarker::IterationBindings(expected)) = tokens.synthetic {
         // Minted only by the typed iterator lowering. This selects input value
         // conversion, never an invocation of the synthetic diagnostic label.
@@ -2455,8 +2902,8 @@ pub fn normal_representation_invocation(
             pattern_operand_alternatives: Vec::new(),
         });
     }
-    let invocation = resolved_tokens_invocation(registry, context, tokens)
-        .or_else(|| resolved_handler_invocation(registry, context, tokens))?;
+    let invocation = resolved_tokens_invocation_with_metadata_context(registry, context, tokens)
+        .or_else(|| resolved_handler_invocation_with_metadata_context(registry, context, tokens))?;
     // The public ensemble's identity does not select an unavailable or
     // indeterminate member. Parent facts retain that uncertainty for other
     // purposes; they cannot supply a successful value-handler contract here.
@@ -2644,28 +3091,89 @@ pub fn normal_statement_representation(
     context: Option<SemanticContext>,
     statement: &crate::ir::Statement,
 ) -> Option<NormalRepresentationInvocation> {
-    normal_representation_invocation(registry, context, statement.tokens()?)
+    normal_statement_representation_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        statement,
+    )
+}
+
+pub(crate) fn normal_statement_representation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    statement: &crate::ir::Statement,
+) -> Option<NormalRepresentationInvocation> {
+    normal_representation_invocation_with_metadata_context(registry, context, statement.tokens()?)
 }
 
 /// Possible effect regions on the selected handler's normal route. No
 /// completion, compiler, purity or unknown-residual obligation is withdrawn.
-pub(crate) fn possible_normal_handler_effect_regions(
+pub(crate) fn possible_normal_handler_effect_regions_with_metadata_context(
     registry: &CommandRegistry,
-    context: Option<SemanticContext>,
+    context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
 ) -> Option<(
     crate::side_effects::EffectRegion,
     crate::side_effects::EffectRegion,
 )> {
-    let invocation = resolved_handler_invocation(registry, context, tokens)?;
+    let invocation = resolved_handler_invocation_with_metadata_context(registry, context, tokens)?;
     Some(crate::side_effects::normal_handler_effect_regions(
         &invocation.facts.effects,
     ))
 }
 
+/// Exact original argv layout of the independently proved handler. This
+/// borrows its retained semantic context and implementation dependencies, but
+/// does not require an expression preparation, successful execution or CPP.
+/// Consumers close any value/evaluation obligations through their own owner.
+pub(crate) fn original_selected_handler_layout_invocation(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    let context = body_assistance_context(registry, tokens)?;
+    resolved_handler_invocation(registry, Some(context), tokens)
+}
+
+/// Selected callback grammar from an actual handler or its authentic
+/// declaration observation. This supplies no successful handler or CPP entry.
+pub(crate) fn original_callback_invocation(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    let context = body_assistance_context(registry, tokens)?;
+    original_callback_invocation_with_metadata_context(registry, context.into(), tokens)
+}
+
+pub(crate) fn original_callback_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    if !context.matches_registry(registry) {
+        return None;
+    }
+    if tokens.synthetic.is_some() {
+        return None;
+    }
+    resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
+        .or_else(|| original_declared_structured_invocation(registry, context, tokens))
+}
+
 pub(crate) fn resolved_handler_invocation(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    resolved_handler_invocation_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+pub(crate) fn resolved_handler_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
 ) -> Option<ResolvedStatementInvocation> {
     use tcl_registry::native_compilation::NormalHandlerImplementationLookup;
@@ -2683,7 +3191,10 @@ pub(crate) fn resolved_handler_invocation(
             .map(tcl_registry::InvocationDialect::of_profile)
     });
     let RegistryInvocationResolution::Resolved(facts) =
-        resolve_effective_tokens(registry, context, tokens, &effective, dialect).ok()?
+        resolve_effective_tokens_with_metadata_context(
+            registry, context, tokens, &effective, dialect,
+        )
+        .ok()?
     else {
         return None;
     };
@@ -2798,6 +3309,31 @@ impl ResolvedStatementInvocation {
             }
             _ => EffectiveInvocationWord::Dynamic,
         }
+    }
+
+    /// Query retained selected argv under the caller's whole metadata context.
+    /// The context selects availability only; it grants no new handler proof.
+    pub(crate) fn with_metadata_schema<T>(
+        &self,
+        registry: &CommandRegistry,
+        context: InvocationMetadataContext<'_>,
+        realm: tcl_dialect::model::InvocationRealm,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        if !context.matches_registry(registry) {
+            return None;
+        }
+        self.with_argument_words(|words| {
+            let selected =
+                tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    registry,
+                    Some(context.context()),
+                    words,
+                    realm,
+                )
+                .resolved()?;
+            apply(&selected)
+        })
     }
 
     /// Completion of this selected native implementation after the original
@@ -2985,6 +3521,7 @@ impl EffectiveCommandWords {
             | EffectiveInvocationWord::ArrayElementName { .. }
             | EffectiveInvocationWord::Expanded
             | EffectiveInvocationWord::KnownExpansion(_)
+            | EffectiveInvocationWord::KnownByteExpansion(_)
             | EffectiveInvocationWord::Opaque => None,
         }
     }
@@ -3117,16 +3654,13 @@ pub fn native_compilation_syntax(
                 image,
                 words: original_words,
                 offset,
-                config: binding.compiler_word_dialect().map_or_else(
-                    || tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-                    |words| tcl_lexer::LexerConfig::from_grammar(words.lexer_grammar),
-                ),
+                config: binding.original_lexer_config_for_tokens(tokens)?,
                 source_protocol: binding.compiler_source_protocol(),
                 compiler_dialect: binding
                     .native_compiler_dialect()
-                    .filter(|original| *original == dialect),
+                    .filter(|original| original.has_same_execution_policy(dialect)),
                 context,
-                operand_from: facts.argument_offset + 1,
+                operand_from: native.original_operand_from_for_facts(&facts)?,
             },
         )
     });
@@ -3429,6 +3963,7 @@ pub fn static_command_word(
         | EffectiveInvocationWord::Dynamic
         | EffectiveInvocationWord::Expanded
         | EffectiveInvocationWord::KnownExpansion(_)
+        | EffectiveInvocationWord::KnownByteExpansion(_)
         | EffectiveInvocationWord::Opaque => None,
     }
 }
@@ -3656,28 +4191,37 @@ fn compose_effective_words(
         origins: Vec::new(),
         binding_prefix: original.binding_prefix.clone(),
     };
-    let mut head_expansion = match &frozen[0] {
-        EffectiveInvocationWord::KnownExpansion(elements) => Some(elements),
-        _ => None,
-    };
-    let head = original.words.first()?.clone();
     for (word, origin) in original.words.into_iter().zip(original.origins) {
-        if matches!(origin, InvocationWordOrigin::Written(_))
-            && let Some(elements) = head_expansion.take()
-        {
-            append_expansion_elements(&mut effective, &head, 0, elements, 1);
-        }
-        if let InvocationWordOrigin::Written(written) = origin
-            && let EffectiveInvocationWord::KnownExpansion(elements) = &frozen[written]
-        {
-            append_expansion_elements(&mut effective, &word, written, elements, 0);
-        } else {
+        if !matches!(origin, InvocationWordOrigin::Written(_)) {
             effective.words.push(word);
             effective.origins.push(origin);
         }
     }
-    if let Some(elements) = head_expansion {
-        append_expansion_elements(&mut effective, &head, 0, elements, 1);
+    let mut needs_head = true;
+    for (written, (word, frozen)) in tokens.words().iter().zip(frozen).enumerate() {
+        if let Some(count) = frozen.expansion_len() {
+            if count == 0 {
+                continue;
+            }
+            append_expansion_elements(
+                &mut effective,
+                word,
+                written,
+                frozen,
+                usize::from(needs_head),
+            );
+        } else if matches!(frozen, EffectiveInvocationWord::Expanded) {
+            return None;
+        } else if !needs_head {
+            effective.words.push(word.clone());
+            effective
+                .origins
+                .push(InvocationWordOrigin::Written(written));
+        }
+        needs_head = false;
+    }
+    if needs_head {
+        return None;
     }
     Some(effective)
 }
@@ -3686,12 +4230,16 @@ fn append_expansion_elements(
     effective: &mut EffectiveCommandWords,
     word: &WordExpr,
     written: usize,
-    elements: &[String],
+    elements: &EffectiveInvocationWord,
     from: usize,
 ) {
-    for (element, text) in elements.iter().enumerate().skip(from) {
+    for element in from..elements.expansion_len().unwrap_or(0) {
+        let text = elements
+            .expansion_element(element)
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .unwrap_or_default();
         effective.words.push(WordExpr::Opaque {
-            text: text.clone(),
+            text: text.to_owned(),
             source: crate::ir::SourceSite::opaque(word.source().span),
             reason: crate::ir::WordOpacity::LossySnapshot,
         });
@@ -3750,15 +4298,15 @@ fn frozen_argument_values(
         .skip(1)
         .map(|(word, origin)| {
             if let InvocationWordOrigin::ExpandedElement { written, element } = origin {
-                let EffectiveInvocationWord::KnownExpansion(values) = tokens
+                let values = tokens
                     .source_binding
                     .as_ref()?
                     .frozen_written_words()?
-                    .get(*written)?
-                else {
-                    return None;
-                };
-                return values.get(*element).cloned();
+                    .get(*written)?;
+                return values
+                    .expansion_element(*element)
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                    .map(str::to_owned);
             }
             if matches!(word, WordExpr::Expand { .. } | WordExpr::Opaque { .. }) {
                 return None;
@@ -3782,8 +4330,12 @@ fn frozen_argument_values(
         .collect()
 }
 
-/// Project the frozen argv without re-evaluating variable-name substitutions.
-pub(crate) fn frozen_argument_words(
+/// Readonly evaluated arguments aligned with the supplied effective origins.
+/// Captured alias operands and retained native expansion children preserve
+/// their exact bytes; no value is re-evaluated and no source geometry, handler
+/// execution or completion proof is issued by this projection.
+#[must_use]
+pub fn frozen_argument_words(
     tokens: &CommandTokens,
     effective: &EffectiveCommandWords,
 ) -> Vec<EffectiveInvocationWord> {
@@ -3814,6 +4366,9 @@ pub(crate) fn frozen_argument_words(
                         InvocationWord::Literal(text) => {
                             EffectiveInvocationWord::Literal(text.to_owned())
                         }
+                        InvocationWord::KnownBytes(value) => {
+                            EffectiveInvocationWord::from_bytes(value)
+                        }
                         InvocationWord::Expanded => EffectiveInvocationWord::Expanded,
                         InvocationWord::Opaque => EffectiveInvocationWord::Opaque,
                         _ => EffectiveInvocationWord::Dynamic,
@@ -3824,13 +4379,11 @@ pub(crate) fn frozen_argument_words(
                 .as_ref()
                 .and_then(|binding| binding.frozen_written_words())
                 .and_then(|words| words.get(*written))
-                .and_then(|word| match word {
-                    EffectiveInvocationWord::KnownExpansion(values) => values.get(*element),
-                    _ => None,
-                })
-                .map_or(EffectiveInvocationWord::Dynamic, |value| {
-                    EffectiveInvocationWord::Literal(value.clone())
-                }),
+                .and_then(|word| word.expansion_element(*element))
+                .map_or(
+                    EffectiveInvocationWord::Dynamic,
+                    EffectiveInvocationWord::from_bytes,
+                ),
             InvocationWordOrigin::BindingPrefix(index) => effective
                 .binding_prefix
                 .get(*index)
@@ -3984,7 +4537,31 @@ pub fn advisory_value_assignments(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
 ) -> Vec<AdvisoryValueAssignment> {
-    let Some(assistance) = registry_invocation_assistance(registry, None, tokens) else {
+    advisory_value_assignments_with_metadata_context(registry, None, tokens)
+}
+
+/// Possible scalar stores under the complete supplied availability generation.
+/// The May envelope supplies no actual write, type or constant value.
+#[must_use]
+pub fn advisory_value_assignments_in_context(
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+) -> Vec<AdvisoryValueAssignment> {
+    advisory_value_assignments_with_metadata_context(
+        context.commands(),
+        Some(context.into()),
+        tokens,
+    )
+}
+
+pub(crate) fn advisory_value_assignments_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Vec<AdvisoryValueAssignment> {
+    let Some(assistance) =
+        registry_invocation_assistance_with_metadata_context(registry, context, tokens)
+    else {
         return Vec::new();
     };
     let dialect = tokens
@@ -3992,9 +4569,20 @@ pub fn advisory_value_assignments(
         .as_ref()
         .and_then(|binding| binding.variable_context.invocation_dialect)
         .or_else(|| {
-            registry
-                .profile()
-                .map(tcl_registry::InvocationDialect::of_profile)
+            context.map_or_else(
+                || {
+                    registry
+                        .profile()
+                        .map(tcl_registry::InvocationDialect::of_profile)
+                },
+                |context| {
+                    context
+                        .context()
+                        .environment
+                        .point()
+                        .map(tcl_registry::InvocationDialect::of_point)
+                },
+            )
         });
     let Some(dialect) = dialect else {
         return Vec::new();
@@ -4028,8 +4616,26 @@ pub fn advisory_value_assignments(
 /// established. Option-bearing forms require their own return-options recipe.
 #[must_use]
 pub fn advisory_return_values(registry: &CommandRegistry, tokens: &CommandTokens) -> Vec<WordExpr> {
+    advisory_return_values_with_metadata_context(registry, None, tokens)
+}
+
+/// Possible return operands selected under the retained availability context.
+/// These source candidates provide no completion or returned runtime type.
+#[must_use]
+pub fn advisory_return_values_in_context(
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+) -> Vec<WordExpr> {
+    advisory_return_values_with_metadata_context(context.commands(), Some(context.into()), tokens)
+}
+
+pub(crate) fn advisory_return_values_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Vec<WordExpr> {
     let mut values = Vec::new();
-    for shape in registry_invocation_assistance(registry, None, tokens)
+    for shape in registry_invocation_assistance_with_metadata_context(registry, context, tokens)
         .into_iter()
         .flat_map(|assistance| assistance.candidates)
     {
@@ -4061,11 +4667,15 @@ pub struct CatalogueInvocationAssistance {
 /// mutation, document definition or unknown lookup invalidates applicability;
 /// catalogue availability alone never restores the live implementation.
 #[must_use]
-pub fn catalogue_invocation_assistance(
+pub fn catalogue_invocation_assistance<'a>(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: impl Into<InvocationMetadataContext<'a>>,
     tokens: &CommandTokens,
 ) -> Option<CatalogueInvocationAssistance> {
+    let context = context.into();
+    if !context.matches_registry(registry) {
+        return None;
+    }
     if tokens.synthetic.is_some() {
         return None;
     }
@@ -4073,14 +4683,15 @@ pub fn catalogue_invocation_assistance(
     let candidate = binding.catalogue_command.as_ref()?;
     context.context().resolve_spec(registry, &candidate.name)?;
     let effective = compose_effective_words(tokens, &candidate.name, &[])?;
-    let RegistryInvocationResolution::Resolved(facts) = resolve_effective_tokens(
-        registry,
-        Some(context),
-        tokens,
-        &effective,
-        binding.variable_context.invocation_dialect,
-    )
-    .ok()?
+    let RegistryInvocationResolution::Resolved(facts) =
+        resolve_effective_tokens_with_metadata_context(
+            registry,
+            Some(context),
+            tokens,
+            &effective,
+            binding.variable_context.invocation_dialect,
+        )
+        .ok()?
     else {
         return None;
     };
@@ -4099,6 +4710,36 @@ pub fn registry_invocation_assistance(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<RegistryInvocationAssistance> {
+    registry_invocation_assistance_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+/// Query possible Registry shapes under the retained availability generation.
+/// The original binding supplies candidates and unresolved alternatives; this
+/// context neither selects a candidate nor supplies missing execution proof.
+#[must_use]
+pub fn registry_invocation_assistance_in_context(
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+) -> Option<RegistryInvocationAssistance> {
+    registry_invocation_assistance_with_metadata_context(
+        context.commands(),
+        Some(context.into()),
+        tokens,
+    )
+}
+
+pub(crate) fn registry_invocation_assistance_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<RegistryInvocationAssistance> {
+    if context.is_some_and(|context| !context.matches_registry(registry)) {
+        return None;
+    }
     if tokens.synthetic.is_some() {
         return None;
     }
@@ -4123,7 +4764,9 @@ pub fn registry_invocation_assistance(
         }
         let effective = effective_words_for_target(tokens, target)?;
         let Ok(RegistryInvocationResolution::Resolved(facts)) =
-            resolve_effective_tokens(registry, context, tokens, &effective, dialect)
+            resolve_effective_tokens_with_metadata_context(
+                registry, context, tokens, &effective, dialect,
+            )
         else {
             assistance.unknown_residual = true;
             continue;
@@ -4135,20 +4778,125 @@ pub fn registry_invocation_assistance(
     Some(assistance)
 }
 
+/// Readonly Registry metadata at an unchanged original command site.
+/// A unanimous retained execution envelope is preferred. Otherwise the genuine
+/// original declaration layout may supply conditional command words before
+/// operand evaluation, including an uncalled procedure body. Runtime lookup
+/// uncertainty, Normal completion, stores and compiler admission are separate;
+/// this projection changes none of their receipts.
+#[must_use]
+pub fn original_registry_invocation_assistance(
+    registry: &CommandRegistry,
+    context: Option<SemanticContext>,
+    tokens: &CommandTokens,
+) -> Option<RegistryInvocationAssistance> {
+    original_registry_invocation_assistance_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+pub(crate) fn original_registry_invocation_assistance_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<RegistryInvocationAssistance> {
+    // Implementation contract: naming.source.original-registry-header-advice
+    // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+    tokens
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(tokens)?;
+    let reached = registry_invocation_assistance_with_metadata_context(registry, context, tokens);
+    if reached
+        .as_ref()
+        .is_some_and(|advice| advice.unanimous_command_words().is_some())
+    {
+        return reached;
+    }
+    let context = context
+        .or_else(|| body_assistance_context(registry, tokens).map(InvocationMetadataContext::from));
+    let declared = context
+        .and_then(|context| original_declared_structured_invocation(registry, context, tokens));
+    let Some(declared) = declared else {
+        return reached;
+    };
+    Some(RegistryInvocationAssistance {
+        candidates: vec![RegistryInvocationShape::from_facts(
+            &declared.facts,
+            declared.effective,
+        )],
+        unknown_residual: false,
+        may_be_absent: false,
+    })
+}
+
+/// Possible Registry grammar in the unchanged literal prefix of an open quoted
+/// procedure body. The shared source owner retains a distinct incomplete header
+/// observation; this creates no complete body, installed definition, formal
+/// activation, executable invocation, Normal or native compiler capability.
+#[must_use]
+pub fn original_incomplete_body_registry_invocation_assistance(
+    registry: &CommandRegistry,
+    realm: &crate::realm::CommandBindingRealm,
+    tokens: &CommandTokens,
+) -> Option<RegistryInvocationAssistance> {
+    // Implementation contract: naming.source.incomplete-body-header-metadata
+    // docs/design/analysis/name-resolution-proofs/incomplete-body-header-metadata.md
+    let advice = realm
+        .source_bindings_ref()
+        .incomplete_body_operand_layout_advice(tokens, registry)?;
+    let dialect = advice.dialect();
+    let mut candidates = Vec::new();
+    for target in advice.targets() {
+        let effective = effective_words_for_target(tokens, target)?;
+        let values: Vec<_> = effective
+            .words
+            .iter()
+            .map(|word| {
+                effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
+            })
+            .collect();
+        let words: Vec<_> = values
+            .iter()
+            .map(EffectiveInvocationWord::as_registry_word)
+            .collect();
+        let RegistryInvocationResolution::Resolved(facts) =
+            resolve_registry_words_in_realm(registry, None, &words, Some(dialect), advice.realm())
+                .ok()?
+        else {
+            return None;
+        };
+        candidates.push(RegistryInvocationShape::from_facts(&facts, effective));
+    }
+    (!candidates.is_empty()).then_some(RegistryInvocationAssistance {
+        candidates,
+        unknown_residual: false,
+        may_be_absent: false,
+    })
+}
+
 /// Source role assistance from retained lookup candidates and applicable
 /// declarations. Original operand mapping is owned here; captured alias
 /// prefixes and expanded values cannot manufacture editable source indices.
 /// This union preserves lookup uncertainty and grants no execution, read,
 /// store, completion or optimisation proof.
 #[must_use]
-pub fn invocation_argument_role_assistance(
+pub fn invocation_argument_role_assistance<'a>(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: impl Into<InvocationMetadataContext<'a>>,
     surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     tokens: &CommandTokens,
 ) -> Vec<(usize, tcl_registry::ArgRole)> {
+    let context = context.into();
+    if !context.matches_registry(registry) {
+        return Vec::new();
+    }
     let mut roles = Vec::new();
-    if let Some(assistance) = registry_invocation_assistance(registry, Some(context), tokens) {
+    if let Some(assistance) =
+        registry_invocation_assistance_with_metadata_context(registry, Some(context), tokens)
+    {
         for candidate in assistance.candidates {
             roles.extend(candidate.written_argument_roles());
         }
@@ -4174,11 +4922,15 @@ pub fn invocation_argument_role_assistance(
 /// entire projection. Catalogue and declared navigation do not establish a
 /// grammar obligation. This grants neither execution nor successful effects.
 #[must_use]
-pub fn invocation_argument_role_consensus(
+pub fn invocation_argument_role_consensus<'a>(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: impl Into<InvocationMetadataContext<'a>>,
     tokens: &CommandTokens,
 ) -> Vec<(usize, tcl_registry::ArgRole)> {
+    let context = context.into();
+    if !context.matches_registry(registry) {
+        return Vec::new();
+    }
     let Some(binding) = tokens.source_binding.as_ref() else {
         return Vec::new();
     };
@@ -4201,7 +4953,13 @@ pub fn invocation_argument_role_consensus(
             return Vec::new();
         };
         let Ok(RegistryInvocationResolution::Resolved(facts)) =
-            resolve_effective_tokens(registry, Some(context), tokens, &effective, dialect)
+            resolve_effective_tokens_with_metadata_context(
+                registry,
+                Some(context),
+                tokens,
+                &effective,
+                dialect,
+            )
         else {
             return Vec::new();
         };
@@ -4235,6 +4993,9 @@ pub(crate) struct InvocationBodyAssistance {
     /// Accepted own-body layout, conditional on this declaration's entry.
     /// It never establishes caller depth, actual argument values or stores.
     conditional_invocation: Option<ConditionalBodyInvocation>,
+    /// Source-only receiver trait recipe. Runtime namespace and entry stay
+    /// unavailable, and no definite role or execution projection uses this.
+    receiver_trait_invocation: Option<ReceiverTraitInvocation>,
     pub declared_roles: Vec<(usize, tcl_registry::ArgRole)>,
     pub unknown_residual: bool,
     pub may_be_absent: bool,
@@ -4282,6 +5043,11 @@ impl ParameterRoleAdvice {
     }
 }
 
+struct ReceiverTraitInvocation {
+    entry: std::sync::Arc<crate::command_binding::SourceDeclaredReceiverBodyEntry>,
+    invocation: ResolvedStatementInvocation,
+}
+
 struct ConditionalBodyInvocation {
     entry: std::sync::Arc<crate::command_binding::SourceConditionalBodyEntry>,
     invocation: ResolvedStatementInvocation,
@@ -4295,11 +5061,18 @@ impl InvocationBodyAssistance {
     /// The own-body caller-name layout is a symbolic callee template. It
     /// identifies no caller cell and authorises no successful alias or store.
     pub(crate) fn caller_name_template_invocation(&self) -> Option<&ResolvedStatementInvocation> {
-        self.definite_invocation.as_ref().or_else(|| {
-            self.conditional_invocation
-                .as_ref()
-                .map(|conditional| &conditional.invocation)
-        })
+        self.definite_invocation
+            .as_ref()
+            .or_else(|| {
+                self.conditional_invocation
+                    .as_ref()
+                    .map(|conditional| &conditional.invocation)
+            })
+            .or_else(|| {
+                self.receiver_trait_invocation
+                    .as_ref()
+                    .map(|owned| &owned.invocation)
+            })
     }
 
     /// Symbolic local-copy and alias traits use the declaration's original
@@ -4309,13 +5082,22 @@ impl InvocationBodyAssistance {
         &self,
         parameters: &[&str],
     ) -> Option<&ResolvedStatementInvocation> {
-        self.definite_invocation.as_ref().or_else(|| {
-            let conditional = self.conditional_invocation.as_ref()?;
-            conditional
-                .entry
-                .matches_parameters(parameters)
-                .then_some(&conditional.invocation)
-        })
+        self.definite_invocation
+            .as_ref()
+            .or_else(|| {
+                let conditional = self.conditional_invocation.as_ref()?;
+                conditional
+                    .entry
+                    .matches_parameters(parameters)
+                    .then_some(&conditional.invocation)
+            })
+            .or_else(|| {
+                let owned = self.receiver_trait_invocation.as_ref()?;
+                owned
+                    .entry
+                    .matches_trait_parameters(parameters)
+                    .then_some(&owned.invocation)
+            })
     }
 }
 
@@ -4346,11 +5128,15 @@ struct PreparedBodyCandidates {
 }
 
 #[inline(never)]
-fn prepare_body_candidates(
+fn prepare_body_candidates<'a>(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: impl Into<InvocationMetadataContext<'a>>,
     tokens: &CommandTokens,
 ) -> Option<Box<PreparedBodyCandidates>> {
+    let context = context.into();
+    if !context.matches_registry(registry) {
+        return None;
+    }
     if tokens.synthetic.is_some() {
         return None;
     }
@@ -4376,7 +5162,13 @@ fn prepare_body_candidates(
         }
         let effective = effective_words_for_target(tokens, target)?;
         let Ok(RegistryInvocationResolution::Resolved(possible_facts)) =
-            resolve_effective_tokens(registry, Some(context), tokens, &effective, possible)
+            resolve_effective_tokens_with_metadata_context(
+                registry,
+                Some(context),
+                tokens,
+                &effective,
+                possible,
+            )
         else {
             prepared.unknown_residual = true;
             continue;
@@ -4385,7 +5177,13 @@ fn prepare_body_candidates(
         let exact_facts = if same_dialect || actual.is_none() {
             None
         } else if let Ok(RegistryInvocationResolution::Resolved(facts)) =
-            resolve_effective_tokens(registry, Some(context), tokens, &effective, actual)
+            resolve_effective_tokens_with_metadata_context(
+                registry,
+                Some(context),
+                tokens,
+                &effective,
+                actual,
+            )
         {
             Some(facts)
         } else {
@@ -4403,23 +5201,25 @@ fn prepare_body_candidates(
 }
 
 #[inline(never)]
-pub(crate) fn invocation_body_assistance(
+pub(crate) fn invocation_body_assistance<'a>(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: impl Into<InvocationMetadataContext<'a>>,
     surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     tokens: &CommandTokens,
 ) -> Box<InvocationBodyAssistance> {
+    let context = context.into();
     body_assistance_with_entry(registry, context, surface, tokens, None)
 }
 
 #[inline(never)]
-fn body_assistance_with_entry(
+fn body_assistance_with_entry<'a>(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: impl Into<InvocationMetadataContext<'a>>,
     surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     tokens: &CommandTokens,
     entry: Option<std::sync::Arc<crate::command_binding::SourceConditionalBodyEntry>>,
 ) -> Box<InvocationBodyAssistance> {
+    let context = context.into();
     let prepared = prepare_body_candidates(registry, context, tokens);
     let mut result = Box::new(InvocationBodyAssistance {
         possible_roles: Vec::new(),
@@ -4432,6 +5232,7 @@ fn body_assistance_with_entry(
         possible_operations: Vec::new(),
         definite_invocation: None,
         conditional_invocation: None,
+        receiver_trait_invocation: None,
         declared_roles: Vec::new(),
         unknown_residual: prepared.as_ref().is_none_or(|view| view.unknown_residual),
         may_be_absent: prepared.as_ref().is_none_or(|view| view.may_be_absent),
@@ -4476,12 +5277,15 @@ fn body_assistance_with_entry(
 
 fn publish_possible_body_context(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: InvocationMetadataContext<'_>,
     surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     tokens: &CommandTokens,
     prepared: Option<&PreparedBodyCandidates>,
     result: &mut InvocationBodyAssistance,
 ) {
+    if !context.matches_registry(registry) {
+        return;
+    }
     if let Some(prepared) = prepared {
         for candidate in &prepared.candidates {
             let facts = &candidate.possible_facts;
@@ -4545,7 +5349,7 @@ fn publish_possible_body_context(
 
 fn publish_unanimous_body_context(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: InvocationMetadataContext<'_>,
     prepared: &PreparedBodyCandidates,
     result: &mut InvocationBodyAssistance,
 ) {
@@ -4588,12 +5392,13 @@ fn publish_unanimous_body_context(
     result.definite_scope = scope.flatten();
 }
 
-fn prepared_body_invocation(
+fn prepared_body_invocation<'a>(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: impl Into<InvocationMetadataContext<'a>>,
     tokens: &CommandTokens,
     candidate: &PreparedBodyCandidate,
 ) -> Option<ResolvedStatementInvocation> {
+    let context = context.into();
     let effective = candidate.effective.clone();
     let dialect = tokens
         .source_binding
@@ -4623,7 +5428,7 @@ fn prepared_body_invocation(
 
 fn collect_body_navigation(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
     candidate: (
         &str,
@@ -4686,8 +5491,15 @@ fn body_assistance_context(
         .as_ref()
         .and_then(|binding| binding.variable_context.invocation_dialect)
         .and_then(tcl_registry::InvocationDialect::execution_point)
-        .and_then(tcl_dialect::model::DialectPoint::tcl_version)
-        .map(|version| SemanticContext::for_environment(version.dialect_profile_name()))
+        .and_then(|point| {
+            point
+                .tcl_version()
+                .map(|version| SemanticContext::for_environment(version.dialect_profile_name()))
+                .or_else(|| {
+                    (point.family() == tcl_dialect::model::Family::Jim)
+                        .then(|| SemanticContext::for_environment(point.family().name()))
+                })
+        })
         .or(authoring)
 }
 
@@ -4701,6 +5513,7 @@ pub(crate) fn segmented_body_assistance(
     config: tcl_lexer::LexerConfig,
     command: &crate::segmenter::SegmentedCommand,
     base: u32,
+    metadata: Option<&tcl_registry::model::ContextRegistry>,
 ) -> Option<Box<InvocationBodyAssistance>> {
     let registry = surface.commands();
     let original = match bindings.source_origin()?.kind() {
@@ -4716,25 +5529,82 @@ pub(crate) fn segmented_body_assistance(
         CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, command);
     crate::lattice_rebase::rebase_command_tokens(&mut tokens, i64::from(base));
     bindings.stamp_original_tokens(&mut tokens);
-    if let Some(declared) = surface.declared() {
-        bindings.attach_declared_body_assistance(&mut tokens, declared);
+    bindings.attach_declared_body_assistance(&mut tokens, surface);
+    let context = match metadata {
+        Some(context) => InvocationMetadataContext::from(context),
+        None => body_assistance_context(registry, &tokens)?.into(),
+    };
+    if !context.matches_registry(registry) {
+        return None;
     }
-    let context = body_assistance_context(registry, &tokens)?;
     let mut view = body_assistance_with_entry(registry, context, surface, &tokens, None);
     if let Some(owned) = owned_body_layout_invocation(registry, context, &tokens, bindings) {
         publish_conditional_parameter_advice(owned, &mut view);
+    } else if let Some(owned) =
+        receiver_source_trait_invocation(registry, context, &tokens, bindings)
+    {
+        view.parameter_advice = ParameterRoleAdvice {
+            candidates: vec![RegistryInvocationShape::from_facts(
+                &owned.invocation.facts,
+                owned.invocation.effective.clone(),
+            )],
+            closed: true,
+        };
+        view.receiver_trait_invocation = Some(owned);
     }
     Some(view)
 }
 
+/// Conditional traits from the complete original receiver declaration. Its
+/// source namespace does not claim the future receiver's private namespace.
+fn receiver_source_trait_invocation<'a>(
+    registry: &CommandRegistry,
+    context: impl Into<InvocationMetadataContext<'a>>,
+    tokens: &CommandTokens,
+    bindings: &crate::command_binding::SourceCommandBindings,
+) -> Option<ReceiverTraitInvocation> {
+    // naming.tcloo.original-declared-receiver-caller-traits
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
+    let binding = tokens.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    let entry = bindings.declared_receiver_body_entry_at(&site.source, site.offset)?;
+    native_compiler_replay_source(tokens, site)?;
+    let advice = binding.declaration_operand_layout_advice(tokens)?;
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_CALLER_FRAME").is_some() {
+        eprintln!(
+            "ORIGINAL_RECEIVER_TRAITS offset={} closed={} original_closed={} opaque={} targets={}",
+            site.offset,
+            advice.closed_receiver_trait_lookup(&entry),
+            advice.closed_lookup(),
+            advice.has_opaque_handler_alternatives(),
+            advice.targets().len()
+        );
+    }
+    if !advice.closed_receiver_trait_lookup(&entry) {
+        return None;
+    }
+    let invocation = resolve_original_declared_layout(registry, context, tokens, &advice)?;
+    if !invocation.facts.arg_roles_complete
+        || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+    {
+        return None;
+    }
+    Some(ReceiverTraitInvocation { entry, invocation })
+}
+
 /// One declaration's conditional handler layout. Compiled execution residuals
 /// remain independent; they cannot erase a separately proved logical handler.
-fn owned_body_layout_invocation(
+fn owned_body_layout_invocation<'a>(
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: impl Into<InvocationMetadataContext<'a>>,
     tokens: &CommandTokens,
     bindings: &crate::command_binding::SourceCommandBindings,
 ) -> Option<ConditionalBodyInvocation> {
+    let context = context.into();
+    if !context.matches_registry(registry) {
+        return None;
+    }
     let site = tokens.source_binding.as_ref()?.invocation_site()?;
     let entry = bindings.conditional_body_entry_at(&site.source, site.offset)?;
     native_compiler_replay_source(tokens, site)?;
@@ -4745,30 +5615,32 @@ fn owned_body_layout_invocation(
         return None;
     }
     let invocation =
-        resolved_handler_invocation(registry, Some(context), &conditional).or_else(|| {
-            let prepared = prepare_body_candidates(registry, context, &conditional)?;
-            if prepared.unknown_residual || prepared.may_be_absent {
-                return None;
-            }
-            let mut unanimous = None;
-            for candidate in &prepared.candidates {
-                let facts = candidate.exact_facts()?;
-                if !facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true)
-                {
+        resolved_handler_invocation_with_metadata_context(registry, Some(context), &conditional)
+            .or_else(|| {
+                let prepared = prepare_body_candidates(registry, context, &conditional)?;
+                if prepared.unknown_residual || prepared.may_be_absent {
                     return None;
                 }
-                let selected =
-                    prepared_body_invocation(registry, context, &conditional, candidate)?;
-                if unanimous
-                    .as_ref()
-                    .is_some_and(|previous| previous != &selected)
-                {
-                    return None;
+                let mut unanimous = None;
+                for candidate in &prepared.candidates {
+                    let facts = candidate.exact_facts()?;
+                    if !facts.arg_roles_complete
+                        || facts.arity_accepts_frozen_arguments() != Some(true)
+                    {
+                        return None;
+                    }
+                    let selected =
+                        prepared_body_invocation(registry, context, &conditional, candidate)?;
+                    if unanimous
+                        .as_ref()
+                        .is_some_and(|previous| previous != &selected)
+                    {
+                        return None;
+                    }
+                    unanimous = Some(selected);
                 }
-                unanimous = Some(selected);
-            }
-            unanimous
-        })?;
+                unanimous
+            })?;
     if !invocation.facts.arg_roles_complete
         || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
     {
@@ -4796,7 +5668,7 @@ fn publish_conditional_parameter_advice(
 fn retain_conditional_body_invocation(
     entry: std::sync::Arc<crate::command_binding::SourceConditionalBodyEntry>,
     registry: &CommandRegistry,
-    context: SemanticContext,
+    context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
     prepared: &PreparedBodyCandidates,
     view: &mut InvocationBodyAssistance,
@@ -4849,15 +5721,21 @@ pub(crate) fn unpositioned_body_assistance(
     source: &str,
     config: tcl_lexer::LexerConfig,
     command: &crate::segmenter::SegmentedCommand,
+    metadata: Option<&tcl_registry::model::ContextRegistry>,
 ) -> Option<Box<InvocationBodyAssistance>> {
     let registry = surface.commands();
     let mut tokens =
         CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, command);
     tokens.source_binding = Some(bindings.invocation_unpositioned(command.name()));
-    if let Some(declared) = surface.declared() {
-        bindings.attach_declared_body_assistance(&mut tokens, declared);
+    bindings.attach_declared_body_assistance(&mut tokens, surface);
+    let context = match metadata {
+        Some(context) => Some(InvocationMetadataContext::from(context)),
+        None => body_assistance_context(registry, &tokens).map(InvocationMetadataContext::from),
+    };
+    if context.is_some_and(|context| !context.matches_registry(registry)) {
+        return None;
     }
-    let Some(context) = body_assistance_context(registry, &tokens) else {
+    let Some(context) = context else {
         let declared = resolved_declared_assistance(surface, &tokens)?;
         return Some(Box::new(InvocationBodyAssistance {
             possible_roles: declared.roles.clone(),
@@ -4871,6 +5749,7 @@ pub(crate) fn unpositioned_body_assistance(
             possible_operations: Vec::new(),
             definite_invocation: None,
             conditional_invocation: None,
+            receiver_trait_invocation: None,
             unknown_residual: true,
             may_be_absent: true,
             parameter_advice: ParameterRoleAdvice::default(),
@@ -4907,6 +5786,9 @@ pub enum EffectiveInvocationWord {
     /// Native list elements retained at a written expansion evaluation.
     /// This grants cardinality and bytes, never object-representation proof.
     KnownExpansion(Vec<String>),
+    /// Native list elements whose payloads cannot all be represented as Unicode.
+    /// Each element remains one argv operand, with no object or source-word grant.
+    KnownByteExpansion(Vec<std::sync::Arc<[u8]>>),
     /// A compatibility/recovery word whose source meaning is unavailable.
     Opaque,
 }
@@ -4973,11 +5855,32 @@ pub fn compiled_local_name_value(
         | EffectiveInvocationWord::ArrayElementName { .. }
         | EffectiveInvocationWord::Expanded
         | EffectiveInvocationWord::KnownExpansion(_)
+        | EffectiveInvocationWord::KnownByteExpansion(_)
         | EffectiveInvocationWord::Opaque => None,
     }
 }
 
 impl EffectiveInvocationWord {
+    /// Cardinality retained by a proved native list expansion.
+    #[must_use]
+    pub fn expansion_len(&self) -> Option<usize> {
+        match self {
+            Self::KnownExpansion(values) => Some(values.len()),
+            Self::KnownByteExpansion(values) => Some(values.len()),
+            _ => None,
+        }
+    }
+
+    /// Exact native bytes of one proved expansion child.
+    #[must_use]
+    pub fn expansion_element(&self, ordinal: usize) -> Option<&[u8]> {
+        match self {
+            Self::KnownExpansion(values) => values.get(ordinal).map(String::as_bytes),
+            Self::KnownByteExpansion(values) => values.get(ordinal).map(AsRef::as_ref),
+            _ => None,
+        }
+    }
+
     /// Retain decoded native bytes with a checked Unicode projection.
     #[must_use]
     pub fn from_bytes(bytes: &[u8]) -> Self {
@@ -5002,12 +5905,12 @@ impl EffectiveInvocationWord {
     pub fn as_registry_word(&self) -> InvocationWord<'_> {
         match self {
             Self::Literal(value) => InvocationWord::Literal(value),
-            Self::ByteLiteral(value) => {
-                std::str::from_utf8(value).map_or(InvocationWord::Dynamic, InvocationWord::Literal)
-            }
+            Self::ByteLiteral(value) => InvocationWord::KnownBytes(value),
             Self::Dynamic => InvocationWord::Dynamic,
             Self::ArrayElementName { root } => InvocationWord::ArrayElementName { root },
-            Self::Expanded | Self::KnownExpansion(_) => InvocationWord::Expanded,
+            Self::Expanded | Self::KnownExpansion(_) | Self::KnownByteExpansion(_) => {
+                InvocationWord::Expanded
+            }
             Self::Opaque => InvocationWord::Opaque,
         }
     }
@@ -5331,6 +6234,20 @@ pub fn resolve_word_exprs_with_dialect(
     words: &[WordExpr],
     dialect: Option<tcl_registry::InvocationDialect>,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
+    resolve_word_exprs_with_dialect_and_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        words,
+        dialect,
+    )
+}
+
+fn resolve_word_exprs_with_dialect_and_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    words: &[WordExpr],
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
     if words.is_empty() {
         return Err(RegistryInvocationDecline::MissingCommandHead);
     }
@@ -5350,19 +6267,10 @@ pub fn resolve_word_exprs_with_dialect(
     } else {
         words.iter().map(invocation_word).collect()
     };
-    resolve_registry_words(registry, context, &facts, dialect)
-}
-
-fn resolve_registry_words(
-    registry: &CommandRegistry,
-    context: Option<SemanticContext>,
-    facts: &[InvocationWord<'_>],
-    dialect: Option<tcl_registry::InvocationDialect>,
-) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
-    resolve_registry_words_in_realm(
+    resolve_registry_words_in_realm_with_metadata_context(
         registry,
         context,
-        facts,
+        &facts,
         dialect,
         tcl_dialect::model::InvocationRealm::RuleLoader,
     )
@@ -5375,6 +6283,25 @@ pub(crate) fn resolve_registry_words_in_realm(
     dialect: Option<tcl_registry::InvocationDialect>,
     realm: tcl_dialect::model::InvocationRealm,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
+    resolve_registry_words_in_realm_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        facts,
+        dialect,
+        realm,
+    )
+}
+
+pub(crate) fn resolve_registry_words_in_realm_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    facts: &[InvocationWord<'_>],
+    dialect: Option<tcl_registry::InvocationDialect>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
+    if context.is_some_and(|context| !context.matches_registry(registry)) {
+        return Err(RegistryInvocationDecline::IncompleteResolution);
+    }
     let Some(head) = facts.first().copied() else {
         return Err(RegistryInvocationDecline::MissingCommandHead);
     };
@@ -5382,15 +6309,21 @@ pub(crate) fn resolve_registry_words_in_realm(
     if let Some(dialect) = dialect {
         invocation = invocation.with_dialect(dialect);
     }
-    let resolution = tcl_registry::model::semantic::resolve_structured_invocation_in_realm(
-        registry, context, invocation, realm,
-    );
+    let resolution =
+        tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+            registry,
+            context.map(InvocationMetadataContext::context),
+            invocation,
+            realm,
+        );
     if let Some(resolved) = resolution.resolved() {
         return Ok(RegistryInvocationResolution::Resolved(Box::new(
             resolved.facts(),
         )));
     }
-    if let Some(facts) = registry.native_registration_invocation_facts(invocation) {
+    if context.is_none_or(|context| !context.is_actual())
+        && let Some(facts) = registry.native_registration_invocation_facts(invocation)
+    {
         return Ok(RegistryInvocationResolution::Resolved(Box::new(facts)));
     }
     let Some(unresolved) = resolution.unresolved() else {
@@ -5412,8 +6345,19 @@ pub fn resolve_command_tokens(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
+    resolve_command_tokens_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+pub(crate) fn resolve_command_tokens_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
     let Some(binding) = &tokens.source_binding else {
-        let resolution = resolve_word_exprs(registry, context, tokens.words())?;
         let dialect = context
             .and_then(|context| context.context().environment.point())
             .map(tcl_registry::InvocationDialect::of_point)
@@ -5422,6 +6366,12 @@ pub fn resolve_command_tokens(
                     .profile()
                     .map(tcl_registry::InvocationDialect::of_profile)
             });
+        let resolution = resolve_word_exprs_with_dialect_and_metadata_context(
+            registry,
+            context,
+            tokens.words(),
+            dialect,
+        )?;
         let mut resolution = require_native_implementation_lookup(tokens, resolution, dialect);
         if let RegistryInvocationResolution::Resolved(facts) = &mut resolution {
             let words = (0..tokens.words().len().saturating_sub(1))
@@ -5451,7 +6401,7 @@ pub fn resolve_command_tokens(
     let _ = target;
     let effective =
         effective_command_words(tokens).ok_or(RegistryInvocationDecline::IncompleteResolution)?;
-    resolve_effective_tokens(
+    resolve_effective_tokens_with_metadata_context(
         registry,
         context,
         tokens,
@@ -5467,6 +6417,22 @@ pub fn resolve_command_tokens(
 fn resolve_effective_tokens(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
+    tokens: &CommandTokens,
+    effective: &EffectiveCommandWords,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
+    resolve_effective_tokens_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+        effective,
+        dialect,
+    )
+}
+
+fn resolve_effective_tokens_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
     effective: &EffectiveCommandWords,
     dialect: Option<tcl_registry::InvocationDialect>,
@@ -5488,6 +6454,7 @@ fn resolve_effective_tokens(
                     InvocationWord::Literal(value) => {
                         EffectiveInvocationWord::Literal(value.to_owned())
                     }
+                    InvocationWord::KnownBytes(value) => EffectiveInvocationWord::from_bytes(value),
                     InvocationWord::Expanded => EffectiveInvocationWord::Expanded,
                     InvocationWord::Opaque => EffectiveInvocationWord::Opaque,
                     _ => EffectiveInvocationWord::Dynamic,
@@ -5511,7 +6478,9 @@ fn resolve_effective_tokens(
         .as_ref()
         .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
         .unwrap_or_default();
-    let resolution = resolve_registry_words_in_realm(registry, context, &facts, dialect, realm)?;
+    let resolution = resolve_registry_words_in_realm_with_metadata_context(
+        registry, context, &facts, dialect, realm,
+    )?;
     let mut resolution = require_native_implementation_lookup(tokens, resolution, dialect);
     if let RegistryInvocationResolution::Resolved(resolved) = &mut resolution {
         let mut arguments = tcl_registry::InvocationArguments::structured(&facts[1..]);
@@ -5613,11 +6582,23 @@ pub fn normal_user_procedure_invocation(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<NormalUserProcedureInvocation> {
+    normal_user_procedure_invocation_with_metadata_context(
+        registry,
+        context.map(InvocationMetadataContext::from),
+        tokens,
+    )
+}
+
+pub(crate) fn normal_user_procedure_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Option<NormalUserProcedureInvocation> {
     if tokens.synthetic.is_some() {
         return None;
     }
     let binding = tokens.source_binding.as_ref()?;
-    let invocation = resolved_handler_invocation(registry, context, tokens)?;
+    let invocation = resolved_handler_invocation_with_metadata_context(registry, context, tokens)?;
     let layout = invocation.with_argument_words(|words| {
         invocation
             .facts
@@ -5797,6 +6778,46 @@ pub(crate) fn original_expression_operand_advice(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
 ) -> Option<OriginalExpressionOperandAdvice> {
+    original_expression_operand_advice_selected_word(registry, tokens, None)
+}
+
+/// Conditional checked expression topology for one actual written operand.
+/// The selected descriptor owns its Expression role; source geometry alone
+/// supplies neither this role nor an evaluation or successful handler.
+pub(crate) fn original_expression_operand_advice_for_word(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    written: usize,
+) -> Option<OriginalExpressionOperandAdvice> {
+    original_expression_operand_advice_selected_word(registry, tokens, Some(written))
+}
+
+/// Independently selected conditional expression grammar at one unchanged
+/// original written operand. This is a parser purpose, never Normal or edits.
+pub(crate) struct OriginalExpressionContextAdvice {
+    pub(crate) parser: tcl_syntax::expr::parser::ExprParseContext,
+    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) written: usize,
+    pub(crate) lookup_closed: bool,
+    pool: tcl_registry::conditional_expression::ConditionalExpressionPoolState,
+    frame: crate::var_resolve::VariableExecutionFrame,
+    namespace_key: crate::command_binding::SourceNamespaceKey,
+}
+
+/// Literal native bytes and logical source text borrow the same original
+/// candidate/role/ordinal/configuration selector; neither reselects a parser.
+pub(crate) fn original_literal_expression_context_advice(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+) -> Option<OriginalExpressionContextAdvice> {
+    original_expression_context_advice_selected_word(registry, tokens, None)
+}
+
+fn original_expression_context_advice_selected_word(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    written: Option<usize>,
+) -> Option<OriginalExpressionContextAdvice> {
     let binding = tokens.source_binding.as_ref()?;
     let advice = binding
         .declaration_operand_layout_advice(tokens)
@@ -5835,14 +6856,33 @@ pub(crate) fn original_expression_operand_advice(
         else {
             return None;
         };
-        if facts.successful_handler
-            != Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::ExpressionArguments)
-            || !facts.arg_roles_complete
-            || effective.words.len() != 2
-        {
+        if !facts.arg_roles_complete {
             return None;
         }
-        let InvocationWordOrigin::Written(index) = *effective.origins.get(1)? else {
+        let selected = if let Some(written) = written {
+            let mut selected = facts.arg_roles.iter().filter_map(|(argument, role)| {
+                if *role != tcl_registry::arg_role::ArgRole::Expr { return None; }
+                let effective_index = usize::from(*argument).checked_add(1)?;
+                matches!(effective.origins.get(effective_index), Some(InvocationWordOrigin::Written(index))
+                    if *index == written).then_some(effective_index)
+            });
+            let first = selected.next()?;
+            if selected.next().is_some() {
+                return None;
+            }
+            first
+        } else {
+            if facts.successful_handler
+                != Some(
+                    tcl_registry::native_compilation::SuccessfulHandlerSpec::ExpressionArguments,
+                )
+                || effective.words.len() != 2
+            {
+                return None;
+            }
+            1
+        };
+        let InvocationWordOrigin::Written(index) = *effective.origins.get(selected)? else {
             return None;
         };
         if original.is_some_and(|previous| previous != index) {
@@ -5850,7 +6890,28 @@ pub(crate) fn original_expression_operand_advice(
         }
         original = Some(index);
     }
-    let index = original?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let mut parser = dialect.expression_parse_context(None);
+    parser.lexer_grammar = config.grammar_over(parser.lexer_grammar);
+    Some(OriginalExpressionContextAdvice {
+        parser,
+        dialect,
+        written: original?,
+        lookup_closed: advice.closed_lookup(),
+        pool: advice.expression_pool_state(),
+        frame: advice.frame().clone(),
+        namespace_key: advice.namespace().clone(),
+    })
+}
+
+fn original_expression_operand_advice_selected_word(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    written: Option<usize>,
+) -> Option<OriginalExpressionOperandAdvice> {
+    let context = original_expression_context_advice_selected_word(registry, tokens, written)?;
+    let binding = tokens.source_binding.as_ref()?;
+    let index = context.written;
     let (WordExpr::BracedLiteral { text, source } | WordExpr::Literal { text, source }) =
         tokens.words().get(index)?
     else {
@@ -5875,21 +6936,21 @@ pub(crate) fn original_expression_operand_advice(
     {
         return None;
     }
+    let parser = context.parser;
     let evaluation =
         tcl_registry::conditional_expression::ConditionalExpressionEvaluation::prepare(
-            text,
-            &dialect.expression_parse_context(None),
+            text, &parser,
         )?;
     let expression = evaluation.tree().clone();
     Some(OriginalExpressionOperandAdvice {
         expression,
         evaluation,
-        pool: advice.expression_pool_state(),
+        pool: context.pool,
         expression_base: base,
         expression_text: text.clone(),
-        lookup_closed: advice.closed_lookup(),
-        frame: advice.frame().clone(),
-        namespace_key: advice.namespace().clone(),
+        lookup_closed: context.lookup_closed,
+        frame: context.frame,
+        namespace_key: context.namespace_key,
         span: tcl_lexer::Span::new(
             tokens.words().first()?.source().span.start(),
             source.span.end(),
@@ -6004,7 +7065,7 @@ fn original_layout_body_topology_advice(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tcl_registry::{StateTransition, TransitionSubject};
+    use tcl_registry::StateTransition;
 
     use crate::ir::{SourceSite, WordOpacity};
     use crate::segmenter::segment_commands;
@@ -6106,7 +7167,14 @@ mod tests {
     fn decoded_native_byte_words_preserve_cardinality_and_checked_text() {
         let bytes = EffectiveInvocationWord::from_bytes(&[0xff]);
         assert_eq!(bytes.literal_bytes(), Some([0xff].as_slice()));
-        assert_eq!(bytes.as_registry_word(), InvocationWord::Dynamic);
+        // Implementation contract: naming.invocation.known-native-byte-values
+        // docs/design/analysis/name-resolution-proofs/known-native-byte-values.md
+        assert_eq!(
+            bytes.as_registry_word(),
+            InvocationWord::KnownBytes(&[0xff])
+        );
+        assert_eq!(bytes.as_registry_word().literal(), None);
+        assert!(bytes.as_registry_word().has_exactly_one_argv_entry());
         let unicode = EffectiveInvocationWord::from_bytes("ÿ".as_bytes());
         assert_eq!(unicode.as_registry_word(), InvocationWord::Literal("ÿ"));
         assert_ne!(bytes, unicode);
@@ -7180,7 +8248,8 @@ mod tests {
         );
         assert!(!context.context().authoring_query().packages.is_empty());
         let view =
-            segmented_body_assistance(&surface, &bindings, source, config, &command, 0).unwrap();
+            segmented_body_assistance(&surface, &bindings, source, config, &command, 0, None)
+                .unwrap();
         assert!(
             view.possible_roles
                 .contains(&(2, tcl_registry::ArgRole::Body))
@@ -7207,7 +8276,8 @@ mod tests {
             .pop()
             .unwrap();
         let view =
-            segmented_body_assistance(&surface, &bindings, source, config, &command, 0).unwrap();
+            segmented_body_assistance(&surface, &bindings, source, config, &command, 0, None)
+                .unwrap();
         assert!(
             view.possible_roles
                 .contains(&(0, tcl_registry::ArgRole::Body))
@@ -7217,7 +8287,8 @@ mod tests {
                 .contains(tcl_registry::Traits::DYNAMIC_EVAL_BODY)
         );
         let view =
-            unpositioned_body_assistance(&surface, &bindings, source, config, &command).unwrap();
+            unpositioned_body_assistance(&surface, &bindings, source, config, &command, None)
+                .unwrap();
         assert!(
             view.possible_roles
                 .contains(&(0, tcl_registry::ArgRole::Body))
@@ -7232,10 +8303,12 @@ mod tests {
             crate::command_binding::SourceAnalysisOptions::default(),
         );
         assert!(
-            segmented_body_assistance(&surface, &unknown, source, config, &command, 0).is_none()
+            segmented_body_assistance(&surface, &unknown, source, config, &command, 0, None)
+                .is_none()
         );
         assert!(
-            unpositioned_body_assistance(&surface, &unknown, source, config, &command).is_none()
+            unpositioned_body_assistance(&surface, &unknown, source, config, &command, None)
+                .is_none()
         );
     }
 
@@ -7316,22 +8389,11 @@ mod tests {
 
     #[test]
     fn declared_roles_remain_separate_from_runtime_semantics() {
-        use tcl_registry::model::{
-            DeclaredArgument, DeclaredCommand, DeclaredSurface, DocumentCommandSurface,
-        };
+        use tcl_registry::model::DocumentCommandSurface;
         let registry = CommandRegistry::build_default();
-        let mut declared = DeclaredSurface::new();
-        declared.declare(DeclaredCommand::new(
-            "custom".into(),
-            vec![DeclaredArgument {
-                name: "destination".into(),
-                role: tcl_registry::ArgRole::VarWrite,
-                optional: false,
-            }],
-            tcl_dialect::model::Provenance::Document,
-        ));
         let config = tcl_lexer::LexerConfig::default();
-        let source = "custom result";
+        let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub custom {destination:var}\n# tcl-lsp: stubs-end\ncustom result";
+        let declared = crate::analyser::utils::document_declared_surface(source, None, "tcl8.6");
         let bindings =
             crate::command_binding::SourceCommandBindings::analyse_in_namespace_with_options(
                 source,
@@ -7544,7 +8606,8 @@ mod tests {
                 if matches!(
                     &fact.transition,
                     StateTransition::VariableCellAlias(alias)
-                        if alias.local == TransitionSubject::Literal("shared".to_owned())
+                        if alias.local.literal() == Some("shared")
+                            && alias.local.argument_index() == Some(0)
                 )
         ));
     }
@@ -7777,5 +8840,327 @@ mod tests {
                 }
             ))
         ));
+    }
+
+    #[test]
+    fn original_metadata_context_keeps_actual_availability_and_generation() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = generation.commands();
+        let old = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(registry));
+        let tokens = last_source_tokens("dict for {key value} {} {puts nested}");
+        let surface = tcl_registry::model::DocumentCommandSurface::new(registry, None);
+        assert!(
+            !invocation_argument_role_assistance(registry, generation, &surface, &tokens)
+                .is_empty()
+        );
+        assert!(invocation_argument_role_assistance(registry, &old, &surface, &tokens).is_empty());
+        assert!(invocation_argument_role_consensus(registry, &old, &tokens).is_empty());
+        let body = invocation_body_assistance(registry, &old, &surface, &tokens);
+        assert!(body.possible_roles.is_empty() && body.definite_roles.is_empty());
+        assert!(body.unknown_residual && body.definite_invocation.is_none());
+        let set = last_source_tokens("set target value");
+        assert!(original_variable_write_advice(registry, generation, &set).is_some());
+        let foreign =
+            generation.with_command_store(std::sync::Arc::new(CommandRegistry::build_default()));
+        assert_ne!(
+            foreign.commands().snapshot().semantic_key(),
+            registry.snapshot().semantic_key()
+        );
+        assert!(invocation_argument_role_assistance(registry, &foreign, &surface, &set).is_empty());
+        assert!(invocation_argument_role_consensus(registry, &foreign, &set).is_empty());
+        assert!(original_variable_write_advice(registry, &foreign, &set).is_none());
+        assert!(
+            original_symbol_declaration_advice(
+                registry,
+                &foreign,
+                &last_source_tokens("proc p {} {}")
+            )
+            .is_none()
+        );
+    }
+    #[test]
+    fn retained_script_metadata_keeps_actual_context_and_effective_ordinals() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        for (source, argument, expected) in [
+            (
+                "trace add variable v write changed",
+                4,
+                tcl_registry::ScriptTiming::Deferred,
+            ),
+            (
+                "trace remove variable v write changed",
+                4,
+                tcl_registry::ScriptTiming::ReferenceOnly,
+            ),
+            (
+                "lsort -command compare {b a}",
+                1,
+                tcl_registry::ScriptTiming::SameInvocation,
+            ),
+            (
+                "interp alias {} install {} trace add variable v write; install changed",
+                4,
+                tcl_registry::ScriptTiming::Deferred,
+            ),
+        ] {
+            let tokens = last_source_tokens(source);
+            let invocation = resolved_tokens_invocation_in_context(generation, &tokens)
+                .expect("authentic selected invocation");
+            let realm = tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .invocation_realm()
+                .unwrap();
+            assert_eq!(
+                invocation.with_metadata_schema(
+                    generation.commands(),
+                    generation.into(),
+                    realm,
+                    |selected| selected.authored_source_script_timing_at(argument)
+                ),
+                Some(expected),
+                "{source}"
+            );
+            assert!(
+                invocation
+                    .with_metadata_schema(
+                        generation.commands(),
+                        foreign.into(),
+                        realm,
+                        |selected| selected.authored_source_script_timing_at(argument)
+                    )
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_body_metadata_keeps_supplied_availability_and_generation() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(generation.commands()));
+        let source = "dict for {key value} {one two} {set found $value}";
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let bindings = crate::command_binding::SourceCommandBindings::analyse(
+            source,
+            config,
+            generation.commands(),
+        );
+        let surface = tcl_registry::model::DocumentCommandSurface::new(generation.commands(), None);
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let current = segmented_body_assistance(
+            &surface,
+            &bindings,
+            source,
+            config,
+            &command,
+            0,
+            Some(generation),
+        )
+        .unwrap();
+        assert!(
+            current
+                .possible_roles
+                .contains(&(3, tcl_registry::ArgRole::Body))
+        );
+        let unavailable = segmented_body_assistance(
+            &surface,
+            &bindings,
+            source,
+            config,
+            &command,
+            0,
+            Some(&older),
+        )
+        .unwrap();
+        assert!(unavailable.possible_roles.is_empty());
+        assert!(unavailable.unknown_residual);
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        assert!(
+            segmented_body_assistance(
+                &surface,
+                &bindings,
+                source,
+                config,
+                &command,
+                0,
+                Some(foreign)
+            )
+            .is_none()
+        );
+        assert!(
+            unpositioned_body_assistance(
+                &surface,
+                &bindings,
+                source,
+                config,
+                &command,
+                Some(foreign)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn retained_invocation_context_keeps_availability_without_donating_handler_proof() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(generation.commands()));
+        let tokens = last_source_tokens("dict create key value");
+        assert!(resolved_tokens_invocation_in_context(generation, &tokens).is_some());
+        assert!(resolved_tokens_invocation_in_context(&older, &tokens).is_none());
+        assert!(normal_representation_invocation_in_context(generation, &tokens).is_some());
+        assert!(normal_representation_invocation_in_context(&older, &tokens).is_none());
+        assert!(normal_transfer_invocation_in_context(generation, &tokens).is_some());
+        assert!(normal_transfer_invocation_in_context(&older, &tokens).is_none());
+        let names = possible_variable_name_operands_in_context(generation, &tokens).unwrap();
+        assert!(!names.candidates.is_empty());
+        let unavailable_names =
+            possible_variable_name_operands_in_context(&older, &tokens).unwrap();
+        assert!(unavailable_names.candidates.is_empty() && unavailable_names.unknown_residual());
+        let assistance = registry_invocation_assistance_in_context(generation, &tokens).unwrap();
+        assert!(!assistance.candidates.is_empty());
+        let unavailable = registry_invocation_assistance_in_context(&older, &tokens).unwrap();
+        assert!(unavailable.candidates.is_empty() && unavailable.unknown_residual);
+        let replaced = last_source_tokens("proc dict args {}; dict create key value");
+        assert!(resolved_tokens_invocation_in_context(generation, &replaced).is_none());
+        assert!(normal_representation_invocation_in_context(generation, &replaced).is_none());
+        assert!(normal_transfer_invocation_in_context(generation, &replaced).is_none());
+        let replaced_names =
+            possible_variable_name_operands_in_context(generation, &replaced).unwrap();
+        assert!(replaced_names.candidates.is_empty() && replaced_names.unknown_residual());
+        let replaced_assistance =
+            registry_invocation_assistance_in_context(generation, &replaced).unwrap();
+        assert!(replaced_assistance.candidates.is_empty() && replaced_assistance.unknown_residual);
+        assert!(
+            logical_structured_invocation_with_metadata_context(
+                generation.commands(),
+                generation.into(),
+                &tokens,
+                None
+            )
+            .is_some()
+        );
+        assert!(
+            logical_structured_invocation_with_metadata_context(
+                generation.commands(),
+                (&older).into(),
+                &tokens,
+                None
+            )
+            .is_none()
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        assert!(
+            logical_structured_invocation_with_metadata_context(
+                generation.commands(),
+                foreign.into(),
+                &tokens,
+                None
+            )
+            .is_none()
+        );
+        let mut unproved = tokens;
+        unproved.source_binding = None;
+        assert!(resolved_tokens_invocation_in_context(generation, &unproved).is_none());
+        assert!(normal_representation_invocation_in_context(generation, &unproved).is_none());
+        assert!(normal_transfer_invocation_in_context(generation, &unproved).is_none());
+        assert!(possible_variable_name_operands_in_context(generation, &unproved).is_none());
+        assert!(registry_invocation_assistance_in_context(generation, &unproved).is_none());
+        assert!(
+            logical_structured_invocation_with_metadata_context(
+                generation.commands(),
+                generation.into(),
+                &unproved,
+                None
+            )
+            .is_none()
+        );
+        assert!(
+            original_callback_invocation_with_metadata_context(
+                generation.commands(),
+                generation.into(),
+                &unproved
+            )
+            .is_none()
+        );
+    }
+    fn advisory_metadata_tokens(source: &str, registry: &CommandRegistry) -> CommandTokens {
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let bindings =
+            crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
+        let command = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            .pop()
+            .unwrap();
+        CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &command)
+            .with_source_binding(
+                bindings.invocation_at_source("unused-reporting-head", command.span.start()),
+            )
+    }
+
+    #[test]
+    fn advisory_value_metadata_shares_supplied_availability_and_store_refusal() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Registry May candidates only; no actual assignment or returned object.
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        for name in ["set", "return"] {
+            let mut descriptor = registry.get(name).unwrap().clone();
+            descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+            registry.insert(descriptor);
+        }
+        let generation = baseline.with_command_store(std::sync::Arc::new(registry));
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(generation.commands()));
+        let registry = generation.commands();
+        assert!(std::sync::Arc::ptr_eq(older.commands(), registry));
+        let mut assignment = advisory_metadata_tokens("set target VALUE", registry);
+        let mut returning = advisory_metadata_tokens("return VALUE", registry);
+        let current = advisory_value_assignments_in_context(&generation, &assignment);
+        assert_eq!(current.len(), 1);
+        assert_eq!(current[0].name, "target");
+        assert_eq!(current[0].value, assignment.words()[2]);
+        assert_eq!(
+            advisory_return_values_in_context(&generation, &returning),
+            vec![returning.words()[1].clone()]
+        );
+        assert!(advisory_value_assignments_in_context(&older, &assignment).is_empty());
+        assert!(advisory_return_values_in_context(&older, &returning).is_empty());
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        assert!(
+            advisory_value_assignments_with_metadata_context(
+                registry,
+                Some(foreign.into()),
+                &assignment
+            )
+            .is_empty()
+        );
+        assert!(
+            advisory_return_values_with_metadata_context(
+                registry,
+                Some(foreign.into()),
+                &returning
+            )
+            .is_empty()
+        );
+        assignment.source_binding = None;
+        returning.source_binding = None;
+        assert!(advisory_value_assignments_in_context(&generation, &assignment).is_empty());
+        assert!(advisory_return_values_in_context(&generation, &returning).is_empty());
     }
 }

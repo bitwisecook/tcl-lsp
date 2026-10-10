@@ -161,13 +161,11 @@ mod tests {
                 let procedure = interp.proc_def(b"p").unwrap();
                 let artifact = cache(procedure.body.as_ptr())
                     .unwrap_or_else(|| panic!("{profile}/{index}: actual Error artifact"));
-                assert!(
-                    artifact
-                        .scripts
-                        .values()
-                        .flat_map(|script| &script.commands)
-                        .any(|command| matches!(command.operation, Operation::Error(_)))
-                );
+                assert!(artifact
+                    .scripts
+                    .values()
+                    .flat_map(|script| &script.commands)
+                    .any(|command| matches!(command.operation, Operation::Error(_))));
                 let names = artifact
                     .compiled_local_layout()
                     .unwrap()

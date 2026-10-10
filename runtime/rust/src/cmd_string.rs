@@ -831,9 +831,12 @@ fn str_trim(interp: &mut Interp, argv: &[*mut TclObj], left: bool, right: bool) 
             usage.splitn(3, |byte| *byte == b' ').nth(2).unwrap_or(b""),
         );
     }
-    match tcl_cmd_core::string::trim(interp,&argv[2],argv.get(3),left,right) {
-        Ok(result)=>{interp.set_result(result);Code::Ok},
-        Err(error)=>interp.report_cmd_error(error),
+    match tcl_cmd_core::string::trim(interp, &argv[2], argv.get(3), left, right) {
+        Ok(result) => {
+            interp.set_result(result);
+            Code::Ok
+        }
+        Err(error) => interp.report_cmd_error(error),
     }
 }
 

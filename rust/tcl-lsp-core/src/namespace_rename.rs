@@ -28,9 +28,10 @@
 //!
 //! # What one edit looks like
 //!
-//! Only the namespace's **final segment** changes, so only that segment is
-//! rewritten — never the whole word.  That is what makes every spelling work
-//! out of one rule:
+//! Only the namespace's **final component** changes. Original native geometry
+//! selects it before editing. A lexical variable root edits its verified name
+//! extent; an escaped word or list child edits its authentic complete static
+//! container and reparses it to preserve every other native value:
 //!
 //! ```text
 //! namespace eval ::app::old { … }   ->  namespace eval ::app::new { … }
@@ -44,8 +45,9 @@
 //! A spelling that does **not** write the segment needs no edit at all and
 //! gets none: inside `namespace eval ::app::old`, a bare `p` still resolves
 //! to the same proc after the block's own name changes.
-//! [`written_cell_segment`] is the single place that decides which byte range
-//! of a written name spells the namespace, so no consumer re-derives it.
+//! The shared native namespace projector selects byte components; the common
+//! original-input edit planner preserves containers. `written_cell_segment`
+//! remains only for the explicitly selected lexical advice domain.
 //!
 //! # The refusal gate
 //!
@@ -84,6 +86,9 @@ use crate::definition::span_to_range;
 use crate::rename::TextEdit;
 use crate::rename_safety::RenameRefusal;
 
+mod original;
+pub use original::original_namespace_rename_edits;
+
 /// Every edit renaming the namespace `cell` — a `::`-rooted qualified name —
 /// so that its final segment becomes `new_tail`, within one document.
 ///
@@ -104,21 +109,37 @@ pub fn namespace_rename_edits(
     cell: &str,
     new_tail: &str,
 ) -> Result<Vec<TextEdit>, RenameRefusal> {
-    let line_index = LineIndex::new(source);
-    let selected = crate::namespace_symbol::retained_namespace_for_report(analysis, cell);
-    if selected
-        .as_ref()
-        .is_none_or(|(scope, policy)| scope.source_spelling(Some(*policy)).is_none())
+    let index = LineIndex::new(source);
+    if let Some((scope, policy)) =
+        crate::namespace_symbol::retained_namespace_for_report(analysis, cell)
     {
-        return Err(RenameRefusal::at(
-            format!(
-                "cannot rename `{cell}`: its exact original namespace is unavailable or the displayed name is ambiguous"
-            ),
+        return original_namespace_rename_edits(
             source,
-            &line_index,
+            dialect,
+            analysis,
+            &crate::namespace_symbol::OriginalNamespaceSymbol::from_retained(scope, policy),
+            new_tail,
+        );
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return Err(RenameRefusal::at(
+            "the displayed namespace has no unique original byte selection".to_owned(),
+            source,
+            &index,
             None,
         ));
     }
+    lexical_namespace_rename_edits(source, dialect, analysis, cell, new_tail)
+}
+
+fn lexical_namespace_rename_edits(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    cell: &str,
+    new_tail: &str,
+) -> Result<Vec<TextEdit>, RenameRefusal> {
+    let line_index = LineIndex::new(source);
     let mut considered: Vec<Span> = Vec::new();
     let mut spans: Vec<Span> = Vec::new();
     let mut record = |word: Span, resolved: &str, considered: &mut Vec<Span>| {
@@ -244,11 +265,75 @@ pub fn namespace_segment_at(
     cursor: u32,
     cell: &str,
 ) -> Option<Span> {
+    if let Some(symbol) =
+        crate::namespace_symbol::original_namespace_at_offset(source, analysis, cursor)
+    {
+        if symbol.scope().display().as_deref() != Some(cell) {
+            return None;
+        }
+        return original_namespace_rename_span_at_offset(source, analysis, cursor);
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
     let hit = analysis
         .namespace_refs
         .iter()
         .find(|r| r.span.start() <= cursor && cursor < r.span.end())?;
     written_cell_segment(source, hit.span, &hit.qualified_name, cell)
+}
+
+/// Prepare an original namespace edit at the cursor. Literal source returns
+/// its independently mapped component extent. Escaped words and list children
+/// return their authentic static container; computed readonly values decline.
+/// The range grants no execution, namespace lifetime or command existence.
+#[must_use]
+pub fn original_namespace_rename_span_at_offset(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<Span> {
+    let symbol = crate::namespace_symbol::original_namespace_at_offset(source, analysis, cursor)?;
+    let row = analysis
+        .namespace_refs
+        .iter()
+        .find(|row| row.span.start() <= cursor && cursor < row.span.end())?;
+    let input = row.original_name_input.as_ref()?;
+    let container = input.original_static_list_container()?;
+    if !container.ordinals().is_empty() {
+        return Some(container.parent_word().span());
+    }
+    let key = input.original_word_key()?;
+    let current = row.source_context.as_ref()?.context()?;
+    let wanted = symbol.scope().context()?;
+    let member = tcl_syntax::naming::native_written_namespace_member_extent(
+        symbol.policy().recipe(),
+        current,
+        input.bytes(),
+        wanted,
+    )?;
+    let name = key.original_word().content_span().ok()?;
+    let raw = key.source_image().bytes().get(name.as_range())?;
+    let literal = tcl_syntax::backslash::native_source_literal_bytes(
+        raw,
+        key.source_image().channel(),
+        key.policy().string_protocol(),
+    )
+    .ok()?;
+    if literal.as_ref() != input.bytes() {
+        return Some(key.span());
+    }
+    let extent = tcl_syntax::backslash::native_source_literal_extent(
+        raw,
+        key.source_image().channel(),
+        key.policy().string_protocol(),
+        member,
+    )?;
+    Some(Span::new(
+        name.start()
+            .checked_add(u32::try_from(extent.start).ok()?)?,
+        name.start().checked_add(u32::try_from(extent.end).ok()?)?,
+    ))
 }
 
 /// Whether `candidate` is the namespace `cell` itself or one beneath it.
@@ -372,7 +457,7 @@ fn namespace_rename_hazard(
         // A word carrying a script is walked as code in its own right, so its
         // text must not be read as a name here — a body word contains every
         // name written inside it.
-        let nested = crate::references::dispatch_scan_regions(source, dialect, cmd);
+        let nested = crate::references::dispatch_scan_regions(source, analysis, dialect, cmd);
         let Some(cmd_name) = cmd.texts.first() else {
             return;
         };

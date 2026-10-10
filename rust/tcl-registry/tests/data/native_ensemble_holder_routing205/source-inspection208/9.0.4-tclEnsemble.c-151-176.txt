@@ -1,0 +1,26 @@
+TclNamespaceEnsembleCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const objv[])
+{
+    Namespace *nsPtr = (Namespace *) TclGetCurrentNamespace(interp);
+    Tcl_Command token;		/* The ensemble command. */
+    enum EnsSubcmds index;
+
+    if (nsPtr == NULL || nsPtr->flags & NS_DEAD) {
+	if (!Tcl_InterpDeleted(interp)) {
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		    "tried to manipulate ensemble of deleted namespace",
+		    TCL_AUTO_LENGTH));
+	    Tcl_SetErrorCode(interp, "TCL", "ENSEMBLE", "DEAD", (char *)NULL);
+	}
+	return TCL_ERROR;
+    }
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "subcommand ?arg ...?");
+	return TCL_ERROR;
+    } else if (Tcl_GetIndexFromObj(interp, objv[1], ensembleSubcommands,
+	    "subcommand", 0, &index) != TCL_OK) {
+	return TCL_ERROR;

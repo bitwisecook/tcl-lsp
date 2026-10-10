@@ -441,13 +441,16 @@ const OWNED: &[OwnedPattern] = &[
     // lowering and the call-graph scan for a declaration to mean anything
     // there, and the borrowed set is how it travels; the call-site scan
     // (`unit_scope.rs`) carries it for the same reason, and `tcl-cli`'s
-    // `diag.rs` builds one per document to hand that scan.
+    // `diag.rs` builds one per document to hand that scan. The exact
+    // `source_analysis_entry.rs` leaf holds immutable owned/borrowed entry
+    // contracts; binding and invocation consumers still query only the surface.
     // `optimiser/branch_folding.rs` is on the list for a test fixture that
     // hand-builds a `CompilationUnit` and so has to name the field's type.
     OwnedPattern {
         needle: "DeclaredSurface",
         owners: &[
             "rust/tcl-registry/src/",
+            "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs",
             "rust/tcl-compiler/src/analyser/",
             "rust/tcl-compiler/src/compilation_unit.rs",
             "rust/tcl-compiler/src/interprocedural.rs",
@@ -850,6 +853,30 @@ mod tests {
         assert!(scan_owned(fold, "rust/tcl-compiler/src/codegen/values.rs").is_empty());
         assert!(scan_owned(fold, "rust/tcl-registry/src/registry.rs").is_empty());
         assert_eq!(scan_owned(fold, "rust/tcl-vm/src/interp.rs").len(), 1);
+    }
+
+    #[test]
+    fn declared_transport_owner_does_not_license_binding_consumers() {
+        let field = "pub declared_commands: Option<tcl_registry::model::DeclaredSurface>;";
+        assert!(
+            scan_owned(
+                field,
+                "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs"
+            )
+            .is_empty()
+        );
+        for consumer in [
+            "rust/tcl-compiler/src/command_binding.rs",
+            "rust/tcl-compiler/src/command_binding/conditional_body.rs",
+            "rust/tcl-compiler/src/registry_invocation.rs",
+            "rust/tcl-compiler/src/command_binding/source_analysis_entry_consumer.rs",
+        ] {
+            assert_eq!(scan_owned(field, consumer), [(1, "DeclaredSurface")]);
+            assert_eq!(
+                scan_owned("DeclaredSurface::iter", consumer),
+                [(1, "DeclaredSurface")]
+            );
+        }
     }
 
     /// A comment citing an owned answer is exempt; the same spelling in code

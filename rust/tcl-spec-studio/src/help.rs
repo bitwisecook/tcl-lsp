@@ -752,6 +752,10 @@ not.",
         "Native procedure installation grammar, including Jim persistent static storage. This native implementation contract is excluded from pack-authored strong analysis.",
     ),
     (
+        "variable_receivers",
+        "Positions and selected naming purposes of argv variable names after the command or subcommand. Plain positions use combined root/index geometry; {index trace-subject} selects the trace name ingress first. A declared empty list withdraws the grammar; unset inherits it. This grants no trace installation, successful access, compiler local or live runtime cell.",
+    ),
+    (
         "successful_handler",
         "Audited normal variable effects of a converged native implementation. Physical cell, alias, observer and output-order proofs remain required. This contract cannot select an opcode or license callback-body execution, and a loadable pack cannot certify it.",
     ),
@@ -974,6 +978,10 @@ either direction.",
         "The command to use instead, shown in the deprecation warning and \
 offered by the quick fix — the `lmap` to your deprecated mapping \
 helper.",
+    ),
+    (
+        "source_deprecation_advice",
+        "Choose the typed source shape advice declared by this command. A consumer retains original argument words and proposes the replacement for review; the descriptor does not establish runtime equivalence.",
     ),
     (
         "deprecated_replacement_drop_in",
@@ -1229,8 +1237,8 @@ packages.",
         "A third level of keywords — operations selected by the word *after* \
 this subcommand, as in `info object isa`. Deliberately lighter than a full \
 subcommand: each carries its name, a one-line detail, a synopsis, and an \
-optional dialect gate — enough for highlighting, hover, and completion. \
-Arity stays on the owning subcommand. An operation may also carry its own \
+optional dialect gate and positional option prefix — enough for highlighting, hover, and completion. \
+Arity stays on the owning subcommand. `option_prefix_words` counts required data words after the nested selector before its own option table; `configure` consumes a command name there. An operation may also carry its own \
 **option table**, and should whenever the operations disagree about which \
 options exist: `namespace ensemble create` takes `-command`, `configure` \
 takes `-namespace`, and each rejects the other's. A table here replaces the \
@@ -1374,6 +1382,11 @@ types and argument expectations. `Numeric` is \"Int or Double\"; \
 changing the caller's variables, like `if` and `while` bodies — or in a \
 separate definition context of its own, like a `proc` body. The first \
 joins the surrounding data flow; the second deliberately does not.",
+    ),
+    (
+        "scriptLookupScope",
+        "Executable lookup frames",
+        "Which frame supplies namespace lookup when an executable operand runs: current invoker, global interpreter or triggering operation. This is independent of timing and does not prove a future command table or callback reach.",
     ),
     (
         "scriptTiming",
@@ -1573,6 +1586,11 @@ judges; the wrong answer either misses a relation or invents one.",
         "The value shapes a non-subcommand first word may take to select a \
 command's default form — `after 200 …`, where an integer first word \
 means a delay rather than an unknown subcommand.",
+    ),
+    (
+        "sourceDeprecationAdvice",
+        "Source deprecation advice",
+        "Typed source shape proposals owned by the selected Registry descriptor. Every edit needs original written word coordinates and review.",
     ),
     (
         "prefixMatching",

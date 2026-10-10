@@ -216,10 +216,7 @@ fn package_subcommand(
     let table =
         tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(options);
     let selection = if vm.package_table_is_authored() {
-        let bytes = match package_operand_bytes(vm, original) {
-            Ok(bytes) => bytes,
-            Err(completion) => return Err(completion),
-        };
+        let bytes = package_operand_bytes(vm, original)?;
         Ok(tcl_registry::native_package::select_authored_keyword(
             &bytes, options,
         ))
@@ -229,10 +226,7 @@ fn package_subcommand(
     match selection {
         Ok(Ok(index)) => Ok(options[index]),
         Ok(Err(message)) => {
-            let word = match package_word(vm, original) {
-                Ok(word) => word,
-                Err(completion) => return Err(completion),
-            };
+            let word = package_word(vm, original)?;
             Err(package_error(
                 &[message.as_slice()],
                 &protocol
@@ -2227,6 +2221,14 @@ mod tests {
 
     #[test]
     fn package_error_publication_matches_all_21_original_native_controls() {
+        // Native proof: naming.package.error-publication-bad-member
+        // docs/design/analysis/name-resolution-proofs/package-error-publication-bad-member.md
+        // Native proof: naming.package.error-publication-bad-preference
+        // docs/design/analysis/name-resolution-proofs/package-error-publication-bad-preference.md
+        // Native proof: naming.package.error-publication-unknown-completion
+        // docs/design/analysis/name-resolution-proofs/package-error-publication-unknown-completion.md
+        // Native proof: naming.package.error-publication-loader-completion
+        // docs/design/analysis/name-resolution-proofs/package-error-publication-loader-completion.md
         fn decode(text: &str) -> Vec<u8> {
             assert!(text.len().is_multiple_of(2));
             text.as_bytes()

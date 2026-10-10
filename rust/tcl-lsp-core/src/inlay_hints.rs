@@ -57,12 +57,15 @@
 use rustc_hash::FxHashMap;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::types::{TypeKind, TypeLattice};
 use tcl_lexer::LineIndex;
-use tcl_registry::{CommandRegistry, InvocationArguments, TclType};
+use tcl_registry::{CommandRegistry, TclType};
 
 use crate::definition::LspRange;
+use crate::original_invocation::{
+    OriginalOperandSource as HintOperand, OriginalRegistryWords as OriginalHintWords,
+    source_registry_words,
+};
 
 /// Which inlay-hint family a hint belongs to.
 ///
@@ -157,12 +160,31 @@ pub fn inlay_hints_in_program(
     type_hints: bool,
     parameter_hints: bool,
 ) -> Vec<InlayHint> {
-    let registry = resolution.registry;
     if !type_hints && !parameter_hints {
         return Vec::new();
     }
     let Some(analysis) = analysis else {
         return Vec::new();
+    };
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+        return Vec::new();
+    }
+    let lexical = analysis.allows_lexical_declaration_advice();
+    let Some(dialect) = analysis
+        .resolved_profile()
+        .or_else(|| lexical.then_some(dialect))
+    else {
+        return Vec::new();
+    };
+    let registry = analysis
+        .resolved_registry()
+        .or_else(|| lexical.then_some(resolution.registry).flatten());
+    let resolution = crate::definition::CallResolution {
+        registry,
+        program: resolution.program,
     };
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
@@ -180,7 +202,7 @@ pub fn inlay_hints_in_program(
         // Format-string specifier labels are registry-driven too (which
         // words carry a conversion string, and in which mini-language), so
         // they need the registry the same way the type hints do.
-        collect_format_string_hints(source, dialect, registry, range, &line_index, &mut out);
+        collect_format_string_hints(source, dialect, analysis, range, &line_index, &mut out);
     }
 
     if parameter_hints {
@@ -192,7 +214,7 @@ pub fn inlay_hints_in_program(
         // that falls entirely outside the range: cheap span arithmetic on
         // data the segmenter already produced, applied before any of that
         // work runs, not after (the `position_within_range` filter inside
-        // `emit_hints_for_call`/`emit_builtin_hints` only ever trimmed the
+        // `emit_hints_for_call`/`emit_original_builtin_hints` only ever trimmed the
         // *output*).
         let range_start_off = line_index.offset_at_utf16(
             range.start_line,
@@ -204,11 +226,12 @@ pub fn inlay_hints_in_program(
             tcl_lexer::Utf16Col::new(range.end_character),
             source,
         );
-        let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
-            source,
-            0,
-            tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        );
+        let Some(structure) =
+            crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
+        else {
+            return out;
+        };
+        let segments = structure.commands;
         for seg in &segments {
             if seg.texts.is_empty() || seg.argv.is_empty() {
                 continue;
@@ -222,17 +245,39 @@ pub fn inlay_hints_in_program(
             // an unrelated namespace never captures the argument hints, and a
             // same-named builtin keeps its own hints unless a proc is visible.
             let cmd_off = seg.argv[0].span.start();
-            if let Some(proc_def) = lookup_proc(analysis, source, cmd_off, cmd_name, resolution) {
-                emit_hints_for_call(source, seg, proc_def, &line_index, range, &mut out);
+            if !analysis.allows_lexical_declaration_advice() {
+                if let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_procedure_arguments(source, analysis, seg) {
+                    emit_original_procedure_hints(source, &prototype, &line_index, range, &mut out);
+                    continue;
+                }
+            } else if let Some(proc_def) =
+                lookup_proc(analysis, source, cmd_off, cmd_name, resolution)
+            {
+                emit_hints_for_call(
+                    source,
+                    seg,
+                    proc_def,
+                    &line_index,
+                    range,
+                    &mut out,
+                    analysis,
+                );
                 continue;
             }
             // Built-in command — parse the registry synopsis for
             // positional parameter names.  User procs take
             // precedence (handled above).
-            if let Some(registry) = registry
-                && let Some(spec) = registry.get(cmd_name)
+            if let Some(selected) = source_registry_words(source, analysis, seg)
+                && let Some(input) = analysis.resolved_input.as_ref()
             {
-                emit_builtin_hints(source, seg, spec, &line_index, range, &mut out);
+                emit_original_builtin_hints(
+                    source,
+                    &selected,
+                    &input.context_registry(),
+                    &line_index,
+                    range,
+                    &mut out,
+                );
             }
         }
     }
@@ -276,12 +321,10 @@ fn type_display(tl: &TypeLattice) -> Option<String> {
     }
 }
 
-/// Collect inferred-variable-type hints (`: int`) for variable
-/// definitions in `range`.  Builds a name → display-type map from the
-/// type-propagation pass
-/// (over every function in a fresh [`CompilationUnit`]) and walks the
-/// analyser scope tree, annotating each variable definition whose type
-/// is known.
+/// Collect inferred-variable-type hints for exact original SSA definitions.
+/// Selected source inputs and byte cells must match their declaration under
+/// the complete current image/configuration. The explicit lexical-advice
+/// compatibility branch retains its separate reporting-scope projection.
 fn collect_type_hints(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -291,7 +334,81 @@ fn collect_type_hints(
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
-    let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
+    let config = analysis
+        .body_lexer_config
+        .unwrap_or_else(|| tcl_lexer::LexerConfig::from_grammar(dialect.grammar));
+    let cu = CompilationUnit::build_with_options(
+        source,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(dialect),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+    );
+    if !analysis.allows_lexical_declaration_advice() {
+        let image = tcl_lexer::SourceImage::document(source);
+        if !analysis.matches_original_source_image(&image, config) {
+            return;
+        }
+        let mut hints = std::collections::BTreeMap::new();
+        for function in cu.functions() {
+            for (&block, body) in &function.ssa.blocks {
+                for (index, statement) in body.statements.iter().enumerate() {
+                    let view =
+                        tcl_compiler::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
+                    for (&symbol, &version) in &statement.defs {
+                        let Some(definition) = view.original_definition_name(symbol, registry)
+                        else {
+                            continue;
+                        };
+                        let span = function.abs_span(definition.span());
+                        if !analysis.original_variable_symbols.iter().any(|occurrence| {
+                            occurrence.is_declaration()
+                                && occurrence.span() == span
+                                && occurrence.original_name_input()
+                                    == definition.original_name_input()
+                        }) {
+                            continue;
+                        }
+                        let display = function
+                            .types
+                            .get(&(symbol, version))
+                            .and_then(type_display);
+                        let value = (definition.original_name_input().clone(), display);
+                        hints
+                            .entry((span.start(), span.end()))
+                            .and_modify(|previous: &mut (_, Option<String>)| {
+                                if previous != &value {
+                                    previous.1 = None;
+                                }
+                            })
+                            .or_insert(value);
+                    }
+                }
+            }
+        }
+        for ((span_start, span_end), (_, display)) in hints {
+            let Some(display) = display else {
+                continue;
+            };
+            let start = line_index.position_at_utf16(span_start, source);
+            let end = line_index.position_at_utf16(span_end, source);
+            if end.line < range.start_line || start.line > range.end_line {
+                continue;
+            }
+            out.push(InlayHint {
+                position_line: end.line,
+                position_character: end.character.get(),
+                label: format!(": {display}"),
+                kind: InlayHintKind::Type,
+                padding_left: true,
+            });
+        }
+        return;
+    }
 
     // Build a *per-function* name → display map, keyed by the function's
     // qualified name (leading `::` stripped so it matches the analyser's
@@ -509,57 +626,169 @@ fn regsub_short(c: char) -> Option<&'static str> {
     })
 }
 
-/// The format-string words of one segmented command, as `(argv index,
-/// family)` pairs, resolved entirely from the registry.
-///
-/// A second, independent copy of the format-family dispatch — `match head {
-/// "format" => …, "scan" => …, "binary" => …, "clock" => …, "regsub" => … }`,
-/// each re-deriving its own argument layout — would not fire for the
-/// explicitly global spellings C Tcl resolves to the same commands. This and
-/// the semantic-token walk read one
-/// registry answer, so they cannot drift.
+/// Registry format operands retain effective ordinals. An alias prefix or list
+/// expansion never shifts a written template onto another argument's source.
 fn format_args(
+    source: &str,
+    analysis: &AnalysisResult,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    identities: &tcl_compiler::realm::CommandBindingRealm,
-) -> Vec<(usize, tcl_registry::FormatType)> {
-    let Some(head) = seg.texts.first() else {
+) -> Vec<(FormatHintOperand, tcl_registry::FormatType)> {
+    // naming.core.original-inlay-retained-context
+    // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+    let Some(selected) = source_registry_words(source, analysis, seg) else {
         return Vec::new();
     };
-    let Some(tok) = seg.argv.first() else {
+    let Some(input) = analysis.resolved_input.as_ref() else {
         return Vec::new();
     };
-    // Resolve the head's *effective command identity* first, exactly as the
-    // semantic-token walk does, so a call through a proven `interp alias` /
-    // `rename` gets the target's format family and a `rename`d-away or
-    // `proc`-shadowed spelling gets none.
-    let resolved = identities.resolve(head, tok.span.start()).spec_name();
-    let source_args = segmented_command_arguments(seg);
-    registry
-        .format_string_args_words(resolved, InvocationArguments::structured(&source_args))
+    let context = input.context_registry();
+    let Some(formats) = selected
+        .with_source_schema(&context, |schema| schema.authored_source_format_arguments())
+        .flatten()
+    else {
+        return Vec::new();
+    };
+    formats
         .into_iter()
-        // `+ 1` converts a post-head argument index into an `argv` index
-        // (`argv[0]` is the command word).
-        .map(|f| (f.index + 1, f.kind))
+        .filter_map(|format| {
+            let operand = selected.operands.get(format.index)?.as_ref()?;
+            let actual = selected.arguments.get(format.index)?.literal_bytes()?;
+            let logical = if let Some(native) = operand.input.as_ref() {
+                (native.bytes() == actual).then_some(())?;
+                None
+            } else {
+                let crate::original_invocation::OriginalRegistrySource::SourceTransitions(advice) =
+                    &selected.source
+                else {
+                    return None;
+                };
+                (advice.logical_source_input() == Some(input)).then_some(())?;
+                let word = operand.word.as_ref()?;
+                (tcl_syntax::word_rules::original_static_word_ascii_presentation(word)?.as_slice()
+                    == actual)
+                    .then_some(())?;
+                Some(std::sync::Arc::clone(advice))
+            };
+            Some((
+                FormatHintOperand {
+                    original: operand.clone(),
+                    logical,
+                },
+                format.kind,
+            ))
+        })
         .collect()
 }
 
-/// Byte range of a format word's *content* — the token span with one
-/// layer of `"…"` / `{…}` delimiters stripped.
-fn format_content_range(source: &str, span: tcl_lexer::Span) -> Option<(usize, usize)> {
-    let mut start = span.start() as usize;
-    let mut end = span.end() as usize;
-    if start >= end || end > source.len() {
-        return None;
+struct FormatHintOperand {
+    original: HintOperand,
+    logical: Option<
+        std::sync::Arc<tcl_compiler::command_binding::OriginalSourceCommandTransitionAdvice>,
+    >,
+}
+
+enum FormatTemplateMapping {
+    Native {
+        channel: tcl_lexer::SourceChannel,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        escapes: Option<tcl_dialect::EscapeSyntax>,
+    },
+    Logical(Box<tcl_lexer::NativeWord>),
+}
+
+struct FormatTemplate<'a> {
+    content: std::borrow::Cow<'a, str>,
+    raw: &'a [u8],
+    span: tcl_lexer::Span,
+    mapping: FormatTemplateMapping,
+}
+
+impl<'a> FormatTemplate<'a> {
+    fn from_operand(source: &'a str, operand: &FormatHintOperand) -> Option<Self> {
+        let original = &operand.original;
+        let Some(input) = &original.input else {
+            let logical = operand.logical.as_ref()?.logical_source_input()?;
+            let word = original.word.as_ref()?;
+            if word.image() != &tcl_lexer::SourceImage::document(source)
+                || word.config() != logical.lexer_config()
+            {
+                return None;
+            }
+            let value = tcl_syntax::word_rules::original_static_word_ascii_presentation(word)?;
+            return Some(Self {
+                content: std::borrow::Cow::Owned(String::from_utf8(value).ok()?),
+                raw: source.as_bytes().get(word.span().as_range())?,
+                span: word.span(),
+                mapping: FormatTemplateMapping::Logical(Box::new(word.clone())),
+            });
+        };
+        let protocol = input.policy().string_protocol();
+        let (span, channel, escapes) = if let Some(key) = input.original_word_key() {
+            let word = key.original_word();
+            let escapes =
+                (word.group().kind != tcl_lexer::WordKind::Braced).then_some(word.config().escapes);
+            (word.content_span().ok()?, word.image().channel(), escapes)
+        } else {
+            // Readonly list children can have exact literal extents. Produced
+            // values without such an extent cannot supply a template coordinate.
+            input.original_static_list_container()?;
+            (original.span, tcl_lexer::SourceChannel::Document, None)
+        };
+        let raw = source.as_bytes().get(span.as_range())?;
+        if escapes.is_none()
+            && tcl_syntax::backslash::native_source_literal_bytes(raw, channel, protocol)
+                .ok()?
+                .as_ref()
+                != input.bytes()
+        {
+            return None;
+        }
+        Some(Self {
+            content: std::borrow::Cow::Owned(std::str::from_utf8(input.bytes()).ok()?.to_owned()),
+            raw,
+            span,
+            mapping: FormatTemplateMapping::Native {
+                channel,
+                protocol,
+                escapes,
+            },
+        })
     }
-    let bytes = source.as_bytes();
-    if matches!(bytes[start], b'"' | b'{') {
-        start += 1;
+
+    fn original_offset(&self, offset: usize) -> Option<usize> {
+        let (channel, protocol, escapes) = match &self.mapping {
+            FormatTemplateMapping::Native {
+                channel,
+                protocol,
+                escapes,
+            } => (channel, protocol, escapes),
+            FormatTemplateMapping::Logical(word) => {
+                return usize::try_from(
+                    tcl_syntax::word_rules::original_static_word_ascii_source_offset(word, offset)?,
+                )
+                .ok();
+            }
+        };
+        let end = if let Some(escapes) = escapes {
+            tcl_syntax::backslash::native_source_string_extent(
+                self.raw,
+                *channel,
+                *escapes,
+                *protocol,
+                0..offset,
+            )?
+            .end
+        } else {
+            tcl_syntax::backslash::native_source_literal_extent(
+                self.raw,
+                *channel,
+                *protocol,
+                0..offset,
+            )?
+            .end
+        };
+        (self.span.start() as usize).checked_add(end)
     }
-    if end > start && matches!(bytes[end - 1], b'"' | b'}') {
-        end -= 1;
-    }
-    (start < end).then_some((start, end))
 }
 
 /// Push a `Type`-kind specifier hint at the byte offset `abs_byte`
@@ -589,234 +818,157 @@ fn push_format_hint(
 fn collect_format_string_hints(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
-    registry: &CommandRegistry,
+    analysis: &AnalysisResult,
     range: LspRange,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
     let profile = dialect;
-    let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
-        source,
-        0,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-    );
-    // The document's proven command-identity facts, computed once for the
-    // whole file (empty, and lookup-free, unless it binds something).
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    for seg in &segments {
-        for (idx, kind) in format_args(seg, registry, &identities) {
-            let Some(tok) = seg.argv.get(idx) else {
-                continue;
-            };
-            let Some((cstart, cend)) = format_content_range(source, tok.span) else {
-                continue;
-            };
-            let content = &source[cstart..cend];
-            match kind {
-                tcl_registry::FormatType::Sprintf => {
-                    let bytes = content.as_bytes();
-                    let mut i = 0;
-                    while i < bytes.len() {
-                        if bytes[i] != b'%' {
-                            i += 1;
-                            continue;
-                        }
-                        let start = i;
-                        i += 1;
-                        if bytes.get(i) == Some(&b'%') {
-                            i += 1;
-                            continue;
-                        }
-                        let mut end = i;
-                        let Some(spec) = tcl_syntax::format::parse_spec(bytes, &mut end) else {
-                            i = start + 1;
-                            continue;
-                        };
-                        if tcl_cmd_core::format::is_verb(spec.verb)
-                            && tcl_cmd_core::format::is_available(&spec, profile)
-                            && let Some(label) = sprintf_short(char::from(spec.verb))
-                        {
-                            push_format_hint(label, cstart + end, range, source, line_index, out);
-                        }
-                        i = end;
-                    }
-                }
-                tcl_registry::FormatType::Clock => {
-                    for spec in tcl_cmd_core::clock::specifiers(content) {
-                        let letter = char::from(spec.letter);
-                        if let Some(label) = clock_short(letter) {
-                            push_format_hint(
-                                label,
-                                cstart + spec.end,
-                                range,
-                                source,
-                                line_index,
-                                out,
-                            );
-                        }
-                    }
-                }
-                tcl_registry::FormatType::Binary => {
-                    collect_binary_hints(content, cstart, range, source, line_index, profile, out);
-                }
-                tcl_registry::FormatType::Regsub => {
-                    for m in REGSUB_RE.captures_iter(content) {
-                        let whole = m.get(0).expect("group 0");
-                        let ch = m
-                            .get(1)
-                            .and_then(|g| g.as_str().chars().next())
-                            .unwrap_or(' ');
-                        if let Some(label) = regsub_short(ch) {
-                            push_format_hint(
-                                label,
-                                cstart + whole.end(),
-                                range,
-                                source,
-                                line_index,
-                                out,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Scan a `binary format`/`scan` template using the shared field grammar and
-/// emit a hint after each recognised specifier.
-fn collect_binary_hints(
-    content: &str,
-    cstart: usize,
-    range: LspRange,
-    source: &str,
-    line_index: &LineIndex,
-    profile: &tcl_dialect::DialectProfile,
-    out: &mut Vec<InlayHint>,
-) {
-    let allow_modifier = tcl_cmd_core::binary::signedness_available(profile);
-    for spec in tcl_cmd_core::binary::specifiers(content.as_bytes(), allow_modifier) {
-        if let Some(label) = binary_short(char::from(spec.letter)) {
-            push_format_hint(label, cstart + spec.end, range, source, line_index, out);
-        }
-    }
-}
-
-/// Emit parameter-name hints for a built-in command call by
-/// parsing the spec's synopsis.  Handles the `cmd subcommand`
-/// shape: when the spec declares subcommands and the call's
-/// first arg names one, the subcommand's synopsis drives the
-/// hints (and the subcommand keyword itself isn't labelled).
-fn emit_builtin_hints(
-    source: &str,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    spec: &tcl_registry::CommandSpec,
-    line_index: &LineIndex,
-    range: LspRange,
-    out: &mut Vec<InlayHint>,
-) {
-    // Resolve synopsis, the call-arg index at which positional
-    // arguments begin, and the option set the registry declares
-    // for this command / subcommand.  argv[0] is the command head.
-    let (synopsis, skip_words, first_arg_idx, options): (
-        &str,
-        usize,
-        usize,
-        &[tcl_registry::prelude::OptionSpec],
-    ) = if spec.subcommands.is_empty() {
-        let Some(hover) = spec.hover.as_ref() else {
-            return;
-        };
-        let Some(line) = hover.synopsis.first() else {
-            return;
-        };
-        // Synopsis like `set varName ?value?` — skip the
-        // command word (1); positional call args start at
-        // argv[1].
-        (*line, 1, 1, spec.options)
-    } else {
-        // Subcommand shape: argv[1] should name a subcommand.
-        let Some(sub_name) = seg.texts.get(1) else {
-            return;
-        };
-        let Some(sub) = spec.resolve_subcommand(sub_name) else {
-            return;
-        };
-        // Synopsis like `string length string` — skip the
-        // command + subcommand words (2); positional call args
-        // start at argv[2].
-        (sub.synopsis, 2, 2, sub.options)
-    };
-
-    let params = param_names_from_synopsis(synopsis, skip_words);
-    if params.is_empty() {
+    let Some(config) = analysis.body_lexer_config else {
         return;
-    }
-
-    // Collect the call's positional argument tokens (skipping
-    // options).  Whether a `-`-prefixed token is an option is decided
-    // by the registry, not its spelling: only tokens matching a
-    // declared `OptionSpec` are skipped (and their value too, when the
-    // option `takes_value`).  This keeps real positionals like the
-    // `-1` in `string index $s -1` — which is no command's option —
-    // labelled correctly.  `argv` and `texts` are parallel, indexed by
-    // `arg_idx`.
-    let positional_args = collect_positional_args(seg, first_arg_idx, options);
-
-    // Pick which synopsis params bind to the supplied positionals.
-    // When the call supplies fewer positionals than the synopsis
-    // lists, required trailing params win over leading optionals:
-    // `puts ?-nonewline? ?channelId? string` called with one arg
-    // labels it `string:`, not `channelId:`.
-    let selected = select_param_names(&params, positional_args.len());
-
-    for (&arg_idx, name) in positional_args.iter().zip(selected.iter()) {
-        let arg_tok = &seg.argv[arg_idx];
-        let pos = line_index.position_at_utf16(arg_tok.span.start(), source);
-        if !position_within_range(pos.line, pos.character.get(), range) {
-            continue;
+    };
+    let Some(structure) =
+        crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
+    else {
+        return;
+    };
+    let segments = structure.commands;
+    for seg in &segments {
+        for (operand, kind) in format_args(source, analysis, seg) {
+            let Some(template) = FormatTemplate::from_operand(source, &operand) else {
+                continue;
+            };
+            for (offset, label) in format_specifier_labels(&template.content, kind, profile) {
+                if let Some(original) = template.original_offset(offset) {
+                    push_format_hint(label, original, range, source, line_index, out);
+                }
+            }
         }
-        out.push(InlayHint {
-            position_line: pos.line,
-            position_character: pos.character.get(),
-            label: format!("{name}:"),
-            kind: InlayHintKind::Parameter,
-            padding_left: false,
-        });
     }
 }
 
-/// Walk a call's arguments and return the `argv` indices of the
-/// positional (non-option) arguments, in order.  Option tokens
-/// matching a declared `OptionSpec` are skipped along with their
-/// value when the option `takes_value`; `--` ends option parsing.
-fn collect_positional_args(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    first_arg_idx: usize,
-    options: &[tcl_registry::prelude::OptionSpec],
-) -> Vec<usize> {
-    let mut positions = Vec::new();
-    let mut arg_idx = first_arg_idx;
-    let mut options_ended = false;
-    while arg_idx < seg.argv.len() {
-        let arg_text = seg.texts.get(arg_idx).map_or("", String::as_str);
-        if !options_ended && arg_text.starts_with('-') && arg_text != "-" {
-            // `--` ends option parsing; everything after is positional.
-            if arg_text == "--" {
-                options_ended = true;
-                arg_idx += 1;
-                continue;
-            }
-            if let Some(opt) = options.iter().find(|o| o.matches(arg_text)) {
-                // Skip the option and the value word(s) it consumes.
-                arg_idx += 1 + opt.value_word_count(&seg.texts, arg_idx);
-                continue;
+fn format_specifier_labels(
+    content: &str,
+    kind: tcl_registry::FormatType,
+    profile: &tcl_dialect::DialectProfile,
+) -> Vec<(usize, &'static str)> {
+    let mut labels = Vec::new();
+    match kind {
+        tcl_registry::FormatType::Sprintf => {
+            let bytes = content.as_bytes();
+            let mut i = 0;
+            while i < bytes.len() {
+                if bytes[i] != b'%' {
+                    i += 1;
+                    continue;
+                }
+                let start = i;
+                i += 1;
+                if bytes.get(i) == Some(&b'%') {
+                    i += 1;
+                    continue;
+                }
+                let mut end = i;
+                let Some(spec) = tcl_syntax::format::parse_spec(bytes, &mut end) else {
+                    i = start + 1;
+                    continue;
+                };
+                if tcl_cmd_core::format::is_verb(spec.verb)
+                    && tcl_cmd_core::format::is_available(&spec, profile)
+                    && let Some(label) = sprintf_short(char::from(spec.verb))
+                {
+                    labels.push((end, label));
+                }
+                i = end;
             }
         }
-        positions.push(arg_idx);
-        arg_idx += 1;
+        tcl_registry::FormatType::Clock => {
+            for spec in tcl_cmd_core::clock::specifiers(content) {
+                if let Some(label) = clock_short(char::from(spec.letter)) {
+                    labels.push((spec.end, label));
+                }
+            }
+        }
+        tcl_registry::FormatType::Binary => {
+            for spec in tcl_cmd_core::binary::specifiers(
+                content.as_bytes(),
+                tcl_cmd_core::binary::signedness_available(profile),
+            ) {
+                if let Some(label) = binary_short(char::from(spec.letter)) {
+                    labels.push((spec.end, label));
+                }
+            }
+        }
+        tcl_registry::FormatType::Regsub => {
+            for capture in REGSUB_RE.captures_iter(content) {
+                let whole = capture.get(0).expect("group 0");
+                let ch = capture
+                    .get(1)
+                    .and_then(|group| group.as_str().chars().next())
+                    .unwrap_or(' ');
+                if let Some(label) = regsub_short(ch) {
+                    labels.push((whole.end(), label));
+                }
+            }
+        }
     }
-    positions
+    labels
+}
+
+fn emit_original_builtin_hints(
+    source: &str,
+    selected: &OriginalHintWords,
+    context: &tcl_registry::model::ContextRegistry,
+    line_index: &LineIndex,
+    range: LspRange,
+    out: &mut Vec<InlayHint>,
+) {
+    let Some((synopsis, skip_words, positions)) = selected
+        .with_source_schema(context, |schema| {
+            let selected = schema.authored_source_descriptors();
+            let synopsis = match selected.subcommand {
+                Some(sub) => sub.synopsis,
+                None if selected.command.subcommands.is_empty() => {
+                    *selected.command.hover.as_ref()?.synopsis.first()?
+                }
+                None => return None,
+            };
+            let arguments = schema.words.arguments();
+            let first = schema.semantics.argument_offset;
+            let options = schema
+                .semantics
+                .options
+                .prefix_occurrences(arguments.slice_from(first))?;
+            let positions = (first..arguments.exact_argv_len()?)
+                .filter(|&ordinal| {
+                    !options.iter().any(|option| {
+                        (option.argument_index..option.values.end).contains(&(ordinal - first))
+                    })
+                })
+                .collect::<Vec<_>>();
+            Some((synopsis, first + 1, positions))
+        })
+        .flatten()
+    else {
+        return;
+    };
+    let params = param_names_from_synopsis(synopsis, skip_words);
+    let names = select_param_names(&params, positions.len());
+    for (&ordinal, name) in positions.iter().zip(names) {
+        let Some(operand) = selected.operands.get(ordinal).and_then(Option::as_ref) else {
+            continue;
+        };
+        let pos = line_index.position_at_utf16(operand.span.start(), source);
+        if position_within_range(pos.line, pos.character.get(), range) {
+            out.push(InlayHint {
+                position_line: pos.line,
+                position_character: pos.character.get(),
+                label: format!("{name}:"),
+                kind: InlayHintKind::Parameter,
+                padding_left: false,
+            });
+        }
+    }
 }
 
 /// Choose the ordered param names to label `n_positional` supplied
@@ -846,7 +998,7 @@ fn select_param_names(params: &[(String, bool)], n_positional: usize) -> Vec<&st
 /// optional, bare `name` tokens are required.  The optional flag
 /// lets the emitter prefer required trailing positionals when a
 /// call supplies fewer arguments than the synopsis lists (see
-/// `emit_builtin_hints`).
+/// `emit_original_builtin_hints`).
 ///
 /// Token grammar (best-effort):
 /// * `name` — required positional → `(name, false)`.
@@ -948,6 +1100,25 @@ fn lookup_proc<'a>(
     name: &str,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Option<&'a ProcDef> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let invocation = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.range.start() == cmd_off)?;
+        let input = invocation.original_name_input.as_ref()?;
+        let lookup = invocation.original_lookup.as_ref()?;
+        if lookup.name_input() != input {
+            return None;
+        }
+        let reference = invocation.resolved_command_reference.as_ref()?;
+        if !reference.matches_original_invocation_site(lookup.site()) {
+            return None;
+        }
+        return reference
+            .linked_definition()
+            .or_else(|| reference.definition())
+            .and_then(|definition| analysis.proc_for_definition(definition, source));
+    }
     let ns = crate::definition::namespace_context_at(
         &analysis.global_scope,
         cmd_off,
@@ -967,11 +1138,13 @@ fn emit_hints_for_call(
     line_index: &LineIndex,
     range: LspRange,
     out: &mut Vec<InlayHint>,
+    _analysis: &AnalysisResult,
 ) {
-    // argv[0] is the command head; positional args start at
-    // index 1.
-    for (arg_idx, arg_tok) in seg.argv.iter().enumerate().skip(1) {
-        let param_idx = arg_idx - 1;
+    let positions = (1..seg.argv.len()).map(|ordinal| (ordinal - 1, ordinal));
+    for (param_idx, arg_idx) in positions {
+        let Some(arg_tok) = seg.argv.get(arg_idx) else {
+            continue;
+        };
         let Some(param) = proc_def.params.get(param_idx) else {
             // Past the declared parameter count — proc may
             // have an `args` tail, but we don't emit hints
@@ -991,6 +1164,55 @@ fn emit_hints_for_call(
             position_line: pos.line,
             position_character: pos.character.get(),
             label: format!("{}:", param.name),
+            kind: InlayHintKind::Parameter,
+            padding_left: false,
+        });
+    }
+}
+
+/// Labels and positions come from the same original formal/argv topology.
+/// Defaults/rest aggregates have no individual supplied-field hint; captured
+/// operands keep a parameter slot without borrowing a written source anchor.
+fn emit_original_procedure_hints(
+    source: &str,
+    prototype: &tcl_compiler::registry_invocation::source_structure::OriginalProcedureArguments<'_>,
+    line_index: &LineIndex,
+    range: LspRange,
+    out: &mut Vec<InlayHint>,
+) {
+    use tcl_syntax::formal_params::FormalByteArgumentBinding;
+    for binding in prototype.bindings() {
+        let (parameter, argument) = match binding {
+            FormalByteArgumentBinding::Value {
+                parameter,
+                argument,
+            }
+            | FormalByteArgumentBinding::CallerLink {
+                parameter,
+                argument,
+                ..
+            } => (*parameter, *argument),
+            FormalByteArgumentBinding::Default { .. } | FormalByteArgumentBinding::Rest { .. } => {
+                continue;
+            }
+        };
+        let Some(field) = prototype.formals().name_field(parameter) else {
+            continue;
+        };
+        let Some(operand) = prototype.operands().get(argument).and_then(Option::as_ref) else {
+            continue;
+        };
+        let pos = line_index.position_at_utf16(operand.span().start(), source);
+        if !position_within_range(pos.line, pos.character.get(), range) {
+            continue;
+        }
+        out.push(InlayHint {
+            position_line: pos.line,
+            position_character: pos.character.get(),
+            label: format!(
+                "{}:",
+                tcl_syntax::native_string::resident_name_label(field.original_input().bytes())
+            ),
             kind: InlayHintKind::Parameter,
             padding_left: false,
         });
@@ -1885,5 +2107,906 @@ mod tests {
             names_of("interp alias {} myfmt {} $target\nmyfmt \"%d-%s\" 1 two\n").is_empty(),
             "a dynamic alias target must not confer format hints"
         );
+    }
+}
+
+#[cfg(test)]
+mod original_hint_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn parameter_hints(source: &str, analysis: &AnalysisResult) -> Vec<InlayHint> {
+        parameter_hints_from(source, analysis, 0)
+    }
+
+    fn parameter_hints_from(
+        source: &str,
+        analysis: &AnalysisResult,
+        start: usize,
+    ) -> Vec<InlayHint> {
+        assert!(source.is_ascii() && !source.contains('\n'));
+        inlay_hints(
+            source,
+            crate::profile_for_dialect("tcl8.6"),
+            LspRange {
+                start_line: 0,
+                start_character: u32::try_from(start).unwrap(),
+                end_line: 100,
+                end_character: 0,
+            },
+            Some(analysis),
+            None,
+            false,
+            true,
+        )
+    }
+
+    fn builtin_hints(source: &str, analysis: &AnalysisResult) -> Vec<InlayHint> {
+        inlay_hints(
+            source,
+            crate::profile_for_dialect("tcl8.6"),
+            LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 100,
+                end_character: 0,
+            },
+            Some(analysis),
+            Some(crate::registry_for_dialect("tcl8.6")),
+            false,
+            true,
+        )
+    }
+
+    #[test]
+    fn original_parameter_hints_preserve_opaque_call_identity_and_source_currency() {
+        let source = "proc p\\uD800 {first} {}; proc p\\uD801 {second} {}; p\\uD800 1; p\\uD801 2";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "counterfactual".to_owned();
+        }
+        // The requested viewport includes both tested calls. Definition
+        // operands outside it have their own valid builtin synopsis hints.
+        let start = source.find("; p\\uD800 1").unwrap() + 2;
+        let hints = parameter_hints_from(source, &analysis, start);
+        assert_eq!(
+            hints
+                .iter()
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            ["first:", "second:"]
+        );
+        assert!(parameter_hints(&format!("#{source}"), &analysis).is_empty());
+        for invocation in &mut analysis.command_invocations {
+            invocation.original_lookup = None;
+        }
+        assert!(parameter_hints_from(source, &analysis, start).is_empty());
+    }
+
+    #[test]
+    fn original_alias_parameter_hints_map_captured_prefix_before_written_arguments() {
+        let source =
+            "proc target {captured written} {}; interp alias {} alias {} target FIXED; alias VALUE";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        analysis.all_procs.clear();
+        let start = source.rfind("; alias VALUE").unwrap() + 2;
+        let hints = parameter_hints_from(source, &analysis, start);
+        assert_eq!(
+            hints
+                .iter()
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            ["written:"]
+        );
+    }
+
+    #[test]
+    fn original_builtin_alias_and_expansion_hints_keep_effective_slots_and_original_extents() {
+        // Implementation contract: naming.core.original-hint-effective-origins
+        // docs/design/analysis/name-resolution-proofs/core-original-hint-effective-origins.md
+        let source = "interp alias {} slice {} string range CAPTURED; slice 1 2";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let hints = builtin_hints(source, &analysis);
+        let start = source.rfind("slice 1 2").unwrap();
+        let hints: Vec<_> = hints
+            .iter()
+            .filter(|hint| hint.position_character >= u32::try_from(start).unwrap())
+            .collect();
+        assert_eq!(
+            hints
+                .iter()
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            ["first:", "last:"]
+        );
+        assert_eq!(
+            hints[0].position_character as usize,
+            source.rfind("1 2").unwrap()
+        );
+
+        let source = "string range {*}{CAPTURED 1} 2";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let hints = builtin_hints(source, &analysis);
+        assert_eq!(
+            hints
+                .iter()
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            ["string:", "first:", "last:"]
+        );
+        assert_eq!(
+            hints
+                .iter()
+                .map(|hint| hint.position_character as usize)
+                .collect::<Vec<_>>(),
+            [
+                source.find("CAPTURED").unwrap(),
+                source.find("1}").unwrap(),
+                source.rfind('2').unwrap()
+            ]
+        );
+        let source = "set prefix {CAPTURED 1}; string range {*}$prefix 2";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let hints = builtin_hints(source, &analysis);
+        let hints: Vec<_> = hints
+            .iter()
+            .filter(|hint| hint.position_character as usize >= source.find("string range").unwrap())
+            .collect();
+        assert_eq!(
+            hints
+                .iter()
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            ["last:"]
+        );
+        let source = "string range {*}$unknown 2";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        assert!(builtin_hints(source, &analysis).is_empty());
+    }
+
+    #[test]
+    fn original_format_alias_expansion_and_escape_hints_use_the_template_producer() {
+        // Implementation contract: naming.core.original-format-hint-producer
+        // docs/design/analysis/name-resolution-proofs/core-original-format-hint-producer.md
+        let hints = |source: &str| {
+            let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+            let mut out = Vec::new();
+            collect_format_string_hints(
+                source,
+                crate::profile_for_dialect("tcl8.6"),
+                &analysis,
+                LspRange {
+                    start_line: 0,
+                    start_character: 0,
+                    end_line: 100,
+                    end_character: 0,
+                },
+                &LineIndex::new(source),
+                &mut out,
+            );
+            out
+        };
+        let source = r#"interp alias {} fmt {} format; fmt "%d" 3"#;
+        let out = hints(source);
+        assert_eq!(
+            out.iter()
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            ["int"]
+        );
+        assert_eq!(
+            out[0].position_character as usize,
+            source.find("%d").unwrap() + 2
+        );
+        let source = "format {*}{%d 3}";
+        let out = hints(source);
+        assert_eq!(
+            out.iter()
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            ["int"]
+        );
+        assert_eq!(
+            out[0].position_character as usize,
+            source.find("%d").unwrap() + 2
+        );
+        let source = r"format \x25d 3";
+        let out = hints(source);
+        assert_eq!(
+            out.iter()
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            ["int"]
+        );
+        assert_eq!(
+            out[0].position_character as usize,
+            source.find(r"\x25d").unwrap() + 5
+        );
+        assert!(hints(r#"interp alias {} fmt {} format "%d"; fmt 3"#).is_empty());
+        assert!(hints("format {*}$unknown 3").is_empty());
+    }
+
+    #[test]
+    fn original_builtin_hints_use_retained_descriptor_and_do_not_borrow_shadowed_prototype() {
+        // Implementation contract: naming.core.original-hint-effective-origins
+        // docs/design/analysis/name-resolution-proofs/core-original-hint-effective-origins.md
+        let source = "set value 1";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let hints = builtin_hints(source, &analysis);
+        assert!(
+            hints.iter().any(|hint| hint.label == "varName:"),
+            "{hints:?}"
+        );
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "puts".to_owned();
+        }
+        assert_eq!(builtin_hints(source, &analysis), hints);
+        let shadow = "proc set {other} {}; set value";
+        let analysis = Analyser::new().analyse(shadow, "tcl8.6").clone();
+        assert_eq!(
+            parameter_hints_from(shadow, &analysis, shadow.rfind("; set value").unwrap() + 2)
+                .iter()
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            ["other:"]
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_variable_type_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn hints(source: &str, analysis: &AnalysisResult) -> Vec<InlayHint> {
+        inlay_hints(
+            source,
+            crate::profile_for_dialect("tcl8.6"),
+            LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 100,
+                end_character: 0,
+            },
+            Some(analysis),
+            Some(crate::registry_for_dialect("tcl8.6")),
+            true,
+            false,
+        )
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.original-ssa-definition-operand
+    // docs/design/analysis/name-resolution-proofs/original-ssa-definition-operand.md
+    fn original_type_hints_match_exact_ssa_cells_without_reporting_variable_maps() {
+        let source = "set v\\uD800 42\nset v\\uD801 TEXT\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        analysis.global_scope.variables.clear();
+        analysis.all_procs.clear();
+        let hints = hints(source, &analysis);
+        assert!(
+            hints
+                .iter()
+                .any(|hint| hint.position_line == 0 && hint.label == ": int"),
+            "{hints:?}"
+        );
+        assert!(
+            hints
+                .iter()
+                .any(|hint| hint.position_line == 1 && hint.label == ": str"),
+            "{hints:?}"
+        );
+        assert!(hints.iter().all(
+            |hint| (hint.position_line, hint.label.as_str()) != (0, ": str")
+                && (hint.position_line, hint.label.as_str()) != (1, ": int")
+        ));
+        assert!(
+            super::original_variable_type_tests::hints(
+                &format!("{source}# changed elsewhere"),
+                &analysis
+            )
+            .is_empty()
+        );
+        analysis.original_variable_symbols.clear();
+        assert!(super::original_variable_type_tests::hints(source, &analysis).is_empty());
+    }
+
+    #[test]
+    fn original_type_hints_keep_local_frames_and_alias_targets_separate() {
+        let source = "set shared 7\nproc first {} {set value 42; global shared; set shared 8}\nproc second {} {set value TEXT}\nfirst; second\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        fn clear(scope: &mut Scope) {
+            scope.variables.clear();
+            for child in &mut scope.children {
+                clear(child);
+            }
+        }
+        clear(&mut analysis.global_scope);
+        analysis.all_procs.clear();
+        let hints = hints(source, &analysis);
+        assert!(
+            hints
+                .iter()
+                .any(|hint| hint.position_line == 1 && hint.label == ": int"),
+            "{hints:?}"
+        );
+        assert!(
+            hints
+                .iter()
+                .any(|hint| hint.position_line == 2 && hint.label == ": str"),
+            "{hints:?}"
+        );
+        assert!(
+            hints
+                .iter()
+                .all(|hint| hint.position_line != 2 || hint.label != ": int")
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_procedure_topology_hint_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_procedure_hints_share_expanded_children_and_formal_binding_topology() {
+        // naming.source.original-procedure-argument-topology
+        // docs/design/analysis/name-resolution-proofs/original-procedure-argument-topology.md
+        for source in [
+            "proc target {captured written} {}; target {*}{FIXED VALUE}",
+            "proc target {captured written} {}; interp alias {} alias {} target FIXED; alias {*}{VALUE}",
+        ] {
+            let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+            analysis.all_procs.clear();
+            analysis.global_scope.procs.clear();
+            analysis.command_invocations.clear();
+            let hints = inlay_hints(
+                source,
+                analysis.resolved_profile().unwrap(),
+                LspRange {
+                    start_line: 0,
+                    start_character: 0,
+                    end_line: 100,
+                    end_character: 0,
+                },
+                Some(&analysis),
+                None,
+                false,
+                true,
+            );
+            let hint = hints
+                .iter()
+                .find(|hint| hint.label == "written:")
+                .expect("actual child hint");
+            let expected = LineIndex::new(source).position_at_utf16(
+                u32::try_from(source.rfind("VALUE").unwrap()).unwrap(),
+                source,
+            );
+            assert_eq!(hint.position_line, expected.line);
+            assert_eq!(hint.position_character, expected.character.get());
+            if source.contains("interp alias") {
+                assert!(!hints.iter().any(|hint| hint.label == "captured:"));
+            }
+        }
+        let source = "proc target {first {second DEFAULT}} {}; target ONLY";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let hints = inlay_hints(
+            source,
+            analysis.resolved_profile().unwrap(),
+            LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 100,
+                end_character: 0,
+            },
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
+        let written = LineIndex::new(source).position_at_utf16(
+            u32::try_from(source.rfind("ONLY").unwrap()).unwrap(),
+            source,
+        );
+        assert_eq!(
+            hints
+                .iter()
+                .filter(|hint| hint.position_line == written.line
+                    && hint.position_character == written.character.get())
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            ["first:"]
+        );
+        assert!(!hints.iter().any(|hint| hint.label == "second:"));
+        assert!(
+            inlay_hints(
+                &format!("#{source}"),
+                analysis.resolved_profile().unwrap(),
+                LspRange {
+                    start_line: 0,
+                    start_character: 0,
+                    end_line: 100,
+                    end_character: 0,
+                },
+                Some(&analysis),
+                None,
+                false,
+                true
+            )
+            .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod retained_hint_context_tests {
+    use super::*;
+    use crate::original_invocation::selected_registry_words as selected_original_words;
+    use tcl_compiler::analyser::Analyser;
+
+    fn hints(
+        source: &str,
+        analysis: &AnalysisResult,
+        profile: &'static tcl_dialect::DialectProfile,
+        registry: &CommandRegistry,
+    ) -> Vec<InlayHint> {
+        inlay_hints_in_program(
+            source,
+            profile,
+            LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 100,
+                end_character: 0,
+            },
+            Some(analysis),
+            crate::definition::CallResolution {
+                registry: Some(registry),
+                program: None,
+            },
+            true,
+            true,
+        )
+    }
+
+    fn analysis_with_availability(source: &str, environment: &str) -> AnalysisResult {
+        let profile = crate::profile_for_dialect("tcl9.1");
+        let driver =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let actual = tcl_registry::model::ingress::resolve_environment(environment)
+            .default_context_registry();
+        let context = std::sync::Arc::new(
+            actual.with_command_store(driver.commands().snapshot().shared_registry()),
+        );
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    fn logical_format_input(environment: &str) -> tcl_compiler::analyser::ResolvedAnalysisInput {
+        let mut profile = crate::profile_for_dialect("f5-irules").clone();
+        profile.name = "explicit-logical-format-hints";
+        let profile = profile.intern();
+        let driver =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let actual = tcl_registry::model::ingress::resolve_environment(environment)
+            .default_context_registry();
+        let context = std::sync::Arc::new(
+            actual.with_command_store(driver.commands().snapshot().shared_registry()),
+        );
+        let config = tcl_lexer::LexerConfig {
+            escapes: crate::profile_for_dialect("tcl8.6").grammar.escapes,
+            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+        };
+        tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config)
+    }
+
+    #[test]
+    fn logical_format_hints_keep_actual_context_and_full_source_currency() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = "clock scan 2020 -format {%Y}";
+        for (environment, expected) in [("tcl9.1", true), ("tcl8.4", false)] {
+            let input = logical_format_input(environment);
+            let context = input.context_registry();
+            let mut analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "presentation-only");
+            assert!(analysis.allows_lexical_declaration_advice());
+            analysis.command_invocations.clear();
+            let out = hints(source, &analysis, input.unit_profile(), context.commands());
+            assert_eq!(
+                out.iter().any(|hint| hint.label == "year"),
+                expected,
+                "{environment}: {out:?}"
+            );
+            assert!(
+                hints(
+                    &source.replace("%Y", "%m"),
+                    &analysis,
+                    input.unit_profile(),
+                    context.commands()
+                )
+                .is_empty()
+            );
+            analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                std::sync::Arc::new(
+                    context.with_command_store(context.commands().snapshot().shared_registry()),
+                ),
+                input.lexer_config(),
+            ));
+            assert!(hints(source, &analysis, input.unit_profile(), context.commands()).is_empty());
+        }
+    }
+
+    #[test]
+    fn logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let input = logical_format_input("tcl9.1");
+        let context = input.context_registry();
+        for source in [
+            "format {%d} 7",
+            r"format \x25d 7",
+            r#"format "\x25d" 7"#,
+            "proc p {} {format {%d} 7}",
+            "interp alias {} fmt {} format; fmt {%d} 7",
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "presentation-only");
+            let out = hints(source, &analysis, input.unit_profile(), context.commands());
+            let formats = out
+                .iter()
+                .filter(|hint| hint.label == "int")
+                .collect::<Vec<_>>();
+            assert_eq!(formats.len(), 1, "{source}: {out:?}");
+            let end = source.find('d').unwrap() + 1;
+            let expected =
+                LineIndex::new(source).position_at_utf16(u32::try_from(end).unwrap(), source);
+            assert_eq!(
+                (formats[0].position_line, formats[0].position_character),
+                (expected.line, expected.character.get()),
+                "{source}"
+            );
+        }
+        for source in [
+            "interp alias {} fmt {} format {%d}; fmt 7",
+            "format $template 7",
+            "proc format args {}; format {%d} 7",
+            "format {a\\\n%d} 7",
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "presentation-only");
+            assert!(
+                hints(source, &analysis, input.unit_profile(), context.commands())
+                    .iter()
+                    .all(|hint| hint.label != "int"),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_format_escape_hints_use_the_complete_selected_grammar() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = r"format \x25d 7";
+        let modern = logical_format_input("tcl9.1");
+        let config = tcl_lexer::LexerConfig {
+            escapes: crate::profile_for_dialect("tcl8.5").grammar.escapes,
+            ..modern.lexer_config()
+        };
+        let legacy = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            modern.analyser_profile(),
+            modern.unit_profile(),
+            modern.context_registry(),
+            config,
+        );
+        for (input, expected) in [(modern, true), (legacy, false)] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "presentation-only");
+            assert_eq!(
+                hints(
+                    source,
+                    &analysis,
+                    input.unit_profile(),
+                    input.context_registry().commands()
+                )
+                .iter()
+                .any(|hint| hint.label == "int"),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn logical_parameter_hints_keep_actual_context_and_original_source_currency() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = "string cat A B";
+        for (environment, expected) in [("tcl9.1", true), ("tcl8.4", false)] {
+            let input = logical_format_input(environment);
+            let context = input.context_registry();
+            let mut analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "presentation-only");
+            analysis.command_invocations.clear();
+            let out = hints(source, &analysis, input.unit_profile(), context.commands());
+            assert_eq!(
+                out.iter().any(|hint| hint.kind == InlayHintKind::Parameter),
+                expected,
+                "{environment}: {out:?}"
+            );
+            assert!(
+                hints(
+                    "string cat C D",
+                    &analysis,
+                    input.unit_profile(),
+                    context.commands()
+                )
+                .is_empty()
+            );
+            analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                std::sync::Arc::new(
+                    context.with_command_store(context.commands().snapshot().shared_registry()),
+                ),
+                input.lexer_config(),
+            ));
+            assert!(hints(source, &analysis, input.unit_profile(), context.commands()).is_empty());
+        }
+    }
+
+    #[test]
+    fn logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let input = logical_format_input("tcl9.1");
+        let context = input.context_registry();
+        for (source, needle) in [
+            ("string index held 1", "1"),
+            ("proc p {} {string index held 1}", "1"),
+            ("interp alias {} idx {} string index held; idx 1", "1"),
+            (r"string \u0069ndex held 1", "1"),
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "presentation-only");
+            let out = hints(source, &analysis, input.unit_profile(), context.commands());
+            let actual = out
+                .iter()
+                .filter(|hint| hint.label == "charIndex:")
+                .collect::<Vec<_>>();
+            assert_eq!(actual.len(), 1, "{source}: {out:?}");
+            let position = LineIndex::new(source).position_at_utf16(
+                u32::try_from(source.rfind(needle).unwrap()).unwrap(),
+                source,
+            );
+            assert_eq!(
+                (actual[0].position_line, actual[0].position_character),
+                (position.line, position.character.get())
+            );
+        }
+        for source in [
+            "interp alias {} len {} string length held; len",
+            "proc string args {}; string index held 1",
+            "string $selector held 1",
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "presentation-only");
+            let offset = u32::try_from(source.rfind(';').map_or(0, |offset| offset + 1)).unwrap();
+            let position = LineIndex::new(source).position_at_utf16(offset, source);
+            assert!(
+                hints(source, &analysis, input.unit_profile(), context.commands())
+                    .iter()
+                    .all(|hint| hint.kind != InlayHintKind::Parameter
+                        || hint.position_line < position.line
+                        || hint.position_line == position.line
+                            && hint.position_character < position.character.get()),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_builtin_hints_use_the_selected_availability_not_registry_profile() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = "string cat A B";
+        let current = analysis_with_availability(source, "tcl9.1");
+        let profile = current.resolved_profile().unwrap();
+        let registry = current.resolved_registry().unwrap();
+        let positive = hints(source, &current, profile, registry);
+        let positions = positive
+            .iter()
+            .filter(|hint| hint.kind == InlayHintKind::Parameter)
+            .map(|hint| hint.position_character)
+            .collect::<Vec<_>>();
+        // The synopsis names its first positional string; its variadic tail
+        // contributes no additional parameter label.
+        assert_eq!(positions, [11], "{positive:?}");
+        assert!(positive.iter().any(|hint| hint.label == "string1:"));
+
+        let older = analysis_with_availability(source, "tcl8.4");
+        assert_eq!(
+            older.resolved_registry().unwrap().profile().unwrap().name,
+            "tcl9.1"
+        );
+        let segment = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            older.body_lexer_config.unwrap(),
+        )
+        .remove(0);
+        let selected =
+            selected_original_words(source, &older, &segment, older.resolved_registry().unwrap())
+                .expect("same genuine Native source words and lookup still exist");
+        let context = older.resolved_input.as_ref().unwrap().context_registry();
+        assert_eq!(
+            selected.with_source_schema(&context, |schema| schema.subcommand.kind()),
+            Some(Some(
+                tcl_registry::resolved_invocation::SubcommandResolutionKind::Unknown
+            ))
+        );
+        assert!(
+            hints(source, &older, profile, registry)
+                .iter()
+                .all(|hint| hint.kind != InlayHintKind::Parameter)
+        );
+    }
+
+    #[test]
+    fn original_format_hints_use_selected_option_roles_under_the_actual_context() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = "clock scan 2020 -format {%Y}";
+        let current = analysis_with_availability(source, "tcl9.1");
+        let profile = current.resolved_profile().unwrap();
+        let registry = current.resolved_registry().unwrap();
+        let positive = hints(source, &current, profile, registry);
+        assert_eq!(
+            positive.iter().filter(|hint| hint.label == "year").count(),
+            1,
+            "{positive:?}"
+        );
+        let older = analysis_with_availability(source, "tcl8.4");
+        let out = hints(source, &older, profile, registry);
+        assert!(out.iter().all(|hint| hint.label != "year"), "{out:?}");
+        let segment = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            older.body_lexer_config.unwrap(),
+        )
+        .remove(0);
+        let selected =
+            selected_original_words(source, &older, &segment, older.resolved_registry().unwrap())
+                .expect("original words exist independently of unavailable format option");
+        let context = older.resolved_input.as_ref().unwrap().context_registry();
+        let formats = selected
+            .with_source_schema(&context, |schema| schema.authored_source_format_arguments())
+            .expect("the actual context still admits clock scan source metadata");
+        assert!(
+            formats.is_none_or(|formats| formats.is_empty()),
+            "the actual option grammar supplies no profile-derived format operand"
+        );
+    }
+
+    #[test]
+    fn original_hint_metadata_keeps_the_generation_after_reporting_maps_are_cleared() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = "format {%d} 3";
+        let mut analysis = analysis_with_availability(source, "tcl9.1");
+        let profile = analysis.resolved_profile().unwrap();
+        let retained_context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let registry = retained_context.commands();
+        let expected = hints(source, &analysis, profile, registry);
+        assert!(
+            expected.iter().any(|hint| hint.label == "int"),
+            "{expected:?}"
+        );
+        analysis.command_invocations.clear();
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        analysis.global_scope.variables.clear();
+        analysis.dialect = "foreign presentation label".to_owned();
+        assert_eq!(hints(source, &analysis, profile, registry), expected);
+        assert!(hints("format {%x} 3", &analysis, profile, registry).is_empty());
+
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let foreign = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            std::sync::Arc::new(
+                context.with_command_store(context.commands().snapshot().shared_registry()),
+            ),
+            input.lexer_config(),
+        );
+        analysis.resolved_input = Some(foreign);
+        assert!(hints(source, &analysis, profile, registry).is_empty());
+    }
+
+    #[test]
+    fn original_inlay_hints_keep_retained_profile_registry_and_whole_source() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = "set value 42\nformat {%d} 3";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.global_scope.variables.clear();
+        let profile = analysis.resolved_profile().unwrap();
+        let registry = analysis.resolved_registry().unwrap();
+        let expected = hints(source, &analysis, profile, registry);
+        assert!(
+            expected.iter().any(|hint| hint.label == ": int"),
+            "{expected:?}"
+        );
+        assert!(
+            expected.iter().any(|hint| hint.label == "int"),
+            "{expected:?}"
+        );
+        assert_eq!(
+            hints(
+                source,
+                &analysis,
+                crate::profile_for_dialect("jim"),
+                crate::registry_for_dialect("jim")
+            ),
+            expected,
+        );
+        assert!(hints(&format!("{source} "), &analysis, profile, registry).is_empty());
+        let config = analysis.body_lexer_config.unwrap();
+        let mut different = config;
+        different.strict_quoting = !different.strict_quoting;
+        analysis.body_lexer_config = Some(different);
+        assert!(
+            hints(
+                source,
+                &analysis,
+                profile,
+                crate::registry_for_dialect("tcl8.6")
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn original_format_hints_follow_actual_nested_roles_and_known_shadow() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = "proc p {} {format {%d} 3}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let out = hints(
+            source,
+            &analysis,
+            crate::profile_for_dialect("jim"),
+            crate::registry_for_dialect("jim"),
+        );
+        assert!(out.iter().any(|hint| hint.label == "int"), "{out:?}");
+        let source = "proc format args {return ignored}\nproc p {} {format {%d} 3}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let out = hints(
+            source,
+            &analysis,
+            crate::profile_for_dialect("tcl8.6"),
+            crate::registry_for_dialect("tcl8.6"),
+        );
+        assert!(!out.iter().any(|hint| hint.label == "int"), "{out:?}");
     }
 }

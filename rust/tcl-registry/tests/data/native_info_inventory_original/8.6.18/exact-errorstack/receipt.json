@@ -1,0 +1,17 @@
+{
+  "id": "exact-errorstack",
+  "command": [
+    "/workspace/.proofs/captured-native-info-inventory193/8.6.18/probe",
+    "18"
+  ],
+  "timeout_seconds": 5,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "b4d788c4414a3083e951fc7734b6a0cddc731fe85e89b55a9f4ea93defb687da",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|6|382e362e3138",
+    "INFO|1|50|77726f6e67202320617267733a2073686f756c642062652022696e666f206572726f72737461636b203f696e746572703f22"
+  ],
+  "reported_version": "8.6.18"
+}

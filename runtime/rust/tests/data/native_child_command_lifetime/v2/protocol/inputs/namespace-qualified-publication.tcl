@@ -1,0 +1,1 @@
+namespace eval ::N {interp create ::N::kid}; list [interp slaves] [info commands ::N::kid] [info commands ::kid] [::N::kid issafe]

@@ -14,6 +14,7 @@ pub(super) struct JimCommandNode {
     pub(super) command: RefCell<Command>,
     pub(super) storage_key: RefCell<String>,
     pub(super) name: RefCell<NameBytes>,
+    pub(super) table_key: RefCell<tcl_syntax::naming::NativeJimCommandTableKey>,
     pub(super) published: Cell<bool>,
     pub(super) active: Cell<usize>,
     pub(super) previous: RefCell<Option<Rc<Self>>>,
@@ -116,7 +117,7 @@ impl Vm {
         original
     }
 
-    fn with_jim_current_namespace<R>(
+    pub(crate) fn with_jim_current_namespace<R>(
         &self,
         read: impl FnOnce(&Value) -> Result<R, ValueError>,
     ) -> Result<R, ValueError> {
@@ -174,11 +175,31 @@ impl Vm {
                     .get(&slot)
                     .is_some_and(|key| world.command_identity.generations.contains_key(key))
             });
+        let table_key = self
+            .name_world
+            .borrow()
+            .jim_command_table_keys
+            .get(key)
+            .cloned()
+            .or_else(|| {
+                self.command_slot(key).and_then(|slot| {
+                    tcl_syntax::naming::NativeJimCommandTableKey::from_comparison_key(
+                        tcl_syntax::naming::NativeNameProtocol::Jim084,
+                        slot.simple.as_bytes(),
+                    )
+                })
+            })
+            .expect("actual Jim command table comparison key");
+        self.name_world
+            .borrow_mut()
+            .jim_command_table_keys
+            .insert(key.to_owned(), table_key.clone());
         let node = Rc::new(JimCommandNode {
             token,
             command: RefCell::new(command.clone()),
             storage_key: RefCell::new(key.to_owned()),
             name: RefCell::new(NameBytes::from(name)),
+            table_key: RefCell::new(table_key),
             published: Cell::new(true),
             active: Cell::new(0),
             previous: RefCell::new(None),
@@ -207,6 +228,9 @@ impl Vm {
             *node.command.borrow_mut() = command.clone();
             key.clone_into(&mut node.storage_key.borrow_mut());
             *node.name.borrow_mut() = self.command_display_key_bytes(key);
+            if let Some(table_key) = self.name_world.borrow().jim_command_table_keys.get(key) {
+                node.table_key.borrow_mut().clone_from(table_key);
+            }
         }
     }
 

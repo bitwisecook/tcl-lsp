@@ -1,0 +1,53 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+error[E0425]: cannot find type `FxHashSet` in this scope
+   --> rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs:184:38
+    |
+184 |         let mut seen_candidate_strs: FxHashSet<&str> = FxHashSet::default();
+    |                                      ^^^^^^^^^
+    |
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/collections/hash/set.rs:126:0
+   ::: /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/collections/hash/set.rs:130:1
+    |
+    = note: similarly named struct `HashSet` defined here
+help: a struct with a similar name exists
+    |
+184 -         let mut seen_candidate_strs: FxHashSet<&str> = FxHashSet::default();
+184 +         let mut seen_candidate_strs: HashSet<&str> = FxHashSet::default();
+    |
+
+error[E0433]: cannot find type `FxHashSet` in this scope
+   --> rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs:184:56
+    |
+184 |         let mut seen_candidate_strs: FxHashSet<&str> = FxHashSet::default();
+    |                                                        ^^^^^^^^^ use of undeclared type `FxHashSet`
+    |
+help: a struct with a similar name exists
+    |
+184 -         let mut seen_candidate_strs: FxHashSet<&str> = FxHashSet::default();
+184 +         let mut seen_candidate_strs: FxHashSet<&str> = HashSet::default();
+    |
+
+error[E0599]: no method named `legacy_text` found for reference `&tcl_lexer::NativeWord` in the current scope
+   --> rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs:503:40
+    |
+503 |             let name = original.head().legacy_text();
+    |                                        ^^^^^^^^^^^ method not found in `&tcl_lexer::NativeWord`
+
+error[E0599]: no method named `legacy_text` found for reference `&tcl_lexer::NativeWord` in the current scope
+   --> rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs:596:40
+    |
+596 |             let name = original.head().legacy_text();
+    |                                        ^^^^^^^^^^^ method not found in `&tcl_lexer::NativeWord`
+
+    Checking tcl-cshim v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cshim)
+Some errors have detailed explanations: E0425, E0433, E0599.
+For more information about an error, try `rustc --explain E0425`.
+error: could not compile `tcl-compiler` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 4 previous errors

@@ -1,0 +1,19 @@
+{
+  "id": "CANCEL_CONCAT",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/9.1.0/probe",
+    "9"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "df2659bde9f8cf90014aa7aeb6a36b4b70550c5ca1456702f61bfc8ec1970016",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|392e312e30",
+    "CANCEL_CONCAT_INPUT|0|73657420646f6e6520303b2061667465722030207b73657420646f6e6520317d3b2061667465722063616e63656c207b207365747d207b20646f6e652031207d3b207570646174653b2073657420646f6e65",
+    "CANCEL_CONCAT|0|30",
+    "CANCEL_CONCAT_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+  ],
+  "reported_version": "9.1.0"
+}

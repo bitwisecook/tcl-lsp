@@ -1,0 +1,54 @@
+{
+  "provider": "8.5.19",
+  "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+  "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+  "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "compile_command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+    "/workspace/.proofs/current-native-property-counted144/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-native-property-counted145/8.5.19/probe"
+  ],
+  "compile_exit": 0,
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63"
+  },
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "probe_sha256": "04b7c2d0042b26ab25dc8569bbc4cc6bf215994b8d47dd1f4077796b85a8ecd6",
+  "queue_sha256": "fd1e3b9d6ee1c6f464d5eabf145d163e3926e4c801db6840111aa43a33a45e50",
+  "runner_sha256": "78f015446ee85eed6e9b027d1bc68990dd565bd269c7605181000a3d4d04f194",
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "260b46b756626d5219eb987a4921941796ef47e439277698d39651b0b27ee9d0",
+  "command": [
+    "/workspace/.proofs/captured-native-property-counted145/8.5.19/probe"
+  ],
+  "process_exit": 0,
+  "seconds": 0.017888932008645497,
+  "stdout_sha256": "1ca2cab6b4d4e05c4c1247b11aec1c0a00f068f0daa54a9917a5e4c9f11ddb6e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|0|382e352e3139",
+    "AVAILABILITY|0|0|",
+    "FF_CREATE|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522",
+    "D800_CREATE|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522",
+    "D801_CREATE|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522",
+    "ZERO_CREATE|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522",
+    "DISTINCT_CREATE|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522"
+  ],
+  "reported_version": "8.5.19"
+}

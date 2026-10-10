@@ -163,12 +163,14 @@ pub fn append_counted_bytes<O: NativeAppendObjects>(
     receiver: &O::Value,
     bytes: &[u8],
 ) -> Result<O::Value, ValueError> {
+    // naming.object.original-empty-counted-append
+    // docs/design/analysis/name-resolution-proofs/original-empty-counted-append.md
     if protocol.string_protocol().tcl_version().is_none() {
         return Err(ValueError::CommandProtocolUnavailable(
             "C counted String append",
         ));
     }
-    if bytes.is_empty() {
+    if bytes.is_empty() && !protocol.converts_empty_counted_receiver() {
         return Ok(receiver.clone());
     }
     let source = ops.new_string(Rc::from(bytes));

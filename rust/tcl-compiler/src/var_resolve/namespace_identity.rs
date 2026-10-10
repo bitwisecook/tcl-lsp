@@ -145,6 +145,82 @@ impl ResolveContext {
         self.identity_for_path(&path)
     }
 
+    /// Select an existing namespace from an authentic current operand, with
+    /// authored metadata and retained native object components kept separate.
+    pub(crate) fn namespace_identity_for_original_input(
+        &self,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+    ) -> Option<SourceNamespaceKey> {
+        if !input.is_current(self) {
+            return None;
+        }
+        let protocol = input.policy().recipe();
+        let current = self.namespace_identity.as_ref()?;
+        let authored_path;
+        let current_path = if let Some(path) = current.exact_native_path() {
+            path
+        } else if let SourceNamespaceKey::Authored(namespace) = current {
+            authored_path = if protocol.is_jim084() {
+                ByteNamespacePath::root()
+            } else {
+                protocol
+                    .namespace_address_path(
+                        tcl_syntax::naming::NativeNameContext::root(),
+                        namespace.as_bytes(),
+                    )
+                    .ok()?
+            };
+            &authored_path
+        } else {
+            return None;
+        };
+        if protocol.is_jim084() {
+            let authored_object;
+            let object = if let Some(object) = self.namespace_objects.get(current) {
+                object.as_bytes()
+            } else if let SourceNamespaceKey::Authored(namespace) = current {
+                authored_object = namespace
+                    .as_bytes()
+                    .strip_prefix(b"::")
+                    .unwrap_or(namespace.as_bytes())
+                    .to_vec();
+                authored_object.as_slice()
+            } else {
+                return None;
+            };
+            let selected = protocol
+                .namespace_address_input(
+                    tcl_syntax::naming::NativeNameContext::with_jim_namespace(current_path, object),
+                    input.bytes(),
+                )
+                .ok()?;
+            let mut candidates = self.namespace_addressable_identities.iter().filter(|key| {
+                self.namespace_objects.get(*key).map_or_else(
+                    || match key {
+                        SourceNamespaceKey::Authored(namespace) => {
+                            namespace
+                                .as_bytes()
+                                .strip_prefix(b"::")
+                                .unwrap_or(namespace.as_bytes())
+                                == selected.selected()
+                        }
+                        _ => false,
+                    },
+                    |object| object.as_bytes() == selected.selected(),
+                )
+            });
+            let first = candidates.next()?.clone();
+            return candidates.next().is_none().then_some(first);
+        }
+        let path = protocol
+            .namespace_address_path(
+                tcl_syntax::naming::NativeNameContext::new(current_path),
+                input.bytes(),
+            )
+            .ok()?;
+        self.identity_for_variable_path(&path, protocol)
+    }
+
     /// Closed absence of the original candidate table, distinct from absent variable contents.
     pub(super) fn namespace_candidate_absent(&self, name: &str, global: bool) -> bool {
         if !self.namespace_inventory.is_closed() {
@@ -192,6 +268,21 @@ impl ResolveContext {
             );
         };
         if let SourceNamespaceKey::Authored(namespace) = current {
+            if let Some(protocol) = self.namespace_name_protocol {
+                let identity = if global {
+                    self.identity_for_variable_path(&ByteNamespacePath::root(), protocol)
+                } else {
+                    Some(current.clone())
+                };
+                return identity.map_or_else(place::unknown_top, |identity| {
+                    self.namespace_place_bytes_in_identity(
+                        name.as_bytes(),
+                        &identity,
+                        observed,
+                        protocol,
+                    )
+                });
+            }
             return authored_namespace_place(name, if global { "::" } else { namespace }, observed);
         }
         let identity = if global {
@@ -218,35 +309,77 @@ impl ResolveContext {
         let Some(protocol) = self.namespace_name_protocol else {
             return place::unknown_top();
         };
-        let selected = protocol.variable_root_input(name.as_bytes());
-        let Ok(selected_name) = selected.try_utf8() else {
+        self.namespace_place_bytes_in_identity(name.as_bytes(), namespace, observed, protocol)
+    }
+    /// Select an exact runtime namespace root without interpreting a Unicode label.
+    pub(super) fn namespace_place_bytes_in_identity(
+        &self,
+        name: &[u8],
+        namespace: &SourceNamespaceKey,
+        observed: bool,
+        protocol: NativeNameProtocol,
+    ) -> Place {
+        if self.observed_variable_storage_unavailable() {
+            return place::unknown_top();
+        }
+        let authored_path;
+        let current_path = if let Some(path) = namespace.exact_native_path() {
+            path
+        } else if let SourceNamespaceKey::Authored(scope) = namespace {
+            authored_path = if protocol.is_jim084() {
+                ByteNamespacePath::root()
+            } else {
+                let Ok(path) = protocol.namespace_address_path(
+                    tcl_syntax::naming::NativeNameContext::root(),
+                    scope.as_bytes(),
+                ) else {
+                    return place::unknown_top();
+                };
+                path
+            };
+            &authored_path
+        } else {
             return place::unknown_top();
         };
-        let Some(current_path) = namespace.exact_native_path() else {
-            let SourceNamespaceKey::Authored(namespace) = namespace else {
-                return place::unknown_top();
-            };
-            return authored_namespace_place(selected_name, namespace, observed);
-        };
+        let selected = protocol.variable_root_input(name);
         let (path, simple) = if protocol.is_jim084() {
-            let Some(object) = self.namespace_objects.get(namespace) else {
+            let object;
+            let namespace_object = if let Some(value) = self.namespace_objects.get(namespace) {
+                value.as_bytes()
+            } else if let SourceNamespaceKey::Authored(scope) = namespace {
+                // This is explicit authored namespace metadata, not a native object issuer.
+                object = scope
+                    .as_bytes()
+                    .strip_prefix(b"::")
+                    .unwrap_or(scope.as_bytes())
+                    .to_vec();
+                object.as_slice()
+            } else {
                 return place::unknown_top();
             };
             let mut rooted = b"::".to_vec();
-            rooted.extend_from_slice(object.as_bytes());
-            let key = tcl_syntax::naming::jim_global_variable_key_bytes(
-                &rooted,
-                selected_name.as_bytes(),
-            );
-            let Ok(simple) = String::from_utf8(key) else {
-                return place::unknown_top();
-            };
-            (ByteNamespacePath::root(), simple)
+            rooted.extend_from_slice(namespace_object);
+            (
+                ByteNamespacePath::root(),
+                tcl_syntax::naming::jim_global_variable_key_bytes(&rooted, selected.selected())
+                    .into(),
+            )
         } else {
-            let Some(parts) = c_variable_parts(protocol, current_path, selected_name) else {
-                return place::unknown_top();
-            };
-            parts
+            match protocol.variable_root_geometry(
+                tcl_syntax::naming::NativeNameContext::new(current_path),
+                name,
+            ) {
+                tcl_syntax::naming::NativeVariableRootGeometry::Local(simple) => {
+                    (current_path.clone(), simple)
+                }
+                tcl_syntax::naming::NativeVariableRootGeometry::CNamespace {
+                    namespace,
+                    simple,
+                } => (namespace, simple),
+                tcl_syntax::naming::NativeVariableRootGeometry::JimAbsolute(_) => {
+                    return place::unknown_top();
+                }
+            }
         };
         let unqualified_current = !protocol.is_jim084()
             && selected.qualification() != NativeNameQualification::Absolute
@@ -254,24 +387,51 @@ impl ResolveContext {
         let identity = if unqualified_current {
             Some(namespace.clone())
         } else {
-            self.identity_for_path(&path)
+            self.identity_for_variable_path(&path, protocol)
         };
         let Some(identity) = identity else {
             return place::unknown_top();
         };
-        let Some(display) = identity.display() else {
-            return place::unknown_top();
-        };
-        let mut bound = place::scalar(&simple, display, observed);
+        let label = identity.display().unwrap_or_default();
+        let mut bound = place::scalar(simple.try_utf8().unwrap_or_default(), label, observed);
         bound.cell = Some(CellIdentity {
             owner: CellOwner::NamespaceIdentity(Box::new(identity)),
-            name: simple.clone(),
+            name: simple,
             generation: CellGeneration::Incoming,
             interpreter: self.interpreter.clone(),
             storage_domain: None,
             execution: self.execution,
         });
         bound
+    }
+
+    pub(super) fn identity_for_variable_path(
+        &self,
+        path: &ByteNamespacePath,
+        protocol: NativeNameProtocol,
+    ) -> Option<SourceNamespaceKey> {
+        let mut candidates = self
+            .namespace_addressable_identities
+            .iter()
+            .filter(|identity| {
+                if let Some(original) = identity.exact_native_path() {
+                    return original == path;
+                }
+                let SourceNamespaceKey::Authored(scope) = identity else {
+                    return false;
+                };
+                if protocol.is_jim084() {
+                    return path.is_root() && scope == "::";
+                }
+                protocol
+                    .namespace_address_path(
+                        tcl_syntax::naming::NativeNameContext::root(),
+                        scope.as_bytes(),
+                    )
+                    .is_ok_and(|original| original == *path)
+            });
+        let first = candidates.next()?.clone();
+        candidates.next().is_none().then_some(first)
     }
 }
 
@@ -280,22 +440,17 @@ fn c_variable_parts(
     current: &ByteNamespacePath,
     name: &str,
 ) -> Option<(ByteNamespacePath, String)> {
-    let selected = protocol.variable_root_input(name.as_bytes());
-    let mut path = if selected.qualification() == NativeNameQualification::Absolute {
-        ByteNamespacePath::root()
-    } else {
-        current.clone()
+    let (namespace, simple) = match protocol.variable_root_geometry(
+        tcl_syntax::naming::NativeNameContext::new(current),
+        name.as_bytes(),
+    ) {
+        tcl_syntax::naming::NativeVariableRootGeometry::Local(simple) => (current.clone(), simple),
+        tcl_syntax::naming::NativeVariableRootGeometry::CNamespace { namespace, simple } => {
+            (namespace, simple)
+        }
+        tcl_syntax::naming::NativeVariableRootGeometry::JimAbsolute(_) => return None,
     };
-    let parts = tcl_syntax::naming::qualifier_segments(selected.selected());
-    let simple = std::str::from_utf8(tcl_syntax::naming::written_command_tail(
-        selected.selected(),
-    ))
-    .ok()?;
-    let count = parts.len().saturating_sub(usize::from(!simple.is_empty()));
-    for part in &parts[..count] {
-        path.push(*part);
-    }
-    Some((path, simple.to_owned()))
+    Some((namespace, simple.try_utf8().ok()?.to_owned()))
 }
 
 fn authored_static_cell_owner(cell: &CellIdentity) -> Option<&SourceNamespaceKey> {

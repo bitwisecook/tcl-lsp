@@ -35,6 +35,14 @@ impl SourceCommandObserver {
 }
 
 impl SourceCommandObservers {
+    /// No retained command observer, pending mutation or active callback.
+    pub(super) fn is_quiet(&self) -> bool {
+        self.registrations.is_empty()
+            && self.pending_mutations.is_empty()
+            && self.firing.is_empty()
+            && self.active_steps.is_empty()
+    }
+
     pub(super) fn join(&mut self, other: &Self) -> bool {
         let previous = self.clone();
         let mut registrations = Vec::new();
@@ -175,9 +183,7 @@ impl ModuleCommandBindings {
             return vec![None];
         };
         for slot in slots {
-            let bindings = self.bindings.get(&slot).cloned().unwrap_or_else(|| {
-                Self::unmodified_bindings(&slot, self.baseline.semantics.binding_names())
-            });
+            let bindings = self.binding_alternatives(&slot);
             for binding in &bindings {
                 let identity = match binding {
                     super::MayBinding::Target(target) => target.token.clone(),
@@ -725,6 +731,60 @@ impl SourceCommandBindings {
         outcomes
     }
 
+    pub(super) fn walk_reached_original_callback_prefix(
+        &mut self,
+        site: u32,
+        prefix: Option<&crate::signature_scan::scope::SignatureSourceNameInput>,
+        arguments: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let Some(callback) = original_trace_callback_words(prefix, &state.source_variables) else {
+            return super::opaque_source_invocation(state);
+        };
+        let namespace = context.namespace_identity();
+        let Some(target) =
+            super::source_binding_from_original_input(state, &callback.inputs[0], &namespace)
+                .and_then(|binding| {
+                    binding
+                        .proved_handler_target()
+                        .filter(|target| !target.registry_backed)
+                        .cloned()
+                })
+        else {
+            return super::opaque_source_invocation(state);
+        };
+        let mut words = callback.words;
+        words.extend_from_slice(arguments);
+        let mut outcomes = self.walk_document_target(
+            site,
+            None,
+            &words,
+            state,
+            &target,
+            SourceExecutionContext {
+                namespace_key: Some(&namespace),
+                depth: context.depth + 1,
+                compilation: callback.compilation,
+                config: callback.config,
+                selected_compilation: None,
+                original_variable_compilation: None,
+                written_arguments: None,
+                written_name_values: None,
+                written_representations: None,
+                written_objects: None,
+                written_method_prefixes: None,
+                written_variable_reads: None,
+                ..context
+            },
+        );
+        outcomes.normal_value = None;
+        outcomes.normal_name_value = None;
+        outcomes.normal_representation = None;
+        outcomes.publish(state);
+        outcomes
+    }
+
     pub(super) fn walk_reached_callback_prefix(
         &mut self,
         site: u32,
@@ -767,6 +827,7 @@ impl SourceCommandBindings {
         words.extend_from_slice(arguments);
         let mut outcomes = self.walk_document_target(
             site,
+            None,
             &words,
             state,
             &target,
@@ -783,6 +844,96 @@ impl SourceCommandBindings {
         outcomes.publish(state);
         outcomes
     }
+}
+
+/// A list projection is admitted only when the actual counted callback script,
+/// with one appended quoted operand, has the same single static command. This
+/// excludes substitutions, comments, separators and expansion that change argv.
+pub(super) struct OriginalTraceCallbackWords {
+    pub(super) inputs: Vec<crate::signature_scan::scope::SignatureSourceNameInput>,
+    words: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    compilation: tcl_registry::native_compilation::NativeCompilationContext,
+    config: tcl_lexer::LexerConfig,
+}
+
+fn original_trace_callback_words(
+    prefix: Option<&crate::signature_scan::scope::SignatureSourceNameInput>,
+    variables: &crate::var_resolve::ResolveContext,
+) -> Option<OriginalTraceCallbackWords> {
+    original_trace_callback_words_for_target(prefix, variables, OriginalTraceCallbackKind::Variable)
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum OriginalTraceCallbackKind {
+    Variable,
+    Command,
+    Execution,
+}
+
+pub(super) fn original_trace_callback_words_for_target(
+    prefix: Option<&crate::signature_scan::scope::SignatureSourceNameInput>,
+    variables: &crate::var_resolve::ResolveContext,
+    kind: OriginalTraceCallbackKind,
+) -> Option<OriginalTraceCallbackWords> {
+    let prefix = prefix?;
+    prefix.is_current(variables).then_some(())?;
+    let dialect = variables.invocation_dialect?;
+    original_trace_callback_words_in_dialect(prefix, dialect, kind)
+}
+
+pub(super) fn original_trace_callback_words_in_dialect(
+    prefix: &crate::signature_scan::scope::SignatureSourceNameInput,
+    dialect: tcl_registry::InvocationDialect,
+    kind: OriginalTraceCallbackKind,
+) -> Option<OriginalTraceCallbackWords> {
+    const SUFFIX: &[u8] = b"__tcl_lsp_trace_suffix__";
+    (dialect.native_string_protocol() == Some(prefix.policy().string_protocol())).then_some(())?;
+    let protocol = dialect.native_variable_trace_protocol()?;
+    let actual = tcl_registry::InvocationDialect::for_version(protocol.version());
+    let config = tcl_lexer::LexerConfig::from_grammar(actual.lexer_grammar);
+    let inputs = prefix.original_list_elements()?;
+    if inputs.is_empty() {
+        return None;
+    }
+    let mut source = prefix.bytes().to_vec();
+    source.push(b' ');
+    source.extend_from_slice(SUFFIX);
+    let source = match kind {
+        OriginalTraceCallbackKind::Variable => protocol.variable_callback_source(&source),
+        OriginalTraceCallbackKind::Command => protocol.command_callback_source(false, &source),
+        OriginalTraceCallbackKind::Execution => protocol.command_callback_source(true, &source),
+    };
+    let image = tcl_lexer::SourceImage::native(source);
+    let extent = tcl_lexer::Span::new(0, u32::try_from(image.len()).ok()?);
+    let plan = tcl_lexer::native_script_words_in(image, extent, config).ok()?;
+    if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+        return None;
+    }
+    let command = &plan.commands[0];
+    if command.words.len() != inputs.len() + 1
+        || command.words.iter().any(|word| word.group().expand)
+    {
+        return None;
+    }
+    let native = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+        &command.words,
+        prefix.policy().string_protocol(),
+    )
+    .ok()?;
+    for (ordinal, input) in inputs.iter().enumerate() {
+        (native.literal(ordinal) == Some(input.bytes())).then_some(())?;
+    }
+    (native.literal(inputs.len()) == Some(SUFFIX)).then_some(())?;
+    let words = inputs
+        .iter()
+        .map(|input| crate::registry_invocation::EffectiveInvocationWord::from_bytes(input.bytes()))
+        .collect();
+    Some(OriginalTraceCallbackWords {
+        inputs,
+        words,
+        compilation: protocol.callback_compilation(),
+        config,
+    })
 }
 
 #[cfg(test)]
@@ -814,6 +965,71 @@ mod tests {
             .invocation_at_source("llength", u32::try_from(offset).unwrap())
             .proved_handler_target()
             .is_some_and(|target| target.registry_backed && target.command == "::llength")
+    }
+
+    #[test]
+    fn original_trace_prefix_projection_requires_actual_script_argv_equivalence() {
+        // Implementation contract: naming.source.readonly-original-operand-projections (docs/design/analysis/name-resolution-proofs/readonly-original-operand-projections.md).
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            let registry = tcl_registry::CommandRegistry::build_default();
+            for (prefix, accepted) in [
+                ("callback {baked value}", true),
+                ("callback", true),
+                ("callback; other", false),
+                ("callback;", false),
+                ("callback\n", false),
+                ("# ignored\ncallback", false),
+                ("$command baked", false),
+                ("callback [list value]", false),
+            ] {
+                let source = format!("list {{{prefix}}}");
+                let bindings = SourceCommandBindings::analyse_with_options(
+                    &source,
+                    config,
+                    &registry,
+                    SourceAnalysisOptions {
+                        invocation_dialect: Some(dialect),
+                        native_compilation: NativeCompilationContext {
+                            mode: NativeCompilationMode::Direct,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
+                );
+                let segment =
+                    crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config)
+                        .remove(0);
+                let tokens = crate::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceMap::new(&source),
+                    config,
+                    &segment,
+                );
+                let binding = bindings.invocation_at_source("list", 0);
+                let input = binding.original_written_name_input(&tokens, 1).unwrap();
+                let copied = crate::signature_scan::scope::SignatureSourceNameValue::copied_variable_trace_prefix(&input, &binding.variable_context).unwrap();
+                let copied =
+                    crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(copied);
+                let projected =
+                    super::original_trace_callback_words(Some(&copied), &binding.variable_context);
+                assert_eq!(projected.is_some(), accepted, "{version:?}: {prefix:?}");
+                if let Some(projected) = projected {
+                    assert_eq!(projected.inputs[0].bytes(), b"callback");
+                    assert!(
+                        projected
+                            .inputs
+                            .iter()
+                            .all(|input| input.original_word_key().is_none())
+                    );
+                    assert_eq!(projected.compilation.mode, NativeCompilationMode::Direct);
+                    assert!(
+                        super::original_trace_callback_words(None, &binding.variable_context)
+                            .is_none()
+                    );
+                }
+            }
+        }
     }
 
     #[test]

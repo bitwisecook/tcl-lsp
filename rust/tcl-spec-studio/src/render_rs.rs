@@ -139,6 +139,16 @@ fn index_slice(values: &[Value]) -> String {
     format!("&[{}]", items.join(", "))
 }
 
+fn variable_receivers_expr(values: &[Value]) -> String {
+    let Some(selected) = draft::selected_variable_receivers(values) else {
+        return "VARIABLE_RECEIVERS_REQUIRE_UNIQUE_U8_INDICES_AND_VALID_FORMS".to_owned();
+    };
+    let rows = selected.iter().map(|(index, form)| {
+        format!("({index}, tcl_registry::resolved_invocation::VariableReceiverOperandForm::{form:?})")
+    }).collect::<Vec<_>>();
+    format!("Some(&[{}])", rows.join(", "))
+}
+
 /// Render a slice of catalogue enum variants such as `&[ArgRole::Body]`.
 fn enum_slice(ty: &str, values: &[Value]) -> String {
     let items: Vec<String> = values
@@ -792,6 +802,12 @@ fn command_form_expr(entry: &Value, indent: &str) -> String {
     if !roles.is_empty() {
         parts.push(format!("{inner}arg_roles: {},", role_map_expr(roles)));
     }
+    if let Some(receivers) = entry["variable_receivers"].as_array() {
+        parts.push(format!(
+            "{inner}variable_receivers: {},",
+            variable_receivers_expr(receivers)
+        ));
+    }
     let options = as_array(&entry["options"]);
     if !options.is_empty() {
         let opt_indent = format!("{inner}    ");
@@ -891,6 +907,12 @@ fn sub_subcommand_expr(entry: &Value, indent: &str) -> String {
             parts.push(format!("{indent}    {key}: {},", rust_string(text)));
         }
     }
+    if let Some(prefix) = entry["option_prefix_words"]
+        .as_u64()
+        .filter(|prefix| *prefix > 0)
+    {
+        parts.push(format!("{indent}    option_prefix_words: {prefix},"));
+    }
     parts.extend(dialects_line(entry, indent));
     if let Some(lifecycle) = lifecycle_expr(entry) {
         parts.push(format!("{indent}    lifecycle: {lifecycle},"));
@@ -927,6 +949,9 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
     if value == default {
         return None;
     }
+    if field.key == "variable_receivers" {
+        return Some(variable_receivers_expr(value.as_array()?));
+    }
     let expr = match field.kind {
         FieldKind::Bool => as_bool(value).to_string(),
         FieldKind::OptBool => format!("Some({})", value.as_bool()?),
@@ -937,6 +962,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::TextList => str_slice(as_array(value)),
         FieldKind::IndexList => index_slice(as_array(value)),
         FieldKind::OptIndexList => format!("Some({})", index_slice(value.as_array()?)),
+        FieldKind::VariableReceivers => variable_receivers_expr(value.as_array()?),
         FieldKind::Enum {
             catalogue,
             optional,
@@ -1012,6 +1038,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "argRole" => "ArgRole",
         "tclType" => "TclType",
         "bodyKind" => "BodyKind",
+        "scriptLookupScope" => "ScriptLookupScope",
         "storageType" => "StorageType",
         "byteArrayEffect" => "ByteArrayEffect",
         "commandTableEffect" => "CommandTableEffect",
@@ -1030,6 +1057,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "taintColour" => "TaintColour",
         "dialects" => "&'static [SpecSurface]",
         "defaultFormFirstWord" => "DefaultFormFirstWord",
+        "sourceDeprecationAdvice" => "SourceDeprecationAdvice",
         "prefixMatching" => "PrefixMatching",
         "optionPlacement" => "OptionPlacement",
         _ => "Unknown",

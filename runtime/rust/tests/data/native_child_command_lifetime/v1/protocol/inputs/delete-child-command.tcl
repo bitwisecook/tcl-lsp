@@ -1,0 +1,1 @@
+interp create kid; rename kid {}; list [interp slaves] [info commands kid]

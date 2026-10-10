@@ -160,6 +160,53 @@ impl DeclaredCommand {
         self.declaration.provenance
     }
 
+    /// Complete argument-count contract supplied by the declaration itself.
+    /// This metadata supplies no successful execution or builtin behaviour.
+    #[must_use]
+    pub fn source_arity(&self) -> Option<crate::Arity> {
+        // naming.source.original-declared-command-word-contract
+        // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
+        let required = self
+            .arguments
+            .iter()
+            .filter(|argument| !argument.optional)
+            .count();
+        let maximum = u16::try_from(self.arguments.len()).ok()?;
+        if maximum == crate::Arity::UNLIMITED {
+            return None;
+        }
+        Some(crate::Arity::new(u16::try_from(required).ok()?, maximum))
+    }
+
+    /// Effective post-head roles under the same optional-slot convention as
+    /// `arg_indices_for_role`. Invalid counts have no complete source layout.
+    #[must_use]
+    pub fn supplied_argument_roles(&self, supplied: usize) -> Option<Vec<(usize, ArgRole)>> {
+        // naming.source.original-declared-command-word-contract
+        // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
+        let arity = self.source_arity()?;
+        if !arity.accepts(u16::try_from(supplied).ok()?) {
+            return None;
+        }
+        let mut roles = self
+            .arguments
+            .iter()
+            .map(|argument| argument.role)
+            .collect::<Vec<_>>();
+        roles.sort_by_key(|role| *role as u8);
+        roles.dedup();
+        let mut result = roles
+            .into_iter()
+            .flat_map(|role| {
+                self.arg_indices_for_role(role, supplied)
+                    .into_iter()
+                    .map(move |index| (index, role))
+            })
+            .collect::<Vec<_>>();
+        result.sort_by_key(|&(index, _)| index);
+        Some(result)
+    }
+
     /// The 0-based indices **into a call's own post-head argument list**
     /// whose declared role is `role`, for a call supplying `supplied` words.
     ///

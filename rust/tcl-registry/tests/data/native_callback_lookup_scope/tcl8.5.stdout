@@ -1,0 +1,6 @@
+provider 8.5.19
+lsort 0 {b a} {A 1 ::A}
+after 0 {} {ROOT 1 ::}
+trace 0 VALUE {B 1 ::B}
+command-trace 0 {} {B 1 ::B}
+execution-trace 0 VALUE {B 1 ::B}

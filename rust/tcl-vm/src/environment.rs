@@ -112,6 +112,13 @@ pub(crate) fn release_subcommands(
     command: &'static str,
     table: &[&'static str],
 ) -> &'static [&'static str] {
+    if command == "info" {
+        let dialect =
+            tcl_registry::InvocationDialect::of_profile(profile_for_dialect(dialect_name));
+        if let Some(names) = dialect.native_jim_info_member_names() {
+            return names;
+        }
+    }
     let cache = release_subcommand_cache();
     if let Some((_, _, hit)) = cache
         .lock()

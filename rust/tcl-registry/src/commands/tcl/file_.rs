@@ -44,6 +44,7 @@ macro_rules! named_file_compiler {
                     },
                 ],
                 implementation_from: tcl_dialect::TclVersion::V8_6,
+                monolithic_no_hook_before: false,
             },
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,

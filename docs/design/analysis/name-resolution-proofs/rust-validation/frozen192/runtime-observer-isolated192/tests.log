@@ -1,0 +1,3 @@
+
+running 1 test
+test interp::native_variable_observers::tests::direct_native_registration_is_hidden_and_retires_with_the_actual_cell ... malloc(): unaligned tcache chunk detected

@@ -22,21 +22,23 @@
 //! This is the shared, consumer-agnostic home for the diagram shape. The
 //! `tcl diagram` CLI verb, the LSP server, `tcl-mcp` and the BIG-IP report
 //! (through its `PyO3` facade) all build the *same* tree from this one
-//! implementation. Callers supply a resolved
-//! [`CommandRegistry`]; the only registry dependency is the `DIAGRAM_ACTION`
-//! trait (`CommandRegistry::is_diagram_action`).
+//! implementation. Callers supply the actual [`CommandRegistry`] and source
+//! profile. Original declaration allocations and typed event descriptors select
+//! source cards; labels supply no lookup, event or completion authority.
 
 use std::collections::{HashMap, HashSet};
 
 use serde_json::{Map, Value, json};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
 use tcl_compiler::interprocedural::{namespace_parts_from_proc, resolve_internal_call};
 use tcl_compiler::ir::{
-    CommandTokens, Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name,
+    CommandTokens, Module, Procedure, Script, Statement, SwitchArm, TryHandler,
 };
-use tcl_compiler::realm::{CommandBindingRealm, RealmBinding, document_realm_bindings};
+use tcl_compiler::realm::{CommandBindingRealm, RealmBinding};
 use tcl_compiler::registry_invocation::effective_command_arguments;
+use tcl_lexer::SourceImage;
 use tcl_registry::CommandRegistry;
 use tcl_registry::InvocationArguments;
 use tcl_registry::events::EventRegistry;
@@ -50,14 +52,16 @@ const MAX_ARG_LEN: usize = 60;
 
 /// The semantic context shared by every recursive diagram projection walk.
 ///
-/// Procedure declarations are indexed by their qualified identity, and calls
-/// are resolved through the compiler's shared Tcl namespace resolver. Command
-/// table mutations stay source-position-sensitive through `identities`, so a
-/// rebinding cannot accidentally be serialised using a stale registry command.
+/// Original procedure declarations and call allocations come from the shared
+/// source graph owner. The explicitly selected lexical compatibility view
+/// retains its independent resolver; printed names are labels in all views.
 struct DiagramContext<'a> {
     procedure_names: &'a HashSet<String>,
     identities: &'a CommandBindingRealm,
     registry: &'a CommandRegistry,
+    source: &'a str,
+    analysis: &'a AnalysisResult,
+    availability: &'a tcl_registry::model::ContextRegistry,
 }
 
 /// A statically-known Tcl completion carried by the diagram JSON contract.
@@ -112,7 +116,33 @@ fn command_completion(
     args: &[String],
     tokens: Option<&CommandTokens>,
     registry: &CommandRegistry,
+    original: bool,
 ) -> DiagramCompletion {
+    if original {
+        let Some(tokens) = tokens else {
+            return DiagramCompletion::Normal;
+        };
+        let Some(selected) =
+            tcl_compiler::registry_invocation::resolved_tokens_invocation(registry, None, tokens)
+        else {
+            return DiagramCompletion::Normal;
+        };
+        let (knowledge, coarse) = selected.with_argument_words(|words| {
+            (
+                registry.invocation_completion_knowledge(
+                    &selected.facts.canonical_command,
+                    words.arguments(),
+                    None,
+                ),
+                registry.invocation_completion_words(
+                    &selected.facts.canonical_command,
+                    words.arguments(),
+                    None,
+                ),
+            )
+        });
+        return completion_from_metadata(knowledge, coarse);
+    }
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let effective = tokens.map(|tokens| {
         effective_command_arguments(
@@ -138,6 +168,16 @@ fn command_completion(
             .exact_invocation_completion(command, &arg_refs, None)
             .map(InvocationCompletionKnowledge::Exact)
     };
+    completion_from_metadata(
+        knowledge,
+        registry.invocation_completion(command, &arg_refs, None),
+    )
+}
+
+fn completion_from_metadata(
+    knowledge: Option<InvocationCompletionKnowledge>,
+    coarse: InvocationCompletion,
+) -> DiagramCompletion {
     if let Some(InvocationCompletionKnowledge::Exact(completion)) = knowledge {
         return match completion {
             ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Ok) => {
@@ -172,7 +212,7 @@ fn command_completion(
             | InvocationCompletionKnowledge::CatchableExitOrError => DiagramCompletion::Dynamic,
         };
     }
-    match registry.invocation_completion(command, &arg_refs, None) {
+    match coarse {
         InvocationCompletion::ReturnsResult(_) => DiagramCompletion::Return,
         InvocationCompletion::Terminates => DiagramCompletion::Terminal,
         // Dynamic completion options are not enough evidence to draw a
@@ -291,6 +331,66 @@ fn action_node(display: &str, args: &[String]) -> Value {
     })
 }
 
+// Source-card metadata is selected independently of the printed action label.
+fn original_action_source(mut node: Value, at: u32, context: &DiagramContext<'_>) -> Value {
+    let Some(input) = context.analysis.resolved_input.as_ref() else {
+        return node;
+    };
+    let segment = if context.analysis.has_original_vendor_source_names() {
+        let Some((_, segment)) =
+            tcl_compiler::registry_invocation::source_structure::selected_vendor_registry_words_at(
+                context.source,
+                context.analysis,
+                at,
+            )
+        else {
+            return node;
+        };
+        segment
+    } else {
+        let Some(tail) = context.source.get(at as usize..) else {
+            return node;
+        };
+        let Some(segment) = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            tail,
+            at,
+            input.lexer_config(),
+        )
+        .into_iter()
+        .next() else {
+            return node;
+        };
+        segment
+    };
+    if segment.span.start() != at {
+        return node;
+    }
+    let Some(words) = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        context.source,
+        context.analysis,
+        &segment,
+    ) else {
+        return node;
+    };
+    if !words.matches_registry(context.registry)
+        || words.context() != Some(context.availability.context())
+    {
+        return node;
+    }
+    if let Some(object) = node.as_object_mut() {
+        object.insert(
+            "source_span".to_owned(),
+            json!([segment.span.start(), segment.span.end()]),
+        );
+        object.insert(
+            "source_schema".to_owned(),
+            json!({"command": words.command(), "applicability": "conditional-source",
+            "obligations": ["runtime-path-reachability", "observed-terminal-outcome"]}),
+        );
+    }
+    node
+}
+
 /// Add the optional completion field to an action-like node.
 fn with_completion(mut node: Value, completion: DiagramCompletion) -> Value {
     if let Some(completion_str) = completion.as_str()
@@ -306,18 +406,46 @@ fn with_completion(mut node: Value, completion: DiagramCompletion) -> Value {
 
 /// The registry command a source head denotes at one exact source position.
 ///
-/// The lowerer carries a canonical command for its alias table, but registry
-/// consumers must also honour an offset-aware `rename`, `interp alias`, or
-/// user-procedure rebind. A proven source identity takes precedence; otherwise
-/// keep the lowerer's canonical alias target for user-defined aliases. Its
-/// final lookup still uses the caller namespace, just like a procedure call.
+/// Original consumers use authentic retained tokens and the shared Registry
+/// assistance owner; hosted source retains its separate guarded schema. The
+/// explicitly selected lexical branch uses its position-sensitive resolver.
+/// A presentation command cannot restore a missing original lookup.
 fn registry_command(
     command: &str,
     canonical_command: Option<&str>,
     caller_qname: &str,
     at: u32,
+    tokens: Option<&CommandTokens>,
     context: &DiagramContext<'_>,
 ) -> Option<String> {
+    if !context.analysis.allows_lexical_declaration_advice() {
+        if context.analysis.has_original_vendor_source_names() {
+            // Implementation contract: naming.consumer.original-irules-source-context
+            // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
+            // A readonly source card uses the same sealed original vector as
+            // its source geometry. IR execution tokens retain their own purpose.
+            let (selected, segment) = tcl_compiler::registry_invocation::source_structure::selected_vendor_registry_words_at(
+                context.source, context.analysis, at,
+            )?;
+            let config = context.analysis.body_lexer_config?;
+            if segment.span.start() != at
+                || !selected.matches_source(&SourceImage::document(context.source), config)
+                || !selected.matches_registry(context.registry)
+                || selected.shape().context() != context.availability.context()
+            {
+                return None;
+            }
+            return Some(selected.shape().command().to_owned());
+        }
+        let tokens = tokens?;
+        let assistance =
+            tcl_compiler::registry_invocation::original_registry_invocation_assistance(
+                context.registry,
+                None,
+                tokens,
+            )?;
+        return Some(assistance.unanimous_command_words()?.command().to_owned());
+    }
     let command = match context.identities.resolve(command, at) {
         RealmBinding::Command(resolved) if resolved != command => resolved,
         RealmBinding::Rebound => return None,
@@ -353,6 +481,9 @@ fn is_procedure_call(
     at: u32,
     context: &DiagramContext<'_>,
 ) -> bool {
+    if !context.analysis.allows_lexical_declaration_advice() {
+        return original_procedure_target_at(at, context).is_some();
+    }
     if matches!(context.identities.resolve(command, at), RealmBinding::Command(resolved) if resolved != command)
     {
         return false;
@@ -363,6 +494,37 @@ fn is_procedure_call(
         context.procedure_names,
     )
     .is_some()
+}
+
+/// Unique source declaration allocation at this authentic current call site.
+/// The returned ordinal indexes readonly diagram cards, not native dispatch.
+fn original_procedure_target_at(at: u32, context: &DiagramContext<'_>) -> Option<usize> {
+    let mut targets = context
+        .analysis
+        .original_procedure_declarations()
+        .enumerate()
+        .filter_map(|(ordinal, declaration)| {
+            context
+                .analysis
+                .command_invocations
+                .iter()
+                .any(|invocation| {
+                    invocation.range.start() == at
+                        && invocation.lookup.is_execution_site()
+                        && tcl_compiler::source_graph::invocation_targets_declaration_in(
+                            context.source,
+                            context.analysis,
+                            context.source,
+                            context.analysis,
+                            invocation,
+                            declaration,
+                            true,
+                        )
+                })
+                .then_some(ordinal)
+        });
+    let first = targets.next()?;
+    targets.next().is_none().then_some(first)
 }
 
 /// Build the `switch` flow-node dict from its subject, arms and default body.
@@ -504,7 +666,7 @@ fn walk_call(
     let canonical = canonical_command.unwrap_or(command);
     let display = command;
     // Skip the top-level `when` calls — their bodies are in procedures.
-    if canonical == "::when" {
+    if context.analysis.allows_lexical_declaration_advice() && canonical == "::when" {
         return None;
     }
     // Procedure calls.
@@ -513,13 +675,29 @@ fn walk_call(
             "kind": "proc_call",
             "label": format!("call {display}"),
             "command": display,
+            "declaration_id": (!context.analysis.allows_lexical_declaration_advice())
+                .then(|| original_procedure_target_at(at, context))
+                .flatten().map(|ordinal| format!("declaration-{ordinal}")),
         }));
     }
-    let registry_command = registry_command(command, canonical_command, caller_qname, at, context);
+    let registry_command = registry_command(
+        command,
+        canonical_command,
+        caller_qname,
+        at,
+        tokens,
+        context,
+    );
     let completion = registry_command
         .as_deref()
         .map_or(DiagramCompletion::Normal, |command| {
-            command_completion(command, args, tokens, context.registry)
+            command_completion(
+                command,
+                args,
+                tokens,
+                context.registry,
+                !context.analysis.allows_lexical_declaration_advice(),
+            )
         });
     // Keep an exact non-normal completion visible even when it is not a
     // diagram action (for example `error` / `throw`), so a surrounding try
@@ -530,7 +708,10 @@ fn walk_call(
         .is_some_and(|command| context.registry.is_diagram_action(command))
         || completion != DiagramCompletion::Normal
     {
-        return Some(with_completion(action_node(display, args), completion));
+        return Some(with_completion(
+            original_action_source(action_node(display, args), at, context),
+            completion,
+        ));
     }
     None
 }
@@ -617,6 +798,54 @@ fn return_node(value: Option<&String>) -> Value {
     json!({ "kind": "return", "label": label, "completion": "return" })
 }
 
+/// Project a barrier's retained Registry action and exact completion metadata.
+fn walk_barrier(
+    statement: &Statement,
+    caller_qname: &str,
+    context: &DiagramContext<'_>,
+) -> Option<Value> {
+    let Statement::Barrier {
+        span,
+        command,
+        canonical_command,
+        args,
+        tokens,
+        ..
+    } = statement
+    else {
+        return None;
+    };
+    let registry_command = registry_command(
+        command,
+        canonical_command.as_deref(),
+        caller_qname,
+        span.start(),
+        tokens.as_ref(),
+        context,
+    );
+    let completion = registry_command
+        .as_deref()
+        .map_or(DiagramCompletion::Normal, |command| {
+            command_completion(
+                command,
+                args,
+                tokens.as_ref(),
+                context.registry,
+                !context.analysis.allows_lexical_declaration_advice(),
+            )
+        });
+    (registry_command
+        .as_deref()
+        .is_some_and(|command| context.registry.is_diagram_action(command))
+        || completion != DiagramCompletion::Normal)
+        .then(|| {
+            with_completion(
+                original_action_source(action_node(command, args), span.start(), context),
+                completion,
+            )
+        })
+}
+
 /// Convert one IR statement to a flow-node dict, or `None` to skip it.
 /// One arm per IR statement kind, so the length tracks the statement set.
 fn walk_statement(
@@ -675,32 +904,7 @@ fn walk_statement(
             context,
         ),
 
-        Statement::Barrier {
-            span,
-            command,
-            canonical_command,
-            args,
-            tokens,
-            ..
-        } => {
-            let registry_command = registry_command(
-                command,
-                canonical_command.as_deref(),
-                caller_qname,
-                span.start(),
-                context,
-            );
-            let completion = registry_command
-                .as_deref()
-                .map_or(DiagramCompletion::Normal, |command| {
-                    command_completion(command, args, tokens.as_ref(), context.registry)
-                });
-            (registry_command
-                .as_deref()
-                .is_some_and(|command| context.registry.is_diagram_action(command))
-                || completion != DiagramCompletion::Normal)
-                .then(|| with_completion(action_node(command, args), completion))
-        }
+        Statement::Barrier { .. } => walk_barrier(stmt, caller_qname, context),
 
         Statement::Return { value, .. } => Some(return_node(value.as_ref())),
 
@@ -768,91 +972,168 @@ pub fn diagram_data_for_dialect(
     registry: &CommandRegistry,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
-    let profile = dialect;
-    let cu = CompilationUnit::build_for_profile(source, registry, false, profile);
-    let module = &cu.ir_module;
+    let availability = std::sync::Arc::new(
+        tcl_registry::model::ingress::context_for_profile(dialect)
+            .with_command_store(registry.snapshot().shared_registry()),
+    );
+    let input = ResolvedAnalysisInput::new(
+        dialect,
+        dialect,
+        availability.clone(),
+        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+    );
+    let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
+    let mut analyser = Analyser::new().with_resolved_input(input);
+    analyser.set_cu_override(std::sync::Arc::new(cu.clone()));
+    let analysis = analyser.analyse(source, dialect.name);
+    diagram_data_for_analysis(source, &analysis, &cu.ir_module, &availability)
+}
 
-    // Recover the source-order dict iteration (the procedures map is a
-    // `HashMap`) by sorting on the defining-token offset.
+/// Procedure cards from the selected original metadata and lowering geometry.
+fn source_procedure_nodes(
+    regular_procs: &[(&String, &Procedure)],
+    module: &Module,
+    context: &DiagramContext<'_>,
+) -> Vec<Value> {
+    if context.analysis.allows_lexical_declaration_advice() {
+        regular_procs.iter().map(|(_, procedure)| json!({ "name": procedure.name,
+            "params": procedure.params, "flow": walk_script(&procedure.body, &procedure.qualified_name, context, 0) }))
+            .collect::<Vec<_>>()
+    } else if context.analysis.has_original_vendor_source_names() {
+        context.analysis.original_vendor_procedure_declarations().enumerate().map(|(ordinal, declaration)| {
+            let metadata = declaration.metadata();
+            let input = declaration.name_input();
+            let occurrence = declaration.original_occurrence();
+            let original_body = occurrence.original_words().last().filter(|word|
+                word.group().kind == tcl_lexer::WordKind::Braced
+                    && word.content_span().ok() == Some(metadata.body_span));
+            let body = regular_procs.iter().filter(|(_, procedure)|
+                original_body.is_some()
+                    && procedure.span.start() == occurrence.site().offset
+                    && procedure.body_offset == metadata.body_span.start()
+                    && procedure.body_source.as_deref() == context.source.get(
+                        metadata.body_span.start() as usize..metadata.body_span.end() as usize))
+                .collect::<Vec<_>>();
+            let flow = match body.as_slice() {
+                [(label, procedure)] => Some(walk_script(&procedure.body, label, context, 0)),
+                _ => None,
+            };
+            let name = tcl_syntax::native_string::resident_name_label(input.original_word().try_text().unwrap_or("").as_bytes());
+            json!({ "id": format!("declaration-{ordinal}"), "name": name,
+                "name_span": {"start": input.span().start(), "end": input.span().end()},
+                "params": metadata.params.iter().map(|parameter| &parameter.name).collect::<Vec<_>>(),
+                "flow": flow, "source_policy": "hosted" })
+        }).collect::<Vec<_>>()
+    } else {
+        context.analysis.original_procedure_declarations().enumerate().map(|(ordinal, declaration)| {
+            let metadata = declaration.metadata();
+            let flow = tcl_compiler::source_graph::procedure_body_for_declaration(context.source, context.analysis, module, declaration)
+                .map(|(label, procedure)| walk_script(&procedure.body, label, context, 0));
+            let name = declaration.name().source_spelling().unwrap_or_else(||
+                tcl_syntax::native_string::resident_name_label(declaration.name_input().bytes()));
+            let span = declaration.name_input().span();
+            json!({ "id": format!("declaration-{ordinal}"), "name": name,
+                "name_span": {"start": span.start(), "end": span.end()},
+                "params": metadata.params.iter().map(|parameter| &parameter.name).collect::<Vec<_>>(), "flow": flow })
+        }).collect::<Vec<_>>()
+    }
+}
+
+/// Structural source projection over independently retained current analysis
+/// and lowering. Original declaration IDs preserve equal display names; event
+/// descriptors select source handlers without granting worker or TMM entry.
+/// Unavailable source/configuration/Registry correspondence returns no tree.
+#[must_use]
+pub fn diagram_data_for_analysis(
+    source: &str,
+    analysis: &AnalysisResult,
+    module: &Module,
+    availability: &tcl_registry::model::ContextRegistry,
+) -> Value {
+    // Implementation contract: naming.consumer.original-structural-diagrams
+    // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
+    let registry = availability.commands();
+    let Some((image, config)) = tcl_compiler::source_graph::current_analysis(source, analysis)
+    else {
+        return json!({ "events": [], "procedures": [], "unavailable": "current-source" });
+    };
+    if module.source != image
+        || module.lexer_config != config
+        || module
+            .registry_snapshot
+            .as_ref()
+            .map(tcl_registry::RegistrySnapshot::semantic_key)
+            != Some(registry.snapshot().semantic_key())
+        || analysis.resolved_input.as_ref().is_none_or(|input| {
+            input.context_registry().context() != availability.context()
+                || input
+                    .context_registry()
+                    .commands()
+                    .snapshot()
+                    .semantic_key()
+                    != registry.snapshot().semantic_key()
+        })
+    {
+        return json!({ "events": [], "procedures": [], "unavailable": "current-source-context" });
+    }
     let mut items: Vec<(&String, &Procedure)> = module.procedures.iter().collect();
-    items.sort_by_key(|(_, proc)| proc.span.start());
-
-    let event_procs: Vec<(&String, &Procedure)> = items
+    items.sort_by_key(|(_, procedure)| procedure.span.start());
+    let regular_procs = items
         .iter()
         .copied()
-        .filter(|(key, _)| key.starts_with("::when::"))
-        .collect();
-    let regular_procs: Vec<(&String, &Procedure)> = items
+        .filter(|(label, procedure)| {
+            tcl_compiler::source_graph::event_body_for_procedure(module, label, procedure, registry)
+                .is_none()
+        })
+        .collect::<Vec<_>>();
+    let procedure_names = regular_procs
         .iter()
-        .copied()
-        .filter(|(key, _)| !key.starts_with("::when::"))
+        .map(|(_, procedure)| procedure.qualified_name.clone())
         .collect();
-
-    // User-defined procedure names for call detection. Keep qualified
-    // identities: Tcl's caller-namespace lookup selects the one that exists,
-    // and two namespaces may deliberately share a short procedure name.
-    let procedure_names: HashSet<String> = regular_procs
-        .iter()
-        .map(|(_, proc)| proc.qualified_name.clone())
-        .collect();
-    let identities = document_realm_bindings(source, dialect, registry);
     let context = DiagramContext {
         procedure_names: &procedure_names,
-        identities: &identities,
+        identities: analysis
+            .retained_command_realm()
+            .expect("current analysis retains its realm"),
         registry,
+        source,
+        analysis,
+        availability,
     };
-
     let event_registry = EventRegistry::build();
-
-    // Group handlers per event (source order), then stable-sort by priority.
     let mut handlers_by_event: HashMap<String, Vec<&Procedure>> = HashMap::new();
-    let mut unique_events: Vec<String> = Vec::new();
-    for (_, proc) in &event_procs {
-        let event = when_event_name(&proc.qualified_name).to_owned();
+    let mut unique_events = Vec::new();
+    for (label, procedure) in &items {
+        let Some(event) = tcl_compiler::source_graph::event_body_for_procedure(
+            module, label, procedure, registry,
+        ) else {
+            continue;
+        };
+        let event = event.event().to_owned();
         let entry = handlers_by_event.entry(event.clone()).or_default();
         if entry.is_empty() {
             unique_events.push(event);
         }
-        entry.push(proc);
+        entry.push(procedure);
     }
     for handlers in handlers_by_event.values_mut() {
-        handlers.sort_by_key(|p| p.base_priority);
+        handlers.sort_by_key(|procedure| procedure.base_priority);
     }
-
-    // Order events by canonical firing order.
-    let ordered = event_registry.order_events(&unique_events);
-
-    let mut events: Vec<Value> = Vec::new();
-    'outer: for event_name in ordered {
-        if let Some(handlers) = handlers_by_event.get(&event_name) {
-            for proc in handlers {
-                let flow = walk_script(&proc.body, &proc.qualified_name, &context, 0);
-                let priority = if proc.base_priority == 500 {
-                    Value::Null
-                } else {
-                    json!(proc.base_priority)
-                };
-                events.push(json!({
-                    "name": event_name,
-                    "priority": priority,
-                    "multiplicity": event_registry.event_multiplicity(&event_name),
-                    "flow": flow,
-                }));
+    let mut events = Vec::new();
+    'outer: for event in event_registry.order_events(&unique_events) {
+        if let Some(handlers) = handlers_by_event.get(&event) {
+            for procedure in handlers {
+                events.push(json!({ "name": event,
+                    "priority": (procedure.base_priority != 500).then_some(procedure.base_priority),
+                    "multiplicity": event_registry.event_multiplicity(&event),
+                    "flow": walk_script(&procedure.body, &procedure.qualified_name, &context, 0) }));
                 if events.len() >= MAX_EVENTS {
                     break 'outer;
                 }
             }
         }
     }
-
-    let procedures: Vec<Value> = regular_procs
-        .iter()
-        .map(|(_, proc)| {
-            let flow = walk_script(&proc.body, &proc.qualified_name, &context, 0);
-            json!({ "name": proc.name, "params": proc.params, "flow": flow })
-        })
-        .collect();
-
+    let procedures = source_procedure_nodes(&regular_procs, module, &context);
     json!({ "events": events, "procedures": procedures })
 }
 
@@ -1550,5 +1831,220 @@ mod tests {
                 "first-42 finally\ncode-43 finally\nminus-one finally\nsymbolic-error finally\n",
             )
         );
+    }
+}
+
+#[cfg(test)]
+mod original_source_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn analysed(
+        source: &str,
+        dialect: &str,
+    ) -> (
+        AnalysisResult,
+        CompilationUnit,
+        Arc<tcl_registry::model::ContextRegistry>,
+    ) {
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context.clone(),
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+        let unit = CompilationUnit::build_for_profile(source, context.commands(), false, profile);
+        let mut analyser = Analyser::new().with_resolved_input(input);
+        analyser.set_cu_override(Arc::new(unit.clone()));
+        let analysis = analyser.analyse(source, dialect);
+        (analysis, unit, context)
+    }
+
+    #[test]
+    fn original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_clear() {
+        // Implementation contract: naming.consumer.original-structural-diagrams
+        // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
+        let source = r"proc p\uD800 {} {return FIRST}; p\uD800; proc p\uD801 {} {return OTHER}; p\uD801; proc p\uD800 {} {return LAST}; p\uD800";
+        let (mut analysis, mut unit, context) = analysed(source, "tcl8.6");
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "counterfactual".to_owned();
+        }
+        for procedure in unit.ir_module.procedures.values_mut() {
+            procedure.name = "counterfactual".to_owned();
+            procedure.qualified_name = "counterfactual".to_owned();
+        }
+        let data = diagram_data_for_analysis(source, &analysis, &unit.ir_module, &context);
+        let declarations = data["procedures"].as_array().unwrap();
+        assert_eq!(declarations.len(), 3, "{data}");
+        assert_eq!(declarations[0]["name"], declarations[2]["name"]);
+        assert_ne!(declarations[0]["name"], declarations[1]["name"]);
+        assert_eq!(
+            declarations
+                .iter()
+                .map(|row| row["id"].as_str().unwrap())
+                .collect::<HashSet<_>>()
+                .len(),
+            3
+        );
+        assert!(
+            declarations.iter().any(|row| row["flow"].is_array()),
+            "{data}"
+        );
+        let mut without_bodies = unit.ir_module.clone();
+        without_bodies.procedure_implementation_bodies = Arc::from([]);
+        without_bodies.original_declaration_body_units.clear();
+        without_bodies.installed_procedure_body_units.clear();
+        let data = diagram_data_for_analysis(source, &analysis, &without_bodies, &context);
+        assert!(
+            data["procedures"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["flow"].is_null()),
+            "{data}"
+        );
+        assert!(
+            diagram_data_for_analysis(
+                &format!("#changed\n{source}"),
+                &analysis,
+                &unit.ir_module,
+                &context
+            )["procedures"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        let mut wrong_config = analysis.clone();
+        wrong_config
+            .body_lexer_config
+            .as_mut()
+            .unwrap()
+            .strict_quoting = !analysis.body_lexer_config.unwrap().strict_quoting;
+        assert!(diagram_data_for_analysis(source, &wrong_config, &unit.ir_module, &context)
+            ["procedures"].as_array().unwrap().is_empty());
+        let foreign = tcl_registry::model::ingress::context_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let changed_registry = context.with_command_store(foreign.commands().clone());
+        assert!(diagram_data_for_analysis(source, &analysis, &unit.ir_module, &changed_registry)
+            ["procedures"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn original_diagram_calls_use_retained_allocations_and_decline_missing_lookup() {
+        // Implementation contract: naming.consumer.original-structural-diagrams
+        // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
+        let source = "proc target {} {return OK}; target; proc other {} {return OTHER}; other";
+        let (mut analysis, unit, availability) = analysed(source, "tcl8.6");
+        let names = HashSet::from(["counterfactual".to_owned()]);
+        let context = DiagramContext {
+            source,
+            analysis: &analysis,
+            registry: availability.commands(),
+            availability: &availability,
+            identities: analysis.retained_command_realm().unwrap(),
+            procedure_names: &names,
+        };
+        let at = u32::try_from(source.find("; target").unwrap() + 2).unwrap();
+        assert!(is_procedure_call(
+            "counterfactual",
+            None,
+            "counterfactual",
+            at,
+            &context
+        ));
+        for invocation in &mut analysis.command_invocations {
+            invocation.original_lookup = None;
+        }
+        let context = DiagramContext {
+            source,
+            analysis: &analysis,
+            registry: availability.commands(),
+            availability: &availability,
+            identities: analysis.retained_command_realm().unwrap(),
+            procedure_names: &names,
+        };
+        assert!(!is_procedure_call(
+            "target",
+            Some("::target"),
+            "::",
+            at,
+            &context
+        ));
+        let _ = unit;
+    }
+
+    #[test]
+    fn original_diagram_events_require_actual_event_descriptors_instead_of_when_labels() {
+        // Implementation contract: naming.consumer.original-structural-diagrams
+        // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
+        let source = "namespace eval when {proc HTTP_REQUEST {} {return ordinary}}";
+        let (analysis, unit, context) = analysed(source, "tcl8.6");
+        let data = diagram_data_for_analysis(source, &analysis, &unit.ir_module, &context);
+        assert!(data["events"].as_array().unwrap().is_empty(), "{data}");
+        assert_eq!(data["procedures"].as_array().unwrap().len(), 1, "{data}");
+        let source = "when HTTP_REQUEST { set seen [clock seconds] }";
+        let (analysis, mut unit, context) = analysed(source, "f5-irules");
+        let data = diagram_data_for_analysis(source, &analysis, &unit.ir_module, &context);
+        assert_eq!(data["events"].as_array().unwrap().len(), 1, "{data}");
+        assert_eq!(data["events"][0]["name"], "HTTP_REQUEST");
+        unit.ir_module.irules_event_bodies.clear();
+        assert!(
+            diagram_data_for_analysis(source, &analysis, &unit.ir_module, &context)["events"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+    }
+    #[test]
+    fn original_diagram_actions_keep_source_schema_separate_from_display_labels() {
+        // Implementation contract: naming.consumer.original-irules-source-context
+        // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
+        for source in [
+            "when HTTP_REQUEST {pool /Common/first; HTTP::respond 503}",
+            "when HTTP_REQUEST {pool /Common/first\nHTTP::respond 503}",
+        ] {
+            let (mut analysis, unit, availability) = analysed(source, "f5-irules");
+            for invocation in &mut analysis.command_invocations {
+                invocation.name = "counterfactual".to_owned();
+            }
+            analysis.all_procs.clear();
+            analysis.global_scope.classes.clear();
+            let at = u32::try_from(source.find("pool /Common/first").unwrap()).unwrap();
+            let (metadata, segment) = tcl_compiler::registry_invocation::source_structure::selected_vendor_registry_words_at(
+            source, &analysis, at,
+        ).expect("the exact retained pool source vector owns its conditional card");
+            assert_eq!(segment.span.start(), at);
+            assert_eq!(metadata.shape().command(), "pool");
+            assert!(
+                metadata
+                    .shape()
+                    .possible_traits()
+                    .contains(tcl_registry::Traits::DIAGRAM_ACTION)
+            );
+            let data = diagram_data_for_analysis(source, &analysis, &unit.ir_module, &availability);
+            let action = data.pointer("/events/0/flow/0").unwrap();
+            assert_eq!(action["source_schema"]["command"], "pool");
+            let start = action["source_span"][0].as_u64().unwrap() as usize;
+            let end = action["source_span"][1].as_u64().unwrap() as usize;
+            assert_eq!(&source[start..end], "pool /Common/first");
+            assert_eq!(
+                action["source_schema"]["applicability"],
+                "conditional-source"
+            );
+            let stale = diagram_data_for_analysis(
+                &format!("#changed\n{source}"),
+                &analysis,
+                &unit.ir_module,
+                &availability,
+            );
+            assert_eq!(stale["unavailable"], "current-source");
+            assert!(stale["events"].as_array().unwrap().is_empty());
+            assert!(stale["procedures"].as_array().unwrap().is_empty());
+        }
     }
 }

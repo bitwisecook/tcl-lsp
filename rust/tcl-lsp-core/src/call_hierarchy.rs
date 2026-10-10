@@ -16,81 +16,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Call-hierarchy provider.
+//! Source call-hierarchy advice.
 //!
-//! Three entry points:
+//! [`prepare`], [`incoming_calls`] and [`outgoing_calls`] route Native source
+//! queries through the shared sealed declaration identity and
+//! `original_call_hierarchy` kernel. Genuine original command or member inputs
+//! retain their selected allocation, role, side and complete source/configuration.
+//! Independently owned URI/source inventories supply cross-document candidates;
+//! ambiguous providers, stale receipts and unavailable original targets decline
+//! advice. Item labels and wire ranges cannot reconstruct a declaration.
 //!
-//! * [`prepare`] — resolves the proc *or class method* at the
-//!   cursor into a single [`CallHierarchyItem`].
-//! * [`incoming_calls`] — every call site in the document that
-//!   targets the given proc / method, grouped by the enclosing
-//!   proc / method.
-//! * [`outgoing_calls`] — every call site inside the given
-//!   proc's / method's body, grouped by the callee.
+//! These edges describe readonly source relationships. They do not establish
+//! live native dispatch, an entered object/frame or source edit permission.
+//! Alias routes may retain the canonical target allocation while direct editable
+//! spelling remains a separate question.
 //!
-//! Proc edge enumeration walks `analysis.command_invocations` and
-//! intersects their byte spans with each proc's body span.
-//!
-//! Class-method edges are computed differently: the analyser's
-//! `command_invocations` collection only records top-level
-//! invocations, so method bodies are re-segmented on demand.  A
-//! method item is identified by the synthetic name
-//! `<class-qualified-name>::<method-name>` (e.g. `::C::greet`);
-//! intra-class calls match through
-//! [`crate::references::scan_my_method_sites`] — a `TclOO` method is
-//! never a bare-callable command (`greet` alone errors "invalid
-//! command name"; only `my greet` dispatches), so this is the same
-//! `my`-aware, control-flow-recursing matcher Find-References / rename
-//! / the code lens use, not a bare-head
-//! comparison.  Plain proc calls inside a method body — genuinely
-//! bare-headed — still use
-//! [`tcl_compiler::segmenter::segment_commands_with_offset`] directly
-//! via [`segment_body_calls`].
-//!
-//! The in-document computations above need no workspace index.
-//! Cross-document edges are layered on top by the server: it
-//! feeds the heads from [`unresolved_outgoing_calls`] (call sites
-//! whose callee isn't defined locally) to the workspace index to
-//! resolve sibling-file definitions, and runs
-//! [`incoming_calls_for_target`] over each other document to find
-//! sibling-file call sites.
-//!
-//! Scope: method edges are the two dispatch shapes that name the member
-//! without a receiver variable — intra-class `my <method>`, and a
-//! `classmethod`'s bare `ClassName <method>` on the class's own command.
-//! The latter comes from
-//! [`crate::references::find_obj_method_call_sites`], the same scanner
-//! Find-References / rename / the code lens use, and is attributed to
-//! whichever body it sits in: a classmethod body, an instance-method body,
-//! a proc, or the top level — a class command is an ordinary global
-//! command, so all four really do dispatch it (tclsh9.0-verified), and the
-//! `my`-scope rule ([`dispatch_reaches`]) does not gate this shape.
-//!
-//! The same scanner also carries [incr Tcl]'s class-scoped `proc` shape — a
-//! single `::`-qualified `Factory::make` word rather than two words — so an
-//! itcl class proc gets the same edges from the same place.
-//! itcl's own two-word `Factory make` is object *creation*
-//! (`ClassName instanceName`) and never becomes an edge, which is the
-//! registry-driven definer-family rule the scanner already applies.
-//!
-//! Still out of scope: a `next` / `nextto` super-dispatch is not a
-//! call-hierarchy edge (it *is* a reference — see
-//! [`crate::references::method_next_dispatch_spans`] — but attributing it a
-//! call-graph direction is a distinct question this provider doesn't yet
-//! answer). An external `$obj method` site (dispatch through an instance
-//! variable) is likewise not an incoming edge here — that is
-//! [`crate::references::references`]'s concern, not this provider's.
-//!
-//! A `method` and a `classmethod` sharing a name (rare, but `TclOO` keeps
-//! them in independent tables, so it's legal) never collide: `my <word>`
-//! dispatch scope depends on which table the *caller's own body* belongs to
-//! (`self` is the class object inside a `classmethod`, the instance
-//! everywhere else — the two tables are never merged), so
-//! [`dispatch_reaches`] gates every incoming/outgoing edge by matching
-//! caller/callee kind, and [`resolve_method_item`] disambiguates a
-//! round-tripped item by its exact `selection_range` rather than a
-//! methods-first guess (mirroring [`find_proc_for_item`]'s same-named-proc
-//! disambiguation).
+//! Explicit lexical declaration advice uses the compatibility scanners below:
+//! procedure body spans and registry-selected method shapes group local call
+//! sites. Synthetic names and reporting maps in that path do not supply Native
+//! identity. The compatibility server can use [`unresolved_outgoing_calls`] and
+//! [`incoming_calls_for_target`] under the same independently selected advice
+//! contract.
 
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, MethodDef, ProcDef};
 use tcl_lexer::LineIndex;
@@ -102,6 +48,8 @@ use crate::hover::find_word_span_at_position;
 /// definition span for editor display.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallHierarchyItem {
+    /// Sealed current source declaration; reporting item fields do not reissue it.
+    pub identity: Option<crate::original_declaration::OriginalDeclarationIdentity>,
     /// Proc name (qualified).
     pub name: String,
     /// Detail (e.g. parameter list summary).
@@ -145,6 +93,26 @@ pub fn prepare_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<CallHierarchyItem> {
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::original_declaration::select("", source, analysis, line, character)
+    {
+        let document = crate::original_call_hierarchy::OriginalCallDocument {
+            uri: "",
+            source,
+            analysis,
+        };
+        return selected
+            .and_then(|identity| crate::original_call_hierarchy::item(&identity, &document))
+            .into_iter()
+            .collect();
+    }
+
+    // The original selector can continue for variables and non-command
+    // source positions. Those positions cannot borrow a same-named method
+    // from the separate Logical compatibility maps.
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
     let line_index = LineIndex::new(source);
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
@@ -297,6 +265,7 @@ fn item_for_method(
         end_character: body_range.end_character,
     };
     CallHierarchyItem {
+        identity: None,
         name: method_item_name(class_def, method),
         detail,
         range: full_range,
@@ -470,6 +439,7 @@ fn item_for_proc(
         end_character: body_range.end_character,
     };
     CallHierarchyItem {
+        identity: None,
         // Short display name (`helper`), not the qualified key (`::helper`) —
         // matches the editor's call-hierarchy UI.  The
         // incoming/outgoing lookups match this against both forms.
@@ -612,6 +582,10 @@ pub fn unresolved_outgoing_calls_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<UnresolvedOutgoingCall> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
+
     let line_index = LineIndex::new(source);
     if let Some((_, source_proc)) =
         find_proc_for_item(source, analysis, item, &line_index, resolution)
@@ -752,6 +726,24 @@ pub fn incoming_calls_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<IncomingCall> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let Some(identity) = &item.identity else {
+            return Vec::new();
+        };
+        return crate::original_call_hierarchy::incoming(
+            identity,
+            &[crate::original_call_hierarchy::OriginalCallDocument {
+                uri: identity.uri(),
+                source,
+                analysis,
+            }],
+            None,
+        )
+        .into_iter()
+        .map(|(_, call)| call)
+        .collect();
+    }
+
     let line_index = LineIndex::new(source);
     let Some((target_qname, target_proc)) =
         find_proc_for_item(source, analysis, item, &line_index, resolution)
@@ -785,6 +777,10 @@ pub fn incoming_calls_for_target(
     target_qualified: &str,
     target_name_span: Option<tcl_lexer::Span>,
 ) -> Vec<IncomingCall> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
+
     let line_index = LineIndex::new(source);
     let mut by_caller: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
@@ -880,6 +876,24 @@ pub fn outgoing_calls_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<OutgoingCall> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let Some(identity) = &item.identity else {
+            return Vec::new();
+        };
+        return crate::original_call_hierarchy::outgoing(
+            identity,
+            &[crate::original_call_hierarchy::OriginalCallDocument {
+                uri: identity.uri(),
+                source,
+                analysis,
+            }],
+            None,
+        )
+        .into_iter()
+        .map(|(_, call)| call)
+        .collect();
+    }
+
     let line_index = LineIndex::new(source);
     let Some((_, source_proc)) =
         find_proc_for_item(source, analysis, item, &line_index, resolution)
@@ -952,7 +966,7 @@ fn method_incoming_calls(
         }
         let spans = crate::references::scan_method_sites(
             source,
-            dialect,
+            analysis,
             &[caller.body_span],
             &target_method.name,
             Some(target_method.name_span),
@@ -999,12 +1013,16 @@ fn method_incoming_calls(
 #[must_use]
 pub fn incoming_instance_method_calls_in_class(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     receiver_class: &str,
     method: &str,
     external_callback_allowed: bool,
 ) -> Vec<IncomingCall> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
+
     let Some(class_def) = analysis.all_classes.get(receiver_class) else {
         return Vec::new();
     };
@@ -1013,7 +1031,7 @@ pub fn incoming_instance_method_calls_in_class(
         .filter_map(|caller| {
             let spans = crate::references::scan_method_sites(
                 source,
-                dialect,
+                analysis,
                 &[caller.body_span],
                 method,
                 None,
@@ -1142,6 +1160,7 @@ fn top_level_item() -> CallHierarchyItem {
         end_character: 0,
     };
     CallHierarchyItem {
+        identity: None,
         name: TOP_LEVEL_NAME.to_owned(),
         detail: None,
         range: origin,
@@ -1183,7 +1202,7 @@ fn method_outgoing_calls(
         }
         let spans = crate::references::scan_method_sites(
             source,
-            dialect,
+            analysis,
             &[source_method.body_span],
             &callee.name,
             None,
@@ -1342,6 +1361,42 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn original_hierarchy_preparation_keeps_variable_cursors_and_method_declarations_separate() {
+        // Implementation contract: naming.consumer.original-call-hierarchy
+        // docs/design/analysis/name-resolution-proofs/original-call-hierarchy.md
+        let source = "oo::class create C {method x {} {set x 1; puts $x}}";
+        let mut analysis = analyse(source);
+        let variable = u32::try_from(source.find("$x").unwrap() + 1).unwrap();
+        assert!(!analysis.allows_lexical_declaration_advice());
+        assert!(crate::definition::original_variable_cursor_retained(
+            source, &analysis, 0, variable
+        ));
+        assert!(
+            analysis
+                .all_classes
+                .values()
+                .any(|class| class.methods.contains_key("x"))
+        );
+        assert!(prepare(source, 0, variable, &analysis).is_empty());
+        let declaration =
+            u32::try_from(source.find("method x").unwrap() + "method ".len()).unwrap();
+        analysis.all_classes.clear();
+        analysis.global_scope.classes.clear();
+        let items = prepare(source, 0, declaration, &analysis);
+        assert_eq!(items.len(), 1);
+        let identity = items[0]
+            .identity
+            .as_ref()
+            .expect("genuine source declaration identity");
+        assert_eq!(identity.span().start(), declaration);
+        assert!(matches!(
+            identity.role(),
+            crate::original_declaration::OriginalDeclarationRole::Method(_)
+        ));
+        assert!(prepare(&format!("#{source}"), 0, declaration, &analysis).is_empty());
     }
 
     #[test]
@@ -1538,6 +1593,7 @@ mod tests {
         let src = "proc greet {} {}\n";
         let analysis = analyse(src);
         let bogus = CallHierarchyItem {
+            identity: None,
             name: "::not_a_real_proc".to_string(),
             detail: None,
             range: LspRange {

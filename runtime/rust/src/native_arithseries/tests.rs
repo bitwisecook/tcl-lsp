@@ -288,7 +288,7 @@ fn arithmetic_elements_and_string_refusals_preserve_original_lazy_header() {
 }
 
 #[test]
-fn public_arithmetic_length_and_index_do_not_materialize_huge_series() {
+fn public_arithmetic_length_and_single_index_do_not_materialize_huge_series() {
     for version in [TclVersion::V9_0, TclVersion::V9_1] {
         let mut interp = Interp::new();
         interp.set_runtime_version(version);
@@ -299,7 +299,6 @@ fn public_arithmetic_length_and_index_do_not_materialize_huge_series() {
             ),
             (b"lindex $sequence 0", b"0"),
             (b"lindex $sequence end", b"100000000"),
-            (b"lindex $sequence {0 0}", b"0"),
             (b"lindex $sequence -1", b""),
         ] {
             assert_eq!(interp.eval_str(script), Code::Ok, "{script:?}");
@@ -309,5 +308,66 @@ fn public_arithmetic_length_and_index_do_not_materialize_huge_series() {
             assert!(!physical_state(sequence).unwrap().2);
             assert!(interp.native_access_refusal().is_none());
         }
+    }
+}
+
+#[test]
+fn finite_arithmetic_index_paths_preserve_or_convert_the_original_primary() {
+    // Native proof: naming.list.arithseries-original-multiple-index-conversion
+    // docs/design/analysis/name-resolution-proofs/list-arithseries-original-multiple-index-conversion.md
+    // These selected call fragments compare public results and the same type
+    // distinction measured by the proof's type-only observer. This Rust
+    // descriptor assertion supplies no native refcount or member identity.
+    for dialect in ["tcl9.0", "tcl9.1"] {
+        for (source, result, primary) in [
+            (
+                b"lindex $sequence 0".as_slice(),
+                b"0".as_slice(),
+                "arithseries",
+            ),
+            (b"lindex $sequence {0 0}", b"0", "list"),
+            (b"lindex $sequence 0 0", b"0", "list"),
+            (b"lindex $sequence {-1 0}", b"", "arithseries"),
+        ] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(dialect),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert_eq!(interp.eval_str(b"set sequence [lseq 9]"), Code::Ok);
+            assert_eq!(interp.eval_str(source), Code::Ok, "{dialect}: {source:?}");
+            assert_eq!(interp.result_bytes(), result, "{dialect}: {source:?}");
+            let original = interp.var_get(b"sequence").unwrap();
+            assert_eq!(descriptor(original), primary, "{dialect}: {source:?}");
+            assert!(interp.native_access_refusal().is_none());
+        }
+    }
+}
+
+#[test]
+fn multiple_index_path_reports_the_host_materialisation_limit() {
+    use tcl_syntax::raw_string::{NativeMaterializationLimitError, NativeValueAccessRefusal};
+    // This is the host's explicit allocation contract, independent from the
+    // finite native type/result observations. It makes no huge native claim.
+    for dialect in ["tcl9.0", "tcl9.1"] {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect(dialect),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(interp.eval_str(b"set sequence [lseq 100000001]"), Code::Ok);
+        assert_eq!(interp.eval_str(b"lindex $sequence {0 0}"), Code::Error);
+        assert_eq!(
+            interp.native_access_refusal(),
+            Some(NativeValueAccessRefusal::Materialization(
+                NativeMaterializationLimitError::new(100_000_001, 100_000_000),
+            ))
+        );
+        let original = interp.var_get(b"sequence").unwrap();
+        assert_eq!(descriptor(original), "arithseries");
+        assert!(!obj::has_string_rep(original));
+        assert!(!has_element_cache(original));
     }
 }

@@ -16,447 +16,217 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! iRulesLX remote-method sites — the Tcl half of the Tcl↔JavaScript symbol
-//! model, and the JavaScript scanner that finds the other half.
-//!
-//! An iRule reaches a Node.js extension by name:
-//!
-//! ```tcl
-//! when HTTP_REQUEST {
-//!     set handle [ILX::init my_plugin my_extension]
-//!     set reply [ILX::call $handle my_js_function [HTTP::uri]]
-//! }
-//! ```
-//!
-//! and the extension registers that name on an `ILXServer`:
-//!
-//! ```javascript
-//! var f5 = require('f5-nodejs');
-//! var ilx = new f5.ILXServer();
-//! ilx.addMethod('my_js_function', function (req, res) { res.reply('ok'); });
-//! ilx.listen();
-//! ```
-//!
-//! # What is modelled, and what abstains
-//!
-//! The shape of both calls is **registry data**
-//! ([`tcl_registry::remote_method`]), so nothing here matches on a command
-//! name: the walk asks the registry which word carries the handle and which
-//! carries the method, exactly as the object-reference walk asks which word
-//! names a pool.  That is also the dialect gate — the ILX specs exist only on
-//! the iRules surface, so a stock-Tcl registry answers "no descriptor" and this
-//! module yields nothing.
-//!
-//! Everything is resolved from *literals*; nothing is guessed:
-//!
-//! | Written | Result |
-//! |---|---|
-//! | `set h [ILX::init p e]` … `ILX::call $h m` | resolved to `(p, e, m)` |
-//! | `ILX::call [ILX::init p e] m` | resolved — the construction is right there |
-//! | `ILX::call $h -timeout 500 -- m` | resolved; options are consumed from the spec's own table |
-//! | `ILX::init $p e`, `ILX::init p $e` | handle is unknown → the call abstains |
-//! | `set h [something_else]`, `set h $other` | binding widens → the call abstains |
-//! | `ILX::call $h $method`, `ILX::call $h m$suffix` | no literal method → no site at all |
-//! | `ILX::init e` (one word) | undocumented form → abstains (see [`RemoteHandleSpec::exact_argc`]) |
-//! | a handle bound outside a `proc` / `when` body | that body opens a new frame → abstains |
-//!
-//! A call whose method word is literal but whose handle is unknown is still
-//! *reported* — with [`IlxMethodCall::target`] `None` — because hover can
-//! honestly say "method name, extension unknown" while navigation abstains.
-//!
-//! # Bindings follow frames, and frames are registry data
-//!
-//! A binding is inherited by a nested body only when that body runs in the
-//! *caller's* frame, which the registry already says
-//! (`CommandSpec::body_kind`): an `if` / `foreach` / `catch` / `switch`-arm
-//! body does, and a `proc` body, a `when` event handler, an `oo::define`
-//! script and an `uplevel` body do not.  So
-//! `set h [ILX::init p e]; proc f {} { ILX::call $h m }` resolves nothing —
-//! `$h` is undefined where `f` runs, and offering a target would be the guess
-//! criterion 4 forbids.  The walk still *descends* into such a body; it just
-//! starts it empty, so an `ILX::init` of its own resolves normally.
-//!
-//! [`RemoteHandleSpec::exact_argc`]: tcl_registry::remote_method::RemoteHandleSpec::exact_argc
+//! Readonly iRulesLX method source candidates and JavaScript registrations.
+//! The Tcl side consumes complete current original source vectors and guarded
+//! Registry metadata. Literal method words retain source geometry; source
+//! constructors supply separate possible extension labels. Neither nearby set
+//! words nor control-body syntax proves an evaluated handle or current cell.
 
-use std::collections::HashMap;
-
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use tcl_lexer::{LexerConfig, Span, Token, TokenType};
+use tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords;
+use tcl_lexer::{ExecutablePart, Span};
 use tcl_registry::CommandRegistry;
-use tcl_registry::arg_role::ArgRole;
-use tcl_registry::handle_binding::{HandleClassSource, HandleName};
-use tcl_registry::hover::first_positional_index;
 use tcl_registry::remote_method::{MethodWord, RemoteDispatch, RemoteFamily};
 
-use crate::walker::{
-    MAX_WALK_DEPTH, case_list_body_tokens, case_list_word, content_range, inner_is_empty,
-    literal_arg_value, resolve_head, semantic_head, var_token_name,
-};
-
-// The Tcl side.
-
-/// The `(plugin, extension)` pair an ILX handle names.
-///
-/// Scoped by construction: a method name is unique only *within* one
-/// extension, which is why nothing here is keyed by method name alone.
+/// The separately retained literal plugin and extension source labels.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct IlxExtension {
-    /// The ILX plugin name, as written in `ILX::init`.
+    /// Plugin source value; no live workspace association follows.
     pub plugin: String,
-    /// The extension name within that plugin.
+    /// Extension source value; independent of an evaluated RPC handle.
     pub extension: String,
 }
 
-/// One `ILX::call` / `ILX::notify` site with a **literal** method word.
+/// An independently unresolved premise of a readonly ILX source candidate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IlxSourceObligation {
+    /// Conditional source metadata does not establish the entered handler.
+    HandlerApplicability,
+    /// A written constructor does not establish its successful evaluated result.
+    HandleResultUnavailable,
+    /// Source writes do not establish the actual handle cell, read or observers.
+    HandleCellUnavailable,
+}
+
+/// A literal method word under the actual guarded remote-call source schema.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IlxMethodCall {
-    /// The registry command this call resolved to (`ILX::call` / `ILX::notify`),
-    /// after aliases and renames — never the raw spelling.
+    image: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    context: tcl_registry::model::ResolvedContext,
+    registry: tcl_registry::RegistrySemanticKey,
+    /// Canonical source-schema label for presentation; no live command identity.
     pub command: String,
-    /// Byte span of the whole command.
+    /// Actual original command extent.
     pub command_span: Span,
-    /// The method name.
+    /// Supported literal method source value.
     pub method: String,
-    /// Byte span of the method word.
+    /// Genuine original written method operand extent.
     pub method_span: Span,
-    /// The extension the handle names, or `None` when the handle is not
-    /// statically known.
+    /// Independently resolved extension identity. Source syntax does not issue it.
     pub target: Option<IlxExtension>,
-    /// Whether the call waits for a reply.
+    /// Possible inline constructor labels, separate from evaluated handle identity.
+    pub source_target: Option<IlxExtension>,
+    /// Unresolved applicability and handle premises remain explicit.
+    pub obligations: Vec<IlxSourceObligation>,
+    /// Authored remote-call kind; does not establish reached behavior.
     pub dispatch: RemoteDispatch,
 }
 
-/// Every `ILX::call` / `ILX::notify` site in `source` whose method word is a
-/// literal, with the extension its handle names when that is statically known.
-///
-/// Segmented with the iRules lexer preset, like every other walk in this crate:
-/// `if {expr}{body}` is valid in TMM and must split into distinct words.
+/// Literal method source cards from the supplied immutable command store.
 #[must_use]
 pub fn ilx_method_calls(source: &str, registry: &CommandRegistry) -> Vec<IlxMethodCall> {
-    if !source_can_hold_a_site(source, registry) {
+    if registry.remote_method_commands().is_empty() {
         return Vec::new();
     }
-    let config = crate::irules_lexer_config();
-    let identities =
-        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
-    let ctx = IlxCtx {
-        full: source,
-        registry,
-        config,
-        identities: &identities,
+    let Some(context) = crate::OriginalIrulesSourceContext::capture(source, registry) else {
+        return Vec::new();
     };
+    ilx_method_calls_from_source_context(source, &context)
+}
+
+/// Readonly source cards from the document's actual retained analysis. Missing
+/// or stale original ownership cannot reopen standalone capture defaults.
+#[must_use]
+pub fn ilx_method_calls_from_analysis(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> Vec<IlxMethodCall> {
+    let Some(context) = crate::OriginalIrulesSourceContext::from_source_analysis(source, analysis)
+    else {
+        return Vec::new();
+    };
+    ilx_method_calls_from_source_context(source, &context)
+}
+
+/// Select readonly ILX candidates from an independently retained source context.
+/// Changed complete source cannot reuse a method, constructor or word extent.
+#[must_use]
+pub fn ilx_method_calls_from_source_context(
+    source: &str,
+    context: &crate::OriginalIrulesSourceContext,
+) -> Vec<IlxMethodCall> {
+    // Implementation contract: naming.consumer.original-ilx-method-source-candidates
+    // docs/design/analysis/name-resolution-proofs/original-ilx-method-source-candidates.md
+    if !context.matches_source(source) {
+        return Vec::new();
+    }
     let mut out = Vec::new();
-    let mut scope = HandleScope::default();
-    walk(&ctx, source, 0, &mut scope, &mut out, 0);
+    for (span, words) in context.source_vectors() {
+        let selected = words
+            .with_source_schema(context.context_registry(), |schema| {
+                let spec = context
+                    .context_registry()
+                    .commands()
+                    .remote_method(schema.canonical_command)?
+                    .calls_method()?;
+                if spec.family != RemoteFamily::IRulesLxNode
+                    || !schema
+                        .argument_count_for_arity()
+                        .is_some_and(|count| schema.semantics.arity.accepts(count))
+                {
+                    return None;
+                }
+                let method = match spec.method {
+                    MethodWord::At(index) => usize::from(index),
+                    MethodWord::AfterOptions(index) => {
+                        let mut options = schema.semantics.options;
+                        options.positional_prefix_words = usize::from(index);
+                        options.leading_word_count(schema.words.arguments())?
+                    }
+                };
+                Some((method, usize::from(spec.handle_arg), spec.dispatch))
+            })
+            .flatten();
+        let Some((method_index, handle_index, dispatch)) = selected else {
+            continue;
+        };
+        let Some(method) = literal(words, method_index) else {
+            continue;
+        };
+        let Some(operand) = words.operands().get(method_index).and_then(Option::as_ref) else {
+            continue;
+        };
+        let Some(original_word) = operand.word() else {
+            continue;
+        };
+        let method_span = operand.span();
+        let source_target = inline_constructor_source(context, words, handle_index);
+        let mut obligations = vec![
+            IlxSourceObligation::HandlerApplicability,
+            IlxSourceObligation::HandleResultUnavailable,
+        ];
+        if source_target.is_none() {
+            obligations.push(IlxSourceObligation::HandleCellUnavailable);
+        }
+        out.push(IlxMethodCall {
+            image: original_word.image().clone(),
+            config: original_word.config(),
+            context: context.context().clone(),
+            registry: context
+                .context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key(),
+            command: words.command().to_owned(),
+            command_span: *span,
+            method: method.to_owned(),
+            method_span,
+            target: None,
+            source_target,
+            obligations,
+            dispatch,
+        });
+    }
     out.sort_by_key(|call| (call.method_span.start(), call.method_span.end()));
+    out.dedup();
     out
 }
 
-/// Whether `source` can hold a remote-method site at all — the cheap gate in
-/// front of the walk.
-///
-/// Both halves come from the registry, never from a command name written here:
-/// a dialect with no RPC commands (every stock-Tcl profile) skips the walk
-/// outright, and a document that never spells one of them cannot contain a
-/// site — even through a `rename` or an `interp alias`, since creating that
-/// binding spells the target once.  Navigation runs this on every hover and
-/// every go-to-definition, so it must not cost a segmentation pass.
-fn source_can_hold_a_site(source: &str, registry: &CommandRegistry) -> bool {
-    let commands = registry.remote_method_commands();
-    !commands.is_empty() && commands.iter().any(|name| source.contains(name))
-}
-
-/// Variable → the extension its ILX handle names, per scope.
-///
-/// `None` marks a widened binding — the variable was re-assigned from something
-/// that is not a static `ILX::init`, so later reads must fail closed rather than
-/// keep the stale association.
-#[derive(Clone, Default)]
-struct HandleScope {
-    bindings: HashMap<String, Option<IlxExtension>>,
-}
-
-impl HandleScope {
-    fn child(&self) -> Self {
-        self.clone()
-    }
-    fn bind(&mut self, var: &str, target: Option<IlxExtension>) {
-        self.bindings.insert(var.to_owned(), target);
-    }
-    fn lookup(&self, var: &str) -> Option<&IlxExtension> {
-        self.bindings.get(var).and_then(Option::as_ref)
-    }
-}
-
-/// Everything the ILX walk needs that does not change as it recurses.
-struct IlxCtx<'a> {
-    /// The whole document, so a nested slice's token spans stay absolute.
-    full: &'a str,
-    /// The dialect registry every layout fact is read from.
-    registry: &'a CommandRegistry,
-    /// The iRules grammar this walk reads under, resolved once at the entry
-    /// point ([`crate::irules_lexer_config`]) and never re-derived here.
-    config: LexerConfig,
-    /// Statically proven command-identity facts, so `::ILX::call` and a proven
-    /// `interp alias` / `rename` of it resolve like the bare spelling, and a
-    /// spelling whose binding was taken over resolves like nothing.
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
-}
-
-/// Segment `slice` (a substring starting at byte `base`), record handle
-/// bindings, collect method calls, and recurse into bodies, clause bodies and
-/// command substitutions with child scopes.
-fn walk(
-    ctx: &IlxCtx<'_>,
-    slice: &str,
-    base: u32,
-    scope: &mut HandleScope,
-    out: &mut Vec<IlxMethodCall>,
-    depth: u32,
-) {
-    if MAX_WALK_DEPTH.exceeded(depth) {
-        return;
-    }
-    for cmd in segment_commands_with_offset_and_config(slice, base, ctx.config) {
-        let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        let head = semantic_head(ctx.registry, resolve_head(ctx.identities, &cmd));
-        // Resolve the call *before* this command's own binding effect: an
-        // `ILX::call` cannot be re-bound by itself, and a `set` that widens a
-        // variable must not widen the call it is not.
-        if let Some(call) = method_call(ctx, &cmd, &head, &args, scope) {
-            out.push(call);
-        }
-        record_handle_binding(ctx, &cmd, &head, &args, scope);
-        recurse(ctx, &cmd, &head, &args, scope, out, depth);
-    }
-}
-
-/// Recurse into every region of `cmd` that carries a script: its declared body
-/// arguments, a clause list's braced bodies, and any `[…]` substitution.
-fn recurse(
-    ctx: &IlxCtx<'_>,
-    cmd: &SegmentedCommand,
-    head: &str,
-    args: &[&str],
-    scope: &mut HandleScope,
-    out: &mut Vec<IlxMethodCall>,
-    depth: u32,
-) {
-    let mut recursed: Vec<(u32, u32)> = Vec::new();
-    // Which of this command's body arguments run in the *caller's* frame is
-    // registry data (`CommandSpec::body_kind`): `if` / `while` / `foreach` /
-    // `switch` bodies do, and a `proc` / `oo::define` / `uplevel` /
-    // `namespace eval` body does not.  A body that does not inherit the frame
-    // must not inherit the handle bindings either — `set h [ILX::init p e];
-    // proc f {} { ILX::call $h m }` reads an *undefined* `$h` when `f` runs,
-    // and resolving it from the enclosing scope would be exactly the wrong
-    // guess.  Asked of the registry, so no command name appears here.
-    let inherits_frame = ctx.registry.plain_body_arg_indices(head, args);
-    for body_idx in ctx.registry.arg_indices_for_role(head, args, ArgRole::Body) {
-        if let Some(tok) = cmd.argv.get(body_idx + 1)
-            && matches!(tok.kind, TokenType::Str | TokenType::Cmd)
-            && !inner_is_empty(ctx.full, tok)
-        {
-            if tok.kind == TokenType::Cmd {
-                // A substitution supplying a body runs now, in the caller's
-                // frame, so its writes are visible to what follows.
-                recurse_token(ctx, tok, scope, out, depth + 1);
-                recursed.push((tok.span.start(), tok.span.end()));
-            } else if inherits_frame.contains(&body_idx) {
-                let mut child = scope.child();
-                recurse_token(ctx, tok, &mut child, out, depth + 1);
-            } else {
-                // A new frame: the body still gets walked (an `ILX::init` of
-                // its own resolves normally), it just starts with nothing.
-                let mut fresh = HandleScope::default();
-                recurse_token(ctx, tok, &mut fresh, out, depth + 1);
-            }
-        }
-    }
-    if let Some((tok, spec)) = case_list_word(cmd, head, args, ctx.registry)
-        && !inner_is_empty(ctx.full, &tok)
-    {
-        for body in case_list_body_tokens(ctx.full, &tok, &spec) {
-            let mut child = scope.child();
-            recurse_token(ctx, &body, &mut child, out, depth + 1);
-        }
-    }
-    for tok in &cmd.all_tokens {
-        if tok.kind != TokenType::Cmd || inner_is_empty(ctx.full, tok) {
-            continue;
-        }
-        let key = (tok.span.start(), tok.span.end());
-        if recursed.contains(&key) {
-            continue;
-        }
-        recursed.push(key);
-        recurse_token(ctx, tok, scope, out, depth + 1);
-    }
-}
-
-/// Recurse into a token's inner content, keeping spans absolute.
-fn recurse_token(
-    ctx: &IlxCtx<'_>,
-    tok: &Token,
-    scope: &mut HandleScope,
-    out: &mut Vec<IlxMethodCall>,
-    depth: u32,
-) {
-    let (start, end) = content_range(ctx.full, tok);
-    if start >= end {
-        return;
-    }
-    let inner = &ctx.full[start..end];
-    if inner.trim().is_empty() {
-        return;
-    }
-    walk(
-        ctx,
-        inner,
-        u32::try_from(start).unwrap_or(0),
-        scope,
-        out,
-        depth,
-    );
-}
-
-/// The method call `cmd` makes, when it makes one with a literal method word.
-fn method_call(
-    ctx: &IlxCtx<'_>,
-    cmd: &SegmentedCommand,
-    head: &str,
-    args: &[&str],
-    scope: &HandleScope,
-) -> Option<IlxMethodCall> {
-    let spec = ctx.registry.remote_method(head)?.calls_method()?;
-    if spec.family != RemoteFamily::IRulesLxNode {
+fn literal(words: &OriginalRegistryWords, argument: usize) -> Option<&str> {
+    let bytes = words.arguments().get(argument)?.literal_bytes()?;
+    if bytes.contains(&0) {
         return None;
     }
-    let method_index = match spec.method {
-        MethodWord::At(index) => usize::from(index),
-        // The option table is the command's own, so `-timeout 500` consumes two
-        // words and `--` ends the option run — the method is whatever follows.
-        MethodWord::AfterOptions(index) => {
-            first_positional_index(ctx.registry.get(head)?.options, args, usize::from(index))
-        }
-    };
-    let (method, method_span) = literal_arg_value(ctx.full, cmd, method_index)?;
-    Some(IlxMethodCall {
-        command: head.to_owned(),
-        command_span: cmd.span,
-        method,
-        method_span,
-        target: handle_target(ctx, cmd, usize::from(spec.handle_arg), scope),
-        dispatch: spec.dispatch,
-    })
+    std::str::from_utf8(bytes).ok()
 }
 
-/// The extension the handle word at `arg_index` names, when it is statically
-/// known: a `$var` bound to an `ILX::init` construction, or the construction
-/// written inline.
-fn handle_target(
-    ctx: &IlxCtx<'_>,
-    cmd: &SegmentedCommand,
-    arg_index: usize,
-    scope: &HandleScope,
+fn inline_constructor_source(
+    context: &crate::OriginalIrulesSourceContext,
+    words: &OriginalRegistryWords,
+    handle: usize,
 ) -> Option<IlxExtension> {
-    let word_index = arg_index + 1;
-    if !cmd
-        .single_token_word
-        .get(word_index)
-        .copied()
-        .unwrap_or(false)
-    {
+    let original = words.operands().get(handle)?.as_ref()?.word()?;
+    let arena = original.executable_parts();
+    let [part] = arena.list(arena.root()) else {
+        return None;
+    };
+    let ExecutablePart::Command { body } = part.part else {
+        return None;
+    };
+    let mut candidates = context
+        .source_vectors()
+        .iter()
+        .filter(|(span, _)| body.start() <= span.start() && span.end() <= body.end());
+    let (_, constructor) = candidates.next()?;
+    if candidates.next().is_some() {
         return None;
     }
-    let tok = cmd.argv.get(word_index)?;
-    match tok.kind {
-        TokenType::Var => {
-            let var = var_token_name(ctx.full, tok)?;
-            scope.lookup(&var).cloned()
-        }
-        TokenType::Cmd => construction_target(ctx, tok),
-        _ => None,
-    }
-}
-
-/// The extension a `[ILX::init PLUGIN EXTENSION]` construction names.
-///
-/// Abstains unless the substitution holds exactly one command, that command's
-/// registry identity opens a remote handle, its argument count is exactly the
-/// documented one, and both name words are literals.
-fn construction_target(ctx: &IlxCtx<'_>, tok: &Token) -> Option<IlxExtension> {
-    let (start, end) = content_range(ctx.full, tok);
-    let inner = ctx.full.get(start..end)?;
-    let mut commands = segment_commands_with_offset_and_config(
-        inner,
-        u32::try_from(start).unwrap_or(0),
-        ctx.config,
-    );
-    if commands.len() != 1 {
-        return None;
-    }
-    let cmd = commands.pop()?;
-    let head = semantic_head(ctx.registry, resolve_head(ctx.identities, &cmd));
-    let spec = ctx.registry.remote_method(&head)?.opens_handle()?;
-    if spec.family != RemoteFamily::IRulesLxNode {
-        return None;
-    }
-    let args = cmd.args();
-    if args.len() != usize::from(spec.exact_argc) {
-        return None;
-    }
-    let (plugin, _) = literal_arg_value(ctx.full, &cmd, usize::from(spec.scope_arg))?;
-    let (extension, _) = literal_arg_value(ctx.full, &cmd, usize::from(spec.extension_arg))?;
-    Some(IlxExtension { plugin, extension })
-}
-
-/// Record what `cmd` does to a variable that holds an ILX handle.
-///
-/// The layout comes from the registry's own handle-binding descriptor
-/// (`set NAME [TYPE …]`, [`tcl_registry::handle_binding`]), so `::set` and a
-/// proven alias or rename of it bind exactly as the bare spelling does and this
-/// walk never names `set`.  A binding whose value is not a static `ILX::init`
-/// **widens** rather than being ignored: `set h [ILX::init p e]; set h $other;
-/// ILX::call $h m` must abstain, not resolve to the stale pair.
-fn record_handle_binding(
-    ctx: &IlxCtx<'_>,
-    cmd: &SegmentedCommand,
-    head: &str,
-    args: &[&str],
-    scope: &mut HandleScope,
-) {
-    let Some(binding) = ctx.registry.handle_binding(head) else {
-        return;
-    };
-    // `resolve` applies the layout's own keyword gate; the index below then
-    // reads the *token* the string form cannot carry.
-    let Some(bound) = binding.resolve(args) else {
-        return;
-    };
-    let HandleName::Word(name_index) = binding.name_from else {
-        // An implicitly-named handle (snit's hull) names no Tcl variable an
-        // ILX call could read.
-        return;
-    };
-    let Some((var, _)) = literal_arg_value(ctx.full, cmd, usize::from(name_index)) else {
-        return;
-    };
-    let HandleClassSource::ConstructionValue(value_index) = bound.class_source else {
-        // A layout whose class word is a bare name cannot carry an
-        // `[ILX::init …]` construction.
-        return;
-    };
-    let target = cmd
-        .single_token_word
-        .get(usize::from(value_index) + 1)
-        .copied()
-        .unwrap_or(false)
-        .then(|| cmd.argv.get(usize::from(value_index) + 1))
-        .flatten()
-        .filter(|tok| tok.kind == TokenType::Cmd)
-        .and_then(|tok| construction_target(ctx, tok));
-    scope.bind(&var, target);
+    let indices = constructor
+        .with_source_schema(context.context_registry(), |schema| {
+            let spec = context
+                .context_registry()
+                .commands()
+                .remote_method(schema.canonical_command)?
+                .opens_handle()?;
+            (spec.family == RemoteFamily::IRulesLxNode
+                && schema.words.arguments().exact_argv_len()? == usize::from(spec.exact_argc))
+            .then_some((usize::from(spec.scope_arg), usize::from(spec.extension_arg)))
+        })
+        .flatten()?;
+    Some(IlxExtension {
+        plugin: literal(constructor, indices.0)?.to_owned(),
+        extension: literal(constructor, indices.1)?.to_owned(),
+    })
 }
 
 // The JavaScript side.
@@ -507,8 +277,9 @@ pub fn extension_entry_file(package_json: Option<&str>) -> String {
     main.trim_start_matches("./").to_owned()
 }
 
-/// The method table `source` leaves an extension with — its `addMethod`
-/// registrations, minus anything a `removeMethod` takes back out.
+/// Readonly literal JavaScript method registrations in `source`, with
+/// conservative removal exclusions. This source inventory supplies no reached
+/// registration, evaluated receiver, live method table or dispatch identity.
 ///
 /// Supported, and nothing else:
 ///
@@ -526,16 +297,13 @@ pub fn extension_entry_file(package_json: Option<&str>) -> String {
 ///
 /// # `removeMethod` is a subtraction, not a form to ignore
 ///
-/// `ilx.addMethod('m', cb); ilx.removeMethod('m');` leaves no `m` in the
-/// running extension, so offering the earlier registration as `m`'s definition
-/// would be a wrong answer rather than a missing one.
-/// Removal is therefore *modelled*, and deliberately without order: source
-/// order is not execution order — a `removeMethod` can sit in a branch, a
-/// callback, or a later module — so a literal removal suppresses that name
-/// outright, and a removal whose name is **not** literal
-/// (`ilx.removeMethod(whatever)`) suppresses the whole table, because it could
-/// take out any of it.  That is the same abstention rule the Tcl side applies
-/// to a computed method word, on the other side of the boundary.
+/// A written `ilx.removeMethod('m')` keeps the earlier literal registration
+/// from supplying an unconditional source candidate. Source order supplies no
+/// execution order: removal can occur in a branch, callback or another module.
+/// A literal removal excludes that name; a computed removal
+/// (`ilx.removeMethod(whatever)`) excludes every source registration because its
+/// target is unknown. These exclusions retain uncertainty rather than proving
+/// a reached deletion or a current runtime table.
 #[must_use]
 pub fn extension_registrations(source: &str) -> Vec<IlxMethodRegistration> {
     let tokens = lex_js(source);
@@ -925,14 +693,14 @@ mod tests {
         IlxExtension, extension_entry_file, extension_registrations, ilx_method_calls,
         js_string_value,
     };
-    use tcl_dialect::model::{Family, SurfaceLayer};
     use tcl_registry::CommandRegistry;
     use tcl_registry::remote_method::RemoteDispatch;
 
-    fn irules_registry() -> CommandRegistry {
-        let mut registry = CommandRegistry::build_default();
-        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
-        registry
+    fn irules_registry() -> std::sync::Arc<CommandRegistry> {
+        tcl_registry::model::ingress::static_context_for("f5-irules")
+            .commands()
+            .snapshot()
+            .shared_registry()
     }
 
     fn calls(source: &str) -> Vec<(String, Option<IlxExtension>, RemoteDispatch)> {
@@ -942,16 +710,8 @@ mod tests {
             .collect()
     }
 
-    /// The resolved target a call is expected to carry.
-    fn target(plugin: &str, extension: &str) -> IlxExtension {
-        IlxExtension {
-            plugin: plugin.to_owned(),
-            extension: extension.to_owned(),
-        }
-    }
-
     #[test]
-    fn a_literal_handle_and_method_resolve() {
+    fn a_written_handle_does_not_issue_runtime_extension_identity() {
         let got = calls(concat!(
             "when HTTP_REQUEST {\n",
             "  set h [ILX::init my_plugin my_extension]\n",
@@ -962,7 +722,7 @@ mod tests {
             got,
             vec![(
                 "my_js_function".to_owned(),
-                Some(target("my_plugin", "my_extension")),
+                None,
                 RemoteDispatch::Synchronous
             )]
         );
@@ -978,11 +738,7 @@ mod tests {
         ));
         assert_eq!(
             got,
-            vec![(
-                "real_method".to_owned(),
-                Some(target("p", "e")),
-                RemoteDispatch::Synchronous
-            )]
+            vec![("real_method".to_owned(), None, RemoteDispatch::Synchronous)]
         );
     }
 
@@ -998,22 +754,18 @@ mod tests {
             got,
             vec![(
                 "fire_and_forget".to_owned(),
-                Some(target("p", "e")),
+                None,
                 RemoteDispatch::Notification
             )]
         );
     }
 
     #[test]
-    fn an_inline_construction_resolves_without_a_variable() {
+    fn an_inline_construction_keeps_handle_result_authority_independent() {
         let got = calls("when RULE_INIT {\n  ILX::call [ILX::init p e] m\n}\n");
         assert_eq!(
             got,
-            vec![(
-                "m".to_owned(),
-                Some(target("p", "e")),
-                RemoteDispatch::Synchronous
-            )]
+            vec![("m".to_owned(), None, RemoteDispatch::Synchronous)]
         );
     }
 
@@ -1063,22 +815,17 @@ mod tests {
             vec![("m".to_owned(), None, RemoteDispatch::Synchronous)]
         );
 
-        // …and the same body resolves normally from its own `ILX::init`.
+        // Its own written constructor still needs an independent evaluated result.
         let own = calls("proc f {} { set h [ILX::init p e]; ILX::call $h m }\n");
         assert_eq!(
             own,
-            vec![(
-                "m".to_owned(),
-                Some(target("p", "e")),
-                RemoteDispatch::Synchronous
-            )]
+            vec![("m".to_owned(), None, RemoteDispatch::Synchronous)]
         );
     }
 
     #[test]
-    fn a_control_flow_body_still_inherits_the_handle() {
-        // The other half of the same registry fact: an `if` / `foreach` /
-        // `catch` body *is* the caller's frame, so it must keep inheriting.
+    fn control_body_source_cards_do_not_issue_handle_cell_inheritance() {
+        // Script geometry selects source cards without proving an entered frame or cell.
         for source in [
             "when X {\n set h [ILX::init p e]\n if {1} { ILX::call $h m }\n}\n",
             "when X {\n set h [ILX::init p e]\n foreach i {1 2} { ILX::call $h m }\n}\n",
@@ -1087,11 +834,7 @@ mod tests {
         ] {
             assert_eq!(
                 calls(source),
-                vec![(
-                    "m".to_owned(),
-                    Some(target("p", "e")),
-                    RemoteDispatch::Synchronous
-                )],
+                vec![("m".to_owned(), None, RemoteDispatch::Synchronous)],
                 "{source}"
             );
         }
@@ -1121,11 +864,7 @@ mod tests {
         ));
         assert_eq!(
             got,
-            vec![(
-                "api_method".to_owned(),
-                Some(target("p", "e")),
-                RemoteDispatch::Synchronous
-            )]
+            vec![("api_method".to_owned(), None, RemoteDispatch::Synchronous)]
         );
     }
 
@@ -1139,23 +878,59 @@ mod tests {
     }
 
     #[test]
-    fn an_irule_that_mentions_no_rpc_command_is_gated_out() {
-        // The cheap pre-check every navigation request pays. It must not
-        // change any answer — only skip work — so the assertion is that an
-        // ordinary iRule yields nothing while one spelling the command still
-        // resolves.
+    fn original_ilx_source_cards_keep_inline_candidates_and_current_owners() {
+        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
+        // docs/design/analysis/name-resolution-proofs/original-ilx-method-source-candidates.md
         let registry = irules_registry();
-        assert!(
-            ilx_method_calls("when HTTP_REQUEST {\n  pool web_pool\n}\n", &registry).is_empty()
+        let source = "when HTTP_REQUEST { ILX::call [ILX::init p e] -timeout 3000 -- m }";
+        let context = crate::OriginalIrulesSourceContext::capture(source, &registry).unwrap();
+        let got = super::ilx_method_calls_from_source_context(source, &context);
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].method, "m");
+        assert_eq!(
+            got[0].source_target,
+            Some(IlxExtension {
+                plugin: "p".to_owned(),
+                extension: "e".to_owned()
+            })
         );
-        assert!(!super::source_can_hold_a_site(
-            "when HTTP_REQUEST { pool web_pool }",
-            &registry
-        ));
-        assert!(super::source_can_hold_a_site(
-            "when X { ILX::notify $h m }",
-            &registry
-        ));
+        assert_eq!(got[0].target, None);
+        assert!(!got[0].obligations.is_empty());
+        assert_eq!(&source[got[0].method_span.as_range()], "m");
+        assert!(
+            super::ilx_method_calls_from_source_context(&format!("{source}\n# changed"), &context)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn original_ilx_source_cards_do_not_derive_handles_from_cell_or_label_guesses() {
+        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
+        // docs/design/analysis/name-resolution-proofs/original-ilx-method-source-candidates.md
+        for source in [
+            "when HTTP_REQUEST {set h [ILX::init p e]; ILX::call $h m}",
+            "when HTTP_REQUEST {set h [ILX::init p e]; unknown; ILX::call $h m}",
+            "when HTTP_REQUEST { ILX::call [unknown p e] m }",
+        ] {
+            let got = ilx_method_calls(source, &irules_registry());
+            assert_eq!(got.len(), 1, "{source}");
+            assert_eq!(got[0].target, None);
+            assert_eq!(got[0].source_target, None);
+        }
+        assert!(
+            ilx_method_calls(
+                "when HTTP_REQUEST {ILX::call $h $method}",
+                &irules_registry()
+            )
+            .is_empty()
+        );
+        assert!(
+            ilx_method_calls(
+                "when HTTP_REQUEST {ILX::call $h m}",
+                &CommandRegistry::build_default()
+            )
+            .is_empty()
+        );
     }
 
     #[test]

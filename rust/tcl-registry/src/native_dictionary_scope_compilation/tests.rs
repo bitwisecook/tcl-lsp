@@ -206,6 +206,7 @@ fn dictionary_fallback_retains_original_declarations_in_shared_instruction_recei
         )
         .unwrap();
         let context = NativeCompilationContext {
+            mode: crate::native_compilation::NativeCompilationMode::BytecodeObject,
             frame: NativeCompilationFrame::ProcedureCode,
             ..NativeCompilationContext::default()
         };

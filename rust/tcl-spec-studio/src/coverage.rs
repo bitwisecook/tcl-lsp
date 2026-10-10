@@ -180,6 +180,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         command_prefixes: _,
         command_prefix_resolver: _,
         script_timing_resolver: _,
+        script_lookup_scope: _,
         substitution_resolver: _,
         callback_taint_inputs: _,
         return_type: _,
@@ -237,7 +238,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         reserved_trailing_words: _,
         arg_values: _, versioned_arg_values: _,
         body_kind: _,
-        body_interpreter: _, body_execution: _, procedure_definition: _, native_compilation: _, successful_handler: _,
+        body_interpreter: _, body_execution: _, procedure_definition: _, native_compilation: _, successful_handler: _, variable_receivers: _,
         body_arg_implicit_args: _,
         taint_output_sink: _,
         taint_output_sink_subcommands: _,
@@ -263,6 +264,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         xc_translatable: _,
         deprecated_replacement: _,
         deprecated_replacement_drop_in: _,
+        source_deprecation_advice: _,
         byte_array_payload: _,
         byte_array_effect: _,
         definition_body: _,
@@ -321,6 +323,7 @@ pub const COMMAND_SPEC: &[Field] = &[
         "script_timing_resolver",
         Surface::Key("script_timing_resolver"),
     ),
+    f("script_lookup_scope", Surface::Key("script_lookup_scope")),
     f(
         "substitution_resolver",
         Surface::Key("substitution_resolver"),
@@ -421,6 +424,7 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("procedure_definition", Surface::Key("procedure_definition")),
     f("native_compilation", Surface::Key("native_compilation")),
     f("successful_handler", Surface::Key("successful_handler")),
+    f("variable_receivers", Surface::Key("variable_receivers")),
     f(
         "body_arg_implicit_args",
         Surface::Key("body_arg_implicit_args"),
@@ -478,6 +482,10 @@ pub const COMMAND_SPEC: &[Field] = &[
         "deprecated_replacement_drop_in",
         Surface::Key("deprecated_replacement_drop_in"),
     ),
+    f(
+        "source_deprecation_advice",
+        Surface::Key("source_deprecation_advice"),
+    ),
     f("byte_array_payload", Surface::Key("byte_array_payload")),
     f("byte_array_effect", Surface::Key("byte_array_effect")),
     f("definition_body", Surface::Key("definition_body")),
@@ -524,6 +532,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         command_prefixes: _,
         command_prefix_resolver: _,
         script_timing_resolver: _,
+        script_lookup_scope: _,
         callback_taint_inputs: _,
         return_type: _,
         var_write_typing: _,
@@ -547,6 +556,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         min_abbrev: _,
         prefix_matching: _,
         option_prefix_words: _,
+        reserved_trailing_words: _,
         arg_values: _,
         versioned_arg_values: _,
         subcommand_forms: _,
@@ -563,6 +573,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         body_execution: _,
         native_compilation: _,
         successful_handler: _,
+        variable_receivers: _,
         byte_array_effect: _,
         closed_value_args: _,
         arg_values_accept_prefix: _,
@@ -631,6 +642,7 @@ pub const SUB_COMMAND: &[Field] = &[
         "script_timing_resolver",
         Surface::Key("script_timing_resolver"),
     ),
+    f("script_lookup_scope", Surface::Key("script_lookup_scope")),
     f("return_type", Surface::Key("return_type")),
     f("var_write_typing", Surface::Key("var_write_typing")),
     f("return_elements", Surface::Key("return_elements")),
@@ -656,6 +668,10 @@ pub const SUB_COMMAND: &[Field] = &[
     f("min_abbrev", Surface::Key("min_abbrev")),
     f("prefix_matching", Surface::Key("prefix_matching")),
     f("option_prefix_words", Surface::Key("option_prefix_words")),
+    f(
+        "reserved_trailing_words",
+        Surface::Key("reserved_trailing_words"),
+    ),
     f("arg_values", Surface::Key("arg_values")),
     f("versioned_arg_values", Surface::Key("versioned_arg_values")),
     f("subcommand_forms", Surface::Key("subcommand_forms")),
@@ -675,6 +691,7 @@ pub const SUB_COMMAND: &[Field] = &[
     f("body_execution", Surface::Key("body_execution")),
     f("native_compilation", Surface::Key("native_compilation")),
     f("successful_handler", Surface::Key("successful_handler")),
+    f("variable_receivers", Surface::Key("variable_receivers")),
     f("byte_array_effect", Surface::Key("byte_array_effect")),
     f("closed_value_args", Surface::Key("closed_value_args")),
     f(
@@ -739,6 +756,7 @@ pub fn witness_sub_sub_command(sub: &SubSubCommand) {
         surface: _,
         lifecycle: _,
         options: _,
+        option_prefix_words: _,
     } = sub;
 }
 
@@ -756,6 +774,7 @@ pub const SUB_SUB_COMMAND: &[Field] = &[
     f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("options", Surface::Key("options")),
+    f("option_prefix_words", Surface::Key("option_prefix_words")),
 ];
 
 /// Compile-time witness for [`OPTION_SPEC`].

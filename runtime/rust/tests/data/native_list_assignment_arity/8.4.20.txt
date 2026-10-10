@@ -1,0 +1,8 @@
+PATCHLEVEL 8.4.20
+RESULT no_operands 1 {invalid command name "lassign"}
+RESULT literal_no_target 1 {invalid command name "lassign"}
+RESULT dynamic_no_target 1 {invalid command name "lassign"}
+RESULT compiled_no_target 1 {invalid command name "lassign"}
+RESULT malformed_no_target 1 {invalid command name "lassign"}
+RESULT literal_one_target 1 {invalid command name "lassign"}
+RESULT empty_no_target 1 {invalid command name "lassign"}

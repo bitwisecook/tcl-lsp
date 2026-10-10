@@ -1,0 +1,20 @@
+{
+  "question": "What public renamed class command and errorInfo definition frame follow a relative rename inside the authentic class definition namespace?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Untouched original counted fullInit CAPI driver as Native202/319, independently fresh interpreter for each provider. Whole original ASCII source.",
+  "observation": "Caught code, result, whole errorInfo, both possible public command names. Stock TclOO-unavailable is actual NOT_APPLICABLE, not Jim class or package assumption. No private object/token/worker equality claim.",
+  "cases": [
+    {
+      "id": "renamed-definition",
+      "source_file": "source.tcl",
+      "source_sha256": "7bdf32aee19dafbe50953b8d4f675d2c78f91aa006b4633d9e65c5fac8152da0"
+    }
+  ]
+}

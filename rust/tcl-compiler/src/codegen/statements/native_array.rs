@@ -25,6 +25,27 @@ use tcl_registry::native_compilation::NativeArrayCommand as Command;
 use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;
 use tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver;
 
+enum NativeArrayReceiverSlot {
+    Local(usize),
+    Stack,
+}
+
+impl NativeArrayReceiverSlot {
+    fn local(self) -> Option<usize> {
+        match self {
+            Self::Local(slot) => Some(slot),
+            Self::Stack => None,
+        }
+    }
+}
+
+struct NativeArrayValuesEmission {
+    slot: usize,
+    version: tcl_dialect::TclVersion,
+    checked_even: bool,
+    temporaries: [std::rc::Rc<std::cell::Cell<Option<usize>>>; 2],
+}
+
 impl CodegenCtx<'_> {
     pub(super) fn append_native_array_tasks(
         &mut self,
@@ -46,32 +67,12 @@ impl CodegenCtx<'_> {
             operations.push(Task::NamespaceGenericRollback(saved, command.clone()));
             return true;
         };
-        let mut slot = match recipe.receiver {
-            NativeInfoExistsReceiver::Original(target) => {
-                let NativeCompilerWordOperand::Original(index) = &recipe.operand else {
-                    return false;
-                };
-                let Some(word) = command.words.get(*index) else {
-                    return false;
-                };
-                let (slot, array) =
-                    self.prepare_native_variable_tasks(word, target, false, operations);
-                if array {
-                    return false;
-                };
-                slot
-            }
-            NativeInfoExistsReceiver::ExpandedLiteral { name, index } => {
-                if index.is_some() {
-                    return false;
-                }
-                let slot = self.command_variable_slot(&name);
-                if slot.is_none() {
-                    operations.push(Task::Literal(name));
-                }
-                slot
-            }
+        let Some(receiver) =
+            self.native_array_receiver_slot(command, recipe.receiver, &recipe.operand, operations)
+        else {
+            return false;
         };
+        let mut slot = receiver.local();
         let exists = if slot.is_some() {
             Op::ARRAY_EXISTS_IMM
         } else {
@@ -84,42 +85,12 @@ impl CodegenCtx<'_> {
             operations.push(Task::SwitchOperation(exists, immediate, version));
             return true;
         }
-        if recipe.command == Command::Set && !recipe.empty && slot.is_none() {
-            let Some(protocol) = self.compiled_variable_protocol else {
-                return false;
-            };
-            let raw = match &recipe.operand {
-                NativeCompilerWordOperand::Original(index) => {
-                    let Some(word) = command.words.get(*index) else {
-                        return false;
-                    };
-                    let Some(raw) = word.image().bytes().get(word.span().as_range()) else {
-                        return false;
-                    };
-                    raw
-                }
-                NativeCompilerWordOperand::LiteralExpansion {
-                    original_word,
-                    value_span,
-                    ..
-                } => {
-                    let Some(word) = command.words.get(*original_word) else {
-                        return false;
-                    };
-                    let Some(raw) = word.image().bytes().get(value_span.as_range()) else {
-                        return false;
-                    };
-                    raw
-                }
-            };
-            slot = Some(self.lvt.intern_native(protocol, raw));
-            operations.push(Task::Literal(b"0".to_vec()));
-            operations.push(Task::Operation(Op::REVERSE, vec![Operand::Imm(2)]));
-            operations.push(Task::Operation(
-                Op::UPVAR,
-                vec![Operand::Imm(super::super::bytecode_imm(slot.unwrap()))],
-            ));
-            operations.push(Task::Operation(Op::POP, Vec::new()));
+        if recipe.command == Command::Set
+            && !recipe.empty
+            && slot.is_none()
+            && !self.prepare_native_array_local(command, &recipe.operand, &mut slot, operations)
+        {
+            return false;
         }
         let nonempty = recipe.command == Command::Set && !recipe.empty;
         let temporaries: [std::rc::Rc<std::cell::Cell<Option<usize>>>; 2] =
@@ -129,6 +100,116 @@ impl CodegenCtx<'_> {
                 operations.push(Task::DeclareNativeTemporary(temporary.clone()));
             }
         }
+        self.append_native_array_state(recipe.command, slot, version, operations);
+        if nonempty {
+            let Some(values) = recipe.values else {
+                return false;
+            };
+            let emission = NativeArrayValuesEmission {
+                slot: slot.unwrap(),
+                version,
+                checked_even: recipe.checked_even,
+                temporaries,
+            };
+            if !self.append_native_array_values(command, values, &emission, operations) {
+                return false;
+            }
+        }
+        operations.push(Task::Literal(Vec::new()));
+        true
+    }
+
+    fn native_array_receiver_slot(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        receiver: NativeInfoExistsReceiver,
+        operand: &NativeCompilerWordOperand,
+        operations: &mut Vec<Task>,
+    ) -> Option<NativeArrayReceiverSlot> {
+        Some(match receiver {
+            NativeInfoExistsReceiver::Original(target) => {
+                let NativeCompilerWordOperand::Original(index) = operand else {
+                    return None;
+                };
+                let word = command.words.get(*index)?;
+                let (slot, array) =
+                    self.prepare_native_variable_tasks(word, target, false, operations);
+                if array {
+                    return None;
+                }
+                slot.map_or(
+                    NativeArrayReceiverSlot::Stack,
+                    NativeArrayReceiverSlot::Local,
+                )
+            }
+            NativeInfoExistsReceiver::ExpandedLiteral { name, index } => {
+                if index.is_some() {
+                    return None;
+                }
+                let slot = self.command_variable_slot(&name);
+                if slot.is_none() {
+                    operations.push(Task::Literal(name));
+                }
+                slot.map_or(
+                    NativeArrayReceiverSlot::Stack,
+                    NativeArrayReceiverSlot::Local,
+                )
+            }
+        })
+    }
+
+    fn prepare_native_array_local(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        operand: &NativeCompilerWordOperand,
+        slot: &mut Option<usize>,
+        operations: &mut Vec<Task>,
+    ) -> bool {
+        let Some(protocol) = self.compiled_variable_protocol else {
+            return false;
+        };
+        let raw = match operand {
+            NativeCompilerWordOperand::Original(index) => {
+                let Some(word) = command.words.get(*index) else {
+                    return false;
+                };
+                let Some(raw) = word.image().bytes().get(word.span().as_range()) else {
+                    return false;
+                };
+                raw
+            }
+            NativeCompilerWordOperand::LiteralExpansion {
+                original_word,
+                value_span,
+                ..
+            } => {
+                let Some(word) = command.words.get(*original_word) else {
+                    return false;
+                };
+                let Some(raw) = word.image().bytes().get(value_span.as_range()) else {
+                    return false;
+                };
+                raw
+            }
+        };
+        *slot = Some(self.lvt.intern_native(protocol, raw));
+        operations.push(Task::Literal(b"0".to_vec()));
+        operations.push(Task::Operation(Op::REVERSE, vec![Operand::Imm(2)]));
+        operations.push(Task::Operation(
+            Op::UPVAR,
+            vec![Operand::Imm(super::super::bytecode_imm(slot.unwrap()))],
+        ));
+        operations.push(Task::Operation(Op::POP, Vec::new()));
+        true
+    }
+
+    fn append_native_array_state(
+        &mut self,
+        array_command: Command,
+        slot: Option<usize>,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<Task>,
+    ) {
         let exists = if slot.is_some() {
             Op::ARRAY_EXISTS_IMM
         } else {
@@ -144,7 +225,7 @@ impl CodegenCtx<'_> {
         }
         operations.push(Task::SwitchOperation(exists, immediate.clone(), version));
         operations.push(Task::Operation(
-            if recipe.command == Command::Unset {
+            if array_command == Command::Unset {
                 Op::JUMP_FALSE1
             } else {
                 Op::JUMP_TRUE1
@@ -155,7 +236,7 @@ impl CodegenCtx<'_> {
                 no_operation.clone()
             })],
         ));
-        let (op, operands) = if recipe.command == Command::Unset {
+        let (op, operands) = if array_command == Command::Unset {
             let mut operands = vec![Operand::Imm(1)];
             operands.extend(immediate);
             (
@@ -186,60 +267,70 @@ impl CodegenCtx<'_> {
             operations.push(Task::Operation(Op::POP, Vec::new()));
         }
         operations.push(Task::Label(ready));
-        if nonempty {
-            let Some(values) = recipe.values else {
-                return false;
-            };
-            let Some(task) = Self::native_namespace_word_task(&command.words, values) else {
-                return false;
-            };
-            operations.push(task);
-            if !recipe.checked_even {
-                let even = self.fresh_label("native_array_even");
-                operations.push(Task::Operation(Op::DUP, Vec::new()));
-                operations.push(Task::SwitchOperation(Op::LIST_LENGTH, Vec::new(), version));
-                operations.push(Task::Literal(b"1".to_vec()));
-                operations.push(Task::Operation(Op::BITAND, Vec::new()));
-                operations.push(Task::Operation(
-                    Op::JUMP_FALSE1,
-                    vec![Operand::Label(even.clone())],
-                ));
-                operations.push(Task::Literal(
-                    b"list must have an even number of elements".to_vec(),
-                ));
-                operations.push(Task::Literal(b"-errorcode {TCL ARGUMENT FORMAT}".to_vec()));
-                operations.push(Task::SwitchOperation(
-                    Op::RETURN_IMM,
-                    vec![Operand::Imm(1), Operand::Imm(0)],
-                    version,
-                ));
-                operations.push(Task::Label(even));
-            }
-            operations.push(Task::NativeArrayEachStart(version, temporaries.clone()));
-            operations.push(Task::NativeTemporaryOperation(
-                Op::LOAD_SCALAR4,
-                temporaries[0].clone(),
-                Vec::new(),
-            ));
-            operations.push(Task::NativeTemporaryOperation(
-                Op::LOAD_SCALAR4,
-                temporaries[1].clone(),
-                Vec::new(),
-            ));
+    }
+
+    fn append_native_array_values(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        values: NativeCompilerWordOperand,
+        emission: &NativeArrayValuesEmission,
+        operations: &mut Vec<Task>,
+    ) -> bool {
+        let Some(task) = Self::native_namespace_word_task(&command.words, values) else {
+            return false;
+        };
+        operations.push(task);
+        if !emission.checked_even {
+            let even = self.fresh_label("native_array_even");
+            operations.push(Task::Operation(Op::DUP, Vec::new()));
             operations.push(Task::SwitchOperation(
-                if slot.unwrap() < 256 {
-                    Op::STORE_ARRAY1
-                } else {
-                    Op::STORE_ARRAY4
-                },
-                vec![Operand::Imm(super::super::bytecode_imm(slot.unwrap()))],
-                version,
+                Op::LIST_LENGTH,
+                Vec::new(),
+                emission.version,
             ));
-            operations.push(Task::Operation(Op::POP, Vec::new()));
-            operations.push(Task::Operation(Op::FOREACH_STEP, Vec::new()));
-            operations.push(Task::Operation(Op::FOREACH_END, Vec::new()));
+            operations.push(Task::Literal(b"1".to_vec()));
+            operations.push(Task::Operation(Op::BITAND, Vec::new()));
+            operations.push(Task::Operation(
+                Op::JUMP_FALSE1,
+                vec![Operand::Label(even.clone())],
+            ));
+            operations.push(Task::Literal(
+                b"list must have an even number of elements".to_vec(),
+            ));
+            operations.push(Task::Literal(b"-errorcode {TCL ARGUMENT FORMAT}".to_vec()));
+            operations.push(Task::SwitchOperation(
+                Op::RETURN_IMM,
+                vec![Operand::Imm(1), Operand::Imm(0)],
+                emission.version,
+            ));
+            operations.push(Task::Label(even));
         }
-        operations.push(Task::Literal(Vec::new()));
+        operations.push(Task::NativeArrayEachStart(
+            emission.version,
+            emission.temporaries.clone(),
+        ));
+        operations.push(Task::NativeTemporaryOperation(
+            Op::LOAD_SCALAR4,
+            emission.temporaries[0].clone(),
+            Vec::new(),
+        ));
+        operations.push(Task::NativeTemporaryOperation(
+            Op::LOAD_SCALAR4,
+            emission.temporaries[1].clone(),
+            Vec::new(),
+        ));
+        operations.push(Task::SwitchOperation(
+            if emission.slot < 256 {
+                Op::STORE_ARRAY1
+            } else {
+                Op::STORE_ARRAY4
+            },
+            vec![Operand::Imm(super::super::bytecode_imm(emission.slot))],
+            emission.version,
+        ));
+        operations.push(Task::Operation(Op::POP, Vec::new()));
+        operations.push(Task::Operation(Op::FOREACH_STEP, Vec::new()));
+        operations.push(Task::Operation(Op::FOREACH_END, Vec::new()));
         true
     }
 }

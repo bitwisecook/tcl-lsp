@@ -18,7 +18,92 @@
 
 //! Package command operand extents and diagnostic metadata.
 
+use tcl_core_types::NameBytes;
 use tcl_dialect::TclVersion;
+use tcl_syntax::naming::NamePolicyProtocol;
+
+/// A package database key projected from already retained native name units.
+///
+/// The naming policy selects the package operation's `CString` extent. This
+/// type retains its provider independently of the selected bytes: it neither
+/// decodes display text nor authenticates a source operand, package table,
+/// handler or successful operation. Source consumers retain those receipts
+/// separately before supplying the original units and their matching policy.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NativePackageNameKey {
+    bytes: NameBytes,
+    policy: NamePolicyProtocol,
+}
+
+impl NativePackageNameKey {
+    /// Apply the selected package-name purpose to retained native units.
+    #[must_use]
+    pub fn from_native_units(original: &[u8], policy: NamePolicyProtocol) -> Self {
+        Self {
+            bytes: NameBytes::from(policy.recipe().package_key(original).selected()),
+            policy,
+        }
+    }
+
+    /// Exact selected database key, including non-Unicode native units.
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        self.bytes.as_bytes()
+    }
+
+    /// The independently selected naming provider used by this projection.
+    #[must_use]
+    pub const fn policy(&self) -> NamePolicyProtocol {
+        self.policy
+    }
+
+    /// Represent this selected package key as a bare manifest source atom.
+    /// The complete receiving source configuration and independently selected
+    /// native string policy must round-trip the authored Document-channel word.
+    /// This supplies no package availability, loader or runtime table evidence.
+    #[must_use]
+    pub fn manifest_atom(&self, config: tcl_lexer::LexerConfig) -> Option<String> {
+        if config.escapes != self.policy.string_protocol().escape_syntax() {
+            return None;
+        }
+        let atom = std::str::from_utf8(self.bytes()).ok()?;
+        if atom.is_empty()
+            || atom.chars().any(|character| {
+                character.is_whitespace()
+                    || character.is_control()
+                    || matches!(
+                        character,
+                        ';' | '$' | '[' | ']' | '{' | '}' | '"' | '\\' | '#'
+                    )
+            })
+        {
+            return None;
+        }
+        let image = tcl_lexer::SourceImage::document(atom);
+        let end = u32::try_from(image.len()).ok()?;
+        let parsed =
+            tcl_lexer::native_script_words_in(image, tcl_lexer::Span::new(0, end), config).ok()?;
+        if parsed.fatal_tail.is_some()
+            || parsed.commands.len() != 1
+            || parsed.commands[0].words.len() != 1
+        {
+            return None;
+        }
+        let words = crate::native_compiler_words::NativeCompilerWords::capture(
+            &parsed.commands[0].words,
+            self.policy.string_protocol(),
+        )
+        .ok()?;
+        let roundtrip = Self::from_native_units(words.literal(0)?, self.policy);
+        (roundtrip == *self).then(|| atom.to_owned())
+    }
+
+    /// Match fixed authored ASCII metadata without decoding the native key.
+    #[must_use]
+    pub fn matches_ascii(&self, authored: &str) -> bool {
+        authored.is_ascii() && self.bytes() == authored.as_bytes()
+    }
+}
 
 /// Actual engine package command protocol, independent of source grammar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -444,7 +529,53 @@ impl crate::InvocationDialect {
 
 #[cfg(test)]
 mod tests {
-    use super::{NativePackageProtocol, PackageDispatch, PackageMemberSelection};
+    use super::{
+        NativePackageNameKey, NativePackageProtocol, PackageDispatch, PackageMemberSelection,
+    };
+
+    #[test]
+    fn package_name_keys_keep_native_units_and_package_extent_separate() {
+        // Implementation contract: naming.package.selected-native-unit-key
+        // docs/design/analysis/name-resolution-proofs/selected-native-unit-package-key.md
+
+        use tcl_dialect::TclVersion;
+        use tcl_syntax::naming::NamePolicyProtocol;
+
+        let policies = [
+            NamePolicyProtocol::authored_tcl(TclVersion::V8_4),
+            NamePolicyProtocol::authored_tcl(TclVersion::V8_5),
+            NamePolicyProtocol::authored_tcl(TclVersion::V8_6),
+            NamePolicyProtocol::authored_tcl(TclVersion::V9_0),
+            NamePolicyProtocol::authored_tcl(TclVersion::V9_1),
+            NamePolicyProtocol::authored_jim084(),
+        ];
+        for policy in policies {
+            let prefix = NativePackageNameKey::from_native_units(b"Pkg", policy);
+            assert_eq!(
+                NativePackageNameKey::from_native_units(b"Pkg\0Tail", policy),
+                prefix
+            );
+            assert!(prefix.matches_ascii("Pkg"));
+            assert!(!prefix.matches_ascii("pkg"));
+
+            for units in [
+                b"Pkg\xc0\x80Tail".as_slice(),
+                b"Pkg\xed\xa0\x80",
+                b"Pkg\xff",
+            ] {
+                let key = NativePackageNameKey::from_native_units(units, policy);
+                assert_eq!(key.bytes(), units);
+                assert_eq!(key.policy(), policy);
+                assert_ne!(key, prefix);
+            }
+        }
+        // The same selected bytes do not erase an independently selected
+        // engine or authored/native provider from diagnostic/cache identity.
+        assert_ne!(
+            NativePackageNameKey::from_native_units(b"Pkg", policies[0]),
+            NativePackageNameKey::from_native_units(b"Pkg", policies[5]),
+        );
+    }
 
     #[test]
     fn jim_dispatch_keeps_counted_controls_and_native_help_selection() {
@@ -545,5 +676,49 @@ mod authored_tests {
         );
         assert_eq!(select_authored_keyword(b"cur", &namespace), Ok(2));
         assert!(select_authored_keyword(b"path", &namespace).is_err());
+    }
+}
+
+#[cfg(test)]
+mod manifest_key_tests {
+    use super::*;
+
+    #[test]
+    fn original_package_manifest_atom_roundtrips_the_selected_key_and_channel() {
+        // Implementation contract: naming.package.original-manifest-source-advice
+        // docs/design/analysis/name-resolution-proofs/original-package-manifest-source-advice.md
+        for version in TclVersion::ALL {
+            let policy = NamePolicyProtocol::authored_tcl(version);
+            let config = tcl_lexer::LexerConfig::from_grammar(
+                crate::InvocationDialect::for_version(version).lexer_grammar,
+            );
+            let plain = NativePackageNameKey::from_native_units(b"json::write", policy);
+            assert_eq!(plain.manifest_atom(config).as_deref(), Some("json::write"));
+            assert_eq!(
+                NativePackageNameKey::from_native_units(b"json\0tail", policy)
+                    .manifest_atom(config)
+                    .as_deref(),
+                Some("json")
+            );
+            for bytes in [
+                b"p\xc0\x80tail".as_slice(),
+                b"p\xed\xa0\x80",
+                b"p\xff",
+                b"$package",
+                b"two words",
+                b"bad;command",
+                b"line\nname",
+            ] {
+                assert!(
+                    NativePackageNameKey::from_native_units(bytes, policy)
+                        .manifest_atom(config)
+                        .is_none()
+                );
+            }
+            let mut different = config;
+            different.escapes =
+                tcl_syntax::native_string::NativeStringProtocol::Jim084.escape_syntax();
+            assert!(plain.manifest_atom(different).is_none());
+        }
     }
 }

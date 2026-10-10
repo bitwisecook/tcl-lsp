@@ -113,6 +113,7 @@ impl InvocationResultBasis {
             && original.evaluated_argument_values == binding.evaluated_argument_values
             && original.evaluated_argument_words == binding.evaluated_argument_words
             && original.frozen_written_words == binding.frozen_written_words
+            && original.frozen_written_names == binding.frozen_written_names
             && original.frozen_head_object == binding.frozen_head_object
             && original.runtime_reachability == binding.runtime_reachability
             && original.entered_execution_observer == binding.entered_execution_observer
@@ -268,7 +269,7 @@ impl SourceInvocationBinding {
 impl SourceCommandBindings {
     pub(super) fn record_invocation_normal_result(
         &mut self,
-        basis: InvocationResultBasis,
+        basis: Box<InvocationResultBasis>,
         outcomes: &SourceOutcomes,
     ) {
         let Some(site) = basis.binding.dispatch_site.clone() else {
@@ -278,11 +279,14 @@ impl SourceCommandBindings {
         let observations = self.invocation_normal_results.entry(site).or_default();
         if let Some(retained) = observations
             .iter_mut()
-            .find(|observation| observation.basis == basis)
+            .find(|observation| observation.basis == *basis)
         {
             retained.outcome.join(&outcome);
         } else {
-            observations.push(InvocationResultObservation { basis, outcome });
+            observations.push(InvocationResultObservation {
+                basis: *basis,
+                outcome,
+            });
         }
     }
 
@@ -496,6 +500,90 @@ mod tests {
             config,
             command,
         )
+    }
+
+    #[test]
+    fn original_closed_leaf_completion_keeps_definition_and_store_obligations_separate() {
+        // Implementation contract: naming.source.closed-leaf-handler-completion
+        // docs/design/analysis/name-resolution-proofs/closed-leaf-handler-completion.md
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let source = "proc deferred {} {error LATER}";
+            let (bindings, config) = inventory_for(source, profile);
+            let tokens = original_tokens(source, 0, config);
+            let binding = bindings.invocation_at_source("proc", 0);
+            assert!(
+                binding.original_invocation_completes_normally(&tokens),
+                "{profile}"
+            );
+            assert!(
+                bindings.original_completed_root_state.is_some(),
+                "{profile}"
+            );
+
+            let source = "set result [set target VALUE]";
+            let (bindings, config) = inventory_for(source, profile);
+            let tokens = original_tokens(source, 0, config);
+            assert!(
+                bindings
+                    .invocation_at_source("set", 0)
+                    .original_invocation_completes_normally(&tokens),
+                "{profile}"
+            );
+            assert!(
+                bindings.original_completed_root_state.is_some(),
+                "{profile}"
+            );
+
+            for source in [
+                "proc P {{bad extra fields}} {}",
+                "set a(k) 1; set a 2",
+                "set result [error ARGUMENT]",
+            ] {
+                let (bindings, _) = inventory_for(source, profile);
+                assert!(
+                    bindings.original_completed_root_state.is_none(),
+                    "{profile}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_jim_fresh_store_completion_uses_the_selected_write_kernel() {
+        // Implementation contract: naming.source.closed-leaf-handler-completion
+        // docs/design/analysis/name-resolution-proofs/closed-leaf-handler-completion.md
+        let dialect = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
+        );
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+        let analyse = |source| {
+            SourceCommandBindings::analyse_with_options(
+                source,
+                config,
+                registry,
+                super::super::SourceAnalysisOptions {
+                    invocation_dialect: Some(dialect),
+                    native_compilation:
+                        tcl_registry::native_compilation::NativeCompilationContext {
+                            mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                            ..Default::default()
+                        },
+                    ..Default::default()
+                },
+            )
+        };
+        let source = "set result [set target VALUE]";
+        let bindings = analyse(source);
+        let tokens = original_tokens(source, 0, config);
+        assert!(
+            bindings
+                .invocation_at_source("set", 0)
+                .original_invocation_completes_normally(&tokens)
+        );
+        assert!(bindings.original_completed_root_state.is_some());
+        let unknown = analyse("set result $missing");
+        assert!(unknown.original_completed_root_state.is_none());
     }
 
     #[test]

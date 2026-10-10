@@ -75,7 +75,7 @@ impl NativeAppendVariable for AppendVariable<'_> {
 
 impl Interp {
     /// `TCL_APPEND_VALUE` with counted bytes reaches the selected variable's
-    /// read/write observers and String append, without replacing the result.
+    /// write observers and String append, without a read callback or result replacement.
     pub(super) fn append_native_counted_variable_bytes(
         &mut self,
         name: &[u8],
@@ -99,16 +99,12 @@ impl Interp {
         let receiver = receiver.map_err(|error| crate::builtins::var_error(self, name, error))?;
         let home = self.trace_identity(name);
         let access = self.trace_access(name, name, None, &home, false);
-        if self.fire_var_trace_resolved(&home, &access, b"read") {
-            return Err(crate::builtins::var_error(
-                self,
-                name,
-                crate::frame::VarError::TraceError,
-            ));
-        }
-        if self.host_refusal_pending() {
-            return Err(Code::Error);
-        }
+        // Native proof: naming.error.c84-publication-order
+        // docs/design/analysis/name-resolution-proofs/error-c84-publication-order.md
+        // Native proof: naming.error.nonempty-info-publication-order
+        // docs/design/analysis/name-resolution-proofs/error-nonempty-info-publication-order.md
+        // TCL_APPEND_VALUE is a setter operation: existing contents are borrowed
+        // without running the variable's read callbacks.
         let original = receiver
             .read_initial()
             .map_err(|error| crate::builtins::var_error(self, name, error))?

@@ -90,13 +90,34 @@ fn regsub_layout_roles(
 /// confirmed absent from the fetched 8.4, 8.5, and 8.6 switch lists and
 /// present, identically, in the fetched 9.0 and 9.1 manpages.
 fn regsub_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
-    let args = args.spellings();
-    let i = first_positional_index(OPTIONS, args, 0);
-    let has_command = args[..i.min(args.len())].contains(&"-command");
-    let sub_idx = i + 2;
-    if has_command && sub_idx < args.len() {
-        u8::try_from(sub_idx)
-            .map(|s| vec![(s, AppendedArity::AtLeast(1))])
+    let words = args.words();
+    let options = crate::resolved_invocation::InvocationOptions {
+        availability: crate::resolved_invocation::InvocationAvailability {
+            query: words
+                .dialect()
+                .and_then(crate::InvocationDialect::authoring_query),
+            package_version: None,
+        },
+        parent_surface: Some(SpecSurface::ALL_TCL),
+        form_surface: None,
+        prefix_matching: crate::abbrev::PrefixMatching::Strict,
+        positional_prefix_words: 0,
+        reserved_trailing_words: 0,
+        case_list: None,
+        base: OPTIONS,
+        form: &[],
+    };
+    let Some(index) = options
+        .leading_word_count(words)
+        .and_then(|index| index.checked_add(2))
+    else {
+        return Vec::new();
+    };
+    if options.prefix_contains(words, "-command") == Some(true)
+        && words.exact_argv_len().is_some_and(|count| index < count)
+    {
+        u8::try_from(index)
+            .map(|index| vec![(index, AppendedArity::AtLeast(1))])
             .unwrap_or_default()
     } else {
         Vec::new()

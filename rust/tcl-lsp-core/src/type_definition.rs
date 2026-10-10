@@ -34,7 +34,7 @@ use tcl_compiler::analyser::{AnalysisResult, ClassDef};
 use tcl_lexer::LineIndex;
 
 use crate::definition::{LspRange, byte_offset_at, span_to_range};
-use crate::hover::{find_var_at_position, find_word_span_at_position};
+use crate::hover::find_word_span_at_position;
 
 /// Compute "go-to-type-definition" locations for the symbol at the
 /// cursor.
@@ -46,10 +46,43 @@ pub fn type_definition(
     analysis: &AnalysisResult,
 ) -> Vec<LspRange> {
     let line_index = LineIndex::new(source);
+    let cursor = byte_offset_at(&line_index, source, line, character);
+    if !analysis.allows_lexical_declaration_advice() {
+        let Some(config) = analysis.body_lexer_config else {
+            return Vec::new();
+        };
+        let image = tcl_lexer::SourceImage::document(source);
+        if !analysis.matches_original_source_image(&image, config) {
+            return Vec::new();
+        }
+        if analysis
+            .original_variable_root_in_source(&image, config, cursor)
+            .is_some()
+        {
+            return crate::receiver_identity::class_at_read(analysis, source, cursor)
+                .map(|class| vec![span_to_range(source, &line_index, class.name_span)])
+                .unwrap_or_default();
+        }
+        return match crate::method_symbol::local_candidate(source, analysis, line, character) {
+            std::ops::ControlFlow::Break(Some(method)) => method
+                .declaring_class_in(source, analysis)
+                .map(|class| {
+                    vec![span_to_range(
+                        source,
+                        &line_index,
+                        class.name_input().span(),
+                    )]
+                })
+                .unwrap_or_default(),
+            std::ops::ControlFlow::Break(None) | std::ops::ControlFlow::Continue(()) => Vec::new(),
+        };
+    }
 
     // The actual object read retains its original class allocation. A
     // singleton candidate type cannot supply a type-navigation declaration.
-    if find_var_at_position(source, line, character).is_some() {
+    if crate::definition::substituting_var_at_position(source, analysis, line, character, cursor)
+        .is_some()
+    {
         let cursor = byte_offset_at(&line_index, source, line, character);
         return crate::receiver_identity::class_at_read(analysis, source, cursor)
             .map(|class| vec![span_to_range(source, &line_index, class.name_span)])
@@ -127,7 +160,7 @@ mod tests {
     fn method_word_in_class_body_jumps_to_class() {
         let src = "oo::class create Greeter {\n\
                    method greet {} { return hi }\n\
-                   method again {} { greet }\n\
+                   method again {} { my greet }\n\
                    }\n";
         let analysis = analyse(src);
         // Cursor on the `greet` call inside `again`'s body (2nd occ).
@@ -182,5 +215,31 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         // `::A::Widget`'s declaration is on line 1, not `::B::Widget`'s line 6.
         assert_eq!(locs[0].start_line, 1, "{locs:?}");
+    }
+}
+
+#[cfg(test)]
+mod original_type_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+    #[test]
+    fn original_method_type_navigation_uses_opaque_declaring_class_without_reporting_maps() {
+        // Implementation contract: naming.consumer.original-type-and-implementation-navigation
+        // docs/design/analysis/name-resolution-proofs/original-type-and-implementation-navigation.md
+        let source = "oo::class create C\\uD800 {method m\\uD800 {} {}; method m\\uD801 {} {}}\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_classes.clear();
+        analysis.superseded_classes.clear();
+        for name in ["m\\uD800", "m\\uD801"] {
+            let cursor = u32::try_from(source.find(name).unwrap()).unwrap();
+            let ranges = type_definition(source, 0, cursor, &analysis);
+            assert_eq!(ranges.len(), 1);
+            let class = analysis.original_class_declarations().next().unwrap();
+            assert_eq!(
+                ranges[0],
+                span_to_range(source, &LineIndex::new(source), class.name_input().span())
+            );
+        }
+        assert!(type_definition(&format!("# changed\n{source}"), 1, 35, &analysis).is_empty());
     }
 }

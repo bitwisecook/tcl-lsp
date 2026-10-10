@@ -122,14 +122,14 @@ mod tests {
                     &ensure.transition,
                     StateTransition::Namespace(NamespaceTransition::Ensure {
                         namespace: NamespaceTransitionTarget::Named(
-                            TransitionSubject::Literal(namespace),
+                            TransitionSubject::LocatedLiteral { value: namespace, .. },
                         ),
                     }) if namespace == "::fresh::nested"
                 ) && matches!(
                     &moved.transition,
                     StateTransition::CommandBinding(CommandBindingTransition::Move {
-                        from: TransitionSubject::Literal(from),
-                        to: TransitionSubject::Literal(to),
+                        from: TransitionSubject::LocatedLiteral { value: from, .. },
+                        to: TransitionSubject::LocatedLiteral { value: to, .. },
                     }) if from == "::old" && to == "::fresh::nested::new"
                 )
         ));
@@ -147,7 +147,7 @@ mod tests {
                     &fact.transition,
                     StateTransition::CommandBinding(CommandBindingTransition::Delete {
                         interpreter: None,
-                        name: TransitionSubject::Literal(name),
+                        name: TransitionSubject::LocatedLiteral { value: name, .. },
                     }) if name == "old"
                 )
         ));

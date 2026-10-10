@@ -1,0 +1,8 @@
+
+running 3 tests
+test command_binding::logical_definition::tests::logical_definition_declines_unknown_rebound_dynamic_and_invalid_inputs ... ok
+test command_binding::logical_definition::tests::logical_definition_publishes_general_static_procedures_in_the_authored_model ... ok
+test command_binding::logical_definition::tests::logical_definition_receipt_rechecks_source_configuration_and_entry_without_native_normal ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 8196 filtered out; finished in 2.73s
+

@@ -175,8 +175,8 @@ pub enum Command {
     /// (the target command plus any fixed prefix arguments) with the call's own
     /// arguments appended.
     Alias(Rc<Vec<Value>>),
-    /// Jim command-prefix alias; target lookup retains the caller namespace.
-    CallerAlias(Rc<Vec<Value>>),
+    /// Jim's original prefix List header; target lookup retains the caller namespace.
+    CallerAlias(Value),
     /// A cross-interp `interp alias` whose target runs in a DIFFERENT
     /// interpreter (parent, child, sibling, or any node reachable through the
     /// shared engine): invoking it switches the engine to `target` and
@@ -699,33 +699,54 @@ fn fresh_apply_name() -> String {
     format!("tcl::apply::lambda{n}")
 }
 
-/// Parse a lambda expression `{params body ?namespace?}` and define it as a
-/// fresh internal proc, returning that proc's canonical name (`Err` with the
-/// diagnostic on a malformed lambda).
-///
-/// Shared by `apply` and by `coroutine … apply …`. The caller owns the proc's
-/// lifetime: `apply` deletes it right after the call; a coroutine keeps it alive
-/// for the coroutine's life so the lambda body runs on the coroutine's *explicit
-/// activation stack* (a `yield` inside it is then yieldable — the generic
-/// `apply` path evaluates the body through a host-stack re-entry, which a
-/// `yield` cannot cross).
+/// A manufactured lambda binding and its independent temporary registration lifetime.
+pub(crate) struct OriginalLambdaDefinition {
+    pub(crate) binding: NativeProcedureCommand,
+    pub(crate) registration: crate::interp::CommandSidecarHandle,
+}
+
+/// Manufacture the actual temporary lambda declaration from original list
+/// elements. The caller retains its returned binding independently of the
+/// original publication handle and owns cleanup on every completion path. This is not
+/// an assertion about native C commandless lambda cache storage.
 pub(crate) fn build_lambda_proc(
     vm: &mut Vm,
     lambda: &Value,
     call_identity: Vec<Value>,
-) -> Result<String, Completion<Value>> {
+) -> Result<OriginalLambdaDefinition, Completion<Value>> {
     let Some(protocol) = vm.native_invocation_dialect().native_string_protocol() else {
         return Err(vm.refuse_host_command("native lambda list producer is unavailable".into()));
     };
+    let Some(diagnostics) = tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol::select(
+        vm.native_invocation_dialect(),
+    ) else {
+        return Err(
+            vm.refuse_host_command("native lambda diagnostic protocol is unavailable".into())
+        );
+    };
     let parts = match vm.native_object_list_elements_in(lambda, protocol) {
         Ok(parts) => parts,
+        Err(error) if diagnostics.wraps_list_failure(&error) => {
+            let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(vm, lambda) {
+                Ok(bytes) => bytes,
+                Err(error) => return Err(completion_from_cmd_error(vm, error.into())),
+            };
+            return Err(completion_from_cmd_error(
+                vm,
+                diagnostics.conversion_error(&bytes),
+            ));
+        }
         Err(error) => return Err(completion_from_cmd_error(vm, error.into())),
     };
-    if parts.len() < 2 || parts.len() > 3 {
-        return Err(err(format!(
-            "can't interpret \"{}\" as a lambda expression",
-            lambda.to_str()
-        )));
+    if !(2..=3).contains(&parts.len()) {
+        let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(vm, lambda) {
+            Ok(bytes) => bytes,
+            Err(error) => return Err(completion_from_cmd_error(vm, error.into())),
+        };
+        return Err(completion_from_cmd_error(
+            vm,
+            diagnostics.conversion_error(&bytes),
+        ));
     }
     let Some(parameter_grammar) = vm.native_invocation_dialect().parameter_grammar() else {
         return Err(err("native parameter grammar is not selected"));
@@ -737,44 +758,19 @@ pub(crate) fn build_lambda_proc(
     let (params_vec, has_args) = match parse_params_value(vm, &parts[0], b"") {
         Ok(parsed) => parsed,
         Err(error) => {
-            let mut frame = b"\n    (parsing lambda expression \"".to_vec();
-            frame.extend_from_slice(&lambda.string_bytes());
-            frame.extend_from_slice(b"\")");
-            vm.seed_error_info_frame(error.result.string_bytes(), frame);
+            let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(vm, lambda) {
+                Ok(bytes) => bytes,
+                Err(error) => return Err(completion_from_cmd_error(vm, error.into())),
+            };
+            if let Some(frame) = diagnostics.parameter_error_frame(&bytes) {
+                vm.seed_error_info_frame(error.result.string_bytes(), frame);
+            }
             return Err(error);
         }
     };
     // Resolve the original namespace object from the global namespace before
     // compiling the lambda; display spelling is not its namespace identity.
-    let ns_id = if let Some(original) = parts.get(2) {
-        let bytes = match vm.native_name_operand_bytes(original) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                return Err(
-                    vm.refuse_host_command(format!("lambda namespace is unavailable: {error}"))
-                );
-            }
-        };
-        match tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
-            vm,
-            tcl_core_types::ROOT_NS,
-            &bytes,
-        ) {
-            Ok(Some(namespace)) => namespace,
-            Ok(None) => {
-                let mut message = b"namespace \"".to_vec();
-                if !bytes.starts_with(b"::") {
-                    message.extend_from_slice(b"::");
-                }
-                message.extend_from_slice(&bytes);
-                message.extend_from_slice(b"\" not found");
-                return Err(err(message));
-            }
-            Err(error) => return Err(completion_from_cmd_error(vm, error.into())),
-        }
-    } else {
-        tcl_core_types::ROOT_NS
-    };
+    let ns_id = lambda_namespace(vm, parts.get(2))?;
     let namespace = vm.namespace_path_for_token(ns_id);
     let native_jim_namespace = vm.uses_native_jim_lookup().then(|| {
         parts
@@ -784,7 +780,7 @@ pub(crate) fn build_lambda_proc(
     });
     let name = fresh_apply_name();
     let command_ns_id = vm.definition_namespace_token("tcl::apply");
-    vm.define_proc(ProcDef {
+    let (binding, publication) = vm.define_proc_binding(ProcDef {
         native_resources: Rc::default(),
         name: name.clone(),
         command_ns_id,
@@ -807,51 +803,80 @@ pub(crate) fn build_lambda_proc(
         usage_name: Some(vec![Value::string("apply"), Value::string("lambdaExpr")]),
         call_identity: Some(call_identity),
     });
-    Ok(name)
+    let registration = vm.active_sidecar(crate::interp::CommandSidecarKey::visible(publication));
+    Ok(OriginalLambdaDefinition {
+        binding,
+        registration,
+    })
 }
 
-/// `apply lambda ?arg ...?` — invoke an anonymous function `{params body ?ns?}`.
-/// Implemented by binding the lambda to a temporary command and evaluating a
-/// call, so parameter binding and `return` semantics match a normal proc.
-///
-/// Defers the call to the *explicit* stack via the pending eval request (like
-/// `eval`/`uplevel`) rather than `Vm::eval_source`'s nested drive, so a `yield`
-/// inside the lambda body stays yieldable, matching `coroutine c apply
-/// {lambda}` (`cmd_coroutine` binds the lambda to an internal proc run on the
-/// coroutine's own stack), including a bare `apply` called *from inside* a
-/// coroutine body. `cleanup_proc` carries the temporary proc's name so it is
-/// torn down once the deferred call completes, on every completion path.
+fn lambda_namespace(vm: &mut Vm, original: Option<&Value>) -> Result<NsId, Completion<Value>> {
+    if let Some(original) = original {
+        let bytes = match vm.native_name_operand_bytes(original) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return Err(
+                    vm.refuse_host_command(format!("lambda namespace is unavailable: {error}"))
+                );
+            }
+        };
+        let recipe = vm
+            .native_invocation_dialect()
+            .native_name_protocol()
+            .ok_or_else(|| {
+                vm.refuse_host_command("lambda namespace has no original naming recipe".to_owned())
+            })?;
+        let selected = if recipe == tcl_syntax::naming::NativeNameProtocol::Jim084 {
+            None
+        } else {
+            Some(recipe.lambda_namespace_input(&bytes).map_err(|error| {
+                vm.refuse_host_command(format!("lambda namespace recipe is unavailable: {error}"))
+            })?)
+        };
+        let lookup = selected
+            .as_ref()
+            .map_or(bytes.as_ref(), |input| input.selected());
+        match tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
+            vm,
+            tcl_core_types::ROOT_NS,
+            lookup,
+        ) {
+            Ok(Some(namespace)) => Ok(namespace),
+            Ok(None) => {
+                let mut message = b"namespace \"".to_vec();
+                if selected.is_none() && !bytes.starts_with(b"::") {
+                    message.extend_from_slice(b"::");
+                }
+                message.extend_from_slice(lookup);
+                message.extend_from_slice(b"\" not found");
+                Err(err(message))
+            }
+            Err(error) => Err(completion_from_cmd_error(vm, error.into())),
+        }
+    } else {
+        Ok(tcl_core_types::ROOT_NS)
+    }
+}
+
+/// Invoke the actual lambda declaration with the original caller objects.
+/// The prepared procedure request enters the explicit activation stack, so a
+/// yield suspends that body and cleanup follows its actual lifetime. No source
+/// word, List header, command lookup or extra trace event is manufactured.
 fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((lambda, call_args)) = args.split_first() else {
         return native_wrong_args(vm, "apply lambdaExpr ?arg ...?");
     };
+    let invoked = vm
+        .invoked_name_value()
+        .unwrap_or_else(|| Value::string("apply"));
     let mut call_identity = Vec::with_capacity(args.len() + 1);
-    call_identity.push(Value::string(vm.invoked_name().unwrap_or("apply")));
+    call_identity.push(invoked.clone());
     call_identity.extend_from_slice(args);
-    let name = match build_lambda_proc(vm, lambda, call_identity) {
-        Ok(n) => n,
-        Err(c) => return c,
+    let definition = match build_lambda_proc(vm, lambda, call_identity) {
+        Ok(definition) => definition,
+        Err(completion) => return completion,
     };
-    let mut words = Vec::with_capacity(call_args.len() + 1);
-    words.push(Value::string(name.as_str()));
-    words.extend_from_slice(call_args);
-    let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
-    match vm.compile_script_cached(&script) {
-        Ok(script) => {
-            vm.pending.eval = Some(crate::exec::EvalReq {
-                selected_frame_restore: None,
-                script,
-                label: None,
-                cleanup_proc: Some(name),
-                fatal_tail: None,
-            });
-            ok(Value::empty())
-        }
-        Err(e) => {
-            vm.take_command_unchecked(&name);
-            completion_from_tcl_error(vm, e)
-        }
-    }
+    vm.defer_original_lambda_call(definition, invoked, call_args)
 }
 
 /// `rename oldName newName` — rename a command, or delete it when `newName` is
@@ -1108,17 +1133,17 @@ const CREATE_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
 
 /// `interp create ?-safe? ?--? ?name?` — make a child interpreter.
 fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    // C's "weird historical rule": `-safe` is accepted anywhere before `--`
-    // (`interp create a -safe` is valid), and the path is the lone non-option
-    // word — so scan all args rather than stopping at the first non-flag.
     let mut safe = false;
     let mut last = false;
-    let mut name: Option<String> = None;
+    let mut name = None;
     let mut i = 0;
     while i < rest.len() {
-        let a = rest[i].to_str();
-        if !last && a.starts_with('-') {
-            match CREATE_OPTIONS.index_of_str(&a) {
+        let original = match vm.native_name_operand_bytes(&rest[i]) {
+            Ok(bytes) => bytes,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        if !last && original.first() == Some(&b'-') {
+            match CREATE_OPTIONS.index_of_original(vm, &rest[i]) {
                 Ok(0) => {
                     safe = true;
                     i += 1;
@@ -1128,7 +1153,7 @@ fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                     i += 1;
                     last = true;
                 }
-                Err(e) => return crate::command::completion_from_cmd_error(vm, e),
+                Err(error) => return completion_from_cmd_error(vm, error),
             }
         }
         if name.is_some() {
@@ -1137,25 +1162,21 @@ fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 "wrong # args: should be \"interp create ?-safe? ?--? ?path?\"",
             );
         }
-        if let Some(n) = rest.get(i) {
-            name = Some(n.to_str().to_string());
-        }
+        name = rest.get(i);
         i += 1;
     }
-    if let Some(n) = name.as_ref().filter(|n| vm.child_exists(n)) {
-        return err(format!(
-            "interpreter named \"{n}\" already exists, cannot create"
-        ));
+    match name {
+        Some(path) => vm.create_child_original(path, safe),
+        None => ok(Value::string(vm.create_child(None, safe))),
     }
-    ok(Value::string(vm.create_child(name, safe)))
 }
 
 /// `interp recursionlimit path ?newlimit?` — get/set a (possibly child) interp's
 /// recursion bound.
 fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (path, newlimit) = match rest {
-        [path] => (path.to_str(), None),
-        [path, nl] => (path.to_str(), Some(nl.to_str().to_string())),
+        [path] => (path, None),
+        [path, limit] => (path, Some(limit.to_str().to_string())),
         _ => {
             return native_wrong_arguments_message(
                 vm,
@@ -1163,16 +1184,15 @@ fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             );
         }
     };
-    let result = if path.is_empty() {
-        vm.recursion_limit_apply(newlimit.as_deref())
-    } else if let Some(r) = vm.child_recursion_limit_apply(&path, newlimit.as_deref()) {
-        r
-    } else {
-        return err(format!("could not find interpreter \"{path}\""));
+    let id = match vm.resolve_interp_path_original(path) {
+        Ok(id) => id,
+        Err(error) => return error,
     };
-    match result {
-        Ok(n) => ok(Value::int(n)),
-        Err(m) => err(m),
+    match vm.in_interp(id, |target| {
+        target.recursion_limit_apply(newlimit.as_deref())
+    }) {
+        Ok(limit) => ok(Value::int(limit)),
+        Err(message) => err(message),
     }
 }
 
@@ -1180,7 +1200,7 @@ fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `commands` or `time` limit on a child interp (stored, not enforced).
 fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (path, ltype, opts) = match rest {
-        [path, ltype, opts @ ..] => (path.to_str(), ltype.to_str(), opts),
+        [path, ltype, opts @ ..] => (path, ltype.to_str(), opts),
         _ => {
             return native_wrong_arguments_message(
                 vm,
@@ -1193,13 +1213,13 @@ fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     if let Err(e) = crate::interp::LIMIT_TYPES.index_of_str(&ltype) {
         return crate::command::completion_from_cmd_error(vm, e);
     }
-    if path.is_empty() {
-        return err("limits on current interpreter inaccessible");
-    }
-    let id = match vm.resolve_interp_path(&path) {
+    let id = match vm.resolve_interp_path_original(path) {
         Ok(id) => id,
         Err(c) => return c,
     };
+    if id == vm.cur_interp() {
+        return err("limits on current interpreter inaccessible");
+    }
     let ltype = ltype.to_string();
     let opts = opts.to_vec();
     match vm.in_interp(id, |vm| vm.limit_apply(&ltype, &opts)) {
@@ -1224,20 +1244,8 @@ fn interp_eval_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             "wrong # args: should be \"interp eval path arg ?arg ...?\"",
         );
     }
-    let p = path.to_str();
-    let script = scripts
-        .iter()
-        .map(|v| v.to_str().to_string())
-        .collect::<Vec<_>>()
-        .join(" ");
-    if p.is_empty() {
-        return match vm.eval_source(&script) {
-            Ok(c) => c,
-            Err(e) => completion_from_tcl_error(vm, e),
-        };
-    }
-    match vm.resolve_interp_path(&p) {
-        Ok(id) => vm.eval_in_interp(id, &script),
+    match vm.resolve_interp_path_original(path) {
+        Ok(id) => vm.eval_values_in_interp(id, scripts),
         Err(c) => c,
     }
 }
@@ -1245,16 +1253,12 @@ fn interp_eval_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `interp delete ?path ...?` — destroy each named interpreter.
 fn interp_delete_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     for path in rest {
-        let p = path.to_str();
-        if p.is_empty() {
-            return err(format!("could not find interpreter \"{p}\""));
-        }
-        match vm.resolve_interp_path(&p) {
-            Ok(id) if !vm.delete_interp(id) => {
-                return err(format!("could not find interpreter \"{p}\""));
-            }
-            Ok(_) => {}
-            Err(c) => return c,
+        let id = match vm.resolve_interp_path_original(path) {
+            Ok(id) => id,
+            Err(error) => return error,
+        };
+        if !vm.delete_interp(id) {
+            return vm.interpreter_path_missing(path);
         }
     }
     ok(Value::empty())
@@ -1264,12 +1268,11 @@ fn interp_delete_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `interp children ?path?` — children of the current interp, or (one level
 /// down) of the named child.
 fn interp_children_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let names = match rest {
-        [] => vm.child_names(),
-        [path] if path.to_str().is_empty() => vm.child_names(),
-        [path] => match vm.child_child_names(&path.to_str()) {
-            Some(names) => names,
-            None => return err(format!("could not find interpreter \"{}\"", path.to_str())),
+    let id = match rest {
+        [] => vm.cur_interp(),
+        [path] => match vm.resolve_interp_path_original(path) {
+            Ok(id) => id,
+            Err(error) => return error,
         },
         _ => {
             return native_wrong_arguments_message(
@@ -1278,12 +1281,18 @@ fn interp_children_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             );
         }
     };
-    ok(Value::list(names.into_iter().map(Value::string).collect()))
+    let names = vm.in_interp(id, |target| target.child_names());
+    ok(Value::list(
+        names
+            .into_iter()
+            .map(|name| Value::from_native_string_bytes(name.as_bytes().to_vec()))
+            .collect(),
+    ))
 }
 
 fn interp_bgerror_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let (path, bargs) = match rest {
-        [path] | [path, _] => (path.to_str(), &rest[1..]),
+    let (path, args) = match rest {
+        [path] | [path, _] => (path, &rest[1..]),
         _ => {
             return native_wrong_arguments_message(
                 vm,
@@ -1291,39 +1300,28 @@ fn interp_bgerror_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             );
         }
     };
-    if path.is_empty() {
-        ok(vm.bgerror_apply(bargs))
-    } else {
-        match vm.resolve_interp_path(&path) {
-            Ok(id) => {
-                let bargs = bargs.to_vec();
-                ok(vm.in_interp(id, |vm| vm.bgerror_apply(&bargs)))
-            }
-            Err(c) => c,
-        }
+    let id = match vm.resolve_interp_path_original(path) {
+        Ok(id) => id,
+        Err(error) => return error,
+    };
+    match vm.in_interp(id, |target| target.bgerror_apply(args)) {
+        Ok(prefix) => ok(prefix),
+        Err(error) => error,
     }
 }
 
 /// `interp debug path ?-frame ?bool??` — the per-interp frame-debug switch.
 fn interp_debug_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     const USAGE: &str = "interp debug path ?-frame ?bool??";
-    let Some((path, dargs)) = rest.split_first() else {
+    let Some((path, args)) = rest.split_first() else {
         return native_wrong_arguments_message(vm, format!("wrong # args: should be \"{USAGE}\""));
     };
-    let p = path.to_str();
-    let res = if p.is_empty() {
-        vm.debug_apply(dargs, USAGE)
-    } else {
-        match vm.resolve_interp_path(&p) {
-            Ok(id) => {
-                let dargs = dargs.to_vec();
-                vm.in_interp(id, |vm| vm.debug_apply(&dargs, USAGE))
-            }
-            Err(c) => return c,
-        }
+    let id = match vm.resolve_interp_path_original(path) {
+        Ok(id) => id,
+        Err(error) => return error,
     };
-    match res {
-        Ok(v) => ok(v),
+    match vm.in_interp(id, |target| target.debug_apply(args, USAGE)) {
+        Ok(value) => ok(value),
         Err(error) => completion_from_cmd_error(vm, error),
     }
 }
@@ -1331,18 +1329,20 @@ fn interp_debug_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `interp hidden ?path?` — the hidden-command names of the current or named
 /// interp.
 fn interp_hidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let path = rest
-        .first()
-        .map(|v| v.to_str().to_string())
-        .unwrap_or_default();
-    let names = if path.is_empty() {
-        vm.own_hidden_names()
-    } else {
-        match vm.child_hidden_names(&path) {
-            Some(n) => n,
-            None => return err(format!("could not find interpreter \"{path}\"")),
+    let id = match rest {
+        [] => vm.cur_interp(),
+        [path] => match vm.resolve_interp_path_original(path) {
+            Ok(id) => id,
+            Err(error) => return error,
+        },
+        _ => {
+            return native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"interp hidden ?path?\"",
+            );
         }
     };
+    let names = vm.in_interp(id, |target| target.own_hidden_names());
     ok(Value::list(
         names
             .into_iter()
@@ -1354,44 +1354,47 @@ fn interp_hidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `interp hide|expose path cmd` — move a command between the (current or
 /// child) interp's visible and hidden tables.
 fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Value> {
-    // `interp hide   path cmdName     ?hiddenCmdName?`
-    // `interp expose path hiddenName  ?cmdName?`
-    let (path, cmd, token) = match rest {
-        [path, cmd] => (path.to_str(), cmd.to_str(), cmd.to_str()),
-        [path, cmd, token] => (path.to_str(), cmd.to_str(), token.to_str()),
+    let (path, command, token) = match rest {
+        [path, command] => (path, command, command),
+        [path, command, token] => (path, command, token),
         _ => {
-            let usage = if hide {
-                "wrong # args: should be \"interp hide path cmdName ?hiddenCmdName?\""
-            } else {
-                "wrong # args: should be \"interp expose path hiddenCmdName ?cmdName?\""
-            };
-            return err(usage);
+            return native_wrong_arguments_message(
+                vm,
+                if hide {
+                    "wrong # args: should be \"interp hide path cmdName ?hiddenCmdName?\""
+                } else {
+                    "wrong # args: should be \"interp expose path hiddenCmdName ?cmdName?\""
+                },
+            );
         }
     };
-    // A safe interpreter may not touch the hidden-command table of itself or
-    // any of its children (the check is on the *executing* interp).
     if vm.is_safe() {
         let verb = if hide { "hide" } else { "expose" };
         return err(format!(
             "permission denied: safe interpreter cannot {verb} commands"
         ));
     }
-    if path.is_empty() {
-        let result = if hide {
-            vm.hide_command(&cmd, &token)
+    let id = match vm.resolve_interp_path_original(path) {
+        Ok(id) => id,
+        Err(error) => return error,
+    };
+    let command = match vm.native_name_operand_bytes(command) {
+        Ok(bytes) => bytes,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let token = match vm.native_name_operand_bytes(token) {
+        Ok(bytes) => bytes,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    match vm.in_interp(id, |target| {
+        if hide {
+            target.hide_command_bytes(&command, &token)
         } else {
-            vm.expose_own_command(&cmd, &token)
-        };
-        match result {
-            Ok(()) => ok(Value::empty()),
-            Err(problem) => problem.into_completion(),
+            target.expose_own_command_bytes(&command, &token)
         }
-    } else {
-        match vm.child_hide(&path, &cmd, &token, hide) {
-            Ok(true) => ok(Value::empty()),
-            Ok(false) => err(format!("could not find interpreter \"{path}\"")),
-            Err(problem) => problem.into_completion(),
-        }
+    }) {
+        Ok(()) => ok(Value::empty()),
+        Err(problem) => problem.into_completion(),
     }
 }
 
@@ -1410,11 +1413,14 @@ const HIDDEN_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
 pub(crate) fn skip_hidden_options(vm: &mut Vm, tail: &[Value]) -> Result<usize, Completion<Value>> {
     let mut i = 0;
     while i < tail.len() {
-        let word = tail[i].to_str();
-        if !word.starts_with('-') {
+        let word = match vm.native_name_operand_bytes(&tail[i]) {
+            Ok(bytes) => bytes,
+            Err(error) => return Err(vm.refuse_host_command(error.to_string())),
+        };
+        if word.first() != Some(&b'-') {
             break;
         }
-        match HIDDEN_OPTIONS.index_of_str(&word) {
+        match HIDDEN_OPTIONS.index_of_original(vm, &tail[i]) {
             Ok(1) => {
                 // `-namespace ns` — the namespace word, when there is one.
                 i += 1;
@@ -1455,9 +1461,12 @@ fn interp_invokehidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let Some(cmd) = tail.get(i) else {
         return native_wrong_arguments_message(vm, usage);
     };
-    let p = path.to_str();
-    vm.invoke_hidden_in_child(&p, &cmd.to_str(), &tail[i + 1..])
-        .unwrap_or_else(|| err(format!("could not find interpreter \"{p}\"")))
+    let id = match vm.resolve_interp_path_original(path) {
+        Ok(id) => id,
+        Err(error) => return error,
+    };
+    vm.invoke_hidden_value_by_id(id, cmd, &tail[i + 1..])
+        .unwrap_or_else(|| vm.interpreter_path_missing(path))
 }
 
 /// Resolve an `interp`-family subcommand word through the shared owner:
@@ -1505,7 +1514,18 @@ fn cmd_alias(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(slot) => slot,
         Err(error) => return vm.refuse_host_command(error.to_string()),
     };
-    vm.register_command_in_slot(slot, Command::CallerAlias(Rc::new(words)));
+    let report = match vm.jim_command_table_key_for_original(
+        &original,
+        tcl_syntax::naming::NativeNamePurpose::AliasPublication,
+    ) {
+        Ok(report) => report,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let original = Value::native_list_constructor(
+        words,
+        tcl_syntax::native_string::NativeStringProtocol::Jim084,
+    );
+    vm.register_command_in_slot_with_jim_key(slot, Command::CallerAlias(original), report);
     ok(name.clone())
 }
 
@@ -1539,12 +1559,7 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 // Routing (same-interp / parent→child / child→parent), the
                 // written-name → key qualification, and C's
                 // `TclPreventAliasLoop` walk all live on the Vm.
-                let res = vm.interp_alias_create(
-                    &src_path.to_str(),
-                    src_cmd,
-                    &target_path.to_str(),
-                    target.to_vec(),
-                );
+                let res = vm.interp_alias_create(src_path, src_cmd, target_path, target.to_vec());
                 if res.code.is_ok() {
                     ok(src_cmd.clone())
                 } else {
@@ -1558,10 +1573,11 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         "exists" => match rest {
             [] => ok(Value::int(1)),
-            [path] => {
-                let p = path.to_str();
-                ok(Value::bool(p.is_empty() || vm.child_exists(&p)))
-            }
+            [path] => match vm.resolve_interp_path_original(path) {
+                Ok(_) => ok(Value::bool(true)),
+                Err(error) if vm.execution_refusal.is_some() => error,
+                Err(_) => ok(Value::bool(false)),
+            },
             _ => native_wrong_arguments_message(
                 vm,
                 "wrong # args: should be \"interp exists ?path?\"",
@@ -1574,17 +1590,10 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "delete" => interp_delete_cmd(vm, rest),
         "issafe" => match rest {
             [] => ok(Value::bool(vm.is_safe())),
-            [path] => {
-                let p = path.to_str();
-                if p.is_empty() {
-                    ok(Value::bool(vm.is_safe()))
-                } else {
-                    match vm.child_is_safe(&p) {
-                        Some(s) => ok(Value::bool(s)),
-                        None => err(format!("could not find interpreter \"{p}\"")),
-                    }
-                }
-            }
+            [path] => match vm.resolve_interp_path_original(path) {
+                Ok(id) => ok(Value::bool(vm.in_interp(id, |target| target.is_safe()))),
+                Err(error) => error,
+            },
             _ => native_wrong_arguments_message(
                 vm,
                 "wrong # args: should be \"interp issafe ?path?\"",
@@ -1606,7 +1615,11 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 if vm.is_safe() {
                     return err("permission denied: safe interpreter cannot mark trusted");
                 }
-                vm.child_mark_trusted(&path.to_str());
+                let id = match vm.resolve_interp_path_original(path) {
+                    Ok(id) => id,
+                    Err(error) => return error,
+                };
+                vm.mark_interp_trusted(id);
                 ok(Value::empty())
             }
             _ => native_wrong_arguments_message(
@@ -1661,16 +1674,6 @@ fn cmd_auto_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// `subst`'s option words. C's `TclSubstOptions` (`tclCmdMZ.c:3341`) resolves
-/// them with `Tcl_GetIndexFromObj` at flags `0`, so abbreviations match and the
-/// *empty* word — which prefixes all three entries — is `ambiguous`, not `bad`.
-/// Shared with the WASM runtime through the one `tcl-cmd-core::prefix` matcher.
-const SUBST_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating(
-        "option",
-        &["-nobackslashes", "-nocommands", "-novariables"],
-    );
-
 /// `subst ?-nobackslashes? ?-nocommands? ?-novariables? string` — perform
 /// backslash / command / variable substitution on a string.
 fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -1678,20 +1681,43 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // argument before it is an option, matched by unique abbreviation. So a
     // non-option word anywhere but last is a `bad option` error (subst-1.2/7.1),
     // and `-nov`/`-nob`/`-noc` are accepted as prefixes (subst-7.7).
-    let Some((string, opts)) = args.split_last() else {
-        return err(
-            "wrong # args: should be \"subst ?-nobackslashes? ?-nocommands? ?-novariables? string\"",
-        );
+    use tcl_registry::substitution::{NativeSubstitutionOptions, SubstitutionOptionError};
+    let Some(options) = NativeSubstitutionOptions::select(vm.actual_native_invocation_dialect())
+    else {
+        return vm.refuse_host_command("original Subst option declaration is unavailable".into());
     };
-    let (mut backslashes, mut commands, mut variables) = (true, true, true);
+    let Some((string, opts)) = args.split_last() else {
+        return native_wrong_args(vm, options.usage());
+    };
+    let table = tcl_cmd_core::prefix::OptionTable::abbreviating(options.noun(), options.names());
+    let mut selected = Vec::with_capacity(opts.len());
     for opt in opts {
-        match SUBST_OPTIONS.index_of(opt.to_str().as_bytes()) {
-            Ok(0) => backslashes = false,
-            Ok(1) => commands = false,
-            Ok(_) => variables = false,
-            Err(m) => return err(m),
+        match table.index_of_original(vm, opt) {
+            Ok(index) => selected.push(index),
+            Err(error) => return completion_from_cmd_error(vm, error),
         }
     }
+    let kinds = match options.kinds(&selected) {
+        Ok(kinds) => kinds,
+        Err(SubstitutionOptionError::MixedFamilies) => {
+            return err("cannot combine positive and negative options");
+        }
+        Err(SubstitutionOptionError::UnknownOption) => {
+            return vm.refuse_host_command("foreign Subst option ordinal".into());
+        }
+    };
+    let (backslashes, commands, variables) = (kinds.backslashes, kinds.commands, kinds.variables);
+    let compiled = match vm.prepare_original_substitution(
+        string,
+        tcl_runtime_api::native_substitution::NativeSubstitutionFlags::new(
+            backslashes,
+            commands,
+            variables,
+        ),
+    ) {
+        Ok(compiled) => compiled,
+        Err(error) => return completion_from_tcl_error(vm, error),
+    };
     // Defer to the *explicit* stack so a `yield` inside a `[…]` stays yieldable:
     // park the template + switches in the pending subst request, drained by
     // the trampoline into a scanner-driven subst frame (mirrors `cmd_catch`'s
@@ -1703,13 +1729,16 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .native_string_protocol()
         .filter(|protocol| protocol.is_jim084())
         .map(|_| string.native_lifetime_lease());
+    let uses_compiled_template = compiled.is_some();
     vm.pending.subst = Some(crate::exec::SubstReq {
+        compiled,
         original,
         control: crate::subst::SubstitutionControl::Command,
-        template: if vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .is_some_and(tcl_syntax::native_string::NativeStringProtocol::is_jim084)
+        template: if uses_compiled_template
+            || vm
+                .actual_native_invocation_dialect()
+                .native_string_protocol()
+                .is_some_and(tcl_syntax::native_string::NativeStringProtocol::is_jim084)
         {
             Vec::<u8>::new().into()
         } else {
@@ -1916,10 +1945,8 @@ fn split_formal_values(
         let original = vm
             .native_name_operand_bytes(value)
             .map_err(|_| ValueError::CommandProtocolUnavailable("formal list string"))?;
-        let bytes = &original[..original
-            .iter()
-            .position(|byte| *byte == 0)
-            .unwrap_or(original.len())];
+        let selected = protocol.formal_parameter_list_input(&original);
+        let bytes = selected.selected();
         return tcl_syntax::list::split_native_list_bytes(bytes, strings)
             .map(|items| {
                 items
@@ -1968,7 +1995,12 @@ pub(crate) fn parse_params_value(
             return Err(completion_from_cmd_error(vm, error.into()));
         }
         Err(FormalParameterValueError::Format(error)) => {
-            return Err(err(error.message_for_definition(protocol, procedure)));
+            let message = error.message_for_definition(protocol, procedure);
+            let error = match error.error_code_for_definition(protocol) {
+                Some(code) => CmdError::with_error_code_bytes(message, code.to_vec()),
+                None => CmdError::new_bytes(message),
+            };
+            return Err(completion_from_cmd_error(vm, error));
         }
     };
     if protocol.is_jim084() {
@@ -2071,27 +2103,37 @@ fn define_procedure(
         Ok(header) => header,
         Err(completion) => return completion,
     };
-    vm.define_proc(ProcDef {
-        native_resources: Rc::default(),
-        name: reg_name,
-        command_ns_id: slot.namespace,
-        simple_name: slot.simple,
-        namespace,
-        ns_id,
-        params: params_vec,
-        parameter_grammar,
-        has_args,
-        native_jim_namespace: None,
-        native_parameters: (parameter_grammar == tcl_dialect::ParameterGrammar::Jim)
-            .then(|| params.clone()),
+    let report = match vm.jim_command_table_key_for_original(
+        &written,
+        tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+    ) {
+        Ok(report) => report,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    vm.define_proc_binding_with_jim_key(
+        ProcDef {
+            native_resources: Rc::default(),
+            name: reg_name,
+            command_ns_id: slot.namespace,
+            simple_name: slot.simple,
+            namespace,
+            ns_id,
+            params: params_vec,
+            parameter_grammar,
+            has_args,
+            native_jim_namespace: None,
+            native_parameters: (parameter_grammar == tcl_dialect::ParameterGrammar::Jim)
+                .then(|| params.clone()),
 
-        native_header,
-        statics,
-        body: None,
-        body_src: body,
-        usage_name: None,
-        call_identity: None,
-    });
+            native_header,
+            statics,
+            body: None,
+            body_src: body,
+            usage_name: None,
+            call_identity: None,
+        },
+        report,
+    );
     ok(match definition.result {
         ProcedureDefinitionResult::Empty => Value::empty(),
         ProcedureDefinitionResult::NameArgument => name.clone(),
@@ -2242,6 +2284,10 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
     let details = error.into_byte_details();
     let explicit_code_store =
         matches!(details.error_code, tcl_cmd_core::CmdErrorCodeUpdate::Set(_));
+    let wrong_arguments = matches!(
+        details.error_code,
+        tcl_cmd_core::CmdErrorCodeUpdate::WrongArguments
+    );
     let update = match details.error_code.resolve(|| {
         vm.native_invocation_dialect()
             .wrong_arguments_protocol(Some(tcl_registry::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
@@ -2251,7 +2297,18 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
         Ok(update) => update,
         Err(refusal) => return vm.refuse_host_command(refusal.to_string()),
     };
-    let string_result = match details.string_result {
+    let string_protocol = details.string_result.or_else(|| {
+        wrong_arguments
+            .then(|| {
+                vm.actual_native_invocation_dialect()
+                    .native_wrong_arguments_protocol()
+            })
+            .flatten()
+            .and_then(
+                tcl_registry::native_wrong_arguments::NativeWrongArgumentsProtocol::string_result,
+            )
+    });
+    let string_result = match string_protocol {
         Some(expected) => match vm
             .actual_native_invocation_dialect()
             .native_string_materialization(None)
@@ -2346,7 +2403,7 @@ pub(crate) fn with_return_level(options: &Value, new_level: i64) -> Value {
     if let Ok(list) = options.as_list() {
         let mut i = 0;
         while i + 1 < list.len() {
-            if &*list[i].to_str() == "-level" {
+            if list[i].string_bytes().as_ref() == b"-level" {
                 items.push(Value::string("-level"));
                 items.push(Value::int(new_level));
                 have_level = true;
@@ -2518,11 +2575,14 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     } else {
         1
     };
-    let script = args[0].to_str().to_string();
     let start = vm.host_rc().clock().now_micros();
     let mut i = count;
     while i > 0 {
-        match vm.eval_source(&script) {
+        match vm.eval_original_script_value(
+            &args[0],
+            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            args[0].source_location(),
+        ) {
             Ok(c) if c.code.is_ok() => {}
             Ok(c) => return c,
             Err(e) => return completion_from_tcl_error(vm, e),
@@ -2715,24 +2775,18 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     }
     let dialect = vm.native_invocation_dialect();
-    let positional = dialect.catch_positional_arity().is_some();
-    let unknown_values = vec![tcl_registry::InvocationWord::Dynamic; args.len()];
-    let strings: Vec<String> = if positional {
-        Vec::new()
-    } else {
-        args.iter()
-            .map(|value| value.to_str().to_string())
-            .collect()
-    };
-    let words: Vec<&str> = strings.iter().map(String::as_str).collect();
-    let selected = match tcl_registry::catch_invocation::select_catch_invocation(
-        if positional {
-            tcl_registry::InvocationArguments::structured(&unknown_values)
-        } else {
-            tcl_registry::InvocationArguments::literals(&words)
-        },
+    let selection = match tcl_registry::catch_invocation::select_original_catch_invocation(
+        args.len(),
         dialect,
+        |index| {
+            vm.native_name_operand_bytes(&args[index])
+                .map(|bytes| bytes.to_vec())
+        },
     ) {
+        Ok(selection) => selection,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let selected = match selection {
         tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) => selected,
         _ if dialect.completion_options_policy()
             == Some(tcl_registry::CompletionOptionsPolicy::Legacy) =>
@@ -3013,12 +3067,12 @@ impl Vm {
         });
         let _ = self.take_error_info();
         if let Some(r) = resvar
-            && let Err(e) = self.set_var(&r.to_str(), comp.result.clone())
+            && let Err(e) = self.store_original_named_variable(r, comp.result.clone())
         {
             return e;
         }
         if let Some(o) = optvar
-            && let Err(e) = self.set_var(&o.to_str(), opts)
+            && let Err(e) = self.store_original_named_variable(o, opts)
         {
             return e;
         }
@@ -3078,70 +3132,27 @@ fn cmd_unset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
-/// C's `TCL LOOKUP VARNAME` detail is the scalar/array **base**, while the
-/// human-readable message retains the name exactly as written. Keep that
-/// split at the command adapter boundary so `variable`, `global`, and `upvar`
-/// cannot drift (`::missing::v(k)` reports detail `::missing::v`).
-fn lookup_var_error_code(name: &str) -> String {
-    let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
-    format!("TCL LOOKUP VARNAME {base}")
-}
-
-/// C's `MakeUpvar` refusal for a link *target name* that looks like an array
-/// element — a link is always to a scalar cell, so `upvar 0 zz (v)` and
-/// `global a(b)` are hard errors rather than silent mislinks.
-fn bad_link_name(name: &str) -> Completion<Value> {
-    err_with_code(
-        format!(
-            "bad variable name \"{name}\": can't create a scalar variable that looks like an array element"
-        ),
-        "TCL UPVAR LOCAL_ELEMENT",
-    )
-}
-
-/// Render the typed variable-resolver failure from [`Vm::link_upvar_bytes`].
-pub(crate) fn upvar_link_error(
-    error: crate::interp::UpvarLinkError,
-    other: &str,
-    local: &str,
-) -> Completion<Value> {
-    match error {
-        crate::interp::UpvarLinkError::TargetNamespace => err_with_code(
-            format!("can't access \"{other}\": parent namespace doesn't exist"),
-            lookup_var_error_code(other),
-        ),
-        crate::interp::UpvarLinkError::Inverted => err_with_code(
-            format!(
-                "bad variable name \"{local}\": can't create namespace variable that refers to procedure variable"
-            ),
-            "TCL UPVAR INVERTED",
-        ),
-        crate::interp::UpvarLinkError::LocalElement => bad_link_name(local),
-        crate::interp::UpvarLinkError::LocalNamespace => err_with_code(
-            format!("can't create \"{local}\": parent namespace doesn't exist"),
-            lookup_var_error_code(local),
-        ),
-        crate::interp::UpvarLinkError::Exists => err_with_code(
-            format!("variable \"{local}\" already exists"),
-            "TCL UPVAR EXISTS",
-        ),
-        crate::interp::UpvarLinkError::Traced => err_with_code(
-            format!("variable \"{local}\" has traces: can't use for upvar"),
-            "TCL UPVAR TRACED",
-        ),
-        crate::interp::UpvarLinkError::SelfLink => {
-            err_with_code("can't upvar from variable to itself", "TCL UPVAR SELF")
-        }
-    }
-}
-
 /// Render a native link failure using exact original operand bytes.
 pub(crate) fn upvar_link_error_bytes(
     error: crate::interp::UpvarLinkError,
     other: &[u8],
     local: &[u8],
 ) -> Completion<Value> {
+    upvar_link_error_bytes_in(error, other, local, None)
+}
+
+pub(crate) fn upvar_link_error_bytes_in(
+    error: crate::interp::UpvarLinkError,
+    other: &[u8],
+    local: &[u8],
+    protocol: Option<tcl_syntax::native_variable_name::NativeVariableNameProtocol>,
+) -> Completion<Value> {
     use crate::interp::UpvarLinkError;
+    let inversion_reason = protocol.map_or(
+        b"can't create namespace variable that refers to procedure variable".as_slice(),
+        tcl_syntax::native_variable_name::NativeVariableNameProtocol::alias_namespace_inversion_reason,
+    );
+    let inversion_suffix = [b"\": ".as_slice(), inversion_reason].concat();
     let (prefix, name, suffix, code): (&[u8], &[u8], &[u8], &[u8]) = match error {
         UpvarLinkError::TargetNamespace => (
             b"can't access \"",
@@ -3158,7 +3169,7 @@ pub(crate) fn upvar_link_error_bytes(
         UpvarLinkError::Inverted => (
             b"bad variable name \"",
             local,
-            b"\": can't create namespace variable that refers to procedure variable",
+            &inversion_suffix,
             b"TCL UPVAR INVERTED",
         ),
         UpvarLinkError::LocalElement => (
@@ -3372,25 +3383,7 @@ fn native_frame_failure(
     vm: &mut Vm,
     failure: tcl_registry::frame_effect::NativeFrameLevelFailure,
 ) -> Completion<Value> {
-    use tcl_registry::frame_effect::NativeFrameLevelFailure;
-    match failure {
-        NativeFrameLevelFailure::Primitive(record) => completion_from_cmd_error(
-            vm,
-            tcl_syntax::value::ValueError::NativeScalarGetter(record).into(),
-        ),
-        NativeFrameLevelFailure::BadLevel { name, lookup_code } => {
-            let mut message = b"bad level \"".to_vec();
-            message.extend_from_slice(&name);
-            message.push(b'"');
-            if lookup_code {
-                let mut code = b"TCL LOOKUP LEVEL".to_vec();
-                tcl_syntax::list::append_list_element(&mut code, &name, false);
-                err_with_code(message, code)
-            } else {
-                err(message)
-            }
-        }
-    }
+    completion_from_cmd_error(vm, tcl_cmd_core::native_frame_error::present(failure))
 }
 
 pub(crate) fn runtime_frame_selection(
@@ -3415,6 +3408,7 @@ pub(crate) fn runtime_frame_selection(
                     vm,
                     tcl_registry::frame_effect::NativeFrameLevelFailure::BadLevel {
                         name: b"1".to_vec(),
+                        string_result: protocol.bad_level_string_result(),
                         lookup_code: protocol
                             .tcl_version()
                             .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6),
@@ -3427,7 +3421,8 @@ pub(crate) fn runtime_frame_selection(
     }
     let original = args.first().expect("frame command arity checked");
     if count_width == Some(1) {
-        return runtime_explicit_frame_selection(vm, original).map(|target| (1, target));
+        return runtime_frame_selection_for_required_operand(vm, original)
+            .map(|target| (1, target));
     }
     if effect == tcl_registry::FrameEffectSpec::UPLEVEL
         && args.len() == 1
@@ -3461,13 +3456,33 @@ pub(crate) fn runtime_explicit_frame_selection(
     vm: &mut Vm,
     original: &Value,
 ) -> Result<usize, Completion<Value>> {
+    runtime_frame_selection_with_requirement(vm, original, false)
+}
+
+fn runtime_frame_selection_for_required_operand(
+    vm: &mut Vm,
+    original: &Value,
+) -> Result<usize, Completion<Value>> {
+    runtime_frame_selection_with_requirement(vm, original, true)
+}
+
+fn runtime_frame_selection_with_requirement(
+    vm: &mut Vm,
+    original: &Value,
+    required: bool,
+) -> Result<usize, Completion<Value>> {
     let dialect = vm.native_scalar_carrier_dialect();
     let protocol = dialect.native_frame_level_protocol().ok_or_else(|| {
         vm.refuse_host_command("native original-object frame protocol is unavailable".into())
     })?;
     let mut operand = OriginalFrameLevel::selected(vm, original)
         .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
-    match protocol.resolve_object(vm.current_level(), &mut operand) {
+    let result = if required {
+        protocol.resolve_required_object(vm.current_level(), &mut operand)
+    } else {
+        protocol.resolve_object(vm.current_level(), &mut operand)
+    };
+    match result {
         Ok(Ok(selected)) => Ok(selected.target),
         Ok(Err(failure)) => Err(native_frame_failure(vm, failure)),
         Err(error) => Err(completion_from_cmd_error(vm, error.into())),
@@ -3643,7 +3658,141 @@ mod tests {
     use tcl_syntax::value::ValueOps;
 
     #[test]
+    fn jim_core_alias_query_retains_original_prefix_header_and_members() {
+        // naming.alias.jim-original-core-prefix-object-storage
+        // docs/design/analysis/name-resolution-proofs/alias-jim-original-core-prefix-object-storage.md
+        // Native273 independently measures name/member identity and absent
+        // resident member strings. Repeated query header identity is a current
+        // implementation owner control, not an additional native API observation.
+        let profile = tcl_registry::model::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::core(profile);
+        let head = super::Value::new_native_string_bytes(b"alias".as_slice());
+        let name = super::Value::new_native_string_bytes(b"::original_prefix_alias".as_slice());
+        let target = super::Value::new_native_string_bytes(b"list".as_slice());
+        let member = super::Value::int(17);
+        assert!(member.resident_string_bytes().is_none());
+        let definition = vm.invoke_host_original_object_vector(
+            &head,
+            &[name.clone(), target.clone(), member.clone()],
+        );
+        assert_eq!(definition.code, super::Code::Ok);
+        assert!(definition.result.is_same_object(&name));
+        assert!(member.resident_string_bytes().is_none());
+        let info = super::Value::new_native_string_bytes(b"info".as_slice());
+        let selector = super::Value::new_native_string_bytes(b"alias".as_slice());
+        let query = vm.invoke_host_original_object_vector(&info, &[selector.clone(), name.clone()]);
+        assert_eq!(query.code, super::Code::Ok);
+        let members = vm.list_elements(&query.result).unwrap();
+        assert_eq!(members.len(), 2);
+        assert!(members[0].is_same_object(&target));
+        assert!(members[1].is_same_object(&member));
+        assert!(member.resident_string_bytes().is_none());
+        let repeated = vm.invoke_host_original_object_vector(&info, &[selector, name.clone()]);
+        assert_eq!(repeated.code, super::Code::Ok);
+        assert!(repeated.result.is_same_object(&query.result));
+        assert!(member.resident_string_bytes().is_none());
+        let invocation = vm.invoke_host_original_object_vector(&name, &[]);
+        assert_eq!(invocation.code, super::Code::Ok);
+        let members = vm.list_elements(&invocation.result).unwrap();
+        assert_eq!(members.len(), 1);
+        assert!(members[0].is_same_object(&member));
+        assert!(member.resident_string_bytes().is_none());
+    }
+
+    #[test]
+    fn native_wrong_arguments_completion_preserves_the_selected_string_producer() {
+        // naming.variable.original-upvar-and-exists-completion-and-name-windows
+        // docs/design/analysis/name-resolution-proofs/variable.original-upvar-and-exists-completion-and-name-windows.md
+        // naming.list.original-assign-objects-and-instructions
+        // docs/design/analysis/name-resolution-proofs/list.original-assign-objects-and-instructions.md
+        // Shared presenter binding, separately from the original native rows.
+        use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let error =
+                tcl_cmd_core::CmdError::wrong_args_bytes(b"upvar ?level? otherVar localVar");
+            let message = error.message_bytes().to_vec();
+            let completion = super::completion_from_cmd_error(&mut vm, error);
+            assert_eq!(completion.code, super::Code::Error, "{engine}");
+            assert!(
+                matches!(
+                    completion.result.native_object_snapshot().cache,
+                    Cache::String { .. }
+                ),
+                "{engine}"
+            );
+            assert_eq!(
+                completion.result.resident_string_bytes().unwrap().as_ref(),
+                message,
+                "{engine}"
+            );
+            let unrelated = super::completion_from_cmd_error(
+                &mut vm,
+                tcl_cmd_core::CmdError::new_bytes(message),
+            );
+            assert!(
+                matches!(unrelated.result.native_object_snapshot().cache, Cache::None),
+                "{engine}: unrelated message"
+            );
+        }
+    }
+
+    #[test]
+    fn return_level_replacement_preserves_opaque_option_objects() {
+        let key = super::Value::new_native_string_bytes(b"-opaque\xff\0TAIL".as_slice());
+        let value = super::Value::new_native_string_bytes(b"VALUE\xff\0TAIL".as_slice());
+        let options = super::Value::list(vec![
+            key.clone(),
+            value.clone(),
+            super::Value::string("-level"),
+            super::Value::int(2),
+        ]);
+        let replaced = super::with_return_level(&options, 1);
+        let pairs = replaced.as_list().unwrap();
+        assert!(pairs[0].is_same_object(&key));
+        assert!(pairs[1].is_same_object(&value));
+        assert_eq!(pairs[0].string_bytes().as_ref(), b"-opaque\xff\0TAIL");
+        assert_eq!(pairs[3].as_int().unwrap(), 1);
+    }
+
+    #[test]
+    fn time_keeps_original_counted_script_and_skips_zero_count_materialization() {
+        // Source proof: naming.time.original-script-object-evaluation
+        // docs/design/analysis/name-resolution-proofs/time-original-script-object-evaluation.md
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let invalid = super::Value::new_native_string_bytes(b"invalid script \xff".as_slice());
+            let skipped = super::cmd_time(&mut vm, &[invalid, super::Value::int(0)]);
+            assert_eq!(skipped.code, tcl_runtime_api::Code::Ok, "{engine}");
+            assert_eq!(
+                skipped.result.string_bytes().as_ref(),
+                b"0 microseconds per iteration"
+            );
+            let body = super::Value::new_native_string_bytes(b"set {time\xff} OK".as_slice());
+            let completion = super::cmd_time(&mut vm, &[body, super::Value::int(2)]);
+            assert_eq!(
+                completion.code,
+                tcl_runtime_api::Code::Ok,
+                "{engine}: {:?}",
+                completion.result.string_bytes()
+            );
+            assert_eq!(
+                vm.get_var_bytes(b"time\xff")
+                    .unwrap()
+                    .string_bytes()
+                    .as_ref(),
+                b"OK",
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
     fn physical_procedure_capture_and_header_remain_separate_from_authored_names() {
+        // Native proof: naming.procedure.counted-body-header-selection
+        // docs/design/analysis/name-resolution-proofs/procedure-counted-body-header-selection.md
         use super::{Value, Vm};
         use std::rc::Rc;
         use tcl_dialect::NativeProcedureHeaderCompilation as Header;
@@ -3706,6 +3855,14 @@ mod tests {
 
     #[test]
     fn c84_procedure_parse_failures_match_7_native_original_object_completions() {
+        // Native proof: naming.procedure-error.original-name-context
+        // docs/design/analysis/name-resolution-proofs/procedure-error.original-name-context.md
+        // Native proof: naming.procedure-error.counted-zero-name-context
+        // docs/design/analysis/name-resolution-proofs/procedure-error.counted-zero-name-context.md
+        // Native proof: naming.procedure-error.long-name-and-argv-context
+        // docs/design/analysis/name-resolution-proofs/procedure-error.long-name-and-argv-context.md
+        // Native proof: naming.procedure-error.body-line-context
+        // docs/design/analysis/name-resolution-proofs/procedure-error.body-line-context.md
         use super::{Value, Vm};
         let decode = |text: &str| {
             assert_eq!(text.len() % 2, 0);
@@ -3780,6 +3937,10 @@ mod tests {
 
     #[test]
     fn procedure_body_capture_matches_58_native_definition_windows() {
+        // Native proof: naming.procedure.original-string-body-capture
+        // docs/design/analysis/name-resolution-proofs/procedure-original-string-body-capture.md
+        // Native proof: naming.procedure.original-list-bytearray-body-capture
+        // docs/design/analysis/name-resolution-proofs/procedure-original-list-bytearray-body-capture.md
         use super::{Command, Value, Vm};
         let engines = [
             (
@@ -3884,6 +4045,10 @@ mod tests {
 
     #[test]
     fn procedure_definition_and_activation_match_42_native_observations() {
+        // Native proof: naming.procedure.original-malformed-body-arity-order
+        // docs/design/analysis/name-resolution-proofs/procedure-original-malformed-body-arity-order.md
+        // Native proof: naming.procedure.original-wrong-arity-body-withdrawal
+        // docs/design/analysis/name-resolution-proofs/procedure-original-wrong-arity-body-withdrawal.md
         use super::{Command, Value, Vm};
         let engines = [
             (
@@ -3979,6 +4144,8 @@ mod tests {
         assert_eq!(compared, 42);
     }
 
+    // Native proof: naming.variable.original-level-object-conversion-and-selection
+    // docs/design/analysis/name-resolution-proofs/variable.original-level-object-conversion-and-selection.md
     #[test]
     fn original_frame_selectors_match_native_cache_and_failure_order() {
         let fixtures = [
@@ -4754,3 +4921,29 @@ mod tests {
 #[cfg(test)]
 #[path = "command/native_frame_context_tests.rs"]
 mod native_frame_context_tests;
+
+#[cfg(test)]
+mod native_substitution_tests;
+
+#[cfg(test)]
+#[path = "command/native_catch_formal_alias_tests.rs"]
+mod native_catch_formal_alias_tests;
+
+#[cfg(test)]
+#[path = "command/native_formal_alpha_tests.rs"]
+mod native_formal_alpha_tests;
+
+#[cfg(test)]
+mod native_subst_operand_tests;
+
+#[cfg(test)]
+#[path = "command/native_lambda_tests.rs"]
+mod native_lambda_tests;
+
+#[cfg(test)]
+#[path = "command/native_apply_original_tests.rs"]
+mod native_apply_original_tests;
+
+#[cfg(test)]
+#[path = "command/native_static_original_tests.rs"]
+mod native_static_original_tests;

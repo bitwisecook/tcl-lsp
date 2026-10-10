@@ -1,0 +1,46 @@
+{
+  "question": "naming.property.original-configurable-availability-counted-argv",
+  "provider": "jim",
+  "input_channel": "original-counted-object-vector (Tcl_EvalObjv or Jim_EvalObjVector); actual info patchlevel from separate ASCII startup source",
+  "scope": "Availability and the fresh ASCII configurable create/class object create argv only. No property storage, opaque names, Native source preflight, compilation or callback absence claim. Source-script CREATE rows of native_property_counted_original are a separate retained channel.",
+  "source_sha256": "d002f896107884e9aa995e1363f5acf25700c2b5be97e65c05d9508586c77940",
+  "queue_sha256": "5c73bb71f33c71927715cdcacad6739136914a6e2462fd2a4abfaa07660edf96",
+  "runner_sha256": "c203dace948bb8b2bd2388a1d41130164bd6fe1b84f6fa49ee39a13aac5a17d6",
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "environment": {},
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-DJIM_PROBE=1",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/current-native-property-availability-argv169/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/current-native-property-availability-argv169/output/jim/probe"
+  ],
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 0,
+  "executable_sha256": "1665fb614d0b4532b6b14d6e491664cca1473023c34a6bd47a9f753c843e46d6",
+  "stdout_sha256": "c96e780264d5c454a9d6e307068295a3ea2185ff1b8ddca25cb8903f9696edf0",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "0.84-9-g5bac7c9",
+  "rows": [
+    "VERSION|0|0|302e38342d392d6735626163376339",
+    "AVAILABILITY_OBJV|0|0|",
+    "FACTORY_OBJV|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522"
+  ],
+  "seconds": 0.11554967200208921
+}

@@ -340,6 +340,7 @@ pub fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         options: OPTIONS,
+        option_prefix_words: 1,
         hover: Some(HoverSnippet {
             summary: "Set and get options on a channel.",
             synopsis: &[

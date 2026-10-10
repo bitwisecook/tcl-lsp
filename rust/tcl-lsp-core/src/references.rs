@@ -16,113 +16,49 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Find-references / document-highlight provider.
+//! Find-references and document-highlight source selection.
 //!
-//! Locates every usage of the symbol at the cursor:
+//! Native naming profiles use current original namespace, variable, method and
+//! declaration owners. Each query retains the complete source image, full lexer
+//! configuration and selected policy. A missing or stale original input is
+//! terminal; a display spelling cannot replace it.
 //!
-//! * `$var` references → `VarDef.definition_span` plus every
-//!   span in `VarDef.references` (already collected by the
-//!   analyser's body walk).
-//! * proc and class references → the declaration plus positioned lookups
-//!   retaining its exact original allocation. Terminal alias references can
-//!   be reported without becoming target rename edits. A known non-definition
-//!   or foreign allocation blocks name-based assistance.
+//! [`references`] and [`document_highlights`] expose document-local ranges.
+//! Original namespace occurrences share [`crate::namespace_symbol`]; original
+//! variable occurrences share [`crate::variable_symbol`] and retain their
+//! actual source frame and declaration/read/write roles. These source symbols
+//! do not grant runtime cell identity, contents or observer closure.
 //!
-//! Two entry points:
+//! Procedure and class references use
+//! [`crate::original_declaration::invocation_targets_declaration`] to match the
+//! actual positioned lookup and canonical allocation. A terminal alias or moved
+//! route can retain a call edge while its own spelling remains distinct from a
+//! direct editable declaration reference. Repeated declarations and equal-byte
+//! names with independent owners remain separate.
 //!
-//! * [`references`] — returns plain `Vec<LspRange>` for the
-//!   LSP `textDocument/references` request.
-//! * [`document_highlights`] — returns
-//!   `Vec<(LspRange, HighlightKind)>` for the LSP
-//!   `textDocument/documentHighlight` request.  Variables get
-//!   the `Write` / `Read` distinction;
-//!   command-invocation matches
-//!   stay `Text` because the analyser's
-//!   `command_invocations` does not surface read /
-//!   write semantics on call-head matches.
+//! Method references retain the selected entry and its genuine source worker.
+//! [`crate::method_symbol`] keeps class, instance and own-object ownership
+//! separate, including own-object allocation/generation and private or missing
+//! entry barriers. Possible source candidates supply readonly advice; they do
+//! not establish native dispatch, inheritance or edit permission.
 //!
-//! Class-member references: when the cursor sits
-//! on a method, classmethod, or property name inside the
-//! class body, the provider re-segments every sibling method
-//! body and surfaces each invocation that names the same
-//! member.  `document_highlights` returns the declaration as
-//! `Write` and every call site as `Text`.
+//! The server's shared original declaration document inventory carries each
+//! participating URI, current source and configuration independently. Workspace
+//! references, call edges and code-lens counts reuse the same canonical
+//! declaration reference kernel. Unknown relevant providers, stale source or
+//! ambiguous declarations decline selection rather than losing a blocker.
+//! Including a declaration is an independent request choice.
 //!
-//! External `$obj method` references: when the
-//! cursor sits on the method-name token of a `$obj method`
-//! call (or inside the class body), the provider additionally
-//! scans the whole document for `$v method` / `[$v method]`
-//! call sites whose retained object and method receipts match — plus, when the member is a
-//! `classmethod`, every bare `ClassName method` dispatch on the class's
-//! own command (a classmethod is never dispatched via an instance).  See
-//! [`find_obj_method_call_sites`] for the scan's full coverage.
+//! Highlights use retained variable roles for `Read` and `Write`; command calls
+//! remain `Text`, with declaration geometry represented separately. Exact
+//! expression function occurrences have an independent lookup purpose and do
+//! not acquire command identity through their rendered identifier.
 //!
-//! Limitations:
-//!
-//! * This module is single-document only.  Cross-document references are
-//!   built *on top of* it — `tcl-lsp-server`'s `cross_document_references` /
-//!   `cross_file_method_references` / `cross_file_consumer_method_references`
-//!   call [`obj_method_call_sites`], [`method_reference_spans_in_document`],
-//!   and [`inherited_method_call_sites`] once per candidate document, using
-//!   the workspace index to find which documents to scan and (for a
-//!   classmethod) which class names are valid bare-dispatch heads when the
-//!   scanned document doesn't declare the class itself.
-//! * Method references require the original retained receiver and method
-//!   declaration. Class commands and imports use their actual source-world
-//!   receipts; nominal class names, candidate object types and workspace-only
-//!   names cannot grant editable references. Unknown receiver or method
-//!   mutation paths decline matching.
-//! * [incr Tcl]'s class-scoped `proc` uses a different dispatch shape
-//!   entirely — a single `::`-qualified command word (`Factory::make`), not
-//!   two words — so it is matched by [`crate::definition::itcl_class_proc_target`]
-//!   against `analysis.command_invocations`, with Tcl's own
-//!   current-namespace-then-global resolution rather than by name-set
-//!   membership.  That path is single-document: a call in a sibling file is
-//!   not found, because the cross-file layer below still carries only the
-//!   two-word shape's name sets.
-//! * `uplevel`'s body is `BodyKind::Structural` (a different call frame in
-//!   the general case — level `0` and level `1`+ can't be told apart from
-//!   the static registry spec alone), so a `my`/`next`/`$obj method`
-//!   dispatch written inside it is not found.
-//! * A well-formed `apply {{arglist} {body}} …` lambda's body likewise runs
-//!   in its own frame with no route back to the enclosing object's `my`
-//!   unless the lambda is explicitly constructed with the object's
-//!   namespace, and is not found — though for a different, incidental
-//!   reason than `uplevel`: `apply`'s registry `arg_roles` marks its whole
-//!   `{arglist body}` argument `Body` (not the body sub-element alone), so
-//!   re-segmenting that span as a script sees one non-matching command
-//!   (`{arglist}` `{body}`) rather than descending into the nested body at
-//!   all. A source that omits the required `{arglist}` wrapper (invalid
-//!   `apply` usage, e.g. `apply {my getOptions $k}`) collapses that span to
-//!   one level and *can* incidentally re-parse as a matching `my` site —
-//!   a narrow quirk of malformed input, not a real dispatch the runtime
-//!   would ever reach.
-//! * A `case_list` command with per-clause flags (Expect's `expect { -re
-//!   pat body … }`) is not decomposed — only a plain `{pattern body …}`
-//!   clause list (`switch`'s shape) is.
-//!
-//! Intra-class `my`/`$obj` dispatch and `next`/`nextto` super-dispatch scans
-//! (`scan_my_method_sites`, [`find_obj_method_call_sites`],
-//! [`method_next_dispatch_spans`]) all recurse into every `[...]`
-//! command-substitution *and* every same-frame (`Plain` `BodyKind`)
-//! control-flow / `eval` body — `if`/`while`/`foreach`/`switch` (both the
-//! inline and single-braced-clause-list forms)/`try`/`catch`/`dict for`, any
-//! nested combination of the two, and, generically, any future command
-//! whose registry spec declares a `Plain`-body role — via
-//! [`nested_dispatch_regions`].  Recursion is entirely registry-driven
-//! ([`tcl_registry::CommandRegistry::plain_body_arg_indices`],
-//! [`tcl_registry::CaseListSpec`]); no command name is hardcoded in the
-//! walkers themselves.
-//!
-//! The `$obj`-dispatch scan goes one step further for its *command*-receiver
-//! half — a class command (`Factory make`) or an object command bound by
-//! `CLASS create NAME` (`rex bark`).  Those are ordinary commands, resolvable
-//! from any frame, so that half also descends the **frame-shifting** regions
-//! ([`frame_shifted_dispatch_regions`]): `Structural`-`BodyKind` bodies
-//! (`namespace eval`, `uplevel`, `oo::define`, …) and `apply` lambda bodies.
-//! The `$var`-receiver half stops at those boundaries, because a `$f` inside
-//! a `namespace eval` body names that namespace's own `f` and inside an
-//! `apply` lambda a fresh local (tclsh 9.0.4-verified).
+//! Explicit lexical-advice profiles retain the reporting-map and segmented
+//! member/body compatibility scans below. Definition metadata hazards use
+//! genuine original body and class-source owners with the actual Registry
+//! context; readonly source references cannot provide a Native original
+//! query, entered worker or edit permission.
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
@@ -130,6 +66,8 @@ use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
 use crate::hover::find_word_span_at_position;
+
+mod member_metadata;
 
 /// Byte spans of every call site the namespace-aware proc resolver
 /// attributes to `proc_def` (whose `all_procs` map key is `qname`),
@@ -149,6 +87,29 @@ pub(crate) fn proc_reference_spans(
     proc_def: &tcl_compiler::analyser::ProcDef,
     source: &str,
 ) -> Vec<tcl_lexer::Span> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let Some(declaration) = analysis
+            .original_procedure_declarations()
+            .find(|row| row.metadata() == proc_def)
+        else {
+            return Vec::new();
+        };
+        return analysis
+            .command_invocations
+            .iter()
+            .filter(|invocation| {
+                crate::original_declaration::invocation_targets_declaration(
+                    source,
+                    analysis,
+                    invocation,
+                    declaration,
+                    true,
+                )
+            })
+            .map(|invocation| invocation.range)
+            .collect();
+    }
+
     let indirect = indirect_names_reaching(analysis, &proc_def.qualified_name);
     analysis
         .command_invocations
@@ -542,7 +503,7 @@ fn retained_definition<'a>(
             reference
                 .linked_definition()
                 .or_else(|| reference.definition())
-        } else if reference.is_direct_definition() && reference.slot() == qualified {
+        } else if reference.is_direct_definition() && reference.slot() == Some(qualified) {
             reference.definition()
         } else {
             None
@@ -566,6 +527,24 @@ pub(crate) fn invocation_calls_proc(
     proc_def: &tcl_compiler::analyser::ProcDef,
     source: &str,
 ) -> bool {
+    if !analysis.allows_lexical_declaration_advice() {
+        if !inv.lookup.is_execution_site() {
+            return false;
+        }
+        return analysis
+            .original_procedure_declarations()
+            .find(|row| row.metadata() == proc_def)
+            .is_some_and(|declaration| {
+                crate::original_declaration::invocation_targets_declaration(
+                    source,
+                    analysis,
+                    inv,
+                    declaration,
+                    true,
+                )
+            });
+    }
+
     if !inv.lookup.is_execution_site() {
         return false;
     }
@@ -630,6 +609,21 @@ pub(crate) fn invocation_references_proc(
     proc_def: &tcl_compiler::analyser::ProcDef,
     source: &str,
 ) -> bool {
+    if !analysis.allows_lexical_declaration_advice() {
+        return analysis
+            .original_procedure_declarations()
+            .find(|row| row.metadata() == proc_def)
+            .is_some_and(|declaration| {
+                crate::original_declaration::invocation_targets_declaration(
+                    source,
+                    analysis,
+                    inv,
+                    declaration,
+                    false,
+                )
+            });
+    }
+
     if let RetainedDefinition::Known(definition) =
         retained_definition(inv, false, &proc_def.qualified_name)
     {
@@ -668,6 +662,21 @@ pub(crate) fn invocation_references_class(
     class_def: &tcl_compiler::analyser::ClassDef,
     source: &str,
 ) -> bool {
+    if !analysis.allows_lexical_declaration_advice() {
+        return analysis
+            .original_class_declarations()
+            .find(|row| row.metadata() == class_def)
+            .is_some_and(|declaration| {
+                crate::original_declaration::invocation_targets_declaration(
+                    source,
+                    analysis,
+                    inv,
+                    declaration,
+                    false,
+                )
+            });
+    }
+
     if let RetainedDefinition::Known(definition) =
         retained_definition(inv, false, &class_def.qualified_name)
     {
@@ -738,6 +747,75 @@ pub fn references_in_program(
     program: Option<crate::definition::ProgramExports<'_>>,
 ) -> Vec<LspRange> {
     let line_index = LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::namespace_symbol::select_at_offset(source, analysis, cursor)
+    {
+        return selected.map_or_else(Vec::new, |symbol| {
+            crate::namespace_symbol::original_namespace_spans(
+                analysis,
+                &symbol,
+                include_declaration,
+            )
+            .into_iter()
+            .map(|span| crate::definition::span_to_range(source, &line_index, span))
+            .collect()
+        });
+    }
+
+    if let std::ops::ControlFlow::Break(selected) = crate::variable_symbol::select_navigation(
+        source,
+        analysis,
+        line,
+        character,
+        crate::definition::CallResolution {
+            registry: None,
+            program,
+        },
+    ) {
+        return selected.map_or_else(Vec::new, |occurrence| {
+            occurrence
+                .reference_spans(source, analysis, include_declaration)
+                .into_iter()
+                .map(|span| span_to_range(source, &line_index, span))
+                .collect()
+        });
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::method_symbol::local_candidate(source, analysis, line, character)
+    {
+        return selected.map_or_else(Vec::new, |candidate| {
+            crate::method_symbol::local_reference_spans(
+                source,
+                analysis,
+                &candidate,
+                include_declaration,
+            )
+            .into_iter()
+            .map(|span| span_to_range(source, &line_index, span))
+            .collect()
+        });
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::original_declaration::select("", source, analysis, line, character)
+    {
+        return selected.map_or_else(Vec::new, |identity| {
+            let mut spans =
+                crate::original_declaration::reference_spans(&identity, source, analysis, true);
+            if include_declaration {
+                spans.push(identity.span());
+            }
+            spans.sort_by_key(|span| (span.start(), span.end()));
+            spans.dedup();
+            spans
+                .into_iter()
+                .map(|span| span_to_range(source, &line_index, span))
+                .collect()
+        });
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
     let ctx = RefCtx {
         source,
         dialect,
@@ -765,7 +843,7 @@ pub fn references_in_program(
     // be made here, on the token kind.
     if crate::caller_frame::substituted_var_read_at(
         source,
-        dialect,
+        analysis,
         line,
         character,
         crate::definition::byte_offset_at(&line_index, source, line, character),
@@ -909,6 +987,21 @@ fn namespace_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         include_declaration,
         ..
     } = *ctx;
+    let cursor = crate::definition::byte_offset_at(line_index, source, line, character);
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::namespace_symbol::select_at_offset(source, analysis, cursor)
+    {
+        return Some(selected.map_or_else(Vec::new, |symbol| {
+            crate::namespace_symbol::original_namespace_spans(
+                analysis,
+                &symbol,
+                include_declaration,
+            )
+            .into_iter()
+            .map(|span| crate::definition::span_to_range(source, line_index, span))
+            .collect()
+        }));
+    }
     let cell = crate::namespace_symbol::namespace_cell_at(source, analysis, line, character)?;
     Some(
         crate::namespace_symbol::namespace_all_spans(analysis, &cell, include_declaration)
@@ -1015,7 +1108,6 @@ fn caller_frame_references(
     // proc a binding's call-site word reaches is itself a call resolution, so
     // dropping the oracle here would let find-references disagree with
     // go-to-definition on a `-force`-shadowed callee.
-    let resolution = resolution.with_registry(crate::registry_for_dialect_profile(dialect));
     let bindings = crate::caller_frame::caller_frame_bindings(
         analysis,
         source,
@@ -1074,19 +1166,12 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     // answers the literal cell.
     let var_def = if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
-        dialect,
+        analysis,
         line,
         character,
         byte_offset,
     ) {
-        match crate::definition::lookup_var_read_at(
-            &analysis.global_scope,
-            source,
-            dialect,
-            byte_offset,
-            &var_name,
-            analysis.ns_var_global_fallback(),
-        ) {
+        match crate::definition::lookup_var_read_at(analysis, source, byte_offset, &var_name) {
             Some(def) => def,
             // Nothing in this frame assigns it — but a callee may create it
             // here through `upvar`, in which case the call-site word that
@@ -1097,7 +1182,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         analysis,
         source,
         dialect,
-        resolution.with_registry(crate::registry_for_dialect_profile(dialect)),
+        resolution,
         byte_offset,
         &find_word_span_at_position(source, line, character)
             .map(|(w, _, _)| w)
@@ -1147,6 +1232,29 @@ pub(crate) fn class_reference_spans(
     class_def: &tcl_compiler::analyser::ClassDef,
     source: &str,
 ) -> Vec<tcl_lexer::Span> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let Some(declaration) = analysis
+            .original_class_declarations()
+            .find(|row| row.metadata() == class_def)
+        else {
+            return Vec::new();
+        };
+        return analysis
+            .command_invocations
+            .iter()
+            .filter(|invocation| {
+                crate::original_declaration::invocation_targets_declaration(
+                    source,
+                    analysis,
+                    invocation,
+                    declaration,
+                    true,
+                )
+            })
+            .map(|invocation| invocation.range)
+            .collect();
+    }
+
     let indirect = indirect_names_reaching(analysis, &class_def.qualified_name);
     analysis
         .command_invocations
@@ -1200,8 +1308,13 @@ fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // Declaration under the cursor, else namespace-aware resolution — never a
     // namespace-blind `c.name == word` scan (which from a call site could
     // surface an unrelated same-named class's reference set).
-    let (qname, class_def) =
-        crate::definition::resolve_class_target_at(analysis, ctx.resolution, cursor_off, word)?;
+    let (qname, class_def) = crate::definition::resolve_class_target_at(
+        analysis,
+        source,
+        ctx.resolution,
+        cursor_off,
+        word,
+    )?;
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, class_def.name_span));
@@ -1590,6 +1703,9 @@ pub(crate) fn method_references_for_class(
     method: &str,
     is_classmethod: bool,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
     let class = analysis.all_classes.get(class_q)?;
     let method = if is_classmethod {
         &class.class_methods
@@ -1641,12 +1757,22 @@ pub(crate) fn list_built_self_method_target_at_cursor(
     word: &str,
     cursor_offset: u32,
 ) -> Option<(String, bool)> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
     let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)?;
-    let current = analysis.all_classes.get(&selected.class.qualified_name)?;
-    // This compatibility tuple can represent only the same recorded declaration.
-    // Original-incarnation consumers use the full entry adapter directly.
-    (selected.method.name == word
-        && selected.editable_selector().is_some()
+    let side = if selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class {
+        tcl_compiler::analyser::types::MemberSide::ClassObject
+    } else {
+        tcl_compiler::analyser::types::MemberSide::Instance
+    };
+    let (current, member) =
+        analysis
+            .class_hierarchy()
+            .declared_member(&selected.class.qualified_name, word, side)?;
+    // The shared compatibility owner must retain the same declaration and side.
+    (selected.editable_selector().is_some()
+        && member == selected.method
         && current.name_span == selected.class.name_span)
         .then(|| {
             (
@@ -1675,7 +1801,7 @@ pub fn callback_prefix_method_receiver_at_cursor(
 /// This is a whole-rename hazard only, never a reference or replacement span.
 pub(crate) fn unproved_callback_method_selector(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     method: &str,
 ) -> Option<tcl_lexer::Span> {
@@ -1686,9 +1812,9 @@ pub(crate) fn unproved_callback_method_selector(
     {
         for body in collect_member_bodies(class) {
             for span in
-                scan_method_sites_by_kind(source, dialect, &[body], method, None, true, true)
+                scan_method_sites_by_kind(source, analysis, &[body], method, None, true, true)
             {
-                if command_prefix_target_at_cursor(source, dialect, body, span.start()).is_some()
+                if command_prefix_target_at_cursor(source, analysis, body, span.start()).is_some()
                     && crate::receiver_identity::method_at_cursor(analysis, source, span.start())
                         .is_none()
                 {
@@ -1716,16 +1842,19 @@ fn span_contains_offset(span: tcl_lexer::Span, offset: u32) -> bool {
 /// `None` when `class_q` has no property named `property`.
 pub(crate) fn property_references_for_class(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
     property: &str,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
     let class_def = analysis.all_classes.get(class_q)?;
     let decl_span = class_def.properties.get(property)?.name_span;
     let call_spans = scan_my_method_sites(
         source,
-        dialect,
+        analysis,
         &collect_member_bodies(class_def),
         property,
         None,
@@ -1743,11 +1872,14 @@ pub(crate) fn property_references_for_class(
 pub fn method_next_dispatch_spans(
     analysis: &AnalysisResult,
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     class_q: &str,
     method: &str,
     is_classmethod: bool,
 ) -> Vec<tcl_lexer::Span> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
     let Some(class_def) = analysis.all_classes.get(class_q) else {
         return Vec::new();
     };
@@ -1766,7 +1898,7 @@ pub fn method_next_dispatch_spans(
     let Some(m) = member else {
         return Vec::new();
     };
-    scan_next_dispatch_sites(source, dialect, m.body_span)
+    scan_next_dispatch_sites(source, analysis, m.body_span)
 }
 
 /// Canonicalise a written class name (`nextto`'s argument) to the qualified
@@ -1810,7 +1942,7 @@ fn canonicalise_class_name(analysis: &AnalysisResult, at: u32, name: &str) -> Op
 /// whole next/nextto reference system by family is the coherent alternative.
 pub(crate) fn constructor_next_chain_references(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
@@ -1825,7 +1957,7 @@ pub(crate) fn constructor_next_chain_references(
         let Some(ctor) = other_cd.constructors.last() else {
             continue;
         };
-        for (span, target) in scan_next_dispatch_sites_with_target(source, dialect, ctor.body_span)
+        for (span, target) in scan_next_dispatch_sites_with_target(source, analysis, ctor.body_span)
         {
             let start_from = match target {
                 Some(target) => {
@@ -1851,7 +1983,7 @@ pub(crate) fn constructor_next_chain_references(
 /// Returns `None` when `class_q` declares no explicit destructor.
 pub(crate) fn destructor_next_chain_references(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
@@ -1866,7 +1998,7 @@ pub(crate) fn destructor_next_chain_references(
         let Some(dtor) = &other_cd.destructor else {
             continue;
         };
-        for (span, target) in scan_next_dispatch_sites_with_target(source, dialect, dtor.body_span)
+        for (span, target) in scan_next_dispatch_sites_with_target(source, analysis, dtor.body_span)
         {
             let start_from = match target {
                 Some(target) => {
@@ -1982,12 +2114,12 @@ pub fn method_reference_spans_in_document(
 /// of a bare-head comparison that never matches real (`my`-dispatched) Tcl.
 pub(crate) fn scan_my_method_sites(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     bodies: &[tcl_lexer::Span],
     method: &str,
     skip: Option<tcl_lexer::Span>,
 ) -> Vec<tcl_lexer::Span> {
-    scan_method_sites(source, dialect, bodies, method, skip, false)
+    scan_method_sites(source, analysis, bodies, method, skip, false)
 }
 
 /// [`scan_my_method_sites`] with registry-declared deferred callback
@@ -1997,7 +2129,7 @@ pub(crate) fn scan_my_method_sites(
 /// in the current object's private dispatch path.
 pub(crate) fn scan_method_sites(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     bodies: &[tcl_lexer::Span],
     method: &str,
     skip: Option<tcl_lexer::Span>,
@@ -2005,7 +2137,7 @@ pub(crate) fn scan_method_sites(
 ) -> Vec<tcl_lexer::Span> {
     scan_method_sites_by_kind(
         source,
-        dialect,
+        analysis,
         bodies,
         method,
         skip,
@@ -2016,20 +2148,30 @@ pub(crate) fn scan_method_sites(
 
 fn scan_method_sites_by_kind(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     bodies: &[tcl_lexer::Span],
     method: &str,
     skip: Option<tcl_lexer::Span>,
     external_callback_allowed: bool,
     callbacks_only: bool,
 ) -> Vec<tcl_lexer::Span> {
-    let registry = crate::registry_for_dialect_profile(dialect);
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    let ctx = MyMethodScan {
-        source,
+    let Some(RetainedDispatchContext {
         dialect,
         registry,
-        identities: &identities,
+        identities,
+        config,
+        ..
+    }) = retained_dispatch_context(source, analysis)
+    else {
+        return Vec::new();
+    };
+    let ctx = MyMethodScan {
+        source,
+        analysis,
+        config,
+        dialect,
+        registry,
+        identities,
         method,
         skip,
         external_callback_allowed,
@@ -2060,6 +2202,8 @@ fn scan_method_sites_by_kind(
 #[derive(Clone, Copy)]
 struct MyMethodScan<'a> {
     source: &'a str,
+    analysis: &'a AnalysisResult,
+    config: tcl_lexer::LexerConfig,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
@@ -2148,7 +2292,7 @@ fn collect_stored_callback_writes(
     let commands = segment_commands_with_offset_and_config(
         &ctx.source[start..end],
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        ctx.config,
     );
     let mut has_scope_alias = false;
     for cmd in commands {
@@ -2207,13 +2351,9 @@ fn collect_stored_callback_writes(
                 .flatten();
             writes.insert(var.clone(), (cmd.span.end(), value_target));
         }
-        for (nested_start, nested_end) in nested_dispatch_regions_with_identities(
-            ctx.source,
-            ctx.dialect,
-            ctx.registry,
-            ctx.identities,
-            &cmd,
-        ) {
+        for (nested_start, nested_end) in
+            nested_dispatch_regions(ctx.source, ctx.analysis, ctx.dialect, &cmd)
+        {
             has_scope_alias |= collect_stored_callback_writes(
                 ctx,
                 nested_start,
@@ -2271,7 +2411,7 @@ fn scan_my_method_region(
     let commands = segment_commands_with_offset_and_config(
         region,
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        ctx.config,
     );
     for cmd in &commands {
         if !ctx.callbacks_only
@@ -2323,13 +2463,9 @@ fn scan_my_method_region(
                 sink.out.push(span);
             }
         }
-        for (inner_start, inner_end) in nested_dispatch_regions_with_identities(
-            source,
-            ctx.dialect,
-            ctx.registry,
-            ctx.identities,
-            cmd,
-        ) {
+        for (inner_start, inner_end) in
+            nested_dispatch_regions(source, ctx.analysis, ctx.dialect, cmd)
+        {
             scan_my_method_region(ctx, inner_start, inner_end, depth + 1, sink);
         }
     }
@@ -2497,14 +2633,15 @@ fn command_prefix_targets_from_word(
     if MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) || word_tok.kind != TokenType::Cmd {
         return Vec::new();
     }
-    let regions = cmd_substitution_regions(ctx.source, ctx.dialect, *word_tok);
+    let regions =
+        crate::executable_regions::command_substitution_regions(ctx.source, ctx.config, *word_tok);
     let [(inner_start, inner_end)] = regions.as_slice() else {
         return Vec::new();
     };
     let built = segment_commands_with_offset_and_config(
         &ctx.source[*inner_start..*inner_end],
         u32::try_from(*inner_start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        ctx.config,
     );
     let [builder] = built.as_slice() else {
         return Vec::new();
@@ -2601,17 +2738,24 @@ fn source_span_text(source: &str, span: tcl_lexer::Span) -> &str {
 /// executable regions.
 fn command_prefix_target_at_cursor(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     body: tcl_lexer::Span,
     cursor_offset: u32,
 ) -> Option<PrefixTargetAtSpan> {
-    let registry = crate::registry_for_dialect_profile(dialect);
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    let base_ctx = MyMethodScan {
-        source,
+    let RetainedDispatchContext {
         dialect,
         registry,
-        identities: &identities,
+        identities,
+        config,
+        ..
+    } = retained_dispatch_context(source, analysis)?;
+    let base_ctx = MyMethodScan {
+        source,
+        analysis,
+        config,
+        dialect,
+        registry,
+        identities,
         method: "",
         skip: None,
         external_callback_allowed: true,
@@ -2647,23 +2791,17 @@ fn stored_callback_is_consumed(
     let commands = segment_commands_with_offset_and_config(
         &ctx.source[start..end],
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        ctx.config,
     );
     commands.iter().any(|cmd| {
         callback_targets_from_command(ctx, cmd)
             .into_iter()
             .any(|candidate| candidate == target)
-            || nested_dispatch_regions_with_identities(
-                ctx.source,
-                ctx.dialect,
-                ctx.registry,
-                ctx.identities,
-                cmd,
-            )
-            .into_iter()
-            .any(|(nested_start, nested_end)| {
-                stored_callback_is_consumed(ctx, nested_start, nested_end, target, depth + 1)
-            })
+            || nested_dispatch_regions(ctx.source, ctx.analysis, ctx.dialect, cmd)
+                .into_iter()
+                .any(|(nested_start, nested_end)| {
+                    stored_callback_is_consumed(ctx, nested_start, nested_end, target, depth + 1)
+                })
     })
 }
 
@@ -2682,7 +2820,7 @@ fn command_prefix_target_in_region(
     let commands = segment_commands_with_offset_and_config(
         &ctx.source[start..end],
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        ctx.config,
     );
     for cmd in &commands {
         for target in callback_targets_from_command(ctx, cmd) {
@@ -2691,13 +2829,9 @@ fn command_prefix_target_in_region(
                 return Some(target);
             }
         }
-        for (inner_start, inner_end) in nested_dispatch_regions_with_identities(
-            ctx.source,
-            ctx.dialect,
-            ctx.registry,
-            ctx.identities,
-            cmd,
-        ) {
+        for (inner_start, inner_end) in
+            nested_dispatch_regions(ctx.source, ctx.analysis, ctx.dialect, cmd)
+        {
             if let Some(target) = command_prefix_target_in_region(
                 ctx,
                 inner_start,
@@ -2715,10 +2849,9 @@ fn command_prefix_target_in_region(
 /// Whether a command-substitution word is exactly the registry-declared
 /// current `TclOO` receiver form valid on a method frame's command path.
 fn exact_self_receiver_call(ctx: MyMethodScan<'_>, receiver: &str) -> bool {
-    let Some((written, args)) = tcl_compiler::value_shapes::parse_command_substitution_with_config(
-        receiver,
-        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
-    ) else {
+    let Some((written, args)) =
+        tcl_compiler::value_shapes::parse_command_substitution_with_config(receiver, ctx.config)
+    else {
         return false;
     };
     // A rooted spelling bypasses a method frame's command path. Reject it
@@ -2757,10 +2890,10 @@ fn exact_self_receiver_call(ctx: MyMethodScan<'_>, receiver: &str) -> bool {
 /// which need it to disambiguate `nextto`).
 fn scan_next_dispatch_sites(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     body: tcl_lexer::Span,
 ) -> Vec<tcl_lexer::Span> {
-    scan_next_dispatch_sites_with_target(source, dialect, body)
+    scan_next_dispatch_sites_with_target(source, analysis, body)
         .into_iter()
         .map(|(span, _target)| span)
         .collect()
@@ -2775,16 +2908,20 @@ fn scan_next_dispatch_sites(
 /// chains to the class under a given lens.
 fn scan_next_dispatch_sites_with_target(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     body: tcl_lexer::Span,
 ) -> Vec<(tcl_lexer::Span, Option<String>)> {
-    let registry = crate::registry_for_dialect_profile(dialect);
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
+    let Some(RetainedDispatchContext {
+        dialect, config, ..
+    }) = retained_dispatch_context(source, analysis)
+    else {
+        return Vec::new();
+    };
     let ctx = NextDispatchScan {
         source,
+        analysis,
+        config,
         dialect,
-        registry,
-        identities: &identities,
     };
     let mut out = Vec::new();
     if body.is_empty() {
@@ -2804,9 +2941,9 @@ fn scan_next_dispatch_sites_with_target(
 #[derive(Clone, Copy)]
 struct NextDispatchScan<'a> {
     source: &'a str,
+    analysis: &'a AnalysisResult,
+    config: tcl_lexer::LexerConfig,
     dialect: &'static tcl_dialect::DialectProfile,
-    registry: &'a tcl_registry::CommandRegistry,
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
 }
 
 fn scan_next_dispatch_region_with_target(
@@ -2819,9 +2956,10 @@ fn scan_next_dispatch_region_with_target(
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     let NextDispatchScan {
         source,
+        analysis,
+        config,
         dialect,
-        registry,
-        identities,
+        ..
     } = ctx;
     if start >= end || end > source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return;
@@ -2830,7 +2968,7 @@ fn scan_next_dispatch_region_with_target(
     let commands = segment_commands_with_offset_and_config(
         body_text,
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+        config,
     );
     for cmd in &commands {
         if let Some(head) = cmd.argv.first() {
@@ -2863,9 +3001,7 @@ fn scan_next_dispatch_region_with_target(
                 }
             }
         }
-        for (inner_start, inner_end) in
-            nested_dispatch_regions_with_identities(source, dialect, registry, identities, cmd)
-        {
+        for (inner_start, inner_end) in nested_dispatch_regions(source, analysis, dialect, cmd) {
             scan_next_dispatch_region_with_target(ctx, inner_start, inner_end, depth + 1, out);
         }
     }
@@ -2996,7 +3132,7 @@ fn find_class_member_references(
     // definer body, never itself a `my <name>` call site.
     let call_spans = scan_my_method_sites(
         source,
-        dialect,
+        analysis,
         &collect_member_bodies(class_def),
         word,
         None,
@@ -3145,6 +3281,9 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     is_classmethod: bool,
     extra_cmd_names: &[String],
 ) -> Vec<tcl_lexer::Span> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
     // [incr Tcl] class-scoped `proc`s land in the same `class_methods`
     // bucket as a `classmethod`, but dispatch as a single `::`-qualified
     // identifier (`Factory::make`) — a shape the two-word scanner below
@@ -3172,8 +3311,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
         return out;
     }
     let mut seen: FxHashSet<(u32, u32)> = out.iter().map(|s| (s.start(), s.end())).collect();
-    let registry = crate::registry_for_analysis(analysis);
-    let Some(identities) = analysis.retained_command_realm() else {
+    let Some(_) = analysis.retained_command_realm() else {
         return out;
     };
     let Some(config) = analysis.body_lexer_config else {
@@ -3182,9 +3320,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     let ctx = ObjMethodScan {
         source,
         dialect,
-        registry,
         config,
-        identities,
         analysis,
         receivers: &receivers,
         method,
@@ -3269,9 +3405,7 @@ impl CommandReceivers {
 struct ObjMethodScan<'a> {
     source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
-    registry: &'a tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     analysis: &'a AnalysisResult,
     receivers: &'a CommandReceivers,
     method: &'a str,
@@ -3377,18 +3511,15 @@ fn scan_obj_method_region(
                 }
             }
         }
-        for (inner_start, inner_end) in nested_dispatch_regions_with_identities(
-            source,
-            ctx.dialect,
-            ctx.registry,
-            ctx.identities,
-            cmd,
-        ) {
+        for (inner_start, inner_end) in
+            nested_dispatch_regions(source, ctx.analysis, ctx.dialect, cmd)
+        {
             scan_obj_method_region(ctx, inner_start, inner_end, depth + 1, sink);
         }
         let shifted = ctx.frame_shifted();
         if shifted.has_receivers() {
-            for (inner_start, inner_end) in frame_shifted_dispatch_regions(source, ctx.dialect, cmd)
+            for (inner_start, inner_end) in
+                frame_shifted_dispatch_regions(source, ctx.analysis, ctx.dialect, cmd)
             {
                 scan_obj_method_region(shifted, inner_start, inner_end, depth + 1, sink);
             }
@@ -3424,168 +3555,130 @@ pub(crate) fn strip_outer_braces(source: &str, span: tcl_lexer::Span) -> (usize,
 pub(crate) const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
-/// Every nested region reachable from one segmented command that a
-/// dispatch scan (`my` / `next` / `nextto` / `$obj method` call-site search)
-/// must also visit, so a dispatch written *inside* a nested construct is
-/// still found as a reference from the enclosing method: every `[…]`
-/// command-substitution fragment in any argument
-/// ([`cmd_substitution_regions`]), plus every argument the command registry
-/// marks [`tcl_registry::ArgRole::Body`] with a `Plain`
-/// [`tcl_registry::BodyKind`] — a same-frame body (`if` / `while` /
-/// `foreach` / `switch` / `try` / `catch` / `eval`, …) that still executes in
-/// the enclosing method's own dispatch context.
-///
-/// `Structural` bodies (`proc`, `oo::class create`, `uplevel`, `namespace
-/// eval`, …) are *not* descended here — those run in a different scope, so a
-/// call written inside one is not a same-context dispatch from this site
-/// (see [`tcl_registry::CommandRegistry::plain_body_arg_indices`]). This is
-/// the one general mechanism that keeps a `my method` call nested in `if` /
-/// `while` / `foreach` / `switch` / `try` / `catch` / `eval` visible to
-/// Find-References, the code-lens reference count, and Rename —
-/// registry-driven, so it needs no per-command-name branch
-/// here and covers any command whose spec declares a `Plain` body role, not
-/// just the control-flow keywords a hand-written list would enumerate.
-pub(crate) fn nested_dispatch_regions(
-    source: &str,
+struct RetainedDispatchContext<'a> {
     dialect: &'static tcl_dialect::DialectProfile,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
-) -> Vec<(usize, usize)> {
-    let registry = crate::registry_for_dialect_profile(dialect);
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    nested_dispatch_regions_with_identities(source, dialect, registry, &identities, cmd)
+    registry: &'a tcl_registry::CommandRegistry,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
+    config: tcl_lexer::LexerConfig,
+    context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
 }
 
-/// [`nested_dispatch_regions`], using the caller's document-wide command
-/// identities.  Scans that already recurse through one document retain this
-/// map instead of rebuilding it for every nested command.
-pub(crate) fn nested_dispatch_regions_with_identities(
+fn retained_dispatch_context<'a>(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    registry: &tcl_registry::CommandRegistry,
-    identities: &tcl_compiler::realm::CommandBindingRealm,
+    analysis: &'a AnalysisResult,
+) -> Option<RetainedDispatchContext<'a>> {
+    let input = analysis.resolved_input.as_ref()?;
+    let config = analysis.body_lexer_config?;
+    (input.lexer_config() == config
+        && analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config))
+    .then_some(())?;
+    let identities = analysis.retained_command_realm()?;
+    identities
+        .matches_resolved_analysis_input(input)
+        .then_some(())?;
+    Some(RetainedDispatchContext {
+        dialect: analysis.resolved_profile()?,
+        registry: analysis.resolved_registry()?,
+        identities,
+        config,
+        context: input.context_registry(),
+    })
+}
+
+/// Active lexical command substitutions and potential same-frame script bodies
+/// at the unchanged original call. The shared source schema retains moved and
+/// captured operands, availability, script timing and known command barriers.
+/// Conditional source regions grant neither runtime dispatch nor edit authority.
+pub(crate) fn nested_dispatch_regions(
+    source: &str,
+    analysis: &AnalysisResult,
+    _dialect: &'static tcl_dialect::DialectProfile,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
-    let mut regions: Vec<(usize, usize)> = Vec::new();
-    for arg in &cmd.argv {
-        regions.extend(cmd_substitution_regions(source, dialect, *arg));
-    }
-    let (Some(head), Some(written_name)) = (cmd.argv.first(), cmd.texts.first()) else {
-        return regions;
+    // naming.core.original-dispatch-region-context
+    // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+    let Some(RetainedDispatchContext {
+        config, context, ..
+    }) = retained_dispatch_context(source, analysis)
+    else {
+        return Vec::new();
     };
-    // Command identity is a source-positioned binding fact: `pick` may be a
-    // live alias of `switch` at this exact call, or may have been deleted or
-    // rebound since an earlier alias declaration.  The registry grammar must
-    // follow only the proven resolved identity; an empty resolved spelling is
-    // the shared conservative answer for a rebound head.
-    let cmd_name = identities
-        .head_words(written_name, head.span.start())
-        .resolved;
-    let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
-    // A `case_list` command (`switch`'s braced-list form, Expect's `expect {
-    // ... }`) marks its single trailing clause-list argument `ArgRole::Body`
-    // too, but that argument is not itself a script — it's alternating
-    // `pattern body …` words, so segmenting it directly would misparse each
-    // `pattern body` pair as one bogus command (`default { … }`) and never
-    // reach the pattern's own body.  When the call is in that single-braced
-    // shape, flatten it via the registry's own clause-list vocabulary
-    // ([`tcl_registry::CaseListSpec`], never a hardcoded "switch" check) and
-    // recurse into each clause's own body word instead.
-    if let Some(case_list) = registry.get(cmd_name).and_then(|s| s.case_list)
-        && let Some(clause_regions) =
-            case_list_clause_body_regions(source, registry, cmd_name, case_list, &args, cmd)
+    let mut regions = cmd
+        .argv
+        .iter()
+        .flat_map(|token| {
+            crate::executable_regions::command_substitution_regions(source, config, *token)
+        })
+        .collect::<Vec<_>>();
+    if let Some(words) = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        source, analysis, cmd,
+    ) && words.with_source_schema(&context, |schema| {
+        schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+    }) == Some(true)
     {
-        regions.extend(clause_regions);
-        return regions;
-    }
-    for idx in registry.plain_body_arg_indices(cmd_name, &args) {
-        // `idx` is 0-based into `args` (post-command-name); `argv` is
-        // 1-based (`argv[0]` is the command name itself).
-        if let Some(tok) = cmd.argv.get(idx + 1) {
-            let (start, end) = strip_outer_braces(source, tok.span);
-            if start < end {
-                regions.push((start, end));
-            }
-        }
+        regions.extend(words.source_script_bodies_for(&context,
+            tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation)
+            .into_iter().map(|body| {
+                let span = body.content_span();
+                (span.start() as usize, span.end() as usize)
+            }));
     }
     regions
 }
 
-/// Every nested script region reachable from one segmented command whose body
-/// runs in a **different frame** from the enclosing one, as `(start, end)`
-/// byte offsets into `source`:
-///
-/// * an argument the registry marks [`tcl_registry::ArgRole::Body`] with a
-///   `Structural` [`tcl_registry::BodyKind`] — `namespace eval`, `uplevel`,
-///   `oo::define`, `interp eval`, `proc`, … (the complement of
-///   [`nested_dispatch_regions`]'s `Plain` set); and
-/// * the body element of an [`tcl_registry::ArgRole::LambdaLiteral`]
-///   argument — `apply`'s `{argList body ?ns?}` — split by the shared
-///   [`tcl_compiler::lambda_literal`] splitter, and only when that element is
-///   `{braced}` (a bare / quoted one is backslash-decoded before `apply`
-///   evaluates it, so its source slice is not the script that runs).
-///
-/// These carry the *command*-receiver half of the `$obj method` scan only.
-/// A class command (`Factory make`) or a `CLASS create NAME` object command
-/// (`rex bark`) is an ordinary command and resolves the same from a
-/// `namespace eval` body, an `apply` lambda, or the top level, so a dispatch
-/// written in one of them is a real reference to the method — Find All
-/// References, rename, the code lens, and the call hierarchy would otherwise
-/// miss those sites (all three shapes verified dispatching under tclsh
-/// 9.0.4).  A `$var` receiver does not
-/// survive the boundary — `$f` inside `namespace eval ::zz` names `::zz::f`,
-/// and inside an `apply` lambda a fresh local — so the caller drops
-/// `var_set` for the descended subtree
-/// ([`ObjMethodScan::frame_shifted`]).
-///
-/// Registry-driven throughout: which arguments are bodies, and whether they
-/// are same-frame, comes from the command's spec, never from its name.
+/// Potential structural bodies and genuinely braced lambda bodies selected by
+/// the original source schema. Object scans drop variable receivers across this
+/// boundary; command receivers still require their own positioned identity proof.
+/// These regions describe source topology, never an entered runtime frame.
 pub(crate) fn frame_shifted_dispatch_regions(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    _dialect: &'static tcl_dialect::DialectProfile,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
-    use tcl_lexer::TokenType;
-    let mut regions: Vec<(usize, usize)> = Vec::new();
-    let Some(cmd_name) = cmd.texts.first() else {
-        return regions;
+    // Source structure identifies possible shifted bodies, never an entered frame.
+    let Some(RetainedDispatchContext { context, .. }) = retained_dispatch_context(source, analysis)
+    else {
+        return Vec::new();
     };
-    let registry = crate::registry_for_dialect_profile(dialect);
-    let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
-    // `plain_body_arg_indices` is `arg_indices_for_role(Body)` gated on the
-    // call's resolved `BodyKind`, so an empty plain list against a non-empty
-    // body list means every body argument of *this* call is `Structural`.
-    if registry.plain_body_arg_indices(cmd_name, &args).is_empty() {
-        for idx in registry.arg_indices_for_role(cmd_name, &args, tcl_registry::ArgRole::Body) {
-            let Some(tok) = cmd.argv.get(idx + 1) else {
-                continue;
-            };
-            // Only a braced literal body is script at these exact offsets;
-            // a `$var` / `[cmd]` body is assembled at runtime.
-            if tok.kind != TokenType::Str {
-                continue;
-            }
-            let (start, end) = strip_outer_braces(source, tok.span);
-            if start < end {
-                regions.push((start, end));
-            }
-        }
-    }
-    for idx in registry.arg_indices_for_role(cmd_name, &args, tcl_registry::ArgRole::LambdaLiteral)
+    let Some(words) = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        source, analysis, cmd,
+    ) else {
+        return Vec::new();
+    };
+    let mut regions = Vec::new();
+    if words.with_source_schema(&context, |schema| {
+        schema.semantics.body_kind == tcl_registry::BodyKind::Structural
+    }) == Some(true)
     {
-        let Some(&tok) = cmd.argv.get(idx + 1) else {
-            continue;
-        };
-        if tok.kind != TokenType::Str {
+        regions.extend(words.source_script_bodies_for(&context,
+            tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation)
+            .into_iter().map(|body| {
+                let span = body.content_span();
+                (span.start() as usize, span.end() as usize)
+            }));
+    }
+    let executable = words
+        .with_source_schema(&context, |schema| schema.authored_source_script_arguments())
+        .flatten()
+        .unwrap_or_default();
+    for (index, role) in words.roles().unwrap_or_default() {
+        if *role != tcl_registry::ArgRole::LambdaLiteral || !executable.contains(index) {
             continue;
         }
-        let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal(source, tok)
-            .and_then(|elems| elems.braced_body())
+        let Some(word) = words
+            .operands()
+            .get(*index)
+            .and_then(Option::as_ref)
+            .and_then(|operand| operand.word())
         else {
             continue;
         };
-        let (start, end) = (body.start() as usize, body.end() as usize);
-        if start < end && end <= source.len() {
-            regions.push((start, end));
+        if let Some(body) = tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+            .and_then(|fields| fields.braced_body())
+        {
+            regions.push((body.start() as usize, body.end() as usize));
         }
     }
     regions
@@ -3603,280 +3696,31 @@ pub(crate) fn frame_shifted_dispatch_regions(
 /// is every bit as unrewritable as one written beside it.
 pub(crate) fn dispatch_scan_regions(
     source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
     dialect: &'static tcl_dialect::DialectProfile,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
-    let mut regions = nested_dispatch_regions(source, dialect, cmd);
-    regions.extend(frame_shifted_dispatch_regions(source, dialect, cmd));
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
+    let mut regions = nested_dispatch_regions(source, analysis, dialect, cmd);
+    regions.extend(frame_shifted_dispatch_regions(
+        source, analysis, dialect, cmd,
+    ));
     regions
 }
 
-/// Every word inside `class_def`'s definition body that **references**
-/// `method` as a method name — the registry's
-/// [`tcl_registry::definer::MemberRefKind::Method`] members (`export m`, `unexport m`,
-/// `filter m`, `deletemethod m`, `renamemethod from to`).
-///
-/// These are genuine references to the member, and load-bearing ones: an
-/// `export` naming a method that no longer exists leaves the *renamed*
-/// method unexported, so `$obj NewName` fails at run time (`unknown method
-/// "Bar": must be destroy` — tclsh 9.0.4 and 8.6.16, identical).  A rename
-/// that rewrites only the declaration and the call sites therefore breaks the
-/// program; rewriting these words is what keeps it running.
-///
-/// Which member keywords carry method references is **registry data** (the
-/// definer's `definition_body` grammar, read through
-/// [`crate::oo_body::member_ref_indices`]), so this walker names no member
-/// keyword and works for `TclOO`, snit, and itcl alike.
-///
-/// Regions scanned: the class's own recorded body, plus every definition-body
-/// argument in the document whose definer call names this class (an
-/// `oo::define Cls { export m }` block written apart from the class's own
-/// `create`).
+/// Readonly original definition metadata operands naming this source class's
+/// method. Genuine class-factory/configuration correspondence and retained
+/// vocabulary locate hazards; native worker/allocation receipts authorise edits.
 pub(crate) fn member_reference_spans(
     source: &str,
+    analysis: &AnalysisResult,
     dialect: &'static tcl_dialect::DialectProfile,
     class_def: &tcl_compiler::analyser::types::ClassDef,
     method: &str,
 ) -> Vec<tcl_lexer::Span> {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    let registry = crate::registry_for_dialect_profile(dialect);
-    let Some(grammar) = registry
-        .get(&class_def.metaclass)
-        .and_then(|spec| spec.definition_body)
-    else {
-        return Vec::new();
-    };
-    let mut regions: Vec<(usize, usize)> = Vec::new();
-    if !class_def.body_span.is_empty() {
-        let (start, end) = strip_outer_braces(source, class_def.body_span);
-        if start < end {
-            regions.push((start, end));
-        }
-    }
-    regions.extend(definition_body_regions_naming(source, dialect, class_def));
-    let mut out: Vec<tcl_lexer::Span> = Vec::new();
-    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
-    for (start, end) in regions {
-        if start >= end || end > source.len() {
-            continue;
-        }
-        let commands = segment_commands_with_offset_and_config(
-            &source[start..end],
-            u32::try_from(start).unwrap_or(0),
-            tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
-        );
-        for cmd in &commands {
-            let Some(keyword) = cmd.texts.first() else {
-                continue;
-            };
-            let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
-            let Some((kind, indices)) = crate::oo_body::member_ref_indices(grammar, keyword, &args)
-            else {
-                continue;
-            };
-            if kind != tcl_registry::definer::MemberRefKind::Method {
-                continue;
-            }
-            for idx in indices {
-                if args.get(idx) != Some(&method) {
-                    continue;
-                }
-                let Some(tok) = cmd.argv.get(idx + 1) else {
-                    continue;
-                };
-                if seen.insert((tok.span.start(), tok.span.end())) {
-                    out.push(tok.span);
-                }
-            }
-        }
-    }
-    out
-}
-
-/// The definition-body argument regions of every top-level definer call in
-/// `source` that names `class_def` — `oo::define Cls { … }` and the class's
-/// own `oo::class create Cls { … }`.
-///
-/// Definer recognition is [`crate::oo_body::outer_definition_grammar`]
-/// (registry `definition_body` data); the *target* is matched on the class
-/// name text, which is a class name, not a command-name special case.
-fn definition_body_regions_naming(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    class_def: &tcl_compiler::analyser::types::ClassDef,
-) -> Vec<(usize, usize)> {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    let registry = crate::registry_for_dialect_profile(dialect);
-    let commands = segment_commands_with_offset_and_config(
-        source,
-        0,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-    );
-    let qualified = tcl_syntax::naming::normalise_qualified_name(&class_def.qualified_name);
-    let mut regions: Vec<(usize, usize)> = Vec::new();
-    for cmd in &commands {
-        let Some(keyword) = cmd.texts.first() else {
-            continue;
-        };
-        let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
-        if crate::oo_body::outer_definition_grammar(keyword, &args, registry).is_none() {
-            continue;
-        }
-        let body_indices =
-            registry.arg_indices_for_role(keyword, &args, tcl_registry::ArgRole::Body);
-        for idx in body_indices {
-            let names_class = args.iter().take(idx).any(|w| {
-                *w == class_def.name || tcl_syntax::naming::normalise_qualified_name(w) == qualified
-            });
-            if !names_class {
-                continue;
-            }
-            if let Some(tok) = cmd.argv.get(idx + 1) {
-                let (start, end) = strip_outer_braces(source, tok.span);
-                if start < end {
-                    regions.push((start, end));
-                }
-            }
-        }
-    }
-    regions
-}
-
-/// For a `case_list` command whose call is in the single-braced-list shape
-/// (`switch $x { pat1 body1 pat2 body2 }`) — exactly one non-option argument
-/// remains after `case_list.subject_args` — the source regions of every
-/// clause's own body word, skipping the literal `-` Tcl `switch`
-/// fall-through marker (not a body of its own).
-///
-/// Both braced and inline forms are described by the registry. In particular,
-/// Expect's flags may precede each inline pattern, so generic body roles alone
-/// cannot find its action words.
-fn case_list_clause_body_regions(
-    source: &str,
-    registry: &tcl_registry::CommandRegistry,
-    name: &str,
-    case_list: &tcl_registry::CaseListSpec,
-    args: &[&str],
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
-) -> Option<Vec<(usize, usize)>> {
-    // Locating and validating the form is the registry's typed case invocation.
-    let profile = registry.profile()?;
-    let (_, invocation) = registry.case_invocation(
-        name,
-        args,
-        Some(crate::document_context_for_profile(profile).authoring_query()),
-    )?;
-    if let Some(start) = invocation.inline_clause_start {
-        let clauses = case_list.inline_clauses(args, start)?;
-        let mut out = Vec::new();
-        for clause in clauses {
-            let Some(body_index) = clause.body_index else {
-                continue;
-            };
-            let Some(tok) = cmd.argv.get(body_index + 1) else {
-                continue;
-            };
-            let (start, end) = strip_outer_braces(source, tok.span);
-            if start < end {
-                out.push((start, end));
-            }
-        }
-        return Some(out);
-    }
-    let i = invocation.clause_list_index?;
-    // `args` is 0-based post-command-name; `cmd.texts`/`cmd.argv` are
-    // 1-based (index 0 is the command name), so the clause-list word is at
-    // `i + 1` in both.
-    let (Some(text), Some(tok)) = (cmd.texts.get(i + 1), cmd.argv.get(i + 1).copied()) else {
-        return Some(Vec::new());
-    };
-    let clauses = tcl_compiler::segmenter::flatten_case_list_clauses(
-        source,
-        text,
-        tok,
-        case_list,
-        tcl_lexer::LexerConfig::for_profile(Some(profile)),
-    );
-    let mut out = Vec::new();
-    for (_, (body_text, body_tok)) in clauses {
-        if body_text != "-" {
-            let (start, end) = strip_outer_braces(source, body_tok.span);
-            if start < end {
-                out.push((start, end));
-            }
-        }
-    }
-    Some(out)
-}
-
-/// The inner regions of every `[…]` command substitution reachable from a
-/// command argument `arg`, as `(start, end)` byte offsets into `source` with
-/// the surrounding brackets stripped, for the caller to re-scan.
-///
-/// A bare `Cmd` arg yields its single bracket-stripped body.  A **bareword or
-/// double-quoted** compound word (`"pre [x]"`, `[x]-suf`, `a[x]b`) is merged
-/// by the segmenter into one `Esc` token whose embedded substitutions would
-/// otherwise be skipped, so its slice is re-lexed and each `[…]` fragment
-/// recovered — the same fragment recovery the analyser's `cmd_fragments`
-/// performs.  This keeps intra-word `my` / `$obj` dispatch discoverable
-/// (references, rename), not only dispatch that is a whole bare argument.
-///
-/// A braced `Str` word (`{…}`) is left alone: `[…]` inside braces is literal
-/// text, not a substitution, so re-lexing it would invent phantom calls.
-fn cmd_substitution_regions(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    arg: tcl_lexer::Token,
-) -> Vec<(usize, usize)> {
-    use tcl_lexer::TokenType;
-    let a_start = arg.span.start() as usize;
-    let a_end = arg.span.end() as usize;
-    if a_start >= source.len() || a_end > source.len() || a_start >= a_end {
-        return Vec::new();
-    }
-    // Strip the surrounding `[` `]` of a `[…]` fragment span.
-    let strip = |f_start: usize, f_end: usize| -> (usize, usize) {
-        let inner_start = if source.as_bytes().get(f_start) == Some(&b'[') {
-            f_start + 1
-        } else {
-            f_start
-        };
-        let inner_end = if f_end > inner_start && source.as_bytes().get(f_end - 1) == Some(&b']') {
-            f_end - 1
-        } else {
-            f_end
-        };
-        (inner_start, inner_end)
-    };
-    match arg.kind {
-        TokenType::Cmd => vec![strip(a_start, a_end)],
-        // Only a bareword / quoted word can carry an *active* `[…]`; re-lex it
-        // (and only when it actually embeds one) to recover the fragments the
-        // argv merge hid.
-        TokenType::Esc => {
-            let slice = &source[a_start..a_end];
-            if !slice.as_bytes().contains(&b'[') {
-                return Vec::new();
-            }
-            let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);
-            let Ok(tokens) =
-                tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(slice), config)
-                    .tokenise_all()
-            else {
-                return Vec::new();
-            };
-            tokens
-                .into_iter()
-                .filter(|t| t.kind == TokenType::Cmd)
-                .filter_map(|t| {
-                    let f_start = a_start + t.span.start() as usize;
-                    let f_end = a_start + t.span.end() as usize;
-                    (f_start < f_end && f_end <= source.len()).then(|| strip(f_start, f_end))
-                })
-                .collect()
-        }
-        _ => Vec::new(),
-    }
+    member_metadata::spans(source, analysis, dialect, class_def, method)
 }
 
 /// Strip a `$name` / `${name}` decoration to the bare variable
@@ -3925,7 +3769,7 @@ fn class_highlights(
     // never a namespace-blind `c.name == word` first-hit scan (the
     // wrong-symbol drift class).
     let (qname, class_def) =
-        crate::definition::resolve_class_target_at(analysis, resolution, cursor_off, word)?;
+        crate::definition::resolve_class_target_at(analysis, source, resolution, cursor_off, word)?;
     // Non-variable symbols (procs / classes / methods) highlight as `Text` for
     // both declaration and uses — only variables carry the Write/Read
     // distinction.
@@ -3983,8 +3827,65 @@ pub fn document_highlights_in_program(
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<(LspRange, HighlightKind)> {
     let line_index = LineIndex::new(source);
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::variable_symbol::select(source, analysis, line, character)
+    {
+        return selected.map_or_else(Vec::new, |occurrence| {
+            let mut highlights: Vec<_> =
+                crate::variable_symbol::occurrences(analysis, occurrence.symbol())
+                    .map(|site| {
+                        (
+                            span_to_range(source, &line_index, site.span()),
+                            if site.is_declaration() {
+                                HighlightKind::Write
+                            } else {
+                                HighlightKind::Read
+                            },
+                        )
+                    })
+                    .collect();
+            highlights.sort_by_key(|(range, _)| (range.start_line, range.start_character));
+            dedup_kinded(highlights)
+        });
+    }
 
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::namespace_symbol::select_at_offset(source, analysis, byte_offset)
+    {
+        return selected.map_or_else(Vec::new, |symbol| {
+            original_text_highlights(
+                source,
+                &line_index,
+                crate::namespace_symbol::original_namespace_spans(analysis, &symbol, true),
+            )
+        });
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::method_symbol::local_candidate(source, analysis, line, character)
+    {
+        return selected.map_or_else(Vec::new, |candidate| {
+            original_text_highlights(
+                source,
+                &line_index,
+                crate::method_symbol::local_reference_spans(source, analysis, &candidate, true),
+            )
+        });
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::original_declaration::select("", source, analysis, line, character)
+    {
+        return selected.map_or_else(Vec::new, |identity| {
+            let spans =
+                crate::original_declaration::reference_spans(&identity, source, analysis, true)
+                    .into_iter()
+                    .chain(std::iter::once(identity.span()));
+            original_text_highlights(source, &line_index, spans)
+        });
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
     if let Some(highlights) =
         selected_method_highlights(source, dialect, analysis, &line_index, byte_offset)
     {
@@ -3998,19 +3899,14 @@ pub fn document_highlights_in_program(
     // Shared `$ref` gate — see `substituting_var_at_position`.
     if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
-        dialect,
+        analysis,
         line,
         character,
         byte_offset,
     ) {
-        let Some(var_def) = crate::definition::lookup_var_read_at(
-            &analysis.global_scope,
-            source,
-            dialect,
-            byte_offset,
-            &var_name,
-            analysis.ns_var_global_fallback(),
-        ) else {
+        let Some(var_def) =
+            crate::definition::lookup_var_read_at(analysis, source, byte_offset, &var_name)
+        else {
             return Vec::new();
         };
         let mut out = Vec::with_capacity(1 + var_def.references.len());
@@ -4081,6 +3977,26 @@ pub fn document_highlights_in_program(
     }
 
     Vec::new()
+}
+
+fn original_text_highlights(
+    source: &str,
+    line_index: &LineIndex,
+    spans: impl IntoIterator<Item = tcl_lexer::Span>,
+) -> Vec<(LspRange, HighlightKind)> {
+    let mut entries = spans
+        .into_iter()
+        .map(|span| (span_to_range(source, line_index, span), HighlightKind::Text))
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|(range, _)| {
+        (
+            range.start_line,
+            range.start_character,
+            range.end_line,
+            range.end_character,
+        )
+    });
+    dedup_kinded(entries)
 }
 
 fn selected_method_highlights(
@@ -5648,14 +5564,15 @@ mod tests {
         // result-var reuses an existing variable; a cursor placed on its
         // own bareword token must still surface the full reference set,
         // including the original declaration.
-        let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+        let src =
+            "proc resolveSwitch {name def} {\n    catch {error boom} name\n    return $name\n}\n";
         let analysis = analyse(src);
-        // Cursor on the catch result-var `name` (line 1, col 16-20).
+        // Cursor on the catch result-var `name` (line 1, col 23-27).
         let refs = references(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
-            17,
+            24,
             &analysis,
             true,
         );
@@ -7263,6 +7180,171 @@ mod tests {
     }
 
     #[test]
+    fn caller_frame_reference_component_keeps_retained_registry_and_input() {
+        // naming.core.original-caller-frame-navigation
+        // docs/design/analysis/name-resolution-proofs/original-caller-frame-navigation.md
+        // Readonly source template/reference geometry, not a completed native store.
+        let source = "proc setdef {d} {upvar 1 $d dst; set dst SET}\nproc caller {} {setdef shared; puts $shared}\n";
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "context-marker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let context = tcl_registry::model::ingress::context_for_profile(profile)
+            .with_command_store(std::sync::Arc::new(registry));
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let line_index = LineIndex::new(source);
+        let read = u32::try_from(source.find("$shared").unwrap()).unwrap() + 1;
+        let ctx = RefCtx {
+            source,
+            dialect: profile,
+            line_index: &line_index,
+            line: 1,
+            character: 0,
+            analysis: &analysis,
+            include_declaration: true,
+            resolution: crate::definition::CallResolution::document_only(),
+        };
+        let found = caller_frame_references(&ctx, read, "shared").unwrap();
+        assert_eq!(found.len(), 2);
+        let bare = u32::try_from(source.find("setdef shared").unwrap() + 7).unwrap();
+        let position = line_index.position_at_utf16(bare, source);
+        let bare_ctx = RefCtx {
+            line: position.line,
+            character: position.character.get(),
+            ..ctx
+        };
+        assert_eq!(variable_references(&bare_ctx), Some(found));
+        let stale = format!("{source}# changed");
+        let stale_ctx = RefCtx {
+            source: &stale,
+            ..ctx
+        };
+        assert!(caller_frame_references(&stale_ctx, read, "shared").is_none());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let missing_ctx = RefCtx {
+            analysis: &missing,
+            ..ctx
+        };
+        assert!(caller_frame_references(&missing_ctx, read, "shared").is_none());
+        let foreign_ctx = RefCtx {
+            resolution: ctx
+                .resolution
+                .with_registry(crate::registry_for_dialect_profile(profile)),
+            ..ctx
+        };
+        assert!(caller_frame_references(&foreign_ctx, read, "shared").is_none());
+    }
+
+    #[test]
+    fn method_dispatch_scan_uses_retained_custom_schema_and_script_purpose() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        fn reference_only(
+            _args: tcl_registry::InvocationArguments<'_>,
+        ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
+            vec![(0, tcl_registry::ScriptTiming::ReferenceOnly)]
+        }
+        let source = "oo::class create C {method m {} {}; method run {} {custom-body {my m}; reference-script {my m}}}";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "custom-body",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, tcl_registry::ArgRole::Body)],
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        registry.insert(tcl_registry::CommandSpec {
+            name: "reference-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, tcl_registry::ArgRole::Body)],
+            script_timing_resolver: Some(reference_only),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let context = tcl_registry::model::context_for_profile(profile)
+            .with_command_store(std::sync::Arc::new(registry));
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let mut analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let body = analysis.all_classes["::C"].methods["run"].body_span;
+        let sites = scan_my_method_sites(source, &analysis, &[body], "m", None);
+        assert_eq!(
+            sites.len(),
+            1,
+            "custom schema is retained; reference-only script is excluded"
+        );
+        assert_eq!(sites[0].start() as usize, source.find("my m").unwrap() + 3);
+        let stale = source.replace("custom-body", "custom-bodz");
+        assert!(scan_my_method_sites(&stale, &analysis, &[body], "m", None).is_empty());
+        analysis.resolved_input = None;
+        assert!(scan_my_method_sites(source, &analysis, &[body], "m", None).is_empty());
+    }
+
+    #[test]
+    fn shifted_dispatch_regions_follow_original_moves_and_known_source_barriers() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        for (source, visible) in [
+            (
+                "rename namespace shifted; shifted eval ::N {puts nested}",
+                true,
+            ),
+            (
+                "rename namespace shifted; proc shifted {args} {}; shifted eval ::N {puts hidden}",
+                false,
+            ),
+            (
+                "rename namespace shifted; rename shifted {}; shifted eval ::N {puts hidden}",
+                false,
+            ),
+        ] {
+            let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+            let command = tcl_compiler::segmenter::segment_commands(source)
+                .pop()
+                .unwrap();
+            let regions = frame_shifted_dispatch_regions(source, &analysis, profile, &command);
+            assert_eq!(
+                regions
+                    .iter()
+                    .any(|&(start, end)| &source[start..end] == "puts nested"),
+                visible
+            );
+            assert!(nested_dispatch_regions(source, &analysis, profile, &command).is_empty());
+            assert!(
+                frame_shifted_dispatch_regions(
+                    &source.replace("puts", "gets"),
+                    &analysis,
+                    profile,
+                    &command
+                )
+                .is_empty()
+            );
+            analysis.resolved_input = None;
+            assert!(
+                frame_shifted_dispatch_regions(source, &analysis, profile, &command).is_empty()
+            );
+        }
+    }
+
+    #[test]
     fn expect_clause_flags_reach_each_clause_body() {
         let source = "expect {-re {^ready$} {puts ready} -timeout 5 timeout {puts slow}}";
         let command = tcl_compiler::segmenter::segment_commands(source)
@@ -7271,6 +7353,7 @@ mod tests {
             .expect("expect command");
         let regions = nested_dispatch_regions(
             source,
+            &tcl_compiler::analyser::Analyser::new().analyse(source, "expect"),
             tcl_registry::model::ingress::resolve_environment("expect").analyser_profile(),
             &command,
         );
@@ -7300,6 +7383,7 @@ mod tests {
             .expect("expect command");
         let regions = nested_dispatch_regions(
             source,
+            &tcl_compiler::analyser::Analyser::new().analyse(source, "expect"),
             tcl_registry::model::ingress::resolve_environment("expect").analyser_profile(),
             &command,
         );
@@ -7333,6 +7417,7 @@ mod tests {
             assert!(
                 nested_dispatch_regions(
                     source,
+                    &tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6"),
                     tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                     &command
                 )
@@ -7353,6 +7438,7 @@ mod tests {
         assert!(
             nested_dispatch_regions(
                 source,
+                &tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6"),
                 tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 &commands[0]
             )
@@ -7361,6 +7447,7 @@ mod tests {
         );
         let regions = nested_dispatch_regions(
             source,
+            &tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6"),
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &commands[2],
         );
@@ -7393,6 +7480,7 @@ mod tests {
             assert!(
                 nested_dispatch_regions(
                     source,
+                    &tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6"),
                     tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                     &command
                 )
@@ -7418,6 +7506,7 @@ mod tests {
         ] {
             let regions = nested_dispatch_regions(
                 source,
+                &tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6"),
                 tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 command,
             );
@@ -7495,6 +7584,77 @@ mod tests {
         assert!(
             calls.is_empty(),
             "a filewide candidate is not an actual object read: {calls:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_highlight_selection_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_highlights_preserve_opaque_declarations_and_whole_source_currency() {
+        // Implementation contract: naming.editor.original-reference-highlight-selection
+        // docs/design/analysis/name-resolution-proofs/original-reference-highlight-selection.md
+        let source = r"proc p\uD800 {} {}
+proc p\uD801 {} {}
+p\uD800";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert_eq!(analysis.original_procedure_declarations().count(), 2);
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        for invocation in &mut analysis.command_invocations {
+            invocation.name.clear();
+            invocation.resolved_qualified_name = None;
+            invocation.resolution_candidates.clear();
+        }
+        let profile = crate::profile_for_analysis(&analysis);
+        let highlights = document_highlights(source, profile, 0, 7, &analysis);
+        assert_eq!(highlights.len(), 2, "declaration and actual selected call");
+        assert!(
+            highlights
+                .iter()
+                .all(|(_, kind)| *kind == HighlightKind::Text)
+        );
+        assert_eq!(highlights[0].0.start_line, 0);
+        assert_eq!(highlights[1].0.start_line, 2);
+        assert_eq!(references(source, profile, 0, 7, &analysis, true).len(), 2);
+        let stale = source.replace(r"p\uD800", r"q\uD800");
+        assert!(document_highlights(&stale, profile, 0, 7, &analysis).is_empty());
+        assert!(references(&stale, profile, 0, 7, &analysis, true).is_empty());
+    }
+
+    #[test]
+    fn original_method_reference_helpers_do_not_select_from_reporting_names() {
+        // Implementation contract: naming.editor.original-reference-highlight-selection
+        // docs/design/analysis/name-resolution-proofs/original-reference-highlight-selection.md
+        let source = "oo::class create C {method m {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(analysis.all_classes.contains_key("::C"));
+        let profile = crate::profile_for_analysis(&analysis);
+        let offset = u32::try_from(source.find("m {}").unwrap()).unwrap();
+        let std::ops::ControlFlow::Break(Some(candidate)) =
+            crate::method_symbol::local_candidate(source, &analysis, 0, offset)
+        else {
+            panic!("authentic source member remains available through the typed query");
+        };
+        let highlights = document_highlights(source, profile, 0, offset, &analysis);
+        assert_eq!(highlights.len(), 1);
+        assert_eq!(candidate.declaration_span().start(), offset);
+        assert!(
+            list_built_self_method_target_at_cursor(source, profile, &analysis, "m", offset,)
+                .is_none(),
+            "typed original declarations cannot enter lexical tuple selection"
+        );
+        assert!(method_reference_spans_in_document(
+            source, profile, &analysis, "::C", "m", true, false,
+        ).is_empty());
+        assert!(
+            obj_method_call_sites(source, profile, &analysis, "::C", "m", false, &[],).is_empty()
+        );
+        assert!(
+            method_next_dispatch_spans(&analysis, source, profile, "::C", "m", false,).is_empty()
         );
     }
 }

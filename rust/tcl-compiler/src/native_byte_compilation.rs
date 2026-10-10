@@ -185,9 +185,7 @@ fn ensemble_command_plan(
     context: NativeCompilationContext,
 ) -> Result<NativeByteCommandPlan, NativeByteCommandUnavailable> {
     use tcl_registry::native_ensemble::NativeEnsembleWorkerSelection;
-    use tcl_registry::native_selected_worker::{
-        OriginalSelectedWorkerCompilation, OriginalSelectedWorkerInvocation,
-    };
+    use tcl_registry::native_selected_worker::OriginalSelectedWorkerInvocation;
     let configuration = binding
         .compiler
         .as_ref()
@@ -253,45 +251,50 @@ fn ensemble_command_plan(
                         )
                     },
                 );
-            let prerequisite = selected.prerequisite;
-            match selected.compilation {
-                OriginalSelectedWorkerCompilation::PublicGeneric => {
-                    Ok(NativeByteCommandPlan::Generic)
-                }
-                OriginalSelectedWorkerCompilation::Named(recipe) => Ok(
-                    NativeByteCommandPlan::Named(Box::new(NativeByteNamedInvocation {
-                        recipe,
-                        prerequisite,
-                    })),
-                ),
-                OriginalSelectedWorkerCompilation::Operation {
+            selected_worker_command_plan(captured, selected, context)
+        }
+    }
+}
+
+fn selected_worker_command_plan(
+    captured: &NativeCompilerWords<'_>,
+    selected: tcl_registry::native_selected_worker::OriginalSelectedWorkerPathCompilation,
+    context: NativeCompilationContext,
+) -> Result<NativeByteCommandPlan, NativeByteCommandUnavailable> {
+    use tcl_registry::native_selected_worker::OriginalSelectedWorkerCompilation;
+    let prerequisite = selected.prerequisite;
+    match selected.compilation {
+        OriginalSelectedWorkerCompilation::PublicGeneric => Ok(NativeByteCommandPlan::Generic),
+        OriginalSelectedWorkerCompilation::Named(recipe) => Ok(NativeByteCommandPlan::Named(
+            Box::new(NativeByteNamedInvocation {
+                recipe,
+                prerequisite,
+            }),
+        )),
+        OriginalSelectedWorkerCompilation::Operation {
+            spec,
+            selection,
+            plan,
+        } => Ok(NativeByteCommandPlan::Registered(Box::new(
+            NativeByteRegisteredCommand {
+                spec,
+                selection,
+                context,
+                operand_from: selected.operand_from,
+                binding: selected.worker,
+                dependencies: Vec::new(),
+                recipe: OriginalRegisteredRecipe {
+                    words: captured.original_words().to_vec(),
                     spec,
                     selection,
-                    plan,
-                } => Ok(NativeByteCommandPlan::Registered(Box::new(
-                    NativeByteRegisteredCommand {
-                        spec,
-                        selection,
-                        context,
-                        operand_from: selected.operand_from,
-                        binding: selected.worker,
-                        dependencies: Vec::new(),
-                        recipe: OriginalRegisteredRecipe {
-                            words: captured.original_words().to_vec(),
-                            spec,
-                            selection,
-                            context,
-                            operand_from: selected.operand_from,
-                            instruction: *plan,
-                        },
-                        prerequisite: Some(prerequisite),
-                    },
-                ))),
-                OriginalSelectedWorkerCompilation::Unavailable => {
-                    Err(NativeByteCommandUnavailable::Recipe)
-                }
-            }
-        }
+                    context,
+                    operand_from: selected.operand_from,
+                    instruction: *plan,
+                },
+                prerequisite: Some(prerequisite),
+            },
+        ))),
+        OriginalSelectedWorkerCompilation::Unavailable => Err(NativeByteCommandUnavailable::Recipe),
     }
 }
 
@@ -407,41 +410,9 @@ fn registered_command_plan(
         {
             Ok(NativeByteCommandPlan::Generic)
         }
-        NativeCompilationSelection::NamedInvocation { .. } => {
-            let tcl_registry::native_instruction_plan::NativeInstructionPlan::NamedInvocation(
-                mut recipe,
-            ) = tcl_registry::native_instruction_plan::native_instruction_plan(
-                spec, selection, captured, 1, dialect, context,
-            )
-            .map_err(|_| NativeByteCommandUnavailable::Recipe)?
-            else {
-                return Err(NativeByteCommandUnavailable::Recipe);
-            };
-            recipe.name = tcl_syntax::naming::native_command_full_name_bytes(&binding.slot);
-            let prerequisite =
-                tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite {
-                    interpreter: entry.interpreter,
-                    lookup_namespace_token: entry.current_namespace,
-                    invocation_word: captured
-                        .literal(0)
-                        .ok_or(NativeByteCommandUnavailable::Recipe)?
-                        .into(),
-                    slot: binding.slot.clone(),
-                    namespace_token: binding.namespace_token,
-                    token: binding.token,
-                    implementation_generation: binding.implementation_generation,
-                    compiler: compiler.clone(),
-                    selected_worker: None,
-                    nested_compilers: Vec::new(),
-                    guard: tcl_runtime_api::CommandBindingGuard::BeforeArguments,
-                };
-            Ok(NativeByteCommandPlan::Named(Box::new(
-                NativeByteNamedInvocation {
-                    recipe,
-                    prerequisite,
-                },
-            )))
-        }
+        NativeCompilationSelection::NamedInvocation { .. } => registered_named_command_plan(
+            captured, binding, entry, dialect, spec, selection, context,
+        ),
         NativeCompilationSelection::Generic | NativeCompilationSelection::Inline { .. } => {
             let instruction = tcl_registry::native_instruction_plan::native_instruction_plan(
                 spec, selection, captured, 1, dialect, context,
@@ -469,6 +440,51 @@ fn registered_command_plan(
         }
         _ => Err(NativeByteCommandUnavailable::Recipe),
     }
+}
+
+fn registered_named_command_plan(
+    captured: &NativeCompilerWords<'_>,
+    binding: &NativeCompilationBinding,
+    entry: &NativeCompilationEntry,
+    dialect: InvocationDialect,
+    spec: NativeCompilationSpec,
+    selection: NativeCompilationSelection,
+    context: NativeCompilationContext,
+) -> Result<NativeByteCommandPlan, NativeByteCommandUnavailable> {
+    let tcl_registry::native_instruction_plan::NativeInstructionPlan::NamedInvocation(mut recipe) =
+        tcl_registry::native_instruction_plan::native_instruction_plan(
+            spec, selection, captured, 1, dialect, context,
+        )
+        .map_err(|_| NativeByteCommandUnavailable::Recipe)?
+    else {
+        return Err(NativeByteCommandUnavailable::Recipe);
+    };
+    recipe.name = tcl_syntax::naming::native_command_full_name_bytes(&binding.slot);
+    let prerequisite = tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite {
+        interpreter: entry.interpreter,
+        lookup_namespace_token: entry.current_namespace,
+        invocation_word: captured
+            .literal(0)
+            .ok_or(NativeByteCommandUnavailable::Recipe)?
+            .into(),
+        slot: binding.slot.clone(),
+        namespace_token: binding.namespace_token,
+        token: binding.token,
+        implementation_generation: binding.implementation_generation,
+        compiler: binding
+            .compiler
+            .clone()
+            .ok_or(NativeByteCommandUnavailable::Registration)?,
+        selected_worker: None,
+        nested_compilers: Vec::new(),
+        guard: tcl_runtime_api::CommandBindingGuard::BeforeArguments,
+    };
+    Ok(NativeByteCommandPlan::Named(Box::new(
+        NativeByteNamedInvocation {
+            recipe,
+            prerequisite,
+        },
+    )))
 }
 
 /// Certify every original native command and bracket child against the exact
@@ -800,7 +816,7 @@ mod tests {
                     Some(NativeInstructionPlan::Array(_))
                 ));
                 assert!(registered_operand_available(words, &entry, &plan));
-                let changed_source = source.iter().copied().chain([b' ']).collect::<Vec<_>>();
+                let changed_source = source.iter().copied().chain(*b" ").collect::<Vec<_>>();
                 let changed = native_script_words_in(
                     SourceImage::native(changed_source.as_slice()),
                     Span::new(0, u32::try_from(changed_source.len()).unwrap()),
@@ -852,6 +868,13 @@ mod tests {
                     LexerConfig::from_grammar(profile.grammar),
                 )
                 .unwrap();
+                if version == tcl_dialect::TclVersion::V8_4 && source == b"concat {*}{A B} $c" {
+                    // The original C8.4 parser rejects the adjacent brace
+                    // groups before a compiler receives a command vector.
+                    assert!(parsed.fatal_tail.is_some());
+                    assert!(parsed.commands.is_empty());
+                    continue;
+                }
                 let plan =
                     native_byte_command_plan(&parsed.commands[0].words, &entry, &registry, context)
                         .unwrap();
@@ -1083,6 +1106,7 @@ mod tests {
             compiled_variable_protocol:
                 tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(point),
             compiled_local_layout: None,
+            oo_classes: None,
             ensemble_target_objects: None,
             source_string_protocol: tcl_registry::InvocationDialect::of_point(point)
                 .native_source_string_protocol(),
@@ -1092,6 +1116,7 @@ mod tests {
             namespace_variable_tables: None,
             empty_literal_world: None,
             compiler_pass_environment: None,
+            command_resolvers: None,
             variable_observers: NativeVariableObserverPresence::Unknown,
             math_functions: None,
             closed: true,
@@ -1272,6 +1297,12 @@ mod tests {
 
     #[test]
     fn original_dynamic_expanded_head_keeps_generic_timing_and_literal_cpp_obligations() {
+        // Native proof naming.command-head.literal-expansion-and-inline-replacement:
+        // docs/design/analysis/name-resolution-proofs/command-head-literal-expansion-and-inline-replacement.md
+        // Native proof naming.command-head.dynamic-expansion-after-replacement:
+        // docs/design/analysis/name-resolution-proofs/command-head-dynamic-expansion-after-replacement.md
+        // Native proof naming.command-head.empty-dynamic-expansion-exposes-written-head:
+        // docs/design/analysis/name-resolution-proofs/command-head-empty-dynamic-expansion-exposes-written-head.md
         // Native six-engine control: tests/data/native_expanded_head/observations.tsv.
         // Modern C uses invokeExpanded for a dynamic head and storeScalar for
         // the literal parser-projected head, including command replacement.
@@ -2081,7 +2112,11 @@ mod tests {
             &source_module(b"opaque\xff [absent [compileMe]]", &entry),
             &entry
         ));
-        assert!(!closed_generic_byte_compilation(
+        // An unresolved expanded head uses native invokeExpanded; it does not
+        // choose a literal head's compiler. Its bracket children still require
+        // the independently closed registrations checked above. The retained
+        // native_expanded_head capture records the actual dynamic_bytecode.
+        assert!(closed_generic_byte_compilation(
             &source_module(b"{*}$head ARG", &entry),
             &entry
         ));

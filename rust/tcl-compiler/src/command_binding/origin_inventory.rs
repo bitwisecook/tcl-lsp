@@ -29,6 +29,9 @@ use super::{
 pub(super) struct EnteredScriptObservation {
     pub source: ExecutedScriptSource,
     pub frame: Option<crate::var_resolve::VariableExecutionFrame>,
+    pub namespace: Option<super::SourceNamespaceKey>,
+    pub receiver_context:
+        Option<Arc<super::original_receiver_body_context::OriginalReceiverBodyContext>>,
 }
 
 impl SourceInvocationBinding {
@@ -441,47 +444,95 @@ impl SourceCommandBindings {
     ) -> Option<Self> {
         let mut selected = self.selected_source(script)?;
         selected.retain_pre_handler_failure_namespace(&script.origin, namespace);
-        selected
+        let points_changed = selected
             .points
-            .retain(|point| &point.namespace_key == namespace);
-        selected
-            .phases
-            .retain(|phase| &phase.point.namespace_key == namespace);
-        selected.dispatch_points.clear();
-        for (index, point) in selected.points.iter().enumerate() {
-            if point.dispatch {
-                selected
-                    .dispatch_points
-                    .entry(point.offset)
-                    .or_default()
-                    .push(index);
+            .iter()
+            .any(|point| &point.namespace_key != namespace);
+        if points_changed {
+            selected
+                .points
+                .retain(|point| &point.namespace_key == namespace);
+            selected.dispatch_points.clear();
+            for (index, point) in selected.points.iter().enumerate() {
+                if point.dispatch {
+                    selected
+                        .dispatch_points
+                        .entry(point.offset)
+                        .or_default()
+                        .push(index);
+                }
             }
         }
-        for (site, visits) in selected.compiler_invocations.iter_mut() {
-            if site.source == script.origin {
-                visits.retain(|visit| &visit.namespace_key == namespace);
+        selected.phases.update_if_needed(
+            |phases| {
+                phases
+                    .iter()
+                    .any(|phase| &phase.point.namespace_key != namespace)
+            },
+            |phases| phases.retain(|phase| &phase.point.namespace_key == namespace),
+        );
+        selected.compiler_invocations.update_if_needed(
+            |invocations| {
+                invocations.iter().any(|(site, visits)| {
+                    site.source == script.origin
+                        && visits.iter().any(|visit| &visit.namespace_key != namespace)
+                })
+            },
+            |invocations| {
+                for (site, visits) in invocations {
+                    if site.source == script.origin {
+                        visits.retain(|visit| &visit.namespace_key == namespace);
+                    }
+                }
+            },
+        );
+        selected.implicit_math_invocations.update_if_needed(
+            |invocations| {
+                invocations.iter().any(|((origin, _, _), visits)| {
+                    visits.is_empty()
+                        || origin == &script.origin
+                            && visits
+                                .iter()
+                                .any(|visit| &visit.lookup_namespace_key != namespace)
+                })
+            },
+            |invocations| {
+                for ((origin, _, _), visits) in invocations.iter_mut() {
+                    if origin == &script.origin {
+                        visits.retain(|visit| &visit.lookup_namespace_key == namespace);
+                    }
+                }
+                invocations.retain(|_, visits| !visits.is_empty());
+            },
+        );
+        selected.expression_preparations.update_if_needed(
+            |preparations| {
+                preparations.iter().any(|(site, proofs)| {
+                    site.source == script.origin
+                        && proofs.as_ref().is_some_and(|proofs| {
+                            proofs.iter().any(|proof| &proof.namespace_key != namespace)
+                        })
+                })
+            },
+            |preparations| {
+                for (site, proofs) in preparations {
+                    if site.source == script.origin
+                        && let Some(proofs) = proofs
+                    {
+                        proofs.retain(|proof| &proof.namespace_key == namespace);
+                    }
+                }
+            },
+        );
+        // Selecting nonempty read alternatives still uses the original joined
+        // context owner; namespace membership cannot recreate discarded proof.
+        if !selected.variable_accesses.is_empty() {
+            for accesses in selected.variable_accesses.values_mut() {
+                *accesses = accesses
+                    .iter()
+                    .filter_map(|access| access.selected_namespace_context(namespace))
+                    .collect();
             }
-        }
-        for ((origin, _, _), visits) in selected.implicit_math_invocations.iter_mut() {
-            if origin == &script.origin {
-                visits.retain(|visit| &visit.lookup_namespace_key == namespace);
-            }
-        }
-        selected
-            .implicit_math_invocations
-            .retain(|_, visits| !visits.is_empty());
-        for (site, proofs) in selected.expression_preparations.iter_mut() {
-            if site.source == script.origin
-                && let Some(proofs) = proofs
-            {
-                proofs.retain(|proof| &proof.namespace_key == namespace);
-            }
-        }
-        for accesses in selected.variable_accesses.values_mut() {
-            *accesses = accesses
-                .iter()
-                .filter_map(|access| access.selected_namespace_context(namespace))
-                .collect();
         }
         Some(selected)
     }
@@ -527,40 +578,6 @@ impl SourceCommandBindings {
             .then_some(first)
     }
 
-    /// Namespace of the unanimous actual entered frame for this exact body.
-    /// Deferred source observations and uncertain receivers cannot supply it.
-    /// This locates retained source; it does not prove unconditional entry.
-    #[must_use]
-    pub(crate) fn executed_script_entry_namespace_at(
-        &self,
-        invocation: &CommandAllocationSite,
-        argument: usize,
-        source: &ExecutedScriptSource,
-    ) -> Option<&str> {
-        use crate::var_resolve::VariableExecutionFrame;
-        let observations = self.entered_scripts.get(invocation)?.get(&argument)?;
-        let first = observations.first()?;
-        let frame = first.frame.as_ref()?;
-        if &first.source != source
-            || !observations.iter().all(|observation| {
-                &observation.source == source && observation.frame.as_ref() == Some(frame)
-            })
-        {
-            return None;
-        }
-        match frame.layout() {
-            VariableExecutionFrame::Global => Some("::"),
-            VariableExecutionFrame::Namespace(namespace)
-            | VariableExecutionFrame::NamespaceActivation { namespace, .. }
-            | VariableExecutionFrame::Procedure { namespace, .. } => Some(namespace),
-            VariableExecutionFrame::Selected { namespace, .. } => namespace.as_deref(),
-            VariableExecutionFrame::ReceiverMethod { .. } | VariableExecutionFrame::Unknown => None,
-            VariableExecutionFrame::NamespaceIdentity { .. } => {
-                unreachable!("layout excludes identity wrappers")
-            }
-        }
-    }
-
     /// Exact namespace incarnation of the unanimous actual entered frame.
     /// This selects retained observations and supplies no body-entry authority.
     #[must_use]
@@ -580,7 +597,11 @@ impl SourceCommandBindings {
         {
             return None;
         }
-        frame.namespace_identity()
+        let namespace = first.namespace.as_ref()?;
+        observations
+            .iter()
+            .all(|observation| observation.namespace.as_ref() == Some(namespace))
+            .then_some(namespace)
     }
 
     /// Retained actual entry context, or an explicitly authored frame when no
@@ -593,17 +614,6 @@ impl SourceCommandBindings {
     ) -> Option<super::SourceNamespaceKey> {
         self.executed_script_entry_namespace_context_at(invocation, argument, source)
             .cloned()
-            .or_else(|| {
-                self.final_state
-                    .baseline
-                    .native_entry
-                    .is_none()
-                    .then(|| {
-                        self.executed_script_entry_namespace_at(invocation, argument, source)
-                            .map(super::SourceNamespaceKey::authored)
-                    })
-                    .flatten()
-            })
     }
 
     /// Unanimous retained context for an original body, independently of a
@@ -641,7 +651,10 @@ impl SourceCommandBindings {
                 }
                 // None retains source selection for a declaration or a call
                 // that did not enter. It supplies no actual frame alternative.
-                observation.frame.as_ref().map(frame_key)
+                observation
+                    .frame
+                    .as_ref()
+                    .map(|_| observation.namespace.clone())
             })
         });
         if let Some(first) = entered.next() {
@@ -777,6 +790,7 @@ impl SourceCommandBindings {
         argument: usize,
         script: ExecutedScriptSource,
         frame: Option<&crate::var_resolve::VariableExecutionFrame>,
+        namespace: Option<&super::SourceNamespaceKey>,
     ) {
         let scripts = self
             .entered_scripts
@@ -787,10 +801,86 @@ impl SourceCommandBindings {
         let observation = EnteredScriptObservation {
             source: script,
             frame: frame.cloned(),
+            namespace: frame.and(namespace).cloned(),
+            receiver_context: None,
         };
         if !scripts.contains(&observation) {
             scripts.push(observation);
         }
+    }
+
+    pub(super) fn record_original_receiver_body_context(
+        &mut self,
+        invocation: &CommandAllocationSite,
+        argument: usize,
+        source: &ExecutedScriptSource,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        context: Option<Arc<super::original_receiver_body_context::OriginalReceiverBodyContext>>,
+    ) {
+        let Some(context) = context else {
+            return;
+        };
+        let Some(observations) = self
+            .entered_scripts
+            .get_mut(invocation)
+            .and_then(|arguments| arguments.get_mut(&argument))
+        else {
+            return;
+        };
+        let Some(index) = observations.iter().position(|observation| {
+            &observation.source == source
+                && observation.frame.as_ref() == Some(frame)
+                && observation.receiver_context.is_none()
+        }) else {
+            if observations
+                .iter()
+                .any(|observation| observation.receiver_context.as_ref() == Some(&context))
+            {
+                return;
+            }
+            if let Some(previous) = observations.iter().find(|observation| {
+                &observation.source == source && observation.frame.as_ref() == Some(frame)
+            }) {
+                let mut alternative = previous.clone();
+                alternative.receiver_context = Some(context);
+                observations.push(alternative);
+            }
+            return;
+        };
+        observations[index].receiver_context = Some(context);
+    }
+
+    /// Only unanimous actual entered receiver observations supply an entry
+    /// snapshot. A lexical method body supplies no declaring provider.
+    pub(crate) fn original_receiver_body_context(
+        &self,
+        source: &ExecutedScriptSource,
+    ) -> Option<Arc<super::original_receiver_body_context::OriginalReceiverBodyContext>> {
+        let mut observations = self
+            .entered_scripts
+            .values()
+            .flat_map(|arguments| arguments.values().flatten())
+            .filter(|observation| &observation.source == source && observation.frame.is_some());
+        let first = observations.next()?.receiver_context.as_ref()?;
+        observations
+            .all(|observation| observation.receiver_context.as_ref() == Some(first))
+            .then(|| Arc::clone(first))
+    }
+
+    /// Exact declaration `ParamList`, independent of method entry or provider.
+    pub(crate) fn original_script_formals(
+        &self,
+        source: &ExecutedScriptSource,
+    ) -> Option<Arc<super::formal_topology::OriginalFormalTopology>> {
+        let mut matching = self.deferred.values().filter(|body| {
+            body.executed_script
+                .as_ref()
+                .is_some_and(|(_, _, retained)| retained == source)
+        });
+        let first = matching.next()?.original_parameters.as_ref()?;
+        matching
+            .all(|body| body.original_parameters.as_ref() == Some(first))
+            .then(|| Arc::new(first.clone()))
     }
 
     pub(super) fn record_origin_point(&mut self, point: SourceBindingPoint) {
@@ -862,7 +952,10 @@ mod tests {
         let site = invocation.invocation_site().unwrap();
         let body = bindings.executed_script_at(site, 2).unwrap();
         assert_eq!(
-            bindings.executed_script_entry_namespace_at(site, 2, body),
+            bindings
+                .executed_script_entry_namespace_context_at(site, 2, body)
+                .and_then(super::super::SourceNamespaceKey::display)
+                .as_deref(),
             Some(":::")
         );
         let proc_offset = u32::try_from(source.find("proc p").unwrap()).unwrap();
@@ -871,7 +964,7 @@ mod tests {
         let body = bindings.executed_script_at(site, 2).unwrap();
         assert!(
             bindings
-                .executed_script_entry_namespace_at(site, 2, body)
+                .executed_script_entry_namespace_context_at(site, 2, body)
                 .is_none()
         );
     }
@@ -942,6 +1035,136 @@ mod tests {
                 .invocation_at_source("proc", 0)
                 .proved_handler_target()
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn unchanged_namespace_selection_reuses_original_inventory_without_detachments() {
+        // Implementation contract: naming.source.namespace-inventory-selection-sharing
+        // docs/design/analysis/name-resolution-proofs/source-namespace-inventory-selection-sharing.md
+        // Count eight shared inventories over 32 identical whole-source context
+        // selections. This proves no detachments in those collections, not
+        // elapsed-time improvement, entered child levels or native execution.
+        let source = "if {1} {if {1} {if {1} {set result VALUE}}}";
+        let analysis = SourceCommandBindings::analyse(
+            source,
+            tcl_lexer::LexerConfig::default(),
+            &tcl_registry::CommandRegistry::build_default(),
+        );
+        let namespace = analysis.points.first().unwrap().namespace_key.clone();
+        assert!(
+            analysis
+                .points
+                .iter()
+                .all(|point| point.namespace_key == namespace)
+        );
+        let script = ExecutedScriptSource::contiguous(
+            Arc::clone(analysis.source_origin().unwrap()),
+            source,
+            0,
+        )
+        .unwrap();
+        let original = analysis.invocation_at_source("", 0);
+        let mut current = analysis.clone();
+        let mut detachments = 0;
+        for _ in 0..32 {
+            let selected = current
+                .selected_source_in_context(&script, &namespace)
+                .unwrap();
+            for shared in [
+                selected.points.shares_storage(&current.points),
+                selected.phases.shares_storage(&current.phases),
+                selected
+                    .dispatch_points
+                    .shares_storage(&current.dispatch_points),
+                selected
+                    .compiler_invocations
+                    .shares_storage(&current.compiler_invocations),
+                selected
+                    .implicit_math_invocations
+                    .shares_storage(&current.implicit_math_invocations),
+                selected
+                    .expression_preparations
+                    .shares_storage(&current.expression_preparations),
+                selected
+                    .pre_handler_failures
+                    .shares_storage(&current.pre_handler_failures),
+                selected
+                    .unrepresented_entries
+                    .shares_storage(&current.unrepresented_entries),
+            ] {
+                detachments += usize::from(!shared);
+            }
+            assert_eq!(selected.invocation_at_source("", 0), original);
+            current = selected;
+        }
+        assert_eq!(detachments, 0);
+        assert_eq!(analysis.invocation_at_source("", 0), original);
+    }
+
+    #[test]
+    fn namespace_selection_detaches_changed_points_and_preserves_original_views() {
+        // Implementation contract: naming.source.namespace-inventory-selection-sharing
+        // docs/design/analysis/name-resolution-proofs/source-namespace-inventory-selection-sharing.md
+        // Genuine mixed namespaces remain filtered. An unrelated namespace
+        // obtains no dispatch or expression preparation from a shared view.
+        let source = "namespace eval a {expr {1 + 2}}; namespace eval b {expr {3 + 4}}";
+        let analysis = SourceCommandBindings::analyse(
+            source,
+            tcl_lexer::LexerConfig::default(),
+            &tcl_registry::CommandRegistry::build_default(),
+        );
+        let script = ExecutedScriptSource::contiguous(
+            Arc::clone(analysis.source_origin().unwrap()),
+            source,
+            0,
+        )
+        .unwrap();
+        let preparations = analysis.expression_preparations_for_script(&script);
+        assert_eq!(preparations.len(), 2);
+        let namespace = &preparations[0].namespace_key;
+        let selected = analysis
+            .selected_source_in_context(&script, namespace)
+            .unwrap();
+        assert!(!selected.points.shares_storage(&analysis.points));
+        assert!(
+            !selected
+                .expression_preparations
+                .shares_storage(&analysis.expression_preparations)
+        );
+        assert!(
+            selected
+                .points
+                .iter()
+                .all(|point| &point.namespace_key == namespace)
+        );
+        assert_eq!(
+            selected.expression_preparations_for_script(&script),
+            vec![preparations[0].clone()]
+        );
+        let again = selected
+            .selected_source_in_context(&script, namespace)
+            .unwrap();
+        assert!(again.points.shares_storage(&selected.points));
+        assert!(
+            again
+                .expression_preparations
+                .shares_storage(&selected.expression_preparations)
+        );
+        let unrelated = super::super::SourceNamespaceKey::authored("::unrelated");
+        let absent = analysis
+            .selected_source_in_context(&script, &unrelated)
+            .unwrap();
+        assert!(absent.points.is_empty());
+        assert!(absent.invocation_at_source("", 0).unknown);
+        assert!(
+            absent
+                .expression_preparations_for_script(&script)
+                .is_empty()
+        );
+        assert_eq!(
+            analysis.expression_preparations_for_script(&script),
+            preparations
         );
     }
 

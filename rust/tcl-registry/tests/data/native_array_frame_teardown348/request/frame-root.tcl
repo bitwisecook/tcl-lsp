@@ -1,0 +1,1 @@
+set log {}; proc fresh args {lappend ::log NEW}; proc old args {lappend ::log OLD}; proc root args {trace remove variable ::xx unset old; trace add variable ::xx unset fresh}; proc owner {} {set a(x) X; set before [namespace eval :: {upvar 1 a(x) xx; set xx}]; trace add variable a(x) unset old; trace add variable a unset root; set before}; set before [owner]; list $before $log

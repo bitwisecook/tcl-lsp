@@ -1,0 +1,78 @@
+{
+  "provider": "8.4.20",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIndexObj.c": "babe18e9f596d54d49f16c17b0576723d0d6c580ffb4356e1fca9b26ad6576da",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclTimer.c": "3a54a00f6b2037ce2afc039054dad9c2a7b5c80c77c0258c696a3c9f4ca15cfa",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclEvent.c": "020cc8b9d0b020c2b1dac904f08b03c3e59889dd2ff493677f04696524d40673",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a"
+  },
+  "probe_sha256": "c0b99dcec4d0610a262c1d589f9eba13ab04469ff88ca3c8d858c2b52e99f4ac",
+  "inputs_sha256": "7320e8b67f9aa9a4e9f71a2c1378ddc9a4639eaa858d9d89c88980be4ba70c70",
+  "runner_sha256": "c48def08a8e2a7a4b67bfa5f1bf64c1ea5ce7343c0fd0a45061260880b8b6765",
+  "queue_sha256": "23645c331af7af4dca8b69299db9d90ec89a7facdab537e4e65ee5d7e9a791b4",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+    "/workspace/.proofs/native-event-original110/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-native-event-original110/8.4.20/probe"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "cases": [
+    {
+      "id": "SAME_NESTED",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original110/8.4.20/probe",
+        "0"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "df37e77acf9e0ac6af19dab49cd52dc586c6762e15c700afcfef05acc139b059",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|382e342e3230",
+        "SAME_NESTED_INPUT|0|73657420782053414d453b20736574206c6f67207b7d3b2061667465722030207b73657420782053414d453b206c617070656e64206c6f672053414d453b2061667465722030207b7365742078204e4558543b206c617070656e64206c6f67204e4558547d7d3b20767761697420783b20736574206c6f67",
+        "SAME_NESTED|0|53414d45",
+        "SAME_NESTED_OPTIONS_NOT_TESTED|0|no-Tcl_GetReturnOptions"
+      ],
+      "reported_version": "8.4.20"
+    },
+    {
+      "id": "ARRAY_NESTED",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original110/8.4.20/probe",
+        "1"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "ca923032dc8964499487e473f7315b943ba6bc1cfc28fd7e040142b926b9b4de",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|382e342e3230",
+        "ARRAY_NESTED_INPUT|0|6172726179207365742061207b6b204f4c447d3b2061667465722030207b7365742061286b29204f4c443b2061667465722030207b7365742061286b29204e45577d7d3b2076776169742061286b293b207365742061286b29",
+        "ARRAY_NESTED|0|4f4c44",
+        "ARRAY_NESTED_OPTIONS_NOT_TESTED|0|no-Tcl_GetReturnOptions"
+      ],
+      "reported_version": "8.4.20"
+    }
+  ],
+  "executable_sha256": "e1a7dae514ae8381c2fe5d96119a5eec73a38ea2d528f4bac35422d999170967"
+}

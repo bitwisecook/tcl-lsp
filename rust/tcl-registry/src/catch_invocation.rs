@@ -236,55 +236,91 @@ pub fn select_catch_invocation(
     arguments: InvocationArguments<'_>,
     dialect: InvocationDialect,
 ) -> CatchInvocationSelection {
-    use CatchInvocationSelection::{Invalid, Unknown, Valid};
     let Some(length) = arguments.exact_argv_len() else {
-        return Unknown;
+        return CatchInvocationSelection::Unknown;
     };
+    select_catch_invocation_by(length, dialect, |index| {
+        Ok::<_, std::convert::Infallible>(
+            arguments
+                .native_bytes_at(index)
+                .or_else(|| arguments.literal_at(index).map(str::as_bytes))
+                .map(<[u8]>::to_vec),
+        )
+    })
+    .unwrap_or_else(|error| match error {})
+}
+
+/// Select a runtime original-object capture, requesting String bytes only at
+/// the positions inspected by the actual handler's leading-option scan.
+/// Output names and a script following `--` remain uninspected original objects.
+///
+/// # Errors
+/// The independently supplied original String getter can fail or refuse access.
+pub fn select_original_catch_invocation<E>(
+    length: usize,
+    dialect: InvocationDialect,
+    mut inspect: impl FnMut(usize) -> Result<Vec<u8>, E>,
+) -> Result<CatchInvocationSelection, E> {
+    select_catch_invocation_by(length, dialect, |index| inspect(index).map(Some))
+}
+
+fn select_catch_invocation_by<E>(
+    length: usize,
+    dialect: InvocationDialect,
+    mut inspect: impl FnMut(usize) -> Result<Option<Vec<u8>>, E>,
+) -> Result<CatchInvocationSelection, E> {
+    use CatchInvocationSelection::{Invalid, Unknown, Valid};
     if let Some(arity) = dialect.catch_positional_arity() {
         if !arity.accepts(u16::try_from(length).unwrap_or(u16::MAX)) {
-            return Invalid;
+            return Ok(Invalid);
         }
-        return Valid(CatchInvocation {
+        return Ok(Valid(CatchInvocation {
             script_at: 0,
             result_var_at: (length >= 2).then_some(1),
             options_var_at: (length >= 3).then_some(2),
             ignored_codes: 0,
             exit_policy: CatchExitPolicy::ProcessOutsideCapture,
-        });
+        }));
     }
     if dialect.family() != Some(tcl_dialect::model::Family::Jim) {
-        return Unknown;
+        return Ok(Unknown);
     }
     if length == 0 {
-        return Invalid;
+        return Ok(Invalid);
     }
     let mut script_at = 0;
     let mut ignored_codes = (1 << 5) | (1 << 6) | (1 << 7);
     while script_at < length - 1 {
-        let Some(word) = arguments.literal_at(script_at) else {
-            return Unknown;
+        let Some(word) = inspect(script_at)? else {
+            return Ok(Unknown);
         };
-        if word == "--" {
+        // JimCatchTryHelper inspects Jim_String with strcmp/strncmp. Only
+        // these leading selectors have CString extent; output names remain
+        // original counted objects and are not inspected by this grammar.
+        let word = tcl_core_types::c_string_extent(&word);
+        if word == b"--" {
             script_at += 1;
             break;
         }
-        let Some(flag) = word.strip_prefix('-') else {
+        let Some(flag) = word.strip_prefix(b"-") else {
             break;
         };
         let (ignore, flag) = flag
-            .strip_prefix("no")
+            .strip_prefix(b"no")
             .map_or((false, flag), |flag| (true, flag));
-        let numeric = flag.trim().parse::<u64>().ok();
+        let numeric = std::str::from_utf8(flag)
+            .ok()
+            .and_then(|flag| flag.trim().parse::<u64>().ok());
         let code = numeric.or_else(|| {
             [
                 "ok", "error", "return", "break", "continue", "signal", "exit", "eval",
             ]
             .iter()
-            .position(|name| *name == flag)
+            .position(|name| name.as_bytes() == flag)
             .map(|code| code as u64)
         });
         let Some(code) = code else {
-            return Invalid;
+            return Ok(Invalid);
         };
         // The supported Jim build uses a 64-bit completion mask. Its native
         // shifts wrap at that width; the oracle includes -no64 and -no128.
@@ -296,18 +332,60 @@ pub fn select_catch_invocation(
         }
         script_at += 1;
     }
-    Valid(CatchInvocation {
+    Ok(Valid(CatchInvocation {
         script_at,
         result_var_at: (script_at + 1 < length).then_some(script_at + 1),
         options_var_at: (script_at + 2 < length).then_some(script_at + 2),
         ignored_codes,
         exit_policy: CatchExitPolicy::NativeCode(crate::completion::CompletionCode::Other(6)),
-    })
+    }))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn jim_options_inspect_only_the_leading_original_bytes() {
+        let dialect = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        let words = [
+            crate::InvocationWord::KnownBytes(b"-noerror\0tail"),
+            crate::InvocationWord::KnownBytes(b"--"),
+            crate::InvocationWord::KnownBytes(b"body\xff"),
+            crate::InvocationWord::KnownBytes(b"r\xff"),
+            crate::InvocationWord::KnownBytes(b"o\xed\xa0\x80"),
+        ];
+        let CatchInvocationSelection::Valid(selected) =
+            select_catch_invocation(InvocationArguments::structured(&words), dialect)
+        else {
+            panic!("original output names are not option selectors");
+        };
+        assert_eq!(selected.script_at, 2);
+        assert_eq!(selected.result_var_at, Some(3));
+        assert_eq!(selected.options_var_at, Some(4));
+        assert!(selected.ignores(1));
+        let mut inspected = Vec::new();
+        let inspected_selection = select_original_catch_invocation(5, dialect, |index| {
+            inspected.push(index);
+            Ok::<_, ()>(words[index].native_bytes().unwrap().to_vec())
+        })
+        .unwrap();
+        assert_eq!(
+            inspected_selection,
+            CatchInvocationSelection::Valid(selected)
+        );
+        assert_eq!(inspected, [0, 1]);
+        let encoded_zero = [
+            crate::InvocationWord::KnownBytes(b"-noerror\xc0\x80tail"),
+            crate::InvocationWord::KnownBytes(b"body"),
+        ];
+        assert_eq!(
+            select_catch_invocation(InvocationArguments::structured(&encoded_zero), dialect),
+            CatchInvocationSelection::Invalid
+        );
+    }
 
     #[test]
     fn unknown_script_preserves_the_actual_process_exit_protocol() {

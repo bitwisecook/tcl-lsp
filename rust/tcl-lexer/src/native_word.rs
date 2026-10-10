@@ -127,7 +127,7 @@ impl NativeWord {
         let mut group = word.clone();
         group.tokens = 0..fragments.len();
         let mut captured = Self {
-            arena: ExecutablePartArena::empty(image),
+            arena: ExecutablePartArena::empty(image, config),
             config,
             group,
             tokens: fragments.to_vec(),
@@ -326,6 +326,7 @@ impl NativeWord {
                 part: WordPart::Text(Cow::Borrowed(bytes)),
                 start: 0,
                 end: bytes.len(),
+                error_term: None,
             }]
         } else {
             decompose_spanned_checked(bytes, SubstFlags::default(), self.config)
@@ -334,6 +335,7 @@ impl NativeWord {
         for part in &mut parts {
             part.start += content.start() as usize;
             part.end += content.start() as usize;
+            part.error_term = part.error_term.map(|term| term + content.start() as usize);
         }
         Ok(parts)
     }
@@ -358,6 +360,7 @@ impl NativeWord {
                     part: WordPart::Text(Cow::Borrowed(content)),
                     start: at,
                     end: at + content.len(),
+                    error_term: None,
                 });
             } else {
                 let flags = if token.kind == TokenType::Esc {
@@ -374,6 +377,7 @@ impl NativeWord {
                 {
                     part.start += at;
                     part.end += at;
+                    part.error_term = part.error_term.map(|term| term + at);
                     parts.push(part);
                 }
             }

@@ -1,0 +1,68 @@
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-compiler)
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling tcl-sslictcl v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-lsp-core)
+warning: field `source` is never read
+  --> rust/tcl-lsp-core/src/original_invocation.rs:26:16
+   |
+19 | pub(crate) struct OriginalRegistryWords {
+   |                   --------------------- field in this struct
+...
+26 |     pub(crate) source: OriginalRegistrySource,
+   |                ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-compiler` (lib) generated 1 warning
+warning: `tcl-lsp-core` (lib) generated 2 warnings
+   Compiling tcl-lsp-db v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-lsp-db)
+    Finished `test` profile [unoptimized] target(s) in 57.98s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_db-9aa45b8e086126a4)
+
+running 6 tests
+test tests::original_callback_missing_future_lookup_declines_reporting_candidates ... ok
+test tests::original_db_token_roles_keep_opaque_declarations_and_full_caller_currency ... ok
+test tests::original_event_lattice_cache_retains_conditional_entry_and_reuses_same_source ... 
+thread 'tests::original_event_lattice_cache_retains_conditional_entry_and_reuses_same_source' (379891) panicked at rust/tcl-lsp-db/src/lib.rs:4624:9:
+the sealed event participates in the lattice memo
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test tests::original_event_lattice_key_rejects_foreign_source_body_config_and_registry ... ok
+test tests::original_project_diagnostics_select_opaque_call_slots_and_namespace_priority ... ok
+test tests::original_project_headers_keep_opaque_slots_and_body_free_arity ... ok
+
+failures:
+
+failures:
+    tests::original_event_lattice_cache_retains_conditional_entry_and_reuses_same_source
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 94 filtered out; finished in 5.91s
+
+error: test failed, to rerun pass `-p tcl-lsp-db --lib`

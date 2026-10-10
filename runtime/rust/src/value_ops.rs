@@ -687,28 +687,25 @@ impl ValueOps for Interp {
         use tcl_syntax::value::OriginalOptionLookup;
         obj::check_native_liveness(*original)?;
         let dialect = self.native_invocation_dialect();
-        if dialect.native_string_protocol()
-            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
-        {
-            if obj::native_index::cache(*original).is_some() {
-                return Err(ValueError::CommandProtocolUnavailable(
-                    "foreign native Index origin",
-                ));
-            }
-            let bytes = self.native_string_bytes(original)?;
-            let table = if exact {
-                tcl_cmd_core::prefix::OptionTable::exact_only(noun, words)
-            } else {
-                tcl_cmd_core::prefix::OptionTable::abbreviating(noun, words)
-            };
-            return Ok(Some(match table.index_of(&bytes) {
-                Ok(index) => OriginalOptionLookup::Index(index),
-                Err(message) => OriginalOptionLookup::Failure {
-                    message,
-                    error_code: b"NONE".to_vec(),
-                    string_result: None,
+        if dialect.native_jim_enum_protocol().is_some() {
+            let table =
+                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
+            let flags = tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact);
+            return Ok(Some(
+                match self.native_jim_enum_from_original(
+                    *original,
+                    &table,
+                    flags,
+                    Some(noun.as_bytes()),
+                )? {
+                    Ok(index) => OriginalOptionLookup::Index(index),
+                    Err(message) => OriginalOptionLookup::Failure {
+                        message: message.unwrap_or_default(),
+                        error_code: b"NONE".to_vec(),
+                        string_result: None,
+                    },
                 },
-            }));
+            ));
         }
         let protocol = dialect.native_index_lookup_protocol().ok_or(
             ValueError::CommandProtocolUnavailable("original static option lookup"),
@@ -920,6 +917,24 @@ impl ValueOps for Interp {
         *value
     }
 
+    fn array_existence_result(&mut self, present: bool) -> Result<*mut TclObj, ValueError> {
+        use tcl_registry::native_array_compilation::{
+            NativeArrayExistenceResult, native_array_existence_result,
+        };
+        if self.observed_name_policy_selected() {
+            return Ok(self.new_bool(present));
+        }
+        match native_array_existence_result(self.native_invocation_dialect()) {
+            Some(NativeArrayExistenceResult::ExecutionBooleanConstant) => {
+                self.native_execution_boolean_constant(present)
+            }
+            Some(NativeArrayExistenceResult::FreshInteger) => Ok(self.new_bool(present)),
+            None => Err(ValueError::CommandProtocolUnavailable(
+                "array existence result producer",
+            )),
+        }
+    }
+
     fn new_bool(&mut self, b: bool) -> *mut TclObj {
         obj::new_boolean_obj(i32::from(b))
     }
@@ -978,6 +993,20 @@ impl ValueOps for Interp {
             ))?
             .string_protocol();
         obj::native_unicode_units(*value, protocol)
+    }
+
+    fn native_unicode_string_result(
+        &mut self,
+        units: Rc<[u32]>,
+        version: tcl_dialect::TclVersion,
+    ) -> Result<Self::Value, ValueError> {
+        let dialect = self.native_invocation_dialect();
+        if dialect.tcl_version != Some(version) || dialect.native_error_log_protocol().is_none() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native Unicode result issuer",
+            ));
+        }
+        obj::new_native_unicode_obj(units, dialect)
     }
 
     fn discard_native_internal_representation(
@@ -1269,15 +1298,26 @@ impl ValueOps for Interp {
         }
     }
 
-    fn try_list_append_in_place(&mut self, list: &mut *mut TclObj, item: &*mut TclObj) -> bool {
-        // Mutate the list's backing vector in place when it is uniquely owned —
-        // the COW fast path the runtime's hand-rolled `lappend` used. A shared or
-        // non-list value falls back to a rebuild (the caller copies). `list_append`
-        // validates the list first, so a malformed value leaves it untouched.
+    fn try_list_append_in_place(
+        &mut self,
+        list: &mut *mut TclObj,
+        item: &*mut TclObj,
+    ) -> Result<bool, ValueError> {
+        // naming.list.original-value-append-storage-currency
+        // docs/design/analysis/name-resolution-proofs/list-original-value-append-storage-currency.md
+        obj::check_native_liveness(*list)?;
+        obj::check_native_liveness(*item)?;
         if obj::is_shared(*list) {
-            return false;
+            return Ok(false);
         }
-        crate::list::list_append(*list, *item).is_ok()
+        let protocol = self.native_invocation_dialect().native_string_materialization(
+            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+        ).ok_or(ValueError::CommandProtocolUnavailable("native object list append"))?.protocol();
+        if protocol.is_jim084() {
+            crate::native_source::bind_context(*list, &self.native_jim_object_context()?)?;
+        }
+        list::append_prepared_native_elements(*list, &[*item], protocol)?;
+        Ok(true)
     }
 }
 
@@ -1330,6 +1370,75 @@ mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
     use tcl_dialect::TclVersion;
+
+    #[test]
+    fn original_value_append_preserves_storage_for_the_next_native_mutation() {
+        // naming.list.original-value-append-storage-currency
+        // docs/design/analysis/name-resolution-proofs/list-original-value-append-storage-currency.md
+        use crate::obj;
+        use tcl_syntax::native_string::NativeStringProtocol;
+        use tcl_syntax::value::ValueOps;
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            let mut interp = Interp::new();
+            interp.set_runtime_version(version);
+            let head = obj::Owned::fresh(obj::new_string_bytes(b"HEAD"));
+            let first = obj::Owned::fresh(obj::new_string_bytes(b"FIRST"));
+            let second = obj::Owned::fresh(obj::new_string_bytes(b"SECOND"));
+            let receiver = obj::Owned::fresh(crate::list::new_list_obj_native(
+                &[head.as_ptr()],
+                NativeStringProtocol::C(version),
+            ));
+            let mut original = receiver.as_ptr();
+            assert!(
+                interp
+                    .try_list_append_in_place(&mut original, &first.as_ptr())
+                    .unwrap()
+            );
+            assert_eq!(original, receiver.as_ptr());
+            crate::list::append_prepared_native_elements(
+                original,
+                &[second.as_ptr()],
+                NativeStringProtocol::C(version),
+            )
+            .unwrap();
+            assert_eq!(
+                interp.list_elements(&original).unwrap(),
+                vec![head.as_ptr(), first.as_ptr(), second.as_ptr()]
+            );
+            assert!(!interp.host_refusal_pending());
+        }
+    }
+
+    #[test]
+    fn original_value_append_does_not_rebuild_after_unavailable_storage() {
+        // naming.list.original-value-append-storage-currency
+        // docs/design/analysis/name-resolution-proofs/list-original-value-append-storage-currency.md
+        use crate::obj;
+        use tcl_syntax::native_string::NativeStringProtocol;
+        use tcl_syntax::value::{ValueError, ValueOps};
+        let mut interp = Interp::new();
+        interp.set_runtime_version(TclVersion::V9_0);
+        let member = obj::Owned::fresh(obj::new_string_bytes(b"MEMBER"));
+        let receiver = obj::Owned::fresh(crate::list::new_list_obj_native(
+            &[],
+            NativeStringProtocol::C(TclVersion::V9_0),
+        ));
+        // The untyped mutator deliberately removes the native allocation
+        // receipt. Equal list elements do not restore that storage authority.
+        crate::list::list_append(receiver.as_ptr(), member.as_ptr()).unwrap();
+        let mut original = receiver.as_ptr();
+        assert_eq!(
+            interp.try_list_append_in_place(&mut original, &member.as_ptr()),
+            Err(ValueError::CommandProtocolUnavailable(
+                "native List allocation extent"
+            ))
+        );
+        assert_eq!(original, receiver.as_ptr());
+        assert_eq!(
+            interp.list_elements(&original).unwrap(),
+            vec![member.as_ptr()]
+        );
+    }
 
     #[cfg(have_tommath)]
     #[test]
@@ -1424,6 +1533,9 @@ mod tests {
 
     #[test]
     fn physical_list_length_matches_all_204_native_storage_rows() {
+        // Native proof: naming.list.stock-length-same-original-storage
+        // docs/design/analysis/name-resolution-proofs/list.stock-length-same-original-storage.md
+
         use crate::obj;
         use tcl_registry::native_stock_list::NativeStockListInputClass as Class;
         use tcl_syntax::value::ValueOps;
@@ -1539,6 +1651,7 @@ mod tests {
                     | Class::InstructionName
                     | Class::CommandName
                     | Class::JimLookup
+                    | Class::JimSource
                     | Class::ArraySearch
                     | Class::NamespaceName
                     | Class::ParsedVariableName

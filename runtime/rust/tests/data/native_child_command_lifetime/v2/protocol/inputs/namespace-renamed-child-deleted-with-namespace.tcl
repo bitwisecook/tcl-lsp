@@ -1,0 +1,1 @@
+namespace eval ::N {interp create kid; rename kid moved; list [info commands moved] [info commands ::kid]}; namespace delete ::N; list [interp slaves] [info commands ::N::moved] [info commands ::kid]

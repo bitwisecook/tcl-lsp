@@ -12,7 +12,7 @@ use tcl_compiler::command_binding::{
     SourceReceiverMethodEntry,
 };
 use tcl_compiler::ir::CommandTokens;
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{SourceMap, Span};
 
 /// Original class and member selected by a retained temporal receiver receipt.
@@ -20,14 +20,25 @@ pub(crate) struct RetainedReceiverMethod<'a> {
     pub(crate) class: &'a ClassDef,
     pub(crate) receiver_class: &'a ClassDef,
     pub(crate) method: &'a MethodDef,
+    pub(crate) metadata: &'a tcl_compiler::analyser::types::OriginalSourceMethodMetadata,
+    pub(crate) own_entry: Option<(SourceReceiverMethodEntry, u64)>,
     pub(crate) receiver: SourceMethodReceiver,
     pub(crate) selector: Span,
     editable_selector: bool,
+    selector_input: tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
 }
 
 impl RetainedReceiverMethod<'_> {
     /// An original static written selector, independently of dispatch identity.
     /// Computed and expanded operands retain navigation but cannot be replaced.
+    /// Immutable original queried selector, independent of the canonical body
+    /// name and the separate editable geometry receipt.
+    pub(crate) fn original_selector_input(
+        &self,
+    ) -> &tcl_compiler::signature_scan::scope::SignatureSourceNameInput {
+        &self.selector_input
+    }
+
     pub(crate) fn editable_selector(&self) -> Option<Span> {
         self.editable_selector.then_some(self.selector)
     }
@@ -40,25 +51,59 @@ pub(crate) fn original_class<'a>(
     source: &str,
     target: &SourceCommandTarget,
 ) -> Option<&'a ClassDef> {
-    let allocation = target.identity.as_ref()?.allocation.as_ref()?;
+    let allocation = target.implementation_allocation.as_ref()?;
     if !matches!(allocation.site.source.kind(), SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
     {
         return None;
     }
-    let tail = source.get(allocation.site.offset as usize..)?;
-    let commands = segment_commands_with_offset_and_config(
-        tail,
-        allocation.site.offset,
-        analysis.body_lexer_config?,
-    );
-    let command = commands.first()?;
-    analysis
-        .superseded_classes
-        .get(&allocation.command)
-        .into_iter()
-        .flatten()
-        .chain(analysis.all_classes.get(&allocation.command))
-        .find(|class| command.argv.iter().any(|word| word.span == class.name_span))
+    let mut declarations = analysis
+        .original_class_declarations()
+        .filter(|declaration| declaration.declaration_site() == &allocation.site);
+    let declaration = declarations.next()?;
+    declarations
+        .next()
+        .is_none()
+        .then_some(declaration.metadata())
+}
+
+/// Original instance class at the authentic post-argument command head,
+/// independently of whether its written selector names an existing method.
+pub(crate) fn class_at_command_head<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    command: &SegmentedCommand,
+) -> Option<&'a ClassDef> {
+    let realm = analysis.retained_command_realm()?;
+    let config = analysis.body_lexer_config?;
+    let tokens = CommandTokens::from_segmented(&SourceMap::new(source), config, command);
+    let head = tokens.word_exprs.first()?;
+    let offset = head.source().span.start();
+    let binding = realm.invocation_at_source(command.name(), offset);
+    if !matches!(binding.source_origin()?.kind(), SourceOriginKind::Authored(bytes)
+        if bytes.as_ref() == source.as_bytes())
+    {
+        return None;
+    }
+    if head.sole_variable_substitution().is_some() {
+        let accesses = realm.variable_accesses_for_invocation_args(offset);
+        let mut classes = accesses
+            .iter()
+            .filter(|access| {
+                head.sole_variable_substitution()
+                    .is_some_and(|(_, site)| site == &access.source)
+            })
+            .filter(|access| binding.retains_object_instance_at_dispatch(access))
+            .filter_map(|access| access.proved_object_instance())
+            .filter_map(|proof| original_class(analysis, source, proof.class_target()));
+        let first = classes.next()?;
+        return classes
+            .all(|class| class.name_span == first.name_span)
+            .then_some(first);
+    }
+    let proof = binding
+        .frozen_object_instance_at_dispatch(head)
+        .or_else(|| binding.named_object_instance_at_dispatch())?;
+    original_class(analysis, source, proof.class_target())
 }
 
 fn original_method<'a>(
@@ -66,17 +111,70 @@ fn original_method<'a>(
     source: &str,
     receiver_target: &SourceCommandTarget,
     entry: &SourceReceiverMethodEntry,
-    selector: Span,
-    editable_selector: bool,
+    selection: (
+        Span,
+        &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
+        bool,
+    ),
+    generation: Option<u64>,
 ) -> Option<RetainedReceiverMethod<'a>> {
+    let (selector, selector_input, editable_selector) = selection;
+    if let Some(allocation) = entry.declaring_object() {
+        let receiver_class = original_class(analysis, source, receiver_target)?;
+        let metadata = original_own_method_metadata(analysis, source, allocation, entry)?;
+        let method = metadata.metadata();
+        return Some(RetainedReceiverMethod {
+            class: receiver_class,
+            receiver_class,
+            method,
+            metadata,
+            own_entry: Some((entry.clone(), generation?)),
+            receiver: entry.receiver(),
+            selector,
+            selector_input: selector_input.clone(),
+            editable_selector,
+        });
+    }
     original_method_in_class(
         analysis,
         source,
         (receiver_target, entry.declaring_class()?),
         entry,
         selector,
+        selector_input,
         editable_selector,
     )
+}
+
+/// Reborrow the canonical declaration of one independently retained own-table
+/// entry. Current receiver/table currency and visibility remain caller duties.
+pub(crate) fn original_own_method_metadata<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    allocation: &tcl_compiler::command_binding::SourceObjectAllocation,
+    entry: &SourceReceiverMethodEntry,
+) -> Option<&'a tcl_compiler::analyser::types::OriginalSourceMethodMetadata> {
+    if entry.declaring_object() != Some(allocation)
+        || !matches!(entry.declaration().source.kind(), SourceOriginKind::Authored(bytes)
+            if bytes.as_ref() == source.as_bytes())
+        || !matches!(
+            entry.frame(),
+            tcl_compiler::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+        )
+    {
+        return None;
+    }
+    let mut declarations = analysis
+        .original_object_configurations()
+        .filter(|configuration| configuration.target().instance().allocation() == allocation)
+        .flat_map(|configuration| configuration.members().declarations())
+        .filter(|declaration| {
+            declaration.side() == tcl_compiler::analyser::types::MemberSide::ClassObject
+                && declaration.declaration().site() == entry.declaration()
+                && declaration.metadata().name_span == entry.name_source().span
+        });
+    let first = declarations.next()?;
+    declarations.next().is_none().then_some(first)
 }
 
 fn original_method_in_class<'a>(
@@ -85,6 +183,7 @@ fn original_method_in_class<'a>(
     targets: (&SourceCommandTarget, &SourceCommandTarget),
     entry: &SourceReceiverMethodEntry,
     selector: Span,
+    selector_input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
     editable_selector: bool,
 ) -> Option<RetainedReceiverMethod<'a>> {
     if !matches!(entry.declaration().source.kind(), SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
@@ -97,19 +196,31 @@ fn original_method_in_class<'a>(
     }
     let class = original_class(analysis, source, targets.1)?;
     let receiver_class = original_class(analysis, source, targets.0)?;
-    let members = match entry.receiver() {
-        SourceMethodReceiver::Instance => &class.methods,
-        SourceMethodReceiver::Class => &class.class_methods,
+    let side = match entry.receiver() {
+        SourceMethodReceiver::Instance => tcl_compiler::analyser::types::MemberSide::Instance,
+        SourceMethodReceiver::Class => tcl_compiler::analyser::types::MemberSide::ClassObject,
     };
-    let method = members.get(entry.name())?;
-    (method.name_span == entry.name_source().span).then_some(RetainedReceiverMethod {
-        class,
-        receiver_class,
-        method,
-        receiver: entry.receiver(),
-        selector,
-        editable_selector,
-    })
+    let mut declarations = class.original_members.declarations().filter(|declaration| {
+        declaration.side() == side
+            && declaration.declaration().site() == entry.declaration()
+            && declaration.metadata().name_span == entry.name_source().span
+    });
+    let metadata = declarations.next()?;
+    let method = metadata.metadata();
+    declarations
+        .next()
+        .is_none()
+        .then_some(RetainedReceiverMethod {
+            class,
+            receiver_class,
+            method,
+            metadata,
+            own_entry: None,
+            receiver: entry.receiver(),
+            selector,
+            selector_input: selector_input.clone(),
+            editable_selector,
+        })
 }
 
 /// Resolve the original method declaration at this actual command, after argv.
@@ -129,7 +240,7 @@ pub(crate) fn method_at_command<'a>(
     {
         return None;
     }
-    let method = binding.evaluated_argument_values.first()?.as_ref()?;
+    let method = binding.original_written_name_input(&tokens, 1)?;
     let editable_selector = tokens.word_exprs.get(1).is_some_and(|word| {
         use tcl_compiler::ir::{WordExpr, WordPart};
         let static_word = match word {
@@ -139,12 +250,21 @@ pub(crate) fn method_at_command<'a>(
                 .all(|part| matches!(part, WordPart::Text { .. })),
             _ => false,
         };
-        static_word && source.get(selector.as_range()) == Some(method.as_str())
+        static_word
+            && method.original_word_key().is_some()
+            && source.as_bytes().get(selector.as_range()) == Some(method.bytes())
     });
-    if let Some((class, entry, _)) =
+    if let Some((class, entry, generation)) =
         binding.receiver_self_method_entry(analysis.resolved_registry()?)
     {
-        return original_method(analysis, source, class, entry, selector, editable_selector);
+        return original_method(
+            analysis,
+            source,
+            class,
+            entry,
+            (selector, &method, editable_selector),
+            Some(generation),
+        );
     }
     if head.sole_variable_substitution().is_some() {
         return realm
@@ -152,37 +272,64 @@ pub(crate) fn method_at_command<'a>(
             .iter()
             .filter_map(|access| binding.object_receiver_method_entry(access, head))
             .filter(|(_, entry, _)| entry.is_exported())
-            .find_map(|(class, entry, _)| {
-                original_method(analysis, source, class, entry, selector, editable_selector)
+            .find_map(|(class, entry, generation)| {
+                original_method(
+                    analysis,
+                    source,
+                    class,
+                    entry,
+                    (selector, &method, editable_selector),
+                    Some(generation),
+                )
             });
     }
-    if let Some((class, entry, _)) = binding.frozen_object_receiver_method_entry(head) {
+    if let Some((class, entry, generation)) = binding.frozen_object_receiver_method_entry(head) {
         if !entry.is_exported() {
             return None;
         }
-        return original_method(analysis, source, class, entry, selector, editable_selector);
+        return original_method(
+            analysis,
+            source,
+            class,
+            entry,
+            (selector, &method, editable_selector),
+            Some(generation),
+        );
     }
-    if let Some((class, entry, _)) = binding.named_object_receiver_method_entry() {
+    if let Some((class, entry, generation)) = binding.named_object_receiver_method_entry() {
         if !entry.is_exported() {
             return None;
         }
-        return original_method(analysis, source, class, entry, selector, editable_selector);
+        return original_method(
+            analysis,
+            source,
+            class,
+            entry,
+            (selector, &method, editable_selector),
+            Some(generation),
+        );
     }
-    let (class, entries) = binding.class_definition_method_entries()?;
+    let (class, entry) = binding.class_definition_method_entry()?;
     if !class.prepended.is_empty() {
         return None;
     }
-    let entry = entries.get(&(SourceMethodReceiver::Class, method.clone()))?;
     if !entry.is_exported() {
         return None;
     }
-    original_method(analysis, source, class, entry, selector, editable_selector)
+    original_method(
+        analysis,
+        source,
+        class,
+        entry,
+        (selector, &method, editable_selector),
+        None,
+    )
 }
 
 /// Captured prefix names in independently selected deferred operands. The
 /// original capture supplies declaration identity; registration supplies only
 /// its role, never proof that a future callback executes this method.
-fn captured_methods_at_command<'a>(
+pub(crate) fn captured_methods_at_command<'a>(
     analysis: &'a AnalysisResult,
     source: &str,
     command: &SegmentedCommand,
@@ -223,20 +370,34 @@ fn captured_methods_at_command<'a>(
                 return None;
             }
             let entry = prefix.method_entry();
-            let base = tcl_compiler::command_binding::ExecutedScriptSource::literal_word_base(
-                source,
-                prefix.selector(),
-                entry.name(),
-                config,
-            )?;
-            let end = base.checked_add(u32::try_from(entry.name().len()).ok()?)?;
+            let input = prefix.original_selector_input();
+            let editable = input
+                .original_word_key()
+                .and_then(|key| key.display())
+                .and_then(|name| {
+                    let base =
+                        tcl_compiler::command_binding::ExecutedScriptSource::literal_word_base(
+                            source,
+                            prefix.selector(),
+                            name,
+                            config,
+                        )?;
+                    Some(Span::new(
+                        base,
+                        base.checked_add(u32::try_from(name.len()).ok()?)?,
+                    ))
+                });
             original_method(
                 analysis,
                 source,
                 prefix.receiver().class_target(),
                 entry,
-                Span::new(base, end),
-                true,
+                (
+                    editable.unwrap_or(prefix.selector().source().span),
+                    input,
+                    editable.is_some(),
+                ),
+                Some(prefix.receiver().dispatch_generation()),
             )
         })
         .collect()
@@ -253,14 +414,9 @@ pub(crate) fn method_at_cursor<'a>(
         return original_definition_reference(analysis, source, reference);
     }
     let mut selected = None;
-    crate::executable_regions::visit_executable_commands(
+    crate::executable_regions::visit_analysis_executable_commands(
         source,
-        analysis.body_lexer_config?,
-        analysis.resolved_registry()?,
-        analysis
-            .resolved_profile()
-            .map(tcl_dialect::DialectProfile::surface_query),
-        analysis.retained_command_realm()?,
+        analysis,
         &mut |command, _, _| {
             if let Some(captured) = captured_methods_at_command(analysis, source, command)
                 .into_iter()
@@ -318,7 +474,8 @@ fn original_definition_reference<'a>(
         (reference.class(), reference.declaring_class()),
         reference.method_entry()?,
         reference.name_span(),
-        true,
+        reference.original_name_input(),
+        reference.editable_name_span() == Some(reference.name_span()),
     )
 }
 
@@ -427,22 +584,10 @@ fn selected_method_reference_spans(
     purpose: MethodReferencePurpose,
     accepts: impl Fn(&RetainedReceiverMethod<'_>) -> bool,
 ) -> Vec<Span> {
-    let (Some(config), Some(registry), Some(realm)) = (
-        analysis.body_lexer_config,
-        analysis.resolved_registry(),
-        analysis.retained_command_realm(),
-    ) else {
-        return Vec::new();
-    };
     let mut spans = Vec::new();
-    crate::executable_regions::visit_executable_commands(
+    crate::executable_regions::visit_analysis_executable_commands(
         source,
-        config,
-        registry,
-        analysis
-            .resolved_profile()
-            .map(tcl_dialect::DialectProfile::surface_query),
-        realm,
+        analysis,
         &mut |command, _, _| {
             let selected = match purpose {
                 MethodReferencePurpose::Dispatch => method_at_command(analysis, source, command)
@@ -475,14 +620,9 @@ pub(crate) fn uneditable_method_selector(
     accepts: impl Fn(&RetainedReceiverMethod<'_>) -> bool,
 ) -> Option<Span> {
     let mut found = None;
-    crate::executable_regions::visit_executable_commands(
+    crate::executable_regions::visit_analysis_executable_commands(
         source,
-        analysis.body_lexer_config?,
-        analysis.resolved_registry()?,
-        analysis
-            .resolved_profile()
-            .map(tcl_dialect::DialectProfile::surface_query),
-        analysis.retained_command_realm()?,
+        analysis,
         &mut |command, _, _| {
             if let Some(selected) = method_at_command(analysis, source, command)
                 && selected.editable_selector().is_none()
@@ -505,14 +645,9 @@ pub(crate) fn class_at_read<'a>(
 ) -> Option<&'a ClassDef> {
     let realm = analysis.retained_command_realm()?;
     let mut selected = None;
-    crate::executable_regions::visit_executable_commands(
+    crate::executable_regions::visit_analysis_executable_commands(
         source,
-        analysis.body_lexer_config?,
-        analysis.resolved_registry()?,
-        analysis
-            .resolved_profile()
-            .map(tcl_dialect::DialectProfile::surface_query),
-        realm,
+        analysis,
         &mut |command, _, _| {
             let Some(head) = command.argv.first() else {
                 return false;
@@ -538,6 +673,63 @@ mod tests {
 
     fn analyse(source: &str) -> AnalysisResult {
         Analyser::new().analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn original_own_object_navigation_joins_the_actual_configuration_allocation() {
+        // Implementation contract: naming.tcloo.original-own-object-method-transfer
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-own-object-method-transfer.md
+        let source = r"oo::class create C {method shared {} {}}; C create object; oo::objdefine object {method shared {} {}; method p\uD800 {} {}; method p\uD801 {} {}}; object p\uD800; object p\uD801";
+        let mut analysis = analyse(source);
+        analysis.all_classes.clear();
+        for spelling in [r"p\uD800", r"p\uD801"] {
+            let offset =
+                u32::try_from(source.rfind(&format!("object {spelling}")).unwrap()).unwrap();
+            let command = tcl_compiler::segmenter::segment_commands(source)
+                .into_iter()
+                .find(|command| command.span.start() == offset)
+                .unwrap();
+            let selected = method_at_command(&analysis, source, &command).expect(spelling);
+            assert_eq!(
+                selected.original_selector_input().bytes(),
+                if spelling == r"p\uD800" {
+                    b"p\xed\xa0\x80"
+                } else {
+                    b"p\xed\xa0\x81"
+                }
+            );
+            assert!(selected.method.name_span.start() < offset);
+            assert_eq!(selected.receiver, SourceMethodReceiver::Class);
+        }
+    }
+
+    #[test]
+    fn original_receiver_navigation_joins_allocations_without_reporting_maps() {
+        for class in ["C", r"C\uD800", r"C\uD801"] {
+            let source = format!(
+                "oo::class create {class} {{self method pick {{}} {{return ORIGINAL}}}}; {class} pick"
+            );
+            let mut analysis = analyse(&source);
+            assert_eq!(analysis.original_class_declarations().count(), 1);
+            analysis.all_classes.clear();
+            analysis.superseded_classes.clear();
+            let cursor = u32::try_from(source.rfind("pick").unwrap()).unwrap();
+            let selected = method_at_cursor(&analysis, &source, cursor)
+                .expect("an actual method entry must join its original class allocation");
+            assert_eq!(
+                selected.class.name_span,
+                analysis
+                    .original_class_declarations()
+                    .next()
+                    .unwrap()
+                    .metadata()
+                    .name_span
+            );
+            assert_eq!(
+                selected.method.name_span.start(),
+                u32::try_from(source.find("pick").unwrap()).unwrap()
+            );
+        }
     }
 
     #[test]

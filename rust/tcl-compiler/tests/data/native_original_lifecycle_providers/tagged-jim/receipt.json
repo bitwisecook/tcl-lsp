@@ -1,0 +1,13 @@
+{
+  "git_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "patchlevel": "0.84-9-g5bac7c9",
+  "configure_sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "b772996e165014327448be749f825ec35be0c6c18056bb23956ebb8e74dc889b",
+  "input_channel": "CLI file-script",
+  "exit": 0,
+  "stdout_sha256": "95a2010d0137b34449c654abd54b8372e8c1bd4d1370fe5be337b83d4890bd0b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "availability|TclOO unavailable\n",
+  "stderr": ""
+}

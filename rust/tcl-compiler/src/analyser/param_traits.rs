@@ -259,6 +259,7 @@ impl<'p> ScanCtx<'p, '_> {
                 source,
                 self.config,
                 command,
+                self.identities.source_metadata_context().as_deref(),
             );
         }
         let selected = self
@@ -272,6 +273,7 @@ impl<'p> ScanCtx<'p, '_> {
             self.config,
             command,
             self.source_base.unwrap_or(0),
+            self.identities.source_metadata_context().as_deref(),
         )
     }
 
@@ -591,6 +593,21 @@ fn scan_segment<'p>(
     }
     let body_aliases = aliases.clone();
     let view = ctx.body_assistance(source, seg);
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
+        eprintln!(
+            "ORIGINAL_PARAM_ROLES command local_offset={} base={:?} executed_source={} parameters={} full_values={} components={} assistance={} roles={}",
+            seg.span.start(),
+            ctx.source_base,
+            ctx.executed_source.is_some(),
+            ctx.parameters.len(),
+            values.full.iter().filter(|value| value.is_some()).count(),
+            values.components.iter().map(Vec::len).sum::<usize>(),
+            view.is_some(),
+            view.as_ref()
+                .map_or(0, |view| view.parameter_role_advice().written_roles().len())
+        );
+    }
     scan_command(
         view.as_deref(),
         &cmd_args,

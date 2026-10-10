@@ -655,9 +655,17 @@ PY_ENGINE_CACHE_PROVENANCE   := cache-neutral-v1
 # they are declared by hand-written stubs under typings/.
 PY_VENV := $(ROOT).venv-typecheck
 
-# `git ls-files` rather than a directory walk: it is the same file set every
-# gate uses, and it skips build outputs, the venv, and untracked scratch files.
-PY_FILES = $(shell git -C $(ROOT) ls-files '*.py')
+# Native/authored fixture scripts and captured proof sources retain exact input
+# bytes. Format and lint executable tooling, preserving those evidence files.
+# The tracked file set also excludes build outputs, the venv and scratch files.
+PY_FILES = $(shell git -C $(ROOT) ls-files '*.py' \
+	':(exclude,glob)rust/*/tests/data/native*/**/*.py' \
+	':(exclude,glob)rust/*/tests/data/authored*/**/*.py' \
+	':(exclude,glob)runtime/rust/tests/data/native*/**/*.py' \
+	':(exclude,glob)runtime/rust/tests/data/authored*/**/*.py' \
+	':(exclude,glob)scripts/dev/bigip-probes/resolution-2286/evidence/**/*.py' \
+	':(exclude)scripts/dev/replay-namespace-delete-callback-events.py' \
+	':(exclude,glob)docs/design/analysis/name-resolution-proofs/evidence/**/*.py')
 
 .PHONY: lint-py format-py typecheck-py test-py-engine py-venv python-engine-source-hash
 
@@ -895,7 +903,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
 # (ci.yml). `xtask-check` is the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-name-resolution-proofs check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -997,6 +1005,10 @@ xtask-gen-editor-configs: ## Verify the Zed extension.toml language table, the e
 xtask-gen-environment-docs: ## Verify the README dialect tables, docs/generated/environments.md, the dialect-selection KCS lists and the AI prompt manifest match the environment registry (drift gate)
 	@echo "==> Checking generated environment documentation and the prompt manifest (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-environment-docs --check
+
+.PHONY: check-name-resolution-proofs
+check-name-resolution-proofs: ## Validate naming proof records and complete retained evidence coverage
+	cd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
 	@echo "==> Checking shared semantic-owner contract (cargo xtask)"

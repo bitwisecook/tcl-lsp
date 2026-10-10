@@ -1498,12 +1498,19 @@ fn direct_proc_eligible(
     {
         return false;
     }
-    let raw_params: Vec<&str> = proc.params_raw.split_whitespace().collect();
-    if raw_params.len() != proc.params.len()
-        || !raw_params
+    let Some(arguments) =
+        crate::var_escape::original_slots::original_procedure_argument_slots(module, proc)
+    else {
+        return false;
+    };
+    // This emitter's string-keyed ABI is admitted only after exact native
+    // declaration bytes agree with every retained parameter position.
+    if arguments.names().len() != proc.params.len()
+        || !arguments
+            .names()
             .iter()
             .zip(&proc.params)
-            .all(|(raw, name)| *raw == name)
+            .all(|(original, name)| original.try_utf8().ok() == Some(name.as_str()))
     {
         return false;
     }

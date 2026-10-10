@@ -1,0 +1,1 @@
+set first {A  B}; set second C; concat $first $second

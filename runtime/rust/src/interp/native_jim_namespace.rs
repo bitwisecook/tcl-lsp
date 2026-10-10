@@ -281,15 +281,54 @@ mod tests {
     }
 
     #[test]
+    fn jim_root_command_context_requires_its_live_original_top_object() {
+        // Implementation contract: naming.runtime.original-root-command-context
+        // docs/design/analysis/name-resolution-proofs/original-root-command-context.md
+        let mut interp = Interp::new();
+        interp.set_dialect_profile(profile());
+        let context = interp.native_jim_object_context().unwrap();
+        let root = interp.jim_current_namespace_object().unwrap();
+        assert_eq!(root.as_ptr(), context.empty_object().as_ptr());
+        assert_eq!(
+            interp.root_command_context_checked().unwrap(),
+            Some(tcl_runtime_api::ROOT_NS)
+        );
+        assert!(interp
+            .find_namespace_bytes_checked(tcl_runtime_api::ROOT_NS, b"::")
+            .is_err());
+        interp
+            .namespaces_mut()
+            .adopt_jim_root_namespace(Owned::fresh(obj::new_string_bytes(b"")));
+        assert!(
+            interp.root_command_context_checked().is_err(),
+            "equal bytes cannot donate the original object owner"
+        );
+        interp.namespaces_mut().adopt_jim_root_namespace(root);
+        assert_eq!(
+            interp.root_command_context_checked().unwrap(),
+            Some(tcl_runtime_api::ROOT_NS)
+        );
+        context.retire();
+        assert!(
+            interp.root_command_context_checked().is_err(),
+            "retired interpreter cannot issue a context"
+        );
+    }
+
+    #[test]
     fn jim_flat_command_context_and_helper_enumeration_match_native_controls() {
+        // Native source question: naming.namespace.jim-flat-command-context-source-controls
+        // docs/design/analysis/name-resolution-proofs/jim-flat-command-context-source-controls.md
         let mut interp = Interp::new();
         interp.set_dialect_profile(profile());
         let script = br#"proc p {} {return ROOT}; namespace eval n {proc p {} {return INNER}; namespace eval child {proc q {} {return CHILD}}}; namespace eval D {namespace import ::n::p}; list [namespace canonical] [namespace eval n {namespace canonical}] [lsort [namespace eval n {info procs *}]] [namespace eval n {info commands p}] [lsort [namespace eval n {info procs ::n::*}]] [namespace eval n {namespace which -variable absent}] [namespace eval n {set value LOCAL; namespace eval child {set value CHILD}; set value}] [D::p] [namespace origin D::p]"#;
         assert_eq!(
             interp.eval_str(script),
             Code::Ok,
-            "{:?}",
-            interp.result_bytes()
+            "result={:?}, native refusal={:?}, admission={:?}",
+            interp.result_bytes(),
+            interp.native_access_refusal(),
+            interp.native_compilation_admission_error()
         );
         assert_eq!(
             interp.result_bytes(),

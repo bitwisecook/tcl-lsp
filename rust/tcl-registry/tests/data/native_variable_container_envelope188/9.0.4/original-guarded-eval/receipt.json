@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/.proofs/native-variable-container-envelope188/original-guarded-eval.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.007444996997946873,
+  "version_pin_receipt": "/workspace/.proofs/native-variable-container-runtime187/9.0.4/receipt.json",
+  "reported_version_row": "PATCHLEVEL 9.0.4",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+  "executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+  "source_sha256": "65a493b1ee29448cc138b910da5a17b98fa4e200babbe24dbd906f156d0430b9",
+  "stdout_sha256": "a65a9bb164bee2128aaf95c26e38f5b4833e94b60498cd0c9f5c05df8df66b09",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c": "5c944998c2f89689ef9f591983ea7b0e322dd40756fe5baca641e2258969b125",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclPkg.c": "c89585f9d38a913ce03b9a700987cfe18cb39dec2a24293336eb85b67cd67c8c"
+  },
+  "rows": [
+    "1 NEW 0 1 {can't read \"blocked\": variable is array}"
+  ],
+  "input_channel": "Separate actual old variable-container specimen guard and evaluator envelope; independent isolated script-file processes per leaf/provider, preserving ASCII LF source bytes. This does not infer bytecode/private argv from public output.",
+  "control": "original-guarded-eval"
+}

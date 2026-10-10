@@ -1,0 +1,14 @@
+version 8.4.20
+observation ns-create status 0 result {} errorCode {}
+observation colon-ns-create status 0 result {} errorCode {}
+observation relative-colon status 1 result {invalid command name "apply"} errorCode NONE
+observation absolute-colon status 1 result {invalid command name "apply"} errorCode NONE
+observation relative-plain status 1 result {invalid command name "apply"} errorCode NONE
+observation absolute-plain status 1 result {invalid command name "apply"} errorCode NONE
+observation default-root status 1 result {invalid command name "apply"} errorCode NONE
+observation empty-root status 1 result {invalid command name "apply"} errorCode NONE
+observation counted-relative-colon status 1 result {invalid command name "apply"} errorCode NONE
+observation counted-absolute status 1 result {invalid command name "apply"} errorCode NONE
+observation counted-leading-null status 1 result {invalid command name "apply"} errorCode NONE
+observation unicode-ns-create status 0 result {} errorCode {}
+observation unicode-relative-colon status 1 result {invalid command name "apply"} errorCode NONE

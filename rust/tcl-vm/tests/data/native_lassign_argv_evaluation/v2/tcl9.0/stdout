@@ -1,0 +1,7 @@
+VERSION 9.0.4
+AVAILABLE 1
+ALIAS TclInterpAlias
+CASE inline 0 CODE 0 RESULT {} first 1 one old 0 {} one 1 two
+CASE inline 1 CODE 0 RESULT {} first 1 one old 0 {} one 1 two
+CASE generic 0 CODE 1 RESULT {can't read "first": no such variable} first 0 {} old 0 {} one 0 {}
+CASE generic 1 CODE 0 RESULT {} first 1 one old 1 two one 0 {}

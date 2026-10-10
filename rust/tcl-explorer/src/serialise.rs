@@ -2027,6 +2027,11 @@ pub fn serialise_semantic(result: &ExplorerResult, li: &LineIndex, source: &str)
                         "destroys": snap.unit.dynamic_names.destroys,
                         "reads": snap.unit.dynamic_names.reads,
                     },
+                    "conditionalEvent": snap.unit.irules_event_body.as_ref().map(|event| json!({
+                        "event": event.event(),
+                        "purpose": "conditional-source-frame",
+                        "licensesEnteredEvent": false,
+                    })),
                     "methodFacts": snap.unit.method_facts.as_ref().map(|facts| json!({
                         "params": facts.params,
                         "instanceVars": facts.instance_vars.iter().cloned().collect::<Vec<_>>(),
@@ -3401,6 +3406,37 @@ pub fn serialise_result_with_optimisations(
 mod tests {
     use super::*;
     use crate::run_pipeline;
+
+    #[test]
+    // Implementation contract: naming.variable.registry-event-frame-identity
+    // docs/design/analysis/name-resolution-proofs/variable-registry-event-frame-identity.md
+    fn original_event_semantic_view_preserves_conditional_descriptor_without_worker_grant() {
+        let source = "when HTTP_REQUEST {set local 1}";
+        let result = run_pipeline(source, "f5-irules");
+        let encoded = serialise_semantic(&result, &LineIndex::new(source), source);
+        let event = encoded
+            .as_array()
+            .unwrap()
+            .iter()
+            .find_map(|function| {
+                let event = &function["conditionalEvent"];
+                (!event.is_null()).then_some(event)
+            })
+            .expect("selected event descriptor appears in semantic view");
+        assert_eq!(event["event"], "HTTP_REQUEST");
+        assert_eq!(event["purpose"], "conditional-source-frame");
+        assert_eq!(event["licensesEnteredEvent"], false);
+        let source = "namespace eval ::when {}; proc ::when::HTTP_REQUEST {} {set local 1}";
+        let ordinary = run_pipeline(source, "f5-irules");
+        let encoded = serialise_semantic(&ordinary, &LineIndex::new(source), source);
+        assert!(
+            encoded
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|function| function["conditionalEvent"].is_null())
+        );
+    }
 
     #[test]
     fn completion_terminator_preserves_pending_native_return() {

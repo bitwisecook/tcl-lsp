@@ -1,0 +1,617 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_array_default/manifest.json",
+    "sha256": "f27737da08bae58ccc6e60897b7341280456db0aac1123f7be830622fc995bf6",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array.default-retained-target-and-usage"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_array_default/usage-manifest.json",
+    "sha256": "87296c778f069e94eea6ce509a2ce07abe480e13c3b9528d801b2c28a54d4342",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array.default-retained-target-and-usage"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_array_default/usage-sources.json",
+    "sha256": "1ad3211b7464d929ac237b9038b33e4db23f8f2e2950ae833192c04297ee9895",
+    "classification": "input-fixture",
+    "proof_ids": [
+      "naming.array.default-retained-target-and-usage"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. This file describes exact inputs and supplies no additional executed observation."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json",
+    "sha256": "5ef0ae4f100e6f0cf93cc37fafc52bb579dc8b3ce75685298a1260364e6e3376",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.error.c84-publication-order"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_c84_error_code/manifest.json",
+    "sha256": "4b7036526bcacf93bf640a3263b492174cb06f8510650a47092ad86ab14570c1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.error.c84-publication-order"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_c84_error_code/nonempty/manifest.json",
+    "sha256": "27e20a699c572a236e348f4a14dea997f6c60ecf20b48b197ba32b2a25fec959",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.error.nonempty-info-publication-order"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_call_argv/argv-manifest.json",
+    "sha256": "dffb571accd4cb468d7a9236a12468733903e1e8b9dc9c6a268a638d484ae9ef",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.tcloo.original-call-argv-ownership"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_call_argv/destructor-argv-manifest.json",
+    "sha256": "93094cd598a36479a8f493f17ebe2a5b2e24e82b138949f8c66e19e5e9c24c3b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.tcloo.original-call-argv-ownership"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_call_argv/oo-argv-additional-manifest.json",
+    "sha256": "158ea7c2d5d0be8de84556537ba37da4763a80e28c85a2827637f9671aeea6c4",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.tcloo.original-call-argv-ownership"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_compiler_epochs/manifest.json",
+    "sha256": "0592e891f9e68e6658760747dec80a5ce50e6c51b71ae7a7757b71c1c75942a8",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.command.compiler-and-namespace-epochs"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json",
+    "sha256": "9cfa0c153b3043d8f37cbe27f4e40da2573613e32c3b847743ba86c09f485a19",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.error.dynamic-catch-log-reset"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_ensemble_epochs/manifest.json",
+    "sha256": "e40ba518c2c395f476bbbc7149f0f47028e45a3b0af376879137d0df3ee66f30",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.ensemble.configuration-compiler-epochs"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+    "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.unset-execution-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_jim_lsearch/manifest.json",
+    "sha256": "21dbae4454a92b9e8443639d5cb566932460de38165c20035231d94c8400915c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.jim.lsearch-original-argument-windows"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_double_completion/manifest.json",
+    "sha256": "cb870998bb1f2ecad0c557134b7adad280b5417fe621343e19778459b5870e6c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.expression.double-completion-settlement"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-cshim/tests/data/native_callback_completions/alias-manifest.json",
+    "sha256": "72cfdad7d826cf1468a28c646652edd683a3cb596a0dddac9f1a37e7927d189c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.native-abi.callback-completion-result-and-options"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-cshim/tests/data/native_callback_completions/manifest.json",
+    "sha256": "3543c49b7dcff4dbd99a9151655016807bcd3dd1a7051f93b903bfd427dc65ea",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.native-abi.callback-completion-result-and-options"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-cshim/tests/data/native_command_publication/manifest.json",
+    "sha256": "96e788d238c335ef911ef92e0bcf6a93d1fc5b2b3db4e52f4771464fe6ed3b58",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.native-abi.command-publication-callback-and-scope"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-cshim/tests/data/native_command_publication/scope-manifest.json",
+    "sha256": "db06bd00c4ae0362894984b8b2fd96d5ae3dd489d185aa65829783d05cce9c02",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.native-abi.command-publication-callback-and-scope"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_c84_parse_context/manifest.json",
+    "sha256": "27f9c985c624b89dd6da77aa87721872afafcea421bedc30aee2d43980fe673f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.grammar.c84-parser-context-extents"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_compiler_pass/callback-manifest.json",
+    "sha256": "73f4d831724c7e46cd923165c48e197efc87e645f3a481816d51a2711e3b58a7",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiler.selected-pass-and-observer-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_compiler_pass/cases.json",
+    "sha256": "9d3668425c8c0797291e6958ac0a5d8890193cae6fe92e381059e3fe94f2ec19",
+    "classification": "input-fixture",
+    "proof_ids": [
+      "naming.compiler.selected-pass-and-observer-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. This file describes exact inputs and supplies no additional executed observation."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_compiler_pass/manifest.json",
+    "sha256": "c462d7d7f611a8056c3c5607ff06a5d7830916464d323bb73b417c31809806a4",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiler.selected-pass-and-observer-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/manifest.json",
+    "sha256": "42b9689024d35857f41d9977ce23b7f4371f577cd1063e417c37d54a19f6e1ec",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiler.warm-limit-pass-currency"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_coroutine_compilation/manifest.json",
+    "sha256": "fbd51274e373879c894170b8bc84524abede2d94ec13d5739b60b4f5de29b759",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.procedure.coroutine-compilation-and-runtime-routing"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_coroutine_compilation/runtime-manifest.json",
+    "sha256": "839c698fcbacce899945cab631edf66764a08bfe48dfc20dc4dfd3ca1f99f6ba",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.procedure.coroutine-compilation-and-runtime-routing"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_ensemble_rewrite/manifest.json",
+    "sha256": "ba02bbf6c217149ec46e0a84d3073add6c5b673f532cc82e9f414c4c2ae901e4",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.ensemble.rewrite-reset-observation-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_file_compilers/provenance.json",
+    "sha256": "f5026d3eaa961fbea226cd57234e60b644440acaa4d219e5dc6d6ccdd52d5d77",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiler.file-worker-attachment-roster"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json",
+    "sha256": "df7b42f7a4741b08b83096e429a6a254eba27a488d1bd3b9e189d105b8fbe6ab",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace.original-command-enumeration-patterns"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json",
+    "sha256": "77789dd8855c1291fc1a3a74e94b9a06c4d36dc57b8866cc2aba57bd328d6743",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace.original-command-enumeration-patterns"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json",
+    "sha256": "c762ef9c8085e3f3cbe7ade378887a07b508dbfadc7fda42ad90ca3c823b6b04",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace.original-command-enumeration-patterns"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_info_commands/manifest.json",
+    "sha256": "41bb95ee058973c7755f32a31bf9faf3bec36774aeb015bc8022c9ce85bbe4c5",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace.original-command-enumeration-patterns"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_interpreter_enum/manifest.json",
+    "sha256": "64ba064d0ebc337a50ab1e9bdc46503687f83f9997353ef4fdce311dab856cc0",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.interpreter.selector-and-property-index-currency"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_introspection_compilation/cases.json",
+    "sha256": "f53964ad590771541cda2a8df6326e67e5224391d9d3de8ed8ebd609476a2d8b",
+    "classification": "input-fixture",
+    "proof_ids": [
+      "naming.compiler.introspection-source-and-effect-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. This file describes exact inputs and supplies no additional executed observation."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_introspection_compilation/effects-manifest.json",
+    "sha256": "ef1ab0befd4d7fdb34841da963a9a42cffb04e21f8065d02519467c304b836fe",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiler.introspection-source-and-effect-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_introspection_compilation/manifest.json",
+    "sha256": "9e39e3093a93d528d90d128be6411ccc90472d2f625e2120a45facd608a409a7",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiler.introspection-source-and-effect-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_package_files/manifest.json",
+    "sha256": "302172f7eafd627e8002c26ac554fbabcded5d6fdf77803260321d395736039c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.package.files-original-list-lifetime"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_package_ordinary/manifest.json",
+    "sha256": "5877faca17503732c358c0a44cc87b3cb53d5e5c7e831bddb5b7cd9a78abc41c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.package.ordinary-roster",
+      "naming.package.ordinary-help",
+      "naming.package.ordinary-forget",
+      "naming.package.ordinary-preference",
+      "naming.package.ordinary-versions",
+      "naming.package.ordinary-conflict",
+      "naming.package.ordinary-invalid",
+      "naming.package.ordinary-require",
+      "naming.package.ordinary-stable",
+      "naming.package.ordinary-unknown",
+      "naming.package.ordinary-files",
+      "naming.package.ordinary-files-forget",
+      "naming.package.ordinary-files-failure",
+      "naming.package.ordinary-files-plain"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_package_versions/manifest.json",
+    "sha256": "62912f4daeb5aa76c0e2017c3de09eebed6abbf31faba153617278a5b28cc003",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.package.version-original-header-reuse"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json",
+    "sha256": "233cacd721f19bfe9b9e6115125fa3f2b219fba5c6fa60cc4301cc8fccf2bb2f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.selected-set-read-write-effects"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_stock_index/manifest.json",
+    "sha256": "b9cd16ec4e751e9b1fd3e77dfb10018041205e12c51111f4d7ad6cb3e16c0a0f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.selector.stock-index-original-cache-reuse"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_stock_index_flags/manifest.json",
+    "sha256": "7d7414fe59ebf02c98ac477cf3b6e6f1878a9adcea3adf818a5a66beca235dbd",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.selector.stock-index-stride-and-flags"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_unset_compilation/observations.json",
+    "sha256": "4018e54aaaf1b2a6e2a0fbb3e604d6ed5f97b121c512182f2655d77913fdb4a3",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiler.unset-original-body-acceptance"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+    "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.unset-option-and-name-grammar"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-runtime-api/tests/data/native_source_literals/cleanup.json",
+    "sha256": "d2c69cb4c248175e181a4da68902d3d8b1031a5a1087abed20451ee4544cf962",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiler.original-source-literal-self-and-cleanup"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-runtime-api/tests/data/native_source_literals/larger84.json",
+    "sha256": "daa0994ac732daac9833ca28c0162c995ec7d84c8ba8ab9030c8750688f9818f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiler.original-source-literal-self-and-cleanup"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json",
+    "sha256": "3786682a24436ab320722f00ab571497e100c16a679220a5b53dcddefb5263c6",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiler.original-source-literal-self-and-cleanup"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_array_search/manifest.json",
+    "sha256": "1d48c3bb478145c9d3c6269bd59b972b605ff0681d7a7f80279953fd9cc754b4",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array.search-handle-cache-and-lifecycle"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_array_search/search-lifecycle-manifest.json",
+    "sha256": "a1cb9e7800bac5eb9e6f47f2aa86f1797bf8a7311f79c423b2a4ba6c5a8aa2d8",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.array.search-handle-cache-and-lifecycle"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_error_log/provenance.json",
+    "sha256": "c7afb9444c0a34f324774d4eb867769584b2f078fee40227e9bc3dd9d770b313",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.error.original-log-options-and-special-frame-extents"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_error_log/return_options_provenance.json",
+    "sha256": "b4acf49d1579e8e52bc78444105d229483ee7d783879dc3c03be29fedf2c584c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.error.original-log-options-and-special-frame-extents"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_error_log/special_frames_provenance.json",
+    "sha256": "4d529dc16d6b242c41251d3729910b2cfadfc0ed9e4e3ccd4aace591477a71cd",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.error.original-log-options-and-special-frame-extents"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_jim_index/manifest.json",
+    "sha256": "f460fac3f11c73749b0d5083d7bdae7d6111e1709a6205ccecd7d655e85811b1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.jim.original-index-conversion-and-result-object"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_jim_index/physical-manifest.json",
+    "sha256": "1e254bb0a8ad3037672ba1bc400d15395e9181ecc44cccaee3dc770eacfeba79",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.jim.original-index-conversion-and-result-object"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_jim_local/manifest.json",
+    "sha256": "efae1058812ba8675530d41653c2ffd72574a4554af9c7e08291e5554f382b83",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.jim.local-command-previous-lineage"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_jim_unset/provenance.json",
+    "sha256": "04b8217436481af3e3f2a62a5d32a68b597ee8b64c3203a042df8ce6ed711544",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.jim.dictionary-unset-target-and-copy-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json",
+    "sha256": "4859b6b5c25aeeb3c3e50bf18d2a98391567305cd514a51caf24285169fb0df2",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.package.authored-control-provide-prefix",
+      "naming.package.authored-control-require-prefix",
+      "naming.package.authored-control-present-prefix",
+      "naming.package.authored-control-ambiguous-package",
+      "naming.package.authored-control-new-member",
+      "naming.package.authored-control-multi-requirement",
+      "naming.package.authored-control-provide-arity",
+      "naming.package.authored-control-custom-provide",
+      "naming.package.authored-control-custom-versions",
+      "naming.package.authored-control-custom-loader",
+      "naming.package.authored-control-forget-core",
+      "naming.package.authored-control-names-forgotten",
+      "naming.package.authored-control-unknown",
+      "naming.package.authored-control-version-compare",
+      "naming.package.authored-control-version-invalid",
+      "naming.package.authored-control-namespace-ambiguous",
+      "naming.package.authored-control-namespace-path",
+      "naming.package.authored-control-namespace-prefix"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_dictionary_body/manifest.json",
+    "sha256": "fa787d8358bd24fe60efbcd838a2825f3b6a69c51e0045f2d84fa641bcabbcbf",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.dictionary.update-with-body-and-observer-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_dictionary_search/manifest.json",
+    "sha256": "cf61f642805b85a2c4605e560055bee894c4dfd1f2304ce93dc127bd4229ac6c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.dictionary.original-search-backing-and-member-windows"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_dictionary_search/epilogues/manifest.json",
+    "sha256": "6a8f7be87b9679e7d6c83833a72a656a5bf4b4bb10abb2c104923cb09bc9cdba",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.dictionary.compiled-loop-epilogue-retention"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_dictionary_search/mutation/callbacks/manifest.json",
+    "sha256": "c565ebfa40e52bd75bdd8079d7429ed9a89808f6a3750a383671c56a12b411fa",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.dictionary.callback-search-mutation-abort"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_dictionary_search/mutation/direct/manifest.json",
+    "sha256": "ff6a97a63129070dc5746f2a88e7995f38b6f319a1e3c0493a36565de3c62b7c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.dictionary.direct-search-mutation-close-versus-next"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_equality/manifest.json",
+    "sha256": "ade99e037a0a71cacc235cb1eec209f9edc40fc34d8d3ca5d30a9316b4750806",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.native-object.full-equality-original-representations"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_jim_dictionary/manifest.json",
+    "sha256": "f9aba2365d673040c2f615e40bc9940a448bb16e26815e7c4ad1be1b633e1796",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.jim.scripted-dictionary-worker-body-and-dispatch"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_legacy_increment/manifest.json",
+    "sha256": "3ee760cc78565621dc5670d1c2057358e787d342b482bc2ae3e16744bf443270",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.original-increment-representation-frontiers"
+    ],
+    "reason": "Inspected the original program, provider fields and retained outcome table for this specific question. Capture metadata and original outputs stay associated with their own source/attempt; successful, rejected and aborted windows are not interchangeable."
+  }
+]

@@ -1,0 +1,15 @@
+
+running 1 test
+test resolved_invocation::tests::source_expression_roles_keep_selected_tail_and_unknown_cardinality ... 
+thread 'resolved_invocation::tests::source_expression_roles_keep_selected_tail_and_unknown_cardinality' (622066) panicked at rust/tcl-registry/src/resolved_invocation.rs:4016:79:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    resolved_invocation::tests::source_expression_roles_keep_selected_tail_and_unknown_cardinality
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1466 filtered out; finished in 0.07s
+

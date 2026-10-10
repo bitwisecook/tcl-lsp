@@ -62,6 +62,12 @@ impl NativeListIndexOps for Vm {
         let protocol = tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?);
         self.native_object_list_elements_in(original, protocol)
     }
+    fn index_ordinary_members(&mut self, original: &Value) -> Result<NativeListItems, ValueError> {
+        // Value's current native list conversion installs an ordinary primary.
+        // An abstract Value adapter must implement this distinct purpose too.
+        let protocol = tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?);
+        self.native_object_list_elements_in(original, protocol)
+    }
     fn index_list_copy(&mut self, original: &Value) -> Result<Value, ValueError> {
         original.native_list_copy(tcl_syntax::native_string::NativeStringProtocol::C(
             self.index_version()?,
@@ -95,7 +101,36 @@ impl NativeListIndexOps for Vm {
         original.install_native_end_offset(offset)
     }
 }
+impl tcl_cmd_core::native_list_index::NativeListRangeOps for Vm {
+    fn range_original(
+        &mut self,
+        original: &Value,
+        first: i64,
+        last: i64,
+    ) -> Result<Value, ValueError> {
+        original.native_list_command_range(
+            first,
+            last,
+            tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?),
+        )
+    }
+}
 impl Vm {
+    pub(crate) fn original_list_range(
+        &mut self,
+        list: &Value,
+        first: &Value,
+        last: &Value,
+    ) -> Result<Value, CmdError> {
+        if self
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            .is_some_and(|protocol| protocol.tcl_version().is_some())
+        {
+            return native_list_index::command_range(self, list, first, last);
+        }
+        tcl_cmd_core::list::lrange(self, list, first, last)
+    }
     pub(crate) fn original_list_index(
         &mut self,
         list: &Value,

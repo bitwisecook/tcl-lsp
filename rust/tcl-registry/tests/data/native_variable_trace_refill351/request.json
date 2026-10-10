@@ -1,0 +1,26 @@
+{
+  "question_id": "naming.variable.original-unset-alias-trace-refill",
+  "question": "When unset through a retained scalar or array-member alias invokes an old callback that refills the same public root and installs a fresh unset registration, what registration and later callback are retained?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Two independent ASCII originals, fresh fullInit interpreter/process per case, unchanged counted CAPI driver. Original upvar #0 retains a lawful namespace/root alias; modern trace APIs unchanged. No provider fallback or reconstructed interpreter API.",
+  "observation": "Whole original completion/result, explicit public refill value and trace info after first unset, final log after second unset. No private registration, cell, header or alias allocation identity inferred. This measures registration disposal chronology independently from comparison-key/member-allocation equality. Retain exact source/provider/build/process/stdout/stderr receipts and actual Jim unavailable trace error.",
+  "cases": [
+    {
+      "id": "element-alias-refill",
+      "source_file": "element-alias-refill.tcl",
+      "source_sha256": "5f12736d8f3c800742de458e376befb77cd0eb5d1fda265b423c65c5737b56fe"
+    },
+    {
+      "id": "scalar-alias-refill",
+      "source_file": "scalar-alias-refill.tcl",
+      "source_sha256": "aeec03085143faf143086e6228a0ae569a7ba7fb72ece8c818608b4ab4e8b0ff"
+    }
+  ]
+}

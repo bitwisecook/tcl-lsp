@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "source_path": "/workspace/.proofs/current-native-empty-counted-append130/probe.c",
+  "source_sha256": "fb6e8bd4944088d6911f0c53a3104712197c3f1ca9b62001f1784397fe125ad4",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1"
+  ],
+  "question": "Does a reached zero-length Tcl_AppendToObj convert the original primary before returning, independently of whether resident bytes already exist?",
+  "input_channel": "Direct unshared native Tcl_Obj inputs and counted Tcl_AppendToObj bytes; no script source evaluation",
+  "observations": "Actual info tcl_patchLevel variable; primary and resident presence before append and after append but before counted string getter; exact counted bytes after the reached getter. Six fixed constructor/representation states per C provider. Jim and vendor are not tested.",
+  "requirements": [
+    "Keep native Tcl_Init result and actual patchLevel; no assumed SDK version label.",
+    "Tcl_Obj has only one observation reference during append, so native shared-object panic is not bypassed.",
+    "Keep exact source/compiler/header/library/executable/streams hashes.",
+    "No command/variable observer or interpreter dispatch authority is inferred."
+  ]
+}

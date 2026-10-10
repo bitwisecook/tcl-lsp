@@ -1,0 +1,58 @@
+TclCompileConcatCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Obj *objPtr, *listObj, **objs;
+    Tcl_Size len, i, numWords = parsePtr->numWords;
+    Tcl_Token *tokenPtr;
+
+    /* TODO: Consider compiling expansion case. */
+    if (numWords == 1) {
+	/*
+	 * [concat] without arguments just pushes an empty object.
+	 */
+
+	PUSH(			"");
+	return TCL_OK;
+    } else if (OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Test if all arguments are compile-time known. If they are, we can
+     * implement with a simple push of a literal.
+     */
+
+    TclNewObj(listObj);
+    for (i = 1, tokenPtr = parsePtr->tokenPtr; i < numWords; i++) {
+	tokenPtr = TokenAfter(tokenPtr);
+	TclNewObj(objPtr);
+	if (!TclWordKnownAtCompileTime(tokenPtr, objPtr)) {
+	    Tcl_BounceRefCount(objPtr);
+	    Tcl_BounceRefCount(listObj);
+	    goto runtimeConcat;
+	}
+	(void) Tcl_ListObjAppendElement(NULL, listObj, objPtr);
+    }
+
+    TclListObjGetElements(NULL, listObj, &len, &objs);
+    PUSH_OBJ(			Tcl_ConcatObj(len, objs));
+    Tcl_BounceRefCount(listObj);
+    return TCL_OK;
+
+    /*
+     * General case: do the concatenation at runtime.
+     */
+
+  runtimeConcat:
+    for (i = 1, tokenPtr = parsePtr->tokenPtr; i < numWords; i++) {
+	tokenPtr = TokenAfter(tokenPtr);
+	PUSH_TOKEN(		tokenPtr, i);
+    }
+    OP4(			CONCAT_STK, i - 1);
+    return TCL_OK;
+}

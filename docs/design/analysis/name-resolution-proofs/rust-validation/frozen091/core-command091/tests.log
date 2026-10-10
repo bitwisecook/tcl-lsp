@@ -1,0 +1,55 @@
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-core` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.24s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_core-f816994f92f0f9f0)
+
+running 2 tests
+test original_command_rename::tests::original_command_rename_declines_stale_duplicate_collision_and_readonly_links ... ORIGINAL_COMMAND_RENAME offset=42 stage=registry-name-link-or-effect-coverage
+ORIGINAL_COMMAND_RENAME_FACTS offset=42 command=interp operation=Invoke traits=Traits(586312376488296450) roles_complete=true roles=[] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Alias { target_lookup: Global, source_interpreter: LocatedLiteral { value: "", argument_index: 1 }, alias: LocatedLiteral { value: "link", argument_index: 2 }, target_interpreter: LocatedLiteral { value: "", argument_index: 3 }, target: LocatedLiteral { value: "helper", argument_index: 4 }, arguments: [] }), commit: MayCommitBeforeAbruptCompletion }] }) refusal=UneditableLinks
+ORIGINAL_COMMAND_RENAME offset=42 stage=registry-name-link-or-effect-coverage
+ORIGINAL_COMMAND_RENAME_FACTS offset=42 command=set operation=StructuredLowering(Set) traits=Traits(4222124650659840) roles_complete=true roles=[(0, VarWrite)] transitions=UnknownInvocation refusal=IncompleteCoverage
+ok
+test original_command_rename::tests::original_command_rename_keeps_opaque_words_and_ignores_reporting_maps ... ORIGINAL_COMMAND_RENAME offset=24 stage=registry-name-link-or-effect-coverage
+ORIGINAL_COMMAND_RENAME_FACTS offset=24 command=return operation=StructuredLowering(Return) traits=Traits(1408474395181066) roles_complete=true roles=[(0, Result)] transitions=UnknownInvocation refusal=IncompleteCoverage
+
+thread 'original_command_rename::tests::original_command_rename_keeps_opaque_words_and_ignores_reporting_maps' (378345) panicked at rust/tcl-lsp-core/src/original_command_rename.rs:847:85:
+called `Result::unwrap()` on an `Err` value: IncompleteCoverage
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    original_command_rename::tests::original_command_rename_keeps_opaque_words_and_ignores_reporting_maps
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 2522 filtered out; finished in 6.62s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

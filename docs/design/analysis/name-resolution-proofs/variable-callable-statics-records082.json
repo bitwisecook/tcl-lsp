@@ -1,0 +1,224 @@
+[
+  {
+    "id": "naming.variable.original-callable-static-capture",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-callable-static-capture.md",
+    "problem_statement": "A String-facing static-list consumer can merge counted names or lose opaque initialiser bytes. Treating reference capture as a value read also confuses wrapper presence with link-target contents, while publishing declarations incrementally can leave partial bindings after a later error.",
+    "question": "How does source callable-static capture retain the actual native operand and distinguish copied contents from retained raw wrappers without fabricating completion or lifetime authority?",
+    "conclusion": "The original static-list operand and its native list children select counted static names, literal initialisers, copied values and reference wrappers independently. Callable allocation identity owns the retained slots; copied values retain their own historical producer graph, while references retain the original wrapper and follow its logical-level name link. Raw wrapper presence is separate from target contents: a reference can retain an installed name link whose target is missing, whereas a value copy fails. Preparation publishes atomically and does not supply Normal completion; unresolved capture errors cannot close the source definition. Current input, naming policy, observer and cell checks remain independent of representation caches. Original unset uses the actual named slot separately from its retained wrapper: direct callable-static fallback contents remain intact, while detaching a pinned named cell preserves held contents across later name recreation.",
+    "scope": "Rust source-cell model for the selected Jim084 callable static grammar and actual definition operand. Tests use original NativeValue words with counted zero/opaque bytes and explicitly supplied conditional frames. The inspected pinned Jim source distinguishes raw wrapper selection from target evaluation. No new native guest run, physical VarVal pointer, release-hook closure, successful opaque body execution, edit or BIG-IP authority is claimed.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance execution for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance execution for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance execution for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance execution for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance execution for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance execution for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance execution for this question is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "jim-static-lookup-source-0",
+        "role": "source-anchor",
+        "path": "rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json",
+        "sha256": "088b41b3abb7ec1bb8e04f258bc17c6e8286a89f9aa030acdb5b29b673b4d172",
+        "description": "Exact pinned JimCreateProcedureStatics snippet; source inspection only.",
+        "json_pointer": "/source_anchors/0/snippet"
+      },
+      {
+        "id": "jim-static-lookup-source-1",
+        "role": "source-anchor",
+        "path": "rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json",
+        "sha256": "088b41b3abb7ec1bb8e04f258bc17c6e8286a89f9aa030acdb5b29b673b4d172",
+        "description": "Exact pinned SetVariableFromAny snippet; source inspection only.",
+        "json_pointer": "/source_anchors/1/snippet"
+      },
+      {
+        "id": "jim-static-lookup-source-2",
+        "role": "source-anchor",
+        "path": "rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json",
+        "sha256": "088b41b3abb7ec1bb8e04f258bc17c6e8286a89f9aa030acdb5b29b673b4d172",
+        "description": "Exact pinned Jim_GetVariable snippet; source inspection only.",
+        "json_pointer": "/source_anchors/2/snippet"
+      }
+    ],
+    "source_anchors": [
+      {
+        "provider": "jim",
+        "version": "0.84-9-g5bac7c9",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+        "original_path": "jim.c",
+        "function": "JimCreateProcedureStatics",
+        "lines": [
+          4211,
+          4310
+        ],
+        "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "snippet": "/* Create the named static variables declared for a proc body. */\nstatic int JimCreateProcedureStatics(Jim_Interp *interp, Jim_Cmd *cmdPtr, Jim_Obj *staticsListObjPtr)\n{\n    int len, i;\n\n    len = Jim_ListLength(interp, staticsListObjPtr);\n    if (len == 0) {\n        return JIM_OK;\n    }\n\n    cmdPtr->u.proc.staticVars = Jim_Alloc(sizeof(Jim_HashTable));\n    Jim_InitHashTable(cmdPtr->u.proc.staticVars, &JimVariablesHashTableType, interp);\n    for (i = 0; i < len; i++) {\n        Jim_Obj *initObjPtr = NULL;\n        Jim_Obj *nameObjPtr;\n        Jim_VarVal *vv = NULL;\n        Jim_Obj *objPtr = Jim_ListGetIndex(interp, staticsListObjPtr, i);\n        int subLen = Jim_ListLength(interp, objPtr);\n        int byref = 0;\n\n        /* Check if it's composed of two elements. */\n        if (subLen != 1 && subLen != 2) {\n            Jim_SetResultFormatted(interp, \"too many fields in static specifier \\\"%#s\\\"\",\n                objPtr);\n            return JIM_ERR;\n        }\n\n        nameObjPtr = Jim_ListGetIndex(interp, objPtr, 0);\n\n        /* How to intialise or link? */\n        if (subLen == 1) {\n            int len;\n            const char *pt = Jim_GetString(nameObjPtr, &len);\n            if (*pt == '&') {\n                /* Create as a reference */\n                nameObjPtr = Jim_NewStringObj(interp, pt + 1, len - 1);\n                byref = 1;\n            }\n        }\n        Jim_IncrRefCount(nameObjPtr);\n\n        if (subLen == 1) {\n            switch (SetVariableFromAny(interp, nameObjPtr)) {\n                case JIM_DICT_SUGAR:\n                    /* XXX: This message seem unnecessarily verbose, but it matches Tcl */\n                    if (byref) {\n                        Jim_SetResultFormatted(interp, \"Can't link to array element \\\"%#s\\\"\", nameObjPtr);\n                    }\n                    else {\n                        Jim_SetResultFormatted(interp, \"Can't initialise array element \\\"%#s\\\"\", nameObjPtr);\n                    }\n                    Jim_DecrRefCount(interp, nameObjPtr);\n                    return JIM_ERR;\n\n                case JIM_OK:\n                    if (byref) {\n                        vv = nameObjPtr->internalRep.varValue.vv;\n                    }\n                    else {\n                        initObjPtr = Jim_GetVariable(interp, nameObjPtr, JIM_NONE);\n                        if (!initObjPtr) {\n                            Jim_SetResultFormatted(interp, \"Could not resolve upvar \\\"%#s\\\"'s value\", nameObjPtr);\n                            Jim_DecrRefCount(interp, nameObjPtr);\n                            return JIM_ERR;\n                        }\n                    }\n                    break;\n\n                case JIM_ERR:\n                    /* Doesn't exist */\n                    Jim_SetResultFormatted(interp,\n                        \"variable for initialization of static \\\"%#s\\\" not found in the local context\",\n                        nameObjPtr);\n                    Jim_DecrRefCount(interp, nameObjPtr);\n                    return JIM_ERR;\n            }\n        }\n        else {\n            initObjPtr = Jim_ListGetIndex(interp, objPtr, 1);\n        }\n\n        if (vv == NULL) {\n            vv = Jim_Alloc(sizeof(*vv));\n            vv->objPtr = initObjPtr;\n            Jim_IncrRefCount(vv->objPtr);\n            vv->linkFramePtr = NULL;\n            vv->refCount = 0;\n        }\n\n        if (JimSetNewVariable(cmdPtr->u.proc.staticVars, nameObjPtr, vv) != JIM_OK) {\n            Jim_SetResultFormatted(interp,\n                \"static variable name \\\"%#s\\\" duplicated in statics list\", nameObjPtr);\n            JimIncrVarRef(vv);\n            JimDecrVarRef(interp, vv);\n            Jim_DecrRefCount(interp, nameObjPtr);\n            return JIM_ERR;\n        }\n\n        Jim_DecrRefCount(interp, nameObjPtr);\n    }\n",
+        "snippet_sha256": "a9c9c664c37ca9e060c887aef048d5d3ceffd094181073a79eef24635e24ba10",
+        "evidence": "jim-static-lookup-source-0"
+      },
+      {
+        "provider": "jim",
+        "version": "0.84-9-g5bac7c9",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+        "original_path": "jim.c",
+        "function": "SetVariableFromAny",
+        "lines": [
+          4620,
+          4689
+        ],
+        "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "snippet": " * JIM_ERR if it does not exist, JIM_DICT_SUGAR if it's not\n * a variable name, but syntax glue for [dict] i.e. the last\n * character is ')' */\nstatic int SetVariableFromAny(Jim_Interp *interp, struct Jim_Obj *objPtr)\n{\n    const char *varName;\n    Jim_CallFrame *framePtr;\n    int global;\n    int len;\n    Jim_VarVal *vv;\n\n    /* Check if the object is already an uptodate variable */\n    if (objPtr->typePtr == &variableObjType) {\n        framePtr = objPtr->internalRep.varValue.global ? interp->topFramePtr : interp->framePtr;\n        if (objPtr->internalRep.varValue.callFrameId == framePtr->id) {\n            /* nothing to do */\n            return JIM_OK;\n        }\n        /* Need to re-resolve the variable in the updated callframe */\n    }\n    else if (objPtr->typePtr == &dictSubstObjType) {\n        return JIM_DICT_SUGAR;\n    }\n\n    varName = Jim_GetString(objPtr, &len);\n\n    /* Make sure it's not syntax glue to get/set dict. */\n    if (len && varName[len - 1] == ')' && strchr(varName, '(') != NULL) {\n        return JIM_DICT_SUGAR;\n    }\n\n    if (varName[0] == ':' && varName[1] == ':') {\n        while (*varName == ':') {\n            varName++;\n            len--;\n        }\n        global = 1;\n        framePtr = interp->topFramePtr;\n        /* XXX should use length */\n        Jim_Obj *tempObj = Jim_NewStringObj(interp, varName, len);\n        vv = JimFindVariable(&framePtr->vars, tempObj);\n        Jim_FreeNewObj(interp, tempObj);\n    }\n    else {\n        global = 0;\n        framePtr = interp->framePtr;\n        /* Resolve this name in the variables hash table */\n        vv = JimFindVariable(&framePtr->vars, objPtr);\n        if (vv == NULL && framePtr->staticVars) {\n            /* Try with static vars. */\n            vv = JimFindVariable(framePtr->staticVars, objPtr);\n        }\n    }\n\n    if (vv == NULL) {\n        return JIM_ERR;\n    }\n\n    /* Free the old internal repr and set the new one. */\n    Jim_FreeIntRep(interp, objPtr);\n    objPtr->typePtr = &variableObjType;\n    objPtr->internalRep.varValue.callFrameId = framePtr->id;\n    objPtr->internalRep.varValue.vv = vv;\n    objPtr->internalRep.varValue.global = global;\n    return JIM_OK;\n}\n\n/* -------------------- Variables related functions ------------------------- */\nstatic int JimDictSugarSet(Jim_Interp *interp, Jim_Obj *ObjPtr, Jim_Obj *valObjPtr);\nstatic Jim_Obj *JimDictSugarGet(Jim_Interp *interp, Jim_Obj *objPtr, int flags);\n",
+        "snippet_sha256": "0535e59eed4cc5585c36111e7b595effdc66168d9721f138f859d26a2c6cb1d6",
+        "evidence": "jim-static-lookup-source-1"
+      },
+      {
+        "provider": "jim",
+        "version": "0.84-9-g5bac7c9",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+        "original_path": "jim.c",
+        "function": "Jim_GetVariable",
+        "lines": [
+          4933,
+          4975
+        ],
+        "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "snippet": " * in a dictionary which is shared, the array variable value is duplicated first.\n * This allows the array element to be updated (e.g. append, lappend) without\n * affecting other references to the dictionary.\n */\nJim_Obj *Jim_GetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)\n{\n    if (interp->safeexpr) {\n        return nameObjPtr;\n    }\n    switch (SetVariableFromAny(interp, nameObjPtr)) {\n        case JIM_OK:{\n                Jim_VarVal *vv = nameObjPtr->internalRep.varValue.vv;\n\n                if (vv->linkFramePtr == NULL) {\n                    return vv->objPtr;\n                }\n                else {\n                    Jim_Obj *objPtr;\n\n                    /* The variable is a link? Resolve it. */\n                    Jim_CallFrame *savedCallFrame = interp->framePtr;\n\n                    interp->framePtr = vv->linkFramePtr;\n                    objPtr = Jim_GetVariable(interp, vv->objPtr, flags);\n                    interp->framePtr = savedCallFrame;\n                    if (objPtr) {\n                        return objPtr;\n                    }\n                    /* Error, so fall through to the error message */\n                }\n            }\n            break;\n\n        case JIM_DICT_SUGAR:\n            /* [dict] syntax sugar. */\n            return JimDictSugarGet(interp, nameObjPtr, flags);\n    }\n    if (flags & JIM_ERRMSG) {\n        Jim_SetResultFormatted(interp, \"can't read \\\"%#s\\\": no such variable\", nameObjPtr);\n    }\n    return NULL;\n}\n\n",
+        "snippet_sha256": "df8d47c3f0c411b74c7801f8b1b27b413f666af46f97bbdd5e0f2991ea680f5f",
+        "evidence": "jim-static-lookup-source-2"
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/raw_binding.rs",
+        "selector": "raw_binding::original_callable_static_tests::original_static_literals_keep_counted_names_and_opaque_value_children",
+        "assertion": "Two raw-zero names retain distinct static slots and opaque literal child bytes; later exact writes and frame restoration preserve the other slot.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/raw_binding.rs",
+        "selector": "raw_binding::original_callable_static_tests::original_static_copy_and_reference_have_distinct_content_lifetimes",
+        "assertion": "A copied static keeps OLD after the named source changes, while a retained reference sees NEW and later retargeting to another counted name. The retargeted read retains the exact maker target CellIdentity across the new call frame.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/raw_binding.rs",
+        "selector": "raw_binding::original_callable_static_tests::original_reference_capture_owns_wrapper_presence_before_link_target_contents",
+        "assertion": "An installed dangling name-link can be retained by reference before its target exists; copying its missing target fails without publication. Later resolution retains the exact original target CellIdentity across the called frame.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/raw_binding.rs",
+        "selector": "raw_binding::original_callable_static_tests::original_static_capture_withdraws_atomically_for_unowned_or_observed_inputs",
+        "assertion": "Malformed later declarations, unknown read observers, stale evaluated input and conflicting policies leave the entire prior state intact.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/raw_binding.rs",
+        "selector": "raw_binding::original_callable_static_tests::original_static_unset_preserves_fallback_and_detaches_only_the_named_wrapper",
+        "assertion": "An original counted Jim unset detaches only the pinned named entry, preserves the held OLD value after NEW recreation, and leaves direct callable-static fallback KEEP intact under both write projection and source transfer.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/raw_binding.rs",
+        "symbol": "ResolveContext::capture_original_callable_statics",
+        "purpose": "Authenticate original list children and publish the complete counted capture atomically under the actual naming/cell context."
+      },
+      {
+        "path": "rust/tcl-compiler/src/raw_binding.rs",
+        "symbol": "RawBindingContents",
+        "purpose": "SelectedName retains a counted logical-level target name independently of its current resolved value or source label."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding.rs",
+        "symbol": "prepare_source_callable_statics",
+        "purpose": "Consume definition.statics_at through the exact effective original input, current publication allocation and independent capture error boundary."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "symbol": "parse_static_variables_bytes",
+        "purpose": "One selected native static-list grammar supplies literal, copy and reference roles without cell or completion authority."
+      },
+      {
+        "path": "rust/tcl-compiler/src/variable_bindings.rs",
+        "symbol": "detach_retained_destructions",
+        "purpose": "Use the exact original Jim named slot for pinned-wrapper detachment, keeping static fallback and linked-target destruction separate."
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_resolve/original_bytes.rs",
+        "symbol": "exact_root",
+        "purpose": "Preserve a receiver already selected by the current raw-wrapper or alias owner instead of rebinding it to the requesting activation; lazy OO candidates apply only to the actual direct current slot."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The linked Rust selectors exercise model inputs and lifetime distinctions; no Rust execution receipt is attached. Source windows can be checked against the retained pinned full-file digest. Native reference/copy admission is explained by inspected code, not asserted as a newly measured subprocess result."
+    }
+  }
+]

@@ -1,0 +1,66 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_dictionary_receiver/manifest.json",
+    "sha256": "1afa14e52fbdcee3a122d13505f8ea0c4f66afa0eb7916b1cc6d17b0e93a9f99",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.dictionary-missing-receiver-and-array-default-phases"
+    ],
+    "reason": "Inspected all 18 exact source/result rows and manifest scope; recorded versions without inventing absent build hashes or physical cache evidence."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_scalar_compilation/manifest.json",
+    "sha256": "f4b7cb94b7ee39d8a040b69a676874d3f37a20e9da7c4633eb491a2a28376dfb",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.scalar-original-argv-compiler-and-result-windows"
+    ],
+    "reason": "Inspected 15 exact original bodies/argv and all five complete opcode/object/result captures."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_scalar_compilation/cases.json",
+    "sha256": "1620d5110cda29a730e268f0a4d06e3e3086e783638deeeef1de74c7784c7cec",
+    "classification": "input-fixture",
+    "proof_ids": [
+      "naming.variable.scalar-original-argv-compiler-and-result-windows"
+    ],
+    "reason": "Inspected all fifteen bodies and confirmed they are the exact probe source roster; this file has inputs and no standalone provider outcome."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference-manifest.json",
+    "sha256": "4f1b613ed346e1c135187b0775fbaa620af65e4a623bebfb5accc553f8668b6b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.jim-scalar-reference-handler-results"
+    ],
+    "reason": "Inspected the separate Jim script/output and explicit reference-only purpose; no C compiler registration fact is inferred."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json",
+    "sha256": "fc63dd3a41039235ef22369e3c229029e0cafc64a621536ee62340ab17923b6f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.namespace-upvar-original-compiler-frontiers",
+      "naming.variable.namespace-upvar-target-order-and-incarnation-execution"
+    ],
+    "reason": "Inspected the original C8.5 15 compiler frontiers and eight separately caught execution questions; this document also maps to the separate execution proof below."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/modern-provenance.json",
+    "sha256": "d1bc42c9d7f785f885f6f74bcf717d661e1aba5afba446b400bb1e3e79e6da8b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.namespace-upvar-original-compiler-frontiers"
+    ],
+    "reason": "Inspected all45 actual modern compiler frontiers and exact body/binary provenance; no C8.4 or Jim compiler outcome invented."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_uplevel_compilation/provenance.json",
+    "sha256": "680808f88cec21780f182ba04dadfdd6985730e604ffb9f134aff3b92b05867d",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.uplevel-original-compilation-opcode-and-concat-frontier"
+    ],
+    "reason": "Inspected every original artifact/source/binary record and exact12 opcode/concat outcomes; missing source/log wrappers remain an explicit replay limit."
+  }
+]

@@ -1,0 +1,9 @@
+
+running 1 test
+test interp::native_error_variables::tests::c84_nonempty_error_info_publication_matches_original_callback_controls ... BODY135 published physical=V8_4 namespace=0 scripts=1 source=[101, 114, 114, 111, 114, 32, 70, 65, 73, 76, 32, 73, 78, 70, 79]
+BODY135 published physical=V8_4 namespace=0 scripts=1 source=[101, 114, 114, 111, 114, 32, 70, 65, 73, 76, 32, 73, 78, 70, 79, 32, 78, 79, 78, 69]
+BODY135 published physical=V8_4 namespace=0 scripts=1 source=[101, 114, 114, 111, 114, 32, 70, 65, 73, 76, 32, 73, 78, 70, 79, 32, 123, 67, 85, 83, 84, 79, 77, 32, 68, 69, 84, 65, 73, 76, 125]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1208 filtered out; finished in 1.12s
+

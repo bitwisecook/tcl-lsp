@@ -86,7 +86,10 @@ pub fn script_body_flow(facts: &InvocationFacts) -> ScriptBodyFlow {
                 crate::dictionary_scope::DictionaryScopeSelection::Unknown,
             );
         }
-        Some(crate::body_execution::BodyExecutionSpec::DeferredGlobalScript) => {
+        Some(
+            crate::body_execution::BodyExecutionSpec::DeferredGlobalScript
+            | crate::body_execution::BodyExecutionSpec::DeferredGlobalScriptForFamily(_),
+        ) => {
             return ScriptBodyFlow::Deferred;
         }
         Some(

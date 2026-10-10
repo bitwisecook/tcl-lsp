@@ -47,13 +47,10 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // interchangeable in matched pairs (`subst -nobackslashes -nocommands
 // $string` and `subst -variables $string` are called equivalent) and that
 // "it is not allowed to combine positive and negated options" in one call.
-// For the negative family, confirmed live on `tclsh` 8.6.14 that a word
-// which is neither a recognised switch nor the final `string` operand is a
-// hard `bad option "…": must be -nobackslashes, -nocommands, or
-// -novariables` error (no `--` terminator recognised) — no 9.1 interpreter
-// was available locally to empirically re-confirm the positive family
-// parses the same way, but the manpage describes both families through the
-// same switch-table convention.
+// Direct counted-object probes on the pinned C8.4-C9.1 and Jim providers
+// independently reconfirm both families and the mixed-family rejection.
+// Native proof: naming.substitution.original-options-and-flag-families
+// docs/design/analysis/name-resolution-proofs/substitution-original-options-and-flag-families.md
 pub(crate) const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-nobackslashes",

@@ -185,10 +185,11 @@ impl Interp {
         if self.native_c_variable_name_protocol().is_some() {
             return self.read_original_c_variable(original);
         }
-        if self
-            .native_invocation_dialect()
-            .native_jim_lookup_protocol()
-            .is_none()
+        if self.observed_name_policy_selected()
+            || self
+                .native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .is_none()
         {
             let bytes = self
                 .native_string_bytes(&original)
@@ -264,22 +265,18 @@ impl Interp {
         if self.native_c_variable_name_protocol().is_some() {
             return self.assign_original_c_variable(original, value);
         }
-        if self
-            .native_invocation_dialect()
-            .native_jim_lookup_protocol()
-            .is_none()
+        if self.observed_name_policy_selected()
+            || self
+                .native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .is_none()
         {
             let bytes = self
                 .native_string_bytes(&original)
                 .map_err(|error| self.report_cmd_error(error.into()))?;
-            let (base, element) = self
-                .variable_name_parts(&bytes)
-                .map_err(|error| crate::builtins::var_error(self, &bytes, error))?;
-            let assigned = match element {
-                Some(element) => self.var_set_elem(&base, &element, value),
-                None => self.var_set(&base, value),
-            };
-            return assigned.map_err(|error| crate::builtins::var_error(self, &bytes, error));
+            return self
+                .var_set_named(&bytes, value)
+                .map_err(|error| crate::builtins::var_error(self, &bytes, error));
         }
         self.associate_native_jim_arguments(&[original, value])
             .map_err(|error| self.report_cmd_error(error.into()))?;

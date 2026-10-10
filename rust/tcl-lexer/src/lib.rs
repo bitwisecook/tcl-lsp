@@ -99,7 +99,7 @@ pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
 pub use native_script_words::{
     NativeScriptCommandWords, NativeScriptWordCut, NativeScriptWordsPlan,
-    NativeScriptWordsUnavailable, native_script_words_in,
+    NativeScriptWordsUnavailable, native_script_words_in, source_region_tokens_in,
 };
 pub use parse_cut::{
     EXTRA_AFTER_CLOSE_QUOTE, ParseCut, ParseCutUnavailable, first_parse_cut, first_parse_cut_bytes,

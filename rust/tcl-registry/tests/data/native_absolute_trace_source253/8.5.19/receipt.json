@@ -1,0 +1,35 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/native-trace-absolute-source253/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.008892683006706648,
+  "reported_version_row": "version 8.5.19",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "source_sha256": "fedbb2fc9b26c70cfaf67624bfa331a48bc218f1674e3e8d484a16235d183855",
+  "stdout_sha256": "a72684743a10312b0600432ceeb3b878613cc13c3a04ccc1cac8229a1d54cc86",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "rows": [
+    "version 8.5.19",
+    "trace-command trace",
+    "fire variable cb 0 VALUE {{variable B 3 ::B}}",
+    "fire command cb 0 {} {{command B 3 ::B}}",
+    "fire execution cb 0 VALUE {{execution B 2 ::B} {execution B 4 ::B}}",
+    "fire variable ::Dest::cb 0 VALUE {{variable Dest 3 ::B}}",
+    "fire command ::Dest::cb 0 {} {{command Dest 3 ::B}}",
+    "fire execution ::Dest::cb 0 VALUE {{execution Dest 2 ::B} {execution Dest 4 ::B}}"
+  ],
+  "input_channel": "Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt.",
+  "question": "naming.callback.absolute-trace-source-lookup"
+}

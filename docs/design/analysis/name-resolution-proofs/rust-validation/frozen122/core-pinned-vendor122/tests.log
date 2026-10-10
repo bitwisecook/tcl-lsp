@@ -1,0 +1,24 @@
+
+running 10 tests
+test code_actions::diagnostic_context::tests::original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text ... 
+thread 'code_actions::diagnostic_context::tests::original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text' (502752) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:617:13:
+the guarded current sink source is absent: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test completion::original_proc_completion_tests::original_vendor_command_completion_keeps_owned_unknown_names_out_of_suggestions ... ok
+test completion::original_variables::tests::original_vendor_variable_completion_uses_authentic_body_and_formal_source_advice ... ok
+test definition::tests::original_vendor_definition_uses_current_direct_source_headers ... ok
+test document_symbols::original::tests::original_vendor_outline_keeps_source_cards_after_reporting_maps_are_erased ... ok
+test hover::original_vendor_hover_tests::original_vendor_header_hover_keeps_source_only_opaque_cards_after_ui_clear ... ok
+test semantic_tokens::original::tests::original_vendor_token_roles_require_supported_header_units_and_current_source ... ok
+test vendor_declaration::tests::original_vendor_cards_preserve_owned_unknown_units_without_reporting_maps ... ok
+test vendor_declaration::tests::original_vendor_event_cards_use_selected_metadata_and_current_whole_source ... ok
+test workspace_symbols::tests::original_vendor_workspace_headers_retain_unknown_units_and_source_currency ... ok
+
+failures:
+
+failures:
+    code_actions::diagnostic_context::tests::original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text
+
+test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 2595 filtered out; finished in 5.79s
+

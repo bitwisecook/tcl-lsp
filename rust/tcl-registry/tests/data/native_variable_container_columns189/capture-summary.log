@@ -1,0 +1,60 @@
+{"provider": "8.4.20", "control": "case-00", "exit": 0, "rows": ["1 {can't read \"a\": variable is array}"], "stderr_bytes": 0}
+{"provider": "8.4.20", "control": "case-01", "exit": 0, "rows": ["1 {can't set \"a\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "8.4.20", "control": "case-02", "exit": 0, "rows": ["1 {can't set \"a(k)\": variable isn't array} 0"], "stderr_bytes": 0}
+{"provider": "8.4.20", "control": "case-03", "exit": 0, "rows": ["1 {can't read \"a\": variable is array} 0"], "stderr_bytes": 0}
+{"provider": "8.4.20", "control": "case-04", "exit": 0, "rows": ["1 {can't set \"root\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "8.4.20", "control": "case-05", "exit": 0, "rows": ["0 0 0"], "stderr_bytes": 0}
+{"provider": "8.4.20", "control": "case-06", "exit": 0, "rows": ["1"], "stderr_bytes": 0}
+{"provider": "8.4.20", "control": "case-07", "exit": 0, "rows": ["1 {can't set \"a(other)\": variable isn't array} 1 {can't read \"a(k)\": variable isn't array}"], "stderr_bytes": 0}
+{"provider": "8.4.20", "control": "case-08", "exit": 0, "rows": ["UNAVAILABLE"], "stderr_bytes": 0}
+{"provider": "8.4.20", "control": "case-09", "exit": 0, "rows": ["1 {can't set \"root\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "8.5.19", "control": "case-00", "exit": 0, "rows": ["1 {can't read \"a\": variable is array}"], "stderr_bytes": 0}
+{"provider": "8.5.19", "control": "case-01", "exit": 0, "rows": ["1 {can't set \"a\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "8.5.19", "control": "case-02", "exit": 0, "rows": ["1 {can't set \"a(k)\": variable isn't array} 0"], "stderr_bytes": 0}
+{"provider": "8.5.19", "control": "case-03", "exit": 0, "rows": ["1 {can't read \"a\": variable is array} 0"], "stderr_bytes": 0}
+{"provider": "8.5.19", "control": "case-04", "exit": 0, "rows": ["1 {can't set \"root\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "8.5.19", "control": "case-05", "exit": 0, "rows": ["0 0 0"], "stderr_bytes": 0}
+{"provider": "8.5.19", "control": "case-06", "exit": 0, "rows": ["1"], "stderr_bytes": 0}
+{"provider": "8.5.19", "control": "case-07", "exit": 0, "rows": ["1 {can't set \"a(other)\": variable isn't array} 1 {can't read \"a(k)\": variable isn't array}"], "stderr_bytes": 0}
+{"provider": "8.5.19", "control": "case-08", "exit": 0, "rows": ["1 NEW 0 1 {can't read \"blocked\": variable is array}"], "stderr_bytes": 0}
+{"provider": "8.5.19", "control": "case-09", "exit": 0, "rows": ["1 {can't set \"root\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "8.6.18", "control": "case-00", "exit": 0, "rows": ["1 {can't read \"a\": variable is array}"], "stderr_bytes": 0}
+{"provider": "8.6.18", "control": "case-01", "exit": 0, "rows": ["1 {can't set \"a\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "8.6.18", "control": "case-02", "exit": 0, "rows": ["1 {can't set \"a(k)\": variable isn't array} 0"], "stderr_bytes": 0}
+{"provider": "8.6.18", "control": "case-03", "exit": 0, "rows": ["1 {can't read \"a\": variable is array} 0"], "stderr_bytes": 0}
+{"provider": "8.6.18", "control": "case-04", "exit": 0, "rows": ["1 {can't set \"root\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "8.6.18", "control": "case-05", "exit": 0, "rows": ["0 0 0"], "stderr_bytes": 0}
+{"provider": "8.6.18", "control": "case-06", "exit": 0, "rows": ["1"], "stderr_bytes": 0}
+{"provider": "8.6.18", "control": "case-07", "exit": 0, "rows": ["1 {can't set \"a(other)\": variable isn't array} 1 {can't read \"a(k)\": variable isn't array}"], "stderr_bytes": 0}
+{"provider": "8.6.18", "control": "case-08", "exit": 0, "rows": ["1 NEW 0 1 {can't read \"blocked\": variable is array}"], "stderr_bytes": 0}
+{"provider": "8.6.18", "control": "case-09", "exit": 0, "rows": ["1 {can't set \"root\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "9.0.4", "control": "case-00", "exit": 0, "rows": ["1 {can't read \"a\": variable is array}"], "stderr_bytes": 0}
+{"provider": "9.0.4", "control": "case-01", "exit": 0, "rows": ["1 {can't set \"a\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "9.0.4", "control": "case-02", "exit": 0, "rows": ["1 {can't set \"a(k)\": variable isn't array} 0"], "stderr_bytes": 0}
+{"provider": "9.0.4", "control": "case-03", "exit": 0, "rows": ["1 {can't read \"a\": variable is array} 0"], "stderr_bytes": 0}
+{"provider": "9.0.4", "control": "case-04", "exit": 0, "rows": ["1 {can't set \"root\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "9.0.4", "control": "case-05", "exit": 0, "rows": ["0 0 0"], "stderr_bytes": 0}
+{"provider": "9.0.4", "control": "case-06", "exit": 0, "rows": ["1"], "stderr_bytes": 0}
+{"provider": "9.0.4", "control": "case-07", "exit": 0, "rows": ["1 {can't set \"a(other)\": variable isn't array} 1 {can't read \"a(k)\": variable isn't array}"], "stderr_bytes": 0}
+{"provider": "9.0.4", "control": "case-08", "exit": 0, "rows": ["1 NEW 0 1 {can't read \"blocked\": variable is array}"], "stderr_bytes": 0}
+{"provider": "9.0.4", "control": "case-09", "exit": 0, "rows": ["1 {can't set \"root\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "9.1.0", "control": "case-00", "exit": 0, "rows": ["1 {can't read \"a\": variable is array}"], "stderr_bytes": 0}
+{"provider": "9.1.0", "control": "case-01", "exit": 0, "rows": ["1 {can't set \"a\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "9.1.0", "control": "case-02", "exit": 0, "rows": ["1 {can't set \"a(k)\": variable isn't array} 0"], "stderr_bytes": 0}
+{"provider": "9.1.0", "control": "case-03", "exit": 0, "rows": ["1 {can't read \"a\": variable is array} 0"], "stderr_bytes": 0}
+{"provider": "9.1.0", "control": "case-04", "exit": 0, "rows": ["1 {can't set \"root\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "9.1.0", "control": "case-05", "exit": 0, "rows": ["0 0 0"], "stderr_bytes": 0}
+{"provider": "9.1.0", "control": "case-06", "exit": 0, "rows": ["1"], "stderr_bytes": 0}
+{"provider": "9.1.0", "control": "case-07", "exit": 0, "rows": ["1 {can't set \"a(other)\": variable isn't array} 1 {can't read \"a(k)\": variable isn't array}"], "stderr_bytes": 0}
+{"provider": "9.1.0", "control": "case-08", "exit": 0, "rows": ["1 NEW 0 1 {can't read \"blocked\": variable is array}"], "stderr_bytes": 0}
+{"provider": "9.1.0", "control": "case-09", "exit": 0, "rows": ["1 {can't set \"root\": variable is array} 1"], "stderr_bytes": 0}
+{"provider": "jim", "control": "case-00", "exit": 0, "rows": ["0 {k OLD}"], "stderr_bytes": 0}
+{"provider": "jim", "control": "case-01", "exit": 0, "rows": ["0 NEW 0"], "stderr_bytes": 0}
+{"provider": "jim", "control": "case-02", "exit": 0, "rows": ["0 NEW 1"], "stderr_bytes": 0}
+{"provider": "jim", "control": "case-03", "exit": 0, "rows": ["0 {k OLD} 1"], "stderr_bytes": 0}
+{"provider": "jim", "control": "case-04", "exit": 0, "rows": ["0 NEW 0"], "stderr_bytes": 0}
+{"provider": "jim", "control": "case-05", "exit": 0, "rows": ["1 1 0"], "stderr_bytes": 0}
+{"provider": "jim", "control": "case-06", "exit": 0, "rows": ["0"], "stderr_bytes": 0}
+{"provider": "jim", "control": "case-07", "exit": 0, "rows": ["0 {} 0 OLD"], "stderr_bytes": 0}
+{"provider": "jim", "control": "case-08", "exit": 0, "rows": ["0 NEW 1 0 OTHER"], "stderr_bytes": 0}
+{"provider": "jim", "control": "case-09", "exit": 0, "rows": ["0 NEW 0"], "stderr_bytes": 0}

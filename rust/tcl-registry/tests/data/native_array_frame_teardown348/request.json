@@ -1,0 +1,26 @@
+{
+  "question_id": "naming.variable.original-frame-array-trace-retirement-horizon",
+  "question": "After a procedure exports an authentic local-member alias through namespace eval with upvar 1, what member callback lists can its root and earlier member callbacks mutate during actual procedure-frame teardown?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Two independent ASCII originals, fresh fullInit interpreter for EACH case, unchanged counted original CAPI driver. Original namespace eval :: plus upvar 1 exports aliases; the original output includes alias reads before teardown (X and {X Y}) as a positive check. Modern trace APIs unchanged. No provider fallback or extension substitution; preserve unsupported guest errors.",
+  "observation": "Whole original completion/public result. The final pair retains before-teardown alias read and resulting public callback log. Prior347 frame controls fail before traces and remain independent limited negatives. No private frame/cell/header/alias identity inferred. Pin exact source/provider versions and whole output/stderr/process/compile receipts.",
+  "cases": [
+    {
+      "id": "frame-root",
+      "source_file": "frame-root.tcl",
+      "source_sha256": "0c3ac1fd2f0aebc86af26f3346d7f715b8fa83fbf3c97dc3c8cf11831a62c078"
+    },
+    {
+      "id": "frame-members",
+      "source_file": "frame-members.tcl",
+      "source_sha256": "da0db90ec76ef538ecb2ae57b25b94c399c96b2f8c6f179f1bdaa92cbdb3d519"
+    }
+  ]
+}

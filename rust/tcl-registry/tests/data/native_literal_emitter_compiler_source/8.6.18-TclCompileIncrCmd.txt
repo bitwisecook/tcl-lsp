@@ -1,0 +1,96 @@
+TclCompileIncrCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr, *incrTokenPtr;
+    int isScalar, localIndex, haveImmValue;
+    Tcl_WideInt immValue;
+
+    if ((parsePtr->numWords != 2) && (parsePtr->numWords != 3)) {
+	return TCL_ERROR;
+    }
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+
+    PushVarNameWord(interp, varTokenPtr, envPtr, TCL_NO_LARGE_INDEX,
+	    &localIndex, &isScalar, 1);
+
+    /*
+     * If an increment is given, push it, but see first if it's a small
+     * integer.
+     */
+
+    haveImmValue = 0;
+    immValue = 1;
+    if (parsePtr->numWords == 3) {
+	incrTokenPtr = TokenAfter(varTokenPtr);
+	if (incrTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+	    const char *word = incrTokenPtr[1].start;
+	    int numBytes = incrTokenPtr[1].size;
+	    int code;
+	    Tcl_Obj *intObj = Tcl_NewStringObj(word, numBytes);
+
+	    Tcl_IncrRefCount(intObj);
+	    code = Tcl_GetWideIntFromObj(NULL, intObj, &immValue);
+	    if ((code == TCL_OK) && (
+#ifndef TCL_WIDE_INT_IS_LONG
+		    intObj->typePtr == &tclWideIntType ||
+#endif
+		    intObj->typePtr == &tclIntType) && (-127 <= immValue) && (immValue <= 127)) {
+		haveImmValue = 1;
+	    }
+	    TclDecrRefCount(intObj);
+	    if (!haveImmValue) {
+		PushLiteral(envPtr, word, numBytes);
+	    }
+	} else {
+	    SetLineInformation(2);
+	    CompileTokens(envPtr, incrTokenPtr, interp);
+	}
+    } else {			/* No incr amount given so use 1. */
+	haveImmValue = 1;
+    }
+
+    /*
+     * Emit the instruction to increment the variable.
+     */
+
+    if (isScalar) {	/* Simple scalar variable. */
+	if (localIndex >= 0) {
+	    if (haveImmValue) {
+		TclEmitInstInt1(INST_INCR_SCALAR1_IMM, localIndex, envPtr);
+		TclEmitInt1(immValue, envPtr);
+	    } else {
+		TclEmitInstInt1(INST_INCR_SCALAR1, localIndex,	envPtr);
+	    }
+	} else {
+	    if (haveImmValue) {
+		TclEmitInstInt1(INST_INCR_STK_IMM, immValue, envPtr);
+	    } else {
+		TclEmitOpcode(	INST_INCR_STK,		envPtr);
+	    }
+	}
+    } else {			/* Simple array variable. */
+	if (localIndex >= 0) {
+	    if (haveImmValue) {
+		TclEmitInstInt1(INST_INCR_ARRAY1_IMM, localIndex, envPtr);
+		TclEmitInt1(immValue, envPtr);
+	    } else {
+		TclEmitInstInt1(INST_INCR_ARRAY1, localIndex,	envPtr);
+	    }
+	} else {
+	    if (haveImmValue) {
+		TclEmitInstInt1(INST_INCR_ARRAY_STK_IMM, immValue, envPtr);
+	    } else {
+		TclEmitOpcode(	INST_INCR_ARRAY_STK,		envPtr);
+	    }
+	}
+    }
+
+    return TCL_OK;
+}

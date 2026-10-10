@@ -1,0 +1,33 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/current-native-setter-expression162/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.005615340996882878,
+  "reported_version": "8.4.20",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "36b6678065adfe744cc46ecaffcce83a75a89ccd433d0063d68fa9b5c64038f2",
+  "runner_sha256": "98b2d6cd7e407d2b13839177dbf7a0c933e4746e0632cbf87c978f9555d28a80",
+  "stdout_sha256": "814f0717770423579bd9cd28607256f92ec911743df7a2d1bf771abbbecf0aee",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a"
+  },
+  "rows": [
+    "version 8.4.20",
+    "OBSERVATION builtin 0 4",
+    "OBSERVATION alias_expression 0 4",
+    "OBSERVATION shadowed_expression 0 VALUE",
+    "OBSERVATION alias_setter 0 VALUE"
+  ],
+  "input_channel": "ASCII LF source-file CLI; four independent setter/expression child observations",
+  "boundary": "Question: do expression aliases read their braced expression and does a same-spelled user procedure instead return literal VALUE through direct and aliased setters? Four independent catch observations; unsupported interpreter alias syntax remains a refusal, not a value/reader fact. No compiler admission or physical object identity is inferred."
+}

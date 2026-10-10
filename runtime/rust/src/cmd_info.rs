@@ -29,7 +29,11 @@
 
 use crate::interp::{Code, Interp, new_string, obj_bytes};
 use crate::obj::TclObj;
+use tcl_syntax::value::ValueOps;
 
+mod native_jim;
+#[cfg(test)]
+mod native_jim_inventory_tests;
 /// Register `info`.
 mod native_oo;
 
@@ -64,6 +68,7 @@ pub fn install(interp: &mut Interp) {
         b"sharedlibextension".as_slice(),
         b"tclversion".as_slice(),
         b"vars".as_slice(),
+        b"version".as_slice(),
     ];
     let admitted = crate::environment::release_subcommands(
         interp.native_ensemble_profile_name(),
@@ -110,6 +115,7 @@ const STOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
     (b"sharedlibextension", stock_sharedlibextension),
     (b"tclversion", stock_tclversion),
     (b"vars", stock_vars),
+    (b"version", stock_version),
 ];
 
 fn stock_args(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -220,6 +226,10 @@ fn stock_sharedlibextension(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     interp.invoke_stock_worker(argv, &[b"info", b"sharedlibextension"], info_cmd)
 }
 
+fn stock_version(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"version"], info_cmd)
+}
+
 fn stock_tclversion(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     interp.invoke_stock_worker(argv, &[b"info", b"tclversion"], info_cmd)
 }
@@ -229,9 +239,6 @@ fn stock_vars(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 {
-        return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
-    }
     // `info` is an ensemble: resolve an exact name, else an unambiguous prefix
     // (so `info command` → `commands`, matching tclsh).
     const SUBS: &[&[u8]] = &[
@@ -265,30 +272,71 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"sharedlibextension",
         b"tclversion",
         b"vars",
+        b"version",
     ];
-    let raw = obj_bytes(argv[1]);
-    // The table is a release fact: `cmdtype`/`constant`/`consts` are Tcl 9,
-    // `class`/`coroutine`/`errorstack`/`object` 8.6, `frame` 8.5. Filtered to
-    // the emulated release, `info cm` is `cmdcount` on 8.6 and ambiguous with
-    // `cmdtype` on 9.0, exactly as tclsh has it.
     let subs = crate::environment::release_subcommands(
         interp.native_ensemble_profile_name(),
         "info",
         SUBS,
     );
-    // A miss reports here rather than falling through with the raw word: the
-    // arms below match on the canonical name, so a word the *pinned release*
-    // does not have (`info cmdtype` under 8.6) would otherwise still dispatch.
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &raw, true) else {
-        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-            subs,
-            &raw,
-            true,
-            b"::tcl::info",
-        ));
+    let mut prepared = Vec::new();
+    let sub = if let Some(protocol) = interp
+        .native_invocation_dialect()
+        .native_jim_info_protocol()
+    {
+        let dispatch =
+            match protocol.dispatch(argv.len(), |index| interp.native_string_bytes(&argv[index])) {
+                Ok(dispatch) => dispatch,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            };
+        match dispatch {
+            tcl_registry::commands::tcl::NativeJimInfoDispatch::Member {
+                name,
+                head,
+                arguments,
+                scope,
+            } => {
+                if let Some(kind) = protocol.command_inventory_kind(name) {
+                    return native_jim::command_inventory(
+                        interp,
+                        scope,
+                        &argv[arguments - 1..],
+                        kind,
+                    );
+                }
+                prepared.push(argv[head]);
+                prepared.push(argv[arguments - 1]);
+                prepared.extend_from_slice(&argv[arguments..]);
+                name.as_bytes()
+            }
+            tcl_registry::commands::tcl::NativeJimInfoDispatch::Report(report) => {
+                return native_jim::report(interp, protocol, report, argv);
+            }
+        }
+    } else {
+        if argv.len() < 2 {
+            return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
+        }
+        let raw = obj_bytes(argv[1]);
+        let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &raw, true) else {
+            return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs,
+                &raw,
+                true,
+                b"::tcl::info",
+            ));
+        };
+        subs[index]
     };
-    let sub: &[u8] = subs[index];
+    let argv = if prepared.is_empty() { argv } else { &prepared };
     match sub {
+        b"alias" => match tcl_cmd_core::info::jim_original_alias(interp, &argv[2]) {
+            Ok(original) => {
+                interp.set_result(original);
+                Code::Ok
+            }
+            Err(error) => interp.report_cmd_error(error),
+        },
         b"exists" => info_exists(interp, argv),
         // commands/procs route through the shared namespace-aware core (over the
         // `Namespaces` enumeration rungs). This also fixed a real bug: `info procs`
@@ -317,8 +365,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"class" => crate::cmd_oo::info_class(interp, argv),
         // `info tclversion`/`patchlevel` *read* the globals (C reads
         // `tcl_version`/`tcl_patchLevel`), so unsetting them makes these error.
-        b"tclversion" => info_global(interp, argv, b"info tclversion", b"tcl_version"),
-        b"patchlevel" => info_global(interp, argv, b"info patchlevel", b"tcl_patchLevel"),
+        b"tclversion" | b"patchlevel" | b"version" => info_version_report(interp, argv, sub),
         // The host shared-library suffix (`$::tcl_platform(platform)` is unix).
         b"sharedlibextension" => fixed(
             interp,
@@ -349,24 +396,19 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() > 3 {
                 return interp.wrong_args_for_prefix(argv, 2, b"?pattern?");
             }
-            let pat = argv.get(2).map(|&a| obj_bytes(a));
-            set_filtered(interp, interp.mathfunc_names(), pat.as_deref())
+            info_functions(interp, argv.get(2).copied())
         }
         b"loaded" => {
             if argv.len() > 4 {
                 return interp.wrong_args_for_prefix(argv, 2, b"?interp? ?prefix?");
             }
-            // A named interp must resolve (C's `Tcl_GetChild` in
-            // `TclGetLoadedLibraries`); the empty path is the current interp.
-            // Nothing is ever loaded in this runtime, so the result is always
-            // empty — but an unknown interp is still an error.
-            if let Some(&a) = argv.get(2) {
-                let path = obj_bytes(a);
-                if !path.is_empty() && !interp.child_exists(&path) {
-                    let mut m = b"could not find interpreter \"".to_vec();
-                    m.extend_from_slice(&path);
-                    m.push(b'"');
-                    return interp.set_error(&m);
+            if let Some(&original) = argv.get(2) {
+                let path = match crate::cmd_alias::interp_path(interp, original) {
+                    Ok(path) => path,
+                    Err(code) => return code,
+                };
+                if interp.with_child_path(&path, |_| ()).is_none() {
+                    return crate::cmd_alias::not_found_original_path(interp, original);
                 }
             }
             interp.set_result_bytes(b"");
@@ -460,6 +502,18 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"consts" => info_consts(interp, argv),
+        _ if interp
+            .native_invocation_dialect()
+            .native_jim_info_member_names()
+            .is_some() =>
+        {
+            interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "selected Jim info handler",
+                )
+                .into(),
+            )
+        }
         other => interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
             SUBS,
             other,
@@ -504,14 +558,56 @@ fn info_cmdtype(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Set the result to a Tcl list of `names` filtered by an optional glob pattern.
-fn set_filtered(interp: &mut Interp, names: Vec<Vec<u8>>, pattern: Option<&[u8]>) -> Code {
-    let objs: Vec<*mut TclObj> = names
-        .iter()
-        .filter(|n| pattern.is_none_or(|p| glob_match(p, n)))
-        .map(|n| new_string(n))
-        .collect();
-    let l = interp.new_list_object(&objs); // retains each element
-    interp.set_result(l); // retains the list; the rc-0 temporaries are now owned by it
+fn info_functions(interp: &mut Interp, original_pattern: Option<*mut TclObj>) -> Code {
+    let Some(recipe) = tcl_registry::mathfunc::NativeInfoFunctionsRecipe::select(
+        interp.native_invocation_dialect(),
+    ) else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "selected math function information recipe",
+            )
+            .into(),
+        );
+    };
+    let pattern = match original_pattern
+        .map(|word| interp.native_string_bytes(&word))
+        .transpose()
+    {
+        Ok(pattern) => pattern,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    if let Some(bytes) = recipe.script(pattern.as_deref()) {
+        let script = crate::obj::Owned::fresh(new_string(&bytes));
+        return interp.eval_generic_control_body(script.as_ptr());
+    }
+    let mut selected = Vec::new();
+    for name in interp.mathfunc_names() {
+        if let Some(pattern) = &pattern {
+            let Some(policy) = interp.name_policy_protocol() else {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "fixed math function pattern policy",
+                    )
+                    .into(),
+                );
+            };
+            match tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy)
+                .match_name_pattern(
+                    tcl_syntax::native_glob::NativeNameGlobPurpose::InfoFunctions84Scan,
+                    pattern,
+                    &name,
+                ) {
+                Ok(true) => {}
+                Ok(false) => continue,
+                Err(error) => {
+                    return interp.report_cmd_error(tcl_cmd_core::CmdError::new(error.to_string()));
+                }
+            }
+        }
+        selected.push(new_string(&name));
+    }
+    let list = interp.new_list_object(&selected);
+    interp.set_result(list);
     Code::Ok
 }
 
@@ -719,6 +815,32 @@ fn fixed(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], value: &[u8]) 
     Code::Ok
 }
 
+fn info_version_report(interp: &mut Interp, argv: &[*mut TclObj], member: &[u8]) -> Code {
+    let member = std::str::from_utf8(member).expect("selected static info member");
+    let usage = format!("info {member}");
+    if argv.len() != 2 {
+        return interp.wrong_args(usage.as_bytes());
+    }
+    match interp
+        .native_invocation_dialect()
+        .native_info_version_source(member)
+    {
+        Some(tcl_registry::native_info_version::NativeInfoVersionSource::Global(name)) => {
+            info_global(interp, argv, usage.as_bytes(), name.as_bytes())
+        }
+        Some(tcl_registry::native_info_version::NativeInfoVersionSource::CoreRelease(version)) => {
+            interp.set_result_bytes(version.as_bytes());
+            Code::Ok
+        }
+        None => interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native info version reporting source is unavailable",
+            )
+            .into(),
+        ),
+    }
+}
+
 /// `info tclversion`/`patchlevel` — read the **global** `var` (C uses
 /// `TCL_GLOBAL_ONLY`), erroring `can't read "VAR": no such variable` if it has
 /// been unset (info-14.3/18.3). `var` is the unqualified name (for the message);
@@ -794,17 +916,61 @@ fn info_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-fn glob_match(pat: &[u8], name: &[u8]) -> bool {
-    match (core::str::from_utf8(pat), core::str::from_utf8(name)) {
-        (Ok(p), Ok(n)) => tcl_syntax::glob::string_match(p, n),
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
+
+    #[test]
+    fn original_info_functions_follow_selected_native_script_and_helpers() {
+        // Native controls: naming.info.functions-native-script
+        // docs/design/analysis/name-resolution-proofs/info-functions-native-script.md
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert_eq!(interp.eval_str(b"info functions sin"), Code::Ok, "{engine}");
+            assert_eq!(interp.result_bytes(), b"sin", "{engine}");
+            assert_eq!(interp.eval_str(b"namespace eval ::InfoScope085 {namespace eval tcl::mathfunc {proc local085 {} {return LOCAL}}; info functions local085}"), Code::Ok, "{engine}");
+            let expected: &[u8] = if engine == "tcl8.4" { b"" } else { b"local085" };
+            assert_eq!(interp.result_bytes(), expected, "{engine}");
+            if engine != "tcl8.4" {
+                assert_eq!(interp.eval_str(b"rename ::apply ::SavedInfoApply085; proc ::apply args {error APPLY_HELPER085}; info functions sin"), Code::Error, "{engine}");
+                assert_eq!(interp.result_bytes(), b"APPLY_HELPER085", "{engine}");
+            }
+        }
+    }
+
+    #[test]
+    fn original_info_loaded_uses_counted_interpreter_path_elements() {
+        // Native controls: naming.info.loaded-original-interpreter-path
+        // docs/design/analysis/name-resolution-proofs/info-loaded-original-interpreter-path.md
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            for source in [b"info loaded {}".as_slice(), b"interp create InfoParent085; interp eval InfoParent085 {interp create InfoChild085}; info loaded {InfoParent085 InfoChild085}", b"set child [binary format H* 496e666f5a65726f30383500ff]; interp create $child; info loaded $child"] {
+                assert_eq!(interp.eval_str(source), Code::Ok, "{engine}: {:?}", interp.result_bytes());
+                assert_eq!(interp.result_bytes(), b"", "{engine}");
+            }
+            assert_eq!(
+                interp.eval_str(b"info loaded MissingInfo085"),
+                Code::Error,
+                "{engine}"
+            );
+            assert_eq!(
+                interp.result_bytes(),
+                b"could not find interpreter \"MissingInfo085\"",
+                "{engine}"
+            );
+        }
+    }
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();
@@ -823,13 +989,25 @@ mod tests {
     }
 
     fn run(i: &mut Interp, src: &[u8]) -> Vec<u8> {
+        let code = i.eval_str(src);
+        let result = i.result_bytes();
+        let error_info = if code == Code::Ok {
+            Vec::new()
+        } else {
+            let _ = i.eval_str(b"set ::errorInfo");
+            i.result_bytes()
+        };
         assert_eq!(
-            i.eval_str(src),
+            code,
             Code::Ok,
-            "eval {:?}",
-            String::from_utf8_lossy(src)
+            "eval {:?}: result {:?}, errorInfo {:?}, admission {:?}, native access {:?}",
+            String::from_utf8_lossy(src),
+            result,
+            error_info,
+            i.native_compilation_admission_error(),
+            i.native_access_refusal()
         );
-        i.result_bytes()
+        result
     }
 
     /// `info` is a `TclMakeEnsemble` command, so both the prefix
@@ -1121,6 +1299,8 @@ mod tests {
 
     #[test]
     fn info_consts_includes_only_tcloo_instance_links() {
+        // naming.tcloo.original-constant-link-introspection
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-constant-link-introspection.md
         leak_free(|i| {
             assert_eq!(
                 run(

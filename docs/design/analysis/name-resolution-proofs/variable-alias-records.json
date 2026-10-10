@@ -1,0 +1,634 @@
+[
+  {
+    "id": "naming.variable.namespace-alias-settlement-after-store",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.namespace-alias-settlement-after-store.md",
+    "problem_statement": "The variable command can store a namespace value before its attempted local link fails, while a callback can replace the target before a later read. Treating the authored local name as a stable alias or assuming all errors undo writes would select the wrong cell/value.",
+    "question": "How do traced local alias rejection, scalar-versus-array definition rejection and callback-driven global target replacement settle the original variable operation?",
+    "conclusion": "All five C captures reject linking an already traced local v while the global has already become X; reject arr(k) against scalar arr without changing SCALAR; and read REPLACED after the write trace unsets/recreates the namespace target. These three exact scripts establish partial-store and alias-settlement phases, not transactional rollback, arbitrary observer closure or Jim semantics.",
+    "scope": "Exact ASCII source.tcl and the retained public C probe; C8.4.20\u20139.1.0 output/catch windows only. No original-name cache/header/refcount or general native frame identity is inferred. Jim and BIG-IP were not queried.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "not recorded in this manifest",
+        "input_channel": "ASCII source script via retained public C probe",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "traced 1 {variable \"v\" has traces: can't use for upvar} X\nscalarArray 1 {can't define \"arr(k)\": name refers to an element in an array} 0 0 SCALAR\nrebound 0 REPLACED REPLACED",
+        "evidence": [
+          "capture",
+          "input-source.tcl",
+          "input-probe.c",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "not recorded in this manifest",
+        "input_channel": "ASCII source script via retained public C probe",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "traced 1 {variable \"v\" has traces: can't use for upvar} X\nscalarArray 1 {can't define \"arr(k)\": name refers to an element in an array} 0 0 SCALAR\nrebound 0 REPLACED REPLACED",
+        "evidence": [
+          "capture",
+          "input-source.tcl",
+          "input-probe.c",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "not recorded in this manifest",
+        "input_channel": "ASCII source script via retained public C probe",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "traced 1 {variable \"v\" has traces: can't use for upvar} X\nscalarArray 1 {can't define \"arr(k)\": name refers to an element in an array} 0 0 SCALAR\nrebound 0 REPLACED REPLACED",
+        "evidence": [
+          "capture",
+          "input-source.tcl",
+          "input-probe.c",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "not recorded in this manifest",
+        "input_channel": "ASCII source script via retained public C probe",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "traced 1 {variable \"v\" has traces: can't use for upvar} X\nscalarArray 1 {can't define \"arr(k)\": name refers to an element in an array} 0 0 SCALAR\nrebound 0 REPLACED REPLACED",
+        "evidence": [
+          "capture",
+          "input-source.tcl",
+          "input-probe.c",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "not recorded in this manifest",
+        "input_channel": "ASCII source script via retained public C probe",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "traced 1 {variable \"v\" has traces: can't use for upvar} X\nscalarArray 1 {can't define \"arr(k)\": name refers to an element in an array} 0 0 SCALAR\nrebound 0 REPLACED REPLACED",
+        "evidence": [
+          "capture",
+          "input-source.tcl",
+          "input-probe.c",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_namespace_alias_settlement/manifest.json",
+        "sha256": "7c39e18ba5d7d3ded4aeaae7d112ba160e0fab9c86038a5954d6326fae0535d6",
+        "description": "Exact original native provenance/captured observations."
+      },
+      {
+        "id": "input-source.tcl",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_namespace_alias_settlement/source.tcl",
+        "sha256": "e0bf753afe5e94ebb1a96da5d515278b17dc2b6538619c521f877354ad09b65a",
+        "description": "Retained exact script/case bytes for the stated question."
+      },
+      {
+        "id": "input-probe.c",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_namespace_alias_settlement/probe.c",
+        "sha256": "7759c929348a994705c71747e8ad3b2cc14db6ae67bca5ec7c221d0e5b6bcbe4",
+        "description": "Retained exact script/case bytes for the stated question."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_alias_settlement/8.4.20.txt",
+        "sha256": "cbc0925ac5c82f88bc4f183b68f1e7bd4249200d8545418f6fba2d2d9a035df7",
+        "description": "Exact three completed native catch/result/post-store rows."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_alias_settlement/8.5.19.txt",
+        "sha256": "cbc0925ac5c82f88bc4f183b68f1e7bd4249200d8545418f6fba2d2d9a035df7",
+        "description": "Exact three completed native catch/result/post-store rows."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_alias_settlement/8.6.18.txt",
+        "sha256": "cbc0925ac5c82f88bc4f183b68f1e7bd4249200d8545418f6fba2d2d9a035df7",
+        "description": "Exact three completed native catch/result/post-store rows."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_alias_settlement/9.0.4.txt",
+        "sha256": "cbc0925ac5c82f88bc4f183b68f1e7bd4249200d8545418f6fba2d2d9a035df7",
+        "description": "Exact three completed native catch/result/post-store rows."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_alias_settlement/9.1.0.txt",
+        "sha256": "cbc0925ac5c82f88bc4f183b68f1e7bd4249200d8545418f6fba2d2d9a035df7",
+        "description": "Exact three completed native catch/result/post-store rows."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_variable_names.rs",
+        "selector": "interp::native_variable_names::tests::namespace_alias_settlement_matches_all_15_native_callback_and_error_results",
+        "assertion": "Compares the independently scoped original alias/argument outcome with retained native rows; no native authority follows from a Rust result.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_variable_names.rs",
+        "symbol": "namespace_alias_settlement_matches_all_15_native_callback_and_error_results",
+        "purpose": "Current independent Rust fixture comparison."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-I/path/to/recorded/include",
+        "runtime/rust/tests/data/native_namespace_alias_settlement/probe.c",
+        "/path/to/recorded/libtcl.so",
+        "-o",
+        "/tmp/namespace-alias-probe"
+      ],
+      "limitations": "Compile the retained public C probe against the same recorded provider, then execute /tmp/namespace-alias-probe runtime/rust/tests/data/native_namespace_alias_settlement/source.tcl in a fresh process. The probe reads the full source file and calls Tcl_EvalEx with its byte count. Require the three complete stdout rows to match the retained provider file, empty stderr and process exit 0. The original engine build is not fully recorded; no fresh replay or direct Tclsh equivalence is claimed."
+    }
+  },
+  {
+    "id": "naming.variable.alias-target-read-diagnostic-and-completion",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.alias-target-read-diagnostic-and-completion.md",
+    "problem_statement": "An alias read may fail at a missing target, a nested alias, an unset root or a scalar/index boundary. The caller spelling and the ultimate target can differ, and C array cells and Jim dictionary variables expose different diagnostic paths. Diagnostic wording is a separate purpose from cell/cache identity.",
+    "question": "Which catch completion and result bytes do the six native engines return for the six original scalar/index alias-chain read cases?",
+    "conclusion": "Every captured missing/unset chain errors and the defined chain returns VALUE. The scalar-element control distinguishes C array diagnostics from Jim alias-target diagnostics. The retained 36 exact result-byte rows determine each spelling and completion; they do not authenticate a physical alias, cached native name, refcount, return options or normal read in another state.",
+    "scope": "Six retained ASCII programs encoded in cases.tsv, observed original catch-code/result hex across C8.4/8.5/8.6/9.0/9.1/current-label Jim. Patch/revision was not queried in this manifest; executable SHA is retained. Original capture wrapper hashes remain metadata because wrapper files are not retained. No BIG-IP observation.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4 engine label; patch/revision not recorded",
+        "build": "Captured executable SHA 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+        "input_channel": "Retained ASCII case script through native shell file evaluator; original presenter unavailable",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "missing-one: 1 / can't read \"first\": no such variable\nmissing-chain: 1 / can't read \"second\": no such variable\nmissing-element: 1 / can't read \"second\": no such variable\nscalar-element: 1 / can't access \"target(k)\": variable isn't array\ndefined-chain: 0 / VALUE\nunset-chain: 1 / can't read \"second\": no such variable",
+        "evidence": [
+          "capture",
+          "input-cases.tsv",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5 engine label; patch/revision not recorded",
+        "build": "Captured executable SHA 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+        "input_channel": "Retained ASCII case script through native shell file evaluator; original presenter unavailable",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "missing-one: 1 / can't read \"first\": no such variable\nmissing-chain: 1 / can't read \"second\": no such variable\nmissing-element: 1 / can't read \"second\": no such variable\nscalar-element: 1 / can't access \"target(k)\": variable isn't array\ndefined-chain: 0 / VALUE\nunset-chain: 1 / can't read \"second\": no such variable",
+        "evidence": [
+          "capture",
+          "input-cases.tsv",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6 engine label; patch/revision not recorded",
+        "build": "Captured executable SHA 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+        "input_channel": "Retained ASCII case script through native shell file evaluator; original presenter unavailable",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "missing-one: 1 / can't read \"first\": no such variable\nmissing-chain: 1 / can't read \"second\": no such variable\nmissing-element: 1 / can't read \"second\": no such variable\nscalar-element: 1 / can't access \"target(k)\": variable isn't array\ndefined-chain: 0 / VALUE\nunset-chain: 1 / can't read \"second\": no such variable",
+        "evidence": [
+          "capture",
+          "input-cases.tsv",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0 engine label; patch/revision not recorded",
+        "build": "Captured executable SHA cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+        "input_channel": "Retained ASCII case script through native shell file evaluator; original presenter unavailable",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "missing-one: 1 / can't read \"first\": no such variable\nmissing-chain: 1 / can't read \"second\": no such variable\nmissing-element: 1 / can't read \"second\": no such variable\nscalar-element: 1 / can't access \"target(k)\": variable isn't array\ndefined-chain: 0 / VALUE\nunset-chain: 1 / can't read \"second\": no such variable",
+        "evidence": [
+          "capture",
+          "input-cases.tsv",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1 engine label; patch/revision not recorded",
+        "build": "Captured executable SHA d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+        "input_channel": "Retained ASCII case script through native shell file evaluator; original presenter unavailable",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "missing-one: 1 / can't read \"first\": no such variable\nmissing-chain: 1 / can't read \"second\": no such variable\nmissing-element: 1 / can't read \"second\": no such variable\nscalar-element: 1 / can't access \"target(k)\": variable isn't array\ndefined-chain: 0 / VALUE\nunset-chain: 1 / can't read \"second\": no such variable",
+        "evidence": [
+          "capture",
+          "input-cases.tsv",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "jim engine label; patch/revision not recorded",
+        "build": "Captured executable SHA d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+        "input_channel": "Retained ASCII case script through native shell file evaluator; original presenter unavailable",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "missing-one: 1 / can't read \"first\": no such variable\nmissing-chain: 1 / can't read \"second\": no such variable\nmissing-element: 1 / can't read \"second\": no such variable\nscalar-element: 1 / can't read \"second\": no such variable\ndefined-chain: 0 / VALUE\nunset-chain: 1 / can't read \"second\": no such variable",
+        "evidence": [
+          "capture",
+          "input-cases.tsv",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "capture",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_jim_alias_read/provenance.json",
+        "sha256": "0a47b4d99f3909b44f6f2e15369503d080b156882cef6329b416bd7268c6ca3d",
+        "description": "Exact original native provenance/captured observations."
+      },
+      {
+        "id": "input-cases.tsv",
+        "role": "input",
+        "path": "rust/tcl-syntax/tests/data/native_jim_alias_read/cases.tsv",
+        "sha256": "07d5db5df01e9cc19e9cad4bce857ce86785cc26b39c37092914fbc083d167d8",
+        "description": "Retained exact script/case bytes for the stated question."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_jim_alias_read/8.4.tsv",
+        "sha256": "45910703c3589f87effa362228f718d878e67d284fbadf9052dc5f0a417cc853",
+        "description": "Six original case/catch-code/result-hex rows."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_jim_alias_read/8.5.tsv",
+        "sha256": "45910703c3589f87effa362228f718d878e67d284fbadf9052dc5f0a417cc853",
+        "description": "Six original case/catch-code/result-hex rows."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_jim_alias_read/8.6.tsv",
+        "sha256": "45910703c3589f87effa362228f718d878e67d284fbadf9052dc5f0a417cc853",
+        "description": "Six original case/catch-code/result-hex rows."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_jim_alias_read/9.0.tsv",
+        "sha256": "45910703c3589f87effa362228f718d878e67d284fbadf9052dc5f0a417cc853",
+        "description": "Six original case/catch-code/result-hex rows."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_jim_alias_read/9.1.tsv",
+        "sha256": "45910703c3589f87effa362228f718d878e67d284fbadf9052dc5f0a417cc853",
+        "description": "Six original case/catch-code/result-hex rows."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_jim_alias_read/jim.tsv",
+        "sha256": "a69562c38f9b4a7a129f1e984225421ee3ed9438faa7af9e3a3da0cb508d9104",
+        "description": "Six original case/catch-code/result-hex rows."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_jim_links.rs",
+        "selector": "interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results",
+        "assertion": "Compares the independently scoped original alias/argument outcome with retained native rows; no native authority follows from a Rust result.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_jim_links.rs",
+        "symbol": "original_alias_read_errors_match_thirty_six_native_results",
+        "purpose": "Current independent Rust fixture comparison."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No original capture wrapper or managed replayer is retained for this question. Decode the retained case bytes, execute each in a fresh recorded engine build, and supply an explicit catch-code/result-byte presenter. A fresh capture is a new observation; require complete equality with every original catch/result row, empty stderr and recorded process completion. No fresh rerun is claimed."
+    }
+  },
+  {
+    "id": "naming.variable.namespace-upvar-original-argument-grammar",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.namespace-upvar-original-argument-grammar.md",
+    "problem_statement": "A namespace-upvar argument vector can be unavailable, require at least one pair, accept an empty pair vector, or be padded by a helper. Reusing one arity rule across these dialects would skip an actual error or manufacture a local alias from the wrong effective arguments.",
+    "question": "What completion does namespace upvar return for zero, one and two operands after the namespace in each captured engine?",
+    "conclusion": "C8.4 rejects the unavailable subcommand. C8.5 requires at least one complete pair. C8.6/9.0/9.1 accept zero pairs and reject the odd vector. The measured Jim helper errors on zero operands but accepts the one-operand padded and complete-pair vectors. This is original argument grammar, not compiled opcode admission or proof of a linked cell.",
+    "scope": "Exact ASCII namespace creation and three catch-presented original argument vectors. Captured C84/C85/C86/C90/C91/Jim labels and binary paths; exact patches/revisions and binary SHAs are not retained. BIG-IP not queried.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "C84 label; exact patch/revision not recorded",
+        "build": "Binary path /workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh; SHA not recorded",
+        "input_channel": "Exact ASCII source.tcl via native shell",
+        "dialect": "Tcl",
+        "status": "unsupported",
+        "answer": "{namespace upvar n} 1 {bad option \"upvar\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n{namespace upvar n a} 1 {bad option \"upvar\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n{namespace upvar n a b} 1 {bad option \"upvar\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}",
+        "evidence": [
+          "capture",
+          "input-source.tcl"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "C85 label; exact patch/revision not recorded",
+        "build": "Binary path /workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh; SHA not recorded",
+        "input_channel": "Exact ASCII source.tcl via native shell",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "{namespace upvar n} 1 {wrong # args: should be \"namespace upvar ns otherVar myVar ?otherVar myVar ...?\"}\n{namespace upvar n a} 1 {wrong # args: should be \"namespace upvar ns otherVar myVar ?otherVar myVar ...?\"}\n{namespace upvar n a b} 0 {}",
+        "evidence": [
+          "capture",
+          "input-source.tcl"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "C86 label; exact patch/revision not recorded",
+        "build": "Binary path /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh; SHA not recorded",
+        "input_channel": "Exact ASCII source.tcl via native shell",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "{namespace upvar n} 0 {}\n{namespace upvar n a} 1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n{namespace upvar n a b} 0 {}",
+        "evidence": [
+          "capture",
+          "input-source.tcl"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "C90 label; exact patch/revision not recorded",
+        "build": "Binary path /workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh; SHA not recorded",
+        "input_channel": "Exact ASCII source.tcl via native shell",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "{namespace upvar n} 0 {}\n{namespace upvar n a} 1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n{namespace upvar n a b} 0 {}",
+        "evidence": [
+          "capture",
+          "input-source.tcl"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "C91 label; exact patch/revision not recorded",
+        "build": "Binary path /workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh; SHA not recorded",
+        "input_channel": "Exact ASCII source.tcl via native shell",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "{namespace upvar n} 0 {}\n{namespace upvar n a} 1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n{namespace upvar n a b} 0 {}",
+        "evidence": [
+          "capture",
+          "input-source.tcl"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim label; exact patch/revision not recorded",
+        "build": "Binary path /tmp/2286-oracles/jimtcl/jimsh; SHA not recorded",
+        "input_channel": "Exact ASCII source.tcl via native shell",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "{namespace upvar n} 1 {wrong # args: should be \"upvar ?level? otherVar myVar ?otherVar myVar ...?\"}\n{namespace upvar n a} 0 {}\n{namespace upvar n a b} 0 {}",
+        "evidence": [
+          "capture",
+          "input-source.tcl"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "capture",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_arguments/manifest.json",
+        "sha256": "13464962121fe902ff87cd5377c28ec8671ce8bb64fb0fce5f0c880923a9d8e8",
+        "description": "Exact original native provenance/captured observations."
+      },
+      {
+        "id": "input-source.tcl",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_arguments/source.tcl",
+        "sha256": "938e4ee3c0e7ed17eec76d45991555841fb29cfb3a549b4bb6e8115099e41e59",
+        "description": "Retained exact script/case bytes for the stated question."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_namespace/native_upvar_tests.rs",
+        "selector": "cmd_namespace::native_upvar_tests::namespace_upvar_original_vectors_match_eighteen_native_arity_windows",
+        "assertion": "Compares the independently scoped original alias/argument outcome with retained native rows; no native authority follows from a Rust result.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_namespace/native_upvar_tests.rs",
+        "symbol": "namespace_upvar_original_vectors_match_eighteen_native_arity_windows",
+        "purpose": "Current independent Rust fixture comparison."
+      }
+    ],
+    "replay": {
+      "command": [
+        "/path/to/recorded/native/tclsh",
+        "rust/tcl-registry/tests/data/native_namespace_upvar_arguments/source.tcl"
+      ],
+      "limitations": "Run this retained ASCII script with the recorded native shell in a fresh process. The script supplies its own catch/result presenter. Require every original stdout row, empty stderr and recorded process completion. Exact provider builds are not retained and no fresh rerun is claimed."
+    }
+  },
+  {
+    "id": "naming.variable.jim-namespace-upvar-root-worker-forwarding",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.jim-namespace-upvar-root-worker-forwarding.md",
+    "problem_statement": "Jim namespace upvar is a helper whose selected root upvar worker can be replaced. A namespaced shadow, the helper's empty padded local name and the variable frame are separate owners; literal command spelling cannot establish worker continuity.",
+    "question": "Does the captured Jim namespace-upvar helper ignore a namespaced upvar shadow, retain the caller variable frame and forward to a replaced root worker?",
+    "conclusion": "The measured Jim helper links the padded empty local name in namespace n so the target value is VALUE, ignores the namespaced LOCAL shadow, and later forwards through replaced root upvar as FORWARD 0 ::missing::a {}. This helper-specific original argument/frame result grants no stock C behaviour or lasting worker identity.",
+    "scope": "One exact ASCII Jim script and captured result. Current-label Jim binary path is recorded but patch/revision/header/binary hash are not. No C or BIG-IP engine was queried for this forwarding question.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "Jim label; exact patch/revision not recorded",
+        "build": "Binary path /tmp/2286-oracles/jimtcl/jimsh; SHA not recorded",
+        "input_channel": "Exact ASCII jim-forwarding.tcl via native shell",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "0 {VALUE {FORWARD 0 ::missing::a {}}}",
+        "evidence": [
+          "capture",
+          "input-jim-forwarding.tcl"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "capture",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding-manifest.json",
+        "sha256": "76c297ce53f034ee8f3eb0532f9b890af4881762e4167f80a8424ee6a342ac2b",
+        "description": "Exact original native provenance/captured observations."
+      },
+      {
+        "id": "input-jim-forwarding.tcl",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding.tcl",
+        "sha256": "055390f310cdf80208da1b8b030b4c79166e0489957b074081dc36ca7e4b7367",
+        "description": "Retained exact script/case bytes for the stated question."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_namespace/native_upvar_tests.rs",
+        "selector": "cmd_namespace::native_upvar_tests::jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame",
+        "assertion": "Compares the independently scoped original alias/argument outcome with retained native rows; no native authority follows from a Rust result.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_namespace/native_upvar_tests.rs",
+        "symbol": "jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame",
+        "purpose": "Current independent Rust fixture comparison."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The retained Jim input ends with a list expression, while the capture includes a catch-code/result presenter whose wrapper is not retained. Directly running the file is not an equivalent replay. In a fresh recorded Jim build, execute the exact retained input through an explicit catch presenter and compare its complete code/result with the original manifest. No original executable replay wrapper or fresh rerun is claimed."
+    }
+  }
+]

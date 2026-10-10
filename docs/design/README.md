@@ -25,6 +25,9 @@ How the analyser decides what a name denotes and what a value holds.
 - [name-resolution-c-conformance.md](analysis/name-resolution-c-conformance.md)
   — the same four name kinds as extracted from the C sources, with the
   8.4 → 9.1 matrix pinned to C-Tcl permalinks.
+- [name-resolution-proofs/README.md](analysis/name-resolution-proofs/README.md)
+  — per-question native evidence, provider limits, implementation tests, and
+  reproducible naming checks.
 - [import-order-source-graph.md](analysis/import-order-source-graph.md) — the
   load order derived from the `source` and `package require` graphs, what it
   lets the wildcard-import tiers rank, and where it abstains.
@@ -90,6 +93,8 @@ fails.
   owner of every pinned version, and the build entry points.
 - [dialect-detection.md](contracts/dialect-detection.md) — the dialect
   detection priority chain.
+- [diagnostic-subjects.md](contracts/diagnostic-subjects.md) — typed naming
+  subjects and their shared LSP, CLI, and MCP reporting transport.
 - [environment-selection.md](contracts/environment-selection.md) — the one
   vocabulary every dialect picker, setting, flag and directive enumerates,
   the `Language` / `Packages` kind, and the server-owned notice.

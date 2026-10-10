@@ -39,7 +39,7 @@ use tcl_dialect::model::SurfaceQuery;
 
 use rustc_hash::FxHashSet;
 
-use tcl_compiler::analyser::{Analyser, Scope, ScopeKind};
+use tcl_compiler::analyser::{AnalysisResult, Scope, ScopeKind};
 use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Lexer, LexerConfig, LineIndex, TokenType};
@@ -83,15 +83,15 @@ pub struct FoldingRange {
 
 /// Compute folding ranges for a Tcl source document.
 ///
-/// Runs the Rust analyser internally for scope folds, then walks
-/// the segmented token stream for body-argument and comment folds.
+/// Retains the supplied profile, Registry store and full grammar at explicit
+/// analysis ingress, then delegates to [`folding_ranges_with_analysis`].
 ///
 /// `registry` is the [`CommandRegistry`] consulted for body-arg
 /// roles. The caller owns the registry — typically the LSP server's
 /// `Backend` builds and dialect-loads it once per session, and the
 /// `PyO3` binding caches a default instance — so this function never
-/// rebuilds it. `dialect` is forwarded to the analyser for
-/// dialect-specific scope semantics.
+/// rebuilds it. The supplied `dialect` enters the analyser together with
+/// this actual store and its complete lexer configuration.
 ///
 /// Overlap normalisation runs as a post-pass via
 /// [`normalise_overlaps`] so the returned vector is always disjoint or
@@ -108,55 +108,84 @@ pub fn folding_ranges(
         return Vec::new();
     }
 
-    let mut analyser = Analyser::new();
-    let analysis = analyser.analyse(source, dialect.name);
+    let analysis = crate::source_structure::analyse_document(
+        source,
+        dialect,
+        registry,
+        LexerConfig::for_profile(Some(dialect)),
+    );
+    folding_ranges_with_analysis(source, &analysis)
+}
 
+/// Folding geometry from the document's retained complete source, full lexer
+/// configuration and actual Registry/context generation. Source roles and
+/// declarations are readonly applicability; they grant no runtime body entry.
+#[must_use]
+pub fn folding_ranges_with_analysis(source: &str, analysis: &AnalysisResult) -> Vec<FoldingRange> {
+    // Implementation contract: naming.source.original-editor-body-structure
+    // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+        return Vec::new();
+    }
+    let Some(registry) = analysis.resolved_registry() else {
+        return Vec::new();
+    };
     let line_index = LineIndex::new(source);
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
-    let mut ranges: Vec<FoldingRange> = Vec::new();
-
-    collect_scope_folds(
-        &analysis.global_scope,
-        source,
-        &line_index,
-        &mut seen,
-        &mut ranges,
-    );
-    collect_comment_folds(
-        source,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        &mut seen,
-        &mut ranges,
-    );
-    collect_continuation_folds(
-        source,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        &line_index,
-        &mut seen,
-        &mut ranges,
-    );
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    let mut ctx = FoldCtx {
-        registry,
-        availability: Some(crate::document_context_for_profile(dialect).authoring_query()),
-        identities: &identities,
-        line_index: &line_index,
-        original_source: source,
-        seen: &mut seen,
-        ranges: &mut ranges,
-        config: tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-    };
-    collect_body_folds(
-        source,
-        0,
-        0,
-        // An authoring dialect whose *file* is a declaration body states that
-        // as a document grammar; an ordinary Tcl document has none, and the
-        // root stays an open command position (`None`).
-        registry.document_grammar(),
-        &mut ctx,
-    );
-
+    let mut ranges = Vec::new();
+    collect_comment_folds(source, config, &mut seen, &mut ranges);
+    collect_continuation_folds(source, config, &line_index, &mut seen, &mut ranges);
+    if analysis.allows_lexical_declaration_advice() {
+        // Only explicit Logical ingress consumes the compatibility scope maps.
+        // An absent original body or lookup cannot select this branch.
+        collect_scope_folds(
+            &analysis.global_scope,
+            source,
+            &line_index,
+            &mut seen,
+            &mut ranges,
+        );
+        if let Some(identities) = analysis.retained_command_realm()
+            && let Some(input) = analysis.resolved_input.as_ref()
+        {
+            let context = input.context_registry();
+            let mut ctx = FoldCtx {
+                registry,
+                availability: Some(context.context().authoring_query()),
+                identities,
+                line_index: &line_index,
+                original_source: source,
+                seen: &mut seen,
+                ranges: &mut ranges,
+                config,
+            };
+            collect_body_folds(source, 0, 0, registry.document_grammar(), &mut ctx);
+        }
+    } else if let Some(structure) =
+        crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
+    {
+        for body in structure.bodies {
+            emit_body_span_fold(body, source, &line_index, &mut seen, &mut ranges);
+        }
+        for (region, depth) in structure.scripts {
+            if let Some(script) = source.get(region.as_range()) {
+                let comments = tcl_lexer::comment_line_starts(script, config.at_depth(depth))
+                    .into_iter()
+                    .collect();
+                collect_comment_folds_from_facts(
+                    script,
+                    line_index.line_at(region.start()),
+                    &comments,
+                    &mut seen,
+                    &mut ranges,
+                );
+            }
+        }
+    }
     normalise_overlaps(ranges)
 }
 
@@ -922,6 +951,28 @@ mod tests {
             .collect();
         out.sort_unstable();
         out
+    }
+
+    #[test]
+    fn original_folding_uses_retained_full_config_and_body_records() {
+        // Implementation contract: naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        let source = "proc p {} {\n puts first\n puts second\n}\n";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        analysis.global_scope.children.clear();
+        assert!(
+            folding_ranges_with_analysis(source, &analysis)
+                .iter()
+                .any(|fold| fold.start_line == 0 && fold.end_line == 2)
+        );
+        assert!(
+            folding_ranges_with_analysis(&source.replace("first", "other"), &analysis).is_empty()
+        );
+        let config = analysis.body_lexer_config.as_mut().unwrap();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
     }
 
     #[test]

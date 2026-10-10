@@ -14,6 +14,7 @@ use tcl_syntax::value::ValueError;
 
 impl Interp {
     pub(crate) fn retire_pending_native_ensemble_roles(&mut self) {
+        self.retire_pending_children();
         loop {
             let retired = self.namespaces.borrow().take_retired_ensemble_roles();
             if retired.is_empty() {

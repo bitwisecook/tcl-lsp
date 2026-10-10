@@ -1,0 +1,9 @@
+dollar 0 1 1 VALUE_dollar
+quote 0 1 1 VALUE_quote
+brackets 0 1 1 VALUE_brackets
+backslash 0 1 1 VALUE_backslash
+unicode 0 1 1 VALUE_unicode
+quoted_index 0 1 1 VALUE_quoted_index
+nested_command 0 1 1 VALUE_nested_command
+split_root 0 1 1 VALUE_split_root
+replaced_set CHANGED

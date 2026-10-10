@@ -1,0 +1,14 @@
+{
+  "question": "Does namespace-relative procedure publication report its original qualified key, retaining it on a rooted replacement of the same actual table slot?",
+  "source": "namespace-replacement.tcl",
+  "sha256": "96ff0be7464ac43fa39a26a9db6db8a58a92133194ee2470ce894cc3e7ceaaa4",
+  "purpose": "Fresh fullInit public original source, enumerate only after namespace eval has returned to actual root. No namespace info option forwarding, no key-header identity claim. Retain Native340 failing namespace source unchanged. C15 controls explicit NOT_APPLICABLE; this successor requires six new provider processes.",
+  "question_id": "naming.command.original-jim-table-key-publication",
+  "cases": [
+    {
+      "id": "namespace-replacement",
+      "source_file": "/workspace/.proofs/native-jim-key-publication341-request/namespace-replacement.tcl",
+      "source_sha256": "96ff0be7464ac43fa39a26a9db6db8a58a92133194ee2470ce894cc3e7ceaaa4"
+    }
+  ]
+}

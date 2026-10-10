@@ -1,0 +1,236 @@
+{
+  "scope": "Offline exact original input/output/header-window closure; no native or Rust execution.",
+  "source_sha256": "f46266455d37aa2ea7a4bba79994efe4b136f8f787616b35bf9362aee40c18bf",
+  "checks": [
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "check": "Exact recorded compiler query stream checksum."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact recorded compiler query stream checksum."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-compiler-target.stdout",
+      "sha256": "08cababdf891ccbf96eb376f1e84f279f70302fb13d84e5f98637becdfc6d989",
+      "check": "Exact recorded compiler query stream checksum."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-compiler-target.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact recorded compiler query stream checksum."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.4.20-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.4.20-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.4.20-dependencies.stdout",
+      "sha256": "bb7862abdb30940000a38e78ce527b4fb1d4a9715d65da460eef93356016a3da",
+      "check": "Exact dependency_command stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.4.20-dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact dependency_command stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.4.20.stdout",
+      "sha256": "ea45da1adcd9e78215a93a69a3c451f3280bf3da1804b46dba7db7df65322213",
+      "check": "Exact execution stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.4.20.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact execution stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.4.20.stdout",
+      "sha256": "ea45da1adcd9e78215a93a69a3c451f3280bf3da1804b46dba7db7df65322213",
+      "check": "Exactly50 original before/code/after/result windows, actual patchlevel, five ordinal name byte sequences, no missing or repeated case."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.5.19-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.5.19-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.5.19-dependencies.stdout",
+      "sha256": "ff164b0e831535fc2be9f04f8e206b07952bfc36a1874bd5dce66f2f3a3eba3d",
+      "check": "Exact dependency_command stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.5.19-dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact dependency_command stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.5.19.stdout",
+      "sha256": "ecb14ea47f43f7e4b196eac4894c7121a7aca79e8d360e3996e9d01696c8a5ed",
+      "check": "Exact execution stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.5.19.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact execution stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.5.19.stdout",
+      "sha256": "ecb14ea47f43f7e4b196eac4894c7121a7aca79e8d360e3996e9d01696c8a5ed",
+      "check": "Exactly50 original before/code/after/result windows, actual patchlevel, five ordinal name byte sequences, no missing or repeated case."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.6.18-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.6.18-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.6.18-dependencies.stdout",
+      "sha256": "7339118b3abdffacc913256af6e8c32d3affb19857bf642b1e73087f0497d596",
+      "check": "Exact dependency_command stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.6.18-dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact dependency_command stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.6.18.stdout",
+      "sha256": "6c834750ddab59378351cc6f9075ceed69fb508455c846d57169853fff9ff483",
+      "check": "Exact execution stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.6.18.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact execution stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-8.6.18.stdout",
+      "sha256": "6c834750ddab59378351cc6f9075ceed69fb508455c846d57169853fff9ff483",
+      "check": "Exactly50 original before/code/after/result windows, actual patchlevel, five ordinal name byte sequences, no missing or repeated case."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.0.4-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.0.4-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.0.4-dependencies.stdout",
+      "sha256": "5256ec68aa010856b072be92b737166f80a76debe4961fabe63b0fa156e185d1",
+      "check": "Exact dependency_command stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.0.4-dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact dependency_command stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.0.4.stdout",
+      "sha256": "d670a1e6e4ef99f607889d29982b469f5484c3b827717081e555c60c07afbc11",
+      "check": "Exact execution stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.0.4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact execution stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.0.4.stdout",
+      "sha256": "d670a1e6e4ef99f607889d29982b469f5484c3b827717081e555c60c07afbc11",
+      "check": "Exactly50 original before/code/after/result windows, actual patchlevel, five ordinal name byte sequences, no missing or repeated case."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.1.0-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.1.0-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.1.0-dependencies.stdout",
+      "sha256": "806f1b74386590e1e99fc545cdd7a610831f23bb97a124245b8150a5d4503b61",
+      "check": "Exact dependency_command stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.1.0-dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact dependency_command stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.1.0.stdout",
+      "sha256": "9ff021f87d2062786b08473463c9cbb1c0036bd16ef3d03e4246e8fb117a8c08",
+      "check": "Exact execution stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.1.0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact execution stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-9.1.0.stdout",
+      "sha256": "9ff021f87d2062786b08473463c9cbb1c0036bd16ef3d03e4246e8fb117a8c08",
+      "check": "Exactly50 original before/code/after/result windows, actual patchlevel, five ordinal name byte sequences, no missing or repeated case."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-jim-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-jim-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact compile stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-jim-dependencies.stdout",
+      "sha256": "7dfecaeb726f8b31ae9d9844842de58ad17fd639af85e6c0ade8351385a19b23",
+      "check": "Exact dependency_command stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-jim-dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact dependency_command stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-jim.stdout",
+      "sha256": "59fe622a989cbf1cf852d57cb47d14b99909db1677e0060683e71e01085281ed",
+      "check": "Exact execution stdout checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-jim.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "check": "Exact execution stderr checksum and process status0."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-jim.stdout",
+      "sha256": "59fe622a989cbf1cf852d57cb47d14b99909db1677e0060683e71e01085281ed",
+      "check": "Exactly50 original before/code/after/result windows, actual patchlevel, five ordinal name byte sequences, no missing or repeated case."
+    }
+  ]
+}

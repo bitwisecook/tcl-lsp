@@ -151,26 +151,20 @@ impl Vm {
         noun: &'static str,
     ) -> Result<usize, tcl_cmd_core::CmdError> {
         let dialect = self.actual_native_invocation_dialect();
-        if dialect.native_string_protocol()
-            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
-        {
-            if original.native_index_cache().is_some() {
-                return Err(
-                    ValueError::CommandProtocolUnavailable("foreign native Index origin").into(),
-                );
-            }
-            let strings = tcl_syntax::native_string::NativeStringProtocol::Jim084;
-            let bytes = original
-                .native_string_bytes(strings)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
-            let table = if exact {
-                tcl_cmd_core::prefix::OptionTable::exact_only(noun, words)
-            } else {
-                tcl_cmd_core::prefix::OptionTable::abbreviating(noun, words)
-            };
-            return table.index_of(&bytes).map_err(|message| {
-                tcl_cmd_core::CmdError::with_error_code_bytes(message, b"NONE")
-            });
+        if dialect.native_jim_enum_protocol().is_some() {
+            return self
+                .native_jim_enum_from_original(
+                    original,
+                    &NativeStaticIndexTable::supported_backend(words),
+                    tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact),
+                    Some(noun.as_bytes()),
+                )?
+                .map_err(|message| {
+                    tcl_cmd_core::CmdError::with_error_code_bytes(
+                        message.unwrap_or_default(),
+                        b"NONE",
+                    )
+                });
         }
         self.native_index_operand(
             original,

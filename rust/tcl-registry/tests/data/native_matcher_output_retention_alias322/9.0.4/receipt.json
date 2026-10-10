@@ -1,0 +1,59 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/.proofs/native-matcher-output-retention-alias322/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.020975958002964035,
+  "provider": "9.0.4",
+  "provider_version_association": "version 9.0.4 initial_class {} alias_command {}",
+  "version_association_receipt": "/workspace/.proofs/native-jim-class-source269/9.0.4/receipt.json",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+  "executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+  "source_sha256": "09e745443d4899e2e5e7839c33ca62a114b6fcc8a5ef2c2b12ad0c96a4e75b08",
+  "stdout_sha256": "a18d86e44217fe9a1d059201aad8c18e989ba88a7c26733c1e655f02ece381f2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c": "5c944998c2f89689ef9f591983ea7b0e322dd40756fe5baca641e2258969b125",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclPkg.c": "c89585f9d38a913ce03b9a700987cfe18cb39dec2a24293336eb85b67cd67c8c"
+  },
+  "rows": [
+    "regexp 0 0 0 0 ABSENT",
+    "regexp_nocase 0 0 0 0 ABSENT",
+    "regexp_expanded_plain 0 0 0 0 ABSENT",
+    "regexp_expanded_space 0 0 1 1 ab",
+    "scan_decimal 0 0 0 0 ABSENT",
+    "scan_hex 0 0 0 0 ABSENT",
+    "scan_literal 0 0 0 0 ABSENT",
+    "scan_match 0 0 1 1 42",
+    "regexp 1 0 0 1 OLD",
+    "regexp_nocase 1 0 0 1 OLD",
+    "regexp_expanded_plain 1 0 0 1 OLD",
+    "regexp_expanded_space 1 0 1 1 ab",
+    "scan_decimal 1 0 0 1 OLD",
+    "scan_hex 1 0 0 1 OLD",
+    "scan_literal 1 0 0 1 OLD",
+    "scan_match 1 0 1 1 42",
+    "alias_capability 0",
+    "captured_alias 0 0 0 0 ABSENT",
+    "captured_alias 1 0 0 1 OLD",
+    "moved_alias 0 0 0 0 ABSENT",
+    "moved_alias 1 0 0 1 OLD",
+    "moved_builtin 0 0 0 0 ABSENT",
+    "moved_builtin 1 0 0 1 OLD",
+    "replaced_stock 0 0 1 1 CUSTOM",
+    "replaced_stock 1 0 1 1 CUSTOM",
+    "custom_same_tail 0 0 1 1 TAIL",
+    "custom_same_tail 1 0 1 1 TAIL"
+  ],
+  "input_channel": "Fixed ASCII LF source-file CLI, public catch code/result/info exists/stored values and alias capability observation only. No native argv/object/cell or entered frame inference.",
+  "question": "naming.diagnostics.original-matcher-output-retention"
+}

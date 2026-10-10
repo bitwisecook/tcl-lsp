@@ -306,32 +306,48 @@ impl Vm {
                         .expect("publication refusal retained"),
                 )
             })?;
-        self.define_proc(crate::command::ProcDef {
-            native_resources: std::rc::Rc::default(),
-            name: registered,
-            command_ns_id: slot.namespace,
-            simple_name: slot.simple,
-            namespace: self.namespace_path_for_token(ns_id),
-            ns_id,
-            params: parameters,
-            parameter_grammar,
-            has_args,
-            native_jim_namespace: None,
-            native_parameters: (parameter_grammar == tcl_dialect::ParameterGrammar::Jim)
-                .then_some(parameter_value),
+        let table_key = self
+            .jim_command_table_key_for_original(
+                name.as_bytes(),
+                tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+            )
+            .map_err(|error| {
+                let _ = self.refuse_host_command(error.to_string());
+                TclError::from_execution_failure(
+                    self.execution_refusal
+                        .clone()
+                        .expect("publication refusal retained"),
+                )
+            })?;
+        self.define_proc_binding_with_jim_key(
+            crate::command::ProcDef {
+                native_resources: std::rc::Rc::default(),
+                name: registered,
+                command_ns_id: slot.namespace,
+                simple_name: slot.simple,
+                namespace: self.namespace_path_for_token(ns_id),
+                ns_id,
+                params: parameters,
+                parameter_grammar,
+                has_args,
+                native_jim_namespace: None,
+                native_parameters: (parameter_grammar == tcl_dialect::ParameterGrammar::Jim)
+                    .then_some(parameter_value),
 
-            native_header: tcl_registry::native_procedure::procedure_header_compilation(
-                self.native_invocation_dialect(),
-                Some(&parameter_source),
-                Some(body),
-                Some(false),
-            ),
-            statics: None,
-            body: None,
-            body_src: Value::new_native_string_bytes(body.as_bytes()),
-            usage_name: None,
-            call_identity: None,
-        });
+                native_header: tcl_registry::native_procedure::procedure_header_compilation(
+                    self.native_invocation_dialect(),
+                    Some(&parameter_source),
+                    Some(body),
+                    Some(false),
+                ),
+                statics: None,
+                body: None,
+                body_src: Value::new_native_string_bytes(body.as_bytes()),
+                usage_name: None,
+                call_identity: None,
+            },
+            table_key,
+        );
         Ok(())
     }
 
@@ -608,11 +624,13 @@ mod procedure_definition_tests {
             let crate::command::Command::Proc(definition) = vm.lookup_command(name).unwrap() else {
                 panic!("original procedure")
             };
-            let holder = crate::interp::key_holder_and_tail_unrooted(&vm.qualify_name(name)).0;
-            assert_eq!(
-                vm.namespace_token_for_written(&holder),
-                Some(definition.ns_id)
-            );
+            let original = Value::new_native_string_bytes(name.as_bytes());
+            let selected = vm
+                .resolve_original_command_key_at(vm.current_ns_id(), &original)
+                .unwrap()
+                .unwrap();
+            let (namespace, _) = vm.command_slot_parts(&selected).unwrap();
+            assert_eq!(namespace, definition.ns_id);
         }
     }
 

@@ -1,0 +1,1633 @@
+[
+  {
+    "id": "naming.object-vector.missing-handler-result",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/object-vector-missing-handler-result.md",
+    "problem_statement": "Calling an absent command through an original object vector can render arguments to publish an error, while invoking a source command reaches a different reporting path. A rendered missing-command message does not prove that argument storage stayed untouched.",
+    "question": "For an absent handler, do original object-vector and source evaluation leave the same argument residency and result primary?",
+    "conclusion": "All five C releases return code1 and a string result with invalid command name \"missing_original\". The original List argument is resident after direct Tcl_EvalObjv but remains stringless after Tcl_EvalEx source evaluation. Jim returns the same message with an untyped result and a stringless original List for both routes. These snapshots precede reading result bytes and do not measure an unknown-handler replacement or full errorInfo.",
+    "scope": "The probe creates one original stringless List containing A B, installs it as arg, and observes five commands through public original-object argv (flags0) and source evaluation (flags0). Case0–4 are direct; case5–9 are source. Result primary and original argument residency are sampled before the result byte observer. Full source, six captured streams and compile/library/header/executable metadata are retained. C release labels are capture metadata; the probe does not query runtime patchlevel. Jim revision/patch/configuration is not recorded. BIG-IP is not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=307d02f4f52dbbec9d94357e24d3c81311dee907b82738ce17e900832acbde12; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; headers={\"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h\": \"824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf\", \"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h\": \"f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.4",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"1\",\"1\",\"string\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"],[\"5\",\"1\",\"0\",\"string\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1e61bffb5a6a11817e7197b622076fa1e4b43d96fc2307ae15956f5d2defe069; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; headers={\"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h\": \"c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5\", \"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h\": \"72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.5",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"1\",\"1\",\"string\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"],[\"5\",\"1\",\"0\",\"string\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1a417192e6d3627198897d2b520cca0718efda00781c122731f40a913aa9727d; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; headers={\"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h\": \"aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245\", \"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h\": \"e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.6",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"1\",\"1\",\"string\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"],[\"5\",\"1\",\"0\",\"string\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1332569b797c9e2710d61e1909cabf522703e58c36e4baf8be05788251a45dbf; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; headers={\"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h\": \"eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a\", \"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h\": \"f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.0",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"1\",\"1\",\"string\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"],[\"5\",\"1\",\"0\",\"string\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=590439782c09d46f6970197ee4b0fa48241bc3e1b3258e27c62b2d49788a6a1f; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; headers={\"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h\": \"30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950\", \"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h\": \"fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"1\",\"1\",\"string\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"],[\"5\",\"1\",\"0\",\"string\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=9fcbf55c858d67da55851f5d329c94e192b92193674491382e082704f17d050b; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; headers={\"/tmp/2286-oracles/jimtcl/jim.h\": \"d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "jim",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"1\",\"0\",\"none\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"],[\"5\",\"1\",\"0\",\"none\",\"696e76616c696420636f6d6d616e64206e616d6520226d697373696e675f6f726967696e616c22\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_object_vector/probe.c",
+        "sha256": "4019582c89320db840006a2f5c99019d7470d44f443f5590d09355f11c524dae",
+        "description": "Exact native original List constructor, selected command/callback, direct/source flags and physical result observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_object_vector/manifest.json",
+        "sha256": "8ffcfc6a89e0fc6a102a27bf669543d843fccf43c41125cd34811c6be686f478",
+        "description": "Full original stdout/stderr/status plus compiler, library/header and executable metadata."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.4.20.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.5.19.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.6.18.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/9.0.4.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/9.1.0.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/Jim.txt",
+        "sha256": "4db06c56f638d3ef26a4a0373bc42ea44bb428786cdb73608ac0da5feee5af2b",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "selector": "tests::original_public_vectors_and_source_commands_match_all_60_native_windows",
+        "assertion": "The named original cases independently compare completion, original argument residency, result primary and bytes before the physical observer renders output.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "symbol": "eval_original_object_vector",
+        "purpose": "Consumes original borrowed argv through the independently selected evaluator/error/completion protocol; the captured native row does not manufacture a Rust original object."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. The exact probe and captured output can support a new run only after independently pinning the actual release, headers, library and build configuration; capture-time absolute compiler paths are metadata, not a current portable replay runner."
+    }
+  },
+  {
+    "id": "naming.object-vector.native-error-result-publication",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/object-vector-native-error-result-publication.md",
+    "problem_statement": "A native callback can publish an untyped original result and return Error; explicit logging and outer evaluation are separate producers. Replacing every error with a formatted string would discard the observed result primary and argument window.",
+    "question": "Does direct/source invocation preserve the original FAILED callback result and argument residency, including the explicit logged-error control?",
+    "conclusion": "Both failing and explicitly logged callbacks return code1 and bytes FAILED in all tested providers. C results remain untyped, but direct object-vector errors materialize the original List argument while source errors do not. Jim results and original arguments remain untyped/stringless in both routes; its logged control is the plain fail callback, because no Tcl_LogCommandInfo call is compiled there. The probe does not print errorInfo, so it does not prove equality of logged error state.",
+    "scope": "The probe creates one original stringless List containing A B, installs it as arg, and observes five commands through public original-object argv (flags0) and source evaluation (flags0). Case0–4 are direct; case5–9 are source. Result primary and original argument residency are sampled before the result byte observer. Full source, six captured streams and compile/library/header/executable metadata are retained. C release labels are capture metadata; the probe does not query runtime patchlevel. Jim revision/patch/configuration is not recorded. BIG-IP is not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=307d02f4f52dbbec9d94357e24d3c81311dee907b82738ce17e900832acbde12; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; headers={\"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h\": \"824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf\", \"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h\": \"f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.4",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"none\",\"4641494c4544\"],[\"4\",\"1\",\"1\",\"none\",\"4641494c4544\"],[\"6\",\"1\",\"0\",\"none\",\"4641494c4544\"],[\"9\",\"1\",\"0\",\"none\",\"4641494c4544\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1e61bffb5a6a11817e7197b622076fa1e4b43d96fc2307ae15956f5d2defe069; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; headers={\"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h\": \"c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5\", \"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h\": \"72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.5",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"none\",\"4641494c4544\"],[\"4\",\"1\",\"1\",\"none\",\"4641494c4544\"],[\"6\",\"1\",\"0\",\"none\",\"4641494c4544\"],[\"9\",\"1\",\"0\",\"none\",\"4641494c4544\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1a417192e6d3627198897d2b520cca0718efda00781c122731f40a913aa9727d; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; headers={\"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h\": \"aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245\", \"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h\": \"e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.6",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"none\",\"4641494c4544\"],[\"4\",\"1\",\"1\",\"none\",\"4641494c4544\"],[\"6\",\"1\",\"0\",\"none\",\"4641494c4544\"],[\"9\",\"1\",\"0\",\"none\",\"4641494c4544\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1332569b797c9e2710d61e1909cabf522703e58c36e4baf8be05788251a45dbf; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; headers={\"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h\": \"eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a\", \"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h\": \"f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.0",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"none\",\"4641494c4544\"],[\"4\",\"1\",\"1\",\"none\",\"4641494c4544\"],[\"6\",\"1\",\"0\",\"none\",\"4641494c4544\"],[\"9\",\"1\",\"0\",\"none\",\"4641494c4544\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=590439782c09d46f6970197ee4b0fa48241bc3e1b3258e27c62b2d49788a6a1f; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; headers={\"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h\": \"30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950\", \"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h\": \"fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"none\",\"4641494c4544\"],[\"4\",\"1\",\"1\",\"none\",\"4641494c4544\"],[\"6\",\"1\",\"0\",\"none\",\"4641494c4544\"],[\"9\",\"1\",\"0\",\"none\",\"4641494c4544\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=9fcbf55c858d67da55851f5d329c94e192b92193674491382e082704f17d050b; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; headers={\"/tmp/2286-oracles/jimtcl/jim.h\": \"d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "jim",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"0\",\"none\",\"4641494c4544\"],[\"4\",\"1\",\"0\",\"none\",\"4641494c4544\"],[\"6\",\"1\",\"0\",\"none\",\"4641494c4544\"],[\"9\",\"1\",\"0\",\"none\",\"4641494c4544\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_object_vector/probe.c",
+        "sha256": "4019582c89320db840006a2f5c99019d7470d44f443f5590d09355f11c524dae",
+        "description": "Exact native original List constructor, selected command/callback, direct/source flags and physical result observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_object_vector/manifest.json",
+        "sha256": "8ffcfc6a89e0fc6a102a27bf669543d843fccf43c41125cd34811c6be686f478",
+        "description": "Full original stdout/stderr/status plus compiler, library/header and executable metadata."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.4.20.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [1, 4, 6, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.5.19.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [1, 4, 6, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.6.18.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [1, 4, 6, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/9.0.4.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [1, 4, 6, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/9.1.0.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [1, 4, 6, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/Jim.txt",
+        "sha256": "4db06c56f638d3ef26a4a0373bc42ea44bb428786cdb73608ac0da5feee5af2b",
+        "description": "Original full output; relevant cases [1, 4, 6, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "selector": "tests::original_public_vectors_and_source_commands_match_all_60_native_windows",
+        "assertion": "The named original cases independently compare completion, original argument residency, result primary and bytes before the physical observer renders output.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "symbol": "eval_original_object_vector",
+        "purpose": "Consumes original borrowed argv through the independently selected evaluator/error/completion protocol; the captured native row does not manufacture a Rust original object."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. The exact probe and captured output can support a new run only after independently pinning the actual release, headers, library and build configuration; capture-time absolute compiler paths are metadata, not a current portable replay runner."
+    }
+  },
+  {
+    "id": "naming.object-vector.nested-error-result-primary",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/object-vector-nested-error-result-primary.md",
+    "problem_statement": "An entered child script can supply the error result before the outer vector returns. The child result primary and outer argument materialization are distinct; an error byte string does not identify which object representation produced it.",
+    "question": "What original argument residency and result primary remain after a native callback enters error CHILD through vector versus source evaluation?",
+    "conclusion": "All providers return code1 and CHILD. C results are untyped and the outer List argument becomes resident only for direct object-vector evaluation. Jim retains a source primary on the CHILD result and a stringless original argument for both routes. The result is sampled before its byte observer; this is not an object-pointer identity or callback-footprint proof.",
+    "scope": "The probe creates one original stringless List containing A B, installs it as arg, and observes five commands through public original-object argv (flags0) and source evaluation (flags0). Case0–4 are direct; case5–9 are source. Result primary and original argument residency are sampled before the result byte observer. Full source, six captured streams and compile/library/header/executable metadata are retained. C release labels are capture metadata; the probe does not query runtime patchlevel. Jim revision/patch/configuration is not recorded. BIG-IP is not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=307d02f4f52dbbec9d94357e24d3c81311dee907b82738ce17e900832acbde12; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; headers={\"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h\": \"824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf\", \"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h\": \"f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.4",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"2\",\"1\",\"1\",\"none\",\"4348494c44\"],[\"7\",\"1\",\"0\",\"none\",\"4348494c44\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1e61bffb5a6a11817e7197b622076fa1e4b43d96fc2307ae15956f5d2defe069; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; headers={\"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h\": \"c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5\", \"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h\": \"72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.5",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"2\",\"1\",\"1\",\"none\",\"4348494c44\"],[\"7\",\"1\",\"0\",\"none\",\"4348494c44\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1a417192e6d3627198897d2b520cca0718efda00781c122731f40a913aa9727d; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; headers={\"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h\": \"aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245\", \"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h\": \"e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.6",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"2\",\"1\",\"1\",\"none\",\"4348494c44\"],[\"7\",\"1\",\"0\",\"none\",\"4348494c44\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1332569b797c9e2710d61e1909cabf522703e58c36e4baf8be05788251a45dbf; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; headers={\"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h\": \"eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a\", \"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h\": \"f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.0",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"2\",\"1\",\"1\",\"none\",\"4348494c44\"],[\"7\",\"1\",\"0\",\"none\",\"4348494c44\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=590439782c09d46f6970197ee4b0fa48241bc3e1b3258e27c62b2d49788a6a1f; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; headers={\"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h\": \"30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950\", \"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h\": \"fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"2\",\"1\",\"1\",\"none\",\"4348494c44\"],[\"7\",\"1\",\"0\",\"none\",\"4348494c44\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=9fcbf55c858d67da55851f5d329c94e192b92193674491382e082704f17d050b; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; headers={\"/tmp/2286-oracles/jimtcl/jim.h\": \"d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "jim",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"2\",\"1\",\"0\",\"source\",\"4348494c44\"],[\"7\",\"1\",\"0\",\"source\",\"4348494c44\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_object_vector/probe.c",
+        "sha256": "4019582c89320db840006a2f5c99019d7470d44f443f5590d09355f11c524dae",
+        "description": "Exact native original List constructor, selected command/callback, direct/source flags and physical result observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_object_vector/manifest.json",
+        "sha256": "8ffcfc6a89e0fc6a102a27bf669543d843fccf43c41125cd34811c6be686f478",
+        "description": "Full original stdout/stderr/status plus compiler, library/header and executable metadata."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.4.20.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [2, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.5.19.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [2, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.6.18.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [2, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/9.0.4.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [2, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/9.1.0.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [2, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/Jim.txt",
+        "sha256": "4db06c56f638d3ef26a4a0373bc42ea44bb428786cdb73608ac0da5feee5af2b",
+        "description": "Original full output; relevant cases [2, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "selector": "tests::original_public_vectors_and_source_commands_match_all_60_native_windows",
+        "assertion": "The named original cases independently compare completion, original argument residency, result primary and bytes before the physical observer renders output.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "symbol": "eval_original_object_vector",
+        "purpose": "Consumes original borrowed argv through the independently selected evaluator/error/completion protocol; the captured native row does not manufacture a Rust original object."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. The exact probe and captured output can support a new run only after independently pinning the actual release, headers, library and build configuration; capture-time absolute compiler paths are metadata, not a current portable replay runner."
+    }
+  },
+  {
+    "id": "naming.object-vector.successful-native-result-reset",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/object-vector-successful-native-result-reset.md",
+    "problem_statement": "A callback that returns OK without publishing a result exercises evaluator reset rather than error formatting. Borrowing error-path materialization rules would unnecessarily change the original argument.",
+    "question": "Does a successful no-result callback materialize the original List argument through either original-vector or source evaluation?",
+    "conclusion": "All six providers return code0 with an untyped empty result and leave the original List argument stringless for both routes. The observed reset pertains to these successful native callbacks with one fixed original argument, not arbitrary entered script completion or empty argv.",
+    "scope": "The probe creates one original stringless List containing A B, installs it as arg, and observes five commands through public original-object argv (flags0) and source evaluation (flags0). Case0–4 are direct; case5–9 are source. Result primary and original argument residency are sampled before the result byte observer. Full source, six captured streams and compile/library/header/executable metadata are retained. C release labels are capture metadata; the probe does not query runtime patchlevel. Jim revision/patch/configuration is not recorded. BIG-IP is not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=307d02f4f52dbbec9d94357e24d3c81311dee907b82738ce17e900832acbde12; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; headers={\"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h\": \"824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf\", \"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h\": \"f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.4",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"0\",\"0\",\"none\",\"\"],[\"8\",\"0\",\"0\",\"none\",\"\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1e61bffb5a6a11817e7197b622076fa1e4b43d96fc2307ae15956f5d2defe069; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; headers={\"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h\": \"c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5\", \"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h\": \"72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.5",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"0\",\"0\",\"none\",\"\"],[\"8\",\"0\",\"0\",\"none\",\"\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1a417192e6d3627198897d2b520cca0718efda00781c122731f40a913aa9727d; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; headers={\"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h\": \"aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245\", \"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h\": \"e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.6",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"0\",\"0\",\"none\",\"\"],[\"8\",\"0\",\"0\",\"none\",\"\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1332569b797c9e2710d61e1909cabf522703e58c36e4baf8be05788251a45dbf; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; headers={\"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h\": \"eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a\", \"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h\": \"f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.0",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"0\",\"0\",\"none\",\"\"],[\"8\",\"0\",\"0\",\"none\",\"\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=590439782c09d46f6970197ee4b0fa48241bc3e1b3258e27c62b2d49788a6a1f; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; headers={\"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h\": \"30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950\", \"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h\": \"fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"0\",\"0\",\"none\",\"\"],[\"8\",\"0\",\"0\",\"none\",\"\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=9fcbf55c858d67da55851f5d329c94e192b92193674491382e082704f17d050b; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; headers={\"/tmp/2286-oracles/jimtcl/jim.h\": \"d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "jim",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"0\",\"0\",\"none\",\"\"],[\"8\",\"0\",\"0\",\"none\",\"\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_object_vector/probe.c",
+        "sha256": "4019582c89320db840006a2f5c99019d7470d44f443f5590d09355f11c524dae",
+        "description": "Exact native original List constructor, selected command/callback, direct/source flags and physical result observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_object_vector/manifest.json",
+        "sha256": "8ffcfc6a89e0fc6a102a27bf669543d843fccf43c41125cd34811c6be686f478",
+        "description": "Full original stdout/stderr/status plus compiler, library/header and executable metadata."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.4.20.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [3, 8]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.5.19.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [3, 8]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/8.6.18.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [3, 8]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/9.0.4.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [3, 8]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/9.1.0.txt",
+        "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+        "description": "Original full output; relevant cases [3, 8]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/Jim.txt",
+        "sha256": "4db06c56f638d3ef26a4a0373bc42ea44bb428786cdb73608ac0da5feee5af2b",
+        "description": "Original full output; relevant cases [3, 8]. Columns: case,completion,original argument resident,result primary,result hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "selector": "tests::original_public_vectors_and_source_commands_match_all_60_native_windows",
+        "assertion": "The named original cases independently compare completion, original argument residency, result primary and bytes before the physical observer renders output.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "symbol": "eval_original_object_vector",
+        "purpose": "Consumes original borrowed argv through the independently selected evaluator/error/completion protocol; the captured native row does not manufacture a Rust original object."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. The exact probe and captured output can support a new run only after independently pinning the actual release, headers, library and build configuration; capture-time absolute compiler paths are metadata, not a current portable replay runner."
+    }
+  },
+  {
+    "id": "naming.object-vector.completion.return-boundary",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/object-vector-completion-return-boundary.md",
+    "problem_statement": "A return completion can be consumed or surfaced by the evaluator, and direct original vectors can cross a different completion boundary from source text. Treating all successful-looking return bytes as code0 loses the release-specific boundary.",
+    "question": "How do direct original-object return and source return normalize completion while preserving the original List result storage?",
+    "conclusion": "Direct return is code0/List/stringless in C8.4 and C8.6–9.1, but C8.5 returns code1, materializes the original argument, and publishes string \"command returned bad code: 0\". Source return is code0/List/stringless in all five C releases. Jim returns code2/List/stringless through both routes. Successful List result bytes are7B4120427D. No result pointer is sampled by the native probe, so List type/bytes alone do not attest original-object identity.",
+    "scope": "The probe creates one original stringless List containing A B, installs it as arg, and observes five commands through public original-object argv (flags0) and source evaluation (flags0). Case0–4 are direct; case5–9 are source. Result primary and original argument residency are sampled before the result byte observer. Full source, six captured streams and compile/library/header/executable metadata are retained. C release labels are capture metadata; the probe does not query runtime patchlevel. Jim revision/patch/configuration is not recorded. BIG-IP is not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=6ae5810c8a9dfe2c7de096c5f654f29cea626b6c63e6e1feb12d94ab68844375; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; headers={\"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h\": \"824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf\", \"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h\": \"f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.4",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"0\",\"0\",\"list\",\"7b4120427d\"],[\"5\",\"0\",\"0\",\"list\",\"7b4120427d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=50d8547e11fb54399963455e97e54628fe244ceb82f443f280fdc5d5e6481c86; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; headers={\"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h\": \"c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5\", \"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h\": \"72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.5",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"1\",\"1\",\"string\",\"636f6d6d616e642072657475726e65642062616420636f64653a2030\"],[\"5\",\"0\",\"0\",\"list\",\"7b4120427d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1da8d7e0106dd0aced14976b45a010fd98bea2f044438168f47efc2994b685eb; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; headers={\"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h\": \"aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245\", \"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h\": \"e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.6",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"0\",\"0\",\"list\",\"7b4120427d\"],[\"5\",\"0\",\"0\",\"list\",\"7b4120427d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=24f6047ad200ba3ab0f1904529c55cb8913c7bcebe24e46b9dece051a57e9394; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; headers={\"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h\": \"eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a\", \"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h\": \"f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.0",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"0\",\"0\",\"list\",\"7b4120427d\"],[\"5\",\"0\",\"0\",\"list\",\"7b4120427d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=2bc368df2842b9e0f981260a23822fe606c969a9350896db851b1c161afb8f14; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; headers={\"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h\": \"30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950\", \"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h\": \"fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"0\",\"0\",\"list\",\"7b4120427d\"],[\"5\",\"0\",\"0\",\"list\",\"7b4120427d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=6629cdbeb7a0e2025ef3a2439ce9a9b89c3684c52d656081cab45f6011bb3e87; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; headers={\"/tmp/2286-oracles/jimtcl/jim.h\": \"d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "jim",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"0\",\"2\",\"0\",\"list\",\"7b4120427d\"],[\"5\",\"2\",\"0\",\"list\",\"7b4120427d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/probe.c",
+        "sha256": "5d2db2af6e35da1ee9a644e9a4195e49754dcfea330dfaff5103a63c42f5506e",
+        "description": "Exact native original List constructor, selected command/callback, direct/source flags and physical result observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/manifest.json",
+        "sha256": "d89241cf1b2d6c707e195fa9c4d239e83e0ca9e4504c8628e1d1745c06e81755",
+        "description": "Full original stdout/stderr/status plus compiler, library/header and executable metadata."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/8.4.20.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/8.5.19.txt",
+        "sha256": "c13d4e1635e82b9d034c2d95296c3f60113974d5a58aa716a61c9a853da846a7",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/8.6.18.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/9.0.4.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/9.1.0.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/Jim.txt",
+        "sha256": "96b430b799b776a794657b1323e333e3c36658935c8f19fdf81f215d11725301",
+        "description": "Original full output; relevant cases [0, 5]. Columns: case,completion,original argument resident,result primary,result hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "selector": "tests::public_original_return_matches_all_six_native_completion_boundaries",
+        "assertion": "Compares the six direct case0 return completion/residency/primary/byte windows; additional Rust pointer equality is an implementation assertion rather than a native pointer measurement. Source return rows5 are retained empirical controls, not asserted by this selector.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "symbol": "eval_original_object_vector",
+        "purpose": "Consumes original borrowed argv through the independently selected evaluator/error/completion protocol; the captured native row does not manufacture a Rust original object."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. The exact probe and captured output can support a new run only after independently pinning the actual release, headers, library and build configuration; capture-time absolute compiler paths are metadata, not a current portable replay runner."
+    }
+  },
+  {
+    "id": "naming.object-vector.completion.break-continue-argument-frontier",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/object-vector-completion-break-continue-argument-frontier.md",
+    "problem_statement": "The one original List argument is extra argv for stock C break/continue but a potential level operand in Jim. The same Error completion can arise from different argument consumers and primary changes.",
+    "question": "For break/continue with the original List argument, which usage/numeric frontier is reached through direct and source evaluation?",
+    "conclusion": "C Tcl returns code1 with string wrong-argument usage for break or continue. Direct vector calls materialize the original argument; source calls leave it stringless. Jim reaches its integer-level conversion in both routes, materializes the argument, and returns code1/untyped result with expected integer but got \"{A B}\". These are rejected one-argument calls, not successful loop-control executions.",
+    "scope": "The probe creates one original stringless List containing A B, installs it as arg, and observes five commands through public original-object argv (flags0) and source evaluation (flags0). Case0–4 are direct; case5–9 are source. Result primary and original argument residency are sampled before the result byte observer. Full source, six captured streams and compile/library/header/executable metadata are retained. C release labels are capture metadata; the probe does not query runtime patchlevel. Jim revision/patch/configuration is not recorded. BIG-IP is not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=6ae5810c8a9dfe2c7de096c5f654f29cea626b6c63e6e1feb12d94ab68844375; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; headers={\"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h\": \"824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf\", \"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h\": \"f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.4",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022627265616b22\"],[\"2\",\"1\",\"1\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022636f6e74696e756522\"],[\"6\",\"1\",\"0\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022627265616b22\"],[\"7\",\"1\",\"0\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022636f6e74696e756522\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=50d8547e11fb54399963455e97e54628fe244ceb82f443f280fdc5d5e6481c86; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; headers={\"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h\": \"c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5\", \"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h\": \"72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.5",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022627265616b22\"],[\"2\",\"1\",\"1\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022636f6e74696e756522\"],[\"6\",\"1\",\"0\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022627265616b22\"],[\"7\",\"1\",\"0\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022636f6e74696e756522\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1da8d7e0106dd0aced14976b45a010fd98bea2f044438168f47efc2994b685eb; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; headers={\"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h\": \"aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245\", \"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h\": \"e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.6",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022627265616b22\"],[\"2\",\"1\",\"1\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022636f6e74696e756522\"],[\"6\",\"1\",\"0\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022627265616b22\"],[\"7\",\"1\",\"0\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022636f6e74696e756522\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=24f6047ad200ba3ab0f1904529c55cb8913c7bcebe24e46b9dece051a57e9394; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; headers={\"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h\": \"eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a\", \"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h\": \"f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.0",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022627265616b22\"],[\"2\",\"1\",\"1\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022636f6e74696e756522\"],[\"6\",\"1\",\"0\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022627265616b22\"],[\"7\",\"1\",\"0\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022636f6e74696e756522\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=2bc368df2842b9e0f981260a23822fe606c969a9350896db851b1c161afb8f14; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; headers={\"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h\": \"30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950\", \"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h\": \"fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022627265616b22\"],[\"2\",\"1\",\"1\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022636f6e74696e756522\"],[\"6\",\"1\",\"0\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022627265616b22\"],[\"7\",\"1\",\"0\",\"string\",\"77726f6e67202320617267733a2073686f756c642062652022636f6e74696e756522\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=6629cdbeb7a0e2025ef3a2439ce9a9b89c3684c52d656081cab45f6011bb3e87; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; headers={\"/tmp/2286-oracles/jimtcl/jim.h\": \"d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "jim",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"1\",\"1\",\"1\",\"none\",\"657870656374656420696e74656765722062757420676f7420227b4120427d22\"],[\"2\",\"1\",\"1\",\"none\",\"657870656374656420696e74656765722062757420676f7420227b4120427d22\"],[\"6\",\"1\",\"1\",\"none\",\"657870656374656420696e74656765722062757420676f7420227b4120427d22\"],[\"7\",\"1\",\"1\",\"none\",\"657870656374656420696e74656765722062757420676f7420227b4120427d22\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/probe.c",
+        "sha256": "5d2db2af6e35da1ee9a644e9a4195e49754dcfea330dfaff5103a63c42f5506e",
+        "description": "Exact native original List constructor, selected command/callback, direct/source flags and physical result observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/manifest.json",
+        "sha256": "d89241cf1b2d6c707e195fa9c4d239e83e0ca9e4504c8628e1d1745c06e81755",
+        "description": "Full original stdout/stderr/status plus compiler, library/header and executable metadata."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/8.4.20.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [1, 2, 6, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/8.5.19.txt",
+        "sha256": "c13d4e1635e82b9d034c2d95296c3f60113974d5a58aa716a61c9a853da846a7",
+        "description": "Original full output; relevant cases [1, 2, 6, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/8.6.18.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [1, 2, 6, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/9.0.4.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [1, 2, 6, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/9.1.0.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [1, 2, 6, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/Jim.txt",
+        "sha256": "96b430b799b776a794657b1323e333e3c36658935c8f19fdf81f215d11725301",
+        "description": "Original full output; relevant cases [1, 2, 6, 7]. Columns: case,completion,original argument resident,result primary,result hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "symbol": "eval_original_object_vector",
+        "purpose": "Consumes original borrowed argv through the independently selected evaluator/error/completion protocol; the captured native row does not manufacture a Rust original object."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. The exact probe and captured output can support a new run only after independently pinning the actual release, headers, library and build configuration; capture-time absolute compiler paths are metadata, not a current portable replay runner."
+    }
+  },
+  {
+    "id": "naming.object-vector.completion.error-list-result-storage",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/object-vector-completion-error-list-result-storage.md",
+    "problem_statement": "Error and List can retain List-shaped results even though one completes with Error and the other succeeds. An outer completion code should not by itself force a String result or identify an original pointer.",
+    "question": "How do error and list preserve result primary and original argument storage through vector/source completion?",
+    "conclusion": "Error returns code1 with List result bytes7B4120427D in all providers. Its original argument is resident after direct C evaluation but stringless after source C evaluation and both Jim routes. List returns code0 with a List result7B7B4120427D7D and a stringless original argument in both routes for all providers. No native result-pointer identity, lifetime or full error state is measured.",
+    "scope": "The probe creates one original stringless List containing A B, installs it as arg, and observes five commands through public original-object argv (flags0) and source evaluation (flags0). Case0–4 are direct; case5–9 are source. Result primary and original argument residency are sampled before the result byte observer. Full source, six captured streams and compile/library/header/executable metadata are retained. C release labels are capture metadata; the probe does not query runtime patchlevel. Jim revision/patch/configuration is not recorded. BIG-IP is not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=6ae5810c8a9dfe2c7de096c5f654f29cea626b6c63e6e1feb12d94ab68844375; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; headers={\"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h\": \"824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf\", \"/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h\": \"f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.4",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"1\",\"1\",\"list\",\"7b4120427d\"],[\"4\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"],[\"8\",\"1\",\"0\",\"list\",\"7b4120427d\"],[\"9\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=50d8547e11fb54399963455e97e54628fe244ceb82f443f280fdc5d5e6481c86; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; headers={\"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h\": \"c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5\", \"/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h\": \"72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.5",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"1\",\"1\",\"list\",\"7b4120427d\"],[\"4\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"],[\"8\",\"1\",\"0\",\"list\",\"7b4120427d\"],[\"9\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=1da8d7e0106dd0aced14976b45a010fd98bea2f044438168f47efc2994b685eb; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; headers={\"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h\": \"aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245\", \"/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h\": \"e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl8.6",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"1\",\"1\",\"list\",\"7b4120427d\"],[\"4\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"],[\"8\",\"1\",\"0\",\"list\",\"7b4120427d\"],[\"9\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=24f6047ad200ba3ab0f1904529c55cb8913c7bcebe24e46b9dece051a57e9394; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; headers={\"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h\": \"eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a\", \"/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h\": \"f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.0",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"1\",\"1\",\"list\",\"7b4120427d\"],[\"4\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"],[\"8\",\"1\",\"0\",\"list\",\"7b4120427d\"],[\"9\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=2bc368df2842b9e0f981260a23822fe606c969a9350896db851b1c161afb8f14; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; headers={\"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h\": \"30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950\", \"/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h\": \"fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"1\",\"1\",\"list\",\"7b4120427d\"],[\"4\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"],[\"8\",\"1\",\"0\",\"list\",\"7b4120427d\"],[\"9\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (capture association; runtime patch/revision not queried)",
+        "build": "binary_sha256=6629cdbeb7a0e2025ef3a2439ce9a9b89c3684c52d656081cab45f6011bb3e87; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; headers={\"/tmp/2286-oracles/jimtcl/jim.h\": \"d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d\"}",
+        "input_channel": "compiled public Tcl_EvalObjv/Jim_EvalObjVector and source Tcl_EvalEx/Jim_Eval, flags0",
+        "dialect": "jim",
+        "status": "observed",
+        "answer": "Relevant original rows [case,completion,argument resident,result primary,result hex]: [[\"3\",\"1\",\"0\",\"list\",\"7b4120427d\"],[\"4\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"],[\"8\",\"1\",\"0\",\"list\",\"7b4120427d\"],[\"9\",\"0\",\"0\",\"list\",\"7b7b4120427d7d\"]]. Process/compile status0; empty stderr.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/probe.c",
+        "sha256": "5d2db2af6e35da1ee9a644e9a4195e49754dcfea330dfaff5103a63c42f5506e",
+        "description": "Exact native original List constructor, selected command/callback, direct/source flags and physical result observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/manifest.json",
+        "sha256": "d89241cf1b2d6c707e195fa9c4d239e83e0ca9e4504c8628e1d1745c06e81755",
+        "description": "Full original stdout/stderr/status plus compiler, library/header and executable metadata."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/8.4.20.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [3, 4, 8, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/8.5.19.txt",
+        "sha256": "c13d4e1635e82b9d034c2d95296c3f60113974d5a58aa716a61c9a853da846a7",
+        "description": "Original full output; relevant cases [3, 4, 8, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/8.6.18.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [3, 4, 8, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/9.0.4.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [3, 4, 8, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/9.1.0.txt",
+        "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+        "description": "Original full output; relevant cases [3, 4, 8, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_object_vector/completions/Jim.txt",
+        "sha256": "96b430b799b776a794657b1323e333e3c36658935c8f19fdf81f215d11725301",
+        "description": "Original full output; relevant cases [3, 4, 8, 9]. Columns: case,completion,original argument resident,result primary,result hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "symbol": "eval_original_object_vector",
+        "purpose": "Consumes original borrowed argv through the independently selected evaluator/error/completion protocol; the captured native row does not manufacture a Rust original object."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. The exact probe and captured output can support a new run only after independently pinning the actual release, headers, library and build configuration; capture-time absolute compiler paths are metadata, not a current portable replay runner."
+    }
+  },
+  {
+    "id": "naming.procedure.counted-formal-header-selection",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/procedure-counted-formal-header-selection.md",
+    "problem_statement": "An original formal object can contain args followed by counted zero/tail bytes while the compiler header uses a different naming purpose from actual formal storage. A header pointer must not be interpreted as proof that only the displayed args formal was installed or that calls will succeed.",
+    "question": "Does procedure definition install a compiler header for the exact counted args, args00X and whitespace-wrapped args00X parameter objects with empty bodies?",
+    "conclusion": "All five C releases complete each of the three original definitions with code0 and a non-null Command.compileProc pointer. Parameter lengths are4,6 and8, and their actual zero/tail bytes are retained in the probe. The pointer observation supplies neither accepted call arity nor formal-storage name identity, object callback closure or body execution.",
+    "scope": "Counted original Tcl_NewStringObj parameter/body objects passed to proc via public Tcl_EvalObjv with TCL_EVAL_DIRECT, followed by private Command.compileProc inspection. Eight definitions redefine p in one native interpreter; all observed code0. Full original source/five outputs and linked-library digests are retained; runtime version queries, compiler/executable/header digests and full stderr are not in this receipt. Jim/BIG-IP are not tested. This compiler-header purpose remains independent of declaration/name/procedure-body ownership.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (receipt release association; not queried by probe)",
+        "build": "library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; compiler/executable/header metadata not recorded",
+        "input_channel": "compiled public Tcl_EvalObjv TCL_EVAL_DIRECT; private Command.compileProc observer",
+        "dialect": "tcl8.4",
+        "status": "observed",
+        "answer": "Relevant [case,definition code,compiler-header present] rows: [[0,0,1],[1,0,1],[2,0,1]]. Recorded process status0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (receipt release association; not queried by probe)",
+        "build": "library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; compiler/executable/header metadata not recorded",
+        "input_channel": "compiled public Tcl_EvalObjv TCL_EVAL_DIRECT; private Command.compileProc observer",
+        "dialect": "tcl8.5",
+        "status": "observed",
+        "answer": "Relevant [case,definition code,compiler-header present] rows: [[0,0,1],[1,0,1],[2,0,1]]. Recorded process status0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (receipt release association; not queried by probe)",
+        "build": "library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; compiler/executable/header metadata not recorded",
+        "input_channel": "compiled public Tcl_EvalObjv TCL_EVAL_DIRECT; private Command.compileProc observer",
+        "dialect": "tcl8.6",
+        "status": "observed",
+        "answer": "Relevant [case,definition code,compiler-header present] rows: [[0,0,1],[1,0,1],[2,0,1]]. Recorded process status0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (receipt release association; not queried by probe)",
+        "build": "library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; compiler/executable/header metadata not recorded",
+        "input_channel": "compiled public Tcl_EvalObjv TCL_EVAL_DIRECT; private Command.compileProc observer",
+        "dialect": "tcl9.0",
+        "status": "observed",
+        "answer": "Relevant [case,definition code,compiler-header present] rows: [[0,0,1],[1,0,1],[2,0,1]]. Recorded process status0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (receipt release association; not queried by probe)",
+        "build": "library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; compiler/executable/header metadata not recorded",
+        "input_channel": "compiled public Tcl_EvalObjv TCL_EVAL_DIRECT; private Command.compileProc observer",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Relevant [case,definition code,compiler-header present] rows: [[0,0,1],[1,0,1],[2,0,1]]. Recorded process status0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/probe.c",
+        "sha256": "4c88bf66e1da56ca812565f2861a7f7c2bb33d9f737746f3072771f089b30b33",
+        "description": "Exact counted parameter/body arrays, direct-evaluation flags and private compiler-header pointer observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/manifest.json",
+        "sha256": "f7c731a9d9d43ab78d5ff73308d5d224298a21b7692aef11dae02df2042f5244",
+        "description": "Original five release associations, library digests, output digests/counts and process status."
+      },
+      {
+        "id": "replay-description",
+        "role": "limitation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/README.md",
+        "sha256": "6edef5cc965bbf9599866aed1c954abfd4eb6df3ec060cda6aea256019d07b3f",
+        "description": "Maintained description gives a selected-header/library compiler protocol; no executed fresh run is asserted."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/8.4.20.txt",
+        "sha256": "06131ac9067d58dbc6e6d9b7f4b5b8da12ae59cdbca4a35152c9980854af9034",
+        "description": "Original full output, relevant cases [0, 1, 2]. Each line reports case, definition code and compiler pointer presence."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/8.5.19.txt",
+        "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+        "description": "Original full output, relevant cases [0, 1, 2]. Each line reports case, definition code and compiler pointer presence."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/8.6.18.txt",
+        "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+        "description": "Original full output, relevant cases [0, 1, 2]. Each line reports case, definition code and compiler pointer presence."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/9.0.4.txt",
+        "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+        "description": "Original full output, relevant cases [0, 1, 2]. Each line reports case, definition code and compiler pointer presence."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/9.1.0.txt",
+        "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+        "description": "Original full output, relevant cases [0, 1, 2]. Each line reports case, definition code and compiler pointer presence."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "selector": "tests::byte_header_selection_matches_original_native_storage",
+        "assertion": "The specific counted parameter/body controls compare NoOp/Absent header selection against actual native pointer observations, without proving allocation or call acceptance.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "symbol": "procedure_header_compilation_bytes",
+        "purpose": "Owns the selected header byte-purpose independently of formal storage and actual entered procedure execution."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. The exact probe and captured output can support a new run only after independently pinning the actual release, headers, library and build configuration; capture-time absolute compiler paths are metadata, not a current portable replay runner."
+    }
+  },
+  {
+    "id": "naming.procedure.counted-body-header-selection",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/procedure-counted-body-header-selection.md",
+    "problem_statement": "A no-op procedure compiler header may classify a body through a CString prefix or its counted bytes, and continuation/control whitespace can differ by release. Inferring body emptiness from a presentation string would collapse these measured boundaries.",
+    "question": "Which compiler header pointer remains after defining args procedures with counted raw-zero, FF, continuation and whitespace body bytes?",
+    "conclusion": "For cases0,3,4,5,6,7, C8.4 header bits are1,1,0,0,1,1; C8.5–9.1 bits are1,0,0,1,1,0. Every definition returns code0. Thus the counted raw-zero and backslash-newline controls differ across the observed release boundary; this establishes only actual header presence, not procedure argument acceptance or entered body effects.",
+    "scope": "Counted original Tcl_NewStringObj parameter/body objects passed to proc via public Tcl_EvalObjv with TCL_EVAL_DIRECT, followed by private Command.compileProc inspection. Eight definitions redefine p in one native interpreter; all observed code0. Full original source/five outputs and linked-library digests are retained; runtime version queries, compiler/executable/header digests and full stderr are not in this receipt. Jim/BIG-IP are not tested. This compiler-header purpose remains independent of declaration/name/procedure-body ownership.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (receipt release association; not queried by probe)",
+        "build": "library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; compiler/executable/header metadata not recorded",
+        "input_channel": "compiled public Tcl_EvalObjv TCL_EVAL_DIRECT; private Command.compileProc observer",
+        "dialect": "tcl8.4",
+        "status": "observed",
+        "answer": "Relevant [case,definition code,compiler-header present] rows: [[0,0,1],[3,0,1],[4,0,0],[5,0,0],[6,0,1],[7,0,1]]. Recorded process status0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (receipt release association; not queried by probe)",
+        "build": "library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; compiler/executable/header metadata not recorded",
+        "input_channel": "compiled public Tcl_EvalObjv TCL_EVAL_DIRECT; private Command.compileProc observer",
+        "dialect": "tcl8.5",
+        "status": "observed",
+        "answer": "Relevant [case,definition code,compiler-header present] rows: [[0,0,1],[3,0,0],[4,0,0],[5,0,1],[6,0,1],[7,0,0]]. Recorded process status0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (receipt release association; not queried by probe)",
+        "build": "library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; compiler/executable/header metadata not recorded",
+        "input_channel": "compiled public Tcl_EvalObjv TCL_EVAL_DIRECT; private Command.compileProc observer",
+        "dialect": "tcl8.6",
+        "status": "observed",
+        "answer": "Relevant [case,definition code,compiler-header present] rows: [[0,0,1],[3,0,0],[4,0,0],[5,0,1],[6,0,1],[7,0,0]]. Recorded process status0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (receipt release association; not queried by probe)",
+        "build": "library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; compiler/executable/header metadata not recorded",
+        "input_channel": "compiled public Tcl_EvalObjv TCL_EVAL_DIRECT; private Command.compileProc observer",
+        "dialect": "tcl9.0",
+        "status": "observed",
+        "answer": "Relevant [case,definition code,compiler-header present] rows: [[0,0,1],[3,0,0],[4,0,0],[5,0,1],[6,0,1],[7,0,0]]. Recorded process status0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (receipt release association; not queried by probe)",
+        "build": "library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; compiler/executable/header metadata not recorded",
+        "input_channel": "compiled public Tcl_EvalObjv TCL_EVAL_DIRECT; private Command.compileProc observer",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Relevant [case,definition code,compiler-header present] rows: [[0,0,1],[3,0,0],[4,0,0],[5,0,1],[6,0,1],[7,0,0]]. Recorded process status0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No native observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/probe.c",
+        "sha256": "4c88bf66e1da56ca812565f2861a7f7c2bb33d9f737746f3072771f089b30b33",
+        "description": "Exact counted parameter/body arrays, direct-evaluation flags and private compiler-header pointer observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/manifest.json",
+        "sha256": "f7c731a9d9d43ab78d5ff73308d5d224298a21b7692aef11dae02df2042f5244",
+        "description": "Original five release associations, library digests, output digests/counts and process status."
+      },
+      {
+        "id": "replay-description",
+        "role": "limitation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/README.md",
+        "sha256": "6edef5cc965bbf9599866aed1c954abfd4eb6df3ec060cda6aea256019d07b3f",
+        "description": "Maintained description gives a selected-header/library compiler protocol; no executed fresh run is asserted."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/8.4.20.txt",
+        "sha256": "06131ac9067d58dbc6e6d9b7f4b5b8da12ae59cdbca4a35152c9980854af9034",
+        "description": "Original full output, relevant cases [0, 3, 4, 5, 6, 7]. Each line reports case, definition code and compiler pointer presence."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/8.5.19.txt",
+        "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+        "description": "Original full output, relevant cases [0, 3, 4, 5, 6, 7]. Each line reports case, definition code and compiler pointer presence."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/8.6.18.txt",
+        "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+        "description": "Original full output, relevant cases [0, 3, 4, 5, 6, 7]. Each line reports case, definition code and compiler pointer presence."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/9.0.4.txt",
+        "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+        "description": "Original full output, relevant cases [0, 3, 4, 5, 6, 7]. Each line reports case, definition code and compiler pointer presence."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_procedure_headers/9.1.0.txt",
+        "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+        "description": "Original full output, relevant cases [0, 3, 4, 5, 6, 7]. Each line reports case, definition code and compiler pointer presence."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "selector": "tests::byte_header_selection_matches_original_native_storage",
+        "assertion": "The specific counted parameter/body controls compare NoOp/Absent header selection against actual native pointer observations, without proving allocation or call acceptance.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-vm/src/command.rs",
+        "selector": "tests::physical_procedure_capture_and_header_remain_separate_from_authored_names",
+        "assertion": "Checks raw-zero body header absence under actual C9 despite an authored C8.4 name policy, retained/copy body ownership separately, and missing native provider refusal.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "symbol": "procedure_header_compilation_bytes",
+        "purpose": "Owns the selected header byte-purpose independently of formal storage and actual entered procedure execution."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. The exact probe and captured output can support a new run only after independently pinning the actual release, headers, library and build configuration; capture-time absolute compiler paths are metadata, not a current portable replay runner."
+    }
+  }
+]

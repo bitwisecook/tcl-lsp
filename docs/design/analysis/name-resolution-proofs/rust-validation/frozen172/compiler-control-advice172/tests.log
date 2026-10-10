@@ -1,0 +1,11 @@
+
+running 6 tests
+test analyser::diagnostics::original_control_advice::original_control_capture_does_not_donate_teardown_to_namespace_tail ... ok
+test analyser::diagnostics::original_control_advice::original_control_capture_keeps_alias_body_and_whole_edit_extent ... ok
+test analyser::diagnostics::original_control_advice::original_control_captured_prefix_does_not_mint_a_written_clause_edit ... ok
+test analyser::diagnostics::original_control_advice::original_control_context_uses_count_without_guessing_operand_values ... ok
+test analyser::diagnostics::original_control_advice::original_control_shape_keeps_unknown_payload_and_selected_alias ... ok
+test analyser::diagnostics::original_control_advice::original_control_shape_refuses_replaced_heads_and_unknown_keywords ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 8250 filtered out; finished in 6.03s
+

@@ -1,0 +1,18 @@
+
+running 4 tests
+test cmd_list::tests::deeply_nested_lpop_survives_and_is_correct ... ok
+test interp::native_command_holder_tests::original_command_holder_source_controls_match_all_native_providers ... 
+thread 'interp::native_command_holder_tests::original_command_holder_source_controls_match_all_native_providers' (716062) panicked at rust/tcl-vm/src/interp/native_command_holder_tests.rs:96:33:
+tcl8.4/0/ORIGINAL: CompilationAdmission(NativePreflightRequired)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test value::native_retirement::tests::deep_dictionary_retirement_preserves_a_real_external_member_reference ... ok
+test value::native_retirement::tests::deep_list_retirement_retires_native_headers_but_keeps_lifetime_leases ... ok
+
+failures:
+
+failures:
+    interp::native_command_holder_tests::original_command_holder_source_controls_match_all_native_providers
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 672 filtered out; finished in 1.31s
+

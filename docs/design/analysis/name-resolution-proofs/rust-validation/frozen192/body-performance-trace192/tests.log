@@ -1,0 +1,3 @@
+
+running 1 test
+test analyser::oo::tests::extract_unknown_proc_info_survives_deep_nesting ... SOURCE_PHASE bytes=11008 stage=initial ms=22 points=0 layouts=0

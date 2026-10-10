@@ -41,6 +41,7 @@ pub mod helpers;
 mod hook_operands;
 mod native_compiler_pass;
 mod native_failure;
+pub(crate) mod native_substitution;
 pub mod peephole;
 pub mod statements;
 pub mod structured;
@@ -348,9 +349,9 @@ pub struct CodegenCtx<'r> {
     native_dependency_refusal: bool,
     /// Hazards captured from actual emitted instructions before peepholes.
     native_compiler_pass_hazards: Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard>,
-    /// Actual second compiler pass omits executable START_CMD markers.
+    /// Actual second compiler pass omits executable `START_CMD` markers.
     compact_compiler_pass: bool,
-    /// Active C8.4 Catch body compilation checkpoints, independently of
+    /// Active C8.4 `Catch` body compilation checkpoints, independently of
     /// exception ranges entered by the eventual runtime instructions.
     native_speculative_compilations: Vec<std::rc::Rc<std::cell::Cell<bool>>>,
     /// Suppress registry codegen hooks as well as lowering hooks.
@@ -670,7 +671,20 @@ impl<'r> CodegenCtx<'r> {
         binding
     }
 
+    #[track_caller]
     fn refuse_native_dependency(&mut self) {
+        if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+            eprintln!(
+                "NATIVE_CODEGEN_REFUSAL caller={} compilation={:?} invocation={:?} span={:?} source={:?}",
+                std::panic::Location::caller(),
+                self.native_compilation,
+                self.invocation_dialect,
+                self.current_span,
+                self.exact_command_source
+                    .as_ref()
+                    .map(tcl_lexer::SourceImage::bytes),
+            );
+        }
         self.native_dependency_refusal = true;
     }
 
@@ -719,6 +733,19 @@ impl<'r> CodegenCtx<'r> {
             self.command_binding_requirements
                 .extend(crate::registry_invocation::native_implementation_dependencies(tokens));
             if refused {
+                if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+                    eprintln!(
+                        "NATIVE_CODEGEN_ADMISSION argv={:?} selection={:?} original_named={}",
+                        tokens.argv_texts,
+                        tokens
+                            .source_binding
+                            .as_ref()
+                            .map(crate::command_binding::SourceInvocationBinding::native_compilation_admission_selection),
+                        tokens.source_binding.as_ref().is_some_and(|binding| binding
+                            .original_named_compiler_admission(tokens)
+                            .is_some()),
+                    );
+                }
                 self.refuse_native_dependency();
             }
         }

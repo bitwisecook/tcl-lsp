@@ -33,8 +33,11 @@ const MATCHER_WRITES: &[StaticEffectAccess] = &[StaticEffectAccess::new(
     StaticSubjectScope::Named("CustomMatch"),
 )];
 
-fn custom_match_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() >= 2)
+fn custom_match_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count >= 2)
         .then_some((1, ScriptTiming::Deferred))
         .into_iter()
         .collect()

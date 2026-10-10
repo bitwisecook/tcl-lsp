@@ -1,0 +1,6 @@
+PATCHLEVEL 9.1.0
+RESULT update_scalar 0 {0 1 NEW 1 {first NEW}}
+RESULT update_array_second 0 {1 {can't set "blocked": variable is array} NEW 0 1 {can't read "blocked": variable is array} {first NEW second OTHER}}
+RESULT alias_array_replacement 0 {1 {can't set "original": variable is array} 1 1 {can't read "aliasSource": variable is array}}
+RESULT reference_formal 0 {1 {can't read "original": no such variable} {first NEW}}
+RESULT update_direct_multiword 0 {1 {invalid command name "dict update"} BEFORE 0 {first DIRECT}}

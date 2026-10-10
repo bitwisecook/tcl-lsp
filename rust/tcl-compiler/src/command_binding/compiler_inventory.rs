@@ -260,6 +260,8 @@ mod tests {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct SourceCompilerInvocation {
+    pub source_locals:
+        Option<Arc<super::compiled_preflight::ordered_locals::SourceCompilerLocalInventory>>,
     pub selection: Option<tcl_registry::native_compilation::NativeCompilationSelection>,
     pub admitted: Option<Arc<super::compiled_invocation::SourceNativeCompilerAdmission>>,
     pub operand_layout: Option<Arc<super::SourceNativeOperandLayoutProof>>,
@@ -690,7 +692,7 @@ mod policy_tests {
                 inventory
                     .namespace_binding_preparation_at(&CommandAllocationSite {
                         source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(
-                            source
+                            format!("{source}\n")
                         ))),
                         offset: 0,
                     })
@@ -707,7 +709,8 @@ mod policy_tests {
         };
         let source = SWITCH_SOURCES[1];
         let (inventory, config) = namespace_analysis(source, "tcl9.1");
-        let registry = tcl_registry::CommandRegistry::build_default();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let segment =
             crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
@@ -716,20 +719,36 @@ mod policy_tests {
             &segment,
         );
         inventory.stamp_original_tokens(&mut tokens);
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
         let context = NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,
             frame: NativeCompilationFrame::ProcedureCode,
             ..Default::default()
         };
-        assert!(matches!(
-            crate::registry_invocation::native_compilation_syntax(
-                &registry, &tokens, dialect, context
-            )
-            .unwrap()
-            .1,
-            NativeCompilationSelection::Inline { .. }
-        ));
+        assert!(
+            matches!(
+                crate::registry_invocation::native_compilation_syntax(
+                    &registry, &tokens, dialect, context
+                )
+                .unwrap()
+                .1,
+                NativeCompilationSelection::Inline { .. }
+            ),
+            "original compiler={:?}; requested={:?}; source protocol={:?}; original config={:?}",
+            tokens
+                .source_binding
+                .as_ref()
+                .and_then(SourceInvocationBinding::native_compiler_dialect),
+            dialect,
+            tokens
+                .source_binding
+                .as_ref()
+                .and_then(SourceInvocationBinding::compiler_source_protocol),
+            tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.original_lexer_config_for_tokens(&tokens))
+        );
         let mut truncated = tokens.clone();
         truncated.word_exprs.truncate(3);
         truncated.argv_texts.truncate(3);
@@ -817,7 +836,8 @@ mod policy_tests {
         };
         let source = "variable v 1 w 2";
         let (inventory, config) = namespace_analysis(source, "tcl9.1");
-        let registry = tcl_registry::CommandRegistry::build_default();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let segment =
             crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
@@ -828,20 +848,36 @@ mod policy_tests {
         inventory.stamp_original_tokens(&mut tokens);
         let binding = tokens.source_binding.as_ref().unwrap().clone();
         assert!(binding.original_compiler_source(&tokens).is_some());
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
         let context = NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,
             frame: NativeCompilationFrame::ProcedureCode,
             ..Default::default()
         };
-        assert!(matches!(
-            crate::registry_invocation::native_compilation_syntax(
-                &registry, &tokens, dialect, context
-            )
-            .unwrap()
-            .1,
-            NativeCompilationSelection::Inline { .. }
-        ));
+        assert!(
+            matches!(
+                crate::registry_invocation::native_compilation_syntax(
+                    &registry, &tokens, dialect, context
+                )
+                .unwrap()
+                .1,
+                NativeCompilationSelection::Inline { .. }
+            ),
+            "original compiler={:?}; requested={:?}; source protocol={:?}; original config={:?}",
+            tokens
+                .source_binding
+                .as_ref()
+                .and_then(SourceInvocationBinding::native_compiler_dialect),
+            dialect,
+            tokens
+                .source_binding
+                .as_ref()
+                .and_then(SourceInvocationBinding::compiler_source_protocol),
+            tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.original_lexer_config_for_tokens(&tokens))
+        );
         let mut truncated = tokens.clone();
         truncated.word_exprs.truncate(3);
         truncated.argv_texts.truncate(3);
@@ -1121,6 +1157,12 @@ impl SourceCommandBindings {
         let reached = binding.runtime_reachability == SourceRuntimeReachability::Reached;
         let original = self.original_child_compiler_visits(&site);
         if reached && original.is_none() {
+            if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+                eprintln!(
+                    "NATIVE_COMPILER_ATTACHMENT offset={offset} reason=reached-without-child selection={:?}",
+                    binding.native_compilation_admission
+                );
+            }
             return binding;
         }
         if !reached && binding.runtime_reachability != SourceRuntimeReachability::Conditional {
@@ -1132,66 +1174,40 @@ impl SourceCommandBindings {
                 .map_or_else(Vec::new, |visits| visits.iter().collect())
         });
         let Some(first) = invocations.first() else {
+            if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+                eprintln!(
+                    "NATIVE_COMPILER_ATTACHMENT offset={offset} reason=no-visits reachability={:?} selection={:?}",
+                    binding.runtime_reachability, binding.native_compilation_admission
+                );
+            }
             return binding;
         };
         if reached && first.namespace_key != binding.lookup_namespace_key {
+            if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+                eprintln!(
+                    "NATIVE_COMPILER_ATTACHMENT offset={offset} reason=namespace-mismatch head={:?} visits={} selection={:?}",
+                    first.head,
+                    invocations.len(),
+                    binding.native_compilation_admission
+                );
+            }
             return binding;
         }
-        // Only compiler metadata is attached. Actual handler identities, contents,
-        // evaluated argv and successful transfer remain absent/unknown.
-        binding.native_compilation_admission = first.selection;
-        binding
-            .native_operand_layout
-            .clone_from(&first.operand_layout);
-        binding
-            .native_compiler_admission
-            .clone_from(&first.admitted);
-        binding
-            .native_structured_preparation
-            .clone_from(&first.structured);
-        binding.native_switch_preparation.clone_from(&first.switch);
-        binding
-            .original_compiler_words
-            .clone_from(&first.original_words);
-        if !reached {
-            binding.lookup_namespace.clone_from(&first.namespace);
-            binding
-                .lookup_namespace_key
-                .clone_from(&first.namespace_key);
-            binding.lookup_word.clone_from(&first.head);
-        }
-        binding.compiler_lookup_state = Some(Arc::clone(&first.table));
-        binding.compiler_policy = first.policy.clone().filter(|policy| {
-            invocations
-                .iter()
-                .all(|visit| visit.policy.as_ref() == Some(policy))
-        });
-        for alternative in &invocations[1..] {
-            if alternative.structured != first.structured {
-                binding.native_structured_preparation = None;
-            }
-            if alternative.switch != first.switch {
-                binding.native_switch_preparation = None;
-            }
-            if alternative.original_words != first.original_words {
-                binding.original_compiler_words = None;
-            }
-            if alternative.operand_layout != first.operand_layout {
-                binding.native_operand_layout = None;
-            }
-            if alternative.selection != first.selection {
-                binding.native_compilation_admission =
-                    Some(tcl_registry::native_compilation::NativeCompilationSelection::Unknown);
-            }
-            if alternative.admitted != first.admitted {
-                binding.native_compiler_admission = None;
-            }
-            if alternative.namespace_key != first.namespace_key || alternative.table != first.table
-            {
-                binding.compiler_lookup_state = None;
-                binding.native_structured_preparation = None;
-                binding.native_switch_preparation = None;
-            }
+        attach_unanimous_original_compiler_metadata(&mut binding, first, &invocations, reached);
+        if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+            eprintln!(
+                "NATIVE_COMPILER_ATTACHMENT offset={offset} head={:?} visits={} selections={:?} final={:?} original_words={} policy={} table={}",
+                first.head,
+                invocations.len(),
+                invocations
+                    .iter()
+                    .map(|visit| visit.selection)
+                    .collect::<Vec<_>>(),
+                binding.native_compilation_admission,
+                binding.original_compiler_words.is_some(),
+                binding.compiler_policy.is_some(),
+                binding.compiler_lookup_state.is_some()
+            );
         }
         binding
     }
@@ -1350,5 +1366,214 @@ impl SourceCommandBindings {
                 previous.1 &= closed && previous.0 == length;
             })
             .or_insert((length, closed));
+    }
+}
+
+impl SourceInvocationBinding {
+    /// Original static naming word selected by its exact retained source site.
+    /// A first representative token may select its complete grouped word;
+    /// arbitrary substrings, transformed vectors and conflicting configs abstain.
+    #[must_use]
+    pub fn original_source_name_key_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        rules: tcl_syntax::word_rules::WordValueRules,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<crate::signature_scan::scope::SignatureSourceNameKey> {
+        self.original_source_name_word_at_span(span, config, rules, policy)
+            .map(|(_, key)| key)
+    }
+
+    pub(crate) fn original_source_name_word_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        rules: tcl_syntax::word_rules::WordValueRules,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<(
+        &crate::ir::WordExpr,
+        crate::signature_scan::scope::SignatureSourceNameKey,
+    )> {
+        let site = self.invocation_site()?;
+        let (image, words) =
+            if let Some(observations) = self.declaration_layout_observations.as_deref() {
+                let first = super::declaration_layout::original_declaration_layouts(observations)?
+                    .next()?;
+                if first.config != config || first.entry.source().origin != site.source {
+                    return None;
+                }
+                (site.source.source_image(), first.words.as_ref())
+            } else {
+                let original = self.original_compiler_words.as_ref()?;
+                if original.site != *site || original.config != config {
+                    return None;
+                }
+                (original.site.source.source_image(), original.words.as_ref())
+            };
+        original_name_word_from_layout(site, image, words, span, config, rules, policy)
+    }
+}
+
+fn original_name_word_from_layout<'a>(
+    site: &CommandAllocationSite,
+    image: &tcl_lexer::SourceImage,
+    words: &'a [crate::ir::WordExpr],
+    span: tcl_lexer::Span,
+    config: tcl_lexer::LexerConfig,
+    rules: tcl_syntax::word_rules::WordValueRules,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+) -> Option<(
+    &'a crate::ir::WordExpr,
+    crate::signature_scan::scope::SignatureSourceNameKey,
+)> {
+    let native = crate::registry_invocation::original_native_compiler_words(
+        image,
+        words,
+        site.offset,
+        config,
+    )?;
+    let mut selected = words.iter().zip(&native).filter(|(word, native)| {
+        word.source().span == span
+            || native
+                .tokens()
+                .first()
+                .is_some_and(|token| token.span == span)
+    });
+    let (word, native) = selected.next()?;
+    if selected.next().is_some() {
+        return None;
+    }
+    let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        native, rules, policy,
+    )?;
+    Some((word, key))
+}
+
+impl SourceCommandBindings {
+    /// Issue an original naming occurrence from the existing retained command
+    /// layout inventory. A token selects only its complete canonical word;
+    /// transformed, materialised or conflicting owners cannot supply one.
+    #[must_use]
+    pub fn original_source_name_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        rules: tcl_syntax::word_rules::WordValueRules,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<crate::signature_scan::original_name::SourceOriginalNameOccurrence> {
+        let origin = self.root_origin.as_ref()?;
+        let upper = CommandAllocationSite {
+            source: Arc::clone(origin),
+            offset: span.start(),
+        };
+        let mut found = None;
+        for (site, observations) in self.declaration_layouts.range(..=upper).rev() {
+            if &site.source != origin {
+                break;
+            }
+            let Some(original) =
+                super::declaration_layout::original_declaration_layouts(observations)
+            else {
+                continue;
+            };
+            let first = original.clone().next()?;
+            if first.config != config || first.entry.source().origin != *origin {
+                continue;
+            }
+            // A cheap rejection only; the shared native vector below owns the
+            // exact complete-word and first-token correspondence.
+            if !first
+                .words
+                .iter()
+                .any(|word| word.source().span.start() == span.start())
+            {
+                continue;
+            }
+            let (_, input) = original_name_word_from_layout(
+                site,
+                origin.source_image(),
+                &first.words,
+                span,
+                config,
+                rules,
+                policy,
+            )?;
+            let occurrence =
+                crate::signature_scan::original_name::SourceOriginalNameOccurrence::new(
+                    site, input,
+                )?;
+            if found
+                .as_ref()
+                .is_some_and(|previous| previous != &occurrence)
+            {
+                return None;
+            }
+            found = Some(occurrence);
+        }
+        found
+    }
+}
+
+fn attach_unanimous_original_compiler_metadata(
+    binding: &mut SourceInvocationBinding,
+    first: &SourceCompilerInvocation,
+    invocations: &[&SourceCompilerInvocation],
+    reached: bool,
+) {
+    // Only compiler metadata is attached. Actual handler identities, contents,
+    // evaluated argv and successful transfer remain absent/unknown.
+    binding.native_compilation_admission = first.selection;
+    binding
+        .native_operand_layout
+        .clone_from(&first.operand_layout);
+    binding
+        .native_compiler_admission
+        .clone_from(&first.admitted);
+    binding
+        .native_structured_preparation
+        .clone_from(&first.structured);
+    binding.native_switch_preparation.clone_from(&first.switch);
+    binding
+        .original_compiler_words
+        .clone_from(&first.original_words);
+    if !reached {
+        binding.lookup_namespace.clone_from(&first.namespace);
+        binding
+            .lookup_namespace_key
+            .clone_from(&first.namespace_key);
+        binding.lookup_word.clone_from(&first.head);
+    }
+    binding.compiler_lookup_state = Some(Arc::clone(&first.table));
+    binding.compiler_policy = first.policy.clone().filter(|policy| {
+        invocations
+            .iter()
+            .all(|visit| visit.policy.as_ref() == Some(policy))
+    });
+    for alternative in &invocations[1..] {
+        if alternative.structured != first.structured {
+            binding.native_structured_preparation = None;
+        }
+        if alternative.switch != first.switch {
+            binding.native_switch_preparation = None;
+        }
+        if alternative.original_words != first.original_words {
+            binding.original_compiler_words = None;
+        }
+        if alternative.operand_layout != first.operand_layout {
+            binding.native_operand_layout = None;
+        }
+        if alternative.selection != first.selection {
+            binding.native_compilation_admission =
+                Some(tcl_registry::native_compilation::NativeCompilationSelection::Unknown);
+        }
+        if alternative.admitted != first.admitted {
+            binding.native_compiler_admission = None;
+        }
+        if alternative.namespace_key != first.namespace_key || alternative.table != first.table {
+            binding.compiler_lookup_state = None;
+            binding.native_structured_preparation = None;
+            binding.native_switch_preparation = None;
+        }
     }
 }

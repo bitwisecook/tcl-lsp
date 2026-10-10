@@ -21,11 +21,14 @@
 //! Resolves a `TclOO` class at the cursor ([`prepare`]) and walks its
 //! [`supertypes`] (direct superclasses + mixins) and [`subtypes`] (direct
 //! subclasses) via the class-hierarchy index.  Resolution is within the
-//! analysed document; cross-file super/subtypes are not resolved here — they
-//! need the workspace index.
+//! current document or an independently retained workspace inventory. Original
+//! declarations use exact source and namespace geometry; logical-only profiles
+//! retain the reporting hierarchy view.
 
 use std::collections::{HashMap, HashSet};
 
+use crate::original_declaration::OriginalDeclarationIdentity;
+use std::ops::ControlFlow;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::class_hierarchy::build_tail_index;
 use tcl_compiler::analyser::types::ClassDef;
@@ -46,6 +49,8 @@ pub struct TypeHierarchyItem {
     pub range: LspRange,
     /// Range of just the name token.
     pub selection_range: LspRange,
+    /// Retained readonly source identity; display names cannot replace it.
+    pub original_declaration: Option<OriginalDeclarationIdentity>,
 }
 
 /// Resolve a "prepare type hierarchy" request to a single
@@ -57,7 +62,32 @@ pub fn prepare(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Vec<TypeHierarchyItem> {
+    prepare_for_document("", source, line, character, analysis)
+}
+
+/// Prepare a hierarchy identity for an independently selected document owner.
+#[must_use]
+pub fn prepare_for_document(
+    uri: &str,
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Vec<TypeHierarchyItem> {
     let line_index = LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    match crate::original_oo::class_at_cursor(analysis, source, cursor) {
+        ControlFlow::Break(selected) => {
+            return selected
+                .and_then(|record| original_item_for(uri, source, analysis, record))
+                .into_iter()
+                .collect();
+        }
+        ControlFlow::Continue(()) if !analysis.allows_lexical_declaration_advice() => {
+            return Vec::new();
+        }
+        ControlFlow::Continue(()) => {}
+    }
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
@@ -68,6 +98,7 @@ pub fn prepare(
     let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some((_, class_def)) = crate::definition::resolve_class_target_at(
         analysis,
+        source,
         crate::definition::CallResolution::document_only(),
         cursor_off,
         &word,
@@ -87,17 +118,29 @@ pub fn supertypes(
     source: &str,
     analysis: &AnalysisResult,
 ) -> Vec<TypeHierarchyItem> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return original_for_literal_name(class_name, source, analysis).map_or_else(
+            Vec::new,
+            |identity| {
+                related_from_inventory(
+                    &identity,
+                    &[OriginalHierarchyDocument {
+                        uri: "",
+                        source,
+                        analysis,
+                    }],
+                    false,
+                )
+            },
+        );
+    }
     let line_index = LineIndex::new(source);
     let tail_index = build_tail_index(analysis.all_classes.keys());
     let Some(cd) = resolve_class(class_name, "", analysis, &tail_index) else {
         return Vec::new();
     };
-    // Each written super/mixin name is resolved **owner-aware** — relative to
-    // the defining class's namespace (ancestry → global → unique tail) — so a
-    // bare `superclass Base` naming a namespaced class links the same way the
-    // MRO builder linked it, instead of abstaining whenever the tail isn't
-    // globally unique.  A name that resolves back to the class itself (a self
-    // edge a tail match could otherwise manufacture) is never listed.
+    // Logical-only profiles retain their source relation lookup geometry.
+    // Same-tail names in other namespaces cannot replace that lookup.
     let owner = cd.qualified_name.clone();
     let mut out = Vec::new();
     let mut seen = HashSet::new();
@@ -121,6 +164,22 @@ pub fn subtypes(
     source: &str,
     analysis: &AnalysisResult,
 ) -> Vec<TypeHierarchyItem> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return original_for_literal_name(class_name, source, analysis).map_or_else(
+            Vec::new,
+            |identity| {
+                related_from_inventory(
+                    &identity,
+                    &[OriginalHierarchyDocument {
+                        uri: "",
+                        source,
+                        analysis,
+                    }],
+                    true,
+                )
+            },
+        );
+    }
     let line_index = LineIndex::new(source);
     let tail_index = build_tail_index(analysis.all_classes.keys());
     let Some(cd) = resolve_class(class_name, "", analysis, &tail_index) else {
@@ -140,13 +199,7 @@ pub fn subtypes(
         .collect()
 }
 
-/// Resolve a written class `name` to its `ClassDef`, **owner-aware** via the
-/// shared [`resolve_class_name`] resolver: an exact hit, then `::name`, then a
-/// walk outward from `owner`'s namespace to the global namespace, and finally
-/// a *globally-unique* simple-name (tail) match.  `owner` is the qualified
-/// name of the class in whose body `name` was written (`""` for a top-level /
-/// already-qualified lookup).  Mirrors how the MRO builder linked the edge,
-/// so supertype resolution does not abstain on tails the hierarchy resolves.
+/// Resolve logical-only reporting names using retained relation coordinates.
 fn resolve_class<'a>(
     name: &str,
     owner: &str,
@@ -189,7 +242,124 @@ fn item_for(class_def: &ClassDef, source: &str, line_index: &LineIndex) -> TypeH
         detail: Some(class_def.metaclass.clone()),
         range: full_range,
         selection_range: name_range,
+        original_declaration: None,
     }
+}
+
+/// One current source owner in a readonly hierarchy inventory. Workspace
+/// membership supplies source advice, independently of script loading order.
+pub type OriginalHierarchyDocument<'a> =
+    crate::original_declaration::OriginalDeclarationDocument<'a>;
+
+fn original_item_for(
+    uri: &str,
+    source: &str,
+    analysis: &AnalysisResult,
+    record: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<ClassDef>,
+) -> Option<TypeHierarchyItem> {
+    let identity = OriginalDeclarationIdentity::for_class(uri, source, analysis, record)?;
+    let index = LineIndex::new(source);
+    let mut item = item_for(record.metadata(), source, &index);
+    // Reporting remains optional and follows selection. Opaque native names
+    // use the shared source renderer rather than colliding replacement text.
+    if std::str::from_utf8(record.name_input().bytes()).is_err() {
+        item.name = identity.label();
+    }
+    item.selection_range = span_to_range(source, &index, identity.span());
+    item.original_declaration = Some(identity);
+    Some(item)
+}
+
+fn original_for_literal_name(
+    name: &str,
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<OriginalDeclarationIdentity> {
+    let mut classes = analysis.original_class_declarations().filter(|record| {
+        crate::original_declaration::literal_name_matches_publication(name, record.name())
+            == Some(true)
+    });
+    let record = classes.next()?;
+    if classes.next().is_some()
+        || analysis.original_procedure_declarations().any(|record| {
+            crate::original_declaration::literal_name_matches_publication(name, record.name())
+                == Some(true)
+        })
+    {
+        return None;
+    }
+    OriginalDeclarationIdentity::for_class("", source, analysis, record)
+}
+
+/// Walk direct superclass/mixin declarations through the shared original
+/// relation kernel. Exact source owners survive equal-byte documents and
+/// display collisions. Missing, duplicate or earlier non-class publications
+/// cannot select a class. This view supplies no runtime MRO or installation.
+#[must_use]
+pub fn related_from_inventory(
+    identity: &OriginalDeclarationIdentity,
+    documents: &[OriginalHierarchyDocument<'_>],
+    subtypes: bool,
+) -> Vec<TypeHierarchyItem> {
+    use tcl_compiler::analyser::class_hierarchy::original_metadata::original_direct_metadata_relations_for_records;
+    use tcl_compiler::analyser::types::OriginalSourceClassRelationKind;
+    if identity.role() != crate::original_declaration::OriginalDeclarationRole::Class {
+        return Vec::new();
+    }
+    let Some(inventory) =
+        crate::original_declaration::OriginalClassInventory::from_documents(documents)
+    else {
+        return Vec::new();
+    };
+    let records = inventory.records();
+    let occupied = inventory.occupied_non_classes();
+    let roots = records
+        .iter()
+        .enumerate()
+        .filter(|(index, record)| {
+            inventory.owner(*index).is_some_and(|owner| {
+                identity.is_current(owner.uri, owner.source, owner.analysis)
+                    && identity.class_metadata(owner.analysis) == Some(**record)
+            })
+        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let [root] = roots.as_slice() else {
+        return Vec::new();
+    };
+    let direct = |index| -> Option<Vec<usize>> {
+        let mut selected = original_direct_metadata_relations_for_records(
+            records,
+            index,
+            OriginalSourceClassRelationKind::Superclass,
+            occupied,
+        )?;
+        selected.extend(original_direct_metadata_relations_for_records(
+            records,
+            index,
+            OriginalSourceClassRelationKind::Mixin,
+            occupied,
+        )?);
+        selected.retain(|target| *target != index);
+        let mut seen = HashSet::new();
+        selected.retain(|target| seen.insert(*target));
+        Some(selected)
+    };
+    let selected = if subtypes {
+        (0..records.len())
+            .filter(|index| *index != *root)
+            .filter(|index| direct(*index).is_some_and(|targets| targets.contains(root)))
+            .collect::<Vec<_>>()
+    } else {
+        direct(*root).unwrap_or_default()
+    };
+    selected
+        .into_iter()
+        .filter_map(|index| {
+            let owner = inventory.owner(index)?;
+            original_item_for(owner.uri, owner.source, owner.analysis, records[index])
+        })
+        .collect()
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
@@ -218,9 +388,8 @@ mod tests {
         let src = "oo::class create Greeter {}\n";
         let analysis = analyse(src);
         let items = prepare(src, 0, 18, &analysis);
-        if !items.is_empty() {
-            assert!(items[0].name.contains("Greeter"));
-        }
+        assert_eq!(items.len(), 1);
+        assert!(items[0].name.contains("Greeter"));
     }
 
     /// `pos_of` — (line, character) of the `occurrence`-th `needle`.
@@ -337,5 +506,159 @@ mod tests {
         for name in supertypes("::Derived", src, &analysis) {
             assert_ne!(name.name, "::Derived", "self-supertype leaked");
         }
+    }
+}
+
+#[cfg(test)]
+mod original_hierarchy_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn cleared(source: &str) -> AnalysisResult {
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_classes.clear();
+        analysis.superseded_classes.clear();
+        analysis.all_procs.clear();
+        analysis
+    }
+
+    #[test]
+    fn original_hierarchy_uses_exact_opaque_relations_and_current_source_identity() {
+        // Contract: naming.consumer.original-type-hierarchy
+        // (docs/design/analysis/name-resolution-proofs/original-type-hierarchy.md).
+        let source = "oo::class create B\\uD800 {}\noo::class create B\\uD801 {}\noo::class create C {superclass B\\uD800; mixin B\\uD801}\n";
+        let analysis = cleared(source);
+        let items = prepare_for_document("file:///classes.tcl", source, 2, 17, &analysis);
+        assert_eq!(items.len(), 1);
+        let identity = items[0].original_declaration.as_ref().unwrap();
+        let documents = [OriginalHierarchyDocument {
+            uri: "file:///classes.tcl",
+            source,
+            analysis: &analysis,
+        }];
+        let parents = related_from_inventory(identity, &documents, false);
+        assert_eq!(parents.len(), 2);
+        assert_ne!(parents[0].name, parents[1].name);
+        assert_eq!(
+            parents
+                .iter()
+                .map(|item| item
+                    .original_declaration
+                    .as_ref()
+                    .unwrap()
+                    .input()
+                    .unwrap()
+                    .bytes())
+                .collect::<Vec<_>>(),
+            vec![b"B\xed\xa0\x80".as_slice(), b"B\xed\xa0\x81".as_slice()]
+        );
+        let changed = format!("# changed\n{source}");
+        assert!(
+            related_from_inventory(
+                identity,
+                &[OriginalHierarchyDocument {
+                    uri: "file:///classes.tcl",
+                    source: &changed,
+                    analysis: &analysis
+                }],
+                false
+            )
+            .is_empty()
+        );
+        let mut without_config = analysis.clone();
+        without_config.body_lexer_config = None;
+        assert!(
+            prepare_for_document("file:///classes.tcl", source, 2, 17, &without_config).is_empty()
+        );
+    }
+
+    #[test]
+    fn original_hierarchy_preserves_document_owners_and_refuses_duplicate_providers() {
+        // Implementation contract: naming.consumer.original-type-hierarchy
+        // docs/design/analysis/name-resolution-proofs/original-type-hierarchy.md
+        let base_source = "oo::class create Base {}\n";
+        let child_source = "oo::class create Child {superclass Base}\n";
+        let base = cleared(base_source);
+        let child = cleared(child_source);
+        let item = prepare_for_document("file:///child.tcl", child_source, 0, 18, &child).remove(0);
+        let identity = item.original_declaration.as_ref().unwrap();
+        let documents = [
+            OriginalHierarchyDocument {
+                uri: "file:///base.tcl",
+                source: base_source,
+                analysis: &base,
+            },
+            OriginalHierarchyDocument {
+                uri: "file:///child.tcl",
+                source: child_source,
+                analysis: &child,
+            },
+        ];
+        let parents = related_from_inventory(identity, &documents, false);
+        assert_eq!(parents.len(), 1);
+        let base_identity = parents[0].original_declaration.as_ref().unwrap();
+        assert_eq!(base_identity.uri(), "file:///base.tcl");
+        assert_eq!(
+            related_from_inventory(base_identity, &documents, true)[0]
+                .original_declaration
+                .as_ref()
+                .unwrap()
+                .uri(),
+            "file:///child.tcl"
+        );
+        let duplicates = [
+            OriginalHierarchyDocument {
+                uri: "file:///base.tcl",
+                source: base_source,
+                analysis: &base,
+            },
+            OriginalHierarchyDocument {
+                uri: "file:///copy.tcl",
+                source: base_source,
+                analysis: &base,
+            },
+            OriginalHierarchyDocument {
+                uri: "file:///child.tcl",
+                source: child_source,
+                analysis: &child,
+            },
+        ];
+        assert!(related_from_inventory(identity, &duplicates, false).is_empty());
+    }
+
+    #[test]
+    fn original_hierarchy_earlier_nonclass_headers_block_later_class_candidates() {
+        // Implementation contract: naming.consumer.original-type-hierarchy
+        // docs/design/analysis/name-resolution-proofs/original-type-hierarchy.md
+        let source = "oo::class create Base {}\nnamespace eval N {proc Base {} {}; oo::class create Child {superclass Base}}\n";
+        let analysis = cleared(source);
+        let record = analysis
+            .original_class_declarations()
+            .find(|record| record.name_input().bytes() == b"Child")
+            .unwrap();
+        let identity = OriginalDeclarationIdentity::for_class(
+            "file:///classes.tcl",
+            source,
+            &analysis,
+            record,
+        )
+        .unwrap();
+        assert!(
+            related_from_inventory(
+                &identity,
+                &[OriginalHierarchyDocument {
+                    uri: "file:///classes.tcl",
+                    source,
+                    analysis: &analysis
+                }],
+                false
+            )
+            .is_empty()
+        );
+        let offset = u32::try_from(source.rfind("Base").unwrap()).unwrap();
+        assert!(matches!(
+            crate::original_oo::class_at_cursor(&analysis, source, offset),
+            ControlFlow::Break(None)
+        ));
     }
 }

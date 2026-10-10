@@ -18,14 +18,10 @@
 
 //! Project-source dependency discovery for `tcl pkg discover`.
 //!
-//! The full analyser owns the occurrence inventory: unlike the lightweight
-//! signature scan it reaches ordinary procedure, method, namespace, and
-//! nested-substitution bodies.  A standard optimiser pass then refines the
-//! same source without dead-code elimination, allowing SCCP, constant
-//! propagation, interpolation folding, and registry-declared pure builtin
-//! folds to turn otherwise-dynamic package words into constants.  Findings
-//! retain their original analyser spans; if the two inventories ever cease to
-//! align, discovery conservatively falls back to the original one.
+//! Original Native discovery consumes the analyser's exact package keys and
+//! requirement value producers. Manifest spelling is checked independently.
+//! Optimiser-based text refinement belongs to explicitly selected lexical
+//! advice and cannot reassign original Native operands by occurrence order.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt::Write as _;
@@ -247,11 +243,14 @@ fn discover_document_requirements(
     registry: &tcl_registry::CommandRegistry,
     pack_overlay: u64,
 ) -> (Vec<ResolvedRequirement>, Option<String>) {
-    let original = Analyser::new()
+    let analysis = Analyser::new()
         .with_file_path(Some(file.to_owned()))
         .with_pack_overlay(pack_overlay)
-        .analyse(source, profile.name)
-        .package_requires;
+        .analyse(source, profile.name);
+    if !analysis.allows_lexical_declaration_advice() {
+        return (original_document_requirements(source, &analysis), None);
+    }
+    let original = analysis.package_requires;
 
     // `standard` enables the optimiser's constant-analysis family while
     // leaving DCE and code motion off. One pass preserves the analyser's
@@ -350,6 +349,35 @@ fn discover_document_requirements(
     (requirements, warning)
 }
 
+fn original_document_requirements(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> Vec<ResolvedRequirement> {
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        || analysis.resolved_registry().is_none()
+    {
+        return Vec::new();
+    }
+    analysis.package_requires.iter().map(|raw| {
+        let name = raw.original_name.as_ref().and_then(|name| name.key().manifest_atom(config));
+        let policy = raw.original_name.as_ref().map(|name| name.input().policy());
+        let requirements:Vec<_>=(0..raw.original_requirements.len()).map(|ordinal| {
+            let input=raw.original_requirements.get(ordinal)?.as_ref()?;
+            if Some(input.policy())!=policy || matches!(input,tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_)) { return None; }
+            let value=std::str::from_utf8(input.bytes()).ok()?;
+            (value.is_ascii() && manifest_atom(value)).then(||value.to_owned())
+        }).collect();
+        let minimum=match requirements.as_slice() { []=>Some("0.0.1".to_owned()),[Some(value)]=>Some(value.clone()),_=>None };
+        let unresolved=name.is_none() || requirements.iter().any(Option::is_none);
+        let produced=raw.original_name.as_ref().is_some_and(|name|name.input().original_word_key().is_none())
+            || raw.original_requirements.iter().flatten().any(|input|input.original_word_key().is_none());
+        ResolvedRequirement { name,minimum,requirements,expression:raw.name.clone(),version_expression:raw.version.clone(),requirement_expressions:raw.requirements.clone(),conditional:raw.conditional,control_flow:raw.control_flow,exact:raw.exact,resolution:if unresolved {"unresolved"} else if produced {"original-value"} else {"literal"},line:line_number(source,raw.range.start()) }
+    }).collect()
+}
+
 fn classify(
     requirement: ResolvedRequirement,
     file: &str,
@@ -419,7 +447,7 @@ fn classify(
         report.reason = Some("tclpkg.tcl requirements cannot express -exact".to_owned());
         return report;
     }
-    if report.requirement_expressions.len() > 1 {
+    if report.requirements.len() > 1 {
         report.status = "review";
         report.reason = Some(
             "multiple alternative requirements cannot be represented by one manifest minimum"
@@ -541,6 +569,7 @@ fn manifest_atom(value: &str) -> bool {
     !value.is_empty()
         && !value.chars().any(|character| {
             character.is_whitespace()
+                || character.is_control()
                 || matches!(
                     character,
                     ';' | '$' | '[' | ']' | '{' | '}' | '"' | '\\' | '#'
@@ -689,5 +718,71 @@ mod tests {
             status: "candidate",
             reason: None,
         }
+    }
+    #[test]
+    fn original_package_discovery_ignores_reporting_values_and_refuses_stale_or_opaque_manifest_names()
+     {
+        // Implementation contract: naming.package.original-manifest-source-advice
+        // docs/design/analysis/name-resolution-proofs/original-package-manifest-source-advice.md
+        let source = r"package require {json::write} {1.2}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let raw = analysis.package_requires.first_mut().unwrap();
+        raw.name = "$fake".to_owned();
+        raw.version = Some("$fake".to_owned());
+        raw.requirements[0] = "$fake".to_owned();
+        let rows = original_document_requirements(source, &analysis);
+        assert_eq!(rows[0].name.as_deref(), Some("json::write"));
+        assert_eq!(rows[0].requirements, [Some("1.2".to_owned())]);
+        assert!(
+            original_document_requirements(&format!("# changed\n{source}"), &analysis).is_empty()
+        );
+        for source in [
+            r"package require p\uD800 1.2",
+            r"package require p\u0000tail 1.2",
+            r"package require {$package} {1.2}",
+            r"package require json {$version}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let rows = original_document_requirements(source, &analysis);
+            assert!(
+                rows.iter()
+                    .all(|row| row.name.is_none() || row.requirements.iter().any(Option::is_none))
+            );
+        }
+        let source = r"package require json {1.2}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(original_document_requirements(source, &analysis).is_empty());
+    }
+
+    #[test]
+    fn original_package_requirement_values_keep_actual_option_ordinals_and_unknowns() {
+        // Implementation contract: naming.package.original-manifest-source-advice
+        // docs/design/analysis/name-resolution-proofs/original-package-manifest-source-advice.md
+        let source = r"package require -exact json {1.2} {2.0} $unknown";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let raw = analysis.package_requires.first().unwrap();
+        assert!(raw.exact);
+        assert_eq!(raw.original_requirements.len(), 3);
+        assert_eq!(
+            raw.original_requirements[0].as_ref().unwrap().bytes(),
+            b"1.2"
+        );
+        assert_eq!(
+            raw.original_requirements[1].as_ref().unwrap().bytes(),
+            b"2.0"
+        );
+        assert!(raw.original_requirements[2].is_none());
+        let scan = tcl_compiler::signature_scan::extract_signatures(
+            source,
+            analysis.resolved_registry().unwrap(),
+        );
+        let scanned = scan.package_requires.first().unwrap();
+        assert_eq!(scanned.original_requirements.len(), 3);
+        assert_eq!(
+            scanned.original_requirements[0].as_ref().unwrap().bytes(),
+            b"1.2"
+        );
+        assert!(scanned.original_requirements[2].is_none());
     }
 }

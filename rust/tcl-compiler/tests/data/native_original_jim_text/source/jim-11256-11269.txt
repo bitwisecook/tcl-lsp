@@ -1,0 +1,14 @@
+static int JimSubstOneToken(Jim_Interp *interp, const ScriptToken *token, Jim_Obj **objPtrPtr)
+{
+    Jim_Obj *objPtr;
+    int ret = JIM_ERR;
+
+    switch (token->type) {
+        case JIM_TT_STR:
+        case JIM_TT_ESC:
+            objPtr = token->objPtr;
+            break;
+        case JIM_TT_VAR:
+            objPtr = Jim_GetVariable(interp, token->objPtr, JIM_ERRMSG);
+            break;
+        case JIM_TT_DICTSUGAR:

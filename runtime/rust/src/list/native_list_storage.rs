@@ -19,7 +19,7 @@
 //! Original native range header and allocated backing windows.
 use super::*;
 use tcl_cmd_core::native_list_storage::{
-    range_action, NativeListRangeAction, NativeListRangeStorage,
+    NativeListRangeAction, NativeListRangeSelection, NativeListRangeStorage,
 };
 use tcl_dialect::TclVersion;
 use tcl_syntax::{native_compiled_index::NativeCompiledListRange, value::ValueError};
@@ -29,12 +29,40 @@ pub(crate) fn native_list_range(
     coordinates: NativeCompiledListRange,
     protocol: NativeStringProtocol,
 ) -> Result<obj::Owned, ValueError> {
+    native_list_selected_range(
+        original,
+        NativeListRangeSelection::Immediate(coordinates),
+        protocol,
+    )
+}
+
+pub(crate) fn native_list_command_range(
+    original: *mut TclObj,
+    first: i64,
+    last: i64,
+    protocol: NativeStringProtocol,
+) -> Result<obj::Owned, ValueError> {
+    native_list_selected_range(
+        original,
+        NativeListRangeSelection::Command { first, last },
+        protocol,
+    )
+}
+
+fn native_list_selected_range(
+    original: *mut TclObj,
+    selection: NativeListRangeSelection,
+    protocol: NativeStringProtocol,
+) -> Result<obj::Owned, ValueError> {
     let version = protocol
         .tcl_version()
         .ok_or(ValueError::CommandProtocolUnavailable(
             "native compiled List range release",
         ))?;
-    if version >= TclVersion::V9_0 && obj::has_canonical_empty_string(original) {
+    if selection.is_immediate()
+        && version >= TclVersion::V9_0
+        && obj::has_canonical_empty_string(original)
+    {
         return Ok(obj::Owned::retain(original));
     }
     if version >= TclVersion::V9_0 && crate::native_arithseries::is_series(original) {
@@ -50,9 +78,8 @@ pub(crate) fn native_list_range(
     if version >= TclVersion::V9_0 && !shared {
         list.elems.collect_unreferenced();
     }
-    let action = range_action(
+    let action = selection.action(
         version,
-        coordinates,
         NativeListRangeStorage {
             length: list.elems.len(),
             header_shared: shared,
@@ -65,9 +92,37 @@ pub(crate) fn native_list_range(
             ),
         },
     )?;
+    apply_native_list_range(original, list, action, shared, version, protocol)
+}
+
+fn apply_native_list_range(
+    original: *mut TclObj,
+    list: &mut TclList,
+    action: NativeListRangeAction,
+    shared: bool,
+    version: TclVersion,
+    protocol: NativeStringProtocol,
+) -> Result<obj::Owned, ValueError> {
     match action {
         NativeListRangeAction::OriginalEmpty => Ok(obj::Owned::retain(original)),
         NativeListRangeAction::FreshEmpty => Ok(obj::Owned::fresh(obj::new_obj())),
+        NativeListRangeAction::EmptyList => {
+            let backing = TclList {
+                elems: NativeListStorage::new(Vec::new()),
+                canonical: Rc::new(Cell::new(false)),
+                string_protocol: Cell::new(Some(protocol)),
+            };
+            if shared {
+                Ok(obj::Owned::fresh(obj::alloc_typed(
+                    &TCL_LIST_TYPE,
+                    Box::into_raw(Box::new(backing)) as usize as u64,
+                )))
+            } else {
+                *list = backing;
+                obj::invalidate_string(original);
+                Ok(obj::Owned::retain(original))
+            }
+        }
         NativeListRangeAction::FreshMembers(range) => {
             let elements = list.elems.elements()[range].to_vec();
             if version >= TclVersion::V9_0 && !shared {
@@ -121,7 +176,7 @@ impl NativeListStorage {
         insert: &[*mut TclObj],
         version: TclVersion,
     ) -> Result<bool, ValueError> {
-        use tcl_cmd_core::native_list_storage::{replace_layout, NativeListReplaceStorage};
+        use tcl_cmd_core::native_list_storage::{NativeListReplaceStorage, replace_layout};
         self.checked_generation()?;
         let first = first.min(self.len());
         let delete = delete.min(self.len() - first);
@@ -314,6 +369,45 @@ pub(crate) fn replace_prepared_native_elements(
 mod tests {
     use super::*;
     use tcl_syntax::native_compiled_index::NativeCompiledListIndex;
+
+    #[test]
+    fn command_range_empty_result_has_actual_list_store_only_from_c9() {
+        // naming.list.original-range-objects-and-instructions
+        // docs/design/analysis/name-resolution-proofs/list.original-range-objects-and-instructions.md
+        // R3's physical header is observed before any string/list result getter.
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let original = obj::Owned::fresh(obj::new_string_bytes(b"A B C"));
+            let alias = obj::Owned::retain(original.as_ptr());
+            let result = native_list_command_range(
+                original.as_ptr(),
+                12,
+                2,
+                NativeStringProtocol::C(version),
+            )
+            .unwrap();
+            assert_eq!(
+                core::ptr::eq(obj::obj_type_ptr(result.as_ptr()), &TCL_LIST_TYPE),
+                version >= TclVersion::V9_0
+            );
+            assert_eq!(
+                obj::has_string_rep(result.as_ptr()),
+                version < TclVersion::V9_0
+            );
+            if version >= TclVersion::V9_0 {
+                let result_list = unsafe { list_ref(result.as_ptr()) };
+                assert_eq!(result_list.elems.len(), 0);
+                assert_eq!(result_list.elems.backing.capacity.get(), Some(1));
+            }
+            assert_eq!(&*obj::bytes_of(original.as_ptr()), b"A B C");
+            drop(alias);
+        }
+    }
 
     #[test]
     fn runtime_list_ranges_preserve_all_five_native_shared_header_windows() {

@@ -126,6 +126,14 @@ pub(crate) fn release_subcommands(
     command: &'static str,
     table: &[&'static [u8]],
 ) -> &'static [&'static [u8]] {
+    if command == "info" {
+        let dialect =
+            tcl_registry::InvocationDialect::of_profile(profile_for_dialect(dialect_name));
+        if let Some(names) = dialect.native_jim_info_member_names() {
+            static BYTES: OnceLock<Box<[&'static [u8]]>> = OnceLock::new();
+            return BYTES.get_or_init(|| names.iter().map(|name| name.as_bytes()).collect());
+        }
+    }
     let cache = release_subcommand_cache();
     if let Some((_, _, _, hit)) =
         cache

@@ -225,7 +225,10 @@ impl core::fmt::Display for OoId {
 /// and render it only at Tcl-facing boundaries. `N` is the consumer's stable
 /// namespace identity (`NsId` in a runtime, a segment path in static analysis)
 /// and `S` is its owned or interned simple command name.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Storage ordering compares retained namespace and simple-name fields when
+/// those fields have an order. It does not select a Tcl lookup order, naming
+/// purpose, namespace incarnation or current command binding.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CommandSlot<S, N = NsId> {
     /// Stable namespace-table owner.
     pub namespace: N,

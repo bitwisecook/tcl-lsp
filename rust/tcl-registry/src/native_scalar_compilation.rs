@@ -214,8 +214,11 @@ mod tests {
     use crate::native_compilation::{
         NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
     };
+    use tcl_lexer::{LexerConfig, SourceImage, Span, native_script_words_in};
     include!("../tests/data/native_scalar_compilation/cases.rs");
 
+    // Native proof: naming.variable.scalar-original-argv-compiler-and-result-windows
+    // docs/design/analysis/name-resolution-proofs/variable.scalar-original-argv-compiler-and-result-windows.md
     #[test]
     fn original_scalar_recipes_match_seventy_five_native_compiler_windows() {
         let registry = crate::CommandRegistry::build_default();
@@ -319,6 +322,76 @@ mod tests {
             }
         }
         assert_eq!(windows, 75);
+    }
+
+    #[test]
+    fn original_scalar_coordinates_retain_the_selected_public_member() {
+        // Implementation contract: naming.compiler.original-compiler-operand-coordinates
+        // docs/design/analysis/name-resolution-proofs/compiler-original-operand-coordinates.md
+        // naming.variable.scalar-original-argv-compiler-and-result-windows
+        // docs/design/analysis/name-resolution-proofs/variable.scalar-original-argv-compiler-and-result-windows.md
+        // Those native windows prove compiler shapes. This test checks the
+        // shared coordinate projection from selected metadata onto original words.
+        let registry = crate::CommandRegistry::build_default();
+        for version in TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let public = registry.resolve_structured_invocation(
+                crate::InvocationWords::literals("string", &["equal", "a", "a"])
+                    .with_dialect(dialect),
+                dialect.authoring_query(),
+            );
+            let facts = public.resolved().unwrap().facts();
+            let spec = facts.native_compilation.unwrap();
+            assert_eq!(facts.argument_offset, 1, "{version:?}");
+            assert_eq!(spec.original_operand_from_for_facts(&facts), Some(1));
+            let source = b"renamed equal $left $right";
+            let parsed = native_script_words_in(
+                SourceImage::native(source.as_slice()),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                LexerConfig::from_grammar(dialect.lexer_grammar),
+            )
+            .unwrap();
+            let words = NativeCompilerWords::capture(
+                &parsed.commands[0].words,
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            assert!(
+                matches!(
+                    spec.select_native_words(
+                        &words,
+                        spec.original_operand_from_for_facts(&facts).unwrap(),
+                        Some(dialect),
+                        NativeCompilationContext {
+                            mode: NativeCompilationMode::BytecodeObject,
+                            frame: NativeCompilationFrame::ScriptCode,
+                            ..Default::default()
+                        },
+                    ),
+                    NativeCompilationSelection::Inline { .. }
+                ),
+                "{version:?}"
+            );
+            let mut missing_member = facts.clone();
+            missing_member.argument_offset = 0;
+            assert_eq!(spec.original_operand_from_for_facts(&missing_member), None);
+            if version >= TclVersion::V8_5 {
+                let private = registry
+                    .native_compilation_for_registration("::tcl::string::equal", dialect)
+                    .unwrap();
+                let private_facts = registry
+                    .native_registration_invocation_facts(
+                        crate::InvocationWords::literals("::tcl::string::equal", &["a", "a"])
+                            .with_dialect(dialect),
+                    )
+                    .unwrap();
+                assert_eq!(private_facts.argument_offset, 0);
+                assert_eq!(
+                    private.original_operand_from_for_facts(&private_facts),
+                    Some(1)
+                );
+            }
+        }
     }
 
     #[test]

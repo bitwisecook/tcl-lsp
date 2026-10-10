@@ -18,6 +18,18 @@ use tcl_syntax::{
 mod tests;
 
 impl Interp {
+    /// Read actual arena lifetime through the existing namespace descriptor.
+    pub(crate) fn native_current_namespace_lifecycle(
+        &self,
+    ) -> Result<tcl_syntax::native_namespace_name::NativeNamespaceLifecycle, ValueError> {
+        self.namespaces()
+            .namespace_name_token(self.native_command_interpreter, self.current_ns())
+            .map(|token| token.lifecycle())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native current namespace incarnation",
+            ))
+    }
+
     /// Resolve an original object before reporting or reconstructing its name.
     /// Cache ownership is checked against the actual closed arena incarnation.
     pub(crate) fn native_namespace_object_lookup(
@@ -138,7 +150,19 @@ impl tcl_cmd_core::namespace::NamespaceObjectBackend for Interp {
                 // Establish the real top-frame holder before reading its name.
                 drop(self.jim_current_namespace_object()?);
             }
-            let name = Namespaces::name_bytes(self, namespace);
+            let name = if let Some(recipe) = dialect.native_jim_lookup_protocol() {
+                if namespace.0 as usize != self.current_ns() {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "Jim original namespace result frame",
+                    ));
+                }
+                let original = self.jim_current_namespace_object()?;
+                let bytes =
+                    tcl_syntax::value::ValueOps::native_string_bytes(self, &original.as_ptr())?;
+                recipe.namespace_current_result(&bytes)
+            } else {
+                Namespaces::name_bytes(self, namespace)
+            };
             let value = obj::new_string_bytes(&name);
             if policy.recipe().is_jim084() {
                 obj::retain_jim_string_representation(value);

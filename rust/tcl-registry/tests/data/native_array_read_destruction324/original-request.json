@@ -1,0 +1,25 @@
+{
+  "question": "During whole-array destruction, does a root unset callback read the retained member through an existing alias, and is an already-active member read observer suppressed without losing that retained value?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Untouched counted fullInit CAPI driver as Native202/321, fresh original interpreter independently for each source/provider. Exact existing command-binding vector ASCII scripts, LF terminator.",
+  "observation": "Whole original completion code/result, including seen value and trace log. Jim trace registration failure remains actual unsupported setup; no private Var allocation/trace guard or member lifetime identity observation.",
+  "cases": [
+    {
+      "id": "variable_array_unset_live_member_read_trace_fires",
+      "source_file": "variable_array_unset_live_member_read_trace_fires.tcl",
+      "source_sha256": "b25c6d801837fbc79e77d4a209bcb59473dc1486b01720bf784fc50e74d43d1e"
+    },
+    {
+      "id": "variable_array_unset_active_member_read_guard_survives",
+      "source_file": "variable_array_unset_active_member_read_guard_survives.tcl",
+      "source_sha256": "5304aa76767926f9ff0caf7b75d16c585b14ae1efbef0087544d0c17b24e53b5"
+    }
+  ]
+}

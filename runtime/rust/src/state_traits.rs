@@ -404,18 +404,20 @@ impl VarStore for Interp {
             return self.observed_array_keys(target);
         }
         if self.variable_container_model() == tcl_dialect::VariableContainerModel::DictionaryValue {
-            if let Some(root) = self.var_get_at(target.name_bytes(), target.frame().0) {
-                let protocol = self
-                    .native_invocation_dialect()
-                    .native_string_protocol()
-                    .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "variable container",
-                    ))?;
-                if protocol.is_jim084() {
-                    crate::native_source::bind_context(root, &self.native_jim_object_context()?)?;
-                }
-                crate::dict::ensure_dict_native(root, protocol)?;
-            }
+            return native_dictionary_array_pairs(self, target)?
+                .map(|pairs| {
+                    let protocol = self
+                        .native_invocation_dialect()
+                        .native_string_protocol()
+                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "variable container",
+                        ))?;
+                    pairs
+                        .into_iter()
+                        .map(|(key, _)| crate::dict::native_object_bytes(key, protocol))
+                        .collect()
+                })
+                .transpose();
         }
         Ok(if target.cell_id().is_some() {
             self.array_keys_at_target(target)
@@ -459,6 +461,28 @@ impl VarStore for Interp {
                 "unmeasured observed variable operation",
             ));
         }
+        if self.variable_container_model() == tcl_dialect::VariableContainerModel::DictionaryValue {
+            let Some(pairs) = native_dictionary_array_pairs(self, target)? else {
+                return Ok(ArrayElementRead::ArrayInvalidated(
+                    tcl_runtime_api::ArrayInvalidation::Unset,
+                ));
+            };
+            let protocol = self
+                .native_invocation_dialect()
+                .native_string_protocol()
+                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "variable container",
+                ))?;
+            for (name, value) in pairs {
+                if crate::dict::native_object_bytes(name, protocol)? == key {
+                    tcl_syntax::value::ValueOps::pin_value(self, &value);
+                    return Ok(ArrayElementRead::Value(value));
+                }
+            }
+            return Ok(ArrayElementRead::Missing(
+                tcl_runtime_api::ArrayReadMiss::missing(),
+            ));
+        }
         let result = self.array_read_elem_at_target(target, key);
         if let Some(refusal) = self.native_access_refusal() {
             return Err(refusal.into());
@@ -476,7 +500,13 @@ impl VarStore for Interp {
                 "unmeasured observed variable operation",
             ));
         }
-        let removed = self.array_unset_elem_at_target(target, key);
+        let removed = if self.variable_container_model()
+            == tcl_dialect::VariableContainerModel::DictionaryValue
+        {
+            self.var_unset_elem_at(target.name_bytes(), key, target.frame().0)
+        } else {
+            self.array_unset_elem_at_target(target, key)
+        };
         if let Some(refusal) = self.native_access_refusal() {
             return Err(refusal.into());
         }
@@ -526,6 +556,28 @@ impl VarStore for Interp {
     }
 }
 
+/// The selected Jim array command reads its dictionary variable through the
+/// original frame/name owner. C array-cell snapshots do not supply its members.
+fn native_dictionary_array_pairs(
+    interp: &Interp,
+    target: &ArrayTarget,
+) -> Result<Option<Vec<(*mut TclObj, *mut TclObj)>>, tcl_syntax::value::ValueError> {
+    // naming.array.jim-original-dictionary-runtime-enumeration
+    // docs/design/analysis/name-resolution-proofs/array-jim-original-dictionary-runtime-enumeration.md
+    let Some(root) = VarStore::get_bytes(interp, target.frame(), target.name_bytes())? else {
+        return Ok(None);
+    };
+    let protocol = interp
+        .native_invocation_dialect()
+        .native_string_protocol()
+        .filter(|protocol| protocol.is_jim084())
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "Jim dictionary array",
+        ))?;
+    crate::native_source::bind_context(root, &interp.native_jim_object_context()?)?;
+    crate::dict::native_dict_pairs(root, protocol).map(Some)
+}
+
 /// Runtime introspection backing the `info` family (`info level`/`info level N`).
 ///
 /// The handle-free role trait that fits *both* runtime models as drafted, so
@@ -558,8 +610,8 @@ impl Introspect for Interp {
 /// [`ProcDef`](crate::interp::ProcDef). `proc_def` already follows `namespace
 /// import` redirects to the underlying proc, so an imported proc introspects as
 /// its source (info-1.7/2.4). The body/params are cloned into owned bytes — the
-/// contract is value-agnostic, and the shared `info` core rebuilds the result
-/// objects through `ValueOps`.
+/// contract is value-agnostic. Jim `info args` instead returns the original
+/// retained formal list, including defaults, reference names and rest labels.
 impl Procs for Interp {
     fn proc_info(&self, name: &str) -> Option<ProcInfo> {
         self.proc_info_bytes(name.as_bytes()).ok().flatten()
@@ -595,6 +647,31 @@ impl Procs for Interp {
             &definition.body.checked_ptr()?,
         )
         .map(|bytes| Some(bytes.to_vec()))
+    }
+
+    fn proc_original_formal_list_value(
+        &self,
+        name: &[u8],
+    ) -> Result<Option<Self::Value>, tcl_syntax::value::ValueError> {
+        let protocol = self
+            .native_invocation_dialect()
+            .native_name_protocol()
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "formal introspection",
+            ))?;
+        if !protocol.is_jim084() {
+            return Ok(None);
+        }
+        let Some(definition) = self.proc_def(name) else {
+            return Ok(None);
+        };
+        definition.check_native_liveness()?;
+        let original = definition.jim_parameters.as_ref().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim formal introspection list",
+            ),
+        )?;
+        original.checked_ptr().map(Some)
     }
 
     fn proc_formal_names_bytes(
@@ -930,7 +1007,35 @@ impl Frames for Interp {
                 "native variable table inventory",
             ),
         )?;
+        if include_links {
+            self.frames
+                .borrow()
+                .declared_tcloo_variable_names()
+                .map_err(|_| {
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "TclOO declaring variable inventory",
+                    )
+                })?;
+        }
         Ok(self.var_names_bytes(include_links))
+    }
+
+    fn var_name_pattern_inputs_bytes_checked(
+        &self,
+        include_links: bool,
+    ) -> Result<
+        Vec<(Vec<u8>, tcl_syntax::native_glob::NativeNameGlobPurpose)>,
+        tcl_syntax::value::ValueError,
+    > {
+        self.var_names_bytes_checked(include_links)?;
+        self.frames
+            .borrow()
+            .local_name_pattern_inputs(include_links)
+            .map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original frame variable pattern inputs",
+                )
+            })
     }
 
     fn const_names(&self) -> Vec<String> {
@@ -950,16 +1055,30 @@ impl Frames for Interp {
 /// is a direct read. [`find_command`](Namespaces::find_command) resolves `name`
 /// from `cxt` to an exact `(FQN, generation)` token and interns that as a stable
 /// `CommandId`.
+impl tcl_runtime_api::Aliases for Interp {
+    fn alias_prefix_original_value(
+        &mut self,
+        original_name: &Self::Value,
+    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>
+    {
+        self.original_alias_prefix_value(*original_name)
+    }
+}
+
 impl Namespaces for Interp {
     fn namespace_import_binding(&self) -> Option<tcl_dialect::NamespaceImportBinding> {
         self.dialect_profile().namespace_import_binding()
     }
 
     fn command_alias_prefix_bytes(&self, cmd: CommandId) -> Option<Vec<Vec<u8>>> {
-        let name = self.command_fqn(cmd.0)?;
-        let (target, mut prefix) = self.alias_info(&name)?;
-        prefix.insert(0, target);
-        Some(prefix)
+        self.command_alias_prefix_bytes_checked(cmd).ok().flatten()
+    }
+
+    fn command_alias_prefix_bytes_checked(
+        &self,
+        cmd: CommandId,
+    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+        self.command_alias_prefix_by_id_checked(cmd.0)
     }
     fn variable_lookup_policy(&self) -> Option<tcl_dialect::VariableLookupPolicy> {
         self.dialect_profile()
@@ -1024,22 +1143,29 @@ impl Namespaces for Interp {
     // runtime owns the registry query that hides an unavailable builtin while
     // retaining user-defined entries in the same namespace.
     fn commands_in(&self, ns: NsId) -> Vec<String> {
-        self.visible_command_names_in(ns.0 as usize)
-            .iter()
-            .map(|s| String::from_utf8_lossy(s).into_owned())
+        self.visible_command_report_names_in(ns.0 as usize)
+            .into_iter()
+            .map(|s| String::from_utf8(s).expect("Unicode command reports require checked bytes"))
             .collect()
     }
 
     fn procs_in(&self, ns: NsId) -> Vec<String> {
         self.namespaces()
             .proc_names(ns.0 as usize)
-            .iter()
-            .map(|s| String::from_utf8_lossy(s).into_owned())
+            .into_iter()
+            .map(|s| String::from_utf8(s).expect("Unicode procedure reports require checked bytes"))
             .collect()
     }
 
+    fn aliases_in_bytes_checked(
+        &self,
+        ns: NsId,
+    ) -> Result<Vec<Vec<u8>>, tcl_syntax::value::ValueError> {
+        self.visible_alias_report_names_in(ns.0 as usize)
+    }
+
     fn commands_in_bytes(&self, ns: NsId) -> Vec<Vec<u8>> {
-        self.visible_command_names_in(ns.0 as usize)
+        self.visible_command_report_names_in(ns.0 as usize)
     }
 
     fn procs_in_bytes(&self, ns: NsId) -> Vec<Vec<u8>> {
@@ -1126,6 +1252,31 @@ impl Namespaces for Interp {
         self.namespaces()
             .find_namespace(cxt.0 as usize, name)
             .map(|id| NsId(id as u32))
+    }
+
+    fn root_command_context_checked(&self) -> Result<Option<NsId>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let policy = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "root command lookup context",
+            ))?;
+        if !policy.recipe().is_jim084() {
+            return self.find_namespace_bytes_checked(Namespaces::current(self), b"::");
+        }
+        let context = self.native_jim_object_context()?;
+        let holder = self
+            .namespaces()
+            .jim_namespace_object(crate::namespace::GLOBAL)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "Jim root command namespace object",
+            ))?;
+        if !context.is_live() || holder.as_ptr() != context.empty_object().as_ptr() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "Jim root command context owner",
+            ));
+        }
+        Ok(Some(tcl_runtime_api::ROOT_NS))
     }
 
     fn find_namespace_bytes_checked(

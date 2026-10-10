@@ -136,8 +136,10 @@ pub struct PackageInfo {
     pub name: String,
     /// Declared version.
     pub version: String,
-    /// Absolute paths to the Tcl implementation files the `ifneeded` script
-    /// would `source`.
+    /// Candidate Tcl implementation files suggested by the deferred script
+    /// or its directory. This is source advice, not evidence that a loader ran
+    /// or that a file was sourced. Original providers expose each candidate
+    /// provenance through [`OriginalPackageInfo::file_candidates`].
     ///
     /// **Empty** means "declared, but its command set is not statically
     /// enumerable" — a binary-only C extension whose `ifneeded` body just
@@ -191,7 +193,16 @@ pub(super) fn walk_command_words(text: &str) -> Vec<Vec<Vec<Token>>> {
     // dialect-drift-ok: on-disk `pkgIndex.tcl` / `tclIndex` auto-load index
     // content from `auto_path`, read as C Tcl's own loader reads it — not the
     // open document's Tcl, and no document dialect reaches this walk.
-    let tokens = Lexer::new(text).tokenise_all().unwrap_or_default();
+    walk_command_words_with_config(text, tcl_lexer::LexerConfig::default())
+}
+
+pub(super) fn walk_command_words_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<Vec<Vec<Token>>> {
+    let tokens = Lexer::with_config(text, config)
+        .tokenise_all()
+        .unwrap_or_default();
     let mut commands: Vec<Vec<Vec<Token>>> = Vec::new();
     let mut words: Vec<Vec<Token>> = Vec::new();
     let mut word: Vec<Token> = Vec::new();
@@ -422,6 +433,7 @@ pub fn parse_pkg_index(
             text,
             words,
             conditions,
+            ..
         } = reached;
         if words.len() < 5 {
             return;
@@ -623,6 +635,77 @@ pub fn package_requires_in(content: &str) -> Vec<String> {
     names
 }
 
+fn candidate_package_infos<'a>(
+    infos: &[&'a PackageInfo],
+    requirements: &[&str],
+    exact: bool,
+    prefer: PackagePrefer,
+    target: Option<tcl_dialect::TclVersion>,
+) -> Vec<&'a PackageInfo> {
+    let releases: Vec<_> = target.map_or_else(
+        || tcl_dialect::TclVersion::ALL.to_vec(),
+        |version| vec![version],
+    );
+    let mut candidates: Vec<&PackageInfo> = Vec::new();
+    for release in releases {
+        let available: Vec<_> = infos
+            .iter()
+            .copied()
+            .filter(|info| {
+                info.availability(Some(release)) != reachability::Availability::Unavailable
+            })
+            .collect();
+        let certain: Vec<_> = available
+            .iter()
+            .copied()
+            .filter(|info| {
+                info.availability(Some(release)) == reachability::Availability::Available
+            })
+            .collect();
+        let versions: Vec<_> = certain.iter().map(|info| info.version.as_str()).collect();
+        let selected = if exact {
+            requirements
+                .first()
+                .filter(|_| requirements.len() == 1)
+                .and_then(|requested| {
+                    tcl_dialect::select_package_version_exact_for(&versions, requested, release)
+                })
+        } else {
+            tcl_dialect::select_package_version_for(&versions, requirements, prefer, release)
+        };
+        let selected_version = selected.map(|index| versions[index]);
+        for info in available {
+            let accepts = if exact {
+                requirements
+                    .first()
+                    .filter(|_| requirements.len() == 1)
+                    .is_some_and(|requested| {
+                        tcl_dialect::version_matches_exact_for(&info.version, requested, release)
+                    })
+            } else {
+                tcl_dialect::select_package_version_for(
+                    &[info.version.as_str()],
+                    requirements,
+                    prefer,
+                    release,
+                )
+                .is_some()
+            };
+            if accepts
+                && (info.availability(Some(release)) == reachability::Availability::Conditional
+                    || selected_version.is_some_and(|version| {
+                        tcl_dialect::compare_versions_for(&info.version, version, release)
+                            == core::cmp::Ordering::Equal
+                    }))
+                && !candidates.iter().any(|candidate| **candidate == *info)
+            {
+                candidates.push(info);
+            }
+        }
+    }
+    candidates
+}
+
 // Name qualification (exact port of C Tcl's auto_qualify).
 
 /// Faithful port of C Tcl's `auto_qualify` (`library/init.tcl:488`).
@@ -655,6 +738,17 @@ pub fn auto_qualify(cmd: &str, namespace: &str) -> Vec<String> {
 pub struct PackageResolver {
     packages: HashMap<String, Vec<PackageInfo>>,
     auto_index: HashMap<String, Vec<PathBuf>>,
+    original_packages: HashMap<
+        tcl_registry::native_package::NativePackageNameKey,
+        Vec<original_names::OriginalPackageInfo>,
+    >,
+    original_auto_index: HashMap<
+        (
+            tcl_syntax::native_string::NativeStringProtocol,
+            tcl_core_types::NameBytes,
+        ),
+        Vec<original_names::OriginalAutoIndexRegistration>,
+    >,
     scanned_dirs: Vec<PathBuf>,
     revision: u64,
 }
@@ -680,6 +774,8 @@ impl Default for PackageResolver {
         Self {
             packages: HashMap::new(),
             auto_index: HashMap::new(),
+            original_auto_index: HashMap::new(),
+            original_packages: HashMap::new(),
             scanned_dirs: Vec::new(),
             revision: next_resolver_revision(),
         }
@@ -817,6 +913,9 @@ impl PackageResolver {
             let infos = parse_pkg_index(&content, dir, &pkg_index, &|p| store.is_file(p), &|d| {
                 list_tcl_files(store, d)
             });
+            self.add_original_pkg_index(&content, dir, &pkg_index, &|p| store.is_file(p), &|d| {
+                list_tcl_files(store, d)
+            });
             self.add_pkg_index(infos);
         }
         // `tclIndex` is matched case-insensitively (`tclIndex` / `tclindex`).
@@ -828,6 +927,7 @@ impl PackageResolver {
                     .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("tclindex"));
                 if is_tcl_index && let Ok(content) = store.read_to_string(&entry.path) {
                     let dir_owned = entry.path.parent().unwrap_or(dir).to_path_buf();
+                    self.add_original_tcl_index(&content, &dir_owned, &|p| store.is_file(p));
                     self.add_tcl_index(parse_tcl_index(&content, &dir_owned, &|p| {
                         store.is_file(p)
                     }));
@@ -958,73 +1058,13 @@ impl PackageResolver {
         let Some(infos) = self.packages.get(name) else {
             return Vec::new();
         };
-        let releases: Vec<_> = target.map_or_else(
-            || tcl_dialect::TclVersion::ALL.to_vec(),
-            |version| vec![version],
-        );
-        let mut candidates: Vec<&PackageInfo> = Vec::new();
-        for release in releases {
-            let available: Vec<_> = infos
-                .iter()
-                .filter(|info| {
-                    info.availability(Some(release)) != reachability::Availability::Unavailable
-                })
-                .collect();
-            let certain: Vec<_> = available
-                .iter()
-                .copied()
-                .filter(|info| {
-                    info.availability(Some(release)) == reachability::Availability::Available
-                })
-                .collect();
-            let versions: Vec<_> = certain.iter().map(|info| info.version.as_str()).collect();
-            let selected = if exact {
-                requirements
-                    .first()
-                    .filter(|_| requirements.len() == 1)
-                    .and_then(|requested| {
-                        tcl_dialect::select_package_version_exact_for(&versions, requested, release)
-                    })
-            } else {
-                tcl_dialect::select_package_version_for(&versions, requirements, prefer, release)
-            };
-            let selected_version = selected.map(|index| versions[index]);
-            for info in available {
-                let accepts = if exact {
-                    requirements
-                        .first()
-                        .filter(|_| requirements.len() == 1)
-                        .is_some_and(|requested| {
-                            tcl_dialect::version_matches_exact_for(
-                                &info.version,
-                                requested,
-                                release,
-                            )
-                        })
-                } else {
-                    tcl_dialect::select_package_version_for(
-                        &[info.version.as_str()],
-                        requirements,
-                        prefer,
-                        release,
-                    )
-                    .is_some()
-                };
-                if accepts
-                    && (info.availability(Some(release)) == reachability::Availability::Conditional
-                        || selected_version.is_some_and(|version| {
-                            tcl_dialect::compare_versions_for(&info.version, version, release)
-                                == core::cmp::Ordering::Equal
-                        }))
-                    && !candidates
-                        .iter()
-                        .any(|candidate| std::ptr::eq(*candidate, info))
-                {
-                    candidates.push(info);
-                }
-            }
-        }
-        candidates
+        candidate_package_infos(
+            &infos.iter().collect::<Vec<_>>(),
+            requirements,
+            exact,
+            prefer,
+            target,
+        )
     }
 
     /// Assistance source candidates using the document's requirement grammar.
@@ -1243,7 +1283,12 @@ fn list_tcl_files(store: &dyn SourceStore, dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+mod original_names;
 pub mod reachability;
+pub use original_names::{
+    OriginalPackageFileCandidate, OriginalPackageFileCandidateKind, OriginalPackageInfo,
+    PackageRequirementAdvice, PackageRequirementAdviceKey,
+};
 
 #[cfg(test)]
 mod tests;

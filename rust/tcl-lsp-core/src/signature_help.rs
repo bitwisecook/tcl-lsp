@@ -24,21 +24,13 @@
 //! lexer-aware count of arguments in the innermost registry-declared
 //! executable region containing the cursor.
 //!
-//! Two lookup paths:
-//!
-//! 1. **User-defined proc** — `analysis.all_procs` keyed by
-//!    simple, qualified, or unprefixed-qualified name.  Signature
-//!    label is rendered from the proc's parameter list (including
-//!    `{name default}` brackets for optional params); the
-//!    documentation field surfaces the proc's harvested doc-
-//!    comment.
-//! 2. **Built-in command** — when the cursor's command isn't a
-//!    user proc and the caller passes a
-//!    [`tcl_registry::CommandRegistry`], look up the spec and
-//!    render its first `hover.synopsis` entry as the signature.
-//!    Parameters are whitespace-separated synopsis tokens after
-//!    the command word; `hover.summary` becomes the
-//!    documentation.
+//! Native lookup uses the retained complete source, full configuration and
+//! Registry, then selects original procedure allocations or retains the same
+//! source schema and its conditional availability. Captured alias prefixes
+//! occupy arguments without source anchors;
+//! expanded arguments retain their own list-child extents. Reporting names
+//! render labels without supplying lookup identity. Explicit lexical advice
+//! keeps its independent source declaration lookup.
 //!
 //! Braced data remains part of its containing command, while registry-declared
 //! script bodies, clause actions, lambdas, definition members, and live
@@ -165,11 +157,11 @@ pub fn signature_help_in_program_with_options(
     options: SignatureHelpOptions<'_>,
 ) -> Option<SignatureHelp> {
     let registry = resolution.registry;
-    let profile = crate::profile_for_analysis(analysis);
-    let structural_registry =
-        registry.unwrap_or_else(|| crate::registry_for_dialect_profile(profile));
-    let (command, args, active_param) =
-        command_context_with_args(source, line, character, profile, structural_registry)?;
+    let structural_registry = analysis.resolved_registry()?;
+    let context =
+        command_context_with_args(source, line, character, analysis, structural_registry)?;
+    let command = &context.command;
+    let active_param = context.active_parameter;
     // Resolve the command from the namespace the cursor sits in, the way C
     // Tcl's own command resolution would (caller namespace, then global), so a
     // same-named proc in an unrelated namespace never hijacks the signature and
@@ -178,48 +170,83 @@ pub fn signature_help_in_program_with_options(
         let line_index = tcl_lexer::LineIndex::new(source);
         crate::definition::byte_offset_at(&line_index, source, line, character)
     };
-    let namespace = crate::definition::namespace_context_at(
-        &analysis.global_scope,
-        cursor_off,
-        &analysis.namespace_overrides,
-    );
+    let namespace = if analysis.allows_lexical_declaration_advice() {
+        crate::definition::namespace_context_at(
+            &analysis.global_scope,
+            cursor_off,
+            &analysis.namespace_overrides,
+        )
+    } else {
+        String::new()
+    };
     if let Some(proc_def) = lookup_proc(
-        analysis, source, &namespace, &command, cursor_off, resolution,
+        analysis,
+        source,
+        &namespace,
+        command,
+        context.head_offset,
+        resolution,
     ) {
         return Some(proc_signature_help(proc_def, active_param));
     }
-    let registry = registry?;
-    let spec = registry.get(&command)?;
-    let canonical_spec_name = tcl_syntax::naming::normalise_qualified_name(spec.name);
-    if options
-        .disabled_builtin_commands
-        .contains(&canonical_spec_name)
-    {
-        return None;
-    }
-    // Subcommand-scoped signatures:
-    // when the spec has subcommands and the first argument
-    // matches one, prefer the subcommand's signature over the
-    // command-level one.  Adjusts `active_param` to be
-    // relative to the subcommand's parameters (the subcommand
-    // name itself is consumed before the user-typed args).
-    if !spec.subcommands.is_empty()
-        && let Some(first_arg) = args.first()
-    {
-        if let Some(sub) = spec
-            .subcommands
-            .iter()
-            .find(|s| s.name == first_arg.as_str())
-        {
-            let sub_param = active_param.saturating_sub(1);
-            return subcommand_signature_help(&command, sub, sub_param);
+    registry?;
+    source_signature_help(analysis, context.source_words.as_ref()?, &context, options)
+}
+
+/// Render the same original argv's source schema in its retained availability
+/// generation. Conditional advice cannot establish Native target selection.
+fn source_signature_help(
+    analysis: &AnalysisResult,
+    words: &crate::original_invocation::OriginalRegistryWords,
+    command: &SignatureCommandContext,
+    options: SignatureHelpOptions<'_>,
+) -> Option<SignatureHelp> {
+    // naming.consumer.original-signature-schema-rendering
+    // docs/design/analysis/name-resolution-proofs/original-signature-schema-rendering.md
+    let generation = analysis.resolved_input.as_ref()?.context_registry();
+    let mut help = words
+        .with_source_schema(&generation, |schema| {
+            let spec = generation
+                .context()
+                .resolve_spec(generation.commands(), schema.canonical_command)?;
+            if options
+                .disabled_builtin_commands
+                .contains(&tcl_syntax::naming::normalise_qualified_name(spec.name))
+            {
+                return None;
+            }
+            if !spec.subcommands.is_empty() && command.argument_count != 0 {
+                let selected = schema.subcommand.resolved()?;
+                let sub = generation
+                    .context()
+                    .available_subcommands(spec)
+                    .into_iter()
+                    .find(|sub| {
+                        sub.name == selected.canonical_name
+                            && sub.available_for_version(
+                                schema.semantics.options.availability.package_version,
+                            )
+                    })?;
+                return subcommand_signature_help(
+                    &command.command,
+                    sub,
+                    command.active_parameter.saturating_sub(1),
+                );
+            }
+            builtin_signature_help(spec, command.active_parameter)
+        })
+        .flatten()?;
+    if !matches!(
+        words.source,
+        crate::original_invocation::OriginalRegistrySource::Selected
+    ) {
+        for signature in &mut help.signatures {
+            let documentation = signature.documentation.get_or_insert_with(String::new);
+            documentation
+                .push_str("\n\n_Source documentation; command availability is unresolved._");
         }
-        // A first arg is present but isn't a known subcommand — offer no
-        // signature rather than the generic command-level one (`string
-        // bogus` must not surface `string option arg …`).
-        return None;
     }
-    builtin_signature_help(spec, active_param)
+    Some(help)
 }
 
 /// Lexer-driven command-context detection.
@@ -241,14 +268,22 @@ pub fn signature_help_in_program_with_options(
 /// `args` is the list of already-typed argument tokens
 /// (everything after the command head) — used by
 /// subcommand-aware signature help to dispatch on `args[0]`.
+struct SignatureCommandContext {
+    command: String,
+    source_words: Option<crate::original_invocation::OriginalRegistryWords>,
+    head_offset: u32,
+    argument_count: usize,
+    active_parameter: u32,
+}
+
 fn command_context_with_args(
     source: &str,
     line: u32,
     character: u32,
-    profile: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     registry: &CommandRegistry,
-) -> Option<(String, Vec<String>, u32)> {
-    use tcl_lexer::{Lexer, LexerConfig, LineIndex, TokenType, Utf16Col};
+) -> Option<SignatureCommandContext> {
+    use tcl_lexer::{Lexer, LineIndex, TokenType, Utf16Col};
 
     let cursor_offset = {
         let line_index = LineIndex::new(source);
@@ -265,17 +300,25 @@ fn command_context_with_args(
         line_index.offset_at_utf16(line, Utf16Col::new(character), source)
     };
 
-    let config = LexerConfig::for_file_grammar(profile.grammar);
-    let identities =
-        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
-    let region = crate::executable_regions::innermost_executable_region_at(
+    let profile = analysis.resolved_profile()?;
+    let config = analysis.body_lexer_config?;
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+        return None;
+    }
+    let identities = analysis.retained_command_realm()?;
+    let region = crate::executable_regions::innermost_analysis_executable_region_at(
         source,
-        config,
+        analysis,
         registry,
-        Some(profile.surface_query()),
-        &identities,
         cursor_offset as usize,
     )?;
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+        eprintln!(
+            "SIGNATURE_HEADER cursor={} stage=region start={} end={} depth={}",
+            cursor_offset, region.start, region.end, region.depth
+        );
+    }
 
     // Lex only the executable region's prefix up to the cursor. A braced word
     // that is ordinary data remains in the containing region and therefore in
@@ -283,56 +326,22 @@ fn command_context_with_args(
     // newlines/comments inside it reset that body's command context instead of
     // leaving the outer command (notably `proc ... body`) active indefinitely.
     let prefix = &source[region.start..cursor_offset as usize];
-    let lexer = Lexer::with_config(prefix, config.at_depth(region.depth));
-    let Ok(tokens) = lexer.tokenise_all() else {
+    let local_config = config.at_depth(region.depth);
+    let lexer = Lexer::with_config(prefix, local_config);
+    let Ok(mut tokens) = lexer.tokenise_all() else {
         return None;
     };
-
-    let mut current_segment: Vec<String> = Vec::new();
-    let mut at_new_word = true;
-    for tok in tokens {
-        match tok.kind {
-            TokenType::Sep => {
-                at_new_word = true;
-            }
-            TokenType::Eol => {
-                // Real EOL (non-empty text — a semicolon or
-                // line-ending newline) resets the segment.
-                // Synthetic empty EOLs (used to terminate the
-                // stream) leave the segment alone.
-                let raw = &prefix[tok.span.start() as usize..tok.span.end() as usize];
-                if !raw.is_empty() {
-                    current_segment.clear();
-                    at_new_word = true;
-                }
-            }
-            TokenType::Comment | TokenType::Expand => {}
-            TokenType::Eof => {
-                break;
-            }
-            _ => {
-                // Word-producing token (Esc / Str / Var / Cmd /
-                // Other).  Each contributes a word to the
-                // segment unless we're mid-word (the previous
-                // token also contributed without an intervening
-                // SEP).
-                let raw = &prefix[tok.span.start() as usize..tok.span.end() as usize];
-                if at_new_word || current_segment.is_empty() {
-                    current_segment.push(raw.to_owned());
-                } else if let Some(last) = current_segment.last_mut() {
-                    last.push_str(raw);
-                }
-                at_new_word = false;
-            }
-        }
-    }
-
-    if current_segment.is_empty() {
+    let groups = tcl_lexer::group_commands(&tokens, prefix, local_config);
+    let group = groups.last()?;
+    let last = tokens.iter().rev().find(|token| {
+        !matches!(token.kind, TokenType::Eof | TokenType::Comment)
+            && !(token.kind == TokenType::Eol && token.span.is_empty())
+    })?;
+    if last.kind == TokenType::Eol {
         return None;
     }
-    let command = current_segment[0].clone();
-    let args: Vec<String> = current_segment.iter().skip(1).cloned().collect();
-    let arg_token_count = current_segment.len().saturating_sub(1);
+    let at_new_word = last.kind == TokenType::Sep;
+    let arg_token_count = group.words.len().saturating_sub(1);
     let active_param = if at_new_word {
         u32::try_from(arg_token_count).ok()?
     } else {
@@ -344,7 +353,116 @@ fn command_context_with_args(
         // is a real arg position even at index 0 (`greet World`).
         return None;
     }
-    Some((command, args, active_param))
+    let base = u32::try_from(region.start).ok()?;
+    for token in &mut tokens {
+        token.span = tcl_lexer::Span::new(
+            token.span.start().checked_add(base)?,
+            token.span.end().checked_add(base)?,
+        );
+    }
+    let image = tcl_lexer::SourceImage::document(source);
+    let words: Vec<_> = group
+        .words
+        .iter()
+        .map(|group| {
+            let mut group = group.clone();
+            group.span = tcl_lexer::Span::new(
+                group.span.start().checked_add(base)?,
+                group.span.end().checked_add(base)?,
+            );
+            tcl_lexer::NativeWord::from_group(image.clone(), local_config, &tokens, &group).ok()
+        })
+        .collect();
+    let head = words.first()?.as_ref()?;
+    let head_offset = head.tokens().first()?.span.start();
+    let policy = tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy();
+    let name_key = policy.and_then(|policy| {
+        tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            head,
+            tcl_syntax::word_rules::WordValueRules::from_config(&local_config),
+            policy,
+        )
+    });
+    let command = name_key
+        .as_ref()
+        .and_then(|key| key.display())
+        .unwrap_or(head.try_text().ok()?)
+        .to_owned();
+    let mut source_words = None;
+    let mut argument_count = arg_token_count;
+    let mut active_parameter = active_param;
+    {
+        let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            source.get(region.start..region.end)?,
+            base,
+            local_config,
+        );
+        let segment = segments
+            .iter()
+            .find(|segment| segment.span.start() == head_offset)?;
+        let mut original = tcl_compiler::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            segment,
+        );
+        identities.stamp_original_tokens(&mut original);
+        let effective = tcl_compiler::registry_invocation::effective_command_words(&original);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+            eprintln!(
+                "SIGNATURE_HEADER cursor={} stage=command site={} written={} effective={} binding={}",
+                cursor_offset,
+                head_offset,
+                segment.argv.len(),
+                effective.is_some(),
+                original.source_binding.is_some()
+            );
+        }
+        if let Some(effective) = effective {
+            let wanted = usize::try_from(active_param).ok()?.checked_add(1)?;
+            active_parameter = crate::original_invocation::effective_argument_at(
+                &original,
+                &effective,
+                wanted,
+                cursor_offset,
+            )
+            .or_else(|| {
+                (at_new_word && wanted == segment.argv.len())
+                    .then(|| u32::try_from(effective.origins.len().saturating_sub(1)).ok())
+                    .flatten()
+            })?;
+        }
+        let selected = crate::original_invocation::source_registry_words(source, analysis, segment);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+            eprintln!(
+                "SIGNATURE_HEADER cursor={} stage=selected site={} available={}",
+                cursor_offset,
+                head_offset,
+                selected.is_some()
+            );
+        }
+        if let Some(selected) = selected {
+            let wanted = usize::try_from(active_param).ok()?.checked_add(1)?;
+            active_parameter =
+                selected
+                    .active_argument_at(wanted, cursor_offset)
+                    .or_else(|| {
+                        (at_new_word && wanted == segment.argv.len())
+                            .then(|| u32::try_from(selected.arguments.len()).ok())
+                            .flatten()
+                    })?;
+            argument_count = selected.arguments.len();
+            source_words = Some(selected);
+        }
+    }
+    Some(SignatureCommandContext {
+        command,
+        source_words,
+        head_offset,
+        argument_count,
+        active_parameter,
+    })
 }
 
 /// Render signature help for a `command subcommand` form.
@@ -413,6 +531,9 @@ fn lookup_proc<'a>(
         crate::definition::resolve_called_proc(analysis, source, namespace, name, call_off, ctx)
     {
         return Some(proc_def);
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
     }
     // Alias resolution.  When the cursor's command isn't a visible proc, check
     // whether it matches an `interp alias {} ALIAS {} TARGET` record and follow
@@ -547,6 +668,134 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn signature_uses_the_original_call_point_before_replacement() {
+        let source = "proc greet {first} {}\ngreet one\nrename greet archived\nproc greet {first second} {}\ngreet one two\narchived one\n";
+        let analysis = analyse(source);
+        for (line, column, parameters) in [(1, 9, 1), (4, 13, 2), (5, 12, 1)] {
+            let help = signature_help(source, line, column, &analysis, None).unwrap();
+            assert_eq!(help.signatures[0].parameters.len(), parameters);
+        }
+    }
+
+    #[test]
+    fn signature_subcommands_use_original_values_and_shared_prefix_rules() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = crate::profile_for_dialect(dialect);
+            let registry = crate::registry_for_dialect_profile(profile);
+            for source in [
+                "string le value",
+                r#""string" "le" value"#,
+                r"\x73tring \u006ce value",
+            ] {
+                let mut analyser = Analyser::new();
+                let analysis = analyser.analyse(source, dialect);
+                let help = signature_help(
+                    source,
+                    0,
+                    u32::try_from(source.len()).unwrap(),
+                    &analysis,
+                    Some(registry),
+                )
+                .unwrap();
+                assert!(
+                    help.signatures[0].label.contains("length"),
+                    "{dialect} {source:?}"
+                );
+            }
+            for source in [
+                "string l value",
+                "string $selector value",
+                r"string le\u0000tail value",
+                "string {le\0tail} value",
+            ] {
+                let mut analyser = Analyser::new();
+                let analysis = analyser.analyse(source, dialect);
+                assert!(
+                    signature_help(
+                        source,
+                        0,
+                        u32::try_from(source.len()).unwrap(),
+                        &analysis,
+                        Some(registry)
+                    )
+                    .is_none(),
+                    "{dialect} {source:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_signature_argument_mapping_keeps_captured_prefixes_without_source_anchors() {
+        // Implementation contract: naming.consumer.original-signature-argument-mapping
+        // docs/design/analysis/name-resolution-proofs/original-signature-argument-mapping.md
+        // Rust consumer contract; runtime alias behavior is recorded separately.
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let builtin = "interp alias {} strlen {} string length\nstrlen value";
+            let analysis = Analyser::new().analyse(builtin, dialect);
+            let help = signature_help(builtin, 1, 12, &analysis, analysis.resolved_registry())
+                .expect(dialect);
+            assert!(help.signatures[0].label.contains("length"));
+            assert_eq!(help.active_parameter, 0);
+
+            let procedure = "proc join {first second} {}\ninterp alias {} joined {} join captured\njoined value";
+            let analysis = Analyser::new().analyse(procedure, dialect);
+            let help = signature_help(procedure, 2, 12, &analysis, None).expect(dialect);
+            assert_eq!(help.signatures[0].parameters.len(), 2);
+            assert_eq!(help.active_parameter, 1);
+        }
+    }
+
+    #[test]
+    fn original_signature_expansion_cursor_selects_its_own_list_child() {
+        // Implementation contract: naming.consumer.original-signature-argument-mapping
+        // docs/design/analysis/name-resolution-proofs/original-signature-argument-mapping.md
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let builtin = "string equal {*}{first second}";
+            let analysis = Analyser::new().analyse(builtin, dialect);
+            for (word, expected) in [("first", 0), ("second", 1)] {
+                let cursor = u32::try_from(builtin.find(word).unwrap() + 2).unwrap();
+                let help =
+                    signature_help(builtin, 0, cursor, &analysis, analysis.resolved_registry())
+                        .expect(dialect);
+                assert_eq!(help.active_parameter, expected, "{dialect}/{word}");
+            }
+            let procedure = "proc join {first second} {}\njoin {*}{alpha beta}";
+            let analysis = Analyser::new().analyse(procedure, dialect);
+            for (word, expected) in [("alpha", 0), ("beta", 1)] {
+                let cursor = u32::try_from("join {*}{alpha beta}".find(word).unwrap() + 2).unwrap();
+                let help = signature_help(procedure, 1, cursor, &analysis, None).expect(dialect);
+                assert_eq!(help.active_parameter, expected, "{dialect}/{word}");
+            }
+        }
+    }
+
+    #[test]
+    fn original_signature_currency_and_registry_survive_reporting_counterfactuals() {
+        // Implementation contract: naming.consumer.original-signature-argument-mapping
+        // docs/design/analysis/name-resolution-proofs/original-signature-argument-mapping.md
+        let source = "string length value";
+        let mut analysis = analyse(source);
+        analysis.dialect = "f5-irules".to_owned();
+        analysis.all_procs.clear();
+        analysis.global_scope.variables.clear();
+        let help = signature_help(source, 0, 19, &analysis, analysis.resolved_registry()).unwrap();
+        assert!(help.signatures[0].label.contains("length"));
+        assert!(
+            signature_help(
+                "string length other",
+                0,
+                19,
+                &analysis,
+                analysis.resolved_registry()
+            )
+            .is_none()
+        );
+        analysis.body_lexer_config.as_mut().unwrap().expand_syntax = false;
+        assert!(signature_help(source, 0, 19, &analysis, analysis.resolved_registry()).is_none());
     }
 
     #[test]
@@ -767,23 +1016,33 @@ mod tests {
     }
 
     #[test]
-    fn bare_call_with_two_namespace_procs_picks_deterministically() {
-        // Two namespaces define `greet`; a bare `greet` at global scope names
-        // neither directly, so the lenient fallback picks one — and it must be
-        // stable (lexicographically smallest qualified name), never `HashMap`
-        // iteration order.  `::A::greet` (param `alpha`) wins over `::B::greet`.
+    fn bare_global_call_cannot_select_an_unrelated_namespace_proc() {
         let src = "namespace eval A {\n    proc greet {alpha} {}\n}\nnamespace eval B {\n    proc greet {beta} {}\n}\ngreet \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let (l, c) = pos_after(src, "greet ", 3);
-        let h = signature_help(src, l, c, &analysis, Some(&registry)).expect("signature help");
+        let (line, character) = pos_after(src, "greet ", 3);
+        assert!(signature_help(src, line, character, &analysis, Some(&registry)).is_none());
+    }
+
+    #[test]
+    fn bare_global_call_selects_the_genuine_namespace_path_proc() {
+        let src = "namespace eval A {\n    proc greet {alpha} {}\n}\nnamespace eval B {\n    proc greet {beta} {}\n}\nnamespace path A\ngreet \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let (line, character) = pos_after(src, "greet ", 3);
+        let help = signature_help(src, line, character, &analysis, Some(&registry))
+            .expect("the actual namespace path selects A");
         assert!(
-            h.signatures[0]
+            help.signatures[0]
                 .parameters
                 .iter()
-                .any(|p| p.label == "alpha"),
-            "{:?}",
-            h.signatures[0].parameters
+                .any(|parameter| parameter.label == "alpha")
+        );
+        assert!(
+            !help.signatures[0]
+                .parameters
+                .iter()
+                .any(|parameter| parameter.label == "beta")
         );
     }
 
@@ -875,6 +1134,8 @@ mod tests {
 
     #[test]
     fn substitution_free_quoted_proc_body_is_a_nested_script_region() {
+        // Implementation contract: naming.source.incomplete-body-header-metadata
+        // docs/design/analysis/name-resolution-proofs/incomplete-body-header-metadata.md
         let src = "proc p {} \"puts hi\"";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
@@ -927,16 +1188,13 @@ mod tests {
 
     #[test]
     fn disabled_builtin_signatures_do_not_disable_other_commands_or_procs() {
-        let src = concat!(
-            "set \n",
-            "format \n",
-            "proc custom {value} {}\n",
-            "custom \n",
-        );
-        let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
         let disabled = vec!["::set".to_owned(), "::incr".to_owned()];
-        let help = |needle, occurrence| {
+        // Each rendering control is tested at an independently retained call.
+        // A preceding wrong-arity `set` supplies no normal source continuation
+        // from which to infer later command identities.
+        let help = |src, needle, occurrence| {
+            let analysis = analyse(src);
             let (line, character) = pos_after(src, needle, occurrence);
             signature_help_in_program_with_options(
                 src,
@@ -953,9 +1211,15 @@ mod tests {
             )
         };
 
-        assert!(help("set ", 1).is_none());
-        assert!(help("format ", 1).is_some_and(|h| h.signatures[0].label.starts_with("format ")));
-        assert!(help("custom ", 2).is_some_and(|h| h.signatures[0].label == "custom value"));
+        assert!(help("set \n", "set ", 1).is_none());
+        assert!(
+            help("format \n", "format ", 1)
+                .is_some_and(|h| h.signatures[0].label.starts_with("format "))
+        );
+        assert!(
+            help("proc custom {value} {}\ncustom \n", "custom ", 2)
+                .is_some_and(|h| h.signatures[0].label == "custom value")
+        );
     }
 
     #[test]
@@ -1060,5 +1324,220 @@ mod tests {
             "expected target `c`; got {label}",
             label = h.signatures[0].label,
         );
+    }
+}
+
+#[cfg(test)]
+mod original_schema_tests {
+    use super::*;
+    use crate::original_invocation::OriginalRegistrySource;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn help(source: &str, analysis: &AnalysisResult, cursor: usize) -> Option<SignatureHelp> {
+        let index = tcl_lexer::LineIndex::new(source);
+        let position = index.position_at_utf16(u32::try_from(cursor).ok()?, source);
+        signature_help(
+            source,
+            position.line,
+            position.character.get(),
+            analysis,
+            analysis.resolved_registry(),
+        )
+    }
+
+    #[test]
+    fn original_signature_keeps_conditional_source_schema_and_alias_prefixes() {
+        // naming.consumer.original-signature-schema-rendering
+        // docs/design/analysis/name-resolution-proofs/original-signature-schema-rendering.md
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let deferred = "package ifneeded P 1.0 {string length value}";
+            let analysis = Analyser::new().analyse(deferred, dialect);
+            let cursor = deferred.find("value").unwrap() + 3;
+            let context = command_context_with_args(
+                deferred,
+                0,
+                u32::try_from(cursor).unwrap(),
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+            )
+            .unwrap();
+            let words = context
+                .source_words
+                .as_ref()
+                .expect("original source schema");
+            assert!(matches!(
+                words.source,
+                OriginalRegistrySource::Conditional(_)
+            ));
+            let signature = help(deferred, &analysis, cursor).expect(dialect);
+            assert!(signature.signatures[0].label.contains("length"));
+            assert!(
+                signature.signatures[0]
+                    .documentation
+                    .as_deref()
+                    .unwrap()
+                    .contains("availability is unresolved")
+            );
+
+            let alias = "unknown; interp alias {} strlen {} string length; strlen value";
+            let analysis = Analyser::new().analyse(alias, dialect);
+            let cursor = alias.len();
+            let context = command_context_with_args(
+                alias,
+                0,
+                u32::try_from(cursor).unwrap(),
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+            )
+            .unwrap();
+            let words = context
+                .source_words
+                .as_ref()
+                .expect("original authored alias schema");
+            assert!(matches!(
+                words.source,
+                OriginalRegistrySource::SourceTransitions(_)
+            ));
+            assert_eq!(words.arguments.len(), 2);
+            assert!(
+                words.operands[0].is_none(),
+                "captured prefix owns no written cursor extent"
+            );
+            let signature = help(alias, &analysis, cursor).expect(dialect);
+            assert!(signature.signatures[0].label.contains("length"));
+            assert_eq!(signature.active_parameter, 0);
+        }
+    }
+
+    #[test]
+    fn original_signature_schema_rejects_foreign_context_source_and_known_shadow() {
+        // naming.consumer.original-signature-schema-rendering
+        // docs/design/analysis/name-resolution-proofs/original-signature-schema-rendering.md
+        let source = "package ifneeded P 1.0 {string length value}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let cursor = source.find("value").unwrap() + 3;
+        assert!(help(source, &analysis, cursor).is_some());
+        assert!(help(&source.replace("value", "other"), &analysis, cursor).is_none());
+        let mut foreign = analysis.clone();
+        let profile = crate::profile_for_dialect("jim");
+        foreign.resolved_input = Some(ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            analysis.body_lexer_config.unwrap(),
+        ));
+        assert!(help(source, &foreign, cursor).is_none());
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(help(source, &changed, cursor).is_none());
+        let shadow = "proc string args {}; string length value";
+        let analysis = Analyser::new().analyse(shadow, "tcl8.6");
+        let context = command_context_with_args(
+            shadow,
+            0,
+            u32::try_from(shadow.len()).unwrap(),
+            &analysis,
+            analysis.resolved_registry().unwrap(),
+        )
+        .unwrap();
+        assert!(
+            context.source_words.is_none(),
+            "actual shadow cannot become a Registry schema"
+        );
+        let signature = help(shadow, &analysis, shadow.len()).unwrap();
+        assert_eq!(signature.signatures[0].label, "string args");
+        assert_eq!(signature.signatures[0].parameters[0].label, "args");
+    }
+
+    #[test]
+    fn original_signature_jim_selector_uses_its_own_source_schema() {
+        // naming.consumer.original-signature-schema-rendering
+        // docs/design/analysis/name-resolution-proofs/original-signature-schema-rendering.md
+        let source = "proc p {} {info complete value}";
+        let analysis = Analyser::new().analyse(source, "jim");
+        let cursor = source.find("value").unwrap() + 3;
+        let context = command_context_with_args(
+            source,
+            0,
+            u32::try_from(cursor).unwrap(),
+            &analysis,
+            analysis.resolved_registry().unwrap(),
+        )
+        .unwrap();
+        let words = context.source_words.as_ref().unwrap();
+        let generation = analysis.resolved_input.as_ref().unwrap().context_registry();
+        assert_eq!(
+            words.with_source_schema(&generation, |schema| schema
+                .subcommand
+                .resolved()
+                .map(|sub| sub.canonical_name)),
+            Some(Some("complete"))
+        );
+        assert!(
+            help(source, &analysis, cursor).unwrap().signatures[0]
+                .label
+                .contains("?missing?")
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        assert!(words.with_source_schema(&foreign, |_| ()).is_none());
+    }
+
+    #[test]
+    fn original_signature_keeps_explicit_logical_advice_separate() {
+        // naming.consumer.original-signature-schema-rendering
+        // docs/design/analysis/name-resolution-proofs/original-signature-schema-rendering.md
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "signature-explicit-logical-source",
+            &[],
+            "Explicit lexical advice without a selected native name recipe",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )
+        .intern();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            config,
+        );
+        let source = "puts value";
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(analysis.allows_lexical_declaration_advice());
+        let context = command_context_with_args(
+            source,
+            0,
+            u32::try_from(source.len()).unwrap(),
+            &analysis,
+            analysis.resolved_registry().unwrap(),
+        )
+        .unwrap();
+        let words = context
+            .source_words
+            .as_ref()
+            .expect("retained Logical source schema");
+        let OriginalRegistrySource::SourceTransitions(advice) = &words.source else {
+            panic!("Logical input must retain its separate source advice domain");
+        };
+        assert_eq!(
+            advice.logical_source_input(),
+            analysis.resolved_input.as_ref()
+        );
+        for cursor in [source.len(), source.find("value").unwrap() + 2] {
+            let signature =
+                help(source, &analysis, cursor).expect("complete original Logical vector");
+            assert!(signature.signatures[0].label.contains("puts"));
+            assert!(
+                signature.signatures[0]
+                    .documentation
+                    .as_deref()
+                    .unwrap()
+                    .contains("availability is unresolved")
+            );
+        }
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        assert!(words.with_source_schema(&foreign, |_| ()).is_none());
+        assert!(help(&source.replace("value", "other"), &analysis, source.len()).is_none());
     }
 }

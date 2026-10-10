@@ -191,7 +191,7 @@ pub(in crate::analyser) fn brace_wrap_fix_safety(
 /// Whether one word of a [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`]
 /// tail contributes *statically-known script text* to the `Tcl_ConcatObj`
 /// join — the one predicate every eval-family static-tail check shares
-/// (`utils::concat_script_window`, `concat_barrier_words`), so what counts
+/// (`utils::concat_script_window` and source-owned diagnostic tails), so what counts
 /// as static moves everywhere at once.
 ///
 /// A braced (`Str`) word always does: the braces blocked every outer
@@ -235,15 +235,11 @@ pub(super) type ExistenceGuard = (crate::var_resolve::VariableCellKey, BlockId);
 /// `![info exists X]` query guards the false target.
 pub(super) fn collect_existence_guards(
     fu: &crate::compilation_unit::FunctionUnit,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<ExistenceGuard> {
     use crate::cfg::Terminator;
     let mut guards = Vec::new();
-    let registry = match registry {
-        Some(registry) => registry,
-        None => tcl_registry::default_registry(),
-    };
     for (&condition_block, block) in &fu.cfg.blocks {
         if let Some(Terminator::Branch {
             condition,
@@ -329,11 +325,13 @@ pub(super) struct PhiUndefCtx<'a> {
     pub ssa: &'a crate::ssa::SsaFunction,
 }
 
-/// Return the registry spelling for a potential startup variable, removing
+/// Return the registry spelling for a resolved potential startup variable, removing
 /// only Tcl's global marker.  A named namespace (`::pkg::name`) deliberately
 /// remains qualified and cannot accidentally inherit a global startup fact.
 pub(super) fn startup_var_name(name: &str) -> &str {
-    let normalised = crate::naming::normalise_var_name(name);
+    // naming.diagnostics.original-resolved-variable-name-advice
+    // docs/design/analysis/name-resolution-proofs/diagnostic-original-resolved-variable-name-advice.md
+    let normalised = crate::naming::split_array_name_braced(name, true).0;
     normalised.strip_prefix("::").unwrap_or(normalised)
 }
 
@@ -345,12 +343,16 @@ pub(super) fn has_global_startup_binding(
     initial_global: bool,
     global_aliases: &HashSet<String>,
 ) -> bool {
-    if initial_global || crate::naming::normalise_var_name(name).starts_with("::") {
+    if initial_global
+        || crate::naming::split_array_name_braced(name, true)
+            .0
+            .starts_with("::")
+    {
         return true;
     }
     let startup_name = startup_var_name(name);
     global_aliases.iter().any(|alias| {
-        let alias_normalised = crate::naming::normalise_var_name(alias);
+        let alias_normalised = crate::naming::split_array_name_braced(alias, true).0;
         alias_normalised
             .strip_prefix("::")
             .unwrap_or(alias_normalised)
@@ -372,17 +374,22 @@ pub(super) fn startup_cell_binding<'a>(
             startup_var_name(name),
             has_global_startup_binding(name, initial_global, global_aliases),
         ),
-        VariableCellKey::Namespace { identity, simple } => (
-            simple.as_str(),
-            match identity {
-                crate::command_binding::SourceNamespaceKey::Authored(namespace) => {
-                    namespace == "::"
-                }
-                _ => identity
-                    .exact_native_path()
-                    .is_some_and(tcl_core_types::ByteNamespacePath::is_root),
-            },
-        ),
+        VariableCellKey::Namespace { identity, simple } => {
+            let Ok(display) = simple.try_utf8() else {
+                return ("", false);
+            };
+            (
+                display,
+                match identity {
+                    crate::command_binding::SourceNamespaceKey::Authored(namespace) => {
+                        namespace == "::"
+                    }
+                    _ => identity
+                        .exact_native_path()
+                        .is_some_and(tcl_core_types::ByteNamespacePath::is_root),
+                },
+            )
+        }
         VariableCellKey::Lifetime { cell, .. } | VariableCellKey::Element { cell, .. } => {
             startup_cell_binding(cell, initial_global, global_aliases)
         }
@@ -801,9 +808,9 @@ impl UndefSuppression {
 fn collect_expr_cmd_sub_writes(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> FxHashSet<String> {
     use crate::ir::Statement;
-    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut out = FxHashSet::default();
     for &bn in considered {
         let Some(block) = fu.cfg.blocks.get(&bn) else {
@@ -851,98 +858,104 @@ fn collect_expr_cmd_sub_writes(
 fn collect_script_concat_writes(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
+    semantics: UndefSuppressionSemantics<'_>,
 ) -> FxHashSet<String> {
-    use crate::ir::Statement;
-    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut out = FxHashSet::default();
     for &bn in considered {
-        let Some(block) = fu.cfg.blocks.get(&bn) else {
+        let Some(block) = fu.ssa.blocks.get(&bn) else {
             continue;
         };
-        for stmt in &block.statements {
-            let Statement::Barrier {
-                command,
-                args,
-                tokens: Some(tokens),
-                ..
-            } = stmt
-            else {
-                continue;
-            };
-            let Some(spec) = registry.get(command) else {
-                continue;
-            };
-            if !spec
-                .traits
-                .contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS)
-                || spec.body_kind != tcl_registry::BodyKind::Plain
-            {
+        for (index, statement) in block.statements.iter().enumerate() {
+            if !matches!(statement.statement, crate::ir::Statement::Barrier { .. }) {
                 continue;
             }
-            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-            let Some(&first) = registry
-                .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
-                .first()
+            let Some(tokens) =
+                crate::ssa::SsaSourceView::at_statement(&fu.ssa, bn, index).source_tokens()
             else {
                 continue;
             };
-            // `argv_texts` / `argv_kinds` include the command word at index 0;
-            // `args` does not, so the body index shifts by one.
-            //
-            // A dynamic tail declines the join, not the braced first word:
-            // `eval {set l2 5} $extra` still runs `set l2 5` as written
-            // (concatenation only appends after it), so its writes are
-            // recovered from that word alone — mirroring the analyser's
-            // `dispatch_concatenated_script` fallback.
-            let script = if let Some(script) = concat_barrier_words(tokens, first + 1) {
-                script
+            let Some(words) =
+                crate::registry_invocation::source_structure::original_registry_words_for_tokens(
+                    semantics.source,
+                    semantics.analysis,
+                    tokens,
+                )
+            else {
+                continue;
+            };
+            let same_frame_concat = words.with_source_schema(semantics.context, |schema| {
+                schema
+                    .semantics
+                    .traits
+                    .contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS)
+                    && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+            }) == Some(true);
+            if !same_frame_concat {
+                continue;
+            }
+            let Some(first) = words.roles().and_then(|roles| {
+                roles.iter().find_map(|&(index, role)| {
+                    (role == tcl_registry::ArgRole::Body).then_some(index)
+                })
+            }) else {
+                continue;
+            };
+            let tail = &words.arguments()[first..];
+            let values: Option<Vec<_>> = tail
+                .iter()
+                .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
+                .collect();
+            let script = if let Some(values) = values {
+                match words.dialect().and_then(|dialect| dialect.native_family) {
+                    Some(tcl_dialect::model::Family::Jim) => {
+                        tcl_syntax::list::concat_bytes_jim(values)
+                    }
+                    Some(
+                        tcl_dialect::model::Family::Tcl
+                        | tcl_dialect::model::Family::F5Tcl
+                        | tcl_dialect::model::Family::F5Irules,
+                    ) => tcl_syntax::list::concat_bytes(values),
+                    None => continue,
+                }
             } else {
-                let (Some(text), Some(&kind)) = (
-                    tokens.argv_texts.get(first + 1),
-                    tokens.argv_kinds.get(first + 1),
-                ) else {
+                // Only the genuine braced first value supplies unchanged prefix
+                // text when later values are unknown; it is lexical suppression,
+                // not a completed write or an entered body.
+                let Some(word) = words
+                    .operands()
+                    .get(first)
+                    .and_then(Option::as_ref)
+                    .and_then(
+                        crate::registry_invocation::source_structure::OriginalOperandSource::word,
+                    )
+                    .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
+                else {
                     continue;
                 };
-                if kind != tcl_lexer::TokenType::Str {
+                let Some(value) = tail
+                    .first()
+                    .and_then(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
+                else {
+                    continue;
+                };
+                if word.group().expand {
                     continue;
                 }
-                text.clone()
+                value.to_vec()
+            };
+            let Ok(script) = std::str::from_utf8(&script) else {
+                continue;
             };
             let mut writes = Vec::new();
-            crate::ir_helpers::script_text_out_vars(&script, registry, &mut writes);
+            crate::ir_helpers::script_text_out_vars(
+                script,
+                semantics.context.commands(),
+                &mut writes,
+            );
             out.extend(writes);
         }
     }
     out
-}
-
-/// The `Tcl_ConcatObj` join of a barrier call's words from `first` onwards,
-/// or `None` when any of them is not statically-known script text (the real
-/// script is then unknowable — see [`word_is_static_script_text`], the same
-/// predicate `crate::analyser::utils::concat_script_window` applies to the
-/// analyser's own token slices). This join is consumed for write-name
-/// harvesting only, never for spans, so a plain text join suffices here.
-fn concat_barrier_words(tokens: &crate::ir::CommandTokens, first: usize) -> Option<String> {
-    let texts = tokens.argv_texts.get(first..)?;
-    let kinds = tokens.argv_kinds.get(first..)?;
-    if texts.len() < 2 || texts.len() != kinds.len() {
-        return None;
-    }
-    let mut joined = String::new();
-    for (text, &kind) in texts.iter().zip(kinds) {
-        if !word_is_static_script_text(text, kind) {
-            return None;
-        }
-        let trimmed = text.trim_matches(|c: char| c.is_ascii_whitespace());
-        if trimmed.is_empty() {
-            continue;
-        }
-        if !joined.is_empty() {
-            joined.push(' ');
-        }
-        joined.push_str(trimmed);
-    }
-    Some(joined)
 }
 
 /// `dict with` / `dict update` key-aware suppression: record the dict-var
@@ -978,7 +991,9 @@ fn harvest_dict_with_suppression(
                 s.dict_with_any_unknown = true;
                 continue;
             };
-            let dvar = crate::naming::normalise_var_name(dict_var).to_string();
+            let dvar = crate::naming::split_array_name_braced(dict_var, true)
+                .0
+                .to_string();
             if dvar.is_empty() {
                 s.dict_with_any_unknown = true;
                 continue;
@@ -1001,7 +1016,9 @@ fn harvest_dict_with_suppression(
                                         args.get(variable).and_then(Option::as_deref)
                                 {
                                     let variable =
-                                        crate::naming::normalise_var_name(variable).to_string();
+                                        crate::naming::split_array_name_braced(variable, true)
+                                            .0
+                                            .to_string();
                                     if !variable.is_empty() {
                                         s.dict_with_known_keys.insert(variable);
                                     }
@@ -1118,9 +1135,11 @@ fn dictionary_suppression_literal(
 #[derive(Clone, Copy)]
 pub(super) struct UndefSuppressionSemantics<'a> {
     pub dialect: Option<SurfaceQuery<'a>>,
-    pub registry: Option<&'a tcl_registry::CommandRegistry>,
     pub rules: tcl_syntax::word_rules::WordValueRules,
     pub lexer_config: tcl_lexer::LexerConfig,
+    pub source: &'a str,
+    pub analysis: &'a crate::analyser::AnalysisResult,
+    pub context: &'a tcl_registry::model::ContextRegistry,
 }
 
 pub(super) fn build_undef_suppression(
@@ -1132,15 +1151,12 @@ pub(super) fn build_undef_suppression(
 ) -> UndefSuppression {
     let UndefSuppressionSemantics {
         dialect,
-        registry,
         rules,
         lexer_config,
+        ..
     } = semantics;
-    let (phi_def, phi_block, killed) = build_phi_undef_index(
-        &fu.ssa,
-        considered,
-        registry.unwrap_or(crate::var_escape::helpers::default_registry()),
-    );
+    let registry = semantics.context.commands();
+    let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered, registry);
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
@@ -1185,20 +1201,14 @@ pub(super) fn build_undef_suppression(
     let loop_entry_only_undef =
         build_loop_entry_only_undef(fu, &can_undef, &undef_ctx, rules, &mut memo);
     let mut s = UndefSuppression {
-        cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
-        script_concat_writes: collect_script_concat_writes(fu, considered),
+        cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered, semantics.context.commands()),
+        script_concat_writes: collect_script_concat_writes(fu, considered, semantics),
         killed,
         can_undef,
         loop_entry_only_undef,
         ..Default::default()
     };
-    harvest_dict_with_suppression(
-        fu,
-        considered,
-        &mut s,
-        rules,
-        registry.unwrap_or(tcl_registry::default_registry()),
-    );
+    harvest_dict_with_suppression(fu, considered, &mut s, rules, registry);
 
     // Names with a concrete (version > 0) statement or phi definition — a
     // dict-with scope never suppresses these (they are genuinely set).
@@ -1223,11 +1233,7 @@ pub(super) fn build_undef_suppression(
         }
     }
 
-    s.alias_tails = collect_qualified_variable_alias_tails(
-        fu,
-        considered,
-        registry.unwrap_or(tcl_registry::default_registry()),
-    );
+    s.alias_tails = collect_qualified_variable_alias_tails(fu, considered, semantics.context);
     s
 }
 
@@ -1363,26 +1369,24 @@ fn foreach_header_provably_empty(
     })
 }
 
-/// Local-alias tail names declared by a *qualified* `variable`
-/// (`variable ns::tail` / `variable ${name}::tail`): the bare tail read
-/// resolves to the namespace var, not an unset local.
+/// Local-alias tail names in the retained source declaration for a
+/// qualified namespace-variable operand. The actual context admits the
+/// command metadata; this name-level suppression establishes no executed
+/// namespace link, cell identity, frame or stored contents.
 fn collect_qualified_variable_alias_tails(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
-    registry: &tcl_registry::CommandRegistry,
+    context: &tcl_registry::model::ContextRegistry,
 ) -> FxHashSet<String> {
     let mut tails = FxHashSet::default();
-    let context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
     for statement in considered
         .iter()
         .filter_map(|id| fu.cfg.blocks.get(id))
         .flat_map(|block| &block.statements)
     {
-        let Some(invocation) =
-            crate::registry_invocation::resolved_statement_invocation(registry, context, statement)
-        else {
+        let Some(invocation) = crate::registry_invocation::resolved_statement_invocation_in_context(
+            context, statement,
+        ) else {
             continue;
         };
         let Some(transitions) = invocation.facts.state_transitions.declared() else {
@@ -1423,7 +1427,7 @@ pub(super) fn collect_defined_vars(cfg: &crate::cfg::Function) -> HashSet<String
                 | Statement::AssignExpr { name, .. }
                 | Statement::AssignValue { name, .. }
                 | Statement::Incr { name, .. } => {
-                    let normalised = crate::naming::normalise_var_name(name);
+                    let normalised = crate::naming::split_array_name_braced(name, true).0;
                     if !normalised.is_empty() {
                         names.insert(normalised.to_string());
                     }
@@ -1475,7 +1479,34 @@ pub(super) fn original_definition_places(
     {
         return Vec::new();
     }
-    normal.definition_places(&binding.variable_context, registry)
+    normal
+        .definition_places(&binding.variable_context, registry)
+        .into_iter()
+        .filter(|place| {
+            if place.dynamic {
+                return false;
+            }
+            if !place.observed {
+                return true;
+            }
+            // A destination before variable callbacks is only a possible
+            // definition. Retain an observed store's exact normal physical
+            // successor; an error-only callback supplies no such world.
+            binding.normal_variable_continuation().is_some_and(|after| {
+                after.captured_contents_presence(place)
+                    == crate::var_resolve::ContentsPresence::Defined
+                    && place.cell.as_ref().is_some_and(|cell| {
+                        cell.generation != crate::place::CellGeneration::Unknown
+                            && after
+                                .generations
+                                .get(&crate::var_resolve::cell_key(place))
+                                .copied()
+                                .unwrap_or(crate::place::CellGeneration::Incoming)
+                                == cell.generation
+                    })
+            })
+        })
+        .collect()
 }
 
 /// Consensus physical cell of the same original read, independently of SSA values.
@@ -1662,8 +1693,17 @@ pub(super) fn globals_written_by_procs(
         .flat_map(|fu| {
             fu.ssa.blocks.iter().flat_map(move |(&block, data)| {
                 (0..data.statements.len()).flat_map(move |index| {
-                    original_definition_places(fu, block, index, registry)
+                    let entered = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index)
+                        .source_tokens()
+                        .and_then(|tokens| tokens.source_binding.as_ref())
+                        .is_some_and(|binding| {
+                            binding.runtime_reachability()
+                                == crate::command_binding::SourceRuntimeReachability::Reached
+                        });
+                    entered
+                        .then(|| original_definition_places(fu, block, index, registry))
                         .into_iter()
+                        .flatten()
                         .filter(crate::place::Place::is_global)
                         .filter_map(|place| crate::var_resolve::canonical_place_key(&place))
                 })
@@ -1768,6 +1808,59 @@ mod exact_cell_diagnostic_tests {
     use super::*;
     use crate::command_binding::SourceNamespaceKey;
     use crate::var_resolve::VariableCellKey;
+
+    #[test]
+    fn qualified_alias_tail_advice_uses_retained_context_over_catalogue_profile() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // This checks authored metadata availability and source-name suppression,
+        // without claiming native namespace-link execution or cell identity.
+        let catalogue = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let no_tcl = tcl_registry::model::ingress::static_context_for("f5-bigip")
+            .with_command_store(std::sync::Arc::clone(catalogue.commands()));
+        assert!(std::sync::Arc::ptr_eq(
+            catalogue.commands(),
+            no_tcl.commands()
+        ));
+        assert!(
+            catalogue
+                .context()
+                .resolve_spec(catalogue.commands(), "variable")
+                .is_some()
+        );
+        assert!(
+            no_tcl
+                .context()
+                .resolve_spec(no_tcl.commands(), "variable")
+                .is_none()
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "variable ns::tail; variable unqualified",
+            catalogue.commands(),
+            false,
+            "tcl8.6",
+        );
+        let function = &unit.top_level;
+        let considered = function.cfg.blocks.keys().copied().collect();
+        assert_eq!(
+            collect_qualified_variable_alias_tails(function, &considered, catalogue),
+            FxHashSet::from_iter(["tail".to_owned()]),
+            "positive original qualified alias-tail metadata",
+        );
+        assert!(collect_qualified_variable_alias_tails(function, &considered, &no_tcl).is_empty());
+        let replaced = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "proc variable args {}; variable ns::tail",
+            catalogue.commands(),
+            false,
+            "tcl8.6",
+        );
+        let considered = replaced.top_level.cfg.blocks.keys().copied().collect();
+        assert!(
+            collect_qualified_variable_alias_tails(&replaced.top_level, &considered, catalogue)
+                .is_empty(),
+            "an authored replacement cannot borrow namespace-variable metadata",
+        );
+    }
 
     fn occurrence_span(source: &str, spelling: &str) -> tcl_lexer::Span {
         let start = source.rfind(spelling).expect("original occurrence");
@@ -2061,24 +2154,46 @@ mod exact_cell_diagnostic_tests {
 
     #[test]
     fn procedure_namespace_effects_require_original_selected_cells() {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let original = crate::compilation_unit::CompilationUnit::build_for(
-            "proc init {} {global counter; set counter 1}\nproc read {} {global counter; return $counter}\nputs $counter",
-            &registry,
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let original = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "set ::counter 0\nproc init {} {global counter; set counter 1}\nproc read {} {global counter; return $counter}\ninit; read\nputs $counter",
+            registry,
             false,
+            "tcl8.6",
         );
-        let written = globals_written_by_procs(&original, &registry);
-        let read = globals_read_by_procs(&original, &registry);
-        assert!(!written.is_empty(), "original namespace write");
-        assert!(!read.is_empty(), "original namespace read");
+        let written = globals_written_by_procs(&original, registry);
+        let read = globals_read_by_procs(&original, registry);
+        assert!(!written.is_empty(), "selected entered namespace write");
+        assert!(!read.is_empty(), "selected entered namespace read");
         assert!(written.intersection(&read).next().is_some());
-        let replaced = crate::compilation_unit::CompilationUnit::build_for(
-            "rename global native_global\nproc global args {}\nproc init {} {global counter; set counter 1}\nproc read {} {set counter LOCAL; return $counter}\nputs $counter",
-            &registry,
+        let deferred = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "proc init {} {global counter; set counter 1}\nproc read {} {global counter; return $counter}",
+            registry,
             false,
+            "tcl8.6",
         );
-        assert!(globals_written_by_procs(&replaced, &registry).is_empty());
-        assert!(globals_read_by_procs(&replaced, &registry).is_empty());
+        assert!(
+            globals_written_by_procs(&deferred, registry).is_empty(),
+            "source declaration metadata cannot establish normal namespace writes"
+        );
+        let observed = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "set ::counter 0; proc changed args {error OBSERVED}; trace add variable ::counter write changed\nproc init {} {global counter; set counter 1}\ninit",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        assert!(
+            globals_written_by_procs(&observed, registry).is_empty(),
+            "an erroring write observer prevents the successful-definition receipt"
+        );
+        let replaced = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "rename global native_global\nproc global args {}\nproc init {} {global counter; set counter 1}\nproc read {} {set counter LOCAL; return $counter}\ninit; read; puts $counter",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        assert!(globals_written_by_procs(&replaced, registry).is_empty());
+        assert!(globals_read_by_procs(&replaced, registry).is_empty());
     }
 
     #[test]
@@ -2169,6 +2284,110 @@ mod exact_cell_diagnostic_tests {
                 expected,
                 "{source}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_resolved_variable_advice_tests {
+    use super::*;
+
+    #[test]
+    fn authored_startup_advice_preserves_literal_dollars_and_exact_global_aliases() {
+        // naming.diagnostics.original-resolved-variable-name-advice
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-resolved-variable-name-advice.md
+        // Authored reporting advice only. These names grant no Native cell,
+        // startup value, trace, completed getter or entered frame.
+        let empty = HashSet::new();
+        for (name, expected) in [
+            ("argv", "argv"),
+            ("::argv", "argv"),
+            ("$argv", "$argv"),
+            ("::$argv", "$argv"),
+            ("${argv}", "${argv}"),
+            ("argv(open", "argv(open"),
+            ("$argv(k)", "$argv"),
+            ("é(k)", "é"),
+        ] {
+            let cell = crate::var_resolve::VariableCellKey::Authored(name.to_owned());
+            assert_eq!(startup_cell_binding(&cell, true, &empty), (expected, true));
+        }
+        assert!(!has_global_startup_binding("$::argv", false, &empty));
+        assert!(!has_global_startup_binding(
+            "$argv",
+            false,
+            &HashSet::from(["argv".to_owned()])
+        ));
+        assert!(has_global_startup_binding(
+            "$argv",
+            false,
+            &HashSet::from(["::$argv".to_owned()])
+        ));
+        assert!(!has_global_startup_binding(
+            "argv",
+            false,
+            &HashSet::from(["::$argv".to_owned()])
+        ));
+    }
+
+    #[test]
+    fn literal_variable_diagnostics_keep_defined_names_and_startup_advice_distinct() {
+        // naming.diagnostics.original-resolved-variable-name-advice
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-resolved-variable-name-advice.md
+        // Genuine retained Logical analysis, not original Native read or store
+        // admission. Check emitted diagnostics and exact read geometry.
+        for source in [
+            "puts ${$argv}",
+            "set {$counter} VALUE; puts ${counter}; puts ${$counter}",
+        ] {
+            let mut analyser = crate::analyser::Analyser::new();
+            let analysis = analyser.analyse(source, "tcl");
+            assert!(analysis.allows_retained_logical_declaration_advice());
+            let reads: Vec<_> = analysis
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W210)
+                .map(|diagnostic| &source[diagnostic.span.as_range()])
+                .collect();
+            let expected = if source.starts_with("puts") {
+                "${$argv}"
+            } else {
+                "${counter}"
+            };
+            assert_eq!(reads, vec![expected], "{source:?}");
+        }
+        let analysis = crate::analyser::Analyser::new().analyse("puts $argv", "tcl");
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        assert!(
+            !analysis
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W210)
+        );
+    }
+    #[test]
+    fn literal_scalar_parentheses_do_not_borrow_array_root_parameters() {
+        // naming.diagnostics.original-resolved-variable-name-advice
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-resolved-variable-name-advice.md
+        // Retained Logical read-before-set advice only: these authored names
+        // and spans do not establish a Native array kind or current element.
+        for (source, expected) in [
+            ("proc f {a} {puts ${a(b}}", vec!["${a(b}"]),
+            ("proc f {é} {puts ${é(b}}", vec!["${é(b}"]),
+            ("proc f {{$a}} {puts ${$a(b}}", vec!["${$a(b}"]),
+            ("proc f {a} {puts ${a(k)}}", vec![]),
+            ("proc f {é} {puts ${é(k)}}", vec![]),
+            ("proc f {{$a}} {puts ${$a(k)}}", vec![]),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            assert!(analysis.allows_retained_logical_declaration_advice());
+            let reads: Vec<_> = analysis
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W210)
+                .map(|diagnostic| &source[diagnostic.span.as_range()])
+                .collect();
+            assert_eq!(reads, expected, "{source:?}");
         }
     }
 }

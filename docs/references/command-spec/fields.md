@@ -358,7 +358,7 @@ Where this command's declared options may be found. `Leading` — the default, a
 
 ### `reserved_trailing_words` — Reserved trailing words
 
-*command only* — Trailing words C Tcl's own option scan never treats as option candidates.
+*command and subcommand* — Trailing words the selected descriptor's option scan never treats as option candidates. Counts are after the head or selected subcommand word.
 
 How many words at the *end* of the call are never option candidates, matching how C Tcl scans options only up to a point. `lsearch ?options? list pattern` reserves the final 2: a pattern that happens to start with `-` is data there, not a flag.
 
@@ -791,6 +791,8 @@ The dynamic sibling of the command-prefix positions: a hook for when *which* wor
 *command and subcommand* — Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.
 
 The dynamic sibling of per-option `script_timing`: use it when the same executable position runs now in one invocation shape but is stored in another, as with `send -async`. It emits an exact index plus `SameInvocation`, `Deferred`, or `ReferenceOnly`; the index must already be a `Body`, `LambdaLiteral`, or `CommandPrefix`. Silence leaves the option timing or command-level compatibility fallback in force. In SpecTcl the body calls `timing IDX SameInvocation|Deferred|ReferenceOnly`.
+
+The Rust hook receives structured `InvocationArguments`. Unknown ordinary payloads retain their positions; selector-dependent rules require known selectors and independently exact cardinality. The pack host preserves literal, dynamic and expanded kinds instead of replacing them with display Strings. `ReferenceOnly` supplies no executable source position. The selected source timing and prefix queries retain these boundaries without granting callback execution, runtime result objects or entered frames.
 
 ### `substitution_resolver` — Substitution resolver
 

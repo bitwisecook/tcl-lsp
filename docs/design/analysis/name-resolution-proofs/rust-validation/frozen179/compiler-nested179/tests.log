@@ -1,0 +1,18 @@
+
+running 4 tests
+test analyser::commands::original_nested_source_tests::nested_source_bodies_follow_original_moves_alias_prefixes_and_shadow_barriers ... ok
+test analyser::commands::original_nested_source_tests::nested_source_bodies_use_the_actual_dialect_availability ... ok
+test analyser::commands::original_nested_source_tests::nested_source_callbacks_keep_the_original_input_baked_count_and_purpose ... ok
+test analyser::commands::original_nested_source_tests::nested_source_inventory_keeps_reference_only_scripts_out_of_dispatch ... 
+thread 'analyser::commands::original_nested_source_tests::nested_source_inventory_keeps_reference_only_scripts_out_of_dispatch' (661412) panicked at rust/tcl-compiler/src/analyser/commands.rs:7883:13:
+readonly syntax stays visible
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::commands::original_nested_source_tests::nested_source_inventory_keeps_reference_only_scripts_out_of_dispatch
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 8295 filtered out; finished in 7.92s
+

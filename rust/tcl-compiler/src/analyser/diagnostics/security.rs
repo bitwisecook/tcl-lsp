@@ -45,31 +45,6 @@ impl Analyser {
         self.registry.as_deref().and_then(|r| r.get(cmd_name))
     }
 
-    /// Whether `word` is exactly one `[cmd …]` substitution whose command is a
-    /// declared regex-quoter — one that stamps `REGEX_LITERAL` on its result.
-    ///
-    /// Such a call is the T103 remedy, and its whole job is to hand the regex
-    /// engine a pattern that matches literally. Braces would defeat it by
-    /// matching the substitution's own source text, so W306's advice does not
-    /// apply and the shape is not the dynamic-pattern foot-gun the check is
-    /// looking for. Registry-driven: the colour is the declaration, so a
-    /// project's own quoter earns the exemption the same way the shipped
-    /// spellings do.
-    fn is_regex_quoting_substitution(&self, word: &str) -> bool {
-        let Some(registry) = self.registry.as_deref() else {
-            return false;
-        };
-        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-        let Some((command, args)) =
-            crate::value_shapes::parse_command_substitution_with_config(word, config)
-        else {
-            return false;
-        };
-        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        tcl_registry::taint::taint_transform_for_call(registry, &command, &refs)
-            .is_some_and(|colour| colour.contains(tcl_registry::TaintColour::REGEX_LITERAL))
-    }
-
     /// W101's gate: a command that concatenates **all** of its arguments
     /// into a script and re-parses the result (`eval`).
     ///
@@ -141,167 +116,104 @@ impl Analyser {
                 .is_some_and(|s| s.traits.contains(Traits::PERFORMS_SUBSTITUTION))
     }
 
-    /// **W302.** Emit "catch without result variable" hint when a
-    /// `catch BODY` invocation omits the optional `RESULTVAR`
-    /// argument, silently swallowing any error the body raises.
-    ///
-    /// W302 is emitted for `Statement::Catch` (not `Statement::Barrier`)
-    /// — the lowerer falls back to `Statement::Barrier` when the body
-    /// argument is multi-token (e.g. ``catch $body``), so this emit gates
-    /// on ``arg_single[0]`` to suppress that case.  The diagnostic
-    /// anchors at just the ``catch`` command token — the narrowest span
-    /// that identifies the issue.
-    ///
-    /// The attached quick-fixes carry their **own** span, which is *not*
-    /// the diagnostic's: they insert at the point past the last supplied
-    /// argument's closing delimiter, computed by
-    /// [`Self::trailing_arg_fixes`] from the argument tokens.  A consumer
-    /// that instead reconstructed an insertion point from the diagnostic's
-    /// end would write the new word between `catch` and its body and
-    /// silently shift every argument one position along, corrupting the call.
+    /// **W302.** Original selected error-capture syntax with one literal body
+    /// and no result operand. A genuine single child invocation may suppress
+    /// the hint through its independently selected teardown metadata. Recooked
+    /// bodies cannot borrow source command geometry. Edits append only past a
+    /// genuine whole written operand and retain the dialect's synopsis names.
     pub(in crate::analyser) fn emit_w302_catch_no_result_var(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        cmd_tok: tcl_lexer::Token,
-        arg_tokens: &[tcl_lexer::Token],
-        arg_single: &[bool],
+        original: Option<&super::super::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        // Only fires when a result variable is absent.  Empty args
-        // is a malformed catch (Statement::Barrier path, no W302).
-        // ≥2 args means a result variable is present.
-        if args.len() != 1 {
-            return;
-        }
-        // Suppress on a catch with a dynamic body: a multi-token body
-        // word can't be statically resolved to a script, so the lowerer
-        // drops it before the statement check ever sees it.
-        if arg_single.first().copied() != Some(true) {
-            return;
-        }
-        if arg_tokens.is_empty() {
-            return;
-        }
-        // Suppress the hint on the documented "fire-and-forget" idiom:
-        // ``catch {close $h}`` / ``catch {after cancel $h}`` etc.  These
-        // commands error when the target is already gone, and a bare
-        // ``catch {<cmd>}`` is the canonical Tcl idiom for "do this if
-        // possible, ignore if not".
-        if let Some(body) = args.first()
-            && catch_body_is_fire_and_forget(body, self.registry.as_deref())
+        let Some(original) = original else { return };
+        if original.words().arguments().len() != 1
+            || original
+                .with_schema(|schema| schema.authored_source_descriptors().command.analyser_hook)
+                .flatten()
+                != Some(tcl_registry::hooks::AnalyserHookId::Catch)
+            || !original
+                .words()
+                .roles()
+                .is_some_and(|roles| roles.contains(&(0, ArgRole::Body)))
         {
             return;
         }
-        let fixes = self.trailing_arg_fixes(cmd_name, arg_tokens, "Add catch");
-        let span = cmd_tok.span;
-        self.result.diagnostics.push(
-            crate::analyser::types::Diagnostic::new(
-                DiagCode::W302,
-                span,
-                "catch without a result variable silently swallows errors. \
-Consider capturing the result: catch {\u{2026}} result"
-                    .to_string(),
-                Severity::Hint,
-            )
-            .with_fixes(fixes),
+        let (Some(body), Some(literal)) = (original.word(0), original.literal(0)) else {
+            return;
+        };
+        let Ok(content) = body.content_span() else {
+            return;
+        };
+        // A recooked value cannot borrow the source body's command positions.
+        if self.source.get(content.as_range()) != Some(literal) {
+            return;
+        }
+        let children = crate::segmenter::segment_commands_with_offset_and_config(
+            literal,
+            content.start(),
+            body.config(),
         );
+        if let [child] = children.as_slice()
+            && let Some(super::super::diagnostic_registry::OriginalDiagnosticSource::Registry(
+                child,
+            )) = self.original_diagnostic_source_for_segment(child)
+            && child
+                .with_schema(super::super::diagnostic_registry::source_descriptors)
+                .is_some_and(|descriptors| {
+                    descriptors
+                        .command
+                        .traits
+                        .contains(Traits::FIRE_AND_FORGET_TEARDOWN)
+                        || descriptors.subcommand.is_some_and(|sub| {
+                            sub.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN)
+                        })
+                })
+        {
+            return;
+        }
+        let Some(subject) = original.subject(
+            super::super::RegistrySourceDiagnosticKind::ErrorCapture,
+            None,
+        ) else {
+            return;
+        };
+        let fixes = self.original_trailing_arg_fixes(original, "Add catch");
+        self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+            DiagCode::W302, original.head().span(),
+            "catch without a result variable silently swallows errors. Consider capturing the result: catch {\u{2026}} result".to_owned(),
+            Severity::Hint).with_subject(subject).with_fixes(fixes));
     }
 
-    /// Build the "append the omitted optional result variable(s)" quick-fixes
-    /// for an invocation that left declared trailing
-    /// [`ArgRole::VarWrite`] slots unfilled.
-    ///
-    /// Every part of this is registry data, so it holds for any command with
-    /// the shape, not for `catch` alone:
-    ///
-    /// * **How many words may be appended, and what they are called** comes
-    ///   from [`tcl_registry::CommandRegistry::unfilled_trailing_roles`] (the
-    ///   declared roles beyond the supplied arguments) intersected with
-    ///   [`tcl_registry::CommandSpec::optional_trailing_arg_names`] (the
-    ///   dialect-applicable synopsis placeholders).  Under a dialect whose
-    ///   form documents fewer optional words — Tcl 8.4 and iRules give
-    ///   `catch` a result variable but no options dictionary — only the
-    ///   narrower fix is offered.
-    /// * **Where the words go** is the append point past the *last supplied
-    ///   argument*, from [`tcl_lexer::word_append_offset`], so a braced,
-    ///   multi-line, quoted, empty, or bracketed body all anchor correctly.
-    ///
-    /// One fix per prefix of the run, so a caller sees "append the result
-    /// variable" and "append the result and options variables" as separate
-    /// offers.  Each is a zero-width insertion, and each is classified
-    /// [`FixSafety::BehaviourHardening`]: capturing the result stops errors
-    /// being swallowed, but it also *writes a new variable in the caller's
-    /// frame*, which a program that already uses that name would observe.
-    fn trailing_arg_fixes(
+    /// Optional names and whole insertion extents from the same selected
+    /// original invocation. Captured and expanded operands cannot issue edits.
+    fn original_trailing_arg_fixes(
         &self,
-        cmd_name: &str,
-        arg_tokens: &[tcl_lexer::Token],
+        original: &super::super::diagnostic_registry::OriginalDiagnosticInvocation,
         title_prefix: &str,
     ) -> Vec<super::types::CodeFix> {
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(documented) = original.with_schema(|schema| {
+            schema.authored_source_optional_trailing_names(ArgRole::VarWrite)
+        }) else {
             return Vec::new();
         };
-        let context = self.analysis_context();
-        let query = context.context().authoring_query();
-        let Some(spec) = registry.get_for_surface(cmd_name, Some(query)) else {
+        let Some(index) = original.words().arguments().len().checked_sub(1) else {
             return Vec::new();
         };
-        let mut dialect = self
-            .source_analysis_entry
-            .as_ref()
-            .and_then(|entry| entry.invocation_dialect)
-            .unwrap_or_else(|| tcl_registry::InvocationDialect::of_profile(self.profile));
-        dialect.lexer_grammar = self.grammar();
-        dialect.word_values = self.word_rules();
-        // Unknown future values remain ordinary dynamic words in the selected grammar.
-        let unfilled = crate::registry_invocation::with_source_argument_words(
-            &self.source,
-            arg_tokens,
-            self.lexer_config(),
-            dialect,
-            |arguments| registry.unfilled_trailing_roles_words(cmd_name, arguments),
-        )
-        .unwrap_or_default();
-        // … restricted to the leading run that writes variables: a slot
-        // taking a value rather than a variable name is not a place to
-        // splice a capture variable.
-        let writable = unfilled
-            .iter()
-            .take_while(|(_, role)| *role == ArgRole::VarWrite)
-            .count();
-        // … and to the optional words this dialect's synopsis documents.
-        // The floor is `None` (permissive) because this runs *during* the
-        // walk: `package require` may appear anywhere in the file, so the
-        // owning package's resolved version is not known until the post-walk
-        // flush, by which time the fix has already been attached.
-        let documented = spec.optional_trailing_arg_names(Some(query), None);
-        let offered = writable.min(documented.len());
-        if offered == 0 {
-            return Vec::new();
-        }
-        let Some(&last) = arg_tokens.last() else {
+        let Some(last) = original.word(index) else {
             return Vec::new();
         };
-        let source_map = Self::source_map(
-            &self.source,
-            &self.cached_line_index,
-            self.cached_line_index_source_len,
-        );
-        let insert_at = tcl_lexer::word_append_offset(&source_map, last);
-        // Defensive: an insertion point outside the buffer (a truncated or
-        // otherwise malformed document) is not a usable edit.
+        let insert_at = last.span().end();
         if insert_at as usize > self.source.len() {
             return Vec::new();
         }
-        let span = tcl_lexer::Span::new(insert_at, insert_at);
-        (1..=offered)
+        (1..=documented.len())
             .map(|count| {
-                let names: Vec<String> = documented[..count]
+                let names = documented[..count]
                     .iter()
                     .map(|placeholder| variable_name_for_placeholder(placeholder))
-                    .collect();
+                    .collect::<Vec<_>>();
                 super::types::CodeFix {
-                    span,
+                    span: tcl_lexer::Span::new(insert_at, insert_at),
                     new_text: format!(" {}", names.join(" ")),
                     description: format!("{title_prefix} {} variable(s)", names.join(" + ")),
                     safety: super::types::FixSafety::BehaviourHardening,
@@ -1206,91 +1118,118 @@ matching time on crafted input."
         }
     }
 
-    /// **W306.** Warn when a `regexp` / `regsub` *pattern* — a
-    /// literal-expected position — contains a *live* substitution Tcl
-    /// expands before the regex engine sees it.  A pattern that is exactly
-    /// one variable substitution — bare `$var` / `${var}` **or** quoted
-    /// `"$var"` (the quotes group nothing, so it is byte-for-byte identical
-    /// to the bare form) — is the canonical parameterised-pattern idiom and
-    /// is exempt: no literal was "expected" there, and the `{…}` rewrite
-    /// would change it to match the literal text `$var`.  A quoted `"[cmd]"`
-    /// or an unbraced `[cmd]` computes the pattern dynamically and is the
-    /// foot-gun — except where that command is a declared regex-quoter
-    /// (`taint_transform: REGEX_LITERAL`), which is the remedy T103 asks for
-    /// and whose whole purpose is to build a pattern that matches literally.
-    /// `\[` / `\$` in a quoted pattern are literal regex characters, not
-    /// substitutions.
+    /// W306: live original lexical substitutions in an independently selected
+    /// regex pattern operand. An unresolved option boundary supplies no pattern
+    /// role. Braced and pure-variable words remain literal/dynamic idioms.
     pub(in crate::analyser) fn emit_w306_literal_expected(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        cmd_tok: tcl_lexer::Token,
+        original: Option<&crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        if !self.command_takes_regex_pattern(cmd_name) {
-            return;
-        }
-        let Some(idx) = self.regex_pattern_source_index(cmd_name, arg_tokens, cmd_tok) else {
+        use crate::analyser::diagnostic_registry::{
+            RegistrySourceDiagnosticKind as Kind, source_regex_pattern_arguments,
+        };
+        let Some(original) = original else { return };
+        let Some(patterns) = original
+            .with_schema(source_regex_pattern_arguments)
+            .flatten()
+        else {
             return;
         };
-        let (Some(&tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
-            return;
-        };
-        if is_braced_word(&tok) || !has_substitution(text, &tok) {
-            return;
+        for argument in patterns {
+            let Some(word) = original.word(argument) else {
+                continue;
+            };
+            if word.group().kind == tcl_lexer::WordKind::Braced {
+                continue;
+            }
+            let arena = word.executable_parts();
+            let parts = arena
+                .list(arena.root())
+                .iter()
+                .filter(|part| !arena.text(part).is_some_and(<[u8]>::is_empty))
+                .collect::<Vec<_>>();
+            if matches!(parts.as_slice(), [part] if matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. }))
+            {
+                continue;
+            }
+            if !super::usage::original_word_has_substitution(word)
+                || self.original_regex_quoting_substitution(word)
+            {
+                continue;
+            }
+            let Some(subject) = original.subject(Kind::PatternSubstitution, Some(argument)) else {
+                continue;
+            };
+            let found = if arena
+                .all_parts()
+                .any(|part| matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. }))
+            {
+                "'$'"
+            } else {
+                "'['"
+            };
+            let advice = if word.group().kind == tcl_lexer::WordKind::Quoted {
+                ". Use braces '{...}' instead of quotes."
+            } else {
+                ". Use braces '{...}' to prevent substitution."
+            };
+            self.result.diagnostics.push(
+                crate::analyser::types::Diagnostic::new(
+                    DiagCode::W306,
+                    word.span(),
+                    format!(
+                        "Literal expected in regular-expression pattern — found {found}{advice}"
+                    ),
+                    Severity::Warning,
+                )
+                .with_subject(subject),
+            );
         }
-        let start = tok.span.start() as usize;
-        let end = tok.span.end() as usize;
-        if start >= end {
-            return;
-        }
-        let Some(raw) = Analyser::source_slice(&self.source, start, end) else {
-            return;
+    }
+
+    /// The bracket component lends its original child body and full parser
+    /// configuration. The retained analysis must select the child's authored
+    /// metadata; a substring parse or same-spelled Registry lookup cannot do so.
+    fn original_regex_quoting_substitution(&self, word: &tcl_lexer::NativeWord) -> bool {
+        use crate::analyser::diagnostic_registry::{
+            OriginalDiagnosticSource, source_declares_regex_quoting,
         };
-        let is_subst_token = matches!(
-            tok.kind,
-            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        let arena = word.executable_parts();
+        let mut parts = arena
+            .list(arena.root())
+            .iter()
+            .filter(|part| !arena.text(part).is_some_and(<[u8]>::is_empty));
+        let Some(part) = parts.next() else {
+            return false;
+        };
+        if parts.next().is_some() {
+            return false;
+        }
+        let tcl_lexer::ExecutablePart::Command { body } = part.part else {
+            return false;
+        };
+        if word.image().bytes() != self.source.as_bytes()
+            || self.result.body_lexer_config != Some(word.config())
+        {
+            return false;
+        }
+        let Some(source) = self.source.get(body.as_range()) else {
+            return false;
+        };
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            body.start(),
+            word.config(),
         );
-        // A quoted/literal token (not a single `$var` / `[cmd]` word) only
-        // counts when the raw source carries a *live* (unescaped) `[`/`$`.
-        if !is_subst_token && !raw_has_live_substitution(raw) {
-            return;
-        }
-        // Bare `$var` / `${var}` is the canonical idiom — a `Var` word has
-        // no surrounding literal text, so it is exactly that form.
-        if tok.kind == tcl_lexer::TokenType::Var {
-            return;
-        }
-        // A *quoted* word that is exactly one pure `$var` / `${var}`
-        // substitution (`"$pat"`) is byte-for-byte identical at runtime to the
-        // bare `$var` exempted above — the quotes group nothing — so it is the
-        // same parameterised-pattern idiom, not a foot-gun. `"[cmd]"` (a
-        // command substitution) is *not* exempt.
-        let inner = text
-            .strip_prefix('"')
-            .and_then(|s| s.strip_suffix('"'))
-            .unwrap_or(text);
-        if crate::value_shapes::is_pure_var_ref(inner) {
-            return;
-        }
-        if self.is_regex_quoting_substitution(inner) {
-            return;
-        }
-        let is_quoted = self.source.as_bytes().get(start) == Some(&b'"');
-        let found = if text.contains('$') { "'$'" } else { "'['" };
-        let advice = if is_quoted {
-            ". Use braces '{...}' instead of quotes."
-        } else {
-            ". Use braces '{...}' to prevent substitution."
+        let [command] = commands.as_slice() else {
+            return false;
         };
-        self.result
-            .diagnostics
-            .push(crate::analyser::types::Diagnostic::new(
-                DiagCode::W306,
-                tok.span,
-                format!("Literal expected in {cmd_name} pattern \u{2014} found {found}{advice}"),
-                Severity::Warning,
-            ));
+        let Some(OriginalDiagnosticSource::Registry(selected)) =
+            self.original_diagnostic_source_for_segment(command)
+        else {
+            return false;
+        };
+        selected.with_schema(source_declares_regex_quoting) == Some(true)
     }
 
     /// **W127.** A literal at a closed-value argument index is not in the
@@ -1655,59 +1594,6 @@ fn variable_name_for_placeholder(placeholder: &str) -> String {
     }
 }
 
-/// True when the body of a `catch` matches the documented
-/// "fire-and-forget" idiom: a single command whose head is a teardown
-/// builtin (`close $h`, `unset var`, `rename foo ""`) or a teardown
-/// ensemble subcommand (`after cancel`, `chan close`, `array unset`, …).
-/// Membership comes from the registry's
-/// [`tcl_registry::Traits::FIRE_AND_FORGET_TEARDOWN`] trait, at both the
-/// command and the resolved-subcommand level.  Conservative: only
-/// single-statement bodies match, and ensemble heads are
-/// subcommand-checked.
-fn catch_body_is_fire_and_forget(
-    body: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
-) -> bool {
-    let Some(registry) = registry else {
-        return false;
-    };
-    // The registry carries the environment's profile, so the caught body is
-    // segmented under the document's own grammar.
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-    let segs: Vec<_> = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config)
-        .into_iter()
-        .filter(|c| !c.texts.is_empty())
-        .collect();
-    if segs.len() != 1 {
-        return false;
-    }
-    let Some(head) = segs[0].texts.first() else {
-        return false;
-    };
-    if head.is_empty() {
-        return false;
-    }
-    // Resolve a namespace-qualified spelling to its tail, so `::close` and
-    // `myns::close` both count.
-    let bare = head
-        .trim_start_matches(':')
-        .rsplit("::")
-        .next()
-        .unwrap_or(head);
-    let Some(spec) = registry.get(bare) else {
-        return false;
-    };
-    let teardown = tcl_registry::Traits::FIRE_AND_FORGET_TEARDOWN;
-    if spec.traits.contains(teardown) {
-        return true;
-    }
-    segs[0]
-        .texts
-        .get(1)
-        .and_then(|first_arg| spec.resolve_subcommand(first_arg))
-        .is_some_and(|sub| sub.traits.contains(teardown))
-}
-
 /// One W127 closed-value check: return a `(message, span)` hit when the literal
 /// value at command-level index `cmd_idx` is not among `allowed` — an exact
 /// match, or (when `accept_prefix`) a unique prefix, mirroring C Tcl's
@@ -1926,37 +1812,6 @@ fn w127_suggestion_fix(
         // W127: an edit-distance guess at the intended value.
         safety: crate::irules_checks::FixSafety::RequiresReview,
     }]
-}
-
-/// True when the **source** slice `raw` (backslashes intact) carries a
-/// *live* substitution: an unescaped `[`, or a `$` that actually
-/// introduces a variable name (`[A-Za-z0-9_]`, `{`, or `:`).  A `\[` /
-/// `\$` is a literal regex character, and a `$` before a quote / end /
-/// punctuation (the `(.*)$` end-anchor) is a literal dollar — neither
-/// counts.
-fn raw_has_live_substitution(raw: &str) -> bool {
-    let b = raw.as_bytes();
-    let n = b.len();
-    let mut i = 0;
-    while i < n {
-        match b[i] {
-            b'\\' => {
-                i += 2; // the next char is escaped (literal) — skip both
-                continue;
-            }
-            b'[' => return true,
-            b'$' => {
-                if let Some(&c) = b.get(i + 1)
-                    && (c.is_ascii_alphanumeric() || matches!(c, b'_' | b'{' | b':'))
-                {
-                    return true;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    false
 }
 
 /// True when `value` is a literal (not a `$var` / `[cmd]` substitution)

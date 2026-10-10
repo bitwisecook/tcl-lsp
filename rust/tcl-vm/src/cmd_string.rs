@@ -143,18 +143,15 @@ const STRING_SUBS: &[&str] = &[
 /// through the shared ensemble owner (`string` is a `TclMakeEnsemble` command),
 /// or the ensemble's own miss sentence — including its comma before `or`, which
 /// `prefix::choice_list` words differently.
-fn resolve_string_sub<'a>(subs: &[&'a str], input: &str) -> Result<&'a str, String> {
-    match tcl_cmd_core::ensemble::resolve_subcommand(subs, input.as_bytes(), true) {
+fn resolve_string_sub<'a>(subs: &[&'a str], input: &[u8]) -> Result<&'a str, Vec<u8>> {
+    match tcl_cmd_core::ensemble::resolve_subcommand(subs, input, true) {
         Some(index) => Ok(subs[index]),
-        None => Err(
-            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                input.as_bytes(),
-                true,
-                b"::tcl::string",
-            ))
-            .into_owned(),
-        ),
+        None => Err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+            subs,
+            input,
+            true,
+            b"::tcl::string",
+        )),
     }
 }
 
@@ -170,7 +167,11 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "string",
         STRING_SUBS,
     );
-    let canon = match resolve_string_sub(subs, &sub.to_str()) {
+    let sub_bytes = match vm.native_name_operand_bytes(sub) {
+        Ok(bytes) => bytes,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let canon = match resolve_string_sub(subs, &sub_bytes) {
         Ok(c) => c,
         Err(e) => return err(e),
     };
@@ -597,7 +598,8 @@ mod tests {
     /// (Tcl 9) table; the release filter that narrows it per pin is covered
     /// end-to-end in `tests/cmd_info_prefix_e2e.rs`.
     fn resolve_string_sub(input: &str) -> Result<&'static str, String> {
-        super::resolve_string_sub(STRING_SUBS, input)
+        super::resolve_string_sub(STRING_SUBS, input.as_bytes())
+            .map_err(|bytes| String::from_utf8(bytes).expect("ASCII test operand and descriptors"))
     }
 
     #[test]

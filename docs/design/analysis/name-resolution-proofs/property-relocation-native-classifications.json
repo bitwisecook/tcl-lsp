@@ -1,0 +1,87 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_property_clientdata/manifest.json",
+    "sha256": "1cc949117726faff50a59a5ec4c404f2e1adf06da0d7848afb9d1b88b7dcf57d",
+    "classification": "native-observation",
+    "reason": "Inspected retained native program/process outcome and exact measured question; no unrecorded provider/build or Rust execution is inferred.",
+    "proof_ids": [
+      "naming.property.original-accessor-clientdata"
+    ]
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_property_clientdata/manifest.json",
+    "sha256": "1cc949117726faff50a59a5ec4c404f2e1adf06da0d7848afb9d1b88b7dcf57d",
+    "classification": "duplicate-evidence",
+    "duplicate_of": "runtime/rust/tests/data/native_property_clientdata/manifest.json",
+    "reason": "Whole-byte identical manifest to runtime/rust/tests/data/native_property_clientdata/manifest.json; exact original program and streams identify the same capture.",
+    "proof_ids": [
+      "naming.property.original-accessor-clientdata"
+    ]
+  },
+  {
+    "path": "runtime/rust/tests/data/native_property_clientdata/initial-manifest.json",
+    "sha256": "94a30168d64768558962ee34471c14e8df06f9b132fee43eb27b1c78ac7699ac",
+    "classification": "native-observation",
+    "reason": "Inspected retained native program/process outcome and exact measured question; no unrecorded provider/build or Rust execution is inferred.",
+    "proof_ids": [
+      "naming.property.clientdata-probe-availability"
+    ]
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_property_clientdata/initial-manifest.json",
+    "sha256": "94a30168d64768558962ee34471c14e8df06f9b132fee43eb27b1c78ac7699ac",
+    "classification": "duplicate-evidence",
+    "duplicate_of": "runtime/rust/tests/data/native_property_clientdata/initial-manifest.json",
+    "reason": "Whole-byte identical manifest to runtime/rust/tests/data/native_property_clientdata/initial-manifest.json; exact original program and streams identify the same capture.",
+    "proof_ids": [
+      "naming.property.clientdata-probe-availability"
+    ]
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_property_owners/manifest.json",
+    "sha256": "447d2fe2ba34bc7acc4f6855ef8141de6cc93a4a10b72a10381fe280adcca6a9",
+    "classification": "native-observation",
+    "reason": "Inspected retained native program/process outcome and exact measured question; no unrecorded provider/build or Rust execution is inferred.",
+    "proof_ids": [
+      "naming.property.original-enumeration-header-and-members",
+      "naming.property.original-foundation-epoch-and-cache",
+      "naming.property.original-selected-name-cache"
+    ]
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_property_owners/initial-manifest.json",
+    "sha256": "7c80d5d7665fd659c389ab58d251a7199cd450e4e8cbf0f105502f0e85b0fbcf",
+    "classification": "native-observation",
+    "reason": "Inspected retained native program/process outcome and exact measured question; no unrecorded provider/build or Rust execution is inferred.",
+    "proof_ids": [
+      "naming.property.owner-probe-availability"
+    ]
+  },
+  {
+    "path": "runtime/rust/tests/data/native_namespace_origin/original_provenance.json",
+    "sha256": "e272081d1b2b831762605ffd8b53f200faf0c10f95ff29db68d5143e994ef0ee",
+    "classification": "native-observation",
+    "reason": "Inspected retained native program/process outcome and exact measured question; no unrecorded provider/build or Rust execution is inferred.",
+    "proof_ids": [
+      "naming.namespace.origin-original-cmdname-residency"
+    ]
+  },
+  {
+    "path": "runtime/rust/tests/data/native_procedure_relocation/manifest.json",
+    "sha256": "c4b50f9543319bef2dad9cefa47a22392e61972142a33594c636c704b4b90cda",
+    "classification": "native-observation",
+    "reason": "Inspected retained native program/process outcome and exact measured question; no unrecorded provider/build or Rust execution is inferred.",
+    "proof_ids": [
+      "naming.procedure.original-relocation-namespace-and-identity"
+    ]
+  },
+  {
+    "path": "runtime/rust/tests/data/native_procedure_relocation/raw-manifest.json",
+    "sha256": "c92823957a01c56555f4b2cfd4e232ed97925fad2ccd93e2066b3aafbbbd5803",
+    "classification": "native-observation",
+    "reason": "Inspected retained native program/process outcome and exact measured question; no unrecorded provider/build or Rust execution is inferred.",
+    "proof_ids": [
+      "naming.procedure.original-counted-relocation-identity"
+    ]
+  }
+]

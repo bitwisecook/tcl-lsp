@@ -41,6 +41,8 @@
 //! dynamic *alias/name*.  The resolution layer ([`crate::var_resolve`]) maps a
 //! syntactic reference + scope context to a canonical place.
 
+use tcl_core_types::NameBytes;
+
 /// Sentinel namespace marking a procedure-*local* scalar (frame-relative), as
 /// opposed to a global / namespace variable which carries its real `::`-FQ
 /// namespace.  Keeps the deliberate local-vs-global distinction the dataflow
@@ -82,8 +84,8 @@ pub enum IndexKind {
 pub struct Index {
     /// How the index/key is known (literal text, computed, or unconstrained).
     pub kind: IndexKind,
-    /// The literal text when [`IndexKind::Literal`]; empty otherwise.
-    pub value: String,
+    /// Exact selected index bytes when [`IndexKind::Literal`]; empty otherwise.
+    pub value: NameBytes,
     /// Vars read to form a [`IndexKind::Dynamic`] index/key.
     pub read_places: Vec<Place>,
 }
@@ -91,7 +93,7 @@ pub struct Index {
 impl Index {
     /// A statically-known index/key.
     #[must_use]
-    pub fn literal(value: impl Into<String>) -> Self {
+    pub fn literal(value: impl Into<NameBytes>) -> Self {
         Self {
             kind: IndexKind::Literal,
             value: value.into(),
@@ -104,7 +106,7 @@ impl Index {
     pub fn dynamic(read_places: Vec<Place>) -> Self {
         Self {
             kind: IndexKind::Dynamic,
-            value: String::new(),
+            value: NameBytes::default(),
             read_places,
         }
     }
@@ -114,7 +116,7 @@ impl Index {
     pub fn any() -> Self {
         Self {
             kind: IndexKind::Any,
-            value: String::new(),
+            value: NameBytes::default(),
             read_places: Vec::new(),
         }
     }
@@ -159,8 +161,8 @@ pub enum CellGeneration {
 pub struct CellIdentity {
     /// Table containing the cell.
     pub owner: CellOwner,
-    /// Simple root variable name.
-    pub name: String,
+    /// Exact selected root variable bytes; display spelling is separate.
+    pub name: NameBytes,
     /// Root lifetime retained by this access.
     pub generation: CellGeneration,
     /// Known interpreter identity; absence retains a symbolic current interpreter.
@@ -178,7 +180,7 @@ pub struct Place {
     pub kind: PlaceKind,
     /// FQ namespace; [`LOCAL_NS`] for proc-local scalars.
     pub ns: String,
-    /// Base variable name (bare local or ns-tail).
+    /// Checked display of the base variable name. Resolved identity lives in `cell`.
     pub name: String,
     /// `ARRAY_ELEM` index.
     pub index: Option<Index>,

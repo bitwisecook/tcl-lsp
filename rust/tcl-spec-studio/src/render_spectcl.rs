@@ -241,7 +241,8 @@ pub const GAPS: &[Gap] = &[
     // Includes VARIABLE_READ, VARIABLE_WRITE and VARIABLE_READ_MODIFY_WRITE
     // used by native set forms / incr / append / lappend. Their typed variable
     // accesses are not recovered by the draft or loaded by world_effects_value;
-    // only composition round-trips. Packs must not acquire native write proof
+    // only composition is loadable. Unsupported semantic rows exclude strong
+    // analysis instead of issuing an empty descriptor. Packs cannot gain native write proof
     // from omitted access rows or from their command's spelling.
     Gap {
         key: "world_effects",
@@ -1895,6 +1896,33 @@ fn index_list(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     out.line(&format!("{key} {{{}}}", indices.join(" ")));
 }
 
+/// Authored receiver grammar retains its form alongside the argv position.
+fn variable_receiver_words(items: &[Value]) -> String {
+    use tcl_registry::resolved_invocation::VariableReceiverOperandForm;
+    let Some(selected) = draft::selected_variable_receivers(items) else {
+        return "{invalid-index invalid-receiver-form}".to_owned();
+    };
+    selected
+        .iter()
+        .map(|(index, form)| match form {
+            VariableReceiverOperandForm::Combined => index.to_string(),
+            VariableReceiverOperandForm::TraceSubject => format!("{{{index} trace-subject}}"),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn variable_receiver_list(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if ctx.set(draft, "variable_receivers")
+        && let Some(items) = draft["variable_receivers"].as_array()
+    {
+        out.line(&format!(
+            "variable_receivers {{{}}}",
+            variable_receiver_words(items)
+        ));
+    }
+}
+
 /// Emit a count property.
 fn count(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     if ctx.set(draft, key)
@@ -2474,11 +2502,13 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     );
     enum_word(out, ctx, draft, "inferred_storage_type");
     enum_word(out, ctx, draft, "body_kind");
+    enum_word(out, ctx, draft, "script_lookup_scope");
     gap_todo(out, ctx, draft, "body_interpreter");
     gap_todo(out, ctx, draft, "body_execution");
     gap_todo(out, ctx, draft, "procedure_definition");
     gap_todo(out, ctx, draft, "native_compilation");
     gap_todo(out, ctx, draft, "successful_handler");
+    variable_receiver_list(out, ctx, draft);
     gap_todo(out, ctx, draft, "native_result");
     gap_todo(out, ctx, draft, "form_value_effects");
     expr_word(out, ctx, draft, "byte_array_effect", byte_array_effect_word);
@@ -2632,6 +2662,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     }
     text(out, ctx, draft, "deprecated_replacement");
     flag(out, ctx, draft, "deprecated_replacement_drop_in");
+    enum_word(out, ctx, draft, "source_deprecation_advice");
 
     // Descriptors.
     out.gap();
@@ -2821,6 +2852,12 @@ fn refine_blocks(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft, key: &str) {
                     "arg {} -role {}",
                     role["index"],
                     str_of(&role["role"])
+                ));
+            }
+            if let Some(receivers) = form["variable_receivers"].as_array() {
+                out.line(&format!(
+                    "variable_receivers {{{}}}",
+                    variable_receiver_words(receivers)
                 ));
             }
             for option in as_array(&form["options"]).to_vec() {
@@ -3045,10 +3082,12 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     );
     enum_word(out_body, ctx, sub, "inferred_storage_type");
     enum_word(out_body, ctx, sub, "body_kind");
+    enum_word(out_body, ctx, sub, "script_lookup_scope");
     gap_todo(out_body, ctx, sub, "body_interpreter");
     gap_todo(out_body, ctx, sub, "body_execution");
     gap_todo(out_body, ctx, sub, "native_compilation");
     gap_todo(out_body, ctx, sub, "successful_handler");
+    variable_receiver_list(out_body, ctx, sub);
     gap_todo(out_body, ctx, sub, "native_result");
     expr_word(
         out_body,
@@ -3083,6 +3122,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     }
     enum_word(out_body, ctx, sub, "prefix_matching");
     count(out_body, ctx, sub, "option_prefix_words");
+    count(out_body, ctx, sub, "reserved_trailing_words");
     text(out_body, ctx, sub, "cfg_rewrite_name");
 
     arg_row_statements(out_body, ctx, sub);
@@ -3162,6 +3202,17 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
                 &mut lost,
                 &Value::Array(dialects.clone()),
                 ctx.availability,
+            );
+        }
+        if let Some(prefix) = row["option_prefix_words"]
+            .as_u64()
+            .filter(|prefix| *prefix > 0)
+        {
+            push_flag(
+                &mut words,
+                &mut lost,
+                "-option_prefix_words",
+                Some(prefix.to_string()),
             );
         }
         push_lifecycle_flags(&mut words, &mut lost, row);
@@ -3419,6 +3470,64 @@ mod tests {
     }
 
     #[test]
+    // Implementation contract: naming.variable.registry-receiver-authoring-parity
+    // docs/design/analysis/name-resolution-proofs/registry-variable-receiver-authoring-parity.md
+    fn combined_variable_receiver_metadata_round_trips_commands_members_and_forms() {
+        use tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined;
+        use tcl_registry::{CommandSpec, SubCommand, forms::CommandForm};
+        const FORMS: &[CommandForm] = &[
+            CommandForm {
+                name: "withdraw",
+                variable_receivers: Some(&[]),
+                ..CommandForm::DEFAULT
+            },
+            CommandForm {
+                name: "inherit",
+                ..CommandForm::DEFAULT
+            },
+        ];
+        const SUBS: &[SubCommand] = &[SubCommand {
+            name: "nested",
+            variable_receivers: Some(&[(0, Combined)]),
+            subcommand_forms: FORMS,
+            ..SubCommand::DEFAULT
+        }];
+        let spec = CommandSpec {
+            name: "probe::names",
+            variable_receivers: Some(&[(0, Combined), (2, Combined)]),
+            command_forms: FORMS,
+            subcommands: SUBS,
+            ..CommandSpec::DEFAULT
+        };
+        let seeded = draft::from_command_spec(&spec);
+        assert_eq!(seeded["variable_receivers"], serde_json::json!([0, 2]));
+        let rust = crate::render_rs::render(&seeded);
+        assert!(rust.contains("variable_receivers: Some(&[(0, tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined), (2, tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined)]),"), "{rust}");
+        assert!(rust.contains("variable_receivers: Some(&[]),"));
+        let text = render_pack(std::slice::from_ref(&seeded), "probe");
+        assert!(text.contains("variable_receivers {0 2}"), "{text}");
+        assert!(text.contains("variable_receivers {}"), "{text}");
+        let loaded = crate::spectcl::evaluate_pack(&text);
+        let parsed = &loaded
+            .command("probe::names")
+            .expect("naming round trip")
+            .spec;
+        assert_eq!(parsed.variable_receivers, spec.variable_receivers);
+        assert_eq!(parsed.command_forms[0].variable_receivers, Some(&[][..]));
+        assert_eq!(parsed.command_forms[1].variable_receivers, None);
+        assert_eq!(
+            parsed.subcommands[0].variable_receivers,
+            spec.subcommands[0].variable_receivers
+        );
+        assert_eq!(
+            parsed.subcommands[0].subcommand_forms[0].variable_receivers,
+            Some(&[][..])
+        );
+        assert!(parsed.successful_handler.is_none());
+        assert!(parsed.native_compilation.is_none());
+    }
+
+    #[test]
     fn successful_handler_native_contract_has_an_explicit_authoring_gap() {
         let spec = tcl_registry::CommandSpec {
             name: "probe::native",
@@ -3452,10 +3561,56 @@ mod tests {
     }
 
     #[test]
+    fn source_deprecation_advice_survives_both_renderers_and_pack_reload() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::legacy",
+            source_deprecation_advice: Some(tcl_registry::SourceDeprecationAdvice::IruleMatchclass),
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        assert_eq!(before["source_deprecation_advice"], "IruleMatchclass");
+        let rust = crate::render_rs::render(&before);
+        assert!(
+            rust.contains(
+                "source_deprecation_advice: Some(SourceDeprecationAdvice::IruleMatchclass)"
+            ),
+            "{rust}"
+        );
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(
+            text.contains("source_deprecation_advice IruleMatchclass"),
+            "{text}"
+        );
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let loaded = pack.command("probe::legacy").unwrap().spec;
+        assert_eq!(
+            loaded.source_deprecation_advice,
+            spec.source_deprecation_advice
+        );
+        assert_eq!(
+            draft::from_command_spec(loaded)["source_deprecation_advice"],
+            before["source_deprecation_advice"]
+        );
+    }
+
+    #[test]
     fn positional_option_prefix_survives_both_renderers_and_pack_reload() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        const NESTED: &[tcl_registry::SubSubCommand] = &[tcl_registry::SubSubCommand {
+            name: "configure",
+            option_prefix_words: 3,
+            options: Some(&[]),
+            ..tcl_registry::SubSubCommand::DEFAULT
+        }];
         const SUBS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
             name: "format",
+            sub_subcommands: NESTED,
             option_prefix_words: 1,
+            reserved_trailing_words: 2,
             ..tcl_registry::SubCommand::DEFAULT
         }];
         let spec = tcl_registry::CommandSpec {
@@ -3466,14 +3621,21 @@ mod tests {
         };
         let before = draft::from_command_spec(&spec);
         let rust = crate::render_rs::render(&before);
+        assert!(rust.contains("option_prefix_words: 3,"), "{rust}");
         assert!(rust.contains("option_prefix_words: 2,"), "{rust}");
         assert!(rust.contains("option_prefix_words: 1,"), "{rust}");
+        assert!(rust.contains("reserved_trailing_words: 2,"), "{rust}");
         let text = render_pack(std::slice::from_ref(&before), "probe");
         let pack = crate::spectcl::evaluate_pack(&text);
         assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
         let loaded = pack.command("probe").unwrap().spec;
+        assert_eq!(
+            loaded.subcommands[0].sub_subcommands[0].option_prefix_words,
+            3
+        );
         assert_eq!(loaded.option_prefix_words, 2);
         assert_eq!(loaded.subcommands[0].option_prefix_words, 1);
+        assert_eq!(loaded.subcommands[0].reserved_trailing_words, 2);
     }
 
     #[test]
@@ -4247,6 +4409,56 @@ mod tests {
     }
 
     #[test]
+    fn executable_lookup_scope_survives_rust_and_dsl_round_trip() {
+        // Implementation contract: naming.callback.lookup-scope-owner (docs/design/analysis/name-resolution-proofs/callback-lookup-scope-owner.md).
+        static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "trigger",
+            script_lookup_scope: Some(tcl_registry::ScriptLookupScope::TriggerFrame),
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::callback",
+            script_lookup_scope: Some(tcl_registry::ScriptLookupScope::GlobalFrame),
+            subcommands: MEMBERS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let rust = crate::render_rs::render(&before);
+        assert!(
+            rust.contains("script_lookup_scope: Some(ScriptLookupScope::GlobalFrame)"),
+            "{rust}"
+        );
+        assert!(
+            rust.contains("script_lookup_scope: Some(ScriptLookupScope::TriggerFrame)"),
+            "{rust}"
+        );
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("script_lookup_scope GlobalFrame"), "{text}");
+        assert!(text.contains("script_lookup_scope TriggerFrame"), "{text}");
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let after = draft::from_command_spec(pack.command("probe::callback").unwrap().spec);
+        assert_eq!(
+            after.get("script_lookup_scope"),
+            before.get("script_lookup_scope")
+        );
+        assert_eq!(after.get("subcommands"), before.get("subcommands"));
+        let invalid = text.replace(
+            "script_lookup_scope GlobalFrame",
+            "script_lookup_scope ImaginedFrame",
+        );
+        let pack = crate::spectcl::evaluate_pack(&invalid);
+        assert!(!pack.notices.is_empty());
+        assert_eq!(
+            pack.command("probe::callback")
+                .unwrap()
+                .spec
+                .script_lookup_scope,
+            None
+        );
+    }
+
+    #[test]
     fn option_script_timings_survive_render_load_draft() {
         static OPTIONS: &[tcl_registry::hover::OptionSpec] = &[
             tcl_registry::hover::OptionSpec {
@@ -4395,5 +4607,89 @@ mod tests {
         assert!(!geometry.direct_form);
         assert_eq!(geometry.placement_subcommand, Some("arrange"));
         assert_eq!(geometry.release_subcommands, ["release", "unmanage"]);
+    }
+
+    #[test]
+    fn trace_subject_receiver_drafts_reject_invalid_forms_and_positions_without_defaulting() {
+        // Implementation contract: naming.variable.trace-source-receiver-purpose (docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md).
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::trace",
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        for rows in [
+            serde_json::json!([{"index":1,"form":"Unknown"}]),
+            serde_json::json!([{"form":"TraceSubject"}]),
+            serde_json::json!([{"index":256,"form":"TraceSubject"}]),
+            serde_json::json!([{"index":1,"form":"TraceSubject","extra":true}]),
+            serde_json::json!([0,{"index":0,"form":"TraceSubject"}]),
+            serde_json::json!(["1"]),
+        ] {
+            let mut invalid = draft::from_command_spec(&spec);
+            invalid.insert("variable_receivers".into(), rows);
+            let rust = crate::render_rs::render(&invalid);
+            assert!(rust.contains("VARIABLE_RECEIVERS_REQUIRE_UNIQUE_U8_INDICES_AND_VALID_FORMS"));
+            let text = render_pack(std::slice::from_ref(&invalid), "probe");
+            assert!(text.contains("invalid-receiver-form"));
+            let loaded = crate::spectcl::evaluate_pack(&text);
+            assert!(!loaded.notices.is_empty());
+        }
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.trace-source-receiver-purpose
+    // docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md
+    fn trace_subject_receiver_metadata_round_trips_commands_members_and_forms() {
+        use tcl_registry::resolved_invocation::VariableReceiverOperandForm::{
+            Combined, TraceSubject,
+        };
+        const FORMS: &[tcl_registry::forms::CommandForm] = &[tcl_registry::forms::CommandForm {
+            name: "trace-query",
+            variable_receivers: Some(&[(1, TraceSubject)]),
+            ..tcl_registry::forms::CommandForm::DEFAULT
+        }];
+        const SUBS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "query",
+            variable_receivers: Some(&[(0, TraceSubject)]),
+            subcommand_forms: FORMS,
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::trace",
+            variable_receivers: Some(&[(0, Combined), (1, TraceSubject)]),
+            command_forms: FORMS,
+            subcommands: SUBS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let seeded = draft::from_command_spec(&spec);
+        assert_eq!(
+            seeded["variable_receivers"],
+            serde_json::json!([0, {"index":1,"form":"TraceSubject"}])
+        );
+        let rust = crate::render_rs::render(&seeded);
+        assert!(
+            rust.contains("VariableReceiverOperandForm::TraceSubject"),
+            "{rust}"
+        );
+        let text = render_pack(std::slice::from_ref(&seeded), "probe");
+        assert!(
+            text.contains("variable_receivers {0 {1 trace-subject}}"),
+            "{text}"
+        );
+        let loaded = crate::spectcl::evaluate_pack(&text);
+        let parsed = &loaded.command("probe::trace").unwrap().spec;
+        assert_eq!(parsed.variable_receivers, spec.variable_receivers);
+        assert_eq!(
+            parsed.command_forms[0].variable_receivers,
+            spec.command_forms[0].variable_receivers
+        );
+        assert_eq!(
+            parsed.subcommands[0].variable_receivers,
+            spec.subcommands[0].variable_receivers
+        );
+        assert_eq!(
+            parsed.subcommands[0].subcommand_forms[0].variable_receivers,
+            spec.subcommands[0].subcommand_forms[0].variable_receivers
+        );
+        assert!(parsed.successful_handler.is_none());
     }
 }

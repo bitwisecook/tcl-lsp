@@ -181,6 +181,12 @@ pub(super) struct NativeMethodWorld {
     tables: BTreeMap<OoId, BTreeMap<String, CacheEntry>>,
 }
 impl NativeMethodWorld {
+    pub(super) fn observation_epochs(&self, target: OoId) -> (u64, u64) {
+        (
+            self.foundation,
+            self.epochs.get(&target).copied().unwrap_or(0),
+        )
+    }
     pub(super) fn instance_table_created(&mut self, target: OoId) {
         self.class_flags.insert(target, false);
     }

@@ -1,0 +1,20 @@
+{
+  "question_ids": [
+    "naming.expression.braced-static-literal-completion",
+    "naming.expression.braced-word-and-arity-boundaries",
+    "naming.expression.braced-error-context-publication",
+    "naming.expression.braced-native-input-channels",
+    "naming.expression.braced-handler-and-observer-boundaries",
+    "naming.expression.braced-substitution-and-function-context",
+    "naming.expression.brace-probe-attempt-availability"
+  ],
+  "inputs": "v4/protocol/inputs.json",
+  "actual_capture": "v4/capture/receipt.json",
+  "preserved_attempts": [
+    "v1",
+    "v2",
+    "v3",
+    "v4"
+  ],
+  "limits": "Separate authored collector and direct/catch contexts; C ReadChars only; no optimiser or Rust parity execution claim."
+}

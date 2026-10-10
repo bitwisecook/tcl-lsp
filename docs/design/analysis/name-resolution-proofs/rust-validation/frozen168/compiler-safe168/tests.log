@@ -1,0 +1,62 @@
+
+running 32 tests
+test analyser::handlers::tests::deferred_proc_body_outside_any_safe_interp_is_untouched_under_per_item_1001 ... ok
+test analyser::handlers::tests::ensemble_map_redirect_outside_any_safe_interp_is_untouched_1001 ... ok
+test analyser::handlers::tests::list_quoted_apply_lambda_outside_any_safe_interp_is_untouched_1001 ... ok
+test analyser::handlers::tests::safe_interp_child_redefinition_of_a_hidden_builtin_is_callable_945 ... ok
+test analyser::handlers::tests::safe_interp_deferred_body_redefinition_updates_its_source_visibility ... ok
+test analyser::handlers::tests::safe_interp_hides_unsafe_commands_and_expose_restores_945 ... ok
+test analyser::handlers::tests::safe_interp_w129_alias_bridged_command_not_flagged_through_indirection_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_direct_nested_bracket_substitution_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_direct_nested_bracket_substitution_deep_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_dynamic_variable_dispatch_not_flagged_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_ensemble_configure_map_redirect_to_hidden_command_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_ensemble_configure_map_replaces_not_merges_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_ensemble_create_map_redirect_to_hidden_command_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_ensemble_default_name_map_redirect_to_hidden_command_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_ensemble_map_redirect_multiword_target_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_ensemble_map_redirect_to_safe_command_not_flagged_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_eval_list_quoted_hidden_command_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_expand_dynamic_var_head_not_flagged_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_expand_list_quoted_apply_lambda_body_1001 ... 
+thread 'analyser::handlers::tests::safe_interp_w129_expand_list_quoted_apply_lambda_body_1001' (635357) panicked at rust/tcl-compiler/src/analyser/handlers.rs:18067:9:
+hidden `source` nested inside a `{*}[list apply ...]`-invoked lambda body warns: [Diagnostic { subject: None, code: W307, span: Span { start: 41, end: 93 }, message: "Non-literal command name — cannot statically analyse", severity: Warning, fixes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::handlers::tests::safe_interp_w129_expand_list_quoted_head_1001 ... 
+thread 'analyser::handlers::tests::safe_interp_w129_expand_list_quoted_head_1001' (635358) panicked at rust/tcl-compiler/src/analyser/handlers.rs:14289:9:
+`{*}[list source …]` used as the whole statement warns on the effective (expanded) head: [Diagnostic { subject: None, code: W307, span: Span { start: 41, end: 60 }, message: "Non-literal command name — cannot statically analyse", severity: Warning, fixes: [] }]
+FAILED
+test analyser::handlers::tests::safe_interp_w129_list_quoted_apply_after_idle_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_list_quoted_apply_in_command_prefix_position_1001 ... 
+thread 'analyser::handlers::tests::safe_interp_w129_list_quoted_apply_in_command_prefix_position_1001' (635377) panicked at rust/tcl-compiler/src/analyser/handlers.rs:14136:9:
+hidden `exec` nested inside a list-quoted apply lambda body reached via a CommandPrefix (`trace add … command`) position warns: []
+FAILED
+test analyser::handlers::tests::safe_interp_w129_list_quoted_apply_in_plain_data_is_not_flagged_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_list_quoted_apply_lambda_body_reports_hidden_source_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_list_quoted_apply_package_ifneeded_then_require_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_list_quoted_apply_safe_command_not_flagged_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_list_quoted_hidden_command_directly_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_reaches_deferred_apply_body_under_per_item_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_reaches_deferred_method_body_under_per_item_1001 ... 
+thread 'analyser::handlers::tests::safe_interp_w129_reaches_deferred_method_body_under_per_item_1001' (635400) panicked at rust/tcl-compiler/src/analyser/handlers.rs:18009:9:
+a hidden call inside a deferred TclOO method body warns under incremental (per-item) analysis: [Diagnostic { subject: None, code: W307, span: Span { start: 88, end: 95 }, message: "Non-literal command name — cannot statically analyse", severity: Warning, fixes: [] }]
+FAILED
+test analyser::handlers::tests::safe_interp_w129_reaches_deferred_proc_body_under_per_item_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_redefined_command_not_flagged_through_indirection_1001 ... ok
+test analyser::handlers::tests::safe_interp_w129_uplevel_list_quoted_hidden_command_1001 ... 
+thread 'analyser::handlers::tests::safe_interp_w129_uplevel_list_quoted_hidden_command_1001' (635431) panicked at rust/tcl-compiler/src/analyser/handlers.rs:14368:9:
+`uplevel [list source …]` warns on the resolved head: []
+FAILED
+
+failures:
+
+failures:
+    analyser::handlers::tests::safe_interp_w129_expand_list_quoted_apply_lambda_body_1001
+    analyser::handlers::tests::safe_interp_w129_expand_list_quoted_head_1001
+    analyser::handlers::tests::safe_interp_w129_list_quoted_apply_in_command_prefix_position_1001
+    analyser::handlers::tests::safe_interp_w129_reaches_deferred_method_body_under_per_item_1001
+    analyser::handlers::tests::safe_interp_w129_uplevel_list_quoted_hidden_command_1001
+
+test result: FAILED. 27 passed; 5 failed; 0 ignored; 0 measured; 8202 filtered out; finished in 25.70s
+

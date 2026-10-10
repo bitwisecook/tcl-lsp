@@ -1,0 +1,152 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+    Checking tcl-cshim v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cshim)
+error[E0631]: type mismatch in function arguments
+   --> rust/tcl-compiler/src/command_binding/source_declared_command.rs:543:26
+    |
+543 |                     .map(tcl_core_types::NameBytes::as_bytes)
+    |                      --- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |                      |   |
+    |                      |   expected due to this
+    |                      |   found signature defined here
+    |                      required by a bound introduced by this call
+    |
+    = note: expected function signature `fn(&&str) -> _`
+               found function signature `fn(&tcl_runtime_api::NameBytes) -> _`
+note: required by a bound in `std::iter::Iterator::map`
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/iterator.rs:831:4
+help: consider wrapping the function in a closure
+    |
+543 |                     .map(|arg0: &&str| tcl_core_types::NameBytes::as_bytes(/* &tcl_runtime_api::NameBytes */))
+    |                          +++++++++++++                                    +++++++++++++++++++++++++++++++++++
+
+error[E0599]: the method `collect` exists for struct `Map<Iter<'_, &str>, fn(&NameBytes) -> &[u8] {NameBytes::as_bytes}>`, but its trait bounds were not satisfied
+   --> rust/tcl-compiler/src/command_binding/source_declared_command.rs:544:22
+    |
+541 | /                 expected
+542 | |                     .iter()
+543 | |                     .map(tcl_core_types::NameBytes::as_bytes)
+544 | |                     .collect::<Vec<_>>()
+    | |                     -^^^^^^^ method cannot be called due to unsatisfied trait bounds
+    | |_____________________|
+    |
+    |
+    = note: the following trait bounds were not satisfied:
+            `<for<'a> fn(&'a tcl_runtime_api::NameBytes) -> &'a [u8] {tcl_runtime_api::NameBytes::as_bytes} as std::ops::FnOnce<(&&str,)>>::Output = _`
+            which is required by `std::iter::Map<std::slice::Iter<'_, &str>, for<'a> fn(&'a tcl_runtime_api::NameBytes) -> &'a [u8] {tcl_runtime_api::NameBytes::as_bytes}>: std::iter::Iterator`
+            `for<'a> fn(&'a tcl_runtime_api::NameBytes) -> &'a [u8] {tcl_runtime_api::NameBytes::as_bytes}: std::ops::FnMut<(&&str,)>`
+            which is required by `std::iter::Map<std::slice::Iter<'_, &str>, for<'a> fn(&'a tcl_runtime_api::NameBytes) -> &'a [u8] {tcl_runtime_api::NameBytes::as_bytes}>: std::iter::Iterator`
+            `std::iter::Map<std::slice::Iter<'_, &str>, for<'a> fn(&'a tcl_runtime_api::NameBytes) -> &'a [u8] {tcl_runtime_api::NameBytes::as_bytes}>: std::iter::Iterator`
+            which is required by `&mut std::iter::Map<std::slice::Iter<'_, &str>, for<'a> fn(&'a tcl_runtime_api::NameBytes) -> &'a [u8] {tcl_runtime_api::NameBytes::as_bytes}>: std::iter::Iterator`
+    = note: the full name for the type has been written to '/workspace/.targets/naming/debug/deps/tcl_compiler-eb7ec0b84f258549.long-type-8062020065395690123.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+    Checking tcl-irules v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-irules)
+error: redundant closure
+  --> rust/tcl-irules/src/walker.rs:74:100
+   |
+74 | ...et(ordinal).and_then(Option::as_ref).map(|operand| operand.span()) else { continue; };
+   |                                             ^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_compiler::registry_invocation::source_structure::OriginalOperandSource::span`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+   = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: redundant closure
+   --> rust/tcl-irules/src/walker.rs:105:14
+    |
+105 |         .map(|command| command.span()).collect::<Vec<_>>();
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `super::source_context::OriginalIrulesSourceCommand::span`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: redundant closure
+   --> rust/tcl-irules/src/walker.rs:117:100
+    |
+117 | ... selected.contains(&command.span())).map(|command| command.span()).collect::<Vec<_>>();
+    |                                             ^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `super::source_context::OriginalIrulesSourceCommand::span`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: redundant closure
+   --> rust/tcl-irules/src/source_context.rs:184:81
+    |
+184 | ....with_source_schema(context, |schema| schema.authored_source_rule_procedure_operand()) {
+    |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_rule_procedure_operand`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: item in documentation is missing backticks
+   --> rust/tcl-irules/src/source_context.rs:226:53
+    |
+226 |     /// callers retaining independent overrides use from_analysis instead.
+    |                                                     ^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#doc_markdown
+    = note: `-D clippy::doc-markdown` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+    |
+226 -     /// callers retaining independent overrides use from_analysis instead.
+226 +     /// callers retaining independent overrides use `from_analysis` instead.
+    |
+
+error: the following explicit lifetimes could be elided: 'a
+  --> rust/tcl-irules/src/source_object.rs:40:12
+   |
+40 | fn literal<'a>(arguments: InvocationArguments<'a>, index: usize) -> Option<&'a str> {
+   |            ^^                                 ^^                            ^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#elidable_lifetime_names
+   = note: `-D clippy::elidable-lifetime-names` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::elidable_lifetime_names)]`
+help: elide the lifetimes
+   |
+40 - fn literal<'a>(arguments: InvocationArguments<'a>, index: usize) -> Option<&'a str> {
+40 + fn literal(arguments: InvocationArguments<'_>, index: usize) -> Option<&str> {
+   |
+
+error: this `if` statement can be collapsed
+   --> rust/tcl-irules/src/source_object.rs:97:5
+    |
+ 97 | /     if matches!(lower.as_str(), "class" | "persist") {
+ 98 | |         if let Some(values) = (0..count).map(|index| literal(arguments, index)).collect::<Option<Vec<_>>>() {
+ 99 | |             choices.extend(crate::resolve_object_ref_args(selected.canonical_command, &values, rule_module));
+100 | |         }
+101 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+ 97 ~     if matches!(lower.as_str(), "class" | "persist")
+ 98 ~         && let Some(values) = (0..count).map(|index| literal(arguments, index)).collect::<Option<Vec<_>>>() {
+ 99 |             choices.extend(crate::resolve_object_ref_args(selected.canonical_command, &values, rule_module));
+100 ~         }
+    |
+
+error: item in documentation is missing backticks
+  --> rust/tcl-irules/src/executable.rs:11:28
+   |
+11 | /// Semantic consumers use OriginalIrulesSourceContext's sealed words instead.
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#doc_markdown
+help: try
+   |
+11 - /// Semantic consumers use OriginalIrulesSourceContext's sealed words instead.
+11 + /// Semantic consumers use `OriginalIrulesSourceContext`'s sealed words instead.
+   |
+
+error: could not compile `tcl-irules` (lib) due to 8 previous errors
+warning: build failed, waiting for other jobs to finish...
+Some errors have detailed explanations: E0599, E0631.
+For more information about an error, try `rustc --explain E0599`.
+error: could not compile `tcl-compiler` (lib test) due to 2 previous errors

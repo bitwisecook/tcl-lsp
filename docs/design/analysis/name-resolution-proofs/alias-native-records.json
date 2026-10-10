@@ -1,0 +1,562 @@
+[
+  {
+    "id": "naming.alias.original-local-name-object",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/alias-original-local-name-object.md",
+    "problem_statement": "An upvar local operand may already be a List object or contain a counted zero. A consumer that first renders the name can overlook whether the alias operation retains the original object or changes its primary representation. This check compares the original local-name object before and after the upvar handler; it does not authenticate an activation, alias table entry or callable command.",
+    "question": "What happens to original one-element List local names and a counted n-zero-(k) String when upvar #0 x receives them in a procedure?",
+    "conclusion": "All five captures retain the List primary for both one-element List local names, retain no typed primary for the counted zero String, and return X through the alias. C8.4 retains reference count 1 in all three after snapshots. C8.5 through C9.1 keep the first name at 1 but retain the second List and counted zero operand at 2. These exact snapshots do not establish a general object lifetime or name-table identity rule.",
+    "scope": "The retained public object-vector probe and its exact C8.4.20, C8.5.19, C8.6.18, C9.0.4 and C9.1.0 output rows. Object primary class, reference counts or canonical flags are measured only at the specified snapshots. Jim and BIG-IP have no observation for this question. No source/argv/header/compiler/normal-completion authority follows from matching a label, reference count or name spelling.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Both List primaries remain list and the raw-zero String remains NULL; each after reference count is 1; final completion is 0/X.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Both List primaries remain list and the raw-zero String remains NULL; after reference counts are 1,2,2; final completion is 0/X.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Both List primaries remain list and the raw-zero String remains NULL; after reference counts are 1,2,2; final completion is 0/X.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e4"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Both List primaries remain list and the raw-zero String remains NULL; after reference counts are 1,2,2; final completion is 0/X.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Both List primaries remain list and the raw-zero String remains NULL; after reference counts are 1,2,2; final completion is 0/X.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e6"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_alias_simple/manifest.json",
+        "sha256": "abee378ef2008d25f429f9938d5e579b4f444de0f1035ebbeb42c240a0e879ef",
+        "description": "Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_alias_simple/probe.c",
+        "sha256": "2c9da4659bc2e41dfba6d921e38f5257d9d79b883d64133cebba48308e2aa51d",
+        "description": "Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values."
+      },
+      {
+        "id": "e2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_alias_simple/8.4.20.txt",
+        "sha256": "5401dc32778ae8571e0214543ff14f749a1b52765311003e310f0adc98d64201",
+        "description": "Exact recorded output for C Tcl 8.4.20"
+      },
+      {
+        "id": "e3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_alias_simple/8.5.19.txt",
+        "sha256": "bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431",
+        "description": "Exact recorded output for C Tcl 8.5.19"
+      },
+      {
+        "id": "e4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_alias_simple/8.6.18.txt",
+        "sha256": "bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431",
+        "description": "Exact recorded output for C Tcl 8.6.18"
+      },
+      {
+        "id": "e5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_alias_simple/9.0.4.txt",
+        "sha256": "bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431",
+        "description": "Exact recorded output for C Tcl 9.0.4"
+      },
+      {
+        "id": "e6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_alias_simple/9.1.0.txt",
+        "sha256": "bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431",
+        "description": "Exact recorded output for C Tcl 9.1.0"
+      },
+      {
+        "id": "e7",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_alias_simple/manifest.json",
+        "sha256": "abee378ef2008d25f429f9938d5e579b4f444de0f1035ebbeb42c240a0e879ef",
+        "description": "Whole-byte identical second consumer copy of the canonical native capture manifest; no additional experiment is inferred."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/interp/native_variable_names.rs",
+        "selector": "interp::native_variable_names::tests::alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners",
+        "assertion": "Compare original primary/reference-count snapshots and exact final result to the retained public native probe.",
+        "status": "linked"
+      },
+      {
+        "path": "runtime/rust/src/interp/native_variable_names.rs",
+        "selector": "interp::native_variable_names::tests::alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners",
+        "assertion": "Compare original primary/reference-count snapshots to the same retained public native probe.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "-I${TCL_BUILD}",
+        "runtime/rust/tests/data/native_alias_simple/probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": "Use the matching release source/build and ABI library, then run ${PROBE_EXE}. Compare stdout byte-for-byte with the release output file, allowing no primary/refcount/canonical normalization. The process must exit zero; observed Tcl guest Error rows in the global-cache question are expected output. This corpus retains exact programs/results but lacks build hashes and stderr/compile receipts, so it cannot attest a particular binary or a fresh reconfirmation. The canonical-list probe additionally needs the matching private tclInt.h headers; compare its before/after label and final flag column to the retained two-column projection. Its full stdout hash is recorded but full raw stream is not retained in the canonical directory. Rust fixture-comparison tests are separate contracts and their pass is not asserted here."
+    }
+  },
+  {
+    "id": "naming.alias.original-local-name-list-canonical",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/alias-original-local-name-list-canonical.md",
+    "problem_statement": "Retaining a List primary after using it as a local name does not show whether its string representation became canonical. Sharing rules and a later list operation can depend on that distinct flag. This private-header check examines the original List canonical bit at the same upvar boundary, separately from reference counts and alias-cell authority.",
+    "question": "Does the original one-element List local-name object become canonical when upvar obtains its name string?",
+    "conclusion": "The C8.5\u2013C9.1 captures change both original one-element List flags from noncanonical 0 to canonical 1 while preserving the List primary. C8.4 has no equivalent flag and the probe reports its explicit 0 compatibility value. The counted-zero untyped operand reports -1 and is not a List-canonical claim.",
+    "scope": "The retained public object-vector probe and its exact C8.4.20, C8.5.19, C8.6.18, C9.0.4 and C9.1.0 output rows. Object primary class, reference counts or canonical flags are measured only at the specified snapshots. Jim and BIG-IP have no observation for this question. No source/argv/header/compiler/normal-completion authority follows from matching a label, reference count or name spelling.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "The probe has no C8.4 native canonical flag and explicitly reports 0 before/after for List; untyped String is -1.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Both List operands report before 0 and after 1; the untyped counted-zero String is -1.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Both List operands report before 0 and after 1; the untyped counted-zero String is -1.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e4"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Both List operands report before 0 and after 1; the untyped counted-zero String is -1.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Both List operands report before 0 and after 1; the untyped counted-zero String is -1.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e6"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_alias_simple/canonical/manifest.json",
+        "sha256": "918eb0e1d8c676af675db4f2107c4cdcc848327b4c687ed5056c1e7a0fe23082",
+        "description": "Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_alias_simple/canonical/probe.c",
+        "sha256": "c28e46cf365c1d682b2ee7f9585b45e3c5a208468d6b225abbb8ae7dd95aa932",
+        "description": "Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values."
+      },
+      {
+        "id": "e2",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_alias_simple/canonical/8.4.20.txt",
+        "sha256": "570feb82387ea77cf20eb615761ff4c97decbf41d741def1c8cd12e200e93f5e",
+        "description": "Retained canonical-flag column projection for C Tcl 8.4.20"
+      },
+      {
+        "id": "e3",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_alias_simple/canonical/8.5.19.txt",
+        "sha256": "82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a",
+        "description": "Retained canonical-flag column projection for C Tcl 8.5.19"
+      },
+      {
+        "id": "e4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_alias_simple/canonical/8.6.18.txt",
+        "sha256": "82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a",
+        "description": "Retained canonical-flag column projection for C Tcl 8.6.18"
+      },
+      {
+        "id": "e5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_alias_simple/canonical/9.0.4.txt",
+        "sha256": "82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a",
+        "description": "Retained canonical-flag column projection for C Tcl 9.0.4"
+      },
+      {
+        "id": "e6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_alias_simple/canonical/9.1.0.txt",
+        "sha256": "82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a",
+        "description": "Retained canonical-flag column projection for C Tcl 9.1.0"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/interp/native_variable_names.rs",
+        "selector": "interp::native_variable_names::tests::alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners",
+        "assertion": "Compare canonical snapshots independently of type/reference-count rows. The C8.4 probe flag is a compatibility value, not a measured field.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "-I${TCL_BUILD}",
+        "rust/tcl-vm/tests/data/native_alias_simple/canonical/probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": "Use the matching release source/build and ABI library, then run ${PROBE_EXE}. Compare stdout byte-for-byte with the release output file, allowing no primary/refcount/canonical normalization. The process must exit zero; observed Tcl guest Error rows in the global-cache question are expected output. This corpus retains exact programs/results but lacks build hashes and stderr/compile receipts, so it cannot attest a particular binary or a fresh reconfirmation. The canonical-list probe additionally needs the matching private tclInt.h headers; compare its before/after label and final flag column to the retained two-column projection. Its full stdout hash is recorded but full raw stream is not retained in the canonical directory. Rust fixture-comparison tests are separate contracts and their pass is not asserted here."
+    }
+  },
+  {
+    "id": "naming.variable.original-global-cache-token",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable-original-global-cache-token.md",
+    "problem_statement": "A name object used to read a procedure local can acquire a localVarName cache, then be reused as a dynamic global operand. Inferring the compiler-selected local alias from its current displayed value can choose a different variable than the original source token. This probe preserves the same object across those operations and records cache class and the actual guest completion.",
+    "question": "How does reuse of a cached original dynamic global name differ between C8.4/8.5 and C8.6\u20139.1 source compilation?",
+    "conclusion": "C8.4/8.5 read LOCAL, then GLOBAL through the reused localVarName object and return GLOBAL. C8.6\u2013C9.1 read LOCAL once and finish the simple sequence with the observed cannot-read-v Error; their compiler-selected source tail does not restore local v. The qualified sequence records parsedVarName/QUALIFIED twice in all five releases, but its final completion is success only in C8.4/8.5. These are source-token/handler/cache observations for the exact two sequences, not a general cache validity or alias identity grant.",
+    "scope": "The retained public object-vector probe and its exact C8.4.20, C8.5.19, C8.6.18, C9.0.4 and C9.1.0 output rows. Object primary class, reference counts or canonical flags are measured only at the specified snapshots. Jim and BIG-IP have no observation for this question. No source/argv/header/compiler/normal-completion authority follows from matching a label, reference count or name spelling.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "The simple sequence records localVarName/LOCAL then localVarName/GLOBAL and success/GLOBAL; qualified records parsedVarName/QUALIFIED twice and success/QUALIFIED.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "The simple sequence records localVarName/LOCAL then localVarName/GLOBAL and success/GLOBAL; qualified records parsedVarName/QUALIFIED twice and success/QUALIFIED.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "The simple sequence records localVarName/LOCAL then guest Error cannot-read-v; qualified records parsedVarName/QUALIFIED twice then the same guest Error. Probe process exits zero after recording both.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e4"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "The simple sequence records localVarName/LOCAL then guest Error cannot-read-v; qualified records parsedVarName/QUALIFIED twice then the same guest Error. Probe process exits zero after recording both.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Release recorded by the capture manifest; executable, library, header and compiler hashes are not retained in this corpus.",
+        "input_channel": "Tcl_Eval ASCII source plus directly constructed counted Tcl_Obj name operands in Tcl_EvalObjv.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "The simple sequence records localVarName/LOCAL then guest Error cannot-read-v; qualified records parsedVarName/QUALIFIED twice then the same guest Error. Probe process exits zero after recording both.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e6"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_global_cache_token/manifest.json",
+        "sha256": "32fd592ec8270e02072e43455702b3010de9bfc55c24cc814c5a73c1849981f0",
+        "description": "Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_global_cache_token/probe.c",
+        "sha256": "0d690fca1392b40a5a5aa43b0c011ca276e9927014a872599ce6c8070e6f11d9",
+        "description": "Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values."
+      },
+      {
+        "id": "e2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_global_cache_token/8.4.20.txt",
+        "sha256": "58ceb067a7340cd4e20f8f354e80181227d63207bdb21edf8b4b7c52d689d4f2",
+        "description": "Exact recorded output for C Tcl 8.4.20"
+      },
+      {
+        "id": "e3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_global_cache_token/8.5.19.txt",
+        "sha256": "58ceb067a7340cd4e20f8f354e80181227d63207bdb21edf8b4b7c52d689d4f2",
+        "description": "Exact recorded output for C Tcl 8.5.19"
+      },
+      {
+        "id": "e4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_global_cache_token/8.6.18.txt",
+        "sha256": "a1cf181152fb73ce3b5159ab34bcbb2b6627339372e649633746aafdde934d14",
+        "description": "Exact recorded output for C Tcl 8.6.18"
+      },
+      {
+        "id": "e5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_global_cache_token/9.0.4.txt",
+        "sha256": "a1cf181152fb73ce3b5159ab34bcbb2b6627339372e649633746aafdde934d14",
+        "description": "Exact recorded output for C Tcl 9.0.4"
+      },
+      {
+        "id": "e6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_global_cache_token/9.1.0.txt",
+        "sha256": "a1cf181152fb73ce3b5159ab34bcbb2b6627339372e649633746aafdde934d14",
+        "description": "Exact recorded output for C Tcl 9.1.0"
+      },
+      {
+        "id": "e7",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_global_cache_token/manifest.json",
+        "sha256": "32fd592ec8270e02072e43455702b3010de9bfc55c24cc814c5a73c1849981f0",
+        "description": "Whole-byte identical second consumer copy of the canonical native capture manifest; no additional experiment is inferred."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/interp/native_variable_names.rs",
+        "selector": "interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache",
+        "assertion": "Compare exact cache primary labels, read values and guest success/Error completions.",
+        "status": "linked"
+      },
+      {
+        "path": "runtime/rust/src/interp/native_variable_names.rs",
+        "selector": "interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache",
+        "assertion": "Compare the same original-token cache and completion rows.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "-I${TCL_BUILD}",
+        "runtime/rust/tests/data/native_global_cache_token/probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": "Use the matching release source/build and ABI library, then run ${PROBE_EXE}. Compare stdout byte-for-byte with the release output file, allowing no primary/refcount/canonical normalization. The process must exit zero; observed Tcl guest Error rows in the global-cache question are expected output. This corpus retains exact programs/results but lacks build hashes and stderr/compile receipts, so it cannot attest a particular binary or a fresh reconfirmation. The canonical-list probe additionally needs the matching private tclInt.h headers; compare its before/after label and final flag column to the retained two-column projection. Its full stdout hash is recorded but full raw stream is not retained in the canonical directory. Rust fixture-comparison tests are separate contracts and their pass is not asserted here."
+    }
+  }
+]

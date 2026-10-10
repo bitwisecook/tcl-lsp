@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-syntax206.elf",
+  "sha256": "a6ef3d3fe06c810cd1efa52d348e9313e0ef837ff84564bc08b35c00f68a9768",
+  "build_receipt": "/workspace/.proofs/recovery-valid-consumer-build206.json",
+  "build_receipt_sha256": "5a05ff256214d81b2ee76ab00474ce502f9037a3b530e42dd16c663d59fbac89",
+  "source_snapshot_sha256": "7847b040899f51af163d7baab3e1c787c28ec7a723d8a2bac924683592e01b66"
+}

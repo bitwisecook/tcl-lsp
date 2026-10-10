@@ -20,7 +20,7 @@ pub enum NativeVariableNameLookupPurpose {
     Exists,
     /// Quiet Array opcode lookup creates neither a root nor an element entry.
     Array,
-    /// ARRAY_MAKE creates its root, leaves lookup errors, and never creates an element.
+    /// `ARRAY_MAKE` creates its root, leaves lookup errors, and never creates an element.
     ArrayMake,
     /// Write, creating root and element entries before observers.
     Write,
@@ -29,6 +29,8 @@ pub enum NativeVariableNameLookupPurpose {
     QuietWrite,
     /// Make an alias to an existing or newly created undefined entry.
     Link,
+    /// `TclOO` varname lookup creates root and element without reading contents.
+    Refer,
     /// Namespace declaration creates its root but never an array element.
     Define,
     /// Remove the selected entry without creating a missing entry.
@@ -43,7 +45,12 @@ impl NativeVariableNameLookupPurpose {
     pub const fn creates_entries(self) -> bool {
         matches!(
             self,
-            Self::Write | Self::QuietWrite | Self::Link | Self::Define | Self::ArrayMake
+            Self::Write
+                | Self::QuietWrite
+                | Self::Link
+                | Self::Refer
+                | Self::Define
+                | Self::ArrayMake
         )
     }
     /// Root creation and element creation are independent native flags.
@@ -67,6 +74,7 @@ impl NativeVariableNameLookupPurpose {
             Self::Read | Self::Exists | Self::Array => "read",
             Self::Write | Self::QuietWrite | Self::ArrayMake => "set",
             Self::Link => "access",
+            Self::Refer => "refer to",
             Self::Define => "define",
             Self::Unset | Self::QuietUnset => "unset",
         }
@@ -137,20 +145,58 @@ impl NativeVariableNameProtocol {
         crate::naming::NativeNameProtocol::C(self.version).variable_alias_local_input(original)
     }
 
-    /// `ObjMakeUpvar` checks array shape through its `CString` before the counted
-    /// simple-name lookup. Raw bytes beyond the first NUL do not affect this test.
+    /// C85+ `ObjMakeUpvar` rejects array shape through its `CString` before
+    /// counted simple-name lookup. C84 permits such a simple alias-local key.
+    /// Raw bytes beyond the first NUL do not affect the C85+ shape test.
     #[must_use]
     pub fn alias_local_is_element(self, original: &[u8]) -> bool {
-        crate::naming::NativeNameProtocol::C(self.version)
-            .combined_variable_input(tcl_core_types::c_string_extent(original))
-            .element()
-            .is_some()
+        self.version != TclVersion::V8_4
+            && crate::naming::NativeNameProtocol::C(self.version)
+                .combined_variable_input(tcl_core_types::c_string_extent(original))
+                .element()
+                .is_some()
     }
+    /// Namespace-to-procedure alias rejection uses the original C84 wording.
+    #[must_use]
+    pub const fn alias_namespace_inversion_reason(self) -> &'static [u8] {
+        match self.version {
+            TclVersion::V8_4 => {
+                b"upvar won't create namespace variable that refers to procedure variable"
+            }
+            _ => b"can't create namespace variable that refers to procedure variable",
+        }
+    }
+
+    /// C86+ upvar rejection publishes its typed code; older C leaves the
+    /// interpreter's neutral error-code publication to completion handling.
+    #[must_use]
+    pub const fn alias_rejection_sets_error_code(self) -> bool {
+        !matches!(self.version, TclVersion::V8_4 | TclVersion::V8_5)
+    }
+
+    /// C84 existence calls legacy `TclLookupVar` with bytes and cannot adopt,
+    /// consume or retire an original name cache. Other object lookup callers
+    /// retain their selected parsed/local cache semantics.
+    #[must_use]
+    pub const fn uses_original_name_cache(self, purpose: NativeVariableNameLookupPurpose) -> bool {
+        !matches!(
+            (self.version, purpose),
+            (TclVersion::V8_4, NativeVariableNameLookupPurpose::Exists)
+        )
+    }
+
     /// C85+ inspect matching local and parsed caches before requiring name bytes.
     /// C84 obtains its root string before the local-cache comparison.
     #[must_use]
     pub const fn cache_precedes_string_getter(self) -> bool {
         !matches!(self.version, TclVersion::V8_4)
+    }
+
+    /// C84 VarErrMsg resets the result and active global error episode before
+    /// its legacy append producer. Later ObjVarErrMsg replaces only the result.
+    #[must_use]
+    pub const fn diagnostic_resets_interpreter_result(self) -> bool {
+        matches!(self.version, TclVersion::V8_4)
     }
 
     /// C85+ variable diagnostics use the native String result producer;
@@ -172,6 +218,45 @@ impl NativeVariableNameProtocol {
             TclVersion::V8_4 | TclVersion::V8_5 => NativeVariableNameLookupPurpose::QuietWrite,
             _ => NativeVariableNameLookupPurpose::Write,
         }
+    }
+
+    /// Generic array-set lookup creates an element before rejecting it on
+    /// C85+, while C84 rejects combined array shape before its root lookup.
+    #[must_use]
+    pub const fn array_set_lookup_purpose(self) -> NativeVariableNameLookupPurpose {
+        match self.version {
+            TclVersion::V8_4 => NativeVariableNameLookupPurpose::ArrayMake,
+            _ => NativeVariableNameLookupPurpose::Write,
+        }
+    }
+
+    /// C85 consumes a Dictionary primary directly; C86+ do so only when it
+    /// has no resident string. C84 always reaches list conversion.
+    #[must_use]
+    pub const fn array_set_uses_dictionary(self, has_string: bool) -> bool {
+        match self.version {
+            TclVersion::V8_4 => false,
+            TclVersion::V8_5 => true,
+            _ => !has_string,
+        }
+    }
+
+    /// C84 appends its parity message, while later C constructs fresh bytes.
+    #[must_use]
+    pub const fn array_set_parity_string_protocol(
+        self,
+    ) -> Option<crate::native_string::NativeStringProtocol> {
+        match self.version {
+            TclVersion::V8_4 => Some(crate::native_string::NativeStringProtocol::C(self.version)),
+            _ => None,
+        }
+    }
+
+    /// C86+ supply dedicated parity and empty-array failure codes; C84/85
+    /// leave their existing native error-code publication unchanged.
+    #[must_use]
+    pub const fn array_set_has_specific_error_codes(self) -> bool {
+        !matches!(self.version, TclVersion::V8_4 | TclVersion::V8_5)
     }
 
     /// Physical free-slot selection before a simple-name receiver lookup.
@@ -300,10 +385,16 @@ mod tests {
     use super::*;
     #[test]
     fn alias_local_shape_and_lookup_keep_their_native_extents() {
+        // Native proof naming.variable.original-upvar-and-exists-completion-and-name-windows:
+        // docs/design/analysis/name-resolution-proofs/variable.original-upvar-and-exists-completion-and-name-windows.md
+        // Original case9 permits alias(k) as a C84 simple key; C85+ reject it.
         for version in TclVersion::ALL {
             let protocol = NativeVariableNameProtocol::for_tcl_version(version);
             assert!(!protocol.alias_local_is_element(b"n\0(k)"));
-            assert!(protocol.alias_local_is_element(b"n(k)\0tail"));
+            assert_eq!(
+                protocol.alias_local_is_element(b"n(k)\0tail"),
+                version != TclVersion::V8_4
+            );
             let input = protocol.alias_local_input(b"n\0(k)");
             assert_eq!(
                 input.purpose(),
@@ -320,6 +411,87 @@ mod tests {
             assert_eq!(
                 input.qualification(),
                 crate::naming::NativeNameQualification::Unqualified
+            );
+        }
+    }
+
+    #[test]
+    fn alias_rejection_recipe_retains_original_release_boundaries() {
+        // Native proof naming.variable.original-upvar-and-exists-completion-and-name-windows:
+        // docs/design/analysis/name-resolution-proofs/variable.original-upvar-and-exists-completion-and-name-windows.md
+        for version in TclVersion::ALL {
+            let protocol = NativeVariableNameProtocol::for_tcl_version(version);
+            assert_eq!(
+                protocol.alias_namespace_inversion_reason(),
+                if version == TclVersion::V8_4 {
+                    b"upvar won't create namespace variable that refers to procedure variable"
+                        .as_slice()
+                } else {
+                    b"can't create namespace variable that refers to procedure variable".as_slice()
+                }
+            );
+            assert_eq!(
+                protocol.alias_rejection_sets_error_code(),
+                version >= TclVersion::V8_6
+            );
+        }
+    }
+
+    #[test]
+    fn existence_name_cache_purpose_preserves_the_original_release_boundary() {
+        // naming.variable.original-upvar-and-exists-completion-and-name-windows
+        // docs/design/analysis/name-resolution-proofs/variable.original-upvar-and-exists-completion-and-name-windows.md
+        // Native case16 observes the original scalar name primary; the caller
+        // distinction follows C84 TclVarTraceExists -> byte TclLookupVar.
+        for version in TclVersion::ALL {
+            let protocol = NativeVariableNameProtocol::for_tcl_version(version);
+            assert_eq!(
+                protocol.uses_original_name_cache(NativeVariableNameLookupPurpose::Exists),
+                version != TclVersion::V8_4
+            );
+            for purpose in [
+                NativeVariableNameLookupPurpose::Read,
+                NativeVariableNameLookupPurpose::Write,
+                NativeVariableNameLookupPurpose::Array,
+            ] {
+                assert!(protocol.uses_original_name_cache(purpose));
+            }
+        }
+    }
+
+    #[test]
+    fn generic_array_set_purposes_preserve_caller_and_release_boundaries() {
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        // Native case21/23/27 supplies independent public result/name windows.
+        // Dictionary and lookup purpose here are pure inspected-source recipes;
+        // these values do not issue a native command, object or local table.
+        for version in TclVersion::ALL {
+            let protocol = NativeVariableNameProtocol::for_tcl_version(version);
+            assert_eq!(
+                protocol.array_set_lookup_purpose(),
+                if version == TclVersion::V8_4 {
+                    NativeVariableNameLookupPurpose::ArrayMake
+                } else {
+                    NativeVariableNameLookupPurpose::Write
+                }
+            );
+            assert_eq!(
+                protocol.array_set_uses_dictionary(false),
+                version >= TclVersion::V8_5
+            );
+            assert_eq!(
+                protocol.array_set_uses_dictionary(true),
+                version == TclVersion::V8_5
+            );
+            assert_eq!(
+                protocol.array_set_has_specific_error_codes(),
+                version >= TclVersion::V8_6
+            );
+            assert_eq!(
+                protocol.array_set_parity_string_protocol(),
+                (version == TclVersion::V8_4)
+                    .then_some(crate::native_string::NativeStringProtocol::C(version))
             );
         }
     }

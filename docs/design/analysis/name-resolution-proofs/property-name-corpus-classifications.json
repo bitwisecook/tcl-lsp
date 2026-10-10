@@ -1,0 +1,33 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_property_opaque/manifest.json",
+    "sha256": "f3440403a0c3fae844c59052acc5d5754fffdbfa409f228b70244b3db21456de",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.property.opaque-name-custom-getter-option-cache"
+    ],
+    "reason": "Exact original counted-name TU source hash, full native stdout and successful compile/run statuses inspected; caller none/cache and custom RAW results are scoped to two C9.1 cases."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_property_opaque/manifest.json",
+    "sha256": "f3440403a0c3fae844c59052acc5d5754fffdbfa409f228b70244b3db21456de",
+    "classification": "duplicate-evidence",
+    "proof_ids": [
+      "naming.property.opaque-name-custom-getter-option-cache"
+    ],
+    "reason": "Whole original manifest bytes equal the Runtime capture; exact probe.c and native.tsv are also equal. This is the same capture, not a second native confirmation.",
+    "duplicate_of": "runtime/rust/tests/data/native_property_opaque/manifest.json"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_property_names/manifest.json",
+    "sha256": "62716a386cf1022111c59359b4783ea36a0206f66150dedb0be9ffccf3dde5b8",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.property.original-enumeration-header-and-members",
+      "naming.property.original-foundation-epoch-and-cache",
+      "naming.property.original-selected-name-cache",
+      "naming.property.original-accessor-name-cache-children"
+    ],
+    "reason": "Exact independent11-row probe sourceSHA and full original stdout inspected; earlier8rows directly byte-equal to current property-owner controls and linked to their three scoped questions, with distinct final reader/writer child duplicate/refcount windows. Distinct TU/full stream is preserved, not classified as a byte duplicate."
+  }
+]

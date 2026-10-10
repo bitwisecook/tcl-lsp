@@ -583,9 +583,9 @@ fn tcl_ctx<'a>(partial: &'a str, vars: &'a [String]) -> SnippetContext<'a> {
     SnippetContext {
         profile: tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         indent_unit: "    ",
-        scope_vars: vars,
+        variable_references: vars,
         partial,
-        current_event: None,
+        at_top_level: true,
         file_events: &[],
     }
 }
@@ -632,12 +632,12 @@ fn snippets_proc_body_uses_indent_unit_and_tabstops() {
 
 #[test]
 fn snippets_foreach_offers_in_scope_vars_as_choices() {
-    let vars = vec!["items".to_string(), "list".to_string()];
+    let vars = vec!["$items".to_string(), "$list".to_string()];
     let items = snippet_completions(&tcl_ctx("tcl-foreach", &vars));
     assert_eq!(items.len(), 1, "{items:?}");
     // The list placeholder becomes a `${2|...|}` choice of the in-scope vars.
     assert!(
-        items[0].insert_text.contains("${2|\\$items,\\$list|}"),
+        items[0].insert_text.contains("${2|$items,$list|}"),
         "expected a choice placeholder of scope vars: {:?}",
         items[0].insert_text,
     );
@@ -657,9 +657,9 @@ fn snippets_irules_event_templates_offered_in_irules_dialect() {
     let ctx = SnippetContext {
         profile: tcl_dialect::DialectProfile::irules(),
         indent_unit: "    ",
-        scope_vars: &[],
+        variable_references: &[],
         partial: "irule",
-        current_event: None,
+        at_top_level: true,
         file_events: &events,
     };
     let items = snippet_completions(&ctx);
@@ -678,9 +678,9 @@ fn snippets_irules_event_template_declines_when_event_present() {
     let ctx = SnippetContext {
         profile: tcl_dialect::DialectProfile::irules(),
         indent_unit: "    ",
-        scope_vars: &[],
+        variable_references: &[],
         partial: "irule-rule-init",
-        current_event: None,
+        at_top_level: true,
         file_events: &events,
     };
     assert!(

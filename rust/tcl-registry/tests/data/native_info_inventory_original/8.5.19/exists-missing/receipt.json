@@ -1,0 +1,17 @@
+{
+  "id": "exists-missing",
+  "command": [
+    "/workspace/.proofs/captured-native-info-inventory193/8.5.19/probe",
+    "3"
+  ],
+  "timeout_seconds": 5,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "0c52e6e2a5ed639ddde313bcafda43a84800f258f642861d584f543aff982d39",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|6|382e352e3139",
+    "INFO|0|1|30"
+  ],
+  "reported_version": "8.5.19"
+}

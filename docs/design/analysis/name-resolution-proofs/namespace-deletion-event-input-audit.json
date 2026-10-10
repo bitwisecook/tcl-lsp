@@ -1,0 +1,87 @@
+[
+  {
+    "provider": "tcl8.4",
+    "source_sha256": "f0ed74051da352cc6aff27eb126da8505c5b92c2a1ef4447c82bae3cf2ba8b64",
+    "events": 10,
+    "result": {
+      "case": "callback-recreates-later",
+      "code": 0,
+      "result": "",
+      "A": 0,
+      "child": 0,
+      "B": 0,
+      "hook": 1,
+      "oldBdeleted": 1,
+      "newBdeleted": 1
+    },
+    "check": "Original result fields equal the named callback-recreates-later JSON row in the independently retained eight-case corpus; complete source/stream SHA and event ordinals verified."
+  },
+  {
+    "provider": "tcl8.5",
+    "source_sha256": "f0ed74051da352cc6aff27eb126da8505c5b92c2a1ef4447c82bae3cf2ba8b64",
+    "events": 10,
+    "result": {
+      "case": "callback-recreates-later",
+      "code": 0,
+      "result": "",
+      "A": 0,
+      "child": 0,
+      "B": 0,
+      "hook": 1,
+      "oldBdeleted": 1,
+      "newBdeleted": 1
+    },
+    "check": "Original result fields equal the named callback-recreates-later JSON row in the independently retained eight-case corpus; complete source/stream SHA and event ordinals verified."
+  },
+  {
+    "provider": "tcl8.6",
+    "source_sha256": "f0ed74051da352cc6aff27eb126da8505c5b92c2a1ef4447c82bae3cf2ba8b64",
+    "events": 10,
+    "result": {
+      "case": "callback-recreates-later",
+      "code": 0,
+      "result": "",
+      "A": 0,
+      "child": 0,
+      "B": 0,
+      "hook": 1,
+      "oldBdeleted": 1,
+      "newBdeleted": 1
+    },
+    "check": "Original result fields equal the named callback-recreates-later JSON row in the independently retained eight-case corpus; complete source/stream SHA and event ordinals verified."
+  },
+  {
+    "provider": "tcl9.0",
+    "source_sha256": "f0ed74051da352cc6aff27eb126da8505c5b92c2a1ef4447c82bae3cf2ba8b64",
+    "events": 10,
+    "result": {
+      "case": "callback-recreates-later",
+      "code": 0,
+      "result": "",
+      "A": 0,
+      "child": 0,
+      "B": 0,
+      "hook": 1,
+      "oldBdeleted": 1,
+      "newBdeleted": 1
+    },
+    "check": "Original result fields equal the named callback-recreates-later JSON row in the independently retained eight-case corpus; complete source/stream SHA and event ordinals verified."
+  },
+  {
+    "provider": "tcl9.1",
+    "source_sha256": "f0ed74051da352cc6aff27eb126da8505c5b92c2a1ef4447c82bae3cf2ba8b64",
+    "events": 10,
+    "result": {
+      "case": "callback-recreates-later",
+      "code": 0,
+      "result": "",
+      "A": 0,
+      "child": 0,
+      "B": 0,
+      "hook": 1,
+      "oldBdeleted": 1,
+      "newBdeleted": 1
+    },
+    "check": "Original result fields equal the named callback-recreates-later JSON row in the independently retained eight-case corpus; complete source/stream SHA and event ordinals verified."
+  }
+]

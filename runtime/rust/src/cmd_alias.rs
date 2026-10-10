@@ -34,15 +34,43 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::interp::{drop_fresh, obj_bytes, Code, CommandVisibilityOp, Interp};
+use crate::interp::{Code, CommandVisibilityOp, Interp, drop_fresh, obj_bytes};
 use crate::namespace::RenameOutcome;
 use crate::obj::{self, TclObj};
+use tcl_syntax::value::ValueOps;
 
-/// Register `rename` and `interp`.
+/// Register `rename`, `interp`, and the selected Jim core `alias`.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"rename", rename);
     interp.register_builtin(b"interp", interp_cmd);
+    if interp
+        .native_invocation_dialect()
+        .native_jim_lookup_protocol()
+        .is_some()
+    {
+        interp.register_builtin(b"alias", jim_alias);
+    }
     // `update` is registered by `cmd_event` (the real event loop).
+}
+
+/// Jim's core command retains the original name result and prefix members.
+/// Publication and replacement still use the shared alias-slot owner.
+fn jim_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 {
+        return interp.wrong_args_for_invocation(argv, b"newname command ?args ...?");
+    }
+    let name = match interp.native_string_bytes(&argv[1]) {
+        Ok(name) => name,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let original = obj::Owned::fresh(interp.new_list_object(&argv[2..]));
+    match interp.install_alias_with_original(&name, Vec::new(), Vec::new(), Some(original)) {
+        Ok(()) => {
+            interp.set_result(argv[1]);
+            Code::Ok
+        }
+        Err(error) => interp.error(&error),
+    }
 }
 
 // rename
@@ -154,8 +182,12 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     {
         return if argv.len() == 1 {
             let handle = interp.create_jim_child();
-            interp.set_result_bytes(&handle);
-            Code::Ok
+            if interp.host_refusal_pending() {
+                Code::Error
+            } else {
+                interp.set_result_bytes(&handle);
+                Code::Ok
+            }
         } else {
             interp.wrong_args(b"interp")
         };
@@ -174,19 +206,40 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"eval" => interp_eval(interp, argv),
         b"delete" => interp_delete(interp, argv),
         b"exists" => {
-            // `interp exists ?path?`: the current interp ("") always exists; a
-            // named one exists iff the whole path resolves.
-            let path = argv.get(2).map(|&a| interp_path(a)).unwrap_or_default();
+            if argv.len() > 3 {
+                return interp.wrong_args(b"interp exists ?path?");
+            }
+            let path = match argv.get(2) {
+                None => Vec::new(),
+                Some(&original) => match interp_path(interp, original) {
+                    Ok(path) => path,
+                    Err(code) if interp.host_refusal_pending() => return code,
+                    Err(_) => {
+                        interp.set_result_bytes(b"0");
+                        return Code::Ok;
+                    }
+                },
+            };
             let exists = interp.with_child_path(&path, |_| ()).is_some();
             interp.set_result_bytes(if exists { b"1" } else { b"0" });
             Code::Ok
         }
         b"children" | b"slaves" => {
+            if argv.len() > 3 {
+                return interp.wrong_args(b"interp children ?path?");
+            }
             // Children of the interp addressed by the (possibly nested) path.
-            let path = argv.get(2).map(|&a| interp_path(a)).unwrap_or_default();
-            let names = interp
-                .with_child_path(&path, |c| c.child_names())
-                .unwrap_or_default();
+            let path = match argv.get(2) {
+                None => Vec::new(),
+                Some(&original) => match interp_path(interp, original) {
+                    Ok(path) => path,
+                    Err(code) => return code,
+                },
+            };
+            let names = interp.with_child_path(&path, |c| c.child_names());
+            let Some(names) = names else {
+                return not_found_original_path(interp, argv[2]);
+            };
             let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
             interp.set_result(interp.new_list_object(&elems));
             for e in elems {
@@ -200,15 +253,20 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() < 3 || argv.len() > 4 {
                 return interp.wrong_args(b"interp bgerror path ?cmdPrefix?");
             }
-            let path = interp_path(argv[2]);
+            let path = match interp_path(interp, argv[2]) {
+                Ok(path) => path,
+                Err(code) => return code,
+            };
             let prefix = argv.get(3).copied();
             match interp.with_child_path(&path, |c| c.bgerror_apply(prefix)) {
                 Some(Ok(h)) => {
-                    interp.set_result_bytes(&h);
+                    unsafe {
+                        interp.set_obj_result(h.as_ptr());
+                    }
                     Code::Ok
                 }
-                Some(Err(m)) => interp.set_error(&m),
-                None => not_found_path(interp, &path),
+                Some(Err(error)) => interp.report_cmd_error(error),
+                None => not_found_original_path(interp, argv[2]),
             }
         }
         b"hide" => interp_hidectl(interp, argv, CommandVisibilityOp::Hide),
@@ -223,10 +281,17 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() > 3 {
                 return interp.wrong_args(b"interp hidden ?path?");
             }
-            let path = argv.get(2).map(|&a| interp_path(a)).unwrap_or_default();
-            let names = interp
-                .with_child_path(&path, |c| c.hidden_names())
-                .unwrap_or_default();
+            let path = match argv.get(2) {
+                None => Vec::new(),
+                Some(&original) => match interp_path(interp, original) {
+                    Ok(path) => path,
+                    Err(code) => return code,
+                },
+            };
+            let names = interp.with_child_path(&path, |c| c.hidden_names());
+            let Some(names) = names else {
+                return not_found_original_path(interp, argv[2]);
+            };
             let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
             interp.set_result(interp.new_list_object(&elems));
             for e in elems {
@@ -240,10 +305,17 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() > 3 {
                 return interp.wrong_args(b"interp issafe ?path?");
             }
-            let path = argv.get(2).map(|&a| interp_path(a)).unwrap_or_default();
-            let safe = interp
-                .with_child_path(&path, |c| c.is_safe())
-                .unwrap_or(false);
+            let path = match argv.get(2) {
+                None => Vec::new(),
+                Some(&original) => match interp_path(interp, original) {
+                    Ok(path) => path,
+                    Err(code) => return code,
+                },
+            };
+            let safe = interp.with_child_path(&path, |c| c.is_safe());
+            let Some(safe) = safe else {
+                return not_found_original_path(interp, argv[2]);
+            };
             interp.set_result_bytes(if safe { b"1" } else { b"0" });
             Code::Ok
         }
@@ -253,7 +325,10 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() < 3 || argv.len() > 4 {
                 return interp.wrong_args(b"interp recursionlimit path ?newlimit?");
             }
-            let path = interp_path(argv[2]);
+            let path = match interp_path(interp, argv[2]) {
+                Ok(path) => path,
+                Err(code) => return code,
+            };
             let newlimit = argv.get(3).map(|&a| obj_bytes(a));
             match interp.with_child_path(&path, |c| c.recursion_limit_apply(newlimit.as_deref())) {
                 Some(Ok(n)) => {
@@ -261,7 +336,7 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     Code::Ok
                 }
                 Some(Err(m)) => interp.set_error(&m),
-                None => not_found_path(interp, &path),
+                None => not_found_original_path(interp, argv[2]),
             }
         }
         b"target" => interp_target(interp, argv),
@@ -284,7 +359,10 @@ fn interp_target(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args(b"interp target path alias");
     }
-    let path = interp_path(argv[2]);
+    let path = match interp_path(interp, argv[2]) {
+        Ok(path) => path,
+        Err(code) => return code,
+    };
     let alias = obj_bytes(argv[3]);
     match interp.alias_target_path(&path, &alias) {
         Some(target_path) => {
@@ -366,58 +444,160 @@ fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         i += 1;
     }
-    // The path is a list of interp names; an empty/absent path auto-names a
-    // child of this interp, otherwise the leaf is created inside the interp
-    // addressed by the parent segments (`interp create {a b}`).
-    let path = name_obj.map(interp_path).unwrap_or_default();
-    let Some((leaf, parent)) = path.split_last() else {
+    let Some(original) = name_obj else {
         let created = interp.create_child(None);
-        if safe {
-            interp.with_child(&created, |c| c.make_safe());
+        if interp.host_refusal_pending() {
+            return Code::Error;
         }
-        interp.set_result(obj::new_string_bytes(&created));
+        if safe {
+            interp.with_child(&created, |child| child.make_safe());
+        }
+        interp.set_result_bytes(&created);
         return Code::Ok;
     };
-    let leaf = leaf.clone();
-    let outcome: Option<Result<(), ()>> = interp.with_child_path(parent, |a| {
-        if a.child_exists(&leaf) {
-            return Err(()); // already exists
+    let path = match interp_path(interp, original) {
+        Ok(path) => path,
+        Err(code) => return code,
+    };
+    interp_create_from_original_path(interp, original, &path, safe)
+}
+
+fn interp_create_from_original_path(
+    interp: &mut Interp,
+    original: *mut TclObj,
+    path: &[Vec<u8>],
+    safe: bool,
+) -> Code {
+    let (leaf, parent) = if path.len() < 2 {
+        let bytes = match interp.native_string_bytes(&original) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        let policy = interp
+            .name_policy_protocol()
+            .expect("path selected the original protocol");
+        let selected = match policy.recipe().interpreter_child_input(&bytes) {
+            Ok(selected) => selected.selected().to_vec(),
+            Err(_) => {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "interpreter creation key",
+                    )
+                    .into(),
+                );
+            }
+        };
+        (selected, &path[..0])
+    } else {
+        (path.last().unwrap().clone(), &path[..path.len() - 1])
+    };
+    let outcome = interp.with_child_path(parent, |owner| {
+        if owner.child_exists(&leaf) {
+            return Ok(false);
         }
-        a.create_child(Some(leaf.clone()));
+        owner.create_child(Some(leaf.clone()));
+        if owner.host_refusal_pending() {
+            return Err(owner.clone());
+        }
         if safe {
-            a.with_child(&leaf, |c| c.make_safe());
+            owner.with_child(&leaf, |child| child.make_safe());
         }
-        Ok(())
+        Ok(true)
     });
     match outcome {
-        Some(Ok(())) => {
-            // Result is the path as written (the original list object).
-            interp.set_result(obj::new_string_bytes(&obj_bytes(name_obj.unwrap())));
+        Some(Err(owner)) if !interp.host_refusal_pending() => {
+            interp.transport_host_refusal_from(&owner)
+        }
+        Some(Err(_)) => Code::Error,
+        Some(Ok(true)) => {
+            interp.set_result(original);
             Code::Ok
         }
-        Some(Err(_)) => {
-            let mut m = b"interpreter named \"".to_vec();
-            m.extend_from_slice(&obj_bytes(name_obj.unwrap()));
-            m.extend_from_slice(b"\" already exists, cannot create");
-            interp.set_error(&m)
-        }
+        Some(Ok(false)) => interp.set_error(
+            &[
+                b"interpreter named \"".as_slice(),
+                &leaf,
+                b"\" already exists, cannot create",
+            ]
+            .concat(),
+        ),
         None => not_found_path(interp, parent),
     }
 }
 
-/// Parse an interp path object into its list of names (`{a b}` → `["a","b"]`).
-fn interp_path(obj: *mut TclObj) -> Vec<Vec<u8>> {
-    match crate::list::list_elements(obj) {
-        Ok(els) => els.iter().map(|&e| obj_bytes(e)).collect(),
+/// Parse the original list object, then select each C child-table CString key.
+/// A failed native list/getter operation never becomes a literal-name fallback.
+pub(crate) fn interp_path(
+    interp: &mut Interp,
+    original: *mut TclObj,
+) -> Result<Vec<Vec<u8>>, Code> {
+    let policy = interp.name_policy_protocol().ok_or_else(|| {
+        interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("interpreter path protocol")
+                .into(),
+        )
+    })?;
+    let elements = crate::list::list_elements_native_checked(original, policy.string_protocol())
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    elements
+        .into_iter()
+        .map(|element| {
+            let bytes = interp
+                .native_string_bytes(&element)
+                .map_err(|error| interp.report_cmd_error(error.into()))?;
+            let selected = policy
+                .recipe()
+                .interpreter_child_input(&bytes)
+                .map_err(|_| {
+                    interp.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "interpreter child key",
+                        )
+                        .into(),
+                    )
+                })?;
+            Ok(selected.selected().to_vec())
+        })
+        .collect()
+}
+
+pub(crate) fn not_found_original_path(interp: &mut Interp, original: *mut TclObj) -> Code {
+    let bytes = match interp.native_string_bytes(&original) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let Some(policy) = interp.name_policy_protocol() else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "interpreter diagnostic protocol",
+            )
+            .into(),
+        );
+    };
+    let reported = match policy.recipe().interpreter_child_input(&bytes) {
+        Ok(selected) => selected.selected().to_vec(),
         Err(_) => {
-            let b = obj_bytes(obj);
-            if b.is_empty() {
-                Vec::new()
-            } else {
-                vec![b]
-            }
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "interpreter diagnostic extent",
+                )
+                .into(),
+            );
         }
-    }
+    };
+    let code = tcl_syntax::list_result::NativeListResultSerialization::for_string_protocol(
+        policy.string_protocol(),
+    )
+    .render(&[b"TCL".as_slice(), b"LOOKUP", b"INTERP", &reported]);
+    interp.error_with_code(
+        &[
+            b"could not find interpreter \"".as_slice(),
+            &reported,
+            b"\"",
+        ]
+        .concat(),
+        &code,
+    )
 }
 
 /// The `could not find interpreter "a b"` error for a path that failed to
@@ -443,7 +623,6 @@ fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"interp limit path limitType ?-option value ...?");
     }
-    let path = interp_path(argv[2]);
     // Validate the limit type before the current-interp guard so a bad type is
     // reported ahead of the inaccessibility error (interp-35.3 vs .23).
     if let Err(m) = interp.native_static_option_index(
@@ -454,6 +633,10 @@ fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     ) {
         return interp.report_cmd_error(m);
     }
+    let path = match interp_path(interp, argv[2]) {
+        Ok(path) => path,
+        Err(code) => return code,
+    };
     if path.is_empty() {
         return interp.set_error(b"limits on current interpreter inaccessible");
     }
@@ -465,7 +648,7 @@ fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         Some(Err(error)) => interp.report_cmd_error(error),
-        None => not_found_path(interp, &path),
+        None => not_found_original_path(interp, argv[2]),
     }
 }
 
@@ -478,7 +661,10 @@ fn interp_marktrusted(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if interp.is_safe() {
         return interp.set_error(b"permission denied: safe interpreter cannot mark trusted");
     }
-    let path = interp_path(argv[2]);
+    let path = match interp_path(interp, argv[2]) {
+        Ok(path) => path,
+        Err(code) => return code,
+    };
     if path.is_empty() {
         interp.set_result_bytes(b"");
         return Code::Ok;
@@ -488,7 +674,7 @@ fn interp_marktrusted(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(b"");
             Code::Ok
         }
-        None => not_found_path(interp, &path),
+        None => not_found_original_path(interp, argv[2]),
     }
 }
 
@@ -497,7 +683,10 @@ fn interp_debug(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 || argv.len() > 5 {
         return interp.wrong_args(b"interp debug path ?-frame ?bool??");
     }
-    let path = interp_path(argv[2]);
+    let path = match interp_path(interp, argv[2]) {
+        Ok(path) => path,
+        Err(code) => return code,
+    };
     let opts: Vec<*mut TclObj> = argv[3..].to_vec();
     match interp.with_child_path(&path, |c| c.debug_apply(&opts)) {
         Some(Ok(o)) => {
@@ -505,7 +694,7 @@ fn interp_debug(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         Some(Err(error)) => interp.report_cmd_error(error),
-        None => not_found_path(interp, &path),
+        None => not_found_original_path(interp, argv[2]),
     }
 }
 
@@ -590,7 +779,11 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: CommandVisibili
             }
         });
     }
-    hidectl_in(interp, &interp_path(argv[2]), op, &argv[3..])
+    let path = match interp_path(interp, argv[2]) {
+        Ok(path) => path,
+        Err(code) => return code,
+    };
+    hidectl_in(interp, &path, op, &argv[3..])
 }
 
 /// `interp invokehidden path ?-namespace ns? ?-global? ?--? cmdName ?arg
@@ -615,7 +808,11 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(USAGE);
     }
-    invokehidden_in(interp, &interp_path(argv[2]), &argv[3..], USAGE)
+    let path = match interp_path(interp, argv[2]) {
+        Ok(path) => path,
+        Err(code) => return code,
+    };
+    invokehidden_in(interp, &path, &argv[3..], USAGE)
 }
 
 /// The shared owner of `interp invokehidden path …` and the `$child
@@ -708,43 +905,44 @@ fn interp_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"interp eval path arg ?arg ...?");
     }
-    let path = interp_path(argv[2]);
-    let mut script = Vec::new();
-    for (k, &a) in argv[3..].iter().enumerate() {
-        if k > 0 {
-            script.push(b' ');
-        }
-        script.extend_from_slice(&obj_bytes(a));
-    }
-    // `interp eval {} script` runs in the current interp; otherwise descend the
-    // path to the target's parent and eval in the leaf child.
-    let Some((leaf, parent)) = path.split_last() else {
-        return interp.eval_str(&script);
+    let path = match interp_path(interp, argv[2]) {
+        Ok(path) => path,
+        Err(code) => return code,
     };
-    let leaf = leaf.clone();
-    match interp.with_child_path(parent, |a| {
-        let code = a.eval_in_child(&leaf, &script);
-        (code, a.result_bytes())
+    let script = if argv.len() == 4 {
+        obj::Owned::retain(argv[3])
+    } else {
+        match tcl_cmd_core::list::concat_selected(interp, &argv[3..]) {
+            Ok(script) => obj::Owned::retain(script),
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    };
+    match interp.with_child_path(&path, |target| {
+        let code = target.eval_body_obj(script.as_ptr());
+        (code, obj::Owned::retain(target.get_obj_result()))
     }) {
         Some((code, result)) => {
-            interp.set_result_bytes(&result);
+            interp.set_result(result.as_ptr());
             code
         }
-        None => not_found_path(interp, &path),
+        None => not_found_original_path(interp, argv[2]),
     }
 }
 
 /// `interp delete ?path ...?` — delete each named child interpreter.
 fn interp_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &a in &argv[2..] {
-        let path = interp_path(a);
+        let path = match interp_path(interp, a) {
+            Ok(path) => path,
+            Err(code) => return code,
+        };
         let Some((leaf, parent)) = path.split_last() else {
-            return not_found_path(interp, &path);
+            return not_found_original_path(interp, a);
         };
         let leaf = leaf.clone();
         match interp.with_child_path(parent, |p| p.delete_child(&leaf)) {
             Some(true) => {}
-            _ => return not_found_path(interp, &path),
+            _ => return not_found_original_path(interp, a),
         }
     }
     interp.set_result_bytes(b"");
@@ -757,21 +955,55 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"interp alias srcPath srcCmd ?targetPath targetCmd? ?arg ...?");
     }
-    let src = obj_bytes(argv[2]);
-    let name = obj_bytes(argv[3]);
+    let source_path = match interp_path(interp, argv[2]) {
+        Ok(path) => path,
+        Err(code) => return code,
+    };
+    if source_path.len() > 1 {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "nested Runtime alias source interpreter",
+            )
+            .into(),
+        );
+    }
+    let src = source_path.first().cloned().unwrap_or_default();
+    let name = match interp.native_string_bytes(&argv[3]) {
+        Ok(name) => name,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let policy = interp
+        .name_policy_protocol()
+        .expect("path selected the original protocol");
+    let name = match policy
+        .recipe()
+        .alias_publication_input(tcl_syntax::naming::NativeNameContext::root(), &name)
+    {
+        Ok(name) => name.selected().to_vec(),
+        Err(_) => {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "alias publication input",
+                )
+                .into(),
+            );
+        }
+    };
 
     // alias in a child interp, delegating to the parent (this interp)
-    if !src.is_empty() {
+    if !source_path.is_empty() {
         if !interp.child_exists(&src) {
-            let mut m = b"could not find interpreter \"".to_vec();
-            m.extend_from_slice(&src);
-            m.push(b'"');
-            return interp.set_error(&m);
+            return not_found_original_path(interp, argv[2]);
         }
         if argv.len() == 4 {
             return interp.set_error(b"querying a child alias is not yet supported");
         }
-        if !obj_bytes(argv[4]).is_empty() {
+        if !match interp_path(interp, argv[4]) {
+            Ok(path) => path,
+            Err(code) => return code,
+        }
+        .is_empty()
+        {
             // Only a `{}` target path (the parent) is supported.
             return only_single_interp(interp);
         }
@@ -791,20 +1023,26 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Query: `interp alias {} aliasName`.
     if argv.len() == 4 {
         return match interp.alias_info(&name) {
-            Some((target, prefix)) => {
+            Ok(Some((target, prefix))) => {
                 set_alias_list(interp, &target, &prefix);
                 Code::Ok
             }
-            None => {
+            Ok(None) => {
                 let mut m = b"alias \"".to_vec();
                 m.extend_from_slice(&name);
                 m.extend_from_slice(b"\" not found");
                 interp.set_error(&m)
             }
+            Err(error) => interp.report_cmd_error(error.into()),
         };
     }
 
-    if !obj_bytes(argv[4]).is_empty() {
+    if !match interp_path(interp, argv[4]) {
+        Ok(path) => path,
+        Err(code) => return code,
+    }
+    .is_empty()
+    {
         return only_single_interp(interp);
     }
 
@@ -833,13 +1071,16 @@ fn interp_aliases(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
         return interp.wrong_args(b"interp aliases ?path?");
     }
-    let path = argv.get(2).map(|&a| obj_bytes(a)).unwrap_or_default();
-    let names = if path.is_empty() {
-        interp.alias_names()
-    } else {
-        interp
-            .with_child(&path, |c| c.alias_names())
-            .unwrap_or_default()
+    let path = match argv.get(2) {
+        None => Vec::new(),
+        Some(&original) => match interp_path(interp, original) {
+            Ok(path) => path,
+            Err(code) => return code,
+        },
+    };
+    let names = match interp.with_child_path(&path, |owner| owner.alias_names()) {
+        Some(names) => names,
+        None => return not_found_original_path(interp, argv[2]),
     };
     let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
     interp.set_result(interp.new_list_object(&elems));
@@ -872,6 +1113,7 @@ fn set_alias_list(interp: &mut Interp, target: &[u8], prefix: &[Vec<u8>]) {
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
+    use crate::obj::{self, TclObj};
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();
@@ -887,6 +1129,493 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn jim_child_constructor_refusal_preserves_typed_cause_and_parent_result() {
+        // naming.interpreter.original-child-bootstrap-context
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-child-bootstrap-context.md
+        // Direct constructor-worker ownership and unavailable-frame controls;
+        // no native process or selected invocation after owner retirement claim.
+        for retire_owner in [true, false] {
+            counters::reset();
+            {
+                let mut interp = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    crate::environment::profile_for_dialect("jim"),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                let argv = obj::Owned::fresh(obj::new_string_bytes(b"PARENT ARGV"));
+                interp.var_set_at(b"argv", argv.as_ptr(), 0).unwrap();
+                let word = obj::Owned::fresh(obj::new_string_bytes(b"interp"));
+                interp
+                    .associate_native_jim_arguments(&[word.as_ptr()])
+                    .unwrap();
+                let original = interp.native_jim_object_context().unwrap();
+                interp.set_result_bytes(b"PARENT RESULT");
+                let result = interp.result_obj();
+                let expected = if retire_owner {
+                    original.retire();
+                    "retired Jim interpreter"
+                } else {
+                    // Exact observed naming policy without entered event storage
+                    // refuses its global getter; it cannot donate a Jim parent cell.
+                    assert!(interp.set_observed_bigip_name_policy(
+                        tcl_registry::f5::evidence::BigIpBuild::MEASURED_21_1_0_1,
+                        tcl_registry::f5::BigIpExecutionContext::TmmIRule,
+                        tcl_registry::f5::naming::BigIpNameEvent::HttpRequest,
+                    ));
+                    "observed event frame storage"
+                };
+                assert_eq!(
+                    super::interp_cmd(&mut interp, &[word.as_ptr()]),
+                    Code::Error
+                );
+                assert_eq!(
+                    interp.native_access_refusal(),
+                    Some(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(expected))
+                );
+                assert!(interp.host_refusal_pending());
+                assert_eq!(interp.result_obj(), result);
+                assert_eq!(interp.result_bytes(), b"PARENT RESULT");
+                assert!(!interp.child_exists(b"::interp.handle0"));
+                assert!(
+                    interp
+                        .find_command_id(crate::namespace::GLOBAL, b"::interp.handle0")
+                        .is_none()
+                );
+            }
+            assert_eq!(counters::finalize(), 0);
+            assert_eq!(counters::double_free_count(), 0);
+        }
+    }
+
+    #[test]
+    fn c_child_constructor_refusal_keeps_owner_cause_without_success_result() {
+        // naming.interpreter.original-child-bootstrap-context
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-child-bootstrap-context.md
+        // Direct C installer host controls, including a genuinely retained
+        // nested owner; native success rows do not observe these host failures.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for spelling in [None, Some(b"child".as_slice()), Some(b"outer child")] {
+                counters::reset();
+                {
+                    let mut interp = Interp::with_native_core(
+                        crate::interp::default_host(),
+                        crate::environment::profile_for_dialect(engine),
+                        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                    )
+                    .unwrap();
+                    let select = |owner: &mut Interp| {
+                        assert!(owner.set_observed_bigip_name_policy(
+                            tcl_registry::f5::evidence::BigIpBuild::MEASURED_21_1_0_1,
+                            tcl_registry::f5::BigIpExecutionContext::TmmIRule,
+                            tcl_registry::f5::naming::BigIpNameEvent::HttpRequest,
+                        ));
+                    };
+                    if spelling == Some(b"outer child".as_slice()) {
+                        interp.create_child(Some(b"outer".to_vec()));
+                        assert!(interp.child_exists(b"outer"));
+                        interp.with_child(b"outer", select).unwrap();
+                    } else {
+                        select(&mut interp);
+                    }
+                    let head = obj::Owned::fresh(obj::new_string_bytes(b"interp"));
+                    let member = obj::Owned::fresh(obj::new_string_bytes(b"create"));
+                    let path = spelling.map(|name| obj::Owned::fresh(obj::new_string_bytes(name)));
+                    let mut words = vec![head.as_ptr(), member.as_ptr()];
+                    if let Some(path) = &path {
+                        words.push(path.as_ptr());
+                    }
+                    interp.set_result_bytes(b"PARENT RESULT");
+                    let result = interp.result_obj();
+                    assert_eq!(super::interp_create(&mut interp, &words), Code::Error);
+                    assert_eq!(
+                        interp.native_access_refusal(),
+                        Some(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "unmeasured observed variable purpose",
+                        ))
+                    );
+                    assert!(interp.host_refusal_pending());
+                    assert_eq!(interp.result_obj(), result);
+                    assert_eq!(interp.result_bytes(), b"PARENT RESULT");
+                    if spelling == Some(b"outer child".as_slice()) {
+                        let refusal = interp.native_access_refusal();
+                        interp
+                            .with_child(b"outer", |owner| {
+                                assert!(owner.host_refusal_pending());
+                                assert_eq!(owner.native_access_refusal(), refusal);
+                                assert!(!owner.child_exists(b"child"));
+                                assert!(
+                                    owner
+                                        .find_command_id(crate::namespace::GLOBAL, b"child")
+                                        .is_none()
+                                );
+                            })
+                            .unwrap();
+                    } else {
+                        let name = spelling.unwrap_or(b"interp0");
+                        assert!(!interp.child_exists(name));
+                        assert!(
+                            interp
+                                .find_command_id(crate::namespace::GLOBAL, name)
+                                .is_none()
+                        );
+                    }
+                }
+                assert_eq!(counters::finalize(), 0);
+                assert_eq!(counters::double_free_count(), 0);
+            }
+        }
+    }
+
+    struct AliasCaptureHost {
+        inner: std::rc::Rc<dyn tcl_platform::Host>,
+        stdout: std::rc::Rc<std::cell::RefCell<Vec<u8>>>,
+        stderr: std::rc::Rc<std::cell::RefCell<Vec<u8>>>,
+    }
+
+    impl tcl_platform::StdIo for AliasCaptureHost {
+        fn write_stdout(&self, bytes: &[u8]) {
+            self.stdout.borrow_mut().extend_from_slice(bytes);
+        }
+        fn write_stderr(&self, bytes: &[u8]) {
+            self.stderr.borrow_mut().extend_from_slice(bytes);
+        }
+    }
+
+    impl tcl_platform::Host for AliasCaptureHost {
+        fn capabilities(&self) -> tcl_platform::Capabilities {
+            self.inner.capabilities()
+        }
+        fn clock(&self) -> &dyn tcl_platform::Clock {
+            self.inner.clock()
+        }
+        fn stdio(&self) -> &dyn tcl_platform::StdIo {
+            self
+        }
+        fn env(&self) -> &dyn tcl_platform::Env {
+            self.inner.env()
+        }
+        fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+            self.inner.numeric_environment()
+        }
+        fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
+            self.inner.native_integer_formatter()
+        }
+        fn system_encoding(&self) -> tcl_platform::SystemEncoding {
+            self.inner.system_encoding()
+        }
+        fn filesystem(&self) -> Option<&dyn tcl_platform::Filesystem> {
+            self.inner.filesystem()
+        }
+        fn sockets(&self) -> Option<&dyn tcl_platform::Sockets> {
+            self.inner.sockets()
+        }
+        fn process(&self) -> Option<&dyn tcl_platform::Process> {
+            self.inner.process()
+        }
+    }
+
+    fn compare_alias_publication_fixture(engine: &str, source: &[u8], native: &[u8]) {
+        counters::reset();
+        {
+            let stdout = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let stderr = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let host = std::rc::Rc::new(AliasCaptureHost {
+                inner: crate::interp::default_host(),
+                stdout: std::rc::Rc::clone(&stdout),
+                stderr: std::rc::Rc::clone(&stderr),
+            });
+            let profile = tcl_registry::model::resolve_environment(engine).unit_profile();
+            let mut interp = Interp::with_native_core(
+                host,
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .expect("selected original native interpreter constructor");
+            let code = interp.eval_str(source);
+            assert!(
+                !interp.host_refusal_pending(),
+                "{engine}: admission {:?}, native access {:?}",
+                interp.native_compilation_admission_error(),
+                interp.native_access_refusal()
+            );
+            assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
+            assert!(stderr.borrow().is_empty(), "{engine}: guest stderr");
+            let stdout = stdout.borrow();
+            // Provider version metadata is outside the public alias control rows.
+            let observed = stdout
+                .splitn(2, |byte| *byte == b'\n')
+                .nth(1)
+                .expect("Runtime version row");
+            let expected = native
+                .splitn(2, |byte| *byte == b'\n')
+                .nth(1)
+                .expect("native version row");
+            assert_eq!(observed, expected, "{engine}: original public alias rows");
+        }
+        assert_eq!(
+            counters::finalize(),
+            0,
+            "residual: {} objs, {} bufs",
+            counters::live_objs(),
+            counters::live_bufs()
+        );
+        assert_eq!(counters::double_free_count(), 0);
+    }
+
+    // Native proof: naming.alias.c-current-namespace-publication-holder
+    // docs/design/analysis/name-resolution-proofs/alias-c-current-namespace-publication-holder.md
+    #[test]
+    fn alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api() {
+        let source = include_bytes!(
+            "../../../rust/tcl-registry/tests/data/native_c_alias_holder197/probe.tcl"
+        );
+        for (engine, native) in [
+            (
+                "tcl8.4",
+                include_bytes!(
+                    "../../../rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stdout"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!(
+                    "../../../rust/tcl-registry/tests/data/native_c_alias_holder197/8.5.19/stdout"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!(
+                    "../../../rust/tcl-registry/tests/data/native_c_alias_holder197/8.6.18/stdout"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!(
+                    "../../../rust/tcl-registry/tests/data/native_c_alias_holder197/9.0.4/stdout"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!(
+                    "../../../rust/tcl-registry/tests/data/native_c_alias_holder197/9.1.0/stdout"
+                )
+                .as_slice(),
+            ),
+            (
+                "jim",
+                include_bytes!(
+                    "../../../rust/tcl-registry/tests/data/native_c_alias_holder197/jim/stdout"
+                )
+                .as_slice(),
+            ),
+        ] {
+            compare_alias_publication_fixture(engine, source, native);
+        }
+    }
+
+    // Native proof: naming.alias.original-child-interpreter-publication
+    // docs/design/analysis/name-resolution-proofs/alias-original-child-interpreter-publication.md
+    #[test]
+    fn child_alias_publication_matches_original_supported_provider_apis() {
+        let source = include_bytes!(
+            "../../../rust/tcl-registry/tests/data/native_child_alias_publication199/probe.tcl"
+        );
+        for (engine, native) in [
+            ("tcl8.4", include_bytes!("../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.4.20/stdout").as_slice()),
+            ("tcl8.5", include_bytes!("../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.5.19/stdout").as_slice()),
+            ("tcl8.6", include_bytes!("../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.6.18/stdout").as_slice()),
+            ("tcl9.0", include_bytes!("../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.0.4/stdout").as_slice()),
+            ("tcl9.1", include_bytes!("../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.1.0/stdout").as_slice()),
+            ("jim", include_bytes!("../../../rust/tcl-registry/tests/data/native_child_alias_publication199/jim/stdout").as_slice()),
+        ] {
+            compare_alias_publication_fixture(engine, source, native);
+        }
+    }
+
+    // Native proof: naming.jim.rooted-alias-publication-and-lookup
+    // docs/design/analysis/name-resolution-proofs/jim-rooted-alias-publication-and-lookup.md
+    #[test]
+    fn jim_alias_owner_replaces_canonical_root_slots_and_keeps_local_competition() {
+        counters::reset();
+        {
+            let profile = tcl_registry::model::resolve_environment("jim").unit_profile();
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .expect("selected original Jim core constructor");
+            let observe = |interp: &mut Interp, source: &[u8]| {
+                assert_eq!(
+                    interp.eval_str(source),
+                    Code::Ok,
+                    "{:?}",
+                    interp.result_bytes()
+                );
+                interp.result_bytes()
+            };
+            // This API control isolates publication from the standalone entry.
+            // The unchanged standalone source is compared independently below.
+            for (original, value, setup, observation, expected) in [
+                (
+                    b"::alias_slot".as_slice(),
+                    b"ROOT_ALIAS".as_slice(),
+                    b"proc ::alias_slot {} {return ORIGINAL}".as_slice(),
+                    b"set a [catch {alias_slot} ar];set b [catch {::alias_slot} br];list $a $ar $b $br [catch {info body ::alias_slot}]".as_slice(),
+                    b"0 ROOT_ALIAS 0 ROOT_ALIAS 1".as_slice(),
+                ),
+                (
+                    b"::AliasProbe slot".as_slice(),
+                    b"MULTIWORD_ALIAS".as_slice(),
+                    b"proc {::AliasProbe slot} {} {return ORIGINAL_MULTIWORD}".as_slice(),
+                    b"set a [catch {{AliasProbe slot}} ar];set b [catch {{::AliasProbe slot}} br];list $a $ar $b $br [catch {info body {::AliasProbe slot}}]".as_slice(),
+                    b"0 MULTIWORD_ALIAS 0 MULTIWORD_ALIAS 1".as_slice(),
+                ),
+                (
+                    b"::::colon_slot".as_slice(),
+                    b"COLON_ALIAS".as_slice(),
+                    b"".as_slice(),
+                    b"set a [catch {colon_slot} ar];set b [catch {::colon_slot} br];set c [catch {::::colon_slot} cr];list $a $ar $b $br $c $cr".as_slice(),
+                    b"0 COLON_ALIAS 0 COLON_ALIAS 0 COLON_ALIAS".as_slice(),
+                ),
+                (
+                    b"::competition_slot".as_slice(),
+                    b"GLOBAL_ALIAS".as_slice(),
+                    b"proc competition_slot {} {return ORIGINAL_GLOBAL};namespace eval AliasContext {proc competition_slot {} {return LOCAL_PROC}}".as_slice(),
+                    b"set a [catch {competition_slot} ar];set b [catch {namespace eval AliasContext {competition_slot}} br];set c [catch {namespace eval AliasContext {::competition_slot}} cr];list $a $ar $b $br $c $cr".as_slice(),
+                    b"0 GLOBAL_ALIAS 0 LOCAL_PROC 0 GLOBAL_ALIAS".as_slice(),
+                ),
+            ] {
+                observe(&mut interp, setup);
+                interp.install_alias(original, b"list".to_vec(), vec![value.to_vec()]).expect("selected original alias publication owner");
+                assert_eq!(observe(&mut interp, observation), expected, "{original:?}");
+            }
+        }
+        assert_eq!(
+            counters::finalize(),
+            0,
+            "residual: {} objs, {} bufs",
+            counters::live_objs(),
+            counters::live_bufs()
+        );
+        assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn original_jim_core_alias_matches_all_four_standalone_native_public_rows() {
+        // naming.jim.rooted-alias-publication-and-lookup
+        // docs/design/analysis/name-resolution-proofs/jim-rooted-alias-publication-and-lookup.md
+        // Core registration and unchanged public source; no private object
+        // identity follows from the native stdout observations.
+        compare_alias_publication_fixture(
+            "jim",
+            include_bytes!(
+                "../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/probe.tcl"
+            ),
+            include_bytes!(
+                "../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/jim/stdout"
+            ),
+        );
+    }
+
+    #[test]
+    fn jim_core_alias_retains_original_name_result_and_prefix_members() {
+        // naming.alias.jim-original-core-prefix-object-storage
+        // docs/design/analysis/name-resolution-proofs/alias-jim-original-core-prefix-object-storage.md
+        // The original API observer independently records name/member identity
+        // and absent resident member strings at definition, query and invocation.
+        // Implementation control: the retained prefix owner supplies actual
+        // objects to dispatch; native public rows above establish byte results.
+        counters::reset();
+        {
+            let profile = tcl_registry::model::resolve_environment("jim").unit_profile();
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let head = obj::Owned::fresh(obj::new_string_bytes(b"alias"));
+            let name = obj::Owned::fresh(obj::new_string_bytes(b"::original_prefix_alias"));
+            let target = obj::Owned::fresh(obj::new_string_bytes(b"list"));
+            let member = obj::Owned::fresh(obj::new_wide_int_obj(17));
+            assert!(!obj::has_string_rep(member.as_ptr()));
+            assert_eq!(
+                interp.dispatch(&[
+                    head.as_ptr(),
+                    name.as_ptr(),
+                    target.as_ptr(),
+                    member.as_ptr()
+                ]),
+                Code::Ok
+            );
+            assert_eq!(interp.get_obj_result(), name.as_ptr());
+            assert!(!obj::has_string_rep(member.as_ptr()));
+            let info = obj::Owned::fresh(obj::new_string_bytes(b"info"));
+            let selector = obj::Owned::fresh(obj::new_string_bytes(b"alias"));
+            assert_eq!(
+                interp.dispatch(&[info.as_ptr(), selector.as_ptr(), name.as_ptr()]),
+                Code::Ok
+            );
+            let query = interp.get_obj_result();
+            assert_eq!(
+                tcl_syntax::value::ValueOps::list_elements(&mut interp, &query).unwrap(),
+                vec![target.as_ptr(), member.as_ptr()]
+            );
+            assert!(!obj::has_string_rep(member.as_ptr()));
+            // Current owner control: a second public query keeps this header;
+            // the native273 observer separately proves member identity/cache.
+            assert_eq!(
+                interp.dispatch(&[info.as_ptr(), selector.as_ptr(), name.as_ptr()]),
+                Code::Ok
+            );
+            assert_eq!(interp.get_obj_result(), query);
+            assert!(!obj::has_string_rep(member.as_ptr()));
+            assert_eq!(interp.dispatch(&[name.as_ptr()]), Code::Ok);
+            assert!(!obj::has_string_rep(member.as_ptr()));
+            let result = interp.get_obj_result();
+            assert_eq!(
+                tcl_syntax::value::ValueOps::list_elements(&mut interp, &result).unwrap(),
+                vec![member.as_ptr()]
+            );
+            let c = Interp::new();
+            assert!(c.resolve_cmd_token(b"alias").is_none());
+        }
+        assert_eq!(counters::finalize(), 0);
+        assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn jim_child_counted_crossings_match_original_native_public_rows() {
+        // naming.interpreter.jim-original-object-crossing
+        // docs/design/analysis/name-resolution-proofs/jim-original-object-crossing.md
+        // The counted driver metadata/result channel is separate from the
+        // guest's public rows. These rows assert no private pointer ownership.
+        let recorded = include_bytes!(
+            "../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stdout"
+        );
+        let mut channels = recorded.splitn(3, |byte| *byte == b'\n');
+        assert_eq!(
+            channels.next().unwrap(),
+            b"VERSION|0|302e38342d392d6735626163376339"
+        );
+        assert_eq!(channels.next().unwrap(), b"ORIGINAL|0|");
+        let guest_rows = channels.next().unwrap();
+        compare_alias_publication_fixture(
+            "jim",
+            include_bytes!(
+                "../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/probe.tcl"
+            ),
+            guest_rows,
+        );
     }
 
     /// The `interp` ensemble and the child-as-command dispatch
@@ -908,80 +1637,40 @@ mod tests {
     ///                      invokehidden, limit, marktrusted, or recursionlimit
     #[test]
     fn jim_interpreter_handle_factory_alias_frame_and_deletion() {
-        let mut i = Interp::new();
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        i.set_dialect_profile(profile);
-        assert_eq!(i.eval_str(br#"set ::x GLOBAL; namespace eval ::N {proc observe {} {set x LOCAL; set child [interp]; $child alias readX set x; $child alias where namespace current; set result [list [$child eval {readX}] [$child eval {where}]]; $child delete; return $result}}; ::N::observe"#), Code::Ok, "{:?}", i.result_bytes());
+        let mut i = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jim"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("actual original Jim core constructor");
+        assert_eq!(i.eval_str(br#"set ::x GLOBAL; namespace eval ::N {proc observe {} {set x LOCAL; set child [interp]; $child alias readX set x; $child alias where namespace current; set result [list [$child eval {readX}] [$child eval {where}]]; $child delete; return $result}}; ::N::observe"#), Code::Ok, "result={:?}, admission={:?}, access={:?}", i.result_bytes(), i.native_compilation_admission_error(), i.native_access_refusal());
         assert_eq!(i.result_bytes(), b"LOCAL ::N");
     }
 
     #[test]
     fn jim_interpreter_handle_isolation() {
-        let mut i = Interp::new();
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        i.set_dialect_profile(profile);
-        assert_eq!(i.eval_str(br#"namespace eval ::N {proc probe {} {return PARENT}}; package provide Isolated 2.0; set child [interp]; $child eval {namespace eval ::N {proc probe {} {return CHILD}}}; set result [list [::N::probe] [$child eval {::N::probe}] [$child eval {catch {package require Isolated}}]]; $child delete; set result"#), Code::Ok, "{:?}", i.result_bytes());
+        let mut i = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jim"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("actual original Jim core constructor");
+        assert_eq!(i.eval_str(br#"namespace eval ::N {proc probe {} {return PARENT}}; package provide Isolated 2.0; set child [interp]; $child eval {namespace eval ::N {proc probe {} {return CHILD}}}; set result [list [::N::probe] [$child eval {::N::probe}] [$child eval {catch {package require Isolated}}]]; $child delete; set result"#), Code::Ok, "result={:?}, admission={:?}, access={:?}", i.result_bytes(), i.native_compilation_admission_error(), i.native_access_refusal());
         assert_eq!(i.result_bytes(), b"PARENT CHILD 1");
     }
 
     #[test]
-    fn interp_subcommand_words_resolve_like_tcl_get_index_from_obj() {
-        const MUST: &str = "must be alias, aliases, bgerror, children, create, debug, \
-                            delete, eval, exists, expose, hide, hidden, issafe, \
-                            invokehidden, limit, marktrusted, recursionlimit, or target";
-        const CHILD_MUST: &str = "must be alias, aliases, bgerror, debug, eval, expose, \
-                                  hide, hidden, issafe, invokehidden, limit, marktrusted, \
-                                  or recursionlimit";
+    fn interp_abbreviated_operations_dispatch_in_root_and_child() {
         leak_free(|i| {
-            let err = |i: &mut Interp, script: &[u8]| {
-                assert_eq!(i.eval_str(script), Code::Error, "expected an error");
-                String::from_utf8_lossy(&i.result_bytes()).into_owned()
-            };
-            assert_eq!(
-                err(i, b"interp {}"),
-                format!("ambiguous option \"\": {MUST}")
-            );
-            assert_eq!(err(i, b"interp x"), format!("bad option \"x\": {MUST}"));
-            assert_eq!(
-                err(i, b"interp c j"),
-                format!("ambiguous option \"c\": {MUST}")
-            );
             assert_eq!(i.eval_str(b"interp cr j"), Code::Ok);
             assert_eq!(i.result_bytes(), b"j");
-            assert_eq!(
-                err(i, b"interp e {set x 1}"),
-                format!("ambiguous option \"e\": {MUST}")
-            );
             assert_eq!(i.eval_str(b"interp ev {} {set x 1}"), Code::Ok);
             assert_eq!(i.result_bytes(), b"1");
-            // 8.x's deprecated `slaves` spelling still resolves and dispatches.
+            // The primary lookup table retains this spelling independently of
+            // the release-specific table used to report a failed lookup.
             assert_eq!(i.eval_str(b"llength [interp sl]"), Code::Ok);
             assert_eq!(i.result_bytes(), b"1");
-            // The child-as-command table.
             assert_eq!(i.eval_str(b"interp create kid"), Code::Ok);
-            assert_eq!(err(i, b"kid x"), format!("bad option \"x\": {CHILD_MUST}"));
-            assert_eq!(
-                err(i, b"kid {}"),
-                format!("ambiguous option \"\": {CHILD_MUST}")
-            );
-            assert_eq!(
-                err(i, b"kid h"),
-                format!("ambiguous option \"h\": {CHILD_MUST}")
-            );
-            assert_eq!(
-                err(i, b"kid hi"),
-                format!("ambiguous option \"hi\": {CHILD_MUST}")
-            );
             assert_eq!(i.eval_str(b"kid ev {set x 1}"), Code::Ok);
             assert_eq!(i.result_bytes(), b"1");
         });
@@ -1029,6 +1718,73 @@ mod tests {
                 format!("ambiguous option \"-\": {HIDDEN_MUST}")
             );
         });
+    }
+
+    #[test]
+    fn original_interpreter_paths_preserve_child_keys_and_create_result_objects() {
+        // Native proof: naming.interpreter.counted-list-path-cstring-child-keys
+        // docs/design/analysis/name-resolution-proofs/interpreter-counted-list-path-cstring-child-keys.md
+        // Native proof: naming.interpreter.singleton-create-original-spelling
+        // docs/design/analysis/name-resolution-proofs/interpreter-singleton-create-original-spelling.md
+        // Native proof: naming.interpreter.malformed-path-list-error
+        // docs/design/analysis/name-resolution-proofs/interpreter-malformed-path-list-error.md
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let call = |interp: &mut Interp, member: &[u8], path: *mut TclObj| {
+                let head = obj::Owned::fresh(obj::new_string_bytes(b"interp"));
+                let member = obj::Owned::fresh(obj::new_string_bytes(member));
+                interp.dispatch(&[head.as_ptr(), member.as_ptr(), path])
+            };
+            for bytes in [
+                b"child\0suffix".as_slice(),
+                b"opaque\xff",
+                b"surrogate\xed\xa0\x80",
+                b"encoded\xc0\x80tail",
+            ] {
+                let original = obj::Owned::fresh(obj::new_string_bytes(bytes));
+                assert_eq!(
+                    call(&mut interp, b"create", original.as_ptr()),
+                    Code::Ok,
+                    "{engine}"
+                );
+                assert_eq!(interp.get_obj_result(), original.as_ptr());
+                assert_eq!(call(&mut interp, b"exists", original.as_ptr()), Code::Ok);
+                assert_eq!(interp.result_bytes(), b"1");
+                assert_eq!(call(&mut interp, b"delete", original.as_ptr()), Code::Ok);
+                assert_eq!(call(&mut interp, b"exists", original.as_ptr()), Code::Ok);
+                assert_eq!(interp.result_bytes(), b"0");
+            }
+            let singleton = obj::Owned::fresh(obj::new_string_bytes(b"{with space}"));
+            assert_eq!(call(&mut interp, b"create", singleton.as_ptr()), Code::Ok);
+            assert_eq!(interp.get_obj_result(), singleton.as_ptr());
+            assert_eq!(call(&mut interp, b"exists", singleton.as_ptr()), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"0");
+            let address = obj::Owned::fresh(obj::new_string_bytes(b"{{with space}}"));
+            assert_eq!(call(&mut interp, b"exists", address.as_ptr()), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"1");
+            let empty = obj::Owned::fresh(obj::new_string_bytes(b""));
+            assert_eq!(call(&mut interp, b"create", empty.as_ptr()), Code::Ok);
+            assert_eq!(interp.get_obj_result(), empty.as_ptr());
+            let empty_child = obj::Owned::fresh(obj::new_string_bytes(b"{}"));
+            assert_eq!(call(&mut interp, b"exists", empty_child.as_ptr()), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"1");
+            assert_eq!(call(&mut interp, b"delete", empty_child.as_ptr()), Code::Ok);
+            assert_eq!(call(&mut interp, b"exists", empty_child.as_ptr()), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"0");
+            let malformed = obj::Owned::fresh(obj::new_string_bytes(b"{"));
+            assert_eq!(
+                call(&mut interp, b"create", malformed.as_ptr()),
+                Code::Error
+            );
+            assert_eq!(call(&mut interp, b"exists", malformed.as_ptr()), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"0");
+            assert!(!interp.host_refusal_pending());
+        }
     }
 
     // Needs the numeric tower: the child's `dbl` proc computes via `expr`.
@@ -1690,3 +2446,6 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+mod native_option_tables;

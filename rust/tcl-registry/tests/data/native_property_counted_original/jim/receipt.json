@@ -1,0 +1,53 @@
+{
+  "provider": "jim",
+  "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+  "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+  "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "compile_command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "-std=c99",
+    "-DJIM_PROBE=1",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/current-native-property-counted144/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/captured-native-property-counted145/jim/probe"
+  ],
+  "compile_exit": 0,
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "environment": {},
+  "probe_sha256": "04b7c2d0042b26ab25dc8569bbc4cc6bf215994b8d47dd1f4077796b85a8ecd6",
+  "queue_sha256": "fd1e3b9d6ee1c6f464d5eabf145d163e3926e4c801db6840111aa43a33a45e50",
+  "runner_sha256": "78f015446ee85eed6e9b027d1bc68990dd565bd269c7605181000a3d4d04f194",
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "fd1a0c94d6808e943cdc300aeeddb3a556e908c884acfa59352e141074a3249d",
+  "command": [
+    "/workspace/.proofs/captured-native-property-counted145/jim/probe"
+  ],
+  "process_exit": 0,
+  "seconds": 0.006969823996769264,
+  "stdout_sha256": "6a1244d2ca113d7e4ac76f7af65503256dbd20bfb1377260d1dc4525586ab5f1",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|0|302e38342d392d6735626163376339",
+    "AVAILABILITY|0|0|",
+    "FF_CREATE|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522",
+    "D800_CREATE|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522",
+    "D801_CREATE|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522",
+    "ZERO_CREATE|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522",
+    "DISTINCT_CREATE|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

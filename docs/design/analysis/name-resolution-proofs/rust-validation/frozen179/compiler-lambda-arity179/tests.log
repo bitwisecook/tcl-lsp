@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::diagnostics::tests::original_lambda_and_indirect_builtin_arity_keep_value_and_operand_owners ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8298 filtered out; finished in 6.12s
+

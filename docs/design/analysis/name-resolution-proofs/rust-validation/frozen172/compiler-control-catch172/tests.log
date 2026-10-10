@@ -1,0 +1,27 @@
+
+running 22 tests
+test analyser::diagnostics::fp::sty::fp_sty_05_bare_close_fire_and_forget_no_w302 ... ok
+test analyser::diagnostics::fp::sty::fp_sty_05_ensemble_close_fire_and_forget_no_w302 ... ok
+test analyser::diagnostics::tests::w302_constructive_subcommand_still_fires ... ok
+test analyser::diagnostics::tests::w302_fire_and_forget_bare_close_silent ... ok
+test analyser::diagnostics::tests::w302_fire_and_forget_ensemble_chan_close_silent ... ok
+test analyser::diagnostics::tests::w302_fire_and_forget_is_registry_destructive_data ... ok
+test analyser::state::tests::analyse_emits_w302_for_catch_without_result_var ... ok
+test analyser::state::tests::analyse_no_w302_for_multi_token_catch_body ... ok
+test analyser::state::tests::analyse_no_w302_when_catch_has_options_var ... ok
+test analyser::state::tests::analyse_no_w302_when_catch_has_result_var ... ok
+test analyser::state::tests::analyse_w302_anchors_at_catch_keyword ... ok
+test analyser::state::tests::w302_carries_no_fix_for_a_malformed_catch ... ok
+test analyser::state::tests::w302_fix_does_not_overshoot_an_empty_body ... ok
+test analyser::state::tests::w302_fix_handles_a_leading_qualified_head ... ok
+test analyser::state::tests::w302_fix_handles_a_multiline_body ... ok
+test analyser::state::tests::w302_fix_handles_a_semicolon_separated_command ... ok
+test analyser::state::tests::w302_fix_handles_a_trailing_comment ... ok
+test analyser::state::tests::w302_fix_handles_nested_substitutions_in_the_body ... ok
+test analyser::state::tests::w302_fixes_are_never_bulk_applicable ... ok
+test analyser::state::tests::w302_offers_only_the_result_variable_under_tcl84 ... ok
+test analyser::state::tests::w302_options_fix_inserts_after_the_body ... ok
+test analyser::state::tests::w302_result_fix_inserts_after_the_body ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 8234 filtered out; finished in 40.79s
+

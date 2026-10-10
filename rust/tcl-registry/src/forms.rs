@@ -136,6 +136,12 @@ pub struct CommandForm {
     /// This refines mixed getter/mutator commands without granting native
     /// compiler entry or transferring the getter contract to other forms.
     pub successful_handler: Option<crate::native_compilation::SuccessfulHandlerSpec>,
+    /// Selected variable receiver grammar, indexed after the selected head or
+    /// subcommand. This is naming metadata only, independent of successful
+    /// execution and whole-array roles. `None` inherits; an empty slice rejects
+    /// a receiver grammar for this descriptor.
+    pub variable_receivers:
+        Option<&'static [(u8, crate::resolved_invocation::VariableReceiverOperandForm)]>,
 
     /// Completion semantics specific to this form.
     ///
@@ -238,6 +244,7 @@ impl CommandForm {
         surface: None,
         semantic_operation: None,
         successful_handler: None,
+        variable_receivers: None,
         completion: None,
         result_stability: None,
         native_result: None,

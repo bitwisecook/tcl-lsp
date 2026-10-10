@@ -129,7 +129,7 @@ pub struct Link {
 
 pub(crate) struct OriginalJimLinkTarget {
     pub(crate) name: crate::obj::Owned,
-    pub(crate) frame: std::rc::Weak<()>,
+    pub(crate) frame: tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference,
 }
 impl std::fmt::Debug for OriginalJimLinkTarget {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -140,8 +140,7 @@ impl std::fmt::Debug for OriginalJimLinkTarget {
 }
 impl PartialEq for OriginalJimLinkTarget {
     fn eq(&self, other: &Self) -> bool {
-        self.name.as_ptr() == other.name.as_ptr()
-            && std::rc::Weak::ptr_eq(&self.frame, &other.frame)
+        self.name.as_ptr() == other.name.as_ptr() && self.frame == other.frame
     }
 }
 impl Eq for OriginalJimLinkTarget {}
@@ -233,6 +232,8 @@ struct CellContents {
     var: Option<Var>,
     namespace_declared: bool,
     undefined_shell: bool,
+    /// Actual selected home which issued an undefined physical self-link marker.
+    undefined_root_home: Option<VarHome>,
     /// The default belongs to this physical array, with two owning references.
     array_default: Option<*mut TclObj>,
     /// Detached array generations whose members retire after the root callback.
@@ -341,6 +342,7 @@ impl Cell {
                 var: None,
                 namespace_declared: false,
                 undefined_shell: false,
+                undefined_root_home: None,
                 array_default: None,
                 binding_id: None,
                 compiled_declaration: false,
@@ -361,6 +363,35 @@ impl Cell {
 }
 
 impl CellContents {
+    /// A selected undefined self-link is a physical root, not a scalar value.
+    /// The original slot spelling is marker geometry, never a fresh lookup.
+    fn array_materialisation_needed(&self, root: Option<&[u8]>) -> Result<bool, VarError> {
+        match self.var.as_ref() {
+            Some(Var::Array(_)) => Ok(false),
+            Some(Var::Link(link))
+                if root == Some(link.name.as_slice())
+                    && self.undefined_root_home == Some(link.home)
+                    && link.elem.is_none() =>
+            {
+                Ok(true)
+            }
+            Some(_) => Err(VarError::IsScalar),
+            None => Ok(true),
+        }
+    }
+
+    fn materialise_selected_array(&mut self, root: Option<&[u8]>) -> Result<(), VarError> {
+        if self.array_materialisation_needed(root)? {
+            if let Some(old) = self.var.replace(Var::Array(Default::default())) {
+                old.release();
+            }
+            self.undefined_shell = false;
+            self.undefined_root_home = None;
+            self.rmw_shell_entry = None;
+        }
+        Ok(())
+    }
+
     fn insert_member_entry(&mut self, key: &[u8]) {
         if !self.member_order.contains_key(key) {
             self.array_search_epoch = self.array_search_epoch.wrapping_add(1);
@@ -533,13 +564,24 @@ impl VarTable {
         }
     }
 
-    pub(crate) fn mark_trace_shell(&mut self, name: &[u8]) {
-        if let Some(contents) = self.contents(name) {
-            let mut cell = contents.borrow_mut();
-            if matches!(cell.var.as_ref(), Some(Var::Link(link)) if link.name == name && link.elem.is_none())
-            {
-                cell.undefined_shell = true;
-            }
+    /// The resolved producer retains its actual home, independently of name text.
+    pub(crate) fn mark_undefined_root(&mut self, name: &[u8], home: VarHome) -> bool {
+        let Some(contents) = self.contents(name) else {
+            return false;
+        };
+        let mut cell = contents.borrow_mut();
+        if matches!(cell.var.as_ref(), Some(Var::Link(link))
+            if link.home == home && link.name == name && link.elem.is_none())
+        {
+            cell.undefined_root_home = Some(home);
+            return true;
+        }
+        false
+    }
+
+    pub(crate) fn mark_trace_shell(&mut self, name: &[u8], home: VarHome) {
+        if self.mark_undefined_root(name, home) {
+            self.contents(name).unwrap().borrow_mut().undefined_shell = true;
         }
     }
 
@@ -630,7 +672,7 @@ impl VarTable {
             Some(Var::Link(_)) => {
                 include_links && (!cell.undefined_shell || cell.namespace_declared)
             }
-            None => false,
+            None => include_links && cell.namespace_declared,
         }
     }
 
@@ -738,6 +780,7 @@ impl VarTable {
     fn put_at(&mut self, slot: usize, var: Var) -> Option<Var> {
         let mut cell = self.cells[slot].contents.borrow_mut();
         cell.undefined_shell = false;
+        cell.undefined_root_home = None;
         cell.rmw_shell_entry = None;
         cell.link_origin = FrameLinkOrigin::Ordinary;
         if cell.binding_id.is_none() {
@@ -766,6 +809,23 @@ impl VarTable {
         let cell = self.contents(name)?.borrow();
         cell.var.as_ref()?;
         cell.binding_id
+    }
+
+    /// Actual allocated binding for trace routing, including undefined roots.
+    /// Definition and value-existence queries keep their separate predicates.
+    pub(crate) fn trace_binding_identity(&self, name: &[u8]) -> Option<VarId> {
+        self.contents(name)?.borrow().binding_id
+    }
+
+    /// Existing member allocation of the original root, including undefined shells.
+    /// The root's retained identity selects the cell, rather than its display name.
+    pub(crate) fn native_trace_element_identity(&self, root: VarId, key: &[u8]) -> Option<VarId> {
+        self.cells.iter().find_map(|cell| {
+            let contents = cell.contents.borrow();
+            (contents.binding_id == Some(root))
+                .then(|| contents.element_ids.get(key).copied())
+                .flatten()
+        })
     }
 
     /// Identity of a defined element of the current array binding.
@@ -797,22 +857,6 @@ impl VarTable {
             .iter()
             .filter(|(_, slot)| self.cells[**slot].contents.borrow().constant)
             .map(|(name, _)| name.as_slice())
-            .collect()
-    }
-
-    pub(crate) fn tcloo_instance_links(&self) -> Vec<(&[u8], Link)> {
-        self.slots
-            .iter()
-            .filter_map(|(name, slot)| {
-                let cell = self.cells[*slot].contents.borrow();
-                if cell.link_origin != FrameLinkOrigin::TclOoInstance {
-                    return None;
-                }
-                match cell.var.as_ref()? {
-                    Var::Link(link) => Some((name.as_slice(), link.clone())),
-                    Var::Scalar(_) | Var::Array(_) => None,
-                }
-            })
             .collect()
     }
 
@@ -1077,12 +1121,8 @@ impl VarTable {
         let contents = self.contents(name).cloned();
         if let Some(contents) = contents {
             let cell = contents.borrow();
-            match cell.var.as_ref() {
-                Some(Var::Array(_)) => return Ok(()),
-                Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
-                Some(Var::Link(link)) if link.name == name && link.elem.is_none() => {}
-                Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
-                None => {}
+            if !cell.array_materialisation_needed(Some(name))? {
+                return Ok(());
             }
         }
         self.put(name, Var::Array(BTreeMap::new()));
@@ -1138,6 +1178,7 @@ impl VarTable {
         }
         let mut cell = self.cells[slot].contents.borrow_mut();
         cell.undefined_shell = false;
+        cell.undefined_root_home = None;
         cell.link_origin = origin;
         if cell.binding_id.is_none() {
             cell.binding_id = Some(fresh_var_id());
@@ -1181,7 +1222,7 @@ impl VarTable {
             .collect()
     }
 
-    /// Defined variables in original physical entry order.
+    /// Defined cells and declared namespace variables in original physical entry order.
     pub(crate) fn names(&self) -> Vec<&[u8]> {
         self.declared_slots
             .iter()
@@ -1268,7 +1309,9 @@ pub(crate) struct PendingTailcall {
 
 struct Frame {
     jim_link_birth: Rc<()>,
+    jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot,
     c_procedure: Option<Rc<crate::interp::ProcDef>>,
+    oo_variable_resolver: Option<crate::cmd_oo::native_variables::NativeOoVariableResolver>,
     native_procedure_execution: Option<
         tcl_runtime_api::native_procedure_roles::NativeProcedureReference<crate::interp::ProcDef>,
     >,
@@ -1323,7 +1366,9 @@ impl Frame {
     fn new(level: usize, ns: NsId) -> Self {
         Frame {
             jim_link_birth: Rc::new(()),
+            jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot::default(),
             c_procedure: None,
+            oo_variable_resolver: None,
             native_procedure_execution: None,
             native_local_names: None,
             jim_parameters: None,
@@ -1352,6 +1397,7 @@ impl Frame {
 /// index == level.
 pub struct FrameStack {
     next_jim_frame_id: u64,
+    jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStoragePool,
     pub(crate) variable_container_model: tcl_dialect::VariableContainerModel,
     pub(crate) variable_string_protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
     pub(crate) variable_hash_recipe: Option<tcl_core_types::NativeHashRecipe>,
@@ -1371,21 +1417,45 @@ pub(crate) struct RetiredJimFrame {
     _frame: Frame,
 }
 
-impl FrameStack {
-    pub(crate) fn jim_link_birth(&self, level: usize) -> Option<std::rc::Weak<()>> {
-        Some(Rc::downgrade(
-            &self.frames.get(self.index_of_level(level)?)?.jim_link_birth,
-        ))
+impl RetiredJimFrame {
+    pub(crate) fn release(self) -> tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot {
+        let storage = self._frame.jim_storage.clone();
+        drop(self);
+        storage
     }
-    pub(crate) fn jim_link_level(&self, birth: &std::rc::Weak<()>) -> Option<usize> {
-        let retained = birth.upgrade()?;
+}
+
+impl FrameStack {
+    pub(crate) fn recycle_jim_storage(
+        &mut self,
+        storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot,
+    ) {
+        if self.variable_lookup_policy == tcl_dialect::VariableLookupPolicy::Jim {
+            self.jim_storage.recycle(storage);
+        }
+    }
+    pub(crate) fn jim_link_storage(
+        &self,
+        level: usize,
+    ) -> Option<tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference> {
+        Some(
+            self.frames
+                .get(self.index_of_level(level)?)?
+                .jim_storage
+                .reference(),
+        )
+    }
+    pub(crate) fn jim_link_level(
+        &self,
+        retained: &tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference,
+    ) -> Option<usize> {
         let frame = self
             .frames
             .iter()
-            .find(|frame| Rc::ptr_eq(&frame.jim_link_birth, &retained))?;
+            .find(|frame| frame.jim_storage.matches(retained))?;
         self.frames
             .get(self.index_of_level(frame.level)?)
-            .filter(|selected| Rc::ptr_eq(&selected.jim_link_birth, &retained))
+            .filter(|selected| selected.jim_storage.matches(retained))
             .map(|_| frame.level)
     }
     pub(crate) fn retain_c_procedure(&mut self, procedure: Rc<crate::interp::ProcDef>) {
@@ -1485,6 +1555,7 @@ impl FrameStack {
     pub fn new() -> Self {
         FrameStack {
             next_jim_frame_id: 2,
+            jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStoragePool::default(),
             variable_container_model: tcl_dialect::VariableContainerModel::DistinctArray,
             variable_string_protocol: None,
             variable_hash_recipe: None,
@@ -1502,6 +1573,73 @@ impl FrameStack {
     pub(crate) fn take_jim_local_commands(&mut self) -> Vec<crate::obj::Owned> {
         let index = self.current_frame_index();
         std::mem::take(&mut self.frames[index].jim_local_commands)
+    }
+
+    /// Install the resolver only in the actual reached method activation.
+    pub(crate) fn install_tcloo_variable_resolver(
+        &mut self,
+        resolver: crate::cmd_oo::native_variables::NativeOoVariableResolver,
+    ) -> Result<(), VarError> {
+        let frame = self
+            .frames
+            .last_mut()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        if !frame.is_proc || frame.ns != resolver.namespace() {
+            return Err(VarError::NameProtocolUnavailable);
+        }
+        frame.oo_variable_resolver = Some(resolver);
+        Ok(())
+    }
+
+    /// Runtime CString resolution is independent of the installed local table.
+    pub(crate) fn tcloo_variable_target(
+        &self,
+        level: usize,
+        protocol: tcl_syntax::naming::NativeNameProtocol,
+        supplied: &[u8],
+    ) -> Result<Option<(NsId, Vec<u8>)>, VarError> {
+        let Some(frame) = self
+            .index_of_level(level)
+            .and_then(|index| self.frames.get(index))
+        else {
+            return Err(VarError::NameProtocolUnavailable);
+        };
+        let Some(resolver) = &frame.oo_variable_resolver else {
+            return Ok(None);
+        };
+        if !frame.is_proc || frame.ns != resolver.namespace() {
+            return Err(VarError::NameProtocolUnavailable);
+        }
+        resolver
+            .runtime_target(protocol, supplied)
+            .map_err(|_| VarError::NameProtocolUnavailable)
+    }
+
+    pub(crate) fn declared_tcloo_variable_bindings(
+        &self,
+    ) -> Result<Vec<crate::cmd_oo::native_variables::DeclaredVariableBinding>, VarError> {
+        let Some(frame) = self
+            .index_of_level(self.active_level)
+            .and_then(|index| self.frames.get(index))
+        else {
+            return Err(VarError::NameProtocolUnavailable);
+        };
+        frame.oo_variable_resolver.as_ref().map_or_else(
+            || Ok(Vec::new()),
+            |resolver| {
+                if !frame.is_proc || frame.ns != resolver.namespace() {
+                    return Err(VarError::NameProtocolUnavailable);
+                }
+                resolver
+                    .reported_bindings()
+                    .map_err(|_| VarError::NameProtocolUnavailable)
+            },
+        )
+    }
+
+    pub(crate) fn declared_tcloo_variable_names(&self) -> Result<Vec<Vec<u8>>, VarError> {
+        self.declared_tcloo_variable_bindings()
+            .map(|bindings| bindings.into_iter().map(|(_, name, _)| name).collect())
     }
 
     /// The active logical variable frame level (`varFramePtr`) used by names.
@@ -1542,6 +1680,9 @@ impl FrameStack {
     pub fn push(&mut self, ns: NsId) -> usize {
         let level = self.active_level + 1;
         let mut f = Frame::new(level, ns);
+        if self.variable_lookup_policy == tcl_dialect::VariableLookupPolicy::Jim {
+            f.jim_storage = self.jim_storage.acquire();
+        }
         f.jim_id = self.next_jim_frame_id;
         self.next_jim_frame_id = self
             .next_jim_frame_id
@@ -1566,6 +1707,9 @@ impl FrameStack {
     pub fn push_same_level(&mut self, ns: NsId) -> usize {
         let level = self.active_level;
         let mut f = Frame::new(level, ns);
+        if self.variable_lookup_policy == tcl_dialect::VariableLookupPolicy::Jim {
+            f.jim_storage = self.jim_storage.acquire();
+        }
         f.jim_id = self.next_jim_frame_id;
         self.next_jim_frame_id = self
             .next_jim_frame_id
@@ -1587,6 +1731,9 @@ impl FrameStack {
     pub fn push_namespace(&mut self, ns: NsId) -> usize {
         let level = self.active_level + 1;
         let mut f = Frame::new(level, ns);
+        if self.variable_lookup_policy == tcl_dialect::VariableLookupPolicy::Jim {
+            f.jim_storage = self.jim_storage.acquire();
+        }
         f.jim_id = self.next_jim_frame_id;
         self.next_jim_frame_id = self
             .next_jim_frame_id
@@ -1607,12 +1754,10 @@ impl FrameStack {
     /// popped. Returns the namespace the popped frame was running in — the
     /// activation C's `Tcl_PopCallFrame` gives back to the namespace token.
     pub fn pop(&mut self) -> Option<NsId> {
-        if self.frames.len() > 1 {
-            let frame = self.frames.pop().expect("non-global frame");
-            self.active_level = frame.saved_active;
-            return Some(frame.ns);
-        }
-        None
+        let (namespace, owners) = self.take_frame_for_pop()?;
+        let storage = owners.release();
+        self.recycle_jim_storage(storage);
+        Some(namespace)
     }
 
     /// The stack index of the topmost frame with logical `level` (levels are not
@@ -1809,6 +1954,24 @@ impl FrameStack {
         Self::bind_original_alias_cell(&self.frames[frame].table.cells[cell].contents, link, traced)
     }
 
+    /// The automatic link addresses an admitted compiler ordinal, retaining
+    /// the same physical cell and its separate TclOO enumeration origin.
+    pub(crate) fn bind_tcloo_compiled_alias(
+        &mut self,
+        slot: usize,
+        link: Link,
+    ) -> Result<(), NativeCompiledAliasError> {
+        self.bind_original_compiled_alias(slot, link, false)?;
+        let (frame, cell) = self
+            .compiled_cell(slot)
+            .ok_or(NativeCompiledAliasError::Unavailable)?;
+        self.frames[frame].table.cells[cell]
+            .contents
+            .borrow_mut()
+            .link_origin = FrameLinkOrigin::TclOoInstanceCompiled;
+        Ok(())
+    }
+
     /// Bind the already-selected dynamic local cell without replacing its identity.
     pub(crate) fn bind_original_local_alias(
         &mut self,
@@ -1850,6 +2013,7 @@ impl FrameStack {
             return Ok(());
         }
         contents.undefined_shell = false;
+        contents.undefined_root_home = None;
         contents.link_origin = FrameLinkOrigin::Ordinary;
         contents.binding_id.get_or_insert_with(fresh_var_id);
         if let Some(old) = contents.var.replace(Var::Link(link)) {
@@ -1897,11 +2061,11 @@ impl FrameStack {
         self.frames[frame].table.cell_at(cell)
     }
 
-    /// Defined compiled declarations, then native dynamic entries in the active frame.
-    pub(crate) fn local_names(&self) -> Vec<Vec<u8>> {
+    /// Defined cells before independently reported TclOO declaration names.
+    pub(crate) fn local_names_without_declared_variables(&self) -> Vec<Vec<u8>> {
         self.index_of_level(self.active_level)
-            .map(|i| {
-                self.frames[i]
+            .map(|index| {
+                self.frames[index]
                     .table
                     .names()
                     .into_iter()
@@ -1909,6 +2073,56 @@ impl FrameStack {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    pub(crate) fn local_name_pattern_inputs(
+        &self,
+        include_links: bool,
+    ) -> Result<Vec<(Vec<u8>, tcl_syntax::native_glob::NativeNameGlobPurpose)>, VarError> {
+        use tcl_syntax::native_glob::NativeNameGlobPurpose;
+        let Some(index) = self.index_of_level(self.active_level) else {
+            return Ok(Vec::new());
+        };
+        let table = &self.frames[index].table;
+        let mut inputs = table
+            .declared_slots
+            .iter()
+            .copied()
+            .filter(|&slot| table.visible_cell(slot, include_links))
+            .map(|slot| {
+                (
+                    table.cells[slot].name.clone(),
+                    NativeNameGlobPurpose::InfoVariablesScan,
+                )
+            })
+            .collect::<Vec<_>>();
+        inputs.extend(table.ordered_names().into_iter().filter_map(|name| {
+            table
+                .lookup_slot(name)
+                .filter(|&slot| table.visible_cell(slot, include_links))
+                .map(|_| (name.to_vec(), NativeNameGlobPurpose::InfoVariablesSearch))
+        }));
+        if include_links {
+            for name in self.declared_tcloo_variable_names()? {
+                if !inputs.iter().any(|(existing, _)| *existing == name) {
+                    inputs.push((name, NativeNameGlobPurpose::InfoVariablesScan));
+                }
+            }
+        }
+        Ok(inputs)
+    }
+
+    /// Actual defined names followed by unused declaring-provider names.
+    pub(crate) fn local_names(&self) -> Vec<Vec<u8>> {
+        let mut names = self.local_names_without_declared_variables();
+        if let Ok(public) = self.declared_tcloo_variable_names() {
+            for name in public {
+                if !names.contains(&name) {
+                    names.push(name);
+                }
+            }
+        }
+        names
     }
 
     /// `info locals` — the active frame's true local variables (no links).
@@ -1934,20 +2148,6 @@ impl FrameStack {
                     .const_names()
                     .into_iter()
                     .map(<[u8]>::to_vec)
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    /// Automatic `TclOO` instance links in the active method frame.
-    pub(crate) fn tcloo_instance_links(&self) -> Vec<(Vec<u8>, Link)> {
-        self.index_of_level(self.active_level)
-            .map(|i| {
-                self.frames[i]
-                    .table
-                    .tcloo_instance_links()
-                    .into_iter()
-                    .map(|(name, link)| (name.to_vec(), link.clone()))
                     .collect()
             })
             .unwrap_or_default()
@@ -2005,6 +2205,10 @@ mod native_inventory_tests {
 
     #[test]
     fn array_entry_ledgers_match_all_320_native_table_controls() {
+        // Native proof naming.variable-table.original-array-growth-and-reinsertion:
+        // docs/design/analysis/name-resolution-proofs/variable-table-original-array-growth-and-reinsertion.md
+        // Native proof naming.variable-table.original-opaque-key-extents:
+        // docs/design/analysis/name-resolution-proofs/variable-table-original-opaque-key-extents.md
         crate::counters::reset();
         {
             let value = obj::Owned::fresh(obj::new_wide_int_obj(7));
@@ -2061,6 +2265,8 @@ mod native_inventory_tests {
 
     #[test]
     fn trace_shells_grow_table_without_becoming_defined_inventory() {
+        // Native proof naming.variable-table.undefined-array-shell-growth:
+        // docs/design/analysis/name-resolution-proofs/variable-table-undefined-array-shell-growth.md
         crate::counters::reset();
         {
             let value = obj::Owned::fresh(obj::new_wide_int_obj(7));
@@ -2125,6 +2331,85 @@ mod native_inventory_tests {
             );
         }
         assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn declared_undefined_namespace_cells_remain_visible_without_becoming_defined() {
+        // Native proof: naming.tcloo.explicit-variable-link-counted-target
+        // docs/design/analysis/name-resolution-proofs/explicit-variable-link-counted-target.md
+        let mut table = VarTable::default();
+        let key = b"k\0tail";
+        let alias = table.retain_native_scalar_alias(key);
+        assert!(table.names().is_empty());
+        table.mark_namespace_declared(key);
+        drop(alias);
+        assert_eq!(table.names(), [key.as_slice()]);
+        assert!(table.non_link_names().is_empty());
+        assert!(!table.is_set(key));
+        assert!(table.load_scalar(key).is_none());
+        assert!(table.has_native_namespace_cell(key));
+        table.remove(key);
+        assert!(table.names().is_empty());
+        assert!(!table.is_set(key));
+    }
+
+    #[test]
+    fn trace_member_identity_selects_original_duplicate_root_allocations() {
+        // Rust API coverage: naming.variable.recreated-element-independent-read-trace
+        // docs/design/analysis/name-resolution-proofs/variable-recreated-element-independent-read-trace.md
+        crate::counters::reset();
+        {
+            let mut table = VarTable::default();
+            let first = table.declare_compiled_cell(b"same");
+            let second = table.declare_compiled_cell(b"same");
+            let value = obj::Owned::fresh(obj::new_wide_int_obj(1));
+            let mut members = Vec::new();
+            for slot in [first, second] {
+                let receiver = table
+                    .capture_receiver_at(slot, Some(b"k".to_vec()), true)
+                    .unwrap()
+                    .unwrap();
+                receiver.store(value.as_ptr()).unwrap();
+                let root = receiver.binding_id().unwrap();
+                let member = table.native_trace_element_identity(root, b"k").unwrap();
+                members.push((root, member));
+            }
+            assert_ne!(members[0].0, members[1].0);
+            assert_ne!(members[0].1, members[1].1);
+            for (root, member) in &members {
+                assert_eq!(
+                    table.native_trace_element_identity(*root, b"k"),
+                    Some(*member)
+                );
+                assert_eq!(table.native_trace_element_identity(*root, b"absent"), None);
+            }
+            // A selected old member keeps its trace guard while a current
+            // same-key replacement has an independent member allocation.
+            let receiver = table
+                .capture_receiver_at(first, None, true)
+                .unwrap()
+                .unwrap();
+            let detached = receiver.begin_array_destruction().unwrap();
+            assert_eq!(detached.trace_member_identity(b"k"), Some(members[0].1));
+            receiver.ensure_array().unwrap();
+            let replacement = table
+                .capture_receiver_at(first, Some(b"k".to_vec()), true)
+                .unwrap()
+                .unwrap();
+            replacement.store(value.as_ptr()).unwrap();
+            let (_, replacement_id) = replacement.trace_member().unwrap();
+            assert_ne!(replacement_id, members[0].1);
+            assert_eq!(
+                table.native_trace_element_identity(members[0].0, b"k"),
+                Some(replacement_id)
+            );
+            let old = detached.capture_receiver(b"k".to_vec());
+            assert_eq!(old.trace_member(), Some((b"k".to_vec(), members[0].1)));
+            assert_eq!(old.read().unwrap(), Some(value.as_ptr()));
+            detached.finish_destruction();
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+        assert_eq!(crate::counters::double_free_count(), 0);
     }
 
     #[test]

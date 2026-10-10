@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use tcl_dialect::model::SurfaceQuery;
 
 use serde::{Deserialize, Serialize};
-use tcl_compiler::realm::document_realm_bindings;
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
 use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{LexerConfig, Span, TokenType};
@@ -25,7 +25,7 @@ use tcl_registry::spec::resolve_option_prefix;
 use tcl_registry::tk_geometry::TkGeometryContainerPolicy;
 use tcl_registry::{CommandRegistry, CommandSpec, InvocationWord, InvocationWords, Traits};
 
-use crate::executable_regions::{ExecutableContext, visit_executable_commands};
+use crate::executable_regions::{ExecutableContext, visit_analysis_executable_commands};
 use tcl_dialect::model::SpecSurface;
 
 /// The current JSON-compatible Tk UI model schema version.
@@ -104,11 +104,11 @@ pub struct TkWidget {
     pub certainty: TkFactCertainty,
 }
 
-/// Static execution certainty attached to model facts.
+/// Source-model certainty; this supplies no actual runtime construction proof.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TkFactCertainty {
-    /// The command is in the document's direct execution region.
+    /// A literal model fact in the document's direct source region.
     Certain,
     /// The command is in a body whose execution depends on runtime flow.
     Potential,
@@ -277,6 +277,7 @@ struct PendingWidgetCall {
 #[derive(Debug, Clone)]
 enum PendingInvocationWord {
     Literal(String),
+    KnownBytes(Vec<u8>),
     Dynamic,
     DynamicNonOption,
     Expanded,
@@ -287,6 +288,7 @@ impl PendingInvocationWord {
     fn from_registry(word: InvocationWord<'_>) -> Self {
         match word {
             InvocationWord::Literal(value) => Self::Literal(value.to_owned()),
+            InvocationWord::KnownBytes(value) => Self::KnownBytes(value.to_vec()),
             InvocationWord::Dynamic | InvocationWord::ArrayElementName { .. } => Self::Dynamic,
             InvocationWord::DynamicNonOption => Self::DynamicNonOption,
             InvocationWord::Expanded => Self::Expanded,
@@ -297,6 +299,7 @@ impl PendingInvocationWord {
     fn as_registry(&self) -> InvocationWord<'_> {
         match self {
             Self::Literal(value) => InvocationWord::Literal(value),
+            Self::KnownBytes(value) => InvocationWord::KnownBytes(value),
             Self::Dynamic => InvocationWord::Dynamic,
             Self::DynamicNonOption => InvocationWord::DynamicNonOption,
             Self::Expanded => InvocationWord::Expanded,
@@ -321,20 +324,26 @@ struct TkAnalysis {
 /// The caller supplies the resolved document `dialect` and its `registry` so
 /// this function never guesses a command surface.  The returned root is
 /// implicit; the model includes only constructor facts whose registry spec has
-/// both `creates_instance_at` and `required_package == "Tk"`.
+/// both `creates_instance_at` and `required_package == "Tk"`. One retained
+/// source analysis uses the exact supplied profile, frozen command store and
+/// its document grammar. These UI facts grant no runtime names, cells or edits.
 #[must_use]
 pub fn analyse_tk_ui(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> TkUiModel {
-    let identities = document_realm_bindings(source, dialect, registry);
-    let config = LexerConfig::for_file_grammar(dialect.grammar);
-    let tk_active = crate::document_context_for_profile(dialect)
-        .authoring_query()
-        .packages
-        .contains(&"Tk")
-        || source_requires_tk(source, config, dialect, registry, &identities);
+    // naming.core.original-tk-source-context
+    // docs/design/analysis/name-resolution-proofs/core-original-tk-source-context.md
+    let retained = tk_source_analysis(source, dialect, registry);
+    let input = retained
+        .resolved_input
+        .as_ref()
+        .expect("explicit Tk source input");
+    let context = input.context_registry();
+    let registry = context.commands();
+    let tk_active = context.context().authoring_query().packages.contains(&"Tk")
+        || source_requires_tk(source, &retained);
     if !tk_active {
         return TkUiModel {
             schema_version: TK_UI_SCHEMA_VERSION,
@@ -352,29 +361,26 @@ pub fn analyse_tk_ui(
         };
     }
     let mut analysis = TkAnalysis::default();
-    let tk_version = crate::document_context_for_profile(dialect)
+    let tk_version = context
+        .context()
         .placement_floor("Tk")
         .map(tcl_dialect::model::Version::as_str);
 
-    visit_executable_commands(
-        source,
-        config,
-        registry,
-        Some(crate::document_context_for_profile(dialect).authoring_query()),
-        &identities,
-        &mut |command, heads, context| {
-            collect_tk_command(
-                command,
-                heads.resolved,
-                registry,
-                Some(crate::document_context_for_profile(dialect).authoring_query()),
-                tk_version,
-                &mut analysis,
-                context,
-            );
-            false
-        },
-    );
+    visit_analysis_executable_commands(source, &retained, &mut |command, _, region| {
+        let Some(head) = tk_source_head(source, &retained, command) else {
+            return false;
+        };
+        collect_tk_command(
+            command,
+            &head,
+            registry,
+            Some(context.context().authoring_query()),
+            tk_version,
+            &mut analysis,
+            region,
+        );
+        false
+    });
 
     finish_tk_analysis(analysis)
 }
@@ -537,42 +543,85 @@ fn cap_uncertainties(uncertainties: &mut Vec<TkUiUncertainty>) -> usize {
     omitted
 }
 
-fn source_requires_tk(
+/// A standalone UI-advice input. Its explicitly supplied profile and frozen
+/// command store remain independent; a registry's display profile cannot
+/// replace the supplied version or grammar.
+fn tk_source_analysis(
     source: &str,
-    config: LexerConfig,
-    dialect: &'static tcl_dialect::DialectProfile,
+    profile: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::realm::CommandBindingRealm,
-) -> bool {
-    let mut active = false;
-    let available_tk = crate::document_context_for_profile(dialect)
+) -> AnalysisResult {
+    let generation = tcl_registry::model::context_for_profile(profile);
+    let context =
+        std::sync::Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
+    let input = ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        context,
+        LexerConfig::for_file_grammar(profile.grammar),
+    );
+    Analyser::new()
+        .with_resolved_input(input)
+        .analyse(source, profile.name)
+}
+
+/// Constructor/manager schema must preserve every written UI operand. A
+/// captured or expanded effective prefix cannot borrow a widget path span.
+/// Literal widget-method heads belong only to the UI source model's own paths.
+fn tk_source_head(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &SegmentedCommand,
+) -> Option<String> {
+    if let Some(words) = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        source, analysis, command,
+    ) {
+        if words.origins().len() != command.argv.len()
+            || words.origins().iter().enumerate().skip(1).any(|(ordinal, origin)| {
+                !matches!(origin, tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) if *written == ordinal)
+            }) {
+            return None;
+        }
+        let context = analysis.resolved_input.as_ref()?.context_registry();
+        return words.with_source_schema(&context, |schema| schema.canonical_command.to_owned());
+    }
+    let (head, _) = literal_word(command, 0)?;
+    tcl_registry::tk_geometry::is_widget_path(&head).then_some(head)
+}
+
+fn source_requires_tk(source: &str, analysis: &AnalysisResult) -> bool {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    let context = input.context_registry();
+    let available_tk = context
+        .context()
         .placement_floor("Tk")
         .map(tcl_dialect::model::Version::as_str);
-    visit_executable_commands(
-        source,
-        config,
-        registry,
-        Some(crate::document_context_for_profile(dialect).authoring_query()),
-        identities,
-        &mut |command, heads, context| {
-            if context != ExecutableContext::Direct {
-                return false;
-            }
-            let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-            let exact = literal_word(command, 2).is_some_and(|(word, _)| word == "-exact");
-            let package_index = if exact { 3 } else { 2 };
-            active = registry
-                .resolve_call(
-                    heads.resolved,
-                    &args,
-                    Some(crate::document_context_for_profile(dialect).authoring_query()),
-                )
-                .is_some_and(|call| call.analyser_hook == Some(AnalyserHookId::PackageRequire))
-                && literal_word(command, package_index).is_some_and(|(word, _)| word == "Tk")
-                && tk_requirement_is_satisfied(command, package_index + 1, exact, available_tk);
-            active
-        },
-    );
+    let mut active = false;
+    visit_analysis_executable_commands(source, analysis, &mut |command, _, region| {
+        if region != ExecutableContext::Direct {
+            return false;
+        }
+        let Some(words) =
+            tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                source, analysis, command,
+            )
+        else {
+            return false;
+        };
+        if tk_source_head(source, analysis, command).is_none()
+            || words.with_source_schema(&context, |schema| schema.semantics.analyser_hook)
+                != Some(Some(AnalyserHookId::PackageRequire))
+        {
+            return false;
+        }
+        let exact = literal_word(command, 2).is_some_and(|(word, _)| word == "-exact");
+        let package_index = if exact { 3 } else { 2 };
+        active = literal_word(command, package_index).is_some_and(|(word, _)| word == "Tk")
+            && tk_requirement_is_satisfied(command, package_index + 1, exact, available_tk);
+        active
+    });
     active
 }
 
@@ -1445,6 +1494,50 @@ mod tests {
             dialect,
             crate::registry_for_dialect_profile(dialect),
         )
+    }
+
+    #[test]
+    fn original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries() {
+        // naming.core.original-tk-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-tk-source-context.md
+        let supplied = crate::profile_for_dialect("tcl8.6");
+        let newer = crate::registry_for_dialect_profile(crate::profile_for_dialect("tcl9.1"));
+        let source = "package require Tk\nttk::toggleswitch .unavailable\nframe .kept";
+        let retained = tk_source_analysis(source, supplied, newer);
+        let input = retained.resolved_input.as_ref().unwrap();
+        assert_eq!(input.analyser_profile().cache_key(), supplied.cache_key());
+        assert_eq!(
+            input
+                .context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key(),
+            newer.snapshot().semantic_key()
+        );
+        let ui = analyse_tk_ui(source, supplied, newer);
+        assert!(ui.tk_active);
+        assert_eq!(ui.widget_count, 2);
+        assert_eq!(ui.root.unwrap().children[0].path, ".kept");
+        let source = "package require Tk\ninterp alias {} install {} frame .captured\ninstall .wrong\ninterp alias {} normal {} frame\nnormal .written";
+        let ui = model_in_dialect(source, "tcl8.6");
+        let paths = ui
+            .root
+            .unwrap()
+            .children
+            .into_iter()
+            .map(|widget| widget.path)
+            .collect::<Vec<_>>();
+        assert_eq!(paths, vec![".written"]);
+        let source = "package require Tk\nproc if args {}\nif 1 {frame .inert}\nframe .live";
+        let ui = model_in_dialect(source, "tcl8.6");
+        let paths = ui
+            .root
+            .unwrap()
+            .children
+            .into_iter()
+            .map(|widget| widget.path)
+            .collect::<Vec<_>>();
+        assert_eq!(paths, vec![".live"]);
     }
 
     #[test]

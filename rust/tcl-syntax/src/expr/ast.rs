@@ -33,7 +33,7 @@ use std::fmt;
 
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 
-use crate::naming::normalise_var_name;
+use crate::naming::variable_reference_root_bytes;
 
 /// Owned expression leaves; native execution keeps byte payloads while
 /// Unicode analysis uses the default `String` specialization.
@@ -893,7 +893,10 @@ impl ExprNode {
         let mut result = HashSet::new();
         self.collect_vars_with(
             Some(config.nested().normalized()),
-            &|text, _name| crate::naming::element_var_name(text).to_owned(),
+            &|text, _name| {
+                crate::naming::element_var_name_braced_for_style(text, false, config.braced_var)
+                    .to_owned()
+            },
             &mut result,
         );
         result
@@ -1000,8 +1003,30 @@ fn collect_raw_vars_with(
     for tok in &tokens {
         match tok.kind {
             TokenType::Var => {
-                let raw = source_map.token_text(*tok);
-                let picked = pick(raw, normalise_var_name(raw));
+                let start = tok.span.start() as usize;
+                let Some(reference) =
+                    tcl_lexer::word_parts::scan_var_ref(text.as_bytes(), start, config)
+                        .ok()
+                        .flatten()
+                else {
+                    continue;
+                };
+                if reference.source_span(text.as_bytes(), start, 0) != Some(tok.span) {
+                    continue;
+                }
+                let Some(raw) = text.get(start..reference.next) else {
+                    continue;
+                };
+                let Some(root) = variable_reference_root_bytes(raw.as_bytes(), config)
+                    .ok()
+                    .flatten()
+                else {
+                    continue;
+                };
+                let Ok(root) = std::str::from_utf8(root) else {
+                    continue;
+                };
+                let picked = pick(raw, root);
                 if !picked.is_empty() {
                     out.insert(picked);
                 }
@@ -1150,6 +1175,70 @@ pub fn expr_text(node: &ExprNode) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn raw_expression_reads_share_selected_scalar_and_array_roots() {
+        // Implementation contract: naming.expression.selected-reference-root
+        // docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md
+        let raw = ExprNode::Raw {
+            text: "${scalar(open} + ${scalar(open)tail} + ${arr(key)}".to_owned(),
+        };
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = LexerConfig {
+                braced_var: style,
+                ..LexerConfig::default()
+            };
+            assert_eq!(
+                raw.vars_with_config(config),
+                ["scalar(open", "scalar(open)tail", "arr"]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect()
+            );
+            assert_eq!(
+                raw.vars_element_qualified_with_config(config),
+                ["scalar(open", "scalar(open)tail", "arr(key)"]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect()
+            );
+        }
+        let joined = ExprNode::Raw {
+            text: "${cash$name} + $x$tail".to_owned(),
+        };
+        assert_eq!(
+            joined.vars_with_config(LexerConfig::default()),
+            ["cash$name", "x", "tail"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect()
+        );
+        assert_eq!(
+            joined.vars_element_qualified_with_config(LexerConfig::default()),
+            ["cash$name", "x", "tail"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect()
+        );
+        let raw = ExprNode::Raw {
+            text: "${a{b}c}".to_owned(),
+        };
+        let first = LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..LexerConfig::default()
+        };
+        assert_eq!(
+            raw.vars_with_config(first),
+            ["a{b".to_owned()].into_iter().collect()
+        );
+        assert_eq!(
+            raw.vars_with_config(LexerConfig::default()),
+            ["a{b}c".to_owned()].into_iter().collect()
+        );
+    }
+
     use super::*;
 
     #[test]

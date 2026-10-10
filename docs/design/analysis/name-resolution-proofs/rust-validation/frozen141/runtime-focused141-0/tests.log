@@ -1,0 +1,26 @@
+
+running 1 test
+test interp::native_variable_names::tests::active_read_unset_retires_old_registrations_matches_five_native_source_controls ... ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f793455e0f0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f793450bab0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7934563ae0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f79340038c0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f79349a32f0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f793499b220
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f79349c71b0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f79349956a0
+ADMISSION140 control physical=Some(V8_6) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7934e35050
+ADMISSION140 control physical=Some(V8_6) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7934de28b0
+ADMISSION140 control physical=Some(V8_6) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7934e6f3b0
+ADMISSION140 control physical=Some(V8_6) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7934e06f10
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f79354c6100
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f79354c5860
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7935517980
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7935253460
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f793591e890
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7935957b70
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f793595a800
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f79358f1f40
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1218 filtered out; finished in 6.47s
+

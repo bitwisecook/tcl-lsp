@@ -1,0 +1,46 @@
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-registry)
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-compiler)
+warning: `tcl-registry` (lib) generated 1 warning
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+   Compiling tcl-diagram v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-diagram)
+    Finished `test` profile [unoptimized] target(s) in 1m 33s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_diagram-ad85575c0768adb8)
+
+running 5 tests
+test attach::tests::original_rule_references_require_guarded_metadata_and_current_owners ... 
+thread 'attach::tests::original_rule_references_require_guarded_metadata_and_current_owners' (373810) panicked at rust/tcl-diagram/src/attach.rs:692:9:
+assertion failed: proc_call_refs("proc call {args} {}\nwhen HTTP_REQUEST {call Lib::one}").is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test data::original_source_tests::original_diagram_calls_use_retained_allocations_and_decline_missing_lookup ... ok
+test data::original_source_tests::original_diagram_events_require_actual_event_descriptors_instead_of_when_labels ... ok
+test data::original_source_tests::original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_clear ... ok
+test graph::original_completion_tests::original_diagram_renderer_does_not_infer_completion_from_action_labels ... ok
+
+failures:
+
+failures:
+    attach::tests::original_rule_references_require_guarded_metadata_and_current_owners
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 36 filtered out; finished in 6.42s
+
+error: test failed, to rerun pass `-p tcl-diagram --lib`

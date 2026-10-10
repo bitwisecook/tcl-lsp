@@ -1,0 +1,4 @@
+/workspace/.proofs/captured-package-future-frame121/probe.tcl:4: Error: package, unknown command "ifneeded": should be forget, names, provide, require
+Traceback (most recent call last):
+  File "/workspace/.proofs/captured-package-future-frame121/probe.tcl", line 4
+    package ifneeded R2286FutureFrame 1.0 {...

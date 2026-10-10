@@ -16,301 +16,392 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Extract variable — replace a selected expression with a named
-//! variable.
+//! Extract one original value word with the document's actual analysis axes.
 
-use tcl_compiler::segmenter::has_exactly_one_command_with_config;
-use tcl_lexer::{LexerConfig, LineIndex};
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lexer::{LexerConfig, LineIndex, SourceImage, Span};
+use tcl_registry::{CommandRegistry, SemanticOperationId, hooks::LoweringHookId};
 
 use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
 
-/// Whitespace-delimited binary operators that mark an arithmetic /
-/// logical expression which must be wrapped in `[expr { … }]` so the
-/// resulting `set` stays a valid two-argument call.
-///
-/// Derived from `tcl_syntax::expr::operators::ALL_BIN_OPS`, every entry of
-/// which is by construction a genuine infix binary operator, so the set
-/// covers the bitwise / shift symbols (`<<`/`>>`/`&`/`|`/`^`), the TIP 461
-/// string-ordering words (`lt`/`le`/`gt`/`ge`), and the iRules word
-/// operators (`contains`/`starts_with`/…). Missing one is not a missed
-/// suggestion: extracting `$a << 2` unwrapped writes `set myvar $a << 2`,
-/// a four-argument `set`, which is a Tcl runtime error.
-fn expr_op_spellings() -> &'static [&'static str] {
-    static OPS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
-    OPS.get_or_init(|| {
-        tcl_syntax::expr::operators::ALL_BIN_OPS
-            .iter()
-            .map(|op| op.spec().spelling)
-            .collect()
-    })
-}
-
-/// `true` when `text` contains a whitespace-delimited binary operator
-/// outside of a quoted string or a nested `(…)`/`{…}`/`[…]` substitution.
-///
-/// A whitespace-delimited operator has a single whitespace byte on each
-/// side (`\s OP \s`); this scans for ` OP ` with single ASCII spaces,
-/// skipping any byte range inside a `"…"` word or inside nested
-/// brackets/braces/parens. The quote check is what keeps an ordinary
-/// string selection like `"salt and pepper"` from matching the iRules
-/// `and` word operator and being wrapped in `[expr {…}]`, which fails at
-/// runtime because `"salt"` is not a valid `expr` bareword.
-fn looks_like_expr(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    let mut depth = 0i32;
-    let mut in_quotes = false;
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' if i + 1 < bytes.len() => {
-                i += 2;
-                continue;
-            }
-            b'"' => in_quotes = !in_quotes,
-            b'(' | b'{' | b'[' if !in_quotes => depth += 1,
-            b')' | b'}' | b']' if !in_quotes => depth -= 1,
-            b' ' if !in_quotes && depth == 0 => {
-                let rest = &text[i + 1..];
-                let hit = expr_op_spellings().iter().any(|op| {
-                    rest.strip_prefix(op)
-                        .is_some_and(|after| after.starts_with(' '))
-                });
-                if hit {
-                    return true;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    false
-}
-
-/// `true` when `selected` holds more than one command.
-///
-/// A `set` takes a single value word, so extracting two commands would
-/// build `set result set x 1` and drop the rest of the selection into the
-/// assignment. Command boundaries come from the segmenter, which owns
-/// where a Tcl command ends.
-fn spans_multiple_commands(selected: &str, config: LexerConfig) -> bool {
-    !has_exactly_one_command_with_config(selected, config)
-}
-
-/// Extract the selection `[start_off, end_off)` into a `set` assignment.
-///
-/// Returns `None` when the selection is empty, only whitespace, or spans
-/// more than one command.  `start_line` / `start_off` / `end_off` are byte
-/// offsets into `source`; `line_index` resolves them to lines for the
-/// indentation lookup.
+/// Extract `[selection.0, selection.1)` using the retained full source grammar
+/// and Registry. Native naming proposals supply only name availability and
+/// current setter selection; missing insertion, store or movement authority
+/// returns a disabled action with no edits. Compatibility extraction is
+/// restricted to the explicit lexical declaration-advice domain.
 #[must_use]
 pub fn extract_variable(
     source: &str,
-    start_off: u32,
-    end_off: u32,
+    selection: (u32, u32),
     var_name: &str,
+    analysis: &AnalysisResult,
     line_index: &LineIndex,
-    config: LexerConfig,
 ) -> Option<Refactoring> {
-    if end_off <= start_off {
+    let (start, end) = selection;
+    let config = analysis.body_lexer_config?;
+    let image = SourceImage::document(source);
+    if end <= start || !analysis.matches_original_source_image(&image, config) {
         return None;
     }
-    let selected = source.get(start_off as usize..end_off as usize)?;
-    if selected.trim().is_empty() || spans_multiple_commands(selected, config) {
+    let selected = source.get(start as usize..end as usize)?;
+    if selected.trim().is_empty() {
         return None;
     }
-
-    let start_line = line_index.line_at(start_off);
-    let lines: Vec<&str> = source.split('\n').collect();
-    let line_text = lines.get(start_line as usize)?;
-    let indent = super::line_indent(line_text);
-
-    // A bare operator expression (`$a * $b`) is not a valid value word
-    // for `set` — wrap it in `[expr { … }]`.  A selection that is already
-    // a command substitution (`[cmd …]`) or a single word is kept
-    // verbatim.
-    let stripped = selected.trim();
-    let value = if !stripped.starts_with('[') && looks_like_expr(stripped) {
-        format!("[expr {{{stripped}}}]")
+    let registry = analysis.resolved_registry()?;
+    if !analysis.allows_lexical_declaration_advice() {
+        let reason = original_assignment_candidate(source, Span::new(start, end), var_name, analysis)
+            .err().unwrap_or_else(|| "Variable extraction requires an independently proved inserted store and evaluation movement".to_owned());
+        return Some(Refactoring {
+            title: format!("Extract into variable '{var_name}'"),
+            edits: Vec::new(),
+            kind: ActionKind::RefactorExtract,
+            data_group: None,
+            disabled: Some(reason),
+        });
+    }
+    if !crate::rename::is_safe_symbol_name(var_name) {
+        return None;
+    }
+    let value = logical_value_word(selected, config)?;
+    let setter = unique_logical_command(registry, analysis, LoweringHookId::Set)?;
+    let command = super::find_command_at(source, start, None, registry, config)?;
+    let (command_start, command_end) = super::command_span_offsets(source, &command);
+    if start < command_start || end > command_end {
+        return None;
+    }
+    let command_words =
+        tcl_lexer::native_script_words_in(image, Span::new(command_start, command_end), config)
+            .ok()?;
+    if command_words.fatal_tail.is_some()
+        || !command_words
+            .commands
+            .iter()
+            .flat_map(|command| command.words.iter().skip(1))
+            .any(|word| word.word_span() == Span::new(start, end))
+    {
+        return None;
+    }
+    match analysis
+        .retained_command_realm()?
+        .binding_at(setter, command_start)
+    {
+        tcl_compiler::realm::RealmBindingFact::Unchanged => {}
+        tcl_compiler::realm::RealmBindingFact::Command(name)
+            if registry
+                .get(name)
+                .is_some_and(|spec| spec.lowering_hook == Some(LoweringHookId::Set)) => {}
+        _ => return None,
+    }
+    let line_start = line_index.line_start(line_index.line_at(command_start));
+    let before = source.get(line_start as usize..command_start as usize)?;
+    let (insertion, assignment) = if before.trim().is_empty() {
+        (line_start, format!("{before}{setter} {var_name} {value}\n"))
     } else {
-        selected.to_owned()
+        // A one-line body or a preceding command stays in its actual body;
+        // column zero could place the new assignment outside that frame.
+        (command_start, format!("{setter} {var_name} {value}; "))
     };
-    let assignment = format!("{indent}set {var_name} {value}\n");
-
-    // The `set` insertion goes at column 0 of the start line; the
-    // replacement reference uses the original selection coordinates.
-    // `apply` runs bottom-to-top (descending start offset) so the
-    // replacement edit (later offset) runs before the line-start
-    // insertion.
-    let line_start = u32::try_from(
-        source[..start_off as usize]
-            .rfind('\n')
-            .map_or(0, |nl| nl + 1),
-    )
-    .unwrap_or(0);
-    let edits = vec![
-        RefactorEdit {
-            start: line_start,
-            end: line_start,
-            new_text: assignment,
-        },
-        RefactorEdit {
-            start: start_off,
-            end: end_off,
-            new_text: format!("${var_name}"),
-        },
-    ];
-
     Some(Refactoring {
         title: format!("Extract into variable '${var_name}'"),
-        edits,
+        edits: vec![
+            RefactorEdit {
+                start: insertion,
+                end: insertion,
+                new_text: assignment,
+            },
+            RefactorEdit {
+                start,
+                end,
+                new_text: format!("${var_name}"),
+            },
+        ],
         kind: ActionKind::RefactorExtract,
         data_group: None,
         disabled: None,
     })
 }
 
+fn unique_logical_command<'a>(
+    registry: &'a CommandRegistry,
+    analysis: &AnalysisResult,
+    hook: LoweringHookId,
+) -> Option<&'a str> {
+    let profile = analysis.resolved_profile()?;
+    let context = crate::document_context_for_profile(profile);
+    let mut names = registry
+        .command_names_for_semantic_operation(SemanticOperationId::StructuredLowering(hook))
+        .filter(|name| {
+            registry
+                .get_for_surface(name, Some(context.authoring_query()))
+                .is_some_and(|spec| spec.lowering_hook == Some(hook))
+        });
+    let first = names.next()?;
+    names.next().is_none().then_some(first)
+}
+
+/// A complete word uses original lexical geometry; multiple value words need
+/// a complete checked expression from the actual independently selected parser.
+/// Recovery ASTs and operator substring guesses cannot issue that structure.
+fn logical_value_word(selected: &str, config: LexerConfig) -> Option<String> {
+    let image = SourceImage::document(selected);
+    let plan = tcl_lexer::native_script_words_in(
+        image,
+        Span::new(0, u32::try_from(selected.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    if plan.fatal_tail.is_some() {
+        return None;
+    }
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    if command.words.len() == 1 {
+        return Some(selected.to_owned());
+    }
+    // This entry has no independently installed logical expression parser
+    // facet. A compatible profile cannot supply that separate capability.
+    // Multiword expression extraction stays unavailable until its checked
+    // logical parser and selected evaluator are retained by the same owner.
+    None
+}
+
+/// Retain the independently selected point-owned naming proposal. Even a
+/// successful proposal does not authorise an inserted store or source motion.
+fn original_assignment_candidate(
+    source: &str,
+    selected: Span,
+    var_name: &str,
+    analysis: &AnalysisResult,
+) -> Result<(), String> {
+    use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    use tcl_compiler::ssa::SsaSourceView;
+    use tcl_compiler::var_resolve::VariableCellKey;
+    let unavailable =
+        || "No current original scalar availability and setter proposal is retained".to_owned();
+    let config = analysis.body_lexer_config.ok_or_else(unavailable)?;
+    let registry = analysis.resolved_registry().ok_or_else(unavailable)?;
+    let profile = analysis.resolved_profile().ok_or_else(unavailable)?;
+    let image = SourceImage::document(source);
+    let unit = CompilationUnit::build_with_options(
+        source,
+        UnitBuildOptions {
+            registry,
+            config,
+            dialect: Some(profile),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        },
+    );
+    let mut found = false;
+    for function in unit.analysable_body_function_units() {
+        if function.complexity_guarded || function.dynamic_barrier_blocks_value_motion() {
+            continue;
+        }
+        for (&block, body) in &function.ssa.blocks {
+            for index in 0..body.statements.len() {
+                let view = SsaSourceView::at_statement(&function.ssa, block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                let Some(binding) = tokens.source_binding.as_ref() else {
+                    continue;
+                };
+                for written in 1..tokens.words().len() {
+                    let Some(input) = binding.original_written_name_input(tokens, written) else {
+                        continue;
+                    };
+                    let Some(key) = input.original_word_key() else {
+                        continue;
+                    };
+                    if key.source_image() != &image
+                        || key.lexer_config() != config
+                        || key.original_word().word_span() != selected
+                    {
+                        continue;
+                    }
+                    if found {
+                        return Err(
+                            "The selected word has multiple source operation owners".to_owned()
+                        );
+                    }
+                    let policy = input.policy();
+                    let native_name = tcl_syntax::backslash::native_source_literal_bytes(
+                        var_name.as_bytes(),
+                        image.channel(),
+                        policy.string_protocol(),
+                    )
+                    .map_err(|_| unavailable())?;
+                    tcl_syntax::naming::native_scalar_source_spelling(
+                        &native_name,
+                        image.channel(),
+                        config,
+                        policy.recipe(),
+                    )
+                    .ok_or_else(|| {
+                        "The proposed name has no exact scalar source spelling".to_owned()
+                    })?;
+                    let proposal = view
+                        .fresh_scalar_assignment_proposal(&native_name, registry)
+                        .ok_or_else(unavailable)?;
+                    if proposal.variable().policy() != policy
+                        || proposal.variable().lexer_config() != config
+                        || proposal.command().lexer_config() != config
+                        || !proposal.command().matches_original_point(binding)
+                    {
+                        return Err(unavailable());
+                    }
+                    // The complete function's typed cells include future uses
+                    // and definitions. A compatibility label cannot prove that
+                    // introducing this local would leave later capture unchanged.
+                    for cell in function.ssa.cell_keys() {
+                        match cell.root() {
+                            VariableCellKey::Authored(_) => return Err("Future local-name coverage is unavailable".to_owned()),
+                            VariableCellKey::Activation { simple, .. } if simple.as_bytes() == native_name.as_ref() =>
+                                return Err("The proposed local is named elsewhere in the complete function".to_owned()),
+                            _ => {}
+                        }
+                    }
+                    found = true;
+                }
+            }
+        }
+    }
+    if found {
+        Ok(())
+    } else {
+        Err(
+            "The selection is not a pure original complete word at a reached local source point"
+                .to_owned(),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_compiler::analyser::Analyser;
 
-    fn run(source: &str, start: u32, end: u32, name: &str) -> Option<String> {
-        let li = LineIndex::new(source);
-        extract_variable(source, start, end, name, &li, LexerConfig::default())
-            .map(|r| r.apply(source))
+    fn analyse(source: &str) -> AnalysisResult {
+        Analyser::new().analyse(source, "f5-irules")
     }
-
-    #[test]
-    fn extract_command_substitution() {
-        let source = "set x [string length $name]";
-        // selection of `[string length $name]` (cols 6..27, all ASCII).
-        let applied = run(source, 6, 27, "len").expect("result");
-        assert!(
-            applied.contains("set len [string length $name]"),
-            "{applied:?}"
-        );
-        assert!(applied.contains("$len"), "{applied:?}");
-    }
-
-    #[test]
-    fn title_carries_custom_name() {
-        let source = "puts [expr {$a + $b}]";
-        let li = LineIndex::new(source);
-        let r =
-            extract_variable(source, 5, 20, "total", &li, LexerConfig::default()).expect("result");
-        assert!(r.title.contains("total"));
-    }
-
-    #[test]
-    fn multi_command_selection_returns_none() {
-        let source = "set x 0\nset x 1\nputs $x\nputs \"after=$x\"";
-        assert!(run(source, 8, 23, "result").is_none());
-        // A `;` separator is the same shape on one line.
-        assert!(run("set a 1; set b 2", 0, 16, "result").is_none());
-        // FP-guard: a newline inside a braced word is still one command.
-        assert!(run("puts [expr {1 +\n2}]", 5, 19, "total").is_some());
-        // FP-guard: one command plus its trailing newline is one command.
-        assert!(run("proc f {} {\n    return $x\n}\n", 12, 26, "result").is_some());
-    }
-
-    #[test]
-    fn empty_selection_returns_none() {
-        assert!(run("set x 42", 0, 0, "result").is_none());
-    }
-
-    #[test]
-    fn whitespace_selection_returns_none() {
-        // "set x    42" — cols 5..9 is the run of spaces.
-        assert!(run("set x    42", 5, 9, "ws").is_none());
-    }
-
-    #[test]
-    fn bare_expression_is_wrapped_in_expr() {
-        let source = "puts $a + $b";
-        let li = LineIndex::new(source);
-        let r =
-            extract_variable(source, 5, 12, "sum", &li, LexerConfig::default()).expect("result");
-        let applied = r.apply(source);
-        assert!(applied.contains("set sum [expr {$a + $b}]"), "{applied:?}");
-    }
-
-    /// Issue #983/#986: `EXPR_OPS` used to be a hand-typed 17-entry list
-    /// missing every bitwise/shift symbol and every TIP 461 string-ordering
-    /// word — a genuinely broken (not just suboptimal) output, since the
-    /// unwrapped `set myvar $a << $b` is a 4-argument `set` call (a Tcl
-    /// runtime error, `set` takes 1 or 2 args).
-    #[test]
-    fn bitwise_and_tip461_expressions_are_wrapped_in_expr() {
-        let li = LineIndex::new("puts $a << $b");
-        let r = extract_variable(
-            "puts $a << $b",
-            5,
-            13,
-            "shifted",
-            &li,
-            LexerConfig::default(),
+    fn run(source: &str, start: u32, end: u32, name: &str) -> Option<Refactoring> {
+        let analysis = analyse(source);
+        extract_variable(
+            source,
+            (start, end),
+            name,
+            &analysis,
+            &LineIndex::new(source),
         )
-        .expect("result");
-        assert!(
-            r.apply("puts $a << $b")
-                .contains("set shifted [expr {$a << $b}]"),
-            "{:?}",
-            r.apply("puts $a << $b")
-        );
+    }
 
-        let li2 = LineIndex::new("puts $a lt $b");
-        let r2 = extract_variable(
-            "puts $a lt $b",
-            5,
-            13,
-            "ordered",
-            &li2,
-            LexerConfig::default(),
-        )
-        .expect("result");
+    #[test]
+    fn logical_complete_value_words_keep_explicit_compatibility_behaviour() {
+        // Implementation contract: naming.refactor.logical-single-word-extraction
+        // docs/design/analysis/name-resolution-proofs/refactor-logical-single-word-extraction.md
+        let source = "puts {salt and pepper}";
+        let action = run(source, 5, u32::try_from(source.len()).unwrap(), "seasoning").unwrap();
+        assert!(action.disabled.is_none());
+        assert_eq!(
+            action.apply(source),
+            "set seasoning {salt and pepper}\nputs $seasoning"
+        );
+        let source = "puts [string length $name]";
+        let action = run(source, 5, u32::try_from(source.len()).unwrap(), "length").unwrap();
         assert!(
-            r2.apply("puts $a lt $b")
-                .contains("set ordered [expr {$a lt $b}]"),
-            "{:?}",
-            r2.apply("puts $a lt $b")
+            action
+                .apply(source)
+                .contains("set length [string length $name]")
         );
     }
 
-    /// Adversarial-review finding: `expr_op_spellings()` includes the
-    /// iRules word operators (`and`/`or`/`contains`/…), and an ordinary
-    /// quoted string containing one of those words as English prose must
-    /// NOT be mistaken for a real operator token — `set myvar "salt and
-    /// pepper"` is already valid, wrapping it in `expr {…}` breaks it.
     #[test]
-    fn quoted_string_containing_operator_words_is_not_wrapped_in_expr() {
-        let source = r#"puts "salt and pepper""#;
-        let li = LineIndex::new(source);
-        let r = extract_variable(source, 5, 22, "seasoning", &li, LexerConfig::default())
-            .expect("result");
-        let applied = r.apply(source);
-        assert!(
-            applied.contains(r#"set seasoning "salt and pepper""#),
-            "{applied:?}"
-        );
-        assert!(!applied.contains("[expr"), "{applied:?}");
-    }
-
-    /// A word-operator spelling nested inside a brace-quoted argument
-    /// (depth > 0) is not a real top-level operator token — a plain
-    /// command call like `helper {a and b} $x` must not be wrapped in
-    /// `expr {…}` just because "and" appears somewhere inside its braces.
-    #[test]
-    fn braced_word_operator_at_nonzero_depth_does_not_trigger_expr_wrap() {
+    fn logical_invalid_multiword_value_never_becomes_a_four_argument_set() {
+        // Implementation contract: naming.refactor.logical-single-word-extraction
+        // docs/design/analysis/name-resolution-proofs/refactor-logical-single-word-extraction.md
         let source = "puts helper {a and b} $x";
-        let li = LineIndex::new(source);
-        // selection of `helper {a and b} $x` (cols 5..24).
-        let r =
-            extract_variable(source, 5, 24, "result", &li, LexerConfig::default()).expect("result");
-        let applied = r.apply(source);
+        assert!(run(source, 5, u32::try_from(source.len()).unwrap(), "result").is_none());
         assert!(
-            applied.contains("set result helper {a and b} $x"),
-            "{applied:?}"
+            run("puts $a + $b", 5, 12, "result").is_none(),
+            "an absent independently selected logical expression parser is not operator advice"
         );
-        assert!(!applied.contains("[expr"), "{applied:?}");
+        assert!(run("puts literal", 5, 12, "a b").is_none());
+        assert!(run("puts literal", 5, 12, "arr(k)").is_none());
+        assert!(run("puts a; puts b", 5, 14, "result").is_none());
+        assert!(run("puts literal", 0, 0, "result").is_none());
+    }
+
+    #[test]
+    fn logical_one_line_body_insertion_remains_inside_the_original_body() {
+        // Implementation contract: naming.refactor.logical-single-word-extraction
+        // docs/design/analysis/name-resolution-proofs/refactor-logical-single-word-extraction.md
+        let source = "proc p {} {puts literal}";
+        let start = u32::try_from(source.find("literal").unwrap()).unwrap();
+        let action = run(source, start, start + 7, "result").unwrap();
+        assert_eq!(
+            action.apply(source),
+            "proc p {} {set result literal; puts $result}"
+        );
+    }
+
+    #[test]
+    fn original_variable_extraction_never_promotes_naming_proposals_to_motion_permission() {
+        // Implementation contract: naming.refactor.original-variable-extraction-permission
+        // docs/design/analysis/name-resolution-proofs/refactor-original-variable-extraction-permission.md
+        for source in [
+            "proc p {} {puts literal}; p",
+            "proc p {} {puts literal; puts $result}; p",
+            "proc p {} {proc set {args} {}; puts literal}; p",
+            "proc p {} {puts [unknown]}; p",
+        ] {
+            let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+            let start = u32::try_from(
+                source
+                    .find("literal")
+                    .or_else(|| source.find("[unknown]"))
+                    .unwrap(),
+            )
+            .unwrap();
+            let length = if source.get(start as usize..).unwrap().starts_with("literal") {
+                7
+            } else {
+                9
+            };
+            let action = extract_variable(
+                source,
+                (start, start + length),
+                "café",
+                &analysis,
+                &LineIndex::new(source),
+            )
+            .unwrap();
+            assert!(action.disabled.is_some());
+            assert!(action.edits.is_empty());
+            analysis.all_procs.clear();
+            analysis.global_scope.variables.clear();
+            analysis.dialect = "f5-irules".to_owned();
+            let same = extract_variable(
+                source,
+                (start, start + length),
+                "café",
+                &analysis,
+                &LineIndex::new(source),
+            )
+            .unwrap();
+            assert_eq!(action.disabled, same.disabled);
+            assert!(
+                extract_variable(
+                    &format!("#{source}"),
+                    (start, start + length),
+                    "result",
+                    &analysis,
+                    &LineIndex::new(source)
+                )
+                .is_none()
+            );
+        }
     }
 }

@@ -1,0 +1,19 @@
+{
+  "id": "UPDATE_IDLE",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/jim/probe",
+    "13"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "6c6f918d69d18a5ded3de0bd7268e7f046732d5a09a6937e948194c40a86f23c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|302e38342d392d6735626163376339",
+    "UPDATE_IDLE_INPUT|0|7365742078204f4c443b2061667465722030207b73657420782054494d45527d3b2061667465722069646c65207b73657420782049444c457d3b207570646174652069646c657461736b733b207365742078",
+    "UPDATE_IDLE|0|49444c45",
+    "UPDATE_IDLE_OPTIONS_NOT_TESTED|0|no-C-return-options-api"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

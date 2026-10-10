@@ -132,6 +132,19 @@ impl NativeIndexTable for NativeStaticIndexTable {
 pub type NativeIndexLookupOutcome = Result<(Option<usize>, Option<NativeIndexCache>), Vec<u8>>;
 
 impl NativeIndexLookupProtocol {
+    /// Pure lookup input extent for this independently selected C recipe.
+    /// It neither materializes an object nor creates or validates an Index cache.
+    #[must_use]
+    pub fn selected_input(self, original: &[u8]) -> &[u8] {
+        match self.0 {
+            TclVersion::V8_4
+            | TclVersion::V8_5
+            | TclVersion::V8_6
+            | TclVersion::V9_0
+            | TclVersion::V9_1 => tcl_core_types::c_string_extent(original),
+        }
+    }
+
     /// Actual original descriptor release.
     #[must_use]
     pub const fn version(self) -> TclVersion {
@@ -240,8 +253,55 @@ impl NativeIndexLookupProtocol {
             tcl_cmd_core::prefix::OptionTable::abbreviating(noun, &words)
         };
         matcher
-            .index_of(tcl_core_types::c_string_extent(bytes))
+            .index_of(self.selected_input(bytes))
             .map(|index| table.cache(index))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn selected_trace_type_bytes_keep_raw_and_encoded_zero_distinct() {
+        // Native proof: naming.trace.original-type-wrong-arity-inputs
+        // docs/design/analysis/name-resolution-proofs/trace-original-type-wrong-arity-inputs.md
+        for version in tcl_dialect::TclVersion::ALL {
+            let protocol = crate::InvocationDialect::for_version(version)
+                .native_index_lookup_protocol()
+                .unwrap();
+            for (raw, encoded, canonical) in [
+                (
+                    b"var\0\xff".as_slice(),
+                    b"var\xc0\x80\xff".as_slice(),
+                    "variable",
+                ),
+                (
+                    b"com\0\xff".as_slice(),
+                    b"com\xc0\x80\xff".as_slice(),
+                    "command",
+                ),
+                (
+                    b"exec\0\xff".as_slice(),
+                    b"exec\xc0\x80\xff".as_slice(),
+                    "execution",
+                ),
+            ] {
+                let selected =
+                    tcl_cmd_core::trace::resolve_type_bytes(protocol.selected_input(raw)).unwrap();
+                assert_eq!(selected.canonical_name(), canonical);
+                assert!(
+                    tcl_cmd_core::trace::resolve_type_bytes(protocol.selected_input(encoded))
+                        .is_err()
+                );
+                assert_eq!(protocol.selected_input(encoded), encoded);
+            }
+        }
+        assert!(
+            crate::InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment("jim").unit_profile()
+            )
+            .native_index_lookup_protocol()
+            .is_none()
+        );
     }
 }
 

@@ -1,0 +1,595 @@
+[
+  {
+    "id": "naming.source.original-content-currency",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-content-currency.md",
+    "problem_statement": "A retained source value can outlive a cache conversion or a known overwrite of its former variable, while a live variable-read receipt must expire when that cell changes. Reusing the representation epoch for immutable data either loses valid copied bytes or revives an old producer after an unknown effect.",
+    "question": "Which independent stamp and cell obligations keep immutable original source bytes current through cache changes, frame transfer, joins and unknown effects?",
+    "conclusion": "OriginalProducedNameValue retains complete source producers, naming policy and an independent original-content stamp. Cache-only invalidation preserves this stamp; unknown content or observer effects advance it, and unequal or exhausted histories do not reuse an old stamp. Live reads additionally require the exact current cell, generation, origin, kind and observer closure.",
+    "scope": "Implementation data correspondence for independently selected C/Jim policies; no physical object, successful handler, compiler-local table, editable word or native interpreter is established. Concatenation currently admits ASCII non-NUL source data only.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "selector": "command_binding::original_name_value::tests::original_contents_currency_preserves_cache_changes_and_retires_unknown_effects",
+        "assertion": "Verify the stated implementation boundary and its discriminating rejection cases; an actual test run is independently required.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "selector": "command_binding::original_name_value::tests::original_content_joins_keep_every_origin_and_do_not_reuse_unknown_currency",
+        "assertion": "Verify the stated implementation boundary and its discriminating rejection cases; an actual test run is independently required.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "selector": "command_binding::original_name_value::tests::original_child_lineage_is_bounded_across_repeated_capture",
+        "assertion": "Repeated readonly list-child capture retains exact bytes and current lineage only within a finite complete nested graph budget; it declines before unbounded child/store chains form.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "symbol": "OriginalProducedNameValue",
+        "purpose": "Retain complete immutable source-data producers, selected naming policy and independent content currency."
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_resolve.rs",
+        "symbol": "ResolveContext::invalidate_original_contents",
+        "purpose": "Retire uncertain content histories on the independent content axis without stamp reuse."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact named Rust selectors in the relevant crate. Policy enumeration is not native interpreter execution; no performance pass is claimed."
+    }
+  },
+  {
+    "id": "naming.source.cached-image-hash",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/cached-image-hash.md",
+    "problem_statement": "Original producer graphs repeatedly hash the same full source buffer. Replacing that cost with an offset, pointer or digest identity would merge different source bytes or Document and NativeValue channels, invalidating name provenance.",
+    "question": "Can SourceImage cache hashing while preserving full byte/channel equality and ordering, including a deliberate digest collision?",
+    "conclusion": "SourceImage computes an immutable byte digest once and hashes that digest with its channel. Equality and ordering still compare complete bytes and channel. A deliberately colliding digest remains two distinct map keys and two distinct ordering values.",
+    "scope": "Implementation identity and cost model only. No timing, native parser acceptance, source correspondence or interpreter authority follows from the digest.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lexer/src/source_map.rs",
+        "selector": "source_map::source_image_hash_tests::source_image_cached_hash_preserves_full_equality_order_and_channel",
+        "assertion": "Verify the stated implementation boundary and its discriminating rejection cases; an actual test run is independently required.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-lexer/src/source_map.rs",
+        "selector": "source_map::source_image_hash_tests::source_image_digest_collision_does_not_merge_map_or_order_identity",
+        "assertion": "Verify the stated implementation boundary and its discriminating rejection cases; an actual test run is independently required.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lexer/src/source_map.rs",
+        "symbol": "SourceImage",
+        "purpose": "Cache hashing while preserving complete byte and channel equality and ordering."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact named Rust selectors in the relevant crate. Policy enumeration is not native interpreter execution; no performance pass is claimed."
+    }
+  },
+  {
+    "id": "naming.grammar.static-ascii-metadata",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/static-ascii-metadata.md",
+    "problem_statement": "A BIG-IP document may legitimately select an ASCII Registry subcommand while having no C/Jim native naming policy. Requiring such a policy loses metadata; inventing one would grant native naming semantics that the appliance has not supplied.",
+    "question": "Which static metadata presentation can be obtained from an authentic Document word under its complete LexerConfig without a native name policy?",
+    "conclusion": "The shared word owner returns ASCII presentation only for a complete non-expanded Document word whose executable arena contains Text alone. Braced continuation and escaped text use the retained lexical configuration. Dynamic components, non-ASCII output and NativeValue input decline. The result grants metadata presentation only.",
+    "scope": "Implementation lexical metadata contract, including custom brace rules. Actual C/Jim and BIG-IP execution is not observed here; these bytes do not supply cells, command lookup identity, compiler eligibility or Normal completion.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/word_rules.rs",
+        "selector": "word_rules::original_metadata_tests::lexical_metadata_word_uses_full_document_grammar_without_native_policy",
+        "assertion": "Verify the stated implementation boundary and its discriminating rejection cases; an actual test run is independently required.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/word_rules.rs",
+        "symbol": "original_static_word_ascii_presentation",
+        "purpose": "Project lexical-only ASCII metadata from authentic static Document words and their complete lexer configuration."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact named Rust selectors in the relevant crate. Policy enumeration is not native interpreter execution; no performance pass is claimed."
+    }
+  },
+  {
+    "id": "naming.source.closed-leaf-handler-completion",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/closed-leaf-handler-completion.md",
+    "problem_statement": "A native leaf may pass its exact before-operation checks while the source driver discards its completion. Conversely, a normal child body or retained RHS bytes can be mistaken for successful completion of the enclosing handler. Procedure installation and variable writes therefore need separate operation-owned certificates.",
+    "question": "Which exact invocation and before-write obligations allow the shared source driver to preserve a closed leaf Normal completion without borrowing a child or value receipt?",
+    "conclusion": "A private native leaf certificate retains the exact original source site, complete words, LexerConfig and semantic operation. A valid closed procedure installation or an independently rechecked before-store write receipt may issue it. The outer driver consumes and clears this certificate; a normal child, known bytes, catalogue footprint or possible Ok route alone cannot issue it.",
+    "scope": "Implementation source-transfer contract for the existing closed procedure installation and selected Set handlers. Before-write checks require the current receiver, selected container policy, namespace or activation, observer closure and absent old contents or an independently closed ordinary producer release. Namespace wrappers, arbitrary callback release and opaque procedure storage need their own owners; no physical interpreter or actual native execution is established.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/normal_result.rs",
+        "selector": "command_binding::normal_result::tests::original_closed_leaf_completion_keeps_definition_and_store_obligations_separate",
+        "assertion": "A deferred error body does not run during the valid procedure definition; nested selected stores require closed writes. Invalid formal topology, scalar/array incompatibility and argument errors cannot complete the whole root.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/normal_result.rs",
+        "selector": "command_binding::normal_result::tests::original_jim_fresh_store_completion_uses_the_selected_write_kernel",
+        "assertion": "An authentic Jim environment point selects its own fresh before-write kernel; a missing RHS read cannot provide the same completion.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding.rs",
+        "symbol": "SourceNativeNormalCompletion",
+        "purpose": "Retain and consume a completion certificate only at the exact original native leaf invocation."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/native_result.rs",
+        "symbol": "original_store_receiver",
+        "purpose": "Select the Set receiver from actual compiler operands or the independently frozen Generic name, without claiming write success."
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_resolve/original_name_write.rs",
+        "symbol": "OriginalNormalValueWrite",
+        "purpose": "Seal before-store receiver, container, namespace, observer and old-content release obligations independently of RHS data."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact named Rust selectors through the maintained workspace test setup. This page records implementation obligations, not an executed Rust result or an interpreter observation."
+    }
+  },
+  {
+    "id": "naming.source.readonly-original-operand-projections",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/readonly-original-operand-projections.md",
+    "problem_statement": "A computed name, expanded list child or nested list element can have the same text as a written word while lacking its source geometry and compiler purpose. A consumer that remaps by text or offset may select the wrong argv ordinal, accept a stale document, or give a readonly value an editable word.",
+    "question": "How do consumers retain exact written, computed, expanded and native list-child inputs without reconstructing identity from presentation?",
+    "conclusion": "The shared producer retains the complete original image, full LexerConfig and written vector. Effective operands follow the authenticated written/expanded origin map; expanded elements require native list parsing and retained cardinality agreement. Values remain readonly, variable roots cannot stand in for fetched lists, and static container ancestry describes native ordinals without child source spans or edit permission.",
+    "scope": "Implementation provenance contract for C and Jim source projections and readonly list consumers. Caller image and channel, full configuration, immutable producer currency and full-vector agreement are separate checks. Captured alias operands require their independently positioned allocation owner. No physical argv, interpreter success, compiler hook, formal slot, cell lifetime or editable child span is established.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is an implementation contract; no interpreter or appliance observation is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "selector": "command_binding::original_name_value::graph_tests::original_retained_span_input_requires_exact_image_config_and_word",
+        "assertion": "The same retained computed input is available only under the complete current caller image, input channel, full configuration and exact word extent. Changed image/config and partial spans decline.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "selector": "command_binding::original_name_value::graph_tests::original_effective_head_keeps_computed_and_expanded_producers",
+        "assertion": "Computed command heads remain readonly current values; native expanded heads use their actual list child, including skipped empty expansions, and cannot acquire a complete word. Unknown contents invalidate the computed head.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/name_value.rs",
+        "selector": "signature_scan::name_value::tests::original_input_list_children_keep_parent_and_reject_lexical_roots",
+        "assertion": "Native list children retain the exact static parent and nested ordinal path, share one child manufacturer, lack editable keys and reject lexical variable roots and out-of-range ordinals.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/frozen_arguments.rs",
+        "selector": "command_binding::frozen_arguments::tests::frozen_native_argv_keeps_opaque_units_and_expansion_ordinals",
+        "assertion": "Static and expanded argv retain the exact original native bytes; opaque list children preserve full written parent and ordinal, remain readonly and are not converted to Unicode spelling.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/command_observers.rs",
+        "selector": "command_binding::command_observers::tests::original_trace_prefix_projection_requires_actual_script_argv_equivalence",
+        "assertion": "An authentic copied prefix requires shared counted script parsing to agree with the full list argv plus suffix; multicommand, comment, expansion and dynamic script prefixes decline.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "symbol": "original_variable_invocation",
+        "purpose": "Manufacture the complete effective operand vector from genuine written and expanded origins, with separate compiler-purpose receipts."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "symbol": "original_written_name_input_at_span_in_source",
+        "purpose": "Require exact caller image/channel and retained word-vector configuration before projecting a current readonly input."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/name_value.rs",
+        "symbol": "SignatureSourceNameInput",
+        "purpose": "Keep complete original words, readonly produced values and lexical variable roots distinct during shared list-child and container projections."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "symbol": "OriginalWrittenSourceWords",
+        "purpose": "Retain the actual unchanged full parser vector at a dispatch independently of compiler selection and declaration advice."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/frozen_arguments.rs",
+        "symbol": "freeze_word",
+        "purpose": "Freeze authentic produced native bytes and parse expansion children under their selected native list protocol without logical-text re-encoding."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact named Rust selectors through the maintained workspace test setup. This record describes provenance assertions and contains no executed test or native interpreter result."
+    }
+  }
+]

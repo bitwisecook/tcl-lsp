@@ -110,8 +110,24 @@ where
     O: ValueOps<Value = V> + VarStore<Value = V> + Frames,
     V: Clone,
 {
+    dispatch_bytes_at(ops, sub.as_bytes(), rest, located)
+}
+
+/// Dispatch an already selected subcommand without projecting its native
+/// bytes through a Unicode display. The adapter owns selection and admission;
+/// this owner applies the shared array operation to the selected spelling.
+pub fn dispatch_bytes_at<O, V>(
+    ops: &mut O,
+    sub: &[u8],
+    rest: &[V],
+    located: Option<&ArrayTarget>,
+) -> Option<Result<ArrayCommandResult<V>, CmdError>>
+where
+    O: ValueOps<Value = V> + VarStore<Value = V> + Frames,
+    V: Clone,
+{
     match sub {
-        "exists" => Some(match rest {
+        b"exists" => Some(match rest {
             [n] => {
                 let name = match ops.native_string_bytes(n) {
                     Ok(name) => name,
@@ -122,13 +138,16 @@ where
                     Err(error) => return Some(Err(error.into())),
                 };
                 match present_keys(ops, &target) {
-                    Ok(keys) => Ok(ArrayCommandResult::plain(ops.new_bool(keys.is_some()))),
+                    Ok(keys) => ops
+                        .array_existence_result(keys.is_some())
+                        .map(ArrayCommandResult::plain)
+                        .map_err(CmdError::from),
                     Err(error) => Err(error),
                 }
             }
             _ => Err(CmdError::wrong_args("array exists arrayName")),
         }),
-        "size" => Some(match rest {
+        b"size" => Some(match rest {
             [n] => {
                 let name = match ops.native_string_bytes(n) {
                     Ok(name) => name,
@@ -148,17 +167,17 @@ where
             }
             _ => Err(CmdError::wrong_args("array size arrayName")),
         }),
-        "names" => Some(match rest {
+        b"names" => Some(match rest {
             [n] => names(ops, n, None, located).map(ArrayCommandResult::plain),
             [n, p] => names(ops, n, Some(p), located).map(ArrayCommandResult::plain),
             _ => Err(CmdError::wrong_args("array names arrayName ?pattern?")),
         }),
-        "get" => Some(match rest {
+        b"get" => Some(match rest {
             [n] => get(ops, n, None, located),
             [n, p] => get(ops, n, Some(p), located),
             _ => Err(CmdError::wrong_args("array get arrayName ?pattern?")),
         }),
-        "unset" => Some(match rest {
+        b"unset" => Some(match rest {
             [n] => unset(ops, n, None, located).map(ArrayCommandResult::plain),
             [n, p] => unset(ops, n, Some(p), located).map(ArrayCommandResult::plain),
             _ => Err(CmdError::wrong_args("array unset arrayName ?pattern?")),

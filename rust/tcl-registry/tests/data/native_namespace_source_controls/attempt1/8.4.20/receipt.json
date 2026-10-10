@@ -1,0 +1,19 @@
+{
+  "provider": "8.4.20",
+  "channel": "ASCII source-file shell ingress; opaque Tcl units are produced by source backslash substitutions. No raw counted NativeString NUL or physical object cache claim.",
+  "input_sha256": "e1d2be49ba164055fb4e72d7007466b16fc14f70b77317a86604303c1dba5978",
+  "runner_sha256": "eb9f5c115147c9bc624e0d88d5efad49c3e7b4eba5a1163e3f38da631d9c1316",
+  "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+  "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+  "command": [
+    "/workspace/.proofs/oracle-bin/tclsh8.4",
+    "/workspace/.proofs/current-namespace-byte-controls88/cases.tcl"
+  ],
+  "reported_version": "8.4.20",
+  "version_exit": 0,
+  "exit": 0,
+  "stdout_sha256": "e77c2175461bdeb1cc151995145e3ddcfcf3ba8f1e22ce10570ca2201adde488",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": 11,
+  "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+}

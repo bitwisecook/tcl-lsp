@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_var::tests::captured_increment_receivers_match_actual_native_releases ... 
+thread 'cmd_var::tests::captured_increment_receivers_match_actual_native_releases' (546812) panicked at src/cmd_var.rs:527:21:
+assertion `left == right` failed: V8_4: variable_rmw_recreated_root_has_independent_trace
+  left: [48, 32, 123, 49, 32, 123, 99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 97, 40, 107, 41, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 101, 108, 101, 109, 101, 110, 116, 32, 105, 110, 32, 97, 114, 114, 97, 121, 125, 32, 49, 48, 48, 32, 123, 125, 32, 49, 48, 48, 125]
+ right: [48, 32, 123, 49, 32, 123, 99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 97, 40, 107, 41, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 101, 108, 101, 109, 101, 110, 116, 32, 105, 110, 32, 97, 114, 114, 97, 121, 125, 32, 49, 48, 48, 32, 82, 69, 65, 68, 32, 49, 48, 48, 125]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_var::tests::captured_increment_receivers_match_actual_native_releases
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1208 filtered out; finished in 5.38s
+

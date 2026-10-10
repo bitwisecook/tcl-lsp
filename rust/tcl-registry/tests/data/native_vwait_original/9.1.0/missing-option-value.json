@@ -1,0 +1,17 @@
+{
+  "case": "missing-option-value",
+  "command": [
+    "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+    "missing-option-value"
+  ],
+  "external_timeout": false,
+  "timeout_seconds": 3,
+  "process_exit": 0,
+  "seconds": 0.005782891996204853,
+  "stdout_sha256": "f817e45d4ab936ea3cc692a8434b1d0f28312582ac15cff100ccb108c1233820",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "V|actual-provider|0|5|392e312e30",
+    "R|missing-option-value|1|32|617267756d656e7420726571756972656420666f7220222d74696d656f757422"
+  ]
+}

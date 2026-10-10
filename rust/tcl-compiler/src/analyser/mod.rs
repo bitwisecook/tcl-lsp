@@ -46,14 +46,21 @@ pub mod class_hierarchy;
 pub mod class_lattice;
 pub mod commands;
 pub mod confusables_table;
+mod diagnostic_registry;
+mod diagnostic_subject;
 pub mod diagnostics;
 pub mod dispatch;
 pub mod handlers;
 pub mod indirection;
 mod input;
+mod interp_visibility;
 pub mod irules_event_checks;
 pub mod item_tree;
+#[cfg(test)]
+mod name_producer_tests;
 pub mod oo;
+mod original_definer;
+mod original_members;
 pub mod param_traits;
 pub mod per_item;
 pub mod recovery;
@@ -65,18 +72,36 @@ pub mod syntax_checks;
 pub mod tk_checks;
 pub mod types;
 pub mod utils;
+mod variable_alias_templates;
 
 pub use class_hierarchy::{ClassHierarchy, build_class_hierarchy};
 pub use class_lattice::{
     AblationConfig, ClassValue, DispatchStats, DispatchVerdict, NsContext, SiteReport, TopReason,
     analyse_dispatch, class_values, next_provider,
 };
-pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
+pub use item_tree::{
+    FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree, SourceDeclarationSignature,
+};
 // The MRO linearisation lives in `tcl-syntax` so the bytecode VM (which must
 // not depend on the compiler — the `CompileService` injection keeps the wasm
 // core light) can share it. Re-exported here so callers can reach it as
 // `tcl_compiler::analyser::…`.
+pub use diagnostic_registry::{
+    DeclaredSourceDiagnosticKind, DeclaredSourceDiagnosticSubject, RegistrySourceDiagnosticKind,
+    RegistrySourceDiagnosticSubject,
+};
+pub use diagnostic_subject::{
+    DiagnosticSubject, ObjectSourceAritySubject, RegisteredInstanceSourceDiagnosticKind,
+    RegisteredInstanceSourceDiagnosticSubject, SourceCallbackArgumentCounts,
+    SourceCallbackArityIssue, SourceCallbackAritySubject, SourceCallbackSignatureLookup,
+    SourceUnresolvedCommandSubject, SourceUnresolvedMathFunctionSubject,
+};
 pub use input::ResolvedAnalysisInput;
+pub use interp_visibility::{
+    ConditionalInterpreterVisibilitySubject, InterpreterVisibilityObligation,
+    OriginalInterpreterSourceDomain, OriginalInterpreterSourceLoad,
+    SourceInterpreterVisibilitySnapshot,
+};
 pub use scope::{
     VariableAliasLink, command_resolution_namespace_at, implicit_command_namespace_path_at,
     innermost_scope_is_oo_method_frame, innermost_scope_reaches_oo_helpers,

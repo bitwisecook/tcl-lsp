@@ -230,13 +230,23 @@ impl<'a> Lowerer<'a> {
         let module = input.module;
         let ledger = TraceLedger::new(
             &module.traced_variables,
-            module.has_dynamic_variable_trace,
+            // A source trace ledger cannot enumerate observers already installed
+            // in an independently entered native frame. Retain the runtime bit.
+            module.has_dynamic_variable_trace || module.source_entry.native_entry.is_some(),
             input.config,
         );
         let demotion = if input.top_level {
             CellDemotion::top_level(input.config)
         } else {
-            CellDemotion::procedure(input.escape, input.config)
+            // Named escape summaries are advisory. An actual native entry
+            // requires a separately retained byte/ordinal/layout projection;
+            // this lowering does not yet consume that capability.
+            CellDemotion::procedure(
+                input
+                    .escape
+                    .filter(|_| input.module.source_entry.native_entry.is_none()),
+                input.config,
+            )
         };
         let environment = input.context.map(SemanticContext::environment_id);
         // The document's profile, taken from the ingress rather than found
@@ -2216,6 +2226,79 @@ mod evaluated_region_tests {
         assert_eq!(
             super::unlowered_instruction(&function),
             Some("evaluated-body-region")
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_entry_storage_tests {
+    #[test]
+    // Implementation contract: naming.variable.aot-original-slot-purpose
+    // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+    fn original_native_entry_keeps_cells_and_runtime_trace_guards_despite_escape_labels() {
+        use super::*;
+        let registry = CommandRegistry::build_default();
+        let function = crate::execution_region::evaluated_region_test_fixture();
+        let mutations = ModuleCommandMutations::default();
+        let hints = BTreeMap::new();
+        let mut summary = ProcEscapeSummary::default();
+        summary.local_slots.insert("x".into(), 11);
+        let config = SemanticOptimisationConfig::new()
+            .with_enabled(SemanticOptimisationPassId::CellDemotion)
+            .with_enabled(SemanticOptimisationPassId::TraceBarrierElision);
+        let authored = Module::default();
+        let input = LoweringInput {
+            registry: &registry,
+            context: None,
+            function: &function,
+            source: "",
+            module: &authored,
+            mutations: &mutations,
+            config,
+            escape: Some(&summary),
+            top_level: false,
+            line_origin: 0,
+            entry_assumption: DispatchEntryAssumption::UnknownWorld,
+            type_hints: &hints,
+        };
+        let lowerer = Lowerer::new(&input);
+        let place = super::super::cells::CellPlace::Named { name: "x".into() };
+        assert_eq!(
+            lowerer.demotion.decide("x").storage,
+            super::super::cells::CellStorage::Slot(11)
+        );
+        assert_eq!(
+            lowerer.ledger.incr_guard(&place),
+            super::super::elide::IncrGuard::Unguarded
+        );
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let mut entry = crate::environment_ingress::captured_native_entry(profile);
+        entry.frame = tcl_runtime_api::native_compilation::NativeCompilationFrame::Procedure;
+        let mut native = authored.clone();
+        native.source_entry.native_entry = Some(std::sync::Arc::new(entry));
+        let native_input = LoweringInput {
+            module: &native,
+            ..input
+        };
+        let lowerer = Lowerer::new(&native_input);
+        assert_eq!(
+            lowerer.demotion.decide("x").storage,
+            super::super::cells::CellStorage::Cell
+        );
+        assert_eq!(
+            lowerer.ledger.incr_guard(&place),
+            super::super::elide::IncrGuard::RuntimeTraceBit
+        );
+        let mut traced = native.clone();
+        traced.traced_variables.insert("x".into());
+        let traced_input = LoweringInput {
+            module: &traced,
+            ..native_input
+        };
+        let lowerer = Lowerer::new(&traced_input);
+        assert_eq!(
+            lowerer.ledger.incr_guard(&place),
+            super::super::elide::IncrGuard::RuntimeTraceBit
         );
     }
 }

@@ -14,7 +14,58 @@ pub enum NativeJimLinkTargetInput<'a> {
     StrippedGlobal(&'a [u8]),
 }
 
+/// Typed Jim_SetVariableLink rejection, before any alias publication.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeJimAliasFailure {
+    /// A local dictionary-sugar operand cannot name a scalar alias.
+    LocalElement,
+    /// A current local value already occupies the original alias name.
+    Exists,
+    /// The local frame cannot retain a shorter-lived target frame.
+    Inverted,
+    /// The original target-name chain returns to the selected local slot.
+    SelfLink,
+}
+
 impl NativeJimLookupProtocol {
+    /// Original counted Jim alias error formatter. This has no C error tuple,
+    /// installed alias, selected frame or variable-cache authority.
+    #[must_use]
+    pub fn alias_failure_message(self, failure: NativeJimAliasFailure, original: &[u8]) -> Vec<u8> {
+        if failure == NativeJimAliasFailure::SelfLink {
+            return b"can't upvar from variable to itself".to_vec();
+        }
+        let mut message = if failure == NativeJimAliasFailure::Exists {
+            b"variable \"".to_vec()
+        } else {
+            b"bad variable name \"".to_vec()
+        };
+        message.extend_from_slice(original);
+        message.extend_from_slice(match failure {
+            NativeJimAliasFailure::LocalElement => {
+                b"\": upvar won't create a scalar variable that looks like an array element"
+            }
+            NativeJimAliasFailure::Exists => b"\" already exists",
+            NativeJimAliasFailure::Inverted => {
+                b"\": upvar won't create namespace variable that refers to procedure variable"
+            }
+            NativeJimAliasFailure::SelfLink => unreachable!("handled above"),
+        });
+        message
+    }
+
+    /// Counted `namespace current` result from the actual frame's original
+    /// namespace object. Rooting a result does not strip an existing prefix.
+    /// This projection supplies no namespace lookup, object or frame owner.
+    #[must_use]
+    pub fn namespace_current_result(self, original_namespace: &[u8]) -> Vec<u8> {
+        // naming.lambda.original-namespace-constructor-and-getter
+        // docs/design/analysis/name-resolution-proofs/lambda-original-namespace-constructor-and-getter.md
+        let mut bytes = b"::".to_vec();
+        bytes.extend_from_slice(original_namespace);
+        bytes
+    }
+
     /// Select `Jim_SetVariableLink`'s original-object owner and actual target frame.
     #[must_use]
     pub fn link_target_input(self, original: &[u8]) -> NativeJimLinkTargetInput<'_> {
@@ -173,6 +224,8 @@ mod tests {
         );
     }
 
+    // Native proof: naming.jim.original-lookup-currency
+    // docs/design/analysis/name-resolution-proofs/jim-original-lookup-currency.md
     #[test]
     fn original_native_lookup_outcomes_match_retained_cache_guards() {
         let protocol = NativeJimLookupProtocol::jim084();

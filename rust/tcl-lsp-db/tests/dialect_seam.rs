@@ -16,31 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The document dialect must survive the salsa seam.
+//! Document grammar and analysis configuration survive the Salsa query boundary.
 //!
-//! `semantic_tokens`, `semantic_tokens_project` and `folding_ranges` each read
-//! `file.dialect(db)` and resolve it to a **profile** before handing off to
-//! `tcl-lsp-core`. Nothing else in this crate's suite discriminated on that
-//! resolution: hardcoding the profile argument to plain Tcl at any of the three
-//! call sites left the whole `tcl-lsp-db` suite green.
-//!
-//! Getting a *discriminating* pin here needs care. Each of these queries hands
-//! `tcl-lsp-core` a registry alongside the profile, and that registry is built
-//! separately from the same `file.dialect(db)`. So the obvious test — tokenise
-//! one source under two dialects and assert the answers differ — passes even
-//! with the profile pinned to plain Tcl, because the registries still differ
-//! and carry the whole difference on their own. Such a test pins the *query's*
-//! dialect handling in aggregate but says nothing about the profile argument.
-//!
-//! The tests below therefore assert on token/fold content that only the
-//! profile can produce:
-//!
-//! - `collect_entries` gates its BIG-IP object-reference pass on
-//!   `profile.is_irules()`, so an `object` token on `pool /Common/web_pool`
-//!   exists if and only if the profile reached it.
-//! - `folding::folding_ranges` reads `dialect.grammar` for the lexer config and
-//!   `dialect.name` for the analyser, so an `expect` pattern arm folds only
-//!   under the `expect` profile.
+//! Semantic tokens and folding use the current file's resolved analysis,
+//! profile and Registry together. These checks compare plain Tcl with hosted
+//! object roles and Expect pattern regions, whose source grammar differs.
 
 use tcl_lsp_db::{
     AnalyserConfig, Project, SourceFile, TclDatabase, folding_ranges, semantic_tokens,
@@ -172,9 +152,10 @@ fn project_semantic_tokens_carry_the_profile_across_the_seam() {
 #[test]
 fn folding_ranges_carry_the_profile_across_the_seam() {
     let db = TclDatabase::default();
+    let cfg = config(&db);
 
     let fold_lines = |file| {
-        let mut v: Vec<(u32, u32)> = folding_ranges(&db, file)
+        let mut v: Vec<(u32, u32)> = folding_ranges(&db, file, cfg)
             .iter()
             .map(|r| (r.start_line, r.end_line))
             .collect();

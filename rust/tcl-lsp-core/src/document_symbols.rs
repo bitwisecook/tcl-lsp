@@ -43,6 +43,8 @@ use tcl_compiler::analyser::{
 use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_lexer::{LineIndex, Span};
 
+mod original;
+
 /// LSP `SymbolKind` values used by the document-symbol provider.
 ///
 /// The wire form ([`Self::as_str`]) is the LSP enum's identifier
@@ -196,6 +198,9 @@ pub fn document_symbols_from_analysis(
 ) -> Vec<DocumentSymbol> {
     if source.is_empty() {
         return Vec::new();
+    }
+    if let Some(symbols) = original::source_outline(source, analysis) {
+        return symbols;
     }
     let line_index = LineIndex::new(source);
     let mut rehomed: Vec<(String, DocumentSymbol)> = Vec::new();
@@ -1544,6 +1549,8 @@ mod tests {
 
     #[test]
     fn oo_configurable_property_emits_property_symbol() {
+        // These declarations use the independently selected Tcl 9 source
+        // grammar; the C8.6 refusal is asserted separately below.
         let source = concat!(
             "oo::configurable create Point {\n",
             "    property x y\n",
@@ -1551,7 +1558,7 @@ mod tests {
         );
         let symbols = document_symbols(
             source,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let cls = &symbols[0];
         let prop_names: Vec<&str> = cls
@@ -1562,6 +1569,62 @@ mod tests {
             .collect();
         assert!(prop_names.contains(&"x"), "expected property x");
         assert!(prop_names.contains(&"y"), "expected property y");
+    }
+
+    #[test]
+    fn original_outline_does_not_borrow_tcl9_member_roles_under_tcl86() {
+        // naming.source.original-class-constructor-call
+        // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
+        // Native stock configurable availability is independently recorded by
+        // naming.tcloo.configurable-bootstrap-definition-path; this test binds
+        // the unavailable source factory/header and outline refusal only.
+        use tcl_compiler::analyser::types::MemberSide;
+        for (source, method_name) in [
+            (
+                "oo::class create C {classmethod count {} {return 0}}",
+                Some("count"),
+            ),
+            ("oo::configurable create C {property x y}", None),
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+            if method_name.is_some() {
+                // The available ordinary factory retains its genuine header;
+                // the unavailable C9-only member contributes no declaration.
+                let class = analysis
+                    .original_class_declarations()
+                    .next()
+                    .expect("ordinary Tcl8.6 factory source header")
+                    .metadata();
+                assert!(
+                    class
+                        .original_members
+                        .methods(MemberSide::ClassObject)
+                        .unwrap()
+                        .is_empty()
+                );
+                assert!(
+                    class
+                        .original_properties
+                        .properties(MemberSide::Instance)
+                        .unwrap()
+                        .is_empty()
+                );
+            } else {
+                assert!(
+                    analysis.original_class_declarations().next().is_none(),
+                    "unavailable configurable factory cannot issue a genuine header"
+                );
+            }
+            let symbols = document_symbols_from_analysis(source, &analysis);
+            assert!(
+                symbols
+                    .iter()
+                    .flat_map(|symbol| &symbol.children)
+                    .all(|child| child.kind != SymbolKind::Property
+                        && method_name != Some(child.name.as_str())),
+                "unsupported source grammar must not recover UI member labels: {symbols:?}"
+            );
+        }
     }
 
     #[test]
@@ -1598,6 +1661,8 @@ mod tests {
 
     #[test]
     fn oo_classmethod_detail_lists_classmethod_keyword() {
+        // These declarations use the independently selected Tcl 9 source
+        // grammar; the C8.6 refusal is asserted separately below.
         let source = concat!(
             "oo::class create Counter {\n",
             "    classmethod count {} { return 0 }\n",
@@ -1605,7 +1670,7 @@ mod tests {
         );
         let symbols = document_symbols(
             source,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let cls = &symbols[0];
         let method = cls

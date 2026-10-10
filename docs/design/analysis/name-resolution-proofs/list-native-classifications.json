@@ -1,0 +1,101 @@
+[
+  {
+    "path": "rust/tcl-registry/tests/data/native_list_operations/manifest.json",
+    "sha256": "f65701313dbc41590938988b3a959bc511813a2e550672b7283e263802c13e0b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list.original-range-objects-and-instructions",
+      "naming.list.original-insert-objects-and-instructions",
+      "naming.list.original-assign-objects-and-instructions",
+      "naming.list.original-set-objects-and-instructions"
+    ],
+    "reason": "All selected R/O/H and private opcode purpose windows separated by actual operation cases; output hashes checked independently for each engine. C84 guest errors retained."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_list_operations/jim-manifest.json",
+    "sha256": "d759911fcf14817b32de11ff5f7d049f45ae01461bc86c949ca588b387657850",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list.original-range-objects-and-instructions",
+      "naming.list.original-insert-objects-and-instructions",
+      "naming.list.original-assign-objects-and-instructions",
+      "naming.list.original-set-objects-and-instructions"
+    ],
+    "reason": "Independent Jim source/object/vector/header windows, outputSHA checked; no C opcode/header loan."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_list_assignment_order/manifest.json",
+    "sha256": "33d27c5048bff4c625711a4c3ffbd638139e5f9c5399e21a28c5d0ca333565be",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list.assignment-interleaved-target-effects"
+    ],
+    "reason": "Four distinct original assignment-order/source-header controls; all exact source/stream hashes verified."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_list_assignment_order/jim-manifest.json",
+    "sha256": "763459489b2d9d60857c9dd474e0f686c6b1d4d842e8e324d7cb46da5252a5de",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list.assignment-interleaved-target-effects"
+    ],
+    "reason": "Independent Jim ordering and original header errors; exact original program/stream verified."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_list_assignment_order/trace-manifest.json",
+    "sha256": "be07955445b52686f6b957449f5976f90ea54fc5dd4b78553a8b313301bedb90",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list.assignment-object-trace-inline-selection"
+    ],
+    "reason": "Ten actual C trace-mode runs, separately preserved command-trace flags, raw output/status, same-source compiler modes; guest errors are not harness failures."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_list_methods/stock_length/manifest.json",
+    "sha256": "2c6bbf318c9a5c963507367b520c1d000b985bd4f13f0030c22da4a68d5f2e42",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list.stock-length-same-original-storage",
+      "naming.list.empty-result-compiled-pool-reuse"
+    ],
+    "reason": "All214 same-object and empty-result rows split into distinct Length/cache-identity questions; source/library/output hashes independently checked; fallback classes and missing Jim identity controls explicit."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/native.json",
+    "sha256": "8dc7f297821dc979785ad2f1902485e8a289f5b078518dc53d2e9fee6d8c1904",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list.length-custom-string-update-world"
+    ],
+    "reason": "Independent older C labelled process stdout/stderr byte-for-byte checked against its retained projections; exact patch/build provenance absent and not borrowed from distinct newer sources."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/free-native.json",
+    "sha256": "b60d1c91491a27fbcd3461f559597780a8e0e834f34f52233ff540e76401a117",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list.length-custom-intrep-release-world"
+    ],
+    "reason": "Independent older C labelled process stdout/stderr byte-for-byte checked against its retained projections; exact patch/build provenance absent and not borrowed from distinct newer sources."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-native.json",
+    "sha256": "fe3f7eae797db7fbbe5e9e04f89ecc3887d9c35c37693dc11c1715c8087e8d32",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list.zero-trip-foreach-preparation-world"
+    ],
+    "reason": "Independent older C labelled process stdout/stderr byte-for-byte checked against its retained projections; exact patch/build provenance absent and not borrowed from distinct newer sources."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/manifest.json",
+    "sha256": "c8b35636c48f0330856e568d4e794ce82505aa43cf4b76b66f0d03a5b7d15056",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list.length-custom-string-update-world",
+      "naming.list.length-custom-intrep-release-world",
+      "naming.list.zero-trip-foreach-preparation-world"
+    ],
+    "reason": "82 exact independently attributed scalar updater/free/zero-trip native rows; source/output/library hashes checked, outer container and later teardown boundaries explicit. Older differing programs remain separate evidence."
+  }
+]

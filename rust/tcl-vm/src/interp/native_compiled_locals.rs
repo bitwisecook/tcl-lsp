@@ -518,16 +518,16 @@ impl Vm {
         self.prepare_existing_array_read(&mut resolved)?;
         if self
             .native_c_variable_name_protocol()
-            .is_some_and(|protocol| protocol.element_table_retains_original())
-        {
-            if let (Some(array), Some(index), Some(original)) =
+            .is_some_and(
+                tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original,
+            )
+            && let (Some(array), Some(index), Some(original)) =
                 (resolved.base_id, resolved.elem.as_ref(), element)
-            {
-                self.var_arena
-                    .retain_original_array_key(array, index, original.clone());
-            }
+        {
+            self.var_arena
+                .retain_original_array_key(array, index, original.clone());
         }
-        self.exists_selected_original_variable(name.as_bytes(), bytes.as_deref(), resolved, None)
+        self.exists_selected_original_variable(name.as_bytes(), bytes.as_deref(), &resolved, None)
     }
 
     pub(crate) fn unset_compiled_variable(
@@ -782,6 +782,16 @@ mod tests {
 
     #[test]
     fn original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references() {
+        // Native proof: naming.procedure.borrowed-slot-duplicate-original-formals
+        // docs/design/analysis/name-resolution-proofs/procedure-borrowed-slot-duplicate-original-formals.md
+        // Native proof: naming.procedure.borrowed-slot-counted-zero-length
+        // docs/design/analysis/name-resolution-proofs/procedure-borrowed-slot-counted-zero-length.md
+        // Native proof: naming.procedure.borrowed-slot-modified-zero-and-opaque-bytes
+        // docs/design/analysis/name-resolution-proofs/procedure-borrowed-slot-modified-zero-and-opaque-bytes.md
+        // Native proof: naming.procedure.borrowed-slot-qualified-formal-boundary
+        // docs/design/analysis/name-resolution-proofs/procedure-borrowed-slot-qualified-formal-boundary.md
+        // Native proof: naming.procedure.borrowed-slot-array-shaped-formal-boundary
+        // docs/design/analysis/name-resolution-proofs/procedure-borrowed-slot-array-shaped-formal-boundary.md
         let names = borrowed_source_names();
         let body =
             unhex(include_str!("../../tests/data/native_borrowed_frame_slots/body.hex").trim());
@@ -880,6 +890,8 @@ mod tests {
         assert_eq!(compared, 240);
     }
 
+    // Native proof: naming.variable.counted-formal-foreach-slot-execution-frontier
+    // docs/design/analysis/name-resolution-proofs/variable.counted-formal-foreach-slot-execution-frontier.md
     #[test]
     fn compiled_foreach_matches_twelve_original_native_slot_records() {
         let body = unhex(include_str!("../../tests/data/native_foreach_slots/body.hex").trim());

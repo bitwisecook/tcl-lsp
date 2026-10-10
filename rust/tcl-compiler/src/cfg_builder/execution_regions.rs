@@ -549,7 +549,10 @@ impl CfgBuilder<'_> {
     // regions. Original literal words and a closed declaration lookup can
     // describe terminal control flow without proving physical completion.
     fn region_statement_exits_process(&self, statement: &Statement) -> bool {
-        if super::always_exits_process(statement, self.registry, &self.embedded_head_resolver()) {
+        if self
+            .command_classes
+            .exits_process(statement, &self.embedded_head_resolver())
+        {
             return true;
         }
         if self.plain_command_dispatch || !self.faithful_exceptions {
@@ -568,7 +571,8 @@ impl CfgBuilder<'_> {
         }) {
             return false;
         }
-        crate::registry_invocation::logical_structured_invocation(self.registry, tokens, None)
+        self.command_classes
+            .logical_structured_invocation(tokens)
             .is_some_and(|invocation| {
                 matches!(
                     invocation.conditional_completion_route(self.registry),
@@ -623,7 +627,7 @@ impl CfgBuilder<'_> {
             let selected_target = scope.map(|scope| {
                 let route = match self.blocks[&name].terminator.as_ref().unwrap() {
                     Terminator::Complete { route, .. } => *route,
-                    Terminator::Return { tokens, .. } => tokens.as_deref().and_then(|tokens| crate::registry_invocation::resolved_tokens_invocation(self.registry, None, tokens)).map_or(tcl_registry::completion_route::InvocationCompletionRoute::UnknownAbrupt, |invocation| invocation.completion_route(self.registry)),
+                    Terminator::Return { tokens, .. } => tokens.as_deref().and_then(|tokens| self.command_classes.resolved_tokens(tokens)).map_or(tcl_registry::completion_route::InvocationCompletionRoute::UnknownAbrupt, |invocation| invocation.completion_route(self.registry)),
                     _ => unreachable!("completion block selected by shared owner"),
                 };
                 self.dictionary_completion_target(scope, route)

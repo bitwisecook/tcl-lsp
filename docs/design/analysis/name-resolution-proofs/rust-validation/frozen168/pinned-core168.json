@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-core168.elf",
+  "sha256": "41c6a315c38b383ad5ce1494be0cc6bf394f2fa478de06ba7882986efae0fe47",
+  "build_receipt": "/workspace/.proofs/recovery-compiler-build168.json",
+  "build_receipt_sha256": "fd6bfbc5db993831e4a82738b823eb7926ff7b80962f78510be5ed7ed605c28d",
+  "source_snapshot_sha256": "16da09468eef3f38ecaeafe189e03c67296cab72b24660f0caff9f5b712668fa"
+}

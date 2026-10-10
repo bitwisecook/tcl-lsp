@@ -1,0 +1,146 @@
+[
+  {
+    "id": "naming.variable.original-readonly-formal-topology",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-readonly-formal-topology.md",
+    "problem_statement": "A refactor binding arguments through ProcDef.params can collapse opaque formal names or lose default/rest/link roles. Exposing a full activation owner for source assistance would give topology an unrelated runtime authority.",
+    "question": "Can a readonly procedure signature expose exact native formal bytes and binding ordinals while keeping activation entry private?",
+    "conclusion": "SignatureSourceFormalParameters retains the original ParamList Key, exact ordered ByteFormalParameter values and the independently selected required/default/rest/link grammar. AnalysisResult issues it only for an exact retained declaration and unanimous Registry-selected declaration recipe. The facade preserves producer image/channel and full parser configuration; it neither installs formals nor proves command liveness, caller identity, cell contents, physical frame, native objects or Normal completion. Readonly worker parameter syntax may parse a genuine complete original operand with an independently selected dialect; the caller retains the separate ParamList role obligation. Name and optional second fields retain actual native list-child inputs and only independently mapped original source extents. Escape-produced parent values or mismatched clipped fields do not manufacture lexical child geometry. Readonly parameter-list values may retain actual lambda/list-child inputs without becoming complete lexical keys. Intermediate static list ancestry supplies source extents only when every traversed child preserves its literal bytes; evaluated or decoded intermediate values abstain. The complete-word and readonly-value facades share one field projection and the existing native formal parser.",
+    "scope": "Rust readonly original formal metadata for explicit C Tcl and Jim source recipes. A fixed all-six model test covers opaque native names, default and rest binding counts and source/configuration mismatch. Native installation and formal storage observations remain separate.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+        "selector": "signature_scan::formal_parameters::tests::original_readonly_formals_keep_opaque_default_rest_and_source_currency",
+        "assertion": "Keeps opaque bytes/default/rest topology and rejects changed source channel/image/full configuration.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+        "selector": "signature_scan::formal_parameters::tests::original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents",
+        "assertion": "Across six selected C/Jim grammars, actual original worker operand children preserve opaque name/default bytes and authentic literal-parent source spans; quoted escape-produced parents retain readonly children without source spans and a conflicting engine policy declines.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+        "selector": "signature_scan::formal_parameters::tests::original_readonly_lambda_formal_value_preserves_ancestry_and_source_fields",
+        "assertion": "An actual original lambda child retains its parent lineage, counted opaque name/default fields and mapped nested literal extents; a quoted decoded parent keeps readonly field bytes without inventing source spans or a complete child Word key.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+        "symbol": "SignatureSourceFormalParameters",
+        "purpose": "Provides readonly source formal bytes and independent binding grammar."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/formal_topology.rs",
+        "symbol": "OriginalFormalTopology",
+        "purpose": "Owns the original native formal parsing and retained producer."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+        "symbol": "original_procedure_formals_at",
+        "purpose": "Requires unanimous actual declaration recipes and exact selected ParamList ordinals."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types.rs",
+        "symbol": "original_procedure_formals",
+        "purpose": "Requires retained declaration membership and complete current source/configuration correspondence."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+        "symbol": "SignatureSourceFormalField",
+        "purpose": "Retain readonly exact original field children and optional independently mapped source extents, without declaring a cell or entering an activation."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+        "symbol": "SignatureSourceFormalParameterValue",
+        "purpose": "Retain readonly parameter syntax from authentic child values and selected grammar without manufacturing a complete lexical Key or entered binding."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/name_value.rs",
+        "symbol": "SignatureSourceNameInput",
+        "purpose": "Map readonly static list ancestry ranges through authentic complete parent source units only when intermediate literal correspondence is preserved."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result."
+    }
+  }
+]

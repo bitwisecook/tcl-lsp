@@ -27,7 +27,7 @@ impl Value {
         let bytes = self
             .native_string_bytes(recipe.strings())
             .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
-        let (reader, writer) = recipe.accessor_names(&bytes);
+        let (reader, writer) = recipe.member_accessor_names(&bytes);
         let reader = Value::new_native_string_bytes(reader);
         let writer = Value::new_native_string_bytes(writer);
         let materialization = recipe.materialization();
@@ -45,6 +45,8 @@ mod tests {
     use super::*;
     #[test]
     fn original_property_name_duplicate_reuses_and_releases_accessor_children() {
+        // Native proof: naming.property.original-accessor-name-cache-children
+        // docs/design/analysis/name-resolution-proofs/property-original-accessor-name-cache-children.md
         let dialect = tcl_registry::InvocationDialect::of_profile(
             crate::environment::profile_for_dialect("tcl9.1"),
         );

@@ -25,30 +25,31 @@
 //!
 //! * Brace placement (K&R: `{` kept on the command line, the
 //!   matching `}` re-anchored).
-//! * Indentation tracking brace nesting (configurable width),
-//!   including continuation lines inside an open brace.
+//! * Indentation through selected script regions (configurable width),
+//!   including continuation lines.
 //! * Trailing-whitespace trimming and tab-to-space conversion.
 //! * Blank-line policy (collapsing runs, blank lines around
 //!   procs) and a single trailing newline.
 //! * Comment normalisation, switch-body formatting, long-line
 //!   backslash splitting, and `&&` / `||` expression wrapping.
 //!
-//! Formatting never reorders or rewrites command words — only
-//! their layout changes.
+//! Body layout uses current Registry source roles and complete dialect grammar.
+//! Expression or keyword rewriting requires its own selected permission.
 //!
 //! [`range_formatting`] re-normalises just the requested line
-//! slice (extended to whole lines), computing the brace depth
-//! at the slice start from the source prefix above it, so
+//! slice (extended to whole lines), selecting its script region through
+//! current body presentation and complete lexical words, so
 //! `textDocument/rangeFormatting` ("format selection") leaves
 //! the rest of the document untouched.
 //!
-//! Docstring reflow and the expr-brace knobs are not
-//! implemented.
+//! Original-source expression bracing consumes a separate bounded literal
+//! equivalence receipt. Dynamic expressions retain their written operands.
 
 pub mod config;
 pub mod docstring;
 pub mod engine;
 pub(crate) mod keywords;
+mod source_layout;
 
 pub use config::{
     DocstringStyle, DocstringTagStyle, FormatterConfig, IndentStyle, LINE_ENDING_AUTO,
@@ -58,7 +59,7 @@ pub use docstring::{
     DocstringInfo, ParamDoc, generate_stub_for_proc, parse_docstring, render_comment_block,
     resolve_tag_style,
 };
-pub use engine::format_tcl;
+pub use engine::{format_tcl, format_tcl_with_input};
 
 use crate::definition::LspRange;
 use crate::rename::TextEdit;
@@ -81,8 +82,8 @@ fn normalise_document_line_endings(source: &str) -> std::borrow::Cow<'_, str> {
 
 /// Compute formatting edits for the entire document.
 ///
-/// Runs the token-aware [`engine::format_tcl`] with default
-/// (F5 iRules) settings and returns a single `TextEdit` that
+/// Runs the token-aware [`engine::format_tcl`] with the documented lenient
+/// modern-Tcl context and returns a single `TextEdit` that
 /// replaces the whole document with its normalised form, or an
 /// empty `Vec` when the document is already normalised.
 #[must_use]
@@ -105,6 +106,20 @@ pub fn formatting_with(
     registry: &CommandRegistry,
 ) -> Vec<TextEdit> {
     let formatted = engine::format_tcl(source, config, registry);
+    full_document_edit(source, formatted)
+}
+
+/// Format a document under its actual resolved context and full lexer rules.
+#[must_use]
+pub fn formatting_with_input(
+    source: &str,
+    config: &FormatterConfig,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> Vec<TextEdit> {
+    full_document_edit(source, engine::format_tcl_with_input(source, config, input))
+}
+
+fn full_document_edit(source: &str, formatted: String) -> Vec<TextEdit> {
     if formatted == source {
         return Vec::new();
     }
@@ -132,9 +147,9 @@ pub fn formatting_with(
 ///
 /// True range-aware formatting: only the line slice
 /// `[range.start_line, range.end_line]` (extended to whole
-/// lines) is re-normalised, with the brace depth at the
-/// start of the slice computed from the source prefix above
-/// it.  Emits a single `TextEdit` that replaces the slice
+/// lines) is re-normalised inside its selected source script region.
+/// A selection that cuts through a data word is preserved. Emits a single
+/// `TextEdit` that replaces the slice
 /// with its formatted form, or an empty `Vec` when the
 /// slice is already normalised.
 ///
@@ -149,10 +164,40 @@ pub fn range_formatting(
     config: &FormatterConfig,
     registry: &CommandRegistry,
 ) -> Vec<TextEdit> {
+    range_formatting_impl(source, range, config, registry, None)
+}
+
+/// Format a selection using whole-document naming under the actual context.
+#[must_use]
+pub fn range_formatting_with_input(
+    source: &str,
+    range: LspRange,
+    config: &FormatterConfig,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> Vec<TextEdit> {
+    let config = config.for_resolved_input(input);
+    let context = input.context_registry();
+    range_formatting_impl(source, range, &config, context.commands(), Some(input))
+}
+
+fn range_formatting_impl(
+    source: &str,
+    range: LspRange,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+    input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+) -> Vec<TextEdit> {
     // Tcl's source-channel boundary maps every document line ending to LF.
     // The normalised text is only an internal formatter input; raw spans and
     // client coordinates still use the LSP line index below.
     let normalised = normalise_document_line_endings(source);
+    // Implementation contract: naming.editor.original-source-formatting-budget
+    // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+    // Budget withdrawal preserves the caller's complete original document and
+    // never constructs an unavailable layout that could borrow nominal roles.
+    if !engine::source_within_formatting_budget(&normalised, config) {
+        return Vec::new();
+    }
     let lines: Vec<&str> = normalised.split('\n').collect();
     if lines.is_empty() {
         return Vec::new();
@@ -164,25 +209,15 @@ pub fn range_formatting(
         .min(line_count.saturating_sub(1))
         .max(start_line);
 
-    // Brace depth at the start of `start_line` — count
-    // running `{` / `}` over every line before it.  This is the
-    // nesting level the engine would indent the slice's first
-    // command at (`config.make_indent(level)`).
-    let mut prefix_depth: i32 = 0;
-    for prior in lines.iter().take(start_line as usize) {
-        prefix_depth = (prefix_depth + brace_delta(prior)).max(0);
-    }
-
     // Slice of lines we re-format, run through the same
     // token-aware engine the full-document path uses
-    // ([`engine::format_body`]) at the slice's brace depth, so
+    // ([`engine::format_body`]) at the selected presentation depth, so
     // range formatting and full-document formatting share every
     // rule (comment normalisation, switch bodies, line wrapping,
     // configurable indent width, …).
     let slice_end = (end_line as usize) + 1;
     let slice_lines: Vec<&str> = lines[start_line as usize..slice_end].to_vec();
     let slice_text = slice_lines.join("\n");
-    let depth = usize::try_from(prefix_depth).unwrap_or(0);
     // The document's own line ending (or the configured one) — resolved
     // against the whole document, not the slice, so a one-line selection in a
     // CRLF file is not re-emitted with `\n`.
@@ -190,12 +225,26 @@ pub fn range_formatting(
     // The identity facts come from the **whole document**, not the slice: a
     // `rename` above the selection still governs what the selected commands
     // are.
-    let identities = tcl_compiler::realm::document_realm_bindings_with_config(
-        &normalised,
-        config.lexer_config(),
-        registry,
+    let identities = input.map_or_else(
+        || engine::FormattingSourceLayout::new(&normalised, config, registry),
+        |input| engine::FormattingSourceLayout::with_input(&normalised, input),
     );
-    let slice_source_offset = LineIndex::new(&normalised).line_start(start_line);
+    let index = LineIndex::new(&normalised);
+    let slice_source_offset = index.line_start(start_line);
+    let slice_source_end = if slice_end < lines.len() {
+        index.line_start(u32::try_from(slice_end).unwrap_or(u32::MAX))
+    } else {
+        u32::try_from(normalised.len()).unwrap_or(u32::MAX)
+    };
+    let Some(depth) = engine::formatting_range_indent(
+        &normalised,
+        tcl_lexer::Span::new(slice_source_offset, slice_source_end),
+        config,
+        registry,
+        &identities,
+    ) else {
+        return Vec::new();
+    };
     let formatted_slice = finalise_slice(
         &engine::format_body(
             &slice_text,
@@ -283,7 +332,7 @@ fn finalise_slice(text: &str, config: &FormatterConfig, line_ending: &str) -> St
     let mut out = if config.trim_trailing_whitespace {
         // Brace/quote-aware trim so a multi-line string literal's interior is
         // preserved.
-        engine::trim_trailing_ws_preserving_literals(text)
+        engine::trim_trailing_ws_preserving_literals(text, config)
     } else {
         text.to_owned()
     };
@@ -296,48 +345,6 @@ fn finalise_slice(text: &str, config: &FormatterConfig, line_ending: &str) -> St
     out
 }
 
-/// Net brace delta for a logical line.  Ignores braces
-/// inside `"..."` strings and inside the body of a brace-
-/// literal that fully nests in the line (e.g. `proc f {}
-/// {body}` is depth-neutral).  Conservative — we count
-/// every `{` / `}` outside double-quoted strings.
-fn brace_delta(line: &str) -> i32 {
-    let mut depth: i32 = 0;
-    let mut in_string = false;
-    let mut escaped = false;
-    let mut in_comment = false;
-    for c in line.chars() {
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if c == '\\' {
-            escaped = true;
-            continue;
-        }
-        if in_comment {
-            // Tcl comments run to end of line.
-            continue;
-        }
-        if in_string {
-            if c == '"' {
-                in_string = false;
-            }
-            continue;
-        }
-        match c {
-            '"' => in_string = true,
-            '#' if depth == 0 && line.trim_start().starts_with('#') => {
-                in_comment = true;
-            }
-            '{' => depth += 1,
-            '}' => depth -= 1,
-            _ => {}
-        }
-    }
-    depth
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -345,6 +352,30 @@ mod tests {
     fn range_fmt(source: &str, range: LspRange) -> Vec<TextEdit> {
         let registry = tcl_registry::CommandRegistry::build_default();
         range_formatting(source, range, &FormatterConfig::default(), &registry)
+    }
+
+    #[test]
+    fn range_formatting_withdraws_before_analysis_above_lexical_budget() {
+        // Implementation contract: naming.editor.original-source-formatting-budget
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+        let source = format!(
+            "set value {{{}}}\r\n",
+            "{".repeat(128) + "unformatted  " + &"}".repeat(128)
+        );
+        let registry = CommandRegistry::build_default();
+        let config = FormatterConfig::default();
+        let edits = range_formatting(
+            &source,
+            LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 0,
+                end_character: 0,
+            },
+            &config,
+            &registry,
+        );
+        assert!(edits.is_empty());
     }
 
     #[test]
@@ -390,14 +421,44 @@ mod tests {
     }
 
     #[test]
-    fn brace_delta_ignores_string_contents() {
-        assert_eq!(brace_delta(r#"set x "}{"; # comment"#), 0);
+    fn range_depth_uses_selected_bodies_and_ignores_quoted_braces() {
+        // naming.editor.original-source-whitespace-geometry
+        // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+        let source = "set literal \"{\n}\"\nproc p {} {\nif {1} {\nset x 1\n}\n}\n";
+        let edits = range_fmt(
+            source,
+            LspRange {
+                start_line: 4,
+                start_character: 0,
+                end_line: 4,
+                end_character: 100,
+            },
+        );
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert_eq!(edits[0].new_text, "        set x 1\n");
     }
 
     #[test]
-    fn brace_delta_counts_nested() {
-        assert_eq!(brace_delta("foo { bar { baz"), 2);
-        assert_eq!(brace_delta("} }"), -2);
+    fn partial_data_word_ranges_preserve_exact_crlf_and_opaque_spelling() {
+        // naming.editor.original-source-whitespace-geometry
+        // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+        for source in [
+            "set x \"literal   \r\n{ \\uD800   \r\n}\"\r\n",
+            "set x \"[set y \"inner   \r\ntext\"] outer\"\r\n",
+            "set x {literal   \r\n{ \\uD800   \r\n}}\r\n",
+            "unknown {set x 1   \r\nset y 2}\r\n",
+        ] {
+            let edits = range_fmt(
+                source,
+                LspRange {
+                    start_line: 1,
+                    start_character: 0,
+                    end_line: 1,
+                    end_character: 100,
+                },
+            );
+            assert!(edits.is_empty(), "{source:?}: {edits:?}");
+        }
     }
 
     #[test]

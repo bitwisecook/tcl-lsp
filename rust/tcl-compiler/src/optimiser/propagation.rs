@@ -145,6 +145,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     {
         let trace = crate::sccp::TraceInputs {
             registry,
+            source_metadata_input: cu.ir_module.source_metadata_input.as_ref(),
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         };
@@ -182,12 +183,12 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 fn statement_may_have_untracked_effects(
     stmt: &Statement,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     traced: &std::collections::BTreeSet<String>,
     has_dynamic_trace: bool,
 ) -> bool {
     use super::helpers::expr_simplify::expr_has_command_subst;
-    use crate::gvn::is_pure_command_with_traces;
+    use crate::gvn::is_pure_tokens_with_metadata_context;
 
     match stmt {
         Statement::Barrier { .. } | Statement::NativeCall { .. } | Statement::UpFrame { .. } => {
@@ -195,14 +196,15 @@ fn statement_may_have_untracked_effects(
         }
         Statement::AssignValue { value, .. } => value.contains('['),
         Statement::AssignExpr { expr, .. } => expr_has_command_subst(expr),
-        Statement::Call { command, args, .. } => !is_pure_command_with_traces(
-            registry,
-            command,
-            args,
-            dialect,
-            traced,
-            has_dynamic_trace,
-        ),
+        Statement::Call { tokens, .. } => !tokens.as_ref().is_some_and(|tokens| {
+            is_pure_tokens_with_metadata_context(
+                registry,
+                metadata,
+                tokens,
+                traced,
+                has_dynamic_trace,
+            )
+        }),
         _ => false,
     }
 }
@@ -284,8 +286,13 @@ fn run_load_forwarding(
     // `upvar`/`trace`-aliased name's "sole reaching def" is not actually
     // sole: some other call frame can reassign it between the def and a
     // later use.
-    let mut escaping = crate::var_observability::analyse_var_observability(&fu.cfg, trace.registry)
-        .escaping_var_names();
+    let metadata = fu.invocation_metadata_context(trace.registry);
+    let mut escaping = crate::var_observability::analyse_var_observability_with_metadata_context(
+        &fu.cfg,
+        trace.registry,
+        metadata,
+    )
+    .escaping_var_names();
     escaping.extend(extra_escaping.iter().cloned());
     escaping.extend(trace.traced_variables.iter().cloned());
 
@@ -612,7 +619,7 @@ fn report_load_forward(
 /// before `$x` in the use word list unless the inlined expression
 /// reads nothing.
 fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
-    use crate::memory_ssa::compute_aliases;
+    use crate::memory_ssa::compute_aliases_with_metadata_context;
     use std::collections::BTreeSet;
 
     // Like O102, O127 moves a value across statements. A dynamic or opaque
@@ -626,13 +633,7 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     let Some(registry) = ctx.registry else {
         return;
     };
-    // Aliasing facts depend on the selected registry profile. Without an
-    // explicit profile this optimisation cannot prove its alias safety gate,
-    // so it abstains rather than interpreting every dialect at once.
-    let Some(context) = ctx
-        .dialect
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-    else {
+    let Some(context) = fu.invocation_metadata_context(registry) else {
         return;
     };
 
@@ -641,7 +642,7 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // fall back to a direct alias computation.
     let aliased: std::collections::HashSet<String> = match &fu.memory_ssa {
         Some(m) => m.aliased_names().into_iter().collect(),
-        None => compute_aliases(&fu.ssa, registry, Some(context))
+        None => compute_aliases_with_metadata_context(&fu.ssa, registry, Some(context))
             .iter()
             .flat_map(crate::memory_ssa::AliasSet::names)
             .collect(),
@@ -712,7 +713,7 @@ struct ForwardEnv<'a> {
     ctx: &'a PassContext<'a>,
     fu: &'a FunctionUnit,
     registry: &'a tcl_registry::CommandRegistry,
-    context: Option<tcl_registry::model::semantic::SemanticContext>,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
     aliased: &'a std::collections::HashSet<String>,
     traced: &'a std::collections::BTreeSet<String>,
     has_dynamic_trace: bool,
@@ -872,7 +873,7 @@ fn has_non_endpoint_wildcard_aliasing(
     env.fu.ssa.blocks.iter().any(|(&block_id, block)| {
         block.statements.iter().enumerate().any(|(idx, statement)| {
             (block_id != use_block || idx != use_idx)
-                && crate::memory_ssa::statement_has_wildcard_aliasing(
+                && crate::memory_ssa::statement_has_wildcard_aliasing_with_metadata_context(
                     &statement.statement,
                     env.registry,
                     env.context,
@@ -976,7 +977,7 @@ fn intervening_is_safe(
         if statement_may_have_untracked_effects(
             stmt,
             env.registry,
-            env.ctx.dialect,
+            env.context,
             env.traced,
             env.has_dynamic_trace,
         ) {
@@ -1189,11 +1190,13 @@ fn oo_method_constants(
         &facts.instance_vars,
         crate::sccp::TraceInputs {
             registry,
+            source_metadata_input: fu.source_metadata_input(),
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         },
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
+            source_metadata_input: fu.source_metadata_input(),
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             defining_class: Some(&frame.defining_class),
@@ -1241,7 +1244,7 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         };
         let allow_locals = barrier.as_ref().is_some_and(|b| b.allows_locals(qname));
         let constants = oo_method_constants(ctx, cu, qname, &frame, allow_locals);
-        walk_oo_script(ctx, &method.body, &frame, &constants, 0);
+        walk_oo_script(ctx, cu, &method.body, &frame, &constants, 0);
     }
 }
 
@@ -1249,6 +1252,7 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn walk_oo_script(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     script: &Script,
     frame: &OoFrame,
     constants: &std::collections::HashMap<String, String>,
@@ -1258,7 +1262,7 @@ fn walk_oo_script(
         return;
     }
     for stmt in &script.statements {
-        walk_oo_statement(ctx, script, stmt, frame, constants, depth);
+        walk_oo_statement(ctx, cu, script, stmt, frame, constants, depth);
     }
 }
 
@@ -1266,6 +1270,7 @@ fn walk_oo_script(
 /// recurse into any nested body it carries.
 fn walk_oo_statement(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     script: &Script,
     stmt: &Statement,
     frame: &OoFrame,
@@ -1282,8 +1287,8 @@ fn walk_oo_statement(
             // O100 / O129-in-interpolation over the method-local constants
             // (empty unless the escaping model proved some name
             // method-local), then the frame-constant cmd-sub folds.
-            visit_call_tokens(ctx, t, constants);
-            visit_oo_frame_folds(ctx, t, frame, constants);
+            visit_call_tokens(ctx, cu, t, constants);
+            visit_oo_frame_folds(ctx, cu, t, frame, constants);
         }
         // `return [self class]` is the single most common shape of all, and a
         // `Return` carries no `CommandTokens` — only the whole statement span
@@ -1296,6 +1301,7 @@ fn walk_oo_statement(
             ..
         } => try_oo_frame_return_fold(
             ctx,
+            cu,
             *span,
             raw,
             frame,
@@ -1306,35 +1312,37 @@ fn walk_oo_statement(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_oo_script(ctx, &c.body, frame, constants, depth + 1);
+                walk_oo_script(ctx, cu, &c.body, frame, constants, depth + 1);
             }
             if let Some(b) = else_body {
-                walk_oo_script(ctx, b, frame, constants, depth + 1);
+                walk_oo_script(ctx, cu, b, frame, constants, depth + 1);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_oo_script(ctx, init, frame, constants, depth + 1);
-            walk_oo_script(ctx, next, frame, constants, depth + 1);
-            walk_oo_script(ctx, body, frame, constants, depth + 1);
+            walk_oo_script(ctx, cu, init, frame, constants, depth + 1);
+            walk_oo_script(ctx, cu, next, frame, constants, depth + 1);
+            walk_oo_script(ctx, cu, body, frame, constants, depth + 1);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
         | Statement::Foreach { body, .. }
-        | Statement::Block { body, .. } => walk_oo_script(ctx, body, frame, constants, depth + 1),
+        | Statement::Block { body, .. } => {
+            walk_oo_script(ctx, cu, body, frame, constants, depth + 1)
+        }
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_oo_script(ctx, body, frame, constants, depth + 1);
+            walk_oo_script(ctx, cu, body, frame, constants, depth + 1);
             for h in handlers {
-                walk_oo_script(ctx, &h.body, frame, constants, depth + 1);
+                walk_oo_script(ctx, cu, &h.body, frame, constants, depth + 1);
             }
             if let Some(fb) = finally_body {
-                walk_oo_script(ctx, fb, frame, constants, depth + 1);
+                walk_oo_script(ctx, cu, fb, frame, constants, depth + 1);
             }
         }
         Statement::Switch {
@@ -1342,11 +1350,11 @@ fn walk_oo_statement(
         } => {
             for a in arms {
                 if let Some(body) = &a.body {
-                    walk_oo_script(ctx, body, frame, constants, depth + 1);
+                    walk_oo_script(ctx, cu, body, frame, constants, depth + 1);
                 }
             }
             if let Some(b) = default_body {
-                walk_oo_script(ctx, b, frame, constants, depth + 1);
+                walk_oo_script(ctx, cu, b, frame, constants, depth + 1);
             }
         }
         _ => {}
@@ -1377,7 +1385,9 @@ fn fold_retained_builtin(
     call: &crate::word_subst::LiftedCall,
     calls: &[crate::word_subst::LiftedCall],
     defining_class: Option<&str>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> Option<String> {
+    let metadata = metadata?;
     crate::const_subst::ConstSubstCtx {
         registry,
         resolution_namespace: "::",
@@ -1390,14 +1400,25 @@ fn fold_retained_builtin(
         trusts: &|_| false,
         lookup_var: &|_| None,
     }
-    .fold_retained_call(call, calls)
+    .fold_retained_call_with_metadata_context(call, calls, metadata)
 }
 
-fn retained_expr_call(call: &crate::word_subst::LiftedCall, registry: &CommandRegistry) -> bool {
+fn retained_expr_call(
+    call: &crate::word_subst::LiftedCall,
+    registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> bool {
+    let Some(metadata) = metadata else {
+        return false;
+    };
     call.tokens
         .as_ref()
         .and_then(|tokens| {
-            crate::registry_invocation::resolved_tokens_invocation(registry, None, tokens)
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                registry,
+                Some(metadata),
+                tokens,
+            )
         })
         .is_some_and(|invocation| {
             invocation.facts.operation
@@ -1409,12 +1430,20 @@ fn retained_expr_call(call: &crate::word_subst::LiftedCall, registry: &CommandRe
 
 fn retained_o115(
     ctx: &PassContext<'_>,
-    _module: &crate::ir::Module,
+    module: &crate::ir::Module,
     _tokens: &CommandTokens,
     call: &crate::word_subst::LiftedCall,
     word: &str,
     registry: &CommandRegistry,
 ) -> Option<String> {
+    let actual = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        module.source_metadata_input.as_ref(),
+    )?;
+    let metadata = Some(actual.as_ref().into());
+    if !retained_expr_call(call, registry, metadata) {
+        return None;
+    }
     let tokens = call.tokens.as_ref()?;
     tokens
         .source_binding
@@ -1433,6 +1462,7 @@ fn retained_o115(
 /// the method frame folds to a constant.
 fn visit_oo_frame_folds(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     tokens: &CommandTokens,
     frame: &OoFrame,
     _constants: &std::collections::HashMap<String, String>,
@@ -1440,6 +1470,11 @@ fn visit_oo_frame_folds(
     let Some(registry) = ctx.registry else {
         return;
     };
+    let actual = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        cu.ir_module.source_metadata_input.as_ref(),
+    );
+    let metadata = actual.as_deref().map(Into::into);
     let Some(calls) = retained_substitution_calls(tokens, registry) else {
         return;
     };
@@ -1451,9 +1486,13 @@ fn visit_oo_frame_folds(
         let Some(call) = retained_call_at(&calls, source.span.start()) else {
             continue;
         };
-        if let Some(value) =
-            fold_retained_builtin(registry, call, &calls, Some(&frame.defining_class))
-        {
+        if let Some(value) = fold_retained_builtin(
+            registry,
+            call,
+            &calls,
+            Some(&frame.defining_class),
+            metadata,
+        ) {
             rewrites.push((call.span, render_propagation_word(&value)));
         }
     }
@@ -1474,6 +1513,7 @@ fn visit_oo_frame_folds(
 /// [`try_fold_return_terminator`]'s O101 / O115 rewrites emit.
 fn try_oo_frame_return_fold(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     span: tcl_lexer::Span,
     raw: &str,
     frame: &OoFrame,
@@ -1486,6 +1526,11 @@ fn try_oo_frame_return_fold(
     let Some(tokens) = tokens else {
         return;
     };
+    let actual = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        cu.ir_module.source_metadata_input.as_ref(),
+    );
+    let metadata = actual.as_deref().map(Into::into);
     let Some(calls) = retained_substitution_calls(tokens, registry) else {
         return;
     };
@@ -1500,8 +1545,13 @@ fn try_oo_frame_return_fold(
     if roots.next().is_some() {
         return;
     }
-    let Some(value) = fold_retained_builtin(registry, call, &calls, Some(&frame.defining_class))
-    else {
+    let Some(value) = fold_retained_builtin(
+        registry,
+        call,
+        &calls,
+        Some(&frame.defining_class),
+        metadata,
+    ) else {
         return;
     };
     let folded = render_propagation_word(&value);
@@ -1598,11 +1648,13 @@ fn constants_with_builtin_folds(
         extra_escaping,
         crate::sccp::TraceInputs {
             registry,
+            source_metadata_input: fu.source_metadata_input(),
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         },
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
+            source_metadata_input: fu.source_metadata_input(),
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             // No method frame here — `[self class]`-style frame facts fold
@@ -1688,7 +1740,7 @@ fn walk_statement(
             ..
         } => {
             if let Some(t) = tokens {
-                visit_call_tokens(ctx, t, constants);
+                visit_call_tokens(ctx, cu, t, constants);
                 visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace, *span);
             }
             try_fold_static_proc_call(ctx, cu, *span, command, args, namespace);
@@ -1821,9 +1873,8 @@ fn evaluate_proc_with_constants(
     policy: FoldPolicy,
 ) -> Option<ConstValue> {
     let seed = seed_params_from_args(params, args, grammar, policy)?;
-    let registry: &CommandRegistry = ctx
-        .registry
-        .unwrap_or_else(|| tcl_registry::default_registry());
+    let registry = ctx.registry?;
+    callee.invocation_metadata_context(registry)?;
     let empty_traced = std::collections::BTreeSet::new();
     let (traced_variables, has_dynamic_variable_trace) = match ctx.ir_module {
         Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
@@ -1837,6 +1888,7 @@ fn evaluate_proc_with_constants(
         &std::collections::HashSet::new(),
         crate::sccp::TraceInputs {
             registry,
+            source_metadata_input: callee.source_metadata_input(),
             traced_variables,
             has_dynamic_variable_trace,
         },
@@ -1847,6 +1899,7 @@ fn evaluate_proc_with_constants(
         // with (#2164).
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
+            source_metadata_input: callee.source_metadata_input(),
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             defining_class: None,
@@ -2559,9 +2612,26 @@ fn try_o101_expr_arg_fold(
     constants: &std::collections::HashMap<String, String>,
 ) -> Option<String> {
     let registry = ctx.registry?;
-    let expression = crate::word_subst::lifted_source_expressions(Some(tokens), registry)
-        .into_iter()
-        .find(|expression| expression.span == call.span)?;
+    let input = cu.ir_module.source_metadata_input.as_ref()?;
+    let context = PassContext {
+        source: ctx.source,
+        dialect: ctx.dialect,
+        registry: Some(registry),
+        ir_module: Some(&cu.ir_module),
+        ..PassContext::default()
+    };
+    let actual = context.retained_metadata_context()?;
+    let mut parser = tcl_syntax::expr::parser::ExprParseContext::for_profile(input.unit_profile());
+    parser.lexer_grammar = input.lexer_config().grammar_over(parser.lexer_grammar);
+    let expression = crate::word_subst::lifted_source_expressions_with_metadata_context(
+        Some(tokens),
+        registry,
+        Some(actual.as_ref().into()),
+        input.lexer_config(),
+        parser,
+    )
+    .into_iter()
+    .find(|expression| expression.span == call.span)?;
     let env = constants
         .iter()
         .map(|(name, value)| {
@@ -2571,13 +2641,6 @@ fn try_o101_expr_arg_fold(
             )
         })
         .collect();
-    let context = PassContext {
-        source: ctx.source,
-        dialect: ctx.dialect,
-        registry: Some(registry),
-        ir_module: Some(&cu.ir_module),
-        ..PassContext::default()
-    };
     let value = context.eval_expression_at(&expression.expression, &env, call.span)?;
     crate::tcl_expr_eval::format_tcl_value_with_policy(&value, context.fold_policy())
         .map(|value| render_propagation_word(&value))
@@ -2594,6 +2657,11 @@ fn visit_call_cmd_subst_folds(
     let Some(registry) = ctx.registry else {
         return;
     };
+    let actual = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        cu.ir_module.source_metadata_input.as_ref(),
+    );
+    let metadata = actual.as_deref().map(Into::into);
     let Some(calls) = retained_substitution_calls(tokens, registry) else {
         return;
     };
@@ -2607,22 +2675,24 @@ fn visit_call_cmd_subst_folds(
         if let Some(collapsed) = retained_o115(ctx, &cu.ir_module, tokens, call, spelling, registry)
         {
             let wrapper =
-                crate::registry_invocation::resolved_handler_invocation(registry, None, tokens)
-                    .filter(|invocation| {
-                        invocation.facts.operation
-                            == tcl_registry::SemanticOperationId::StructuredLowering(
-                                tcl_registry::hooks::LoweringHookId::Return,
-                            )
-                            && tokens.words().len() == 2
-                    })
-                    .and_then(|_| {
-                        let original = ctx.source.get(statement_span.as_range())?;
-                        let start = call.span.start().checked_sub(statement_span.start())? as usize;
-                        let end = call.span.end().checked_sub(statement_span.start())? as usize;
-                        let mut replacement = original.to_owned();
-                        replacement.replace_range(start..end, &collapsed);
-                        Some((statement_span, replacement))
-                    });
+                crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                    registry, metadata, tokens,
+                )
+                .filter(|invocation| {
+                    invocation.facts.operation
+                        == tcl_registry::SemanticOperationId::StructuredLowering(
+                            tcl_registry::hooks::LoweringHookId::Return,
+                        )
+                        && tokens.words().len() == 2
+                })
+                .and_then(|_| {
+                    let original = ctx.source.get(statement_span.as_range())?;
+                    let start = call.span.start().checked_sub(statement_span.start())? as usize;
+                    let end = call.span.end().checked_sub(statement_span.start())? as usize;
+                    let mut replacement = original.to_owned();
+                    replacement.replace_range(start..end, &collapsed);
+                    Some((statement_span, replacement))
+                });
             let (span, replacement) = wrapper.unwrap_or((call.span, collapsed));
             ctx.report(Optimisation::new(
                 DiagCode::O115,
@@ -2632,7 +2702,7 @@ fn visit_call_cmd_subst_folds(
             ));
             continue;
         }
-        if retained_expr_call(call, registry)
+        if retained_expr_call(call, registry, metadata)
             && let Some(folded) = try_o101_expr_arg_fold(ctx, cu, tokens, call, constants)
         {
             ctx.report(Optimisation::new(
@@ -2643,12 +2713,14 @@ fn visit_call_cmd_subst_folds(
             ));
             continue;
         }
-        if let Some(value) = fold_retained_builtin(registry, call, &calls, None) {
+        if let Some(value) = fold_retained_builtin(registry, call, &calls, None, metadata) {
             let code = call
                 .tokens
                 .as_ref()
                 .and_then(|tokens| {
-                    crate::registry_invocation::resolved_tokens_invocation(registry, None, tokens)
+                    crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                        registry, metadata, tokens,
+                    )
                 })
                 .map_or(DiagCode::O129, |invocation| {
                     match invocation.facts.canonical_command.as_str() {
@@ -2716,6 +2788,10 @@ fn try_o103_proc_fold(
         tcl_syntax::formal_params::parse_formal_parameters_in(&declaration.params_raw, grammar)
             .ok()?;
     let registry = ctx.registry?;
+    let actual = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        cu.ir_module.source_metadata_input.as_ref(),
+    )?;
     let original = crate::const_subst::ConstSubstCtx {
         registry,
         resolution_namespace: "::",
@@ -2725,7 +2801,7 @@ fn try_o103_proc_fold(
         trusts: &|_| false,
         lookup_var: &|_| None,
     }
-    .retained_arguments(call, calls)?;
+    .retained_arguments_with_metadata_context(call, calls, actual.as_ref().into())?;
     let plan =
         tcl_syntax::formal_params::bind_formal_arguments(&parameters, original.len(), grammar)
             .ok()?;
@@ -2822,6 +2898,7 @@ fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
 
 fn visit_call_tokens(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     tokens: &CommandTokens,
     constants: &std::collections::HashMap<String, String>,
 ) {
@@ -2847,7 +2924,7 @@ fn visit_call_tokens(
         visit_string_interpolation(ctx, *span, text, constants);
         // Fold a pure-builtin `[cmd …]` substitution
         // embedded *inside* an interpolation string.
-        visit_string_interpolation_cmd_subs(ctx, tokens, *span, text, constants);
+        visit_string_interpolation_cmd_subs(ctx, cu, tokens, *span, text, constants);
     }
 }
 
@@ -2891,6 +2968,7 @@ fn is_whole_word_cmd_subst(inside: &str) -> bool {
 /// least one successful fold is required to emit.
 fn visit_string_interpolation_cmd_subs(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     tokens: &CommandTokens,
     span: tcl_lexer::Span,
     text: &str,
@@ -2899,6 +2977,11 @@ fn visit_string_interpolation_cmd_subs(
     let Some(registry) = ctx.registry else {
         return;
     };
+    let actual = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        cu.ir_module.source_metadata_input.as_ref(),
+    );
+    let metadata = actual.as_deref().map(Into::into);
     let Some(calls) = retained_substitution_calls(tokens, registry) else {
         return;
     };
@@ -2953,7 +3036,7 @@ fn visit_string_interpolation_cmd_subs(
     let mut last = 0;
     let mut folded_any = false;
     for call in roots {
-        let Some(result) = fold_retained_builtin(registry, call, &calls, None) else {
+        let Some(result) = fold_retained_builtin(registry, call, &calls, None, metadata) else {
             continue;
         };
         if result
@@ -5447,14 +5530,16 @@ mod tests {
                 })
             })
             .expect("original length invocation");
-        let invocation = crate::registry_invocation::resolved_tokens_invocation(
-            registry,
-            None,
-            call.tokens.as_ref().unwrap(),
-        )
-        .expect("selected builtin independent of native object effects");
+        let metadata = Some(cu.top_level.invocation_metadata_context(registry).unwrap());
+        let invocation =
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                registry,
+                metadata,
+                call.tokens.as_ref().unwrap(),
+            )
+            .expect("selected builtin independent of native object effects");
         assert!(invocation.facts.effects.requires_world_barrier());
-        assert!(fold_retained_builtin(registry, call, &calls, None).is_none());
+        assert!(fold_retained_builtin(registry, call, &calls, None, metadata).is_none());
     }
 
     #[test]
@@ -5497,5 +5582,117 @@ mod tests {
             seed_params_from_args(&parameters, &[ConstValue::String("x".into())], Jim, policy)
                 .is_none()
         );
+    }
+    #[test]
+    fn retained_expression_argument_folding_requires_actual_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut catalogue = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut descriptor = catalogue.get("expr").unwrap().clone();
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        catalogue.insert(descriptor);
+        let current =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(catalogue)));
+        let registry = current.commands();
+        let mut unit = CompilationUnit::build_with_context_registry(
+            "puts [expr {1 + 2}]",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+                dialect: registry.profile(),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            std::sync::Arc::clone(&current),
+        );
+        let statement = &unit.ir_module.top_level.statements[0];
+        let tokens = unit
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap()
+            .clone();
+        let calls = retained_substitution_calls(&tokens, registry).unwrap();
+        let call = calls.iter().find(|call| call.command == "expr").unwrap();
+        let constants = std::collections::HashMap::new();
+        let mut context = PassContext::new(&unit.source, InterproceduralAnalysis::default());
+        context.registry = Some(registry);
+        assert_eq!(
+            try_o101_expr_arg_fold(&context, &unit, &tokens, call, &constants),
+            Some("3".into())
+        );
+        let input = unit.ir_module.source_metadata_input.clone().unwrap();
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        assert!(std::sync::Arc::ptr_eq(older.commands(), registry));
+        let foreign =
+            std::sync::Arc::new(tcl_registry::model::ingress::static_context_for("tcl9.1").clone());
+        for withheld in [Some(older), Some(foreign), None] {
+            unit.ir_module.source_metadata_input = withheld.map(|availability| {
+                crate::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    availability,
+                    input.lexer_config(),
+                )
+            });
+            let mut context = PassContext::new(&unit.source, InterproceduralAnalysis::default());
+            context.registry = Some(registry);
+            assert!(try_o101_expr_arg_fold(&context, &unit, &tokens, call, &constants).is_none());
+        }
+    }
+
+    #[test]
+    fn retained_recursive_folding_preserves_actual_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = current.commands();
+        let cu = CompilationUnit::build_for_dialect(
+            "puts [list [dict create key value]]",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        let statement = &cu.ir_module.top_level.statements[0];
+        let tokens = cu
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let calls = retained_substitution_calls(tokens, registry).unwrap();
+        let outer = calls.iter().find(|call| call.command == "list").unwrap();
+        assert_eq!(
+            fold_retained_builtin(registry, outer, &calls, None, Some(current.into())),
+            Some("{key value}".into())
+        );
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(registry));
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        for metadata in [Some((&older).into()), Some(foreign.into()), None] {
+            assert!(fold_retained_builtin(registry, outer, &calls, None, metadata).is_none());
+        }
+        let tokens = tokens.clone();
+        let span = statement.span();
+        let mut missing = cu;
+        missing.ir_module.source_metadata_input = None;
+        let mut context = PassContext::new(&missing.source, InterproceduralAnalysis::default());
+        context.registry = Some(registry);
+        visit_call_cmd_subst_folds(
+            &mut context,
+            &missing,
+            &tokens,
+            &std::collections::HashMap::new(),
+            "::",
+            span,
+        );
+        assert!(context.optimisations.is_empty());
     }
 }

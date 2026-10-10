@@ -356,7 +356,7 @@ impl<Text: ExprText> Builder<'_, Text> {
                     if !previous.is_none_or(is_expression_start) {
                         return Err(shown(self.source, "missing operator"));
                     }
-                    self.terms.push(leaf(token, self.variable_config));
+                    self.terms.push(leaf(token, self.variable_config)?);
                 }
                 _ => return Err(Failure::Unknown),
             }
@@ -475,21 +475,19 @@ fn is_expression_start(kind: Kind) -> bool {
     )
 }
 
-fn leaf<Text: ExprText>(token: &ExprToken<Text>, config: tcl_lexer::LexerConfig) -> ExprNode<Text> {
+fn leaf<Text: ExprText>(
+    token: &ExprToken<Text>,
+    config: tcl_lexer::LexerConfig,
+) -> Result<ExprNode<Text>> {
     let text = token.text.clone();
     let (start, end) = (token.start, token.end);
-    match token.kind {
+    Ok(match token.kind {
         Kind::Variable => ExprNode::Var {
-            name: if let Some(original) = text.try_text() {
-                Text::from_source_bytes(crate::naming::normalise_var_name(original).as_bytes())
-            } else {
-                Text::from_source_bytes(
-                    tcl_lexer::word_parts::scan_var_ref(text.bytes(), 0, config)
-                        .ok()
-                        .flatten()
-                        .map_or(text.bytes(), |reference| reference.name),
-                )
-            },
+            name: Text::from_source_bytes(
+                crate::naming::variable_reference_root_bytes(text.bytes(), config)
+                    .map_err(|_| Failure::Unknown)?
+                    .ok_or(Failure::Unknown)?,
+            ),
             text,
             start,
             end,
@@ -497,7 +495,7 @@ fn leaf<Text: ExprText>(token: &ExprToken<Text>, config: tcl_lexer::LexerConfig)
         Kind::Command => ExprNode::Command { text, start, end },
         Kind::String => ExprNode::String { text, start, end },
         _ => ExprNode::Literal { text, start, end },
-    }
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -582,6 +580,48 @@ fn operator(text: &str, prefix: bool) -> Option<Operator> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn jim_reference_tree_shares_selected_utf8_and_opaque_roots() {
+        // Implementation contract: naming.expression.selected-reference-root
+        // docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md
+        for (source, expected) in [
+            (b"${scalar(open}".as_slice(), b"scalar(open".as_slice()),
+            (b"${scalar(open)tail}", b"scalar(open)tail"),
+            (b"${arr(key)}", b"arr"),
+            (b"$arr(\xff)", b"arr"),
+            (b"${\xff(key)}", b"\xff"),
+            (b"${\xff(open}", b"\xff(open"),
+            (b"${nul\0tail(key)}", b"nul\0tail"),
+        ] {
+            let NativeFunctionTree::Parsed(ExprNode::Var { text, name, .. }) =
+                prepare_jim_function_tree_bytes(source, &context(), |_| {
+                    NativeFunctionArity::Absent
+                })
+            else {
+                panic!("whole Jim reference declined");
+            };
+            assert_eq!(text, source);
+            assert_eq!(name, expected);
+            if let Ok(source) = std::str::from_utf8(source) {
+                let NativeFunctionTree::Parsed(ExprNode::Var { text, name, .. }) = prepare(source)
+                else {
+                    panic!("UTF-8 Jim reference declined");
+                };
+                assert_eq!(text, source);
+                assert_eq!(name.as_bytes(), expected);
+            }
+        }
+        let mut selected = context();
+        selected.lexer_grammar.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        assert!(
+            matches!(prepare_jim_function_tree("${a{b}c}", &selected, |_| NativeFunctionArity::Absent), NativeFunctionTree::Parsed(ExprNode::Var { name, .. }) if name == "a{b}c")
+        );
+        assert!(!matches!(
+            prepare_jim_function_tree("${a{b}", &selected, |_| NativeFunctionArity::Absent),
+            NativeFunctionTree::Parsed(_)
+        ));
+    }
+
     use super::*;
     fn context() -> ExprParseContext {
         let profile = tcl_dialect::DialectProfile::projected_from_point(
@@ -648,7 +688,7 @@ mod tests {
                 (stage, action),
                 "{source:?}"
             );
-            assert!(primary.terms.is_empty());
+            assert_eq!(primary.terms, [] as [tcl_lexer::ExprTerm; 0]);
         }
         let unavailable =
             prepare_jim_function_tree_bytes_with_preparation(b"future(1)", &context(), |_| {

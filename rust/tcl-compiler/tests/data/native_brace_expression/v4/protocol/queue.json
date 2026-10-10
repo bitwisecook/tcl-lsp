@@ -1,0 +1,35 @@
+{
+  "runner": "/workspace/.proofs/native-brace-expression129-v4/capture.py",
+  "probe": "/workspace/.proofs/native-brace-expression129-v4/probe.c",
+  "runner_sha256": "b2b32a971cfff644c7772f583d653a6ecb217832e6bf3939e9f0e7acb2b453fb",
+  "probe_sha256": "a4488e0294425c25de6ec2ecbae861b71e3cec00f55bbe498a62ec99a659270b",
+  "input_manifest_sha256": "124ebfcf57fd39baf1a43abae30c629a0c344dbdc8e3375fcfd29bbb3a3d9579",
+  "case_count": 23,
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "channels": {
+    "c": "counted Tcl_EvalEx and independent configured Tcl_ReadChars utf-8/auto then EvalEx",
+    "jim": "counted original Jim_NewStringObj + Jim_EvalObj; C ReadChars explicitly not-tested"
+  },
+  "limits": [
+    "argv collector is independent authored last-command source, not original Expr handler observation",
+    "direct C85+ Tcl_GetReturnOptions versus C84 API unavailable; Jim direct published return fields and additional real catch-object options context",
+    "every case/channel/variant/context uses fresh interpreter",
+    "result/argument primary type and resident status sampled before getter; later C Unicode getter separately recorded",
+    "Negative ReadChars retains count -1 and actual error-result/return-options state, then no evaluation is attempted for that input; no synthetic repaired source."
+  ],
+  "output": "/workspace/.proofs/captured-native-brace-expression129-v4",
+  "runner_absolute_path_literals": [
+    "/workspace/.proofs/captured-native-brace-expression129-v4",
+    "/workspace/.proofs/native-brace-expression129-v4/inputs",
+    "/workspace/.proofs/native-brace-expression129-v4/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/tcl-lsp"
+  ]
+}

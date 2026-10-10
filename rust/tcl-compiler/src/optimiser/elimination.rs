@@ -292,11 +292,15 @@ struct RaiseProof<'a> {
     params: Vec<String>,
     /// At top level, the dialect whose interpreter binds its startup scalars
     /// (`argv`, `tcl_version`) before user code; `None` in a procedure.
-    startup: Option<tcl_dialect::model::SurfaceQuery<'static>>,
+    startup: Option<tcl_dialect::model::SurfaceQuery<'a>>,
     /// Names a scope alias binds, which another frame may unset.
     scope_aliases: HashSet<String>,
     /// Names a module-wide trace guards; a read trace may raise.
     module_traced: Option<&'a std::collections::BTreeSet<String>>,
+    /// Alias/effect availability belongs to this exact supplied source input.
+    metadata_available: bool,
+    /// Ordinary source SSA names can assist only the retained Logical model.
+    logical_source_assistance: bool,
     /// Every SSA value's definition site.
     sites: HashMap<crate::ssa::ValueKey, DefSite>,
 }
@@ -332,6 +336,11 @@ impl<'a> RaiseProof<'a> {
         let registry = ctx.registry.unwrap_or_else(|| {
             tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
         });
+        let metadata = fu.invocation_metadata_context(registry);
+        let logical_source_assistance = metadata.is_some()
+            && fu.source_metadata_input().is_some_and(
+                crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+            );
         // A proc or a method binds its parameters on entry. A proc and a
         // method may share a qualified name, so the unit's kind picks the map;
         // the top level has none, even beside a procedure named `::top`.
@@ -363,7 +372,7 @@ impl<'a> RaiseProof<'a> {
                         | Statement::AssignExpr { .. }
                         | Statement::Incr { .. }
                 );
-                let targets = command_write_targets(&ssa_stmt.statement, registry);
+                let targets = command_write_targets(&ssa_stmt.statement, registry, metadata);
                 for (&sym, &ver) in &ssa_stmt.defs {
                     let name = fu.ssa.var_name(sym);
                     let site = if ssa_stmt.may_defs.contains(&sym) {
@@ -387,9 +396,13 @@ impl<'a> RaiseProof<'a> {
         Self {
             fu,
             params,
-            startup: top_level
-                .then(|| tcl_registry::special_vars::surface_query_for_profile(ctx.dialect)),
-            scope_aliases: scan_scope_aliases(&fu.cfg, registry),
+            startup: (top_level && logical_source_assistance)
+                .then_some(metadata)
+                .flatten()
+                .map(|metadata| metadata.context().authoring_query()),
+            metadata_available: metadata.is_some(),
+            logical_source_assistance,
+            scope_aliases: scan_scope_aliases_with_metadata_context(&fu.cfg, registry, metadata),
             module_traced: ctx.ir_module.map(|m| &m.traced_variables),
             sites,
         }
@@ -399,7 +412,7 @@ impl<'a> RaiseProof<'a> {
     /// guard `name` where this function cannot see it. Element names check
     /// their base too.
     fn observed(&self, name: &str) -> bool {
-        let base = crate::naming::normalise_var_name(name);
+        let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
         self.scope_aliases.contains(name)
             || self.scope_aliases.contains(base)
             || self.fu.cfg.alias_observed_vars.contains(name)
@@ -418,6 +431,9 @@ impl<'a> RaiseProof<'a> {
         stmt: &Statement,
         def: &(crate::var_resolve::VariableCellKey, u32),
     ) -> bool {
+        if !self.metadata_available {
+            return false;
+        }
         let folded = || {
             self.fu.ssa.cell_symbol(&def.0).is_some_and(|sym| {
                 matches!(
@@ -441,7 +457,9 @@ impl<'a> RaiseProof<'a> {
                             binding.original_arguments_complete_normally(tokens)
                         })
                     })
-                    || (!has_element_substitution(value) && self.reads_are_set(block, idx))
+                    || (self.logical_source_assistance
+                        && !has_element_substitution(value)
+                        && self.reads_are_set(block, idx))
             }
             _ => folded(),
         }
@@ -548,15 +566,20 @@ struct CommandWriteTargets<'s> {
 fn command_write_targets<'s>(
     stmt: &'s Statement,
     registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> CommandWriteTargets<'s> {
     let Statement::Call { defs, .. } = stmt else {
         return CommandWriteTargets::default();
     };
-    let context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return CommandWriteTargets::default();
+    };
     let Some(invocation) =
-        crate::registry_invocation::resolved_statement_invocation(registry, context, stmt)
+        crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+            registry,
+            Some(context),
+            stmt,
+        )
     else {
         return CommandWriteTargets::default();
     };
@@ -568,23 +591,17 @@ fn command_write_targets<'s>(
     if !always && !maybe {
         return CommandWriteTargets::default();
     }
-    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile());
-    let escapes = registry
-        .profile()
-        .map_or(tcl_dialect::EscapeSyntax::Tcl86, |profile| {
-            profile.grammar.escapes
-        });
     let targets: Vec<String> = invocation
         .facts
         .arg_roles
         .iter()
         .filter(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
         .filter_map(|(index, _)| {
-            invocation.effective.argument_literal(
-                invocation.facts.argument_offset + usize::from(*index),
-                escapes,
-                rules,
-            )
+            invocation
+                .evaluated_arguments
+                .get(invocation.facts.argument_offset + usize::from(*index))
+                .cloned()
+                .flatten()
         })
         .collect();
     let names: Vec<&str> = defs
@@ -1151,10 +1168,14 @@ fn emit_adce(
     execution_namespace: Option<&crate::ir::ExecutionNamespace>,
     top_level: bool,
 ) {
-    if fu.cfg.has_opaque_native_accesses() {
+    if dead_store_observation_unbounded(ctx, fu) {
         return;
     }
-    let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
+    let (consumer_stmt_keys, mut keep_forever) = build_adce_consumers(fu);
+    let registry = purity
+        .registry
+        .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
+    keep_forever.extend(observed_store_definitions(ctx, fu, top_level, registry));
     let stmt_to_defs = build_stmt_to_defs(fu);
     let raise_proof = RaiseProof::new(ctx, fu, purity.enclosing_class, top_level);
     let removed = run_adce_fixpoint(
@@ -1170,6 +1191,51 @@ fn emit_adce(
         &raise_proof,
     );
     emit_adce_reports(ctx, fu, baseline, &removed);
+}
+
+/// A target observed outside the removable chain remains a store even after
+/// its local consumers disappear. Reuse the ordinary dead-store place policy.
+fn observed_store_definitions(
+    ctx: &PassContext<'_>,
+    fu: &FunctionUnit,
+    top_level: bool,
+    registry: &CommandRegistry,
+) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
+    let fallback_contexts;
+    let contexts = if let Some(contexts) = &fu.ssa.point_contexts {
+        contexts
+    } else {
+        fallback_contexts =
+            crate::variable_bindings::build_point_resolve_contexts(&fu.cfg, &fu.name, registry);
+        &fallback_contexts
+    };
+    fu.def_use
+        .chains
+        .values()
+        .filter_map(|chain| {
+            if chain.definition.kind != DefKind::Statement {
+                return None;
+            }
+            let block = fu.cfg.block_id(&chain.definition.block)?;
+            let index = usize::try_from(chain.definition.statement_index).ok()?;
+            let statement = fu.cfg.blocks.get(&block)?.statements.get(index)?;
+            let writes = crate::place_bridge::def_places(
+                statement,
+                contexts.before_statement(block, index),
+                registry,
+            );
+            let symbol = fu.ssa.cell_symbol(&chain.key.0)?;
+            (dead_store_writes_observed(fu, block, index, &writes, contexts, registry)
+                || dead_store_name_observed(
+                    ctx,
+                    fu.ssa.var_name(symbol),
+                    ctx.ir_module.map(|module| &module.traced_variables),
+                    top_level,
+                    &writes,
+                ))
+            .then(|| chain.key.clone())
+        })
+        .collect()
 }
 
 type ConsumerMap = HashMap<(crate::var_resolve::VariableCellKey, u32), Vec<(String, usize)>>;
@@ -1814,28 +1880,40 @@ fn scan_dollar_names(text: &str, out: &mut Vec<String>) {
     }
 }
 
-/// Scan every CFG block for scope-alias commands (`global`, `variable`,
-/// `upvar`, `namespace upvar`, `my variable`) and variable-trace
-/// establishers, collecting the variable names they bind or trace.  Those
-/// must not be flagged as dead stores / unused — alias writes go to a
-/// different scope, and a write trace fires its callback on every `set`.
-///
-/// Entirely registry-driven: alias recognition comes from
-/// `Traits::CREATES_SCOPE_ALIAS` / the per-subcommand flag via
-/// [`crate::var_scoping::scope_alias_local_indices`], and trace targets
-/// from the resolved registry [`tcl_registry::TraceTransition`] — no hardcoded
-/// command-name grammar here.
-pub(crate) fn scan_scope_aliases(
-    cfg: &CfgFunction,
-    registry: &tcl_registry::CommandRegistry,
-) -> HashSet<String> {
-    let context = registry
+/// Literal source alias and write-trace hazards selected from retained operands.
+/// The standalone wrapper uses the explicitly supplied Registry profile.
+pub(crate) fn scan_scope_aliases(cfg: &CfgFunction, registry: &CommandRegistry) -> HashSet<String> {
+    scan_scope_aliases_with_metadata_context(cfg, registry, standalone_scan_context(registry))
+}
+
+fn standalone_scan_context(
+    registry: &CommandRegistry,
+) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
+    registry
         .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+        .map(Into::into)
+}
+
+/// Supplied availability refines original alias and write-trace declarations.
+/// Missing or foreign metadata contributes no declarations; callers must not
+/// interpret this absence as completed lookup or an unobserved physical cell.
+pub(crate) fn scan_scope_aliases_with_metadata_context(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> HashSet<String> {
     let mut aliases = HashSet::new();
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return aliases;
+    };
     for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
         let Some(invocation) =
-            crate::registry_invocation::resolved_statement_invocation(registry, context, statement)
+            crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+                registry,
+                Some(context),
+                statement,
+            )
         else {
             continue;
         };
@@ -1848,17 +1926,29 @@ pub(crate) fn scan_scope_aliases(
                 }
             }
         }
-        aliases.extend(statement_write_trace_targets(statement, registry));
+        aliases.extend(statement_write_trace_targets(
+            statement,
+            registry,
+            Some(context),
+        ));
     }
     aliases
 }
 
-fn statement_write_trace_targets(statement: &Statement, registry: &CommandRegistry) -> Vec<String> {
-    let context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+fn statement_write_trace_targets(
+    statement: &Statement,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Vec<String> {
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return Vec::new();
+    };
     let Some(invocation) =
-        crate::registry_invocation::resolved_statement_invocation(registry, context, statement)
+        crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+            registry,
+            Some(context),
+            statement,
+        )
     else {
         return Vec::new();
     };
@@ -1874,70 +1964,84 @@ fn statement_write_trace_targets(statement: &Statement, registry: &CommandRegist
     }).collect()
 }
 
-/// Scan one CFG for registry-declared aliases that target the interpreter's
-/// global namespace.  This is intentionally narrower than
-/// [`scan_scope_aliases`]: a `variable` or `upvar` alias may name a same-named
-/// local or caller variable, whereas a global alias can inherit an
-/// interpreter startup binding.
+/// Standalone source startup-alias scan using the supplied Registry profile.
 pub(crate) fn scan_global_scope_aliases(
     cfg: &CfgFunction,
-    registry: &tcl_registry::CommandRegistry,
+    registry: &CommandRegistry,
+) -> HashSet<String> {
+    scan_global_scope_aliases_with_metadata_context(
+        cfg,
+        registry,
+        standalone_scan_context(registry),
+    )
+}
+
+/// Literal source aliases that name the interpreter's root startup variable.
+/// A qualified target in another namespace does not inherit a root binding.
+/// These are analytical source names; Native storage identity remains separate.
+pub(crate) fn scan_global_scope_aliases_with_metadata_context(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> HashSet<String> {
     let mut aliases = HashSet::new();
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            if let Statement::Call { command, args, .. } = stmt {
-                for i in
-                    crate::var_scoping::global_scope_alias_local_indices(registry, command, args)
-                {
-                    if let Some(alias) = args.get(i) {
-                        aliases.insert(alias.clone());
-                    }
-                }
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return aliases;
+    };
+    for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
+        let Some(invocation) = statement.tokens().and_then(|tokens| {
+            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                registry,
+                Some(context),
+                tokens,
+            )
+        }) else {
+            continue;
+        };
+        for alias in invocation.variable_alias_transitions() {
+            let tcl_registry::VariableAliasTarget::Global { variable } = &alias.target else {
+                continue;
+            };
+            let (Some(local), Some(target)) = (alias.local.literal(), variable.literal()) else {
+                continue;
+            };
+            let qualified = tcl_syntax::naming::qualify("::", target);
+            let (holder, tail) = tcl_syntax::naming::key_holder_and_tail(&qualified);
+            if holder == "::" && tail == local {
+                aliases.insert(local.to_owned());
             }
         }
     }
     aliases
 }
 
-/// Module-wide set of namespace-qualified (`::`) globals that carry a variable
-/// **write trace** anywhere in the compilation unit.
-///
-/// A traced global is observable across scopes — a write trace fires its
-/// callback on every `set`, so a `set ::w 1` in one proc is neither a dead
-/// store (W220) nor unused (W211) even when the `trace add variable ::w …`
-/// lives in a *different* proc or at the top level. The per-function
-/// [`scan_scope_aliases`] only sees a function's own traces; this closes the
-/// cross-scope gap (FP-DS-04). Restricted to `::`-qualified names because those
-/// are the only ones that denote the same variable across scopes.
+/// Standalone module-wide source write-trace scan using the supplied profile.
 pub(crate) fn scan_module_traced_globals(
     cu: &crate::compilation_unit::CompilationUnit,
-    registry: &tcl_registry::CommandRegistry,
+    registry: &CommandRegistry,
 ) -> HashSet<String> {
-    // Trace-target positions come from the registry
-    // (`Traits::ESTABLISHES_VARIABLE_TRACE` + `ArgRole::VarWrite`), the same
-    // query the lowering's whole-module trace facts use — this scan adds only
-    // the `::`-qualified + literal filters.
-    fn scan_cfg(
-        cfg: &CfgFunction,
-        registry: &tcl_registry::CommandRegistry,
-        out: &mut HashSet<String>,
-    ) {
-        for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
-            out.extend(
-                statement_write_trace_targets(statement, registry)
-                    .into_iter()
-                    .filter(|target| target.contains("::")),
-            );
-        }
-    }
+    scan_module_traced_globals_with_metadata_context(
+        cu,
+        registry,
+        standalone_scan_context(registry),
+    )
+}
 
-    let mut out: HashSet<String> = HashSet::new();
-    scan_cfg(&cu.top_level.cfg, registry, &mut out);
-    for fu in cu.procedures.values() {
-        scan_cfg(&fu.cfg, registry, &mut out);
-    }
-    out
+/// Namespace-qualified write-trace hazards under supplied source availability.
+/// Missing metadata does not certify an empty physical trace table.
+pub(crate) fn scan_module_traced_globals_with_metadata_context(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> HashSet<String> {
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return HashSet::new();
+    };
+    cu.all_body_function_units()
+        .flat_map(|unit| unit.cfg.blocks.values().flat_map(|block| &block.statements))
+        .flat_map(|statement| statement_write_trace_targets(statement, registry, Some(context)))
+        .filter(|target| target.contains("::"))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1957,6 +2061,91 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    #[test]
+    fn original_global_alias_scan_retains_literal_target_and_command_identity() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source startup names are independent of Native cell identity.
+        let registry = std::sync::Arc::new(CommandRegistry::build_default());
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.0")
+            .with_command_store(std::sync::Arc::clone(&registry));
+        for (source, expected) in [
+            (
+                "proc p {} {global argc {$argv} {scalar(open} ::other::argc}",
+                vec!["argc", "$argv", "scalar(open"],
+            ),
+            ("proc global args {}; proc p {} {global argc}", vec![]),
+            ("rename global moved; proc p {} {moved argc}", vec!["argc"]),
+            (
+                "interp alias {} link {} global argc; proc p {} {link}",
+                vec!["argc"],
+            ),
+            (
+                "rename global moved; proc global args {}; proc p {} {global argc}",
+                vec![],
+            ),
+        ] {
+            let compilation = CompilationUnit::build_for(source, &registry, false);
+            let function = compilation.function("::p").unwrap();
+            let names = scan_global_scope_aliases_with_metadata_context(
+                &function.cfg,
+                &registry,
+                Some((&context).into()),
+            );
+            assert_eq!(
+                names,
+                expected.into_iter().map(str::to_owned).collect(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_alias_scans_refuse_unavailable_and_foreign_metadata() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "gated-global",
+            surface: registry.get("dict").unwrap().surface,
+            ..registry.get("global").unwrap().clone()
+        });
+        let registry = std::sync::Arc::new(registry);
+        let compilation =
+            CompilationUnit::build_for("proc p {} {gated-global argc}", &registry, false);
+        let function = compilation.function("::p").unwrap();
+        for (environment, available) in [("tcl8.4", false), ("tcl9.0", true)] {
+            let context = tcl_registry::model::ingress::static_context_for(environment)
+                .with_command_store(std::sync::Arc::clone(&registry));
+            let metadata = Some((&context).into());
+            assert_eq!(
+                scan_scope_aliases_with_metadata_context(&function.cfg, &registry, metadata)
+                    .contains("argc"),
+                available,
+                "{environment}"
+            );
+            assert_eq!(
+                scan_global_scope_aliases_with_metadata_context(&function.cfg, &registry, metadata)
+                    .contains("argc"),
+                available,
+                "{environment}"
+            );
+        }
+        assert!(
+            scan_global_scope_aliases_with_metadata_context(&function.cfg, &registry, None)
+                .is_empty()
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        assert!(
+            scan_scope_aliases_with_metadata_context(
+                &function.cfg,
+                &registry,
+                Some(foreign.into())
+            )
+            .is_empty()
+        );
     }
 
     // internal helper tests
@@ -2340,6 +2529,71 @@ mod tests {
             o108 >= 1,
             "expected at least one O108 in transitive dead chain, got {opts:?}",
         );
+    }
+
+    #[test]
+    fn original_adce_keeps_actual_remote_stores_after_local_consumers_disappear() {
+        // Implementation contract: naming.variable.transitive-store-observation
+        // docs/design/analysis/name-resolution-proofs/transitive-store-observation.md
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+            let source = "proc f {} {global exported; set exported OLD; set first $exported; set unused $first; return OK}; f";
+            let unit = CompilationUnit::build_for_dialect(source, registry, false, engine);
+            let function = unit.procedures.get("::f").unwrap();
+            let offset = u32::try_from(source.find("set exported OLD").unwrap()).unwrap();
+            let (&block, index, statement) = function
+                .cfg
+                .blocks
+                .iter()
+                .find_map(|(block, body)| {
+                    body.statements
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, statement)| {
+                            (function.abs_span(statement.span()).start() == offset)
+                                .then_some((block, index, statement))
+                        })
+                })
+                .unwrap();
+            let context = function
+                .ssa
+                .point_contexts
+                .as_ref()
+                .unwrap()
+                .context_before(block, index)
+                .unwrap();
+            let writes = crate::place_bridge::def_places(statement, context, registry);
+            assert!(writes.iter().any(|place| {
+                matches!(crate::var_resolve::cell_key(place).root(), crate::var_resolve::VariableCellKey::Namespace { simple, .. }
+                    if simple.as_bytes() == b"exported")
+            }), "actual remote target retained for {engine}");
+            let mut pass = PassContext::new(&unit.source, InterproceduralAnalysis::default());
+            pass.registry = Some(registry);
+            pass.ir_module = Some(&unit.ir_module);
+            run(&mut pass, &unit);
+            assert!(
+                pass.optimisations.iter().any(|optimisation| {
+                    matches!(
+                        optimisation.code,
+                        DiagCode::O108 | DiagCode::O109 | DiagCode::O126
+                    ) && source
+                        .get(optimisation.span.start() as usize..optimisation.span.end() as usize)
+                        .is_some_and(|text| text.contains("set unused"))
+                }),
+                "the private consumer still qualifies for {engine}"
+            );
+            assert!(
+                pass.optimisations.iter().all(|optimisation| {
+                    !matches!(
+                        optimisation.code,
+                        DiagCode::O108 | DiagCode::O109 | DiagCode::O126
+                    ) || source
+                        .get(optimisation.span.start() as usize..optimisation.span.end() as usize)
+                        .is_none_or(|text| !text.contains("set exported OLD"))
+                }),
+                "remote store survives its dead local chain for {engine}"
+            );
+        }
     }
 
     #[test]

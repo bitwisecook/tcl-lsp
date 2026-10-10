@@ -34,6 +34,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::abstract",
+        native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         // `oo::abstract create Name { … }` is a four-token `HEAD NAME
         // BRACED BRACED` call — the same shape `oo::class` also matches,
         // which is why it carries `NOT_PROC_FACTORY` too. The

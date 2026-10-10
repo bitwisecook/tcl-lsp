@@ -1,0 +1,58 @@
+                    error_action = "continue";
+                }
+                /* fall through to error */
+            default:
+                while (i--) {
+                    Jim_DecrRefCount(interp, intv[i]);
+                }
+                if (intv != sintv) {
+                    Jim_Free(intv);
+                }
+                if (error_action) {
+                    Jim_SetResultFormatted(interp, "invoked \"%s\" outside of a loop", error_action);
+                }
+                return NULL;
+        }
+        taint |= intv[i]->taint;
+        Jim_IncrRefCount(intv[i]);
+        Jim_String(intv[i]);
+        totlen += intv[i]->length;
+    }
+
+    /* Fast path return for a single token */
+    if (tokens == 1 && intv[0] && intv == sintv) {
+        /* Reverse the Jim_IncrRefCount() above, but don't free the object */
+        intv[0]->refCount--;
+        return intv[0];
+    }
+
+    /* Concatenate every token in an unique
+     * object. */
+    objPtr = Jim_NewStringObjNoAlloc(interp, NULL, 0);
+    objPtr->taint = taint;
+
+    if (tokens == 4 && token[0].type == JIM_TT_ESC && token[1].type == JIM_TT_ESC
+        && token[2].type == JIM_TT_VAR) {
+        /* May be able to do fast interpolated object -> dictSubst */
+        objPtr->typePtr = &interpolatedObjType;
+        objPtr->internalRep.dictSubstValue.varNameObjPtr = token[0].objPtr;
+        objPtr->internalRep.dictSubstValue.indexObjPtr = intv[2];
+        Jim_IncrRefCount(intv[2]);
+    }
+    else if (tokens && intv[0] && intv[0]->typePtr == &sourceObjType) {
+        /* The first interpolated token is source, so preserve the source info */
+        int line;
+        Jim_Obj *fileNameObj = Jim_GetSourceInfo(interp, intv[0], &line);
+        Jim_SetSourceInfo(interp, objPtr, fileNameObj, line);
+    }
+
+
+    s = objPtr->bytes = Jim_Alloc(totlen + 1);
+    objPtr->length = totlen;
+    for (i = 0; i < tokens; i++) {
+        if (intv[i]) {
+            memcpy(s, intv[i]->bytes, intv[i]->length);
+            s += intv[i]->length;
+            Jim_DecrRefCount(interp, intv[i]);
+        }
+    }

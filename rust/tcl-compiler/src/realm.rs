@@ -23,6 +23,12 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+mod declared_source;
+mod original_bindings;
+mod original_tokens;
+pub(crate) use declared_source::document_realm_with_declared_contracts;
+mod source_transition_advice;
+
 use crate::command_binding::{SourceCommandBindings, SourceInvocationBinding};
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::{BindingKnowledge, BindingTarget, ResolvedContext, SpecKey};
@@ -116,16 +122,59 @@ impl<'a> HeadWords<'a> {
 
 /// Legacy head projection over the same command-table interpretation used by
 /// lowering and executable effect consumers.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub struct CommandBindingRealm {
     bindings: SourceCommandBindings,
+    source_input: Option<crate::analyser::ResolvedAnalysisInput>,
     specs: BTreeMap<String, SpecKey>,
+    original_tokens: original_tokens::OriginalCommandTokenCache,
+    original_bindings: original_bindings::OriginalInvocationBindingCache,
+    source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache,
 }
+
+// Derived preparation does not change the immutable retained interpretation.
+impl PartialEq for CommandBindingRealm {
+    fn eq(&self, other: &Self) -> bool {
+        self.bindings == other.bindings
+            && self.specs == other.specs
+            && self.source_input == other.source_input
+    }
+}
+
+impl Eq for CommandBindingRealm {}
 
 static EMPTY_REALM: std::sync::LazyLock<CommandBindingRealm> =
     std::sync::LazyLock::new(CommandBindingRealm::default);
 
 impl CommandBindingRealm {
+    /// Seal the independently supplied editing inputs with this new source
+    /// interpretation. Changing a public result projection cannot replace them.
+    pub(crate) fn with_resolved_analysis_input(
+        mut self,
+        input: crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        self.source_input = Some(input);
+        self
+    }
+
+    /// Exact original profiles, grammar, hosted policy and immutable context
+    /// generation. This is input correspondence, not a lookup or execution.
+    /// Source bytes require independent current-image validation.
+    #[must_use]
+    pub fn matches_resolved_analysis_input(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        self.source_input.as_ref() == Some(input)
+    }
+    /// Borrow the independently retained complete metadata generation.
+    /// This does not authenticate source bytes or confer entered-frame facts.
+    pub(crate) fn source_metadata_context(
+        &self,
+    ) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
+        Some(self.source_input.as_ref()?.context_registry())
+    }
+
     /// Retain the same document execution proof when lowering a positioned
     /// body for a secondary analysis. State snapshots share their allocation.
     pub(crate) fn source_bindings(&self) -> SourceCommandBindings {
@@ -138,17 +187,198 @@ impl CommandBindingRealm {
         &self.bindings
     }
 
+    /// Complete original source bytes and channel retained by this realm.
+    /// Readonly correspondence only: this supplies no entered frame, command
+    /// selection, normal completion or native execution capability.
+    #[must_use]
+    pub fn original_source_image(&self) -> Option<&tcl_lexer::SourceImage> {
+        self.source_bindings_ref()
+            .source_origin()
+            .map(|origin| origin.source_image())
+    }
+
+    /// Complete retained original source/channel and full lexer configuration.
+    /// Correspondence grants no lookup, entered frame, evaluation or edit.
+    #[must_use]
+    pub fn matches_original_source_image(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        self.bindings.matches_original_source_image(image, config)
+    }
+
+    /// Logical authoring metadata from unanimous original pre-operand rows.
+    /// The retained full editing input, source image and configuration must
+    /// agree. Complete static original argv and unchanged authored table cells
+    /// are required; dynamic words, shadows, deletion and unknown mutations
+    /// abstain. This supplies no Native lookup, dispatch, frame or completion.
+    #[must_use]
+    pub fn lexical_source_header_unpositioned(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        name: &str,
+    ) -> Option<String> {
+        // naming.minifier.logical-source-header
+        // docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md
+        if !self.matches_resolved_analysis_input(input)
+            || input.has_hosted_source_name_context()
+            || tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+                .authored_name_policy()
+                .is_some()
+        {
+            return None;
+        }
+        let head =
+            self.bindings
+                .lexical_source_header_unpositioned(image, input.lexer_config(), name)?;
+        let context = input.context_registry();
+        context
+            .context()
+            .resolve_spec_in_realm(
+                context.commands(),
+                &head,
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            )
+            .map(|spec| spec.name.to_owned())
+    }
+
+    /// Positioned Logical source candidate over the complete original vector.
+    /// The retained image, full input, configuration and before-argv table
+    /// must agree. Unknown argument values stay unknown; this grants no
+    /// preservation across their effects, Native lookup or runtime dispatch.
+    #[must_use]
+    pub fn lexical_source_header_for_words(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        words: &[tcl_lexer::NativeWord],
+    ) -> Option<String> {
+        // naming.minifier.complete-logical-metadata
+        // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
+        if !self.matches_resolved_analysis_input(input)
+            || input.has_hosted_source_name_context()
+            || tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+                .authored_name_policy()
+                .is_some()
+        {
+            return None;
+        }
+        let head =
+            self.bindings
+                .lexical_source_header_for_words(image, input.lexer_config(), words)?;
+        let context = input.context_registry();
+        context
+            .context()
+            .resolve_spec_in_realm(
+                context.commands(),
+                &head,
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            )
+            .map(|spec| spec.name.to_owned())
+    }
+
     /// Exact dispatch proof from the shared source interpreter.
     #[must_use]
     pub fn invocation_at_source(&self, head: &str, offset: u32) -> SourceInvocationBinding {
         self.bindings.invocation_at_source(head, offset)
     }
 
+    /// Original static naming producer from this realm's existing original
+    /// layout inventory. This supplies neither execution nor edit authority.
+    #[must_use]
+    pub fn original_source_name_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        rules: tcl_syntax::word_rules::WordValueRules,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<crate::signature_scan::original_name::SourceOriginalNameOccurrence> {
+        self.bindings
+            .original_source_name_at_span(span, config, rules, policy)
+    }
+
+    /// Exact retained written value input, including computed readonly values.
+    /// Complete source/configuration/argv ownership remains on the shared realm.
+    #[must_use]
+    pub fn original_written_name_input_at_span(
+        &self,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+        self.bindings
+            .original_written_name_input_at_span(span, config)
+    }
+
+    /// Retained original input with exact caller-source and channel currency.
+    #[must_use]
+    pub fn original_written_name_input_at_span_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+        self.bindings
+            .original_written_name_input_at_span_in_source(image, span, config)
+    }
+
+    /// Purpose-specific readonly C array operand root. Genuine whole-vector
+    /// ownership and the unknown index remain independent of value/cell lookup.
+    #[must_use]
+    pub fn original_c_array_operand_root_at_span_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+        self.bindings
+            .original_c_array_operand_root_at_span_in_source(image, span, config, policy)
+    }
+
+    /// Original operand and independent caller namespace geometry retained by
+    /// the shared complete-vector source owner. This forwarding supplies no
+    /// namespace existence, argument role, import or execution authority.
+    #[must_use]
+    pub fn original_namespace_operand_at_span_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<crate::signature_scan::original_name::SourceOriginalNamespaceOperand> {
+        self.bindings
+            .original_namespace_operand_at_span_in_source(image, span, config)
+    }
+
     /// Attach retained original-source receipts to unchanged command tokens.
     /// Each consumer must select its own purpose projection afterwards;
     /// attachment itself grants neither dispatch nor body-entry authority.
     pub fn stamp_original_tokens(&self, tokens: &mut crate::ir::CommandTokens) {
-        self.bindings.stamp_original_tokens(tokens);
+        // Implementation contract: naming.source.original-invocation-projection-memo
+        // docs/design/analysis/name-resolution-proofs/original-invocation-projection-memo.md
+        self.bindings
+            .stamp_original_tokens_with_bindings(tokens, |offset| {
+                self.retained_original_invocation(offset).as_ref().clone()
+            });
+    }
+
+    /// Cursor geometry from an actual rejected procedure's body-delimiter cut.
+    /// Complete caller image and configuration must match the retained source;
+    /// this conditional region grants no complete body, entry, child lookup,
+    /// Normal completion or native compiler authority.
+    #[must_use]
+    pub fn original_incomplete_body_region_at(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        cursor: u32,
+        registry: &CommandRegistry,
+    ) -> Option<tcl_lexer::Span> {
+        // Implementation contract: naming.source.incomplete-body-header-metadata
+        // docs/design/analysis/name-resolution-proofs/incomplete-body-header-metadata.md
+        self.bindings
+            .original_incomplete_body_region_at(image, config, cursor, registry)
     }
 
     /// Original declaration grammar and written positions for navigation.
@@ -231,11 +461,12 @@ impl CommandBindingRealm {
     #[must_use]
     pub fn diagnostic_math_function_presence_at(
         &self,
+        registry: &CommandRegistry,
         function: &str,
         offset: u32,
     ) -> crate::command_binding::SourceCommandSlotPresence {
         self.bindings
-            .diagnostic_math_function_presence_at(function, offset)
+            .diagnostic_math_function_presence_at(registry, function, offset)
     }
     /// Name-reference advice in the consuming command's exact post-argv world.
     #[must_use]
@@ -449,6 +680,97 @@ pub fn document_realm_bindings_with_config(
     )
 }
 
+/// Interpret source with the driver's retained execution target and full body
+/// configuration. The catalogue's convenience default supplies no replacement
+/// for this input; actual native entries use their independently sealed path.
+pub(crate) fn document_realm_bindings_with_resolved_input(
+    source: &str,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
+) -> CommandBindingRealm {
+    // naming.diagnostic.original-math-function-subject
+    // docs/design/analysis/name-resolution-proofs/diagnostic-original-math-function-subject.md
+    let context = input.context_registry();
+    let config = input.lexer_config();
+    let dialect = crate::environment_ingress::authoring_invocation_dialect(
+        context.commands(),
+        Some(input.unit_profile()),
+        config,
+    );
+    let options = crate::command_binding::SourceAnalysisOptions {
+        invocation_dialect: Some(dialect),
+        native_compilation: crate::environment_ingress::authoring_native_compilation(),
+        ..crate::command_binding::SourceAnalysisOptions::default()
+    };
+    let bindings = SourceCommandBindings::analyse_with_options(
+        source,
+        config,
+        context.commands(),
+        declared.map_or(options, |contracts| contracts.with_options(options)),
+    );
+    realm_from_source_bindings(bindings, context.commands())
+}
+
+/// Interpret explicit Logical authoring inputs without donating the
+/// heterogeneous catalogue driver's default Native engine. The document
+/// driver's file protocol is retained; this supplies no Native name recipe.
+pub(crate) fn document_lexical_realm_with_resolved_input(
+    source: &str,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
+) -> CommandBindingRealm {
+    // naming.minifier.logical-source-header
+    // docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md
+    let context = input.context_registry();
+    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+    dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
+    dialect.word_values =
+        tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
+    let options = crate::command_binding::SourceAnalysisOptions {
+        invocation_dialect: Some(dialect),
+        logical_source_input: Some(input),
+        native_compilation: crate::environment_ingress::authoring_native_compilation(),
+        ..crate::command_binding::SourceAnalysisOptions::default()
+    };
+    let bindings = SourceCommandBindings::analyse_with_options(
+        source,
+        input.lexer_config(),
+        context.commands(),
+        declared.map_or(options, |contracts| contracts.with_options(options)),
+    );
+    realm_from_source_bindings(bindings, context.commands())
+}
+
+/// Retain the exact hosted editing input without borrowing the command
+/// catalogue's C-compatible name recipe. Runtime entry and storage remain
+/// separate from this source-only domain.
+pub(crate) fn document_vendor_realm_with_resolved_input(
+    source: &str,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
+) -> CommandBindingRealm {
+    // naming.vendor.original-source-context-input
+    // docs/design/analysis/name-resolution-proofs/vendor-original-source-context-input.md
+    let context = input.context_registry();
+    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+    dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
+    dialect.word_values =
+        tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
+    let options = crate::command_binding::SourceAnalysisOptions {
+        invocation_dialect: Some(dialect),
+        vendor_source_input: Some(input),
+        native_compilation: crate::environment_ingress::authoring_native_compilation(),
+        ..crate::command_binding::SourceAnalysisOptions::default()
+    };
+    let bindings = SourceCommandBindings::analyse_with_options(
+        source,
+        input.lexer_config(),
+        context.commands(),
+        declared.map_or(options, |contracts| contracts.with_options(options)),
+    );
+    realm_from_source_bindings(bindings, context.commands())
+}
+
 /// Build a document realm from explicit driver execution provenance.
 #[must_use]
 pub fn document_realm_bindings_with_source_entry(
@@ -478,12 +800,80 @@ fn realm_from_source_bindings(
             })
         })
         .collect();
-    CommandBindingRealm { bindings, specs }
+    CommandBindingRealm {
+        bindings,
+        source_input: None,
+        specs,
+        original_tokens: original_tokens::OriginalCommandTokenCache::default(),
+        original_bindings: original_bindings::OriginalInvocationBindingCache::default(),
+        source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolved_input_preserves_math_policy_without_catalogue_default() {
+        // naming.diagnostic.original-math-function-subject
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-math-function-subject.md
+        use tcl_registry::mathfunc::NativeMathFunctionDispatch;
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let environment = crate::environment_ingress::resolve_environment(name);
+            let profile = environment.analyser_profile();
+            let context =
+                environment.context_registry(&tcl_registry::model::KeyedVersions::default(), 0);
+            let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                environment.unit_profile(),
+                context,
+                config,
+            );
+            let source = "expr {Pi()}\n";
+            let realm = document_realm_bindings_with_resolved_input(source, &input, None);
+            let registry = input.context_registry();
+            let image = tcl_lexer::SourceImage::document(source);
+            let occurrences = realm
+                .source_bindings_ref()
+                .original_math_functions_in_source(
+                    registry.commands(),
+                    &image,
+                    config,
+                    tcl_lexer::Span::new(6, 8),
+                );
+            let [occurrence] = occurrences.as_slice() else {
+                panic!("{name}: retained complete source expression: {occurrences:?}");
+            };
+            assert_eq!(occurrence.bytes(), b"Pi", "{name}");
+            assert_eq!(occurrence.span(), tcl_lexer::Span::new(6, 8));
+            assert_eq!(
+                occurrence.dispatch(),
+                if matches!(name, "tcl8.4" | "jim") {
+                    NativeMathFunctionDispatch::FixedTable
+                } else {
+                    NativeMathFunctionDispatch::CommandTable
+                }
+            );
+            assert_eq!(
+                occurrence.name_policy().recipe(),
+                tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+                    .native_name_protocol()
+                    .unwrap()
+            );
+            assert!(occurrence.matches_source(&image, config, registry.commands()));
+            assert!(!occurrence.matches_source(
+                &tcl_lexer::SourceImage::native(source.as_bytes()),
+                config,
+                registry.commands(),
+            ));
+            let mut foreign = config;
+            foreign.strict_quoting ^= true;
+            assert!(!occurrence.matches_source(&image, foreign, registry.commands()));
+            assert!(occurrence.command_reference().is_none());
+        }
+    }
 
     #[test]
     fn explicit_profile_retains_native_policy_independently_of_lexical_rules() {
@@ -675,17 +1065,26 @@ mod tests {
         assert!(map.is_empty(), "a foreign srcPath states no fact here");
     }
 
-    /// FP guard — a **safe / sub-interpreter** command table is not this
-    /// document's own, so hiding or exposing a command there states nothing
-    /// about a bare call here.
-    ///
-    /// tclsh-proof (9.0.4 / 8.6.16): `interp create -safe s; interp hide s
-    /// format` leaves the parent's `format %d 7` answering `7`, while
-    /// `s eval {format %d 7}` fails `invalid command name "format"`.
+    /// Child visibility operations do not rebind the parent's stock commands.
+    /// Creating a named child also installs its own parent command.
     #[test]
     fn a_safe_interpreters_hidden_command_states_nothing_here() {
+        // naming.interpreter.original-created-parent-command
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-created-parent-command.md
+        // Native CLI observes named child creation/deletion and handle/path
+        // evaluation. These assertions exercise source command-table advice;
+        // they do not derive native tokens or effects from the CLI result.
+        let creation = "interp create -safe s\n";
+        let map = map_for(creation);
+        assert!(!map.is_empty(), "creation installs a parent command");
+        let offset = u32::try_from(creation.len()).unwrap();
+        assert_eq!(map.binding_at("s", offset), RealmBindingFact::Rebound);
+        assert_eq!(
+            map.resolve("format", offset).spec_name(),
+            map_for("").resolve("format", 0).spec_name(),
+            "creating a child preserves the parent's stock format binding",
+        );
         for src in [
-            "interp create -safe s\n",
             "interp hide s format\n",
             "interp expose s format\n",
             "interp invokehidden s format %d 7\n",
@@ -693,7 +1092,12 @@ mod tests {
             let map = map_for(src);
             assert!(
                 map.is_empty(),
-                "a child interpreter's command table must state nothing here: {src}"
+                "child visibility is a separate table: {src}"
+            );
+            assert_eq!(
+                map.resolve("format", u32::try_from(src.len()).unwrap())
+                    .spec_name(),
+                map_for("").resolve("format", 0).spec_name(),
             );
         }
     }

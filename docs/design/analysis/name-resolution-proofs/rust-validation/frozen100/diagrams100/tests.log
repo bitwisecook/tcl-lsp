@@ -1,0 +1,39 @@
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming100/rust/tcl-registry)
+   Compiling serde_json v1.0.151
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming100/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/.checkpoints/naming100/rust/tcl-irules)
+   Compiling tcl-diagram v0.1.0 (/workspace/.checkpoints/naming100/rust/tcl-diagram)
+    Finished `test` profile [unoptimized] target(s) in 1m 09s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_diagram-548395db19fe64b1)
+
+running 8 tests
+test attach::tests::original_attachment_reports_keep_dynamic_values_unconstrained ... ok
+test attach::tests::original_attachment_reports_require_actual_kind_ordinal_and_current_source ... 
+thread 'attach::tests::original_attachment_reports_require_actual_kind_ordinal_and_current_source' (403006) panicked at rust/tcl-diagram/src/attach.rs:425:13:
+proc pool args {}; when HTTP_REQUEST {pool $target}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test attach::tests::original_rule_references_require_guarded_metadata_and_current_owners ... 
+thread 'attach::tests::original_rule_references_require_guarded_metadata_and_current_owners' (403007) panicked at rust/tcl-diagram/src/attach.rs:473:9:
+assertion failed: proc_call_refs("proc call {args} {}\nwhen HTTP_REQUEST {call Lib::one}").is_empty()
+FAILED
+test data::original_source_tests::original_diagram_actions_keep_source_schema_separate_from_display_labels ... 
+thread 'data::original_source_tests::original_diagram_actions_keep_source_schema_separate_from_display_labels' (403008) panicked at rust/tcl-diagram/src/data.rs:1757:9:
+assertion failed: diagram_data_for_analysis(&format!("#changed\n{source}"), &analysis,
+            &unit.ir_module, &availability).get("error").is_some()
+FAILED
+test data::original_source_tests::original_diagram_calls_use_retained_allocations_and_decline_missing_lookup ... ok
+test data::original_source_tests::original_diagram_events_require_actual_event_descriptors_instead_of_when_labels ... ok
+test data::original_source_tests::original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_clear ... ok
+test graph::original_completion_tests::original_diagram_renderer_does_not_infer_completion_from_action_labels ... ok
+
+failures:
+
+failures:
+    attach::tests::original_attachment_reports_require_actual_kind_ordinal_and_current_source
+    attach::tests::original_rule_references_require_guarded_metadata_and_current_owners
+    data::original_source_tests::original_diagram_actions_keep_source_schema_separate_from_display_labels
+
+test result: FAILED. 5 passed; 3 failed; 0 ignored; 0 measured; 25 filtered out; finished in 5.88s
+
+error: test failed, to rerun pass `-p tcl-diagram --lib`

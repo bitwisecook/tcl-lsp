@@ -1,0 +1,13 @@
+
+running 8 tests
+test analyser::interp_visibility::tests::original_child_lambda_visibility_uses_its_own_literal_namespace ... ok
+test analyser::interp_visibility::tests::original_child_receiver_visibility_keeps_unknown_namespace_and_body_owner_explicit ... ok
+test analyser::interp_visibility::tests::original_child_script_positions_retain_list_values_and_reference_timing ... ok
+test analyser::interp_visibility::tests::original_child_visibility_is_scoped_conditional_and_retains_possible_source_edges ... ok
+test analyser::interp_visibility::tests::original_child_visibility_preserves_literal_colon_and_independent_allocations ... ok
+test analyser::interp_visibility::tests::original_child_visibility_rejects_foreign_source_configuration_and_generation ... ok
+test analyser::interp_visibility::tests::original_created_handle_visibility_uses_the_same_child_source_snapshot ... ok
+test analyser::interp_visibility::tests::original_moved_handle_visibility_uses_the_original_child_path ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 8248 filtered out; finished in 82.55s
+

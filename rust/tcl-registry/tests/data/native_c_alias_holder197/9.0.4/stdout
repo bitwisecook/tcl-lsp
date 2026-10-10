@@ -1,0 +1,5 @@
+version 9.0.4 interp_available interp
+relative_qualified 0 q::a ::N::q::a {}
+relative_calls 0 VALUE 1 {invalid command name "::q::a"}
+unqualified 0 plain {} ::plain
+explicitly_rooted 0 ::N::q::rooted ::N::q::rooted 0 ROOTED

@@ -117,20 +117,12 @@ use tcl_lexer::Span;
 #[must_use]
 pub(crate) fn substituted_var_read_at(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     line: u32,
     character: u32,
     cursor_off: u32,
 ) -> Option<String> {
-    let name = crate::hover::find_var_at_position(source, line, character)?;
-    let inert = crate::inert_text::offset_in_comment(source, cursor_off)
-        || crate::inert_text::offset_in_data_brace(
-            source,
-            cursor_off,
-            crate::registry_for_dialect_profile(dialect),
-            dialect,
-        );
-    (!inert).then_some(name)
+    crate::definition::substituting_var_at_position(source, analysis, line, character, cursor_off)
 }
 
 /// One selected call in the current scope that instantiates a callee's
@@ -157,6 +149,36 @@ pub(crate) struct CallerFrameBinding {
     /// [`ProcArgTrait::VarWrite`]) — the site references the variable but
     /// has no write-through usage. A write template proves no successful store.
     pub read_only: bool,
+}
+
+/// Render the independently selected caller-name template, without claiming
+/// an entered alias, successful write or completed caller store.
+pub(crate) fn caller_frame_hover_text(
+    name: &str,
+    binding: &crate::caller_frame::CallerFrameBinding,
+) -> String {
+    let verb = if binding.read_only {
+        "named for reading in this frame by"
+    } else {
+        "named for writing in this frame by"
+    };
+    match &binding.param {
+        Some(param) => format!(
+            "**Caller-frame variable** `{name}`\n\n\
+             {verb} `{}`, through its `{param}` parameter's `upvar`.\n\n\
+             The name is passed at the call site and used by the callee's source template.",
+            binding.callee
+        ),
+        // A literal target (`upvar 1 name name`): the callee
+        // spells the name in its own body, so nothing at the call site
+        // carries it.
+        None => format!(
+            "**Caller-frame variable** `{name}`\n\n\
+             {verb} `{}`, whose own `upvar` names it literally.\n\n\
+             The name is spelled in the callee's source template.",
+            binding.callee
+        ),
+    }
 }
 
 /// Byte region of the innermost scope body containing `off`, or the whole
@@ -218,9 +240,16 @@ fn enclosing_frame_region(
 /// a caller-frame variable — the cheap pre-filter for
 /// [`caller_frame_bindings`]'s source scan.
 fn document_has_call_by_name_proc(analysis: &AnalysisResult) -> bool {
-    analysis.all_procs.values().any(|proc_def| {
+    let relevant = |proc_def: &tcl_compiler::analyser::ProcDef| {
         !proc_def.caller_frame_params.is_empty() || !proc_def.caller_frame_literals.is_empty()
-    })
+    };
+    if analysis.allows_lexical_declaration_advice() {
+        analysis.all_procs.values().any(relevant)
+    } else {
+        analysis
+            .original_procedure_declarations()
+            .any(|declaration| relevant(declaration.metadata()))
+    }
 }
 
 /// Every call in the frame enclosing `cursor_off` that binds `name` in that
@@ -237,49 +266,67 @@ pub(crate) fn caller_frame_bindings(
     cursor_off: u32,
     name: &str,
 ) -> Vec<CallerFrameBinding> {
+    // Implementation contract: naming.core.original-caller-frame-navigation
+    // docs/design/analysis/name-resolution-proofs/original-caller-frame-navigation.md
     let mut out: Vec<CallerFrameBinding> = Vec::new();
-    // This runs on every hover / go-to-definition / find-references that fails
-    // the ordinary scope-chain lookup, and re-segmenting the enclosing frame
-    // is the expensive part.  A document with no call-by-name procedure at all
-    // — the overwhelming majority — can answer from the already-computed
-    // per-proc facts without touching the source.
-    // …and a document with no call-by-name procedure can still bind a
-    // caller-frame name through a **method** reached by `my` dispatch, but
-    // only when the cursor is inside a class body — which is the cheap way to
-    // ask.
+    let Some(config) = analysis.body_lexer_config else {
+        return out;
+    };
     if name.is_empty()
-        || (!document_has_call_by_name_proc(analysis)
-            && crate::definition::enclosing_class_at(analysis, cursor_off).is_none())
+        || !analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
     {
         return out;
     }
-    let (start, end) = enclosing_frame_region(&analysis.global_scope, cursor_off, source);
-    if start >= end {
+    let (Some(profile), Some(registry), Some(identities)) = (
+        analysis.resolved_profile(),
+        analysis.resolved_registry(),
+        analysis.retained_command_realm(),
+    ) else {
+        return out;
+    };
+    if profile.name != dialect.name
+        || resolution.registry.is_some_and(|requested| {
+            requested.snapshot().semantic_key() != registry.snapshot().semantic_key()
+        })
+    {
         return out;
     }
-    // Built once for the whole scan, not per command: the self-dispatch walk
-    // below resolves method-body heads through it, and a `rename` or
-    // `interp alias` in this document has to read the same way here as it does
-    // in every other consumer.
-    // Without a registry there is no way to know which commands mutate the
-    // command table, so there is no fact to record and the shared empty map is
-    // the honest answer.
-    let scanned_identities = resolution
-        .registry
-        .map(|registry| tcl_compiler::realm::document_realm_bindings(source, dialect, registry));
-    let identities = scanned_identities
-        .as_ref()
-        .unwrap_or_else(|| tcl_compiler::realm::CommandBindingRealm::none());
+    let lexical = analysis.allows_lexical_declaration_advice();
+    let has_class = if lexical {
+        crate::definition::enclosing_class_at(analysis, cursor_off).is_some()
+    } else {
+        analysis.original_class_declarations().next().is_some()
+    };
+    if !document_has_call_by_name_proc(analysis) && !has_class {
+        return out;
+    }
     let ctx = BindingScan {
         analysis,
         source,
-        dialect,
-        resolution,
+        dialect: profile,
+        registry,
         identities,
+        config,
         name,
         read_offset: cursor_off,
     };
-    collect_bindings_in_region(&ctx, start, end, 0, &mut out);
+    if lexical {
+        let (start, end) = enclosing_frame_region(&analysis.global_scope, cursor_off, source);
+        collect_bindings_in_region(&ctx, start, end, 0, &mut out);
+    } else {
+        let Some(structure) =
+            crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
+        else {
+            return out;
+        };
+        // Body and bracket grammar supplies readonly candidates only. The
+        // existing original caller template independently joins every call to
+        // this read's genuine declared or entered frame and namespace.
+        for command in &structure.commands {
+            bindings_from_call(&ctx, command, &mut out);
+        }
+    }
     out.sort_by_key(|b| b.arg_span.start());
     out.dedup();
     out
@@ -290,9 +337,10 @@ struct BindingScan<'a> {
     analysis: &'a AnalysisResult,
     source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
-    /// Registry supplied by the navigation caller. Procedure identity comes
-    /// from the source owner's exact call/allocation/frame receipt.
-    resolution: crate::definition::CallResolution<'a>,
+    /// Actual retained Registry; procedure identity remains allocation-owned.
+    registry: &'a tcl_registry::CommandRegistry,
+    /// Complete original lexical configuration, including BOM and overrides.
+    config: tcl_lexer::LexerConfig,
     /// The document's proven command-identity facts, built once per scan and
     /// handed to every trait scan below so a rebound head resolves here the
     /// same way it does everywhere else.
@@ -338,17 +386,13 @@ fn collect_bindings_in_region(
     let commands = segment_commands_with_offset_and_config(
         &ctx.source[start..end],
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        ctx.config,
     );
     for cmd in &commands {
         bindings_from_call(ctx, cmd, out);
-        for (inner_start, inner_end) in crate::references::nested_dispatch_regions_with_identities(
-            ctx.source,
-            ctx.dialect,
-            crate::registry_for_dialect_profile(ctx.dialect),
-            ctx.identities,
-            cmd,
-        ) {
+        for (inner_start, inner_end) in
+            crate::references::nested_dispatch_regions(ctx.source, ctx.analysis, ctx.dialect, cmd)
+        {
             collect_bindings_in_region(ctx, inner_start, inner_end, depth + 1, out);
         }
     }
@@ -361,18 +405,35 @@ fn bindings_from_call(
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
     out: &mut Vec<CallerFrameBinding>,
 ) {
-    let (Some(head), Some(registry)) = (cmd.argv.first(), ctx.resolution.registry) else {
+    let Some(head) = cmd.argv.first() else {
         return;
     };
+    let registry = ctx.registry;
     let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(ctx.source),
-        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        ctx.config,
         cmd,
     );
     let Some(template) =
         ctx.identities
             .caller_frame_invocation_template_at(&tokens, ctx.read_offset, registry)
     else {
+        let declared =
+            ctx.analysis
+                .original_declared_self_method_template(ctx.source, cmd, ctx.read_offset);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_CALLER_FRAME").is_some() {
+            eprintln!(
+                "ORIGINAL_DECLARED_MY offset={} template={}",
+                head.span.start(),
+                declared.is_some(),
+            );
+        }
+        if let Some(template) = declared {
+            if template.invocation().matches_registry(registry) {
+                bindings_from_declared_self_dispatch(ctx, cmd, &template, out);
+            }
+        }
         return;
     };
     let Some(definition) = template.procedure_definition() else {
@@ -466,33 +527,91 @@ fn bindings_from_self_dispatch(
     template: &tcl_compiler::command_binding::SourceCallerFrameInvocationTemplate,
     out: &mut Vec<CallerFrameBinding>,
 ) {
-    use tcl_compiler::analyser::param_traits::{
-        TraitScanEnv, caller_frame_literal_targets, caller_frame_upvar_params, infer_param_traits,
-    };
-
-    let Some(head) = cmd.argv.first() else {
-        return;
-    };
-    let (Some(registry), Some(entry)) = (ctx.resolution.registry, template.method()) else {
+    let Some(entry) = template.method() else {
         return;
     };
     let Some(class) = entry.declaring_class() else {
         return;
     };
-    let script = entry.body();
-    // Trait scans require checked text; the environment keeps the original
-    // source image and channel as the execution proof.
+    let names = entry
+        .formals()
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect::<Vec<_>>();
+    scan_self_method_body(
+        ctx,
+        cmd,
+        entry.body(),
+        format!("{}::{}", class.command, entry.name()),
+        &names,
+        |i| template.literal_parameter_argument(i),
+        out,
+    );
+}
+
+fn bindings_from_declared_self_dispatch(
+    ctx: &BindingScan<'_>,
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    template: &tcl_compiler::command_binding::OriginalDeclaredSelfMethodTemplate,
+    out: &mut Vec<CallerFrameBinding>,
+) {
+    // naming.tcloo.original-declared-self-method-caller-template
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-self-method-caller-template.md
+    let names = template
+        .formals()
+        .parameters()
+        .iter()
+        .map(|formal| core::str::from_utf8(&formal.name))
+        .collect::<Result<Vec<_>, _>>();
+    let Ok(names) = names else {
+        return;
+    };
+    scan_self_method_body(
+        ctx,
+        cmd,
+        template.callee_body().source(),
+        template.display_name().to_owned(),
+        &names,
+        |i| template.literal_parameter_argument(i),
+        out,
+    );
+}
+
+fn scan_self_method_body<'a>(
+    ctx: &BindingScan<'_>,
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    script: &tcl_compiler::command_binding::ExecutedScriptSource,
+    callee: String,
+    param_names: &[&str],
+    literal_argument: impl Fn(usize) -> Option<(usize, &'a str)>,
+    out: &mut Vec<CallerFrameBinding>,
+) {
+    use tcl_compiler::analyser::param_traits::{
+        TraitScanEnv, caller_frame_literal_targets, caller_frame_upvar_params, infer_param_traits,
+    };
+    let Some(head) = cmd.argv.first() else {
+        return;
+    };
     let Ok(body) = script.text.try_text() else {
         return;
     };
+    let registry = ctx.registry;
     let env = TraitScanEnv {
         surface: tcl_registry::model::DocumentCommandSurface::new(registry, None),
-        config: tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        config: ctx.config,
         identities: ctx.identities,
         executed_source: Some(script),
     };
-    let callee = format!("{}::{}", class.command, entry.name());
-    if let Some(written) = caller_frame_literal_targets(body, env).get(ctx.name) {
+    let targets = caller_frame_literal_targets(body, env);
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_CALLER_FRAME").is_some() {
+        eprintln!(
+            "ORIGINAL_DECLARED_MY body={} source_base={} literal_targets={targets:?}",
+            body.len(),
+            script.base(),
+        );
+    }
+    if let Some(written) = targets.get(ctx.name) {
         out.push(CallerFrameBinding {
             callee: callee.clone(),
             param: None,
@@ -501,23 +620,18 @@ fn bindings_from_self_dispatch(
             read_only: !written,
         });
     }
-    let param_names: Vec<&str> = entry
-        .formals()
-        .iter()
-        .map(|(name, _)| name.as_str())
-        .collect();
     if param_names.is_empty() {
         return;
     }
-    let caller_frame_params = caller_frame_upvar_params(&param_names, body, env);
+    let caller_frame_params = caller_frame_upvar_params(param_names, body, env);
     if caller_frame_params.is_empty() {
         return;
     }
-    let traits = infer_param_traits(&param_names, body, env);
+    let traits = infer_param_traits(param_names, body, env);
     for (i, param) in param_names.iter().enumerate() {
         // `my <method> <arg>…` — the actual arguments start one word later
         // than a plain call's, because the method name is itself a word.
-        let Some((argument, value)) = template.literal_parameter_argument(i) else {
+        let Some((argument, value)) = literal_argument(i) else {
             continue;
         };
         let Some(arg_tok) = cmd.argv.get(argument + 1) else {
@@ -568,15 +682,99 @@ pub(crate) fn caller_frame_reference_spans(
     name: &str,
 ) -> Vec<Span> {
     let bindings = caller_frame_bindings(analysis, source, dialect, resolution, cursor_off, name);
+    caller_frame_reference_spans_from_bindings(analysis, source, cursor_off, name, &bindings)
+}
+
+/// Project references from an already selected readonly caller template.
+/// Selection and frame correspondence are not reconstructed by providers.
+pub(crate) fn caller_frame_reference_spans_from_bindings(
+    analysis: &AnalysisResult,
+    source: &str,
+    cursor_off: u32,
+    name: &str,
+    bindings: &[CallerFrameBinding],
+) -> Vec<Span> {
     if bindings.is_empty() {
         return Vec::new();
     }
-    let (start, end) = enclosing_frame_region(&analysis.global_scope, cursor_off, source);
     let mut spans: Vec<Span> = bindings.iter().map(|b| b.arg_span).collect();
-    spans.extend(substituted_read_spans(source, dialect, start, end, name));
+    if analysis.allows_lexical_declaration_advice() {
+        let (start, end) = enclosing_frame_region(&analysis.global_scope, cursor_off, source);
+        spans.extend(substituted_read_spans(source, analysis, start, end, name));
+    } else {
+        spans.extend(original_caller_read_spans(analysis, source, bindings, name));
+    }
     spans.sort_by_key(|span: &Span| span.start());
     spans.dedup();
     spans
+}
+
+/// Lexical original variable roots supply read geometry; the caller template
+/// independently joins each read to one of the selected call/frame recipes.
+/// Reporting scopes, text search and standalone catalogues supply no Native
+/// frame or reference coverage through this projection.
+fn original_caller_read_spans(
+    analysis: &AnalysisResult,
+    source: &str,
+    bindings: &[CallerFrameBinding],
+    name: &str,
+) -> Vec<Span> {
+    use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
+    let (Some(config), Some(registry), Some(realm)) = (
+        analysis.body_lexer_config,
+        analysis.resolved_registry(),
+        analysis.retained_command_realm(),
+    ) else {
+        return Vec::new();
+    };
+    let Some(structure) =
+        crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
+    else {
+        return Vec::new();
+    };
+    let calls = structure
+        .commands
+        .iter()
+        .filter(|command| {
+            command.argv.first().is_some_and(|head| {
+                bindings
+                    .iter()
+                    .any(|binding| binding.call_span == head.span)
+            })
+        })
+        .map(|command| {
+            tcl_compiler::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                command,
+            )
+        })
+        .collect::<Vec<_>>();
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .original_variable_symbols
+        .iter()
+        .filter_map(|occurrence| {
+            let SignatureSourceNameInput::OriginalVariableRoot(root) =
+                occurrence.original_name_input()
+            else {
+                return None;
+            };
+            let span = root.name_span()?;
+            if root.source_image() != &image
+                || root.lexer_config() != config
+                || source.get(span.as_range())? != name
+                || !calls.iter().any(|tokens| {
+                    realm
+                        .caller_frame_invocation_template_at(tokens, span.start(), registry)
+                        .is_some()
+                })
+            {
+                return None;
+            }
+            Some(span)
+        })
+        .collect()
 }
 
 /// Whether the `$` at byte `at` is **escaped** by the backslash run
@@ -618,7 +816,7 @@ fn dollar_is_escaped(bytes: &[u8], at: usize) -> bool {
 /// ([`dollar_is_escaped`]) is no substitution at all.
 fn substituted_read_spans(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     start: usize,
     end: usize,
     name: &str,
@@ -647,14 +845,7 @@ fn substituted_read_spans(
                 continue;
             }
             let name_start = u32::try_from(at + offset_to_name).unwrap_or(u32::MAX);
-            let inert = crate::inert_text::offset_in_comment(source, name_start)
-                || crate::inert_text::offset_in_data_brace(
-                    source,
-                    name_start,
-                    crate::registry_for_dialect_profile(dialect),
-                    dialect,
-                );
-            if inert {
+            if crate::definition::offset_is_inert(source, analysis, name_start) != Some(false) {
                 continue;
             }
             out.push(Span::new(
@@ -741,6 +932,109 @@ oo::class create chart {
 
     fn offset_of(source: &str, needle: &str) -> u32 {
         u32::try_from(source.find(needle).expect("needle present")).expect("offset fits u32")
+    }
+
+    #[test]
+    fn original_caller_templates_keep_full_input_bom_namespace_and_source_currency() {
+        // Implementation contract: naming.core.original-caller-frame-navigation
+        // docs/design/analysis/name-resolution-proofs/original-caller-frame-navigation.md
+        let source = "\u{feff}namespace eval N {\nproc setdef {d} {upvar 1 $d dst; set dst SET}\nproc caller {ok} {\nif {$ok} {setdef shared}\nputs $shared\n}\n}\n";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let context = tcl_registry::model::ingress::context_for_profile(profile);
+            let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            config.leading_bom = tcl_lexer::LeadingBom::Skip;
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context.clone(),
+                config,
+            );
+            let mut analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, dialect);
+            // UI name and scope maps cannot replace the immutable original
+            // declaration and body/frame receipts used by this projection.
+            analysis.all_procs.clear();
+            analysis.all_classes.clear();
+            analysis.global_scope.children.clear();
+            let read = offset_of(source, "$shared") + 1;
+            let resolution = crate::definition::CallResolution::document_only()
+                .with_registry(context.commands());
+            let bindings =
+                caller_frame_bindings(&analysis, source, profile, resolution, read, "shared");
+            assert_eq!(bindings.len(), 1, "{dialect}: {bindings:?}");
+            assert_eq!(bindings[0].callee, "::N::setdef");
+            assert_eq!(
+                caller_frame_bindings(
+                    &analysis.clone(),
+                    source,
+                    profile,
+                    resolution,
+                    read,
+                    "shared"
+                ),
+                bindings
+            );
+            let mut changed = analysis.clone();
+            let mut content = config;
+            content.leading_bom = tcl_lexer::LeadingBom::Content;
+            changed.body_lexer_config = Some(content);
+            assert!(
+                caller_frame_bindings(&changed, source, profile, resolution, read, "shared")
+                    .is_empty()
+            );
+            assert!(
+                caller_frame_bindings(
+                    &analysis,
+                    &format!("{source}# changed"),
+                    profile,
+                    resolution,
+                    read,
+                    "shared"
+                )
+                .is_empty()
+            );
+            let equivalent_generation = std::sync::Arc::new(
+                context.with_command_store(context.commands().snapshot().shared_registry()),
+            );
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                equivalent_generation,
+                config,
+            ));
+            assert!(
+                caller_frame_bindings(&foreign, source, profile, resolution, read, "shared")
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn original_caller_reference_geometry_does_not_cross_a_nested_frame() {
+        // Implementation contract: naming.core.original-caller-frame-navigation
+        // docs/design/analysis/name-resolution-proofs/original-caller-frame-navigation.md
+        let source = "proc setdef {d} {upvar 1 $d dst; set dst SET}\nproc caller {ok} {\nsetdef shared\nif {$ok} {puts $shared}\nproc unrelated {} {puts $shared}\nputs $shared\n}\n";
+        let analysis = analyse(source);
+        let read = u32::try_from(source.rfind("$shared").unwrap() + 1).unwrap();
+        let resolution = crate::definition::CallResolution::document_only().with_registry(reg());
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let spans =
+            caller_frame_reference_spans(&analysis, source, profile, resolution, read, "shared");
+        let expected = [
+            source.find("setdef shared").unwrap() + "setdef ".len(),
+            source.find("if {$ok} {puts $shared}").unwrap() + "if {$ok} {puts $".len(),
+            source.rfind("$shared").unwrap() + 1,
+        ]
+        .map(|start| {
+            Span::new(
+                u32::try_from(start).unwrap(),
+                u32::try_from(start + "shared".len()).unwrap(),
+            )
+        });
+        assert_eq!(spans, expected);
     }
 
     #[test]
@@ -1208,8 +1502,61 @@ oo::class create Widget {
 
     #[test]
     fn a_mixin_method_reached_by_my_dispatch_binds_its_literal_target() {
+        // naming.tcloo.original-declared-self-method-caller-template
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-self-method-caller-template.md
         let analysis = analyse(MIXIN_SRC);
         let read = offset_of(MIXIN_SRC, "$name\"") + 1;
+        if std::env::var_os("TCL_LSP_TRACE_CALLER_FRAME").is_some() {
+            let config = analysis.body_lexer_config.unwrap();
+            let realm = analysis.retained_command_realm().unwrap();
+            let registry = analysis.resolved_registry().unwrap();
+            let structure = crate::source_structure::SourceStructure::capture(
+                MIXIN_SRC,
+                Some(&analysis),
+                config,
+            )
+            .unwrap();
+            eprintln!(
+                "CALLER_METHOD_SOURCE heads={:?}",
+                structure
+                    .commands
+                    .iter()
+                    .map(|command| (command.span.start(), command.name()))
+                    .collect::<Vec<_>>()
+            );
+            for command in &structure.commands {
+                if command.name() != "my" {
+                    continue;
+                }
+                let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceMap::new(MIXIN_SRC),
+                    config,
+                    command,
+                );
+                realm.stamp_original_tokens(&mut tokens);
+                eprintln!(
+                    "CALLER_METHOD_BINDING offset={} binding={} info={:?} template={}",
+                    command.span.start(),
+                    tokens.source_binding.is_some(),
+                    tokens.source_binding.as_ref().map(|binding| (
+                        &binding.variable_frame,
+                        binding.variable_context.dynamic_bindings,
+                        binding.unknown,
+                        binding
+                            .targets
+                            .iter()
+                            .map(|target| (&target.command, target.registry_backed, target.kind))
+                            .collect::<Vec<_>>(),
+                        binding
+                            .receiver_self_method_entry(registry)
+                            .map(|(_, entry, _)| (entry.name(), entry.declaration().offset)),
+                    )),
+                    realm
+                        .caller_frame_invocation_template_at(&tokens, read, registry)
+                        .is_some()
+                );
+            }
+        }
         let bindings = caller_frame_bindings(
             &analysis,
             MIXIN_SRC,
@@ -1398,29 +1745,16 @@ oo::class create Derived {
 mod caller_frame_navigation_tests {
     use tcl_compiler::analyser::Analyser;
 
-    /// `upvar ::tk::FocusGrab($index) data` names a fixed, fully-qualified
-    /// global cell (level-independent, tclsh-verified), so the array
-    /// must hover, define, and cross-reference from both the `upvar`
-    /// `otherVar` word and a sibling proc's `$::tk::FocusGrab($index)`
-    /// read.  Without a `VarDef` at the `otherVar` word every one of these
-    /// anchors answers nothing — a silent miss.
-    ///
-    /// The four references are the two spellings of the cell that this
-    /// document actually binds: the `upvar` `otherVar` word and the sibling
-    /// proc's `$::tk::FocusGrab($index)` read, plus the two occurrences of
-    /// the local alias `data` the `upvar` introduces for it — Find-
-    /// References unifies an alias with the cell it names.
-    ///
-    /// Deliberately asserted **by position**, not by count.  A count-only
-    /// assertion cannot tell those four apart from four other spans, and
-    /// this test's own earlier prose claimed a different four (the bareword
-    /// `info exists` / `unset` arguments) that the pass does not in fact
-    /// record: a *bareword* in a variable-role argument slot is a separate
-    /// anchor kind, and neither the cursor nor the reference set reaches it
-    /// yet.  That residual is real and stays visible here rather than being
-    /// asserted away.
+    /// A fully qualified original array root retains its namespace naming
+    /// geometry independently of an unknown index. Readonly alias templates
+    /// relate the local declaration and lappend operand in the same genuine
+    /// procedure body. The info-exists operand and sibling lexical read are
+    /// independent original root anchors; no entered link or target element
+    /// is established by this navigation result.
     #[test]
     fn a_fully_qualified_upvar_target_navigates_from_word_and_read() {
+        // Implementation contract: naming.variable.original-alias-source-template
+        // docs/design/analysis/name-resolution-proofs/original-alias-source-template.md
         let src = "\
 proc SetFocusGrab {grab focus} {
     set index \"$grab,$focus\"
@@ -1473,10 +1807,8 @@ proc RestoreFocusGrab {grab focus} {
                 .collect();
             assert_eq!(
                 spans,
-                vec![(2, 10), (8, 18), (2, 34), (3, 12)],
-                "{label}: the cell's own two spellings — the `upvar` otherVar word \
-                 and the sibling proc's read — then the two occurrences of the \
-                 `data` alias it introduces: {refs:?}"
+                vec![(2, 10), (2, 34), (3, 12), (7, 21), (8, 18)],
+                "{label}: three genuine namespace-root anchors and two readonly local alias-name templates: {refs:?}"
             );
         }
     }

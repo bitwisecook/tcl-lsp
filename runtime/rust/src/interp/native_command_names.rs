@@ -153,6 +153,22 @@ impl Interp {
         self.resolve_original_command_at(self.current_ns.get(), original)
     }
 
+    /// Resolve an original native operand to the actual selected command generation.
+    pub(crate) fn resolve_original_command_generation(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<Option<u64>, ValueError> {
+        let Some((command, generation)) = self.resolve_original_command(original)? else {
+            return Ok(None);
+        };
+        drop(command);
+        generation
+            .map(Some)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original native command generation",
+            ))
+    }
+
     /// Resolve an original object in a separately retained lookup namespace,
     /// without changing the caller's variable frame or namespace.
     pub(crate) fn resolve_original_command_at(
@@ -277,20 +293,20 @@ mod tests {
 
     #[test]
     fn native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics() {
+        // Native proof naming.namespace.origin-generated-opaque-failure-units:
+        // docs/design/analysis/name-resolution-proofs/namespace-origin-generated-opaque-failure-units.md
         let source = include_bytes!("../../tests/data/native_namespace_origin_failures/source.tcl");
         let rows = include_str!("../../tests/data/native_namespace_origin_failures/controls.tsv");
         for (version, row) in TclVersion::ALL.into_iter().zip(rows.lines()) {
             let mut interp = native_interpreter(version);
-            assert_eq!(interp.eval_str(source), Code::Ok, "{version:?}");
+            // The retained observer measures binary-scan units after the catch,
+            // independently of the result's native modified-UTF-8 string bytes.
+            let mut observer = b"set observed [".to_vec();
+            observer.extend_from_slice(source.trim_ascii());
+            observer.extend_from_slice(b"]\nbinary scan $observed H* hex\nset hex");
+            assert_eq!(interp.eval_str(&observer), Code::Ok, "{version:?}");
             let expected = row.split_once('\t').unwrap().1;
-            let expected: Vec<_> = expected
-                .as_bytes()
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
-                .collect();
-            assert_eq!(interp.result_bytes(), expected, "{version:?}");
+            assert_eq!(interp.result_bytes(), expected.as_bytes(), "{version:?}");
             let result = interp
                 .native_namespace_origin_result(b"::selected")
                 .unwrap();

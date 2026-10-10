@@ -4275,6 +4275,7 @@ dependencies = [
  "rayon",
  "regex",
  "rustc-hash",
+ "serde_json",
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-core-types",
@@ -4331,6 +4332,7 @@ dependencies = [
  "serde_json",
  "tcl-compiler",
  "tcl-dialect",
+ "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -4491,10 +4493,12 @@ dependencies = [
  "rayon",
  "salsa",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -4520,6 +4524,7 @@ dependencies = [
  "tcl-lsp-db",
  "tcl-registry",
  "tcl-spectcl",
+ "tcl-syntax",
  "tcl-version",
  "temp-env",
  "tokio",

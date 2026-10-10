@@ -1,0 +1,24 @@
+warning: function `exported_at_import` is never used
+    --> rust/tcl-lsp-core/src/definition.rs:3638:15
+     |
+3638 | pub(crate) fn exported_at_import(
+     |               ^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `exported_original_at_import` is never used
+    --> rust/tcl-lsp-core/src/definition.rs:3651:4
+     |
+3651 | fn exported_original_at_import(analysis: &AnalysisResult, ctx: CallResolution<'_>,
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-lsp-core` (lib test) generated 2 warnings
+    Finished `test` profile [unoptimized] target(s) in 0.11s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_core-f816994f92f0f9f0)
+
+running 2 tests
+test completion::original_snippet_context_tests::original_snippet_events_keep_retained_cards_and_actual_script_placement ... ok
+test completion::original_snippet_context_tests::original_snippet_variable_choices_keep_source_references_after_ui_erasure ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 2557 filtered out; finished in 0.96s
+

@@ -1,0 +1,196 @@
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+    Checking tcl-cshim v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cshim)
+error[E0433]: cannot find `InvocationDialect` in `tcl_dialect`
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2415:40
+     |
+2415 |                 .and_then(tcl_dialect::InvocationDialect::source_file_grammar)
+     |                                        ^^^^^^^^^^^^^^^^^ could not find `InvocationDialect` in `tcl_dialect`
+
+error: method `token` is never used
+   --> rust/tcl-compiler/src/analyser/diagnostic_registry.rs:183:19
+    |
+146 | impl OriginalDiagnosticInvocation {
+    | --------------------------------- method in this implementation
+...
+183 |     pub(super) fn token(&self, argument: usize) -> Option<Token> {
+    |                   ^^^^^
+    |
+    = note: `-D dead-code` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: function `excess_positional_span` is never used
+  --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:87:4
+   |
+87 | fn excess_positional_span(
+   |    ^^^^^^^^^^^^^^^^^^^^^^
+
+error: this function has too many lines (104/100)
+    --> rust/tcl-compiler/src/analyser/commands.rs:2017:5
+     |
+2017 |     fn emit_dispatch_site_diagnostics(&mut self, site: &DispatchSite<'_>) {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+     = note: `-D clippy::too-many-lines` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: this function has too many lines (101/100)
+    --> rust/tcl-compiler/src/analyser/commands.rs:3602:5
+     |
+3602 | /     fn record_original_variable_receivers(
+3603 | |         &mut self,
+3604 | |         invocation_offset: u32,
+3605 | |         argument_tokens: &[Token],
+3606 | |         scope_path: &[usize],
+3607 | |     ) {
+     | |_____^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: redundant closure
+   --> rust/tcl-compiler/src/analyser/diagnostic_registry.rs:436:30
+    |
+436 |                 .with_schema(|schema| schema.authored_source_variable_name_arguments())
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_variable_name_arguments`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+    = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: manual saturating arithmetic
+    --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:1263:18
+     |
+1263 |             .get(max.checked_add(1).unwrap_or(usize::MAX))
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider using `saturating_add`: `max.saturating_add(1)`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_saturating_arithmetic
+     = note: `-D clippy::manual-saturating-arithmetic` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::manual_saturating_arithmetic)]`
+
+error: this function has too many lines (102/100)
+   --> rust/tcl-compiler/src/analyser/diagnostics.rs:893:5
+    |
+893 | /     fn emit_cfg_ssa_diagnostics_for_function_with_cells(
+894 | |         &mut self,
+895 | |         function_unit: &crate::compilation_unit::FunctionUnit,
+896 | |         frame: BodyFrame<'_>,
+...   |
+899 | |         cell_facts: &helpers::DiagnosticCellFacts,
+900 | |     ) {
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> rust/tcl-compiler/src/command_binding/source_unavailability_advice.rs:209:25
+    |
+209 |                         obligations.push(Obligation::EarlierBindingAlternative(slot.clone()))
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `obligations.push(Obligation::EarlierBindingAlternative(slot.clone()));`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#semicolon_if_nothing_returned
+    = note: `-D clippy::semicolon-if-nothing-returned` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::semicolon_if_nothing_returned)]`
+
+error: this argument is passed by value, but not consumed in the function body
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs:313:16
+    |
+313 |         scope: Arc<OriginalDeclaredLogicalBodyContext>,
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value
+    = note: `-D clippy::needless-pass-by-value` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_pass_by_value)]`
+help: consider taking a reference instead
+    |
+313 |         scope: &Arc<OriginalDeclaredLogicalBodyContext>,
+    |                +
+
+error: large size difference between variants
+  --> rust/tcl-compiler/src/registry_invocation/source_availability.rs:28:1
+   |
+28 | /   enum AvailabilityOrigin {
+29 | | /     Native {
+30 | | |         lookup: OriginalCommandLookup,
+31 | | |         obligations: Vec<OriginalCatalogueSourceObligation>,
+32 | | |     },
+   | | |_____- the second-largest variant contains at least 472 bytes
+...  |
+36 | | /     Hosted {
+37 | | |         occurrence: VendorSourceNameOccurrence,
+38 | | |         paths: Vec<Vec<tcl_core_types::NameBytes>>,
+39 | | |         barriers: super::VendorSourceCatalogueBarriers,
+40 | | |     },
+   | | |_____- the largest variant contains at least 680 bytes
+41 | |   }
+   | |___^ the entire enum is at least 680 bytes
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#large_enum_variant
+   = note: `-D clippy::large-enum-variant` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::large_enum_variant)]`
+help: consider boxing the large fields or introducing indirection in some other way to reduce the total size of the enum
+   |
+39 -         barriers: super::VendorSourceCatalogueBarriers,
+39 +         barriers: Box<super::VendorSourceCatalogueBarriers>,
+   |
+
+error: item in documentation is missing backticks
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:215:17
+    |
+215 |     /// runtime AliasPrefix object, entered frame or invocation authority.
+    |                 ^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#doc_markdown
+    = note: `-D clippy::doc-markdown` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+    |
+215 -     /// runtime AliasPrefix object, entered frame or invocation authority.
+215 +     /// runtime `AliasPrefix` object, entered frame or invocation authority.
+    |
+
+error: could not compile `tcl-compiler` (lib) due to 11 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: implementation of `std::ops::FnOnce` is not general enough
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:1622:13
+     |
+1622 | /             words
+1623 | |                 .with_source_schema(
+1624 | |                     &context,
+1625 | |                     tcl_registry::ResolvedInvocation::authored_source_subcommand_diagnostic
+1626 | |                 )
+     | |_________________^ implementation of `std::ops::FnOnce` is not general enough
+     |
+     = note: `for<'a> fn(&'a tcl_registry::ResolvedInvocation<'_, '2>) -> Option<_> {tcl_registry::ResolvedInvocation::<'_, '2>::authored_source_subcommand_diagnostic}` must implement `std::ops::FnOnce<(&tcl_registry::ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+     = note: ...but it actually implements `std::ops::FnOnce<(&tcl_registry::ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+error: implementation of `std::ops::FnOnce` is not general enough
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2147:21
+     |
+2147 |           let roles = words
+     |  _____________________^
+2148 | |             .with_source_schema(
+2149 | |                 &context,
+2150 | |                 tcl_registry::ResolvedInvocation::authored_source_argument_roles,
+2151 | |             )
+     | |_____________^ implementation of `std::ops::FnOnce` is not general enough
+     |
+     = note: `for<'a> fn(&'a tcl_registry::ResolvedInvocation<'_, '2>) -> _ {tcl_registry::ResolvedInvocation::<'_, '2>::authored_source_argument_roles}` must implement `std::ops::FnOnce<(&tcl_registry::ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+     = note: ...but it actually implements `std::ops::FnOnce<(&tcl_registry::ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+error: implementation of `std::ops::FnOnce` is not general enough
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2190:13
+     |
+2190 | /             call.with_source_schema(
+2191 | |                 &context,
+2192 | |                 tcl_registry::ResolvedInvocation::authored_source_rule_procedure_operand
+2193 | |             ),
+     | |_____________^ implementation of `std::ops::FnOnce` is not general enough
+     |
+     = note: `for<'a> fn(&'a tcl_registry::ResolvedInvocation<'_, '2>) -> Option<usize> {tcl_registry::source_navigation::<impl tcl_registry::ResolvedInvocation<'_, '2>>::authored_source_rule_procedure_operand}` must implement `std::ops::FnOnce<(&tcl_registry::ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+     = note: ...but it actually implements `std::ops::FnOnce<(&tcl_registry::ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `tcl-compiler` (lib test) due to 4 previous errors

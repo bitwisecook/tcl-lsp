@@ -28,51 +28,81 @@
 //! and namespace objects have separate flat composition rules. Constructed
 //! namespace segments are retained directly, without reparsing display text.
 
+mod authored_source;
+pub use authored_source::{
+    authored_source_command_candidates, authored_source_command_slot,
+    authored_source_namespace_path,
+};
 mod aliases;
 mod execution_policy;
+mod vendor_source;
+pub use aliases::{
+    c_family_local_alias_name_bytes, global_local_name_bytes, variable_local_name_bytes,
+};
 pub use execution_policy::{
     ExecutionNamePolicy, ExecutionVariableNameProjection, MeasuredBigIpNameScope,
     ObservedBigIpNamePolicy, ObservedVariableNamePurpose,
 };
-pub use aliases::{
-    c_family_local_alias_name_bytes, global_local_name_bytes, variable_local_name_bytes,
+pub use vendor_source::{
+    VendorSourceFormalExtent, VendorSourceNameAuthority, VendorSourceNamePolicy,
+    VendorSourceNamePurpose, vendor_scalar_source_reference, vendor_source_formal_extents,
+    vendor_source_literal_units,
 };
+mod alias_chain;
+pub use alias_chain::alias_chain_loops;
 mod autoload;
 pub use autoload::{autoload_command_candidates, native_autoload_command_candidates};
+mod command_geometry;
 mod compiled_variables;
+mod variable_geometry;
+pub use variable_geometry::NativeVariableRootGeometry;
+mod variable_spelling;
+pub use variable_spelling::{NativeScalarSourceSpelling, native_scalar_source_spelling};
 mod jim_enumeration;
+mod jim_table_key;
+pub use jim_table_key::NativeJimCommandTableKey;
 mod oo_variables;
 pub use compiled_variables::{
     NativeCompiledScalarName, NativeCompiledVariableAuthority, NativeCompiledVariableEnvironment,
     NativeCompiledVariableLookup, NativeCompiledVariableProtocol, NativeCompiledVariableRecipe,
 };
 pub use oo_variables::{
-    NativeOoVariableError, NativeOoVariableSlotOperation, NativeOoVariableSlotSelection,
-    apply_native_oo_slot_records, apply_native_oo_variable_slot, native_oo_variable_slot,
+    NativeOoPrivateVariablePurpose, NativeOoVariableError, NativeOoVariableResolverPurpose,
+    NativeOoVariableSlotOperation, NativeOoVariableSlotSelection, apply_native_oo_slot_records,
+    apply_native_oo_variable_slot, native_oo_explicit_variable_local_name,
+    native_oo_private_variable_matches, native_oo_variable_key_report,
+    native_oo_variable_resolver_matches, native_oo_variable_slot, native_oo_varname_lookup_bytes,
     validate_native_oo_variable,
 };
 mod namespace_spans;
 pub use namespace_spans::{
-    native_written_namespace_member_extent, native_written_namespace_prefix_extent,
+    NativeNamespaceOperandRename, NativeNamespaceRenameTarget,
+    native_command_lookup_context_for_slot, native_command_slot_is_under_namespace,
+    native_namespace_literal_prefix_may_select, native_namespace_operand_rename,
+    native_namespace_rename_target, native_namespace_source_word,
+    native_variable_root_is_under_namespace, native_written_namespace_member_extent,
+    native_written_namespace_prefix_extent,
 };
 mod native;
 pub use native::{
     NamePolicyAuthority, NamePolicyProtocol, NameProjectionUnavailable,
-    NativeDictionaryMissingKeyError, NativeDictionaryMissingKeyOperation,
-    NativeJimNamespaceConstruction, NativeNameContext, NativeNameProjection, NativeNameProtocol,
-    NativeNamePurpose, NativeNameQualification, NativeNameReportPurpose,
-    NativeNamespacePatternParts, NativeNamespacePatternSource,
-    NativeNamespaceLookupError, NativeNamespaceLookupOperation, NativeNamespaceOperationError,
-    NativeVariableDiagnosticOperation, NativeVariableDiagnosticProjection,
-    NativeVariableDiagnosticReason, NativeVariableFailureSite, NativeVariableInputForm,
-    NativeVariableProjection, NativeVariableTraceNames, NativeVariableTraceReportingInput,
-    checked_command_slot_utf8, checked_namespace_path_utf8, native_command_full_name_bytes,
-    native_command_source_spelling, native_constant_failure_verb,
-    native_jim_namespace_source_spelling, native_namespace_source_spelling,
-    native_procedure_compilation_name_input, report_native_dictionary_missing_key,
-    report_native_name_bytes, report_native_namespace_lookup_error,
-    report_native_namespace_operation_error, report_native_variable_access_trace_names,
-    report_native_variable_diagnostic, report_native_variable_diagnostic_at,
+    NativeCommandNamespaceRoute, NativeCommandSlotProjection, NativeDictionaryMissingKeyError,
+    NativeDictionaryMissingKeyOperation, NativeJimNamespaceConstruction, NativeNameContext,
+    NativeNameProjection, NativeNameProtocol, NativeNamePurpose, NativeNameQualification,
+    NativeNameReportPurpose, NativeNamespaceLookupError, NativeNamespaceLookupOperation,
+    NativeNamespaceOperationError, NativeNamespacePatternParts, NativeNamespacePatternSource,
+    NativeNamespaceTextResult, NativeVariableDiagnosticOperation,
+    NativeVariableDiagnosticProjection, NativeVariableDiagnosticReason, NativeVariableFailureSite,
+    NativeVariableInputForm, NativeVariableProjection, NativeVariableTraceNames,
+    NativeVariableTraceReportingInput, checked_command_slot_utf8, checked_namespace_path_utf8,
+    native_command_full_name_bytes, native_command_source_spelling, native_command_source_word,
+    native_constant_failure_verb, native_jim_namespace_source_spelling,
+    native_namespace_full_name_bytes, native_namespace_source_spelling,
+    native_procedure_compilation_name_input, report_native_c_variable_value_name,
+    report_native_dictionary_missing_key, report_native_name_bytes,
+    report_native_namespace_lookup_error, report_native_namespace_operation_error,
+    report_native_variable_access_trace_names, report_native_variable_diagnostic,
+    report_native_variable_diagnostic_at,
 };
 
 /// Jim's flat global-variable key from a rooted constructed namespace.
@@ -185,7 +215,7 @@ pub fn ends_with_separator(name: &[u8]) -> bool {
 /// — all tclsh 8.6/9.0-pinned) — otherwise the last colon-run
 /// segment, or the whole name when unqualified.  The resolution-direction
 /// counterparts apply the same rule (`Namespaces::home_of` in the runtime,
-/// `canonical_cmd_key` in the VM), so definition and dispatch can never
+/// native command-name protocols), so definition and dispatch can never
 /// disagree about which command a trailing-separator spelling names.
 #[must_use]
 pub fn written_command_tail(name: &[u8]) -> &[u8] {
@@ -617,23 +647,33 @@ pub fn normalise_var_name(name: &str) -> &str {
 /// ```
 #[must_use]
 pub fn normalise_var_name_for_style(name: &str, style: tcl_dialect::BracedVarStyle) -> &str {
-    // A remainder after the closer is *not* a reason to decline: under 8.x
-    // `${a{b}c}` **is** the reference `${a{b}` followed by the literal `c}`,
-    // and the variable it names is `a{b`. The historical `strip_suffix('}')`
-    // could only see a whole-word reference, so it read that same word as the
-    // name `a{b}c` — the 9.x answer, at every release. It also
-    // mis-read `${arr}(foo)` as `{arr}`, where [`split_array_name`] has always
-    // documented the scalar `arr`.
-    let base = match braced_var_name(name, style) {
-        Some(inner) => inner,
-        None => name.strip_prefix('$').unwrap_or(name),
-    };
+    // The selected braced-name owner determines where the reference ends;
+    // the shared closed-element partition decides whether parentheses denote
+    // an array. Unmatched opens and suffix text remain scalar name bytes.
+    split_array_name_for_style(name, style).0
+}
 
-    // Strip array index: keep everything before the first `(`.
-    match base.find('(') {
-        Some(idx) => &base[..idx],
-        None => base,
-    }
+/// A whole original substitution's analytical variable root under its grammar.
+///
+/// The selected lexer owns sigils, brace closers and separate array indexes.
+/// A braced combined name is partitioned by [`split_element_ref_bytes`]; an
+/// unmatched parenthesis remains part of its scalar name. UTF-8 and opaque
+/// byte references use the same path, retaining NUL and literal dollar bytes.
+/// Compound text declines; malformed references retain the scanner's error.
+/// This source projection supplies no native cell, input extent or read proof.
+pub fn variable_reference_root_bytes(
+    source: &[u8],
+    config: tcl_lexer::LexerConfig,
+) -> Result<Option<&[u8]>, &'static str> {
+    let Some(reference) = tcl_lexer::word_parts::whole_var_ref(source, config)? else {
+        return Ok(None);
+    };
+    let root = if reference.index.is_some() {
+        reference.name
+    } else {
+        split_element_ref_bytes(reference.name).map_or(reference.name, |(root, _)| root)
+    };
+    Ok(Some(root))
 }
 
 /// Whether an array-element key is a compile-time literal — no `$` variable
@@ -1819,6 +1859,81 @@ pub mod conformance {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn scalar_parentheses_share_the_closed_element_partition() {
+        // Implementation contract: naming.expression.selected-reference-root
+        // docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md
+        // Native341 public values establish the distinct scalar/element cases;
+        // these assertions bind only the source-name projection, not a cell.
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            for (source, root) in [
+                ("scalar(open", "scalar(open"),
+                ("scalar(open)tail", "scalar(open)tail"),
+                ("${scalar(open}", "scalar(open"),
+                ("${scalar(open)tail}", "scalar(open)tail"),
+                ("${arr(first(second)}", "arr"),
+                ("${cash$name}", "cash$name"),
+            ] {
+                assert_eq!(normalise_var_name_for_style(source, style), root);
+                assert_eq!(split_array_name_for_style(source, style).0, root);
+            }
+        }
+    }
+
+    #[test]
+    fn selected_reference_roots_keep_whole_scalar_and_combined_element_bytes() {
+        // Implementation contract: naming.expression.selected-reference-root
+        // docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                braced_var: style,
+                ..tcl_lexer::LexerConfig::default()
+            };
+            for (source, root) in [
+                (b"${scalar(open}".as_slice(), b"scalar(open".as_slice()),
+                (b"${scalar(open)tail}", b"scalar(open)tail"),
+                (b"${arr(key)}", b"arr"),
+                (b"$arr(key)", b"arr"),
+                (b"${arr(inner)(key)}", b"arr"),
+                (b"${cash$name}", b"cash$name"),
+                (b"${\xff(key)}", b"\xff"),
+                (b"${\xff(open}", b"\xff(open"),
+                (b"${nul\0tail(key)}", b"nul\0tail"),
+                (b"${}", b""),
+            ] {
+                assert_eq!(
+                    variable_reference_root_bytes(source, config),
+                    Ok(Some(root))
+                );
+            }
+            for source in [b"plain".as_slice(), b"$", b"${arr}(key)", b"$arr(key)tail"] {
+                assert_eq!(variable_reference_root_bytes(source, config), Ok(None));
+            }
+            assert!(variable_reference_root_bytes(b"${missing", config).is_err());
+        }
+        let first = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let nested = tcl_lexer::LexerConfig::default();
+        assert_eq!(
+            variable_reference_root_bytes(b"${a{b}", first),
+            Ok(Some(b"a{b".as_slice()))
+        );
+        assert!(variable_reference_root_bytes(b"${a{b}", nested).is_err());
+        assert_eq!(variable_reference_root_bytes(b"${a{b}c}", first), Ok(None));
+        assert_eq!(
+            variable_reference_root_bytes(b"${a{b}c}", nested),
+            Ok(Some(b"a{b}c".as_slice()))
+        );
+    }
+
     #[test]
     fn retained_namespace_candidates_preserve_unaddressable_contexts() {
         use super::command_resolution_candidates_from_namespace_keys;

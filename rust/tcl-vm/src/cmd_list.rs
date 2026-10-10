@@ -91,7 +91,7 @@ fn cmd_lrange(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to] = args else {
         return err_wrong_args(vm, "lrange list first last");
     };
-    adapt(vm, |vm| list_core::lrange(vm, list, from, to))
+    adapt(vm, |vm| vm.original_list_range(list, from, to))
 }
 
 fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -150,8 +150,14 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn cmd_lassign(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some(grammar) = vm.native_invocation_dialect().list_assignment_invocation() else {
+        return vm.refuse_host_command("list-assignment invocation grammar is not selected".into());
+    };
+    if !grammar.accepts(args.len()) {
+        return err_wrong_args(vm, grammar.usage());
+    }
     let Some((list, names)) = args.split_first() else {
-        return err_wrong_args(vm, "lassign list ?varName ...?");
+        return err_wrong_args(vm, grammar.usage());
     };
     let items = match as_list(vm, list) {
         Ok(i) => i,
@@ -896,25 +902,9 @@ mod tests {
         }
     }
 
-    /// `lpop_remove` recursing once per index in `lpop`'s (possibly nested)
-    /// index path natively has no depth cap: an unguarded `lpop v
-    /// {*}[lrepeat 100000 0]` empirically overflows the native stack
-    /// (SIGABRT) between depth 1600 and 1800 on a 2 MiB thread (`cargo
-    /// test`'s per-test default). The iterative implementation has no such
-    /// cap; this test checks the result for exact correctness at depth 2000,
-    /// comfortably past that crash range — the right leaf comes back out,
-    /// and the trimmed list has the same shape as the input, not merely
-    /// survival.
-    ///
-    /// Deliberately NOT 50,000+: constructing (and, at the end of this
-    /// test, dropping) a `Value::list` chain nested that deep is its own,
-    /// unrelated native-stack risk — `Value` has no custom `Drop` impl, so
-    /// the compiler-generated recursive drop glue walks the same chain a
-    /// naive `to_str` would (empirically, SIGABRT between depth 3500 and 4000
-    /// on a 2 MiB thread for construction+drop alone, independent of any
-    /// operation performed on the value). That is a separate, genuinely
-    /// unbounded-depth concern in `Value`'s representation itself, not in
-    /// `lpop_remove`'s iterative logic, and this test does not cover it.
+    /// A fixed deep index path exercises iterative descent, reconstruction
+    /// and original native header retirement on the ordinary test thread.
+    /// The leaf and rebuilt outer shape must retain their exact values.
     #[test]
     fn deeply_nested_lpop_survives_and_is_correct() {
         const DEPTH: usize = 2_000;

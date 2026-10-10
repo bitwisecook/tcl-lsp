@@ -27,7 +27,10 @@
 //! The entry point is [`format_tcl`]; everything else is the
 //! private machinery [`format_tcl`] drives.
 
-use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
+use tcl_compiler::lambda_literal::{
+    DecodedLambdaLiteral, split_original_lambda_literal_decoded,
+    split_original_lambda_literal_lexical_decoded,
+};
 use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CaseListSpec, CommandRegistry, Traits};
 
@@ -57,6 +60,19 @@ use tcl_syntax::word_rules::WordValueRules;
 /// stack, while still far more headroom than realistic (even
 /// generated/templated) Tcl needs to format.
 const MAX_FORMAT_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
+
+/// Check the actual lexical resource budget before retaining semantic source
+/// structure. Excessively nested data is conservatively preserved as a whole;
+/// lexical containment alone never identifies a command or script operand.
+pub(crate) fn source_within_formatting_budget(source: &str, config: &FormatterConfig) -> bool {
+    // Implementation contract: naming.editor.original-source-formatting-budget
+    // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+    matches!(
+        Lexer::with_config(source, config.lexer_config())
+            .braced_word_nesting_within(MAX_FORMAT_DEPTH),
+        Ok(true)
+    )
+}
 
 /// What kind of argument this is for formatting purposes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,6 +109,8 @@ struct CommandArg {
     /// element is never fed here, only normalised at reconstruction time
     /// (`render_lambda_literal_arg`).
     formatted_body: Option<String>,
+    original_word: Option<tcl_lexer::NativeWord>,
+    original_input: Option<tcl_compiler::signature_scan::scope::SignatureSourceNameInput>,
 }
 
 /// A comment line captured during parsing, with its original source
@@ -110,16 +128,22 @@ struct CommentLine {
 
 /// A single Tcl command with its arguments, ready for reformatting.
 struct ParsedCommand {
-    name: String,
     /// Byte offset of the written command head in this formatter slice.
     head_start: u32,
-    /// The registry name [`Self::name`] effectively resolves to — the command
-    /// this call really *is* once the document's `namespace import` / `interp
-    /// alias` / `rename` / built-in-shadowing `proc` statements are folded
-    /// in.  Equal to [`Self::name`] until [`identify_body_args`]
-    /// resolves it, and empty for a head whose binding was provably taken over,
-    /// which every registry query then answers "unknown" for.
+    /// Canonical schema selected by the complete original source head.
+    /// Empty when advice is unavailable or effective argv has a captured prefix.
     resolved_name: String,
+    /// Original Registry source roles mapped to their own written operands.
+    /// An empty vector is a terminal refusal to borrow nominal head metadata.
+    source_roles: Option<Vec<(usize, ArgRole)>>,
+    /// Explicit compatibility metadata retains the complete lenient context.
+    /// These roles retain original words without Native inputs or recipes.
+    logical_roles: Option<Vec<(usize, ArgRole)>>,
+    logical_context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+    source_traits: Option<Traits>,
+    source_words: Option<crate::original_invocation::OriginalRegistryWords>,
+    source_case: Option<(usize, CaseListSpec)>,
+    expression_bracing: Option<(usize, String)>,
     args: Vec<CommandArg>,
     preceding_comments: Vec<CommentLine>,
     preceding_blank_lines: usize,
@@ -163,13 +187,23 @@ fn normalise_backslash_newline(text: &str, keep_preceding: bool) -> String {
 /// a `Str` token is literal string data — a lone `$` the lexer classified as
 /// `Str`, for instance — so it is emitted verbatim rather than brace-wrapped as
 /// `{$}`, which would change the string's value.
-fn reconstruct_raw(sm: &SourceMap, tok: Token, in_quotes: bool) -> String {
+fn reconstruct_raw(
+    sm: &SourceMap,
+    tok: Token,
+    in_quotes: bool,
+    config: &FormatterConfig,
+) -> String {
     match tok.kind {
         TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
         TokenType::Cmd => format!(
             "[{}]",
-            normalise_backslash_newline(sm.token_text(tok), false)
+            super::source_layout::collapse_script_separator_continuations(
+                sm.token_text(tok),
+                config.lexer_config(),
+                MAX_FORMAT_DEPTH,
+            )
+            .unwrap_or_else(|| sm.token_text(tok).to_owned())
         ),
         TokenType::Var => {
             let raw = sm.text(tok.span);
@@ -189,14 +223,19 @@ fn reconstruct_raw(sm: &SourceMap, tok: Token, in_quotes: bool) -> String {
 
 /// Rebuild an argument's source text from its tokens, optionally
 /// rewriting `$var` → `${var}`.
-fn reconstruct_arg(sm: &SourceMap, arg: &CommandArg, braced_vars: bool) -> String {
+fn reconstruct_arg(
+    sm: &SourceMap,
+    arg: &CommandArg,
+    braced_vars: bool,
+    config: &FormatterConfig,
+) -> String {
     use std::fmt::Write as _;
     let mut raw = String::new();
     for &tok in &arg.tokens {
         if braced_vars && tok.kind == TokenType::Var {
             let _ = write!(raw, "${{{}}}", sm.token_text(tok));
         } else {
-            raw.push_str(&reconstruct_raw(sm, tok, arg.is_quoted));
+            raw.push_str(&reconstruct_raw(sm, tok, arg.is_quoted, config));
         }
     }
     if arg.is_quoted {
@@ -206,36 +245,163 @@ fn reconstruct_arg(sm: &SourceMap, arg: &CommandArg, braced_vars: bool) -> Strin
     }
 }
 
-/// Re-render a parameter list's interior text with single-space separators,
-/// wrapped back in `{…}`.
-///
-/// A parameter list **is** a Tcl list, so it is parsed and re-rendered through
-/// the shared `tcl_syntax::list` implementation (`Tcl_SplitList` +
-/// `Tcl_Merge`) rather than scanned by hand. The hand-rolled scan this
-/// replaced split on whitespace and balanced braces only, so it silently
-/// changed a proc's **arity**: `proc f {a\<newline> b}` has two required
-/// parameters in C Tcl 9 (the backslash-newline is collapsed to a space by
-/// the script pre-pass *before* the word is list-parsed), but re-emitting the
-/// pieces joined by a space produced `{a\ b}` — one *optional* parameter `a`
-/// defaulting to `b`.
-///
-/// Two shared pieces do the work, in the order C Tcl applies them, and both
-/// under the **document's** dialect rather than a re-derived default:
-///
-/// 1. [`WordValueRules::collapse_braced_word`] — the script-level
-///    `\<newline>` pre-pass, which applies even inside braces on a dialect
-///    that folds it (`JimTcl` keeps the bytes).
-/// 2. [`tcl_syntax::list::normalise_spacing`] — the list split/merge.
-///
-/// A list that does not parse (an unmatched brace or quote — routine while a
-/// signature is being typed) has no canonical rendering, so the original text
-/// is preserved verbatim.
+/// Explicit Logical parameter-list spacing under the supplied word rules.
+/// Native operands use `normalise_original_param_list` and its retained byte
+/// proof instead. Malformed list text keeps its original spelling.
 fn normalise_param_list(text: &str, rules: WordValueRules) -> String {
     let collapsed = rules.collapse_braced_word(text);
-    match tcl_syntax::list::normalise_spacing(&collapsed) {
-        Ok(rendered) => format!("{{{rendered}}}"),
+    match rules.split_list(&collapsed) {
+        Ok(elements) => format!("{{{}}}", tcl_syntax::list::join_list(elements)),
         Err(_) => format!("{{{text}}}"),
     }
+}
+
+/// Render only exact Unicode views of the actual native formal-list elements.
+/// An opaque child cannot be repaired by a Unicode list decoder.
+fn native_param_list_source(
+    input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
+) -> Option<String> {
+    // Implementation contract: naming.editor.original-native-formal-list-formatting
+    // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+    let elements = input.original_list_elements()?;
+    let values = elements
+        .iter()
+        .map(|element| std::str::from_utf8(element.bytes()).ok())
+        .collect::<Option<Vec<_>>>()?;
+    Some(format!("{{{}}}", tcl_syntax::list::join_list(values)))
+}
+
+/// Parse a spelling proposal with the original full grammar and native codec.
+/// The proposal has lexical value geometry only; it never receives a source key.
+fn original_static_spelling_value(
+    spelling: &str,
+    word: &tcl_lexer::NativeWord,
+    input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
+    config: &FormatterConfig,
+) -> Option<Vec<u8>> {
+    // Implementation contract: naming.editor.original-native-formal-list-formatting
+    // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+    let key = input.original_word_key()?;
+    if key.original_word() != word
+        || word.config() != config.lexer_config()
+        || word.image().channel() != tcl_lexer::SourceChannel::Document
+        || word.group().kind != tcl_lexer::WordKind::Braced
+        || word.group().expand
+    {
+        return None;
+    }
+    let original_content = word.content_span().ok()?;
+    let raw = word.image().bytes().get(original_content.as_range())?;
+    let source_units = tcl_syntax::backslash::source_literal_bytes(raw, word.image().channel());
+    let native_units = tcl_syntax::backslash::native_source_literal_bytes(
+        raw,
+        word.image().channel(),
+        input.policy().string_protocol(),
+    )
+    .ok()?;
+    if source_units.as_ref() != native_units.as_ref() {
+        return None;
+    }
+    let image = tcl_lexer::SourceImage::document(spelling);
+    let plan = tcl_lexer::native_script_words_in(
+        image,
+        tcl_lexer::Span::new(0, u32::try_from(spelling.len()).ok()?),
+        word.config(),
+    )
+    .ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    let [proposal] = command.words.as_slice() else {
+        return None;
+    };
+    if plan.fatal_tail.is_some()
+        || proposal.group().kind != tcl_lexer::WordKind::Braced
+        || proposal.group().expand
+    {
+        return None;
+    }
+    let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+        std::slice::from_ref(proposal),
+        input.policy().string_protocol(),
+    )
+    .ok()?;
+    Some(captured.literal(0)?.to_vec())
+}
+
+fn original_list_values_match(
+    input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
+    proposed_value: &[u8],
+) -> Option<()> {
+    // Implementation contract: naming.editor.original-native-formal-list-formatting
+    // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+    let original = input.original_list_elements()?;
+    let proposed =
+        tcl_syntax::list::split_native_list_bytes(proposed_value, input.policy().string_protocol())
+            .ok()?;
+    (original.len() == proposed.len()
+        && original
+            .iter()
+            .zip(&proposed)
+            .all(|(original, proposed)| original.bytes() == proposed.as_ref()))
+    .then_some(())
+}
+
+fn normalise_original_param_list(
+    word: &tcl_lexer::NativeWord,
+    input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
+    config: &FormatterConfig,
+) -> Option<String> {
+    // Implementation contract: naming.editor.original-native-formal-list-formatting
+    // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+    let spelling = native_param_list_source(input)?;
+    let proposed_value = original_static_spelling_value(&spelling, word, input, config)?;
+    original_list_values_match(input, &proposed_value)?;
+    Some(spelling)
+}
+
+fn render_param_list_arg(
+    sm: &SourceMap,
+    arg: &CommandArg,
+    config: &FormatterConfig,
+    logical: bool,
+) -> String {
+    // Implementation contract: naming.editor.original-native-formal-list-formatting
+    // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+    match (&arg.original_word, &arg.original_input) {
+        (Some(word), Some(input)) => normalise_original_param_list(word, input, config)
+            .unwrap_or_else(|| reconstruct_arg(sm, arg, false, config)),
+        (Some(word), None) if logical && word.config() == config.lexer_config() => {
+            normalise_param_list(&arg.text, config.word_rules())
+        }
+        _ => reconstruct_arg(sm, arg, false, config),
+    }
+}
+
+/// The complete proposal must preserve the native parameter and namespace
+/// values through both the source-word decoder and the lambda list parser.
+fn original_lambda_parameters_match(
+    spelling: &str,
+    word: &tcl_lexer::NativeWord,
+    input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
+    config: &FormatterConfig,
+) -> Option<()> {
+    // Implementation contract: naming.editor.original-native-formal-list-formatting
+    // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+    let original = input.original_list_elements()?;
+    let proposed_value = original_static_spelling_value(spelling, word, input, config)?;
+    let proposed = tcl_syntax::list::split_native_list_bytes(
+        &proposed_value,
+        input.policy().string_protocol(),
+    )
+    .ok()?;
+    if !matches!(original.len(), 2 | 3) || original.len() != proposed.len() {
+        return None;
+    }
+    original_list_values_match(original.first()?, proposed.first()?.as_ref())?;
+    (original.get(2).map(|namespace| namespace.bytes())
+        == proposed.get(2).map(|namespace| namespace.as_ref()))
+    .then_some(())
 }
 
 // Command parsing
@@ -283,17 +449,19 @@ fn parse_commands(
             return;
         }
         let taken_args = std::mem::take(argv);
-        let name = taken_args
-            .first()
-            .map(|a| a.text.clone())
-            .unwrap_or_default();
         let head_start = taken_args
             .first()
             .and_then(|arg| arg.tokens.first())
             .map_or(0, |token| token.span.start());
         commands.push(ParsedCommand {
-            resolved_name: name.clone(),
-            name,
+            resolved_name: String::new(),
+            source_roles: None,
+            logical_roles: None,
+            logical_context: None,
+            source_traits: None,
+            source_words: None,
+            source_case: None,
+            expression_bracing: None,
             head_start,
             args: taken_args,
             preceding_comments: std::mem::take(pending_comments),
@@ -354,6 +522,8 @@ fn parse_commands(
                 is_braced: tok.kind == TokenType::Str,
                 is_quoted: detected_quoted,
                 formatted_body: None,
+                original_word: None,
+                original_input: None,
             });
         } else {
             let last = argv.last_mut().expect("argv non-empty");
@@ -371,6 +541,48 @@ fn parse_commands(
         &mut commands,
     );
     (commands, pending_comments)
+}
+
+/// Current source grammar for authoring layout. This carries no execution or
+/// value-equivalence permission; individual expression rewrites remain separate.
+pub(crate) struct FormattingSourceLayout {
+    realm: tcl_compiler::realm::CommandBindingRealm,
+    analysis: Option<tcl_compiler::analyser::AnalysisResult>,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+}
+
+impl FormattingSourceLayout {
+    pub(crate) fn new(source: &str, config: &FormatterConfig, registry: &CommandRegistry) -> Self {
+        let generation = tcl_registry::model::ingress::context_for_profile(config.profile);
+        let context = std::sync::Arc::new(
+            generation.with_command_store(registry.snapshot().shared_registry()),
+        );
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            config.profile,
+            config.profile,
+            context,
+            config.lexer_config(),
+        );
+        Self::with_input(source, &input)
+    }
+
+    pub(crate) fn with_input(
+        source: &str,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        let profile = input.analyser_profile();
+        let mut analyser =
+            tcl_compiler::analyser::Analyser::new().with_resolved_input(input.clone());
+        let analysis = analyser.analyse(source, profile.name);
+        Self {
+            realm: analysis
+                .retained_command_realm()
+                .cloned()
+                .unwrap_or_default(),
+            analysis: Some(analysis),
+            input: input.clone(),
+        }
+    }
 }
 
 // Body / expr / param-list argument identification
@@ -402,77 +614,210 @@ fn parse_commands(
 fn identify_body_args(
     cmd: &mut ParsedCommand,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::realm::CommandBindingRealm,
+    identities: &FormattingSourceLayout,
     source_offset: u32,
+    config: &FormatterConfig,
+    source: &str,
 ) {
-    // {*}-expanded command word: dynamic identity, skip.
-    if cmd
-        .args
-        .first()
-        .and_then(|a| a.tokens.first())
-        .is_some_and(|t| t.kind == TokenType::Expand)
-    {
+    if let Some(analysis) = &identities.analysis {
+        cmd.source_roles = Some(Vec::new());
+        cmd.logical_roles = None;
+        cmd.logical_context = None;
+        cmd.source_traits = Some(Traits::empty());
+        cmd.source_words = None;
+        cmd.resolved_name.clear();
+        if identities.input.lexer_config() != config.lexer_config()
+            || analysis.body_lexer_config != Some(config.lexer_config())
+            || identities
+                .input
+                .context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+                != registry.snapshot().semantic_key()
+        {
+            return;
+        }
+        let Some(image) = identities.realm.original_source_image() else {
+            return;
+        };
+        let Ok(whole) = std::str::from_utf8(image.bytes()) else {
+            return;
+        };
+        let Ok(start) = usize::try_from(source_offset) else {
+            return;
+        };
+        if whole.get(start..start.saturating_add(source.len())) != Some(source) {
+            return;
+        }
+        let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            source,
+            source_offset,
+            config.lexer_config(),
+        );
+        let head = source_offset.saturating_add(cmd.head_start);
+        let Some(segment) = segments.iter().find(|segment| {
+            segment
+                .argv
+                .first()
+                .is_some_and(|token| token.span.start() == head)
+        }) else {
+            return;
+        };
+        let Some(selected) =
+            crate::original_invocation::source_registry_words(whole, analysis, segment)
+        else {
+            return;
+        };
+        let logical = match &selected.source {
+            crate::original_invocation::OriginalRegistrySource::SourceTransitions(advice) => {
+                advice.original_head().logical_input().is_some()
+                    && advice.logical_source_input() == Some(&identities.input)
+            }
+            _ => false,
+        };
+        let roles = selected.roles.as_deref().unwrap_or_default();
+        let Some(input) = analysis.resolved_input.as_ref() else {
+            return;
+        };
+        let context = input.context_registry();
+        let Some((traits, presentations, case)) = selected.with_source_schema(&context, |schema| {
+            (
+                schema.semantics.traits,
+                roles
+                    .iter()
+                    .map(|&(ordinal, _)| {
+                        (
+                            ordinal,
+                            schema.authored_source_argument_presentation(ordinal),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+                schema
+                    .authored_source_case_invocation()
+                    .and_then(|(descriptor, layout)| Some((descriptor, layout.clause_list_index?)))
+                    .or_else(|| schema.authored_source_case_presentation()),
+            )
+        }) else {
+            return;
+        };
+        cmd.source_traits = Some(traits);
+        cmd.source_case = case.and_then(|(descriptor, ordinal)| {
+            match selected.origins.get(ordinal.checked_add(1)?)? {
+                tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)
+                    if *written > 0 && *written < cmd.args.len() =>
+                {
+                    Some((*written, descriptor))
+                }
+                _ => None,
+            }
+        });
+        if config.enforce_braced_expr {
+            let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+                &SourceMap::new(whole),
+                config.lexer_config(),
+                segment,
+            );
+            identities.realm.stamp_original_tokens(&mut tokens);
+            cmd.expression_bracing = tokens.source_binding.as_ref().and_then(|binding| {
+                let proof = binding.original_literal_expression_bracing(&tokens, registry)?;
+                let original = proof.original_operand();
+                let written = segment
+                    .argv
+                    .iter()
+                    .position(|token| token.span.start() == original.span().start())?;
+                (written > 0).then(|| (written, proof.replacement_source_word().to_owned()))
+            });
+        }
+        // Geometry belongs to every genuine written operand, independently
+        // of whether the selected schema assigns that operand a source role.
+        for (ordinal, operand) in selected.operands.iter().enumerate() {
+            let Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)) =
+                selected
+                    .origins
+                    .get(ordinal.checked_add(1).unwrap_or(usize::MAX))
+            else {
+                continue;
+            };
+            let (Some(arg), Some(operand)) = (cmd.args.get_mut(*written), operand.as_ref()) else {
+                continue;
+            };
+            if *written == 0 {
+                continue;
+            }
+            arg.original_word.clone_from(&operand.word);
+            arg.original_input.clone_from(&operand.input);
+        }
+        let mut written_roles = Vec::new();
+        for &(ordinal, role) in roles {
+            let Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)) =
+                selected.origins.get(ordinal.saturating_add(1))
+            else {
+                continue;
+            };
+            if *written == 0 || *written >= cmd.args.len() {
+                continue;
+            }
+            written_roles.push((*written, role));
+            let arg = &mut cmd.args[*written];
+            arg.kind = match role {
+                ArgRole::Body
+                    if arg.is_braced
+                        && presentations.iter().any(|(index, presentation)| {
+                            *index == ordinal && presentation.is_some_and(|style| style.is_block())
+                        }) =>
+                {
+                    ArgKind::Body
+                }
+                ArgRole::LambdaLiteral if arg.is_braced && arg.original_word.is_some() => {
+                    ArgKind::LambdaLiteral
+                }
+                ArgRole::Keyword => ArgKind::Keyword,
+                ArgRole::ParamList if arg.is_braced => ArgKind::ParamList,
+                _ => ArgKind::Word,
+            };
+        }
+        if logical {
+            cmd.source_roles = None;
+            cmd.logical_roles = Some(written_roles);
+            cmd.logical_context = Some(std::sync::Arc::clone(&context));
+        } else {
+            cmd.source_roles = Some(written_roles);
+        }
+        let identity_arguments =
+            selected
+                .origins
+                .iter()
+                .skip(1)
+                .enumerate()
+                .all(|(index, origin)| {
+                    *origin
+                        == tcl_compiler::registry_invocation::InvocationWordOrigin::Written(
+                            index + 1,
+                        )
+                });
+        if identity_arguments && selected.arguments.len() + 1 == cmd.args.len() {
+            cmd.resolved_name.clone_from(&selected.command);
+        }
+        cmd.source_words = Some(selected);
         return;
     }
-
-    // Resolve the head's *effective command identity* once, and let every
-    // registry-driven decision below — body / keyword / param-list / lambda
-    // roles, presentation, expression bracing, keyword rewrites, the traits —
-    // key off it.  Without this a document doing `rename format
-    // origfmt` or `interp alias {} myfmt {} format` is laid out under
-    // the grammar of the command it no longer is.
-    //
-    cmd.resolved_name = identities
-        .head_words(&cmd.name, source_offset.saturating_add(cmd.head_start))
-        .resolved
-        .to_owned();
-    let name = cmd.resolved_name.clone();
-    // Post-name argument texts, owned so the immutable borrow of
-    // `cmd.args` is released before the role-driven mutation below.
-    let arg_texts: Vec<String> = cmd.args.iter().skip(1).map(|a| a.text.clone()).collect();
-
-    let refs: Vec<&str> = arg_texts.iter().map(String::as_str).collect();
-    let body_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::Body);
-    let keyword_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::Keyword);
-    let param_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::ParamList);
-    let lambda_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::LambdaLiteral);
-    for idx in body_indices {
-        let actual = idx + 1; // +1 for the command-name slot.
-        if actual < cmd.args.len()
-            && cmd.args[actual].is_braced
-            && registry.arg_presentation(&name, &refs, idx).is_block()
-        {
-            cmd.args[actual].kind = ArgKind::Body;
-        }
-    }
-    for idx in lambda_indices {
-        let actual = idx + 1; // +1 for the command-name slot.
-        if actual < cmd.args.len() && cmd.args[actual].is_braced {
-            cmd.args[actual].kind = ArgKind::LambdaLiteral;
-        }
-    }
-
-    // Structural keywords (`then` / `elseif` / `else`, `on` / `trap` /
-    // `finally`, `control::do`'s `while`/`until`) — by grammar position, not
-    // by word value.
-    for idx in keyword_indices {
-        let actual = idx + 1;
-        if actual < cmd.args.len() {
-            cmd.args[actual].kind = ArgKind::Keyword;
-        }
-    }
-
-    // Parameter lists.
-    for idx in param_indices {
-        let actual = idx + 1;
-        if actual < cmd.args.len() && cmd.args[actual].is_braced {
-            cmd.args[actual].kind = ArgKind::ParamList;
-        }
-    }
+    // Missing whole-source advice is terminal; no nominal head reconstruction.
+    cmd.source_roles = Some(Vec::new());
+    cmd.logical_roles = None;
+    cmd.logical_context = None;
+    cmd.source_traits = Some(Traits::empty());
+    cmd.resolved_name.clear();
 }
 
 /// Indices into `cmd.args` of braced expression arguments.
 fn identify_expr_args(cmd: &ParsedCommand, registry: &CommandRegistry) -> Vec<usize> {
+    if let Some(roles) = cmd.source_roles.as_ref().or(cmd.logical_roles.as_ref()) {
+        return roles
+            .iter()
+            .filter_map(|&(written, role)| (role == ArgRole::Expr).then_some(written))
+            .collect();
+    }
     let arg_texts: Vec<&str> = cmd.args.iter().skip(1).map(|a| a.text.as_str()).collect();
     registry
         .arg_indices_for_role(&cmd.resolved_name, &arg_texts, ArgRole::Expr)
@@ -521,10 +866,17 @@ fn compute_blank_lines(
     }
     let current = &commands[index];
     let prev = &commands[index - 1];
-    if prev.name == "proc" && current.name == "proc" {
+    // naming.editor.original-source-formatting
+    // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+    let defines_procedure = |command: &ParsedCommand| {
+        command
+            .source_traits
+            .is_some_and(|traits| traits.contains(Traits::DEFINES_PROCEDURE))
+    };
+    if defines_procedure(prev) && defines_procedure(current) {
         return config.blank_lines_between_procs;
     }
-    if prev.name == "proc" || current.name == "proc" {
+    if defines_procedure(prev) || defines_procedure(current) {
         return config.blank_lines_between_blocks;
     }
     current
@@ -542,14 +894,18 @@ fn format_case_list_body(
     case_list: &CaseListSpec,
     config: &FormatterConfig,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::realm::CommandBindingRealm,
+    identities: &FormattingSourceLayout,
     indent_level: usize,
 ) -> String {
     let shape = tcl_syntax::case_list::CaseListShape {
         clause_flags: case_list.clause_flags,
         clause_value_flags: case_list.clause_value_flags,
     };
-    let clauses = tcl_syntax::case_list::split_case_list(body_text, &shape);
+    let clauses = tcl_syntax::case_list::split_case_list_with_syntax(
+        body_text,
+        &shape,
+        config.lexer_config().list_parse,
+    );
     let mut elements = clauses
         .iter()
         .flat_map(|clause| {
@@ -637,68 +993,50 @@ fn format_case_list_body(
 
 // Long-line expression wrapping
 
-/// Find top-level `&&` / `||` positions in an expression (not
-/// nested in `[] {} () ""`).
-fn find_expr_break_points(text: &str) -> Vec<usize> {
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut breaks = Vec::new();
-    let (mut db, mut dbr, mut dp) = (0i32, 0i32, 0i32);
-    let mut in_quotes = false;
-    let mut i = 0;
-    while i < n {
-        let ch = bytes[i];
-        if ch == b'\\' {
-            i += 2;
-            continue;
-        }
-        if ch == b'"' && db == 0 {
-            in_quotes = !in_quotes;
-            i += 1;
-            continue;
-        }
-        if in_quotes {
-            i += 1;
-            continue;
-        }
-        match ch {
-            b'[' => dbr += 1,
-            b']' => dbr = (dbr - 1).max(0),
-            b'{' => db += 1,
-            b'}' => db = (db - 1).max(0),
-            b'(' => dp += 1,
-            b')' => dp = (dp - 1).max(0),
-            _ => {
-                if dbr == 0 && db == 0 && dp == 0 && i + 1 < n {
-                    let two = &bytes[i..i + 2];
-                    if two == b"&&" || two == b"||" {
-                        breaks.push(i);
-                        i += 2;
-                        continue;
-                    }
-                }
-            }
-        }
-        i += 1;
+/// Operator geometry from the shared expression lexer under the complete
+/// selected source grammar. Literal terms and comments are never scanned again.
+fn find_expr_break_points(text: &str, config: &FormatterConfig) -> Option<Vec<usize>> {
+    // naming.editor.original-source-whitespace-geometry
+    // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+    use tcl_lexer::ExprTokenType as E;
+    let (tokens, unknown) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
+        text,
+        &config.lexer_config().grammar_over(config.profile.grammar),
+        config.profile.expr_grammar_base,
+        config.profile.f5_core_expr_grammar(),
+    );
+    if unknown || tokens.iter().any(|token| token.kind == E::Comment) {
+        return None;
     }
-    breaks
+    let mut depth = 0_u32;
+    let mut breaks = Vec::new();
+    for token in tokens {
+        match token.kind {
+            E::ParenOpen => depth = depth.checked_add(1)?,
+            E::ParenClose => depth = depth.checked_sub(1)?,
+            E::Operator if depth == 0 && matches!(token.text.as_str(), "&&" | "||") => {
+                breaks.push(usize::try_from(token.start).ok()?);
+            }
+            _ => {}
+        }
+    }
+    (depth == 0).then_some(breaks)
 }
 
 /// Try to wrap a braced expression at `&&` / `||`; returns the
 /// wrapped inner text (no braces) or `None`.
 fn wrap_braced_expr(text: &str, config: &FormatterConfig, indent_level: usize) -> Option<String> {
-    let stripped: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    let breaks = find_expr_break_points(&stripped);
+    let breaks = find_expr_break_points(text, config)?;
     if breaks.is_empty() {
         return None;
     }
     let mut chunks: Vec<&str> = Vec::new();
     let mut last = 0;
     for &pos in &breaks {
-        chunks.push(stripped[last..pos].trim_end());
+        chunks.push(text[last..pos].trim());
         last = pos;
     }
-    chunks.push(&stripped[last..]);
+    chunks.push(text[last..].trim());
 
     let expr_indent = config.make_indent(indent_level + 1);
     let cmd_indent = config.make_indent(indent_level);
@@ -737,43 +1075,6 @@ fn current_col(parts: &[String], indent_len: usize) -> usize {
 }
 
 // Backslash-continuation line splitting
-
-/// Find `(index, bracket_depth)` of spaces where `\`-continuation
-/// is safe.
-fn find_splittable_spaces(text: &str, start: usize) -> Vec<(usize, i32)> {
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut spaces = Vec::new();
-    let (mut dbr, mut db) = (0i32, 0i32);
-    let mut in_quotes = false;
-    let mut i = start;
-    while i < n {
-        let ch = bytes[i];
-        if ch == b'\\' && i + 1 < n {
-            i += 2;
-            continue;
-        }
-        if ch == b'"' && db == 0 {
-            in_quotes = !in_quotes;
-            i += 1;
-            continue;
-        }
-        if in_quotes {
-            i += 1;
-            continue;
-        }
-        match ch {
-            b'[' => dbr += 1,
-            b']' => dbr = (dbr - 1).max(0),
-            b'{' => db += 1,
-            b'}' => db = (db - 1).max(0),
-            b' ' if db == 0 => spaces.push((i, dbr)),
-            _ => {}
-        }
-        i += 1;
-    }
-    spaces
-}
 
 /// Greedy line splitting at the given space positions. Callers pass only
 /// positions that are safe word separators (outside double-quoted strings); a
@@ -845,7 +1146,11 @@ fn split_long_line(line: &str, config: &FormatterConfig, cont_indent: &str) -> O
         return None;
     }
     let indent_len = line.len() - line.trim_start().len();
-    let all_spaces = find_splittable_spaces(line, indent_len);
+    let all_spaces =
+        super::source_layout::separator_spaces(line, config.lexer_config(), MAX_FORMAT_DEPTH)?
+            .into_iter()
+            .filter(|&(offset, _)| offset >= indent_len)
+            .collect::<Vec<_>>();
     let max_len = config.max_line_length;
     let mut segments: Option<Vec<String>> = None;
 
@@ -877,21 +1182,9 @@ fn split_long_line(line: &str, config: &FormatterConfig, cont_indent: &str) -> O
         return None;
     }
 
-    let segments = segments?;
-    let mut final_lines: Vec<String> = Vec::new();
-    for seg in segments {
-        if seg.ends_with(" \\") {
-            final_lines.push(seg);
-        } else if seg.len() > max_len {
-            match split_long_line(&seg, config, cont_indent) {
-                Some(sub) => final_lines.push(sub),
-                None => final_lines.push(seg),
-            }
-        } else {
-            final_lines.push(seg);
-        }
-    }
-    Some(final_lines.join("\n"))
+    // Every break belongs to the original complete line. A remainder is not
+    // re-parsed as a new script with a different bracket or quote context.
+    Some(segments?.join("\n"))
 }
 
 /// Try to split a long commented-out command using `\`
@@ -926,49 +1219,15 @@ fn split_commented_code(
 
 // Inline body detection
 
-/// Count the commands in a raw body — statements separated by a newline or a
-/// top-level `;` (both are Tcl command terminators). Brace / bracket nesting is
-/// tracked so separators inside a nested `{…}` or `[…]` do not inflate the
-/// count. Used to gate `expand_single_line_bodies` on
-/// `min_body_commands_for_expansion`.
-fn count_body_commands(body_text: &str) -> usize {
-    let mut count = 0;
-    let mut depth = 0i32;
-    let mut in_statement = false;
-    let mut escaped = false;
-    for c in body_text.chars() {
-        if escaped {
-            escaped = false;
-            in_statement = true;
-            continue;
-        }
-        match c {
-            '\\' => escaped = true,
-            '{' | '[' => {
-                depth += 1;
-                in_statement = true;
-            }
-            '}' | ']' => {
-                depth = depth.saturating_sub(1);
-                in_statement = true;
-            }
-            // segmentation-drift-ok: `count_body_commands` is a private
-            // top-level command counter over a body it only needs a count
-            // for, with its own brace/bracket depth and escape tracking.
-            '\n' | ';' if depth == 0 => {
-                if in_statement {
-                    count += 1;
-                    in_statement = false;
-                }
-            }
-            c if c.is_whitespace() => {}
-            _ => in_statement = true,
-        }
-    }
-    if in_statement {
-        count += 1;
-    }
-    count
+/// Count complete commands through the shared lexer under the full body grammar.
+/// Unavailable source remains outside the inline presentation threshold.
+fn count_body_commands(body_text: &str, config: tcl_lexer::LexerConfig) -> Option<usize> {
+    // naming.editor.original-source-whitespace-geometry
+    // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+    let image = tcl_lexer::SourceImage::document(body_text);
+    let end = u32::try_from(body_text.len()).ok()?;
+    super::source_layout::words_in(&image, tcl_lexer::Span::new(0, end), config)
+        .map(|plan| plan.commands.len())
 }
 
 /// Whether a body is short enough to keep on one line.
@@ -979,7 +1238,8 @@ fn body_can_be_inline(
     never_inline: bool,
 ) -> bool {
     if config.expand_single_line_bodies
-        && count_body_commands(body_text) >= config.min_body_commands_for_expansion
+        && count_body_commands(body_text, config.lexer_config())
+            .is_none_or(|count| count >= config.min_body_commands_for_expansion)
     {
         // Only force expansion once the body carries at least
         // `min_body_commands_for_expansion` commands; a trivial one-command
@@ -1047,14 +1307,24 @@ fn append_body_no_space(
 /// panic).
 ///
 /// The parameter-list and namespace elements are decoded (backslash escapes
-/// collapsed for a bare/quoted element — [`split_lambda_literal_decoded`])
+/// collapsed for a bare/quoted element — [`tcl_compiler::lambda_literal::split_lambda_literal_decoded`])
 /// before use, not pasted through as raw source spelling: a non-literal
 /// element's escapes would otherwise survive reformatting and change what it
 /// means. The namespace is re-quoted with
 /// [`tcl_syntax::list::list_element`] on reassembly rather than always left
 /// bare, so an element that needs quoting (e.g. an escaped space) still
-/// round-trips safely; `normalise_param_list` already unconditionally
-/// brace-wraps the parameter list, so no further quoting is needed there.
+/// round-trips safely. Native parameters use their retained nested list
+/// children, then the complete spelling proposal is checked against the same
+/// original native values. Missing or unrepresentable children preserve the
+/// whole original word; explicit Logical compatibility uses the String split.
+fn decoded_lambda(arg: &CommandArg, logical: bool) -> Option<DecodedLambdaLiteral<'static>> {
+    match (&arg.original_word, &arg.original_input) {
+        (Some(word), Some(input)) => split_original_lambda_literal_decoded(word, input),
+        (Some(word), None) if logical => split_original_lambda_literal_lexical_decoded(word),
+        _ => None,
+    }
+}
+
 fn render_lambda_literal_arg(
     sm: &SourceMap,
     arg: &CommandArg,
@@ -1062,13 +1332,12 @@ fn render_lambda_literal_arg(
     indent: &str,
     current_line_len: usize,
     never_inline: bool,
+    logical: bool,
 ) -> String {
-    let source = sm.source();
-    let fallback = || format!("{{{}}}", arg.text);
-    let Some(&tok) = arg.tokens.first() else {
-        return fallback();
-    };
-    let Some(elems) = split_lambda_literal_decoded(source, tok) else {
+    // Implementation contract: naming.editor.original-native-formal-list-formatting
+    // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+    let fallback = || reconstruct_arg(sm, arg, false, config);
+    let Some(elems) = decoded_lambda(arg, logical) else {
         return fallback();
     };
     let Some(formatted_body) = arg.formatted_body.as_deref() else {
@@ -1083,15 +1352,35 @@ fn render_lambda_literal_arg(
         current_line_len,
         never_inline,
     );
-    let params_rendered = normalise_param_list(&elems.params, config.word_rules());
+    let params_rendered = match (&arg.original_word, &arg.original_input) {
+        (Some(_), Some(input)) => {
+            let Some(params) = input
+                .original_list_element(0)
+                .and_then(|params| native_param_list_source(&params))
+            else {
+                return fallback();
+            };
+            params
+        }
+        (Some(word), None) if logical && word.config() == config.lexer_config() => {
+            normalise_param_list(&elems.params, config.word_rules())
+        }
+        _ => return fallback(),
+    };
     let body_rendered = body_parts.concat();
-    match elems.namespace.as_deref() {
+    let rendered = match elems.namespace.as_deref() {
         Some(ns) => {
             let ns_rendered = tcl_syntax::list::list_element(ns);
             format!("{{{params_rendered} {body_rendered} {ns_rendered}}}")
         }
         None => format!("{{{params_rendered} {body_rendered}}}"),
+    };
+    if let (Some(word), Some(input)) = (&arg.original_word, &arg.original_input)
+        && original_lambda_parameters_match(&rendered, word, input, config).is_none()
+    {
+        return fallback();
     }
+    rendered
 }
 
 /// Everything `append_word_arg` needs about the argument it is emitting,
@@ -1134,8 +1423,15 @@ fn append_word_arg(ctx: &WordArgContext<'_>, parts: &mut Vec<String>) -> bool {
         parts.push(text.to_owned());
         return true;
     }
-    let mut raw = reconstruct_arg(sm, arg, config.enforce_braced_variables);
-    if raw.contains('\n') {
+    let mut raw = reconstruct_arg(sm, arg, config.enforce_braced_variables, config);
+    if raw.contains('\n')
+        && !arg.is_braced
+        && !arg.tokens.iter().any(|token| {
+            token.kind == TokenType::Cmd
+                || (matches!(token.kind, TokenType::Var | TokenType::ExprSugar)
+                    && sm.token_text(*token).contains('\n'))
+        })
+    {
         // Keep whitespace before the backslash only for a quoted string, where
         // it is literal data; a bare/continued word collapses.
         let collapsed = normalise_backslash_newline(&raw, arg.is_quoted)
@@ -1198,6 +1494,12 @@ fn keyword_rewrites_for(
     registry: &CommandRegistry,
     config: &FormatterConfig,
 ) -> std::collections::HashMap<usize, String> {
+    // A source schema identifies possible positions. Operand-byte rewriting
+    // requires a separate equivalence receipt; this view supplies none.
+    if cmd.source_roles.is_some() || (cmd.logical_roles.is_some() && cmd.logical_context.is_none())
+    {
+        return std::collections::HashMap::new();
+    }
     if !config.expand_abbreviations && config.boolean_form == super::config::BooleanForm::Preserve {
         return std::collections::HashMap::new();
     }
@@ -1221,13 +1523,15 @@ fn keyword_rewrites_for(
     // later Tcl adds is not counted against a prefix the target resolves
     // uniquely.  The forward-compatibility half — "and it must still mean the
     // same thing in every later release of the target range" — is enforced
-    // inside `rewrites_for_command` from `config.target_range()`.  With no
-    // dialect declared this falls back to `None`, the conservative direction:
-    // every declared keyword stays a candidate, which can only make a prefix
-    // *less* unique.
+    // inside `rewrites_for_command` from `config.target_range()`. Explicit
+    // Logical compatibility metadata uses its retained whole-context query;
+    // original source schemas require a separate operand rewrite receipt.
     super::keywords::rewrites_for_command(
         registry,
-        config.dialect_query(),
+        cmd.logical_context
+            .as_ref()
+            .map(|context| context.context().authoring_query())
+            .or_else(|| config.dialect_query()),
         config,
         &cmd.resolved_name,
         &words,
@@ -1244,6 +1548,9 @@ fn case_list_body_index(
     config: &FormatterConfig,
     registry: &CommandRegistry,
 ) -> Option<(usize, CaseListSpec)> {
+    if cmd.source_roles.is_some() || cmd.logical_roles.is_some() {
+        return cmd.source_case;
+    }
     let case_list = registry
         .get(&cmd.resolved_name)
         .and_then(|spec| spec.case_list)?;
@@ -1310,8 +1617,17 @@ fn reconstruct_command(
     }
 
     let expr_args = identify_expr_args(cmd, registry);
+    let mut effective_config = config.clone();
+    if cmd.source_roles.is_some() {
+        effective_config.enforce_braced_expr = false;
+    }
+    let config = &effective_config;
     let keyword_rewrites = keyword_rewrites_for(cmd, registry, config);
-    let spec_traits = registry.get(&cmd.resolved_name).map(|s| s.traits);
+    let spec_traits = if cmd.source_roles.is_some() || cmd.logical_roles.is_some() {
+        cmd.source_traits
+    } else {
+        registry.get(&cmd.resolved_name).map(|s| s.traits)
+    };
     let never_inline = spec_traits.is_some_and(|t| t.contains(Traits::NEVER_INLINE_BODY));
 
     let mut parts: Vec<String> = Vec::new();
@@ -1358,12 +1674,18 @@ fn reconstruct_command(
                     indent,
                     current_line_len,
                     never_inline,
+                    cmd.logical_context.is_some(),
                 ));
                 in_brace_chain = true;
             }
             ArgKind::ParamList => {
                 maybe_space(&mut parts, false, config.space_between_braces);
-                parts.push(normalise_param_list(&arg.text, config.word_rules()));
+                parts.push(render_param_list_arg(
+                    sm,
+                    arg,
+                    config,
+                    cmd.source_roles.is_none(),
+                ));
                 in_brace_chain = false;
             }
             ArgKind::Keyword => {
@@ -1372,6 +1694,14 @@ fn reconstruct_command(
                 in_brace_chain = false;
             }
             _ => {
+                if let Some((written, replacement)) = &cmd.expression_bracing
+                    && *written == i
+                {
+                    maybe_space(&mut parts, false, config.space_between_braces);
+                    parts.push(replacement.clone());
+                    in_brace_chain = false;
+                    continue;
+                }
                 if append_word_arg(
                     &WordArgContext {
                         sm,
@@ -1448,7 +1778,7 @@ fn concat_expr_parts(
     }
     let joined = args[1..]
         .iter()
-        .map(|a| reconstruct_arg(sm, a, config.enforce_braced_variables))
+        .map(|a| reconstruct_arg(sm, a, config.enforce_braced_variables, config))
         .collect::<Vec<_>>()
         .join(" ");
     Some(vec![
@@ -1484,7 +1814,7 @@ fn reconstruct_case_list(
                 parts.push(format!("\n{indent}}}"));
             }
         } else {
-            let raw = reconstruct_arg(sm, arg, config.enforce_braced_variables);
+            let raw = reconstruct_arg(sm, arg, config.enforce_braced_variables, config);
             if !parts.is_empty() {
                 parts.push(" ".to_owned());
             }
@@ -1513,6 +1843,193 @@ fn lambda_body_source_offset(source: &str, source_offset: u32, token: Token) -> 
         )
 }
 
+/// Script regions selected by the same source presentation used for whole-file
+/// formatting. Whole original words supply geometry; schema roles supply only
+/// readonly applicability, independently from handler execution.
+fn presentation_children(
+    command: &ParsedCommand,
+    words: &[tcl_lexer::NativeWord],
+    source_offset: u32,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+    identities: &FormattingSourceLayout,
+) -> Option<Vec<tcl_lexer::Span>> {
+    // naming.editor.original-source-whitespace-geometry
+    // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+    use tcl_lexer::{ExecutablePart, Span, WordKind};
+    let mut children = Vec::new();
+    for word in words {
+        for part in word.executable_parts().all_parts() {
+            if let ExecutablePart::Command { body } = part.part {
+                children.push(body);
+            }
+        }
+    }
+    let case = case_list_body_index(command, config, registry);
+    if let Some(source) = &command.source_words {
+        let context = identities.input.context_registry();
+        for body in source.source_script_bodies(&context) {
+            let parent = body.original_container();
+            if parent.group().kind != WordKind::Braced
+                || parent.group().expand
+                || !body.matches_source(parent.image(), config.lexer_config())
+                || !body.matches_context(&context)
+            {
+                continue;
+            }
+            let written = command.args.iter().position(|argument| {
+                argument.tokens.first().is_some_and(|first| {
+                    source_offset.checked_add(first.span.start()) == Some(parent.span().start())
+                })
+            });
+            if let Some(written) = written
+                && (command.args[written].kind == ArgKind::Body
+                    || case.is_some_and(|(ordinal, _)| ordinal == written))
+            {
+                children.push(body.content_span());
+            }
+        }
+    }
+    for (written, argument) in command.args.iter().enumerate().skip(1) {
+        let Some(first) = argument.tokens.first() else {
+            continue;
+        };
+        let start = source_offset.checked_add(first.span.start())?;
+        let Some(word) = words.iter().find(|word| word.span().start() == start) else {
+            continue;
+        };
+        if word.group().kind != WordKind::Braced || word.group().expand {
+            continue;
+        }
+        if command.source_words.is_some() {
+            if argument.kind == ArgKind::LambdaLiteral
+                && let Some(body) =
+                    tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+                        .and_then(|lambda| lambda.braced_body())
+            {
+                children.push(body);
+            }
+            continue;
+        }
+        if let Some((_, descriptor)) = case.filter(|(ordinal, _)| *ordinal == written) {
+            let content = word.content_span().ok()?;
+            let source = word.image().try_text().ok()?;
+            let text = source.get(content.as_range())?;
+            let shape = tcl_syntax::case_list::CaseListShape {
+                clause_flags: descriptor.clause_flags,
+                clause_value_flags: descriptor.clause_value_flags,
+            };
+            for clause in tcl_syntax::case_list::split_case_list_with_syntax(
+                text,
+                &shape,
+                config.lexer_config().list_parse,
+            ) {
+                if !clause.valid {
+                    continue;
+                }
+                let Some(body) = clause.body.filter(|body| body.braced) else {
+                    continue;
+                };
+                let range = body.content_range();
+                children.push(Span::new(
+                    content
+                        .start()
+                        .checked_add(u32::try_from(range.start).ok()?)?,
+                    content
+                        .start()
+                        .checked_add(u32::try_from(range.end).ok()?)?,
+                ));
+            }
+        } else if argument.kind == ArgKind::Body {
+            children.push(word.content_span().ok()?);
+        } else if argument.kind == ArgKind::LambdaLiteral
+            && let Some(body) = tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+                .and_then(|lambda| lambda.braced_body())
+        {
+            children.push(body);
+        }
+    }
+    Some(children)
+}
+
+/// Format a line selection only inside a genuine selected script region and
+/// across complete lexical words. Data words and unavailable bodies are kept.
+pub(crate) fn formatting_range_indent(
+    source: &str,
+    selection: tcl_lexer::Span,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+    identities: &FormattingSourceLayout,
+) -> Option<usize> {
+    // naming.editor.original-source-whitespace-geometry
+    // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+    use tcl_lexer::{SourceImage, Span};
+    let image = SourceImage::document(source);
+    let end = u32::try_from(source.len()).ok()?;
+    if selection.end() > end
+        || identities.input.lexer_config() != config.lexer_config()
+        || identities
+            .input
+            .context_registry()
+            .commands()
+            .snapshot()
+            .semantic_key()
+            != registry.snapshot().semantic_key()
+        || identities.analysis.as_ref().is_some_and(|analysis| {
+            !analysis.matches_original_source_image(&image, config.lexer_config())
+        })
+    {
+        return None;
+    }
+    let mut region = Span::new(0, end);
+    let mut depth = 0;
+    loop {
+        if MAX_FORMAT_DEPTH.exceeded(depth) {
+            return None;
+        }
+        let plan = super::source_layout::words_in(&image, region, config.lexer_config())?;
+        let text = source.get(region.as_range())?;
+        let map = SourceMap::new(text);
+        let tokens = Lexer::with_config(text, config.lexer_config())
+            .tokenise_all()
+            .ok()?;
+        let (mut commands, _) = parse_commands(text, &map, &tokens);
+        let mut children = Vec::new();
+        for command in &mut commands {
+            identify_body_args(command, registry, identities, region.start(), config, text);
+            let start = region.start().checked_add(command.head_start)?;
+            let Some(words) = plan.commands.iter().find(|row| row.span.start() == start) else {
+                continue;
+            };
+            children.extend(presentation_children(
+                command,
+                &words.words,
+                region.start(),
+                config,
+                registry,
+                identities,
+            )?);
+        }
+        let child = children
+            .into_iter()
+            .filter(|child| {
+                child.start() <= selection.start()
+                    && selection.end() <= child.end()
+                    && *child != region
+            })
+            .min_by_key(|child| child.end() - child.start());
+        if let Some(child) = child {
+            region = child;
+            depth = depth.checked_add(1)?;
+        } else {
+            if !super::source_layout::selection_keeps_whole_words(&plan, selection) {
+                return None;
+            }
+            return usize::try_from(depth).ok();
+        }
+    }
+}
+
 // Main entry points
 
 /// Format a Tcl script body at the given indent level.  The core
@@ -1520,14 +2037,14 @@ fn lambda_body_source_offset(source: &str, source_offset: u32, token: Token) -> 
 /// Format a script body at `indent_level`, applying every engine
 /// rule (comments, switch bodies, recursion, long-line wrapping, …).
 /// [`format_tcl`] calls this at level 0 for a whole document; range
-/// formatting calls it for a line slice at the slice's brace depth so
+/// formatting calls it for a line slice at its selected script depth so
 /// both paths share identical layout rules.
 pub(crate) fn format_body(
     source: &str,
     source_offset: u32,
     config: &FormatterConfig,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::realm::CommandBindingRealm,
+    identities: &FormattingSourceLayout,
     indent_level: usize,
 ) -> String {
     // Native-stack safety net — see `MAX_FORMAT_DEPTH`'s doc comment.
@@ -1550,6 +2067,14 @@ pub(crate) fn format_body(
     let mut lines: Vec<String> = Vec::new();
 
     for i in 0..commands.len() {
+        identify_body_args(
+            &mut commands[i],
+            registry,
+            identities,
+            source_offset,
+            config,
+            source,
+        );
         let blank_count = compute_blank_lines(&commands, i, config);
         for _ in 0..blank_count {
             lines.push(String::new());
@@ -1560,8 +2085,6 @@ pub(crate) fn format_body(
         for comment in &comments {
             emit_comment_lines(comment, config, &indent, indent_level, &mut lines);
         }
-
-        identify_body_args(&mut commands[i], registry, identities, source_offset);
 
         // A registry-declared case-list body is formatted from arg.text via
         // the pattern/body splitter; other bodies recurse normally.
@@ -1606,7 +2129,8 @@ pub(crate) fn format_body(
             } else if commands[i].args[a].kind == ArgKind::LambdaLiteral
                 && commands[i].args[a].is_braced
                 && let Some(&tok) = commands[i].args[a].tokens.first()
-                && let Some(elems) = split_lambda_literal_decoded(source, tok)
+                && let Some(elems) =
+                    decoded_lambda(&commands[i].args[a], commands[i].logical_context.is_some())
                 && let Some(body_text) = elems.body
             {
                 // Format only the real, *decoded* body element —
@@ -1617,7 +2141,21 @@ pub(crate) fn format_body(
                 // for a non-literal (bare/quoted) body: its backslash escapes
                 // must be collapsed before the result is parsed as a script,
                 // exactly as Tcl's own list-then-script evaluation would.
-                let lambda_body_offset = lambda_body_source_offset(source, source_offset, tok);
+                let lambda_body_offset = commands[i].args[a].original_word.as_ref().map_or_else(
+                    || lambda_body_source_offset(source, source_offset, tok),
+                    |word| {
+                        tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+                            .and_then(|elements| elements.braced_body())
+                            .filter(|span| {
+                                word.image()
+                                    .try_text()
+                                    .ok()
+                                    .and_then(|text| text.get(span.as_range()))
+                                    == Some(body_text.as_ref())
+                            })
+                            .map_or(u32::MAX, |span| span.start())
+                    },
+                );
                 let formatted = format_body(
                     &body_text,
                     lambda_body_offset,
@@ -1685,68 +2223,38 @@ fn emit_comment_lines(
     }
 }
 
-/// Trim trailing whitespace from each line **except** lines whose terminating
-/// newline sits inside a multi-line braced (`{…}`) or double-quoted (`"…"`)
-/// word — i.e. inside string data. Trimming such a line changes the value of
-/// the literal (`set x {line1␠␠␠\nline2}` must keep the spaces after `line1`),
-/// which would violate "the formatter never changes semantics".
-///
-/// A line is safe to trim when, after scanning it, the running brace depth is
-/// zero and no double-quoted word is open — the newline is then a structural
-/// (command) separator, not part of a literal. The scan carries brace / quote /
-/// backslash state across lines and treats a `#`-first line at depth 0 as a
-/// comment (whose braces/quotes don't count), matching `mod::brace_delta`.
-///
-/// This covers both braced and double-quoted multi-line words. A lexer-token
-/// scan would miss the quoted case: `"…"` words tokenise as `ESC` runs rather
-/// than a single `Str` span, so the running brace/quote scan is what satisfies
-/// the issue's braced-*and-quoted* requirement.
-pub(crate) fn trim_trailing_ws_preserving_literals(text: &str) -> String {
-    let mut depth: i32 = 0;
-    let mut in_string = false;
-    let mut escaped = false;
-    let lines: Vec<&str> = text.split('\n').collect();
-    let mut out: Vec<&str> = Vec::with_capacity(lines.len());
-    for line in &lines {
-        let in_comment = line.trim_start().starts_with('#') && depth == 0 && !in_string;
-        for c in line.chars() {
-            if escaped {
-                escaped = false;
-                continue;
-            }
-            match c {
-                '\\' => escaped = true,
-                _ if in_comment => {}
-                '"' if depth == 0 => in_string = !in_string,
-                _ if in_string => {}
-                '#' if depth == 0 => {
-                    // A `#` mid-line only starts a comment at a command start;
-                    // the conservative reuse of `brace_delta`'s rule (line
-                    // begins with `#`) is already captured by `in_comment`
-                    // above, so an inline `#` here is literal — no-op.
-                }
-                '{' => depth += 1,
-                '}' => depth = depth.saturating_sub(1),
-                _ => {}
-            }
-        }
-        // `in_comment` and a line-continuation `\` end at the newline for the
-        // trim decision; only an open brace/quote makes the newline part of a
-        // literal.
-        let safe_to_trim = depth == 0 && !in_string;
-        if safe_to_trim {
-            out.push(line.trim_end());
-        } else {
-            out.push(line);
-        }
-    }
-    out.join("\n")
+/// Trim only lexer-owned trivia under the formatter's complete grammar.
+/// Interior word data, malformed input and opaque source spellings remain.
+pub(crate) fn trim_trailing_ws_preserving_literals(text: &str, config: &FormatterConfig) -> String {
+    super::source_layout::trim_trailing_whitespace(text, config.lexer_config())
 }
 
 /// Format a Tcl source string.  Pure function: source in,
 /// formatted source out.
 #[must_use]
 pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegistry) -> String {
+    format_tcl_impl(source, config, registry, None)
+}
+
+/// Format using the caller's actual complete availability context and grammar.
+/// Style settings come from `config`; naming and lexer rules come from `input`.
+#[must_use]
+pub fn format_tcl_with_input(
+    source: &str,
+    config: &FormatterConfig,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> String {
+    let config = config.for_resolved_input(input);
+    let context = input.context_registry();
+    format_tcl_impl(source, &config, context.commands(), Some(input))
+}
+
+fn format_tcl_impl(
+    source: &str,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+    input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+) -> String {
     // Resolve this from the original document, before canonicalising its input
     // for Tcl parsing; output still honours the document's established EOL.
     let line_ending = config.resolved_line_ending(source).to_owned();
@@ -1754,18 +2262,23 @@ pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegi
     // newline translation before handing it to lexer-owned parsing. This is
     // deliberately outside the shared raw escape decoder: run-time strings
     // with raw CR/CRLF retain their Tcl value semantics.
-    let source = super::normalise_document_line_endings(source);
+    // Implementation contract: naming.editor.original-source-formatting-budget
+    // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+    let normalised = super::normalise_document_line_endings(source);
+    if !source_within_formatting_budget(&normalised, config) {
+        return source.to_owned();
+    }
+    let source = normalised;
     // The document's command-identity facts, computed once for the whole
     // file.  Empty — and lookup-free — unless the document binds something.
-    let identities = tcl_compiler::realm::document_realm_bindings_with_config(
-        &source,
-        config.lexer_config(),
-        registry,
+    let identities = input.map_or_else(
+        || FormattingSourceLayout::new(&source, config, registry),
+        |input| FormattingSourceLayout::with_input(&source, input),
     );
     let mut result = format_body(&source, 0, config, registry, &identities, 0);
 
     if config.trim_trailing_whitespace {
-        result = trim_trailing_ws_preserving_literals(&result);
+        result = trim_trailing_ws_preserving_literals(&result, config);
     }
     if config.ensure_final_newline && !result.ends_with('\n') {
         result.push('\n');
@@ -1779,6 +2292,53 @@ pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Implementation contract: naming.editor.original-source-formatting
+    // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+    #[test]
+    fn original_source_formatting_uses_effective_roles_without_widening_captured_operands() {
+        let profile = profile_of("tcl8.6");
+        let registry = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = FormatterConfig::for_profile(profile);
+        let source = "interp alias {} branch {} if 1\nbranch {puts    selected}\n";
+        let result = format_tcl(source, &config, registry.commands());
+        assert!(
+            result.contains("branch {\n    puts selected\n}"),
+            "{result}"
+        );
+        let source = "proc branch {args} {}\nbranch {puts    data}\n";
+        let result = format_tcl(source, &config, registry.commands());
+        assert!(result.contains("branch {puts    data}"), "{result}");
+        let source = "for {set i 0} {$i < 2} {incr i} {puts    selected}\n";
+        let result = format_tcl(source, &config, registry.commands());
+        assert!(
+            result.starts_with("for {set i 0} {$i < 2} {incr i} {\n"),
+            "{result}"
+        );
+        assert!(result.contains("    puts selected"), "{result}");
+    }
+
+    // Implementation contract: naming.editor.original-source-formatting
+    // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+    #[test]
+    fn original_source_formatting_braces_only_a_retained_literal_equivalence() {
+        let profile = profile_of("tcl8.6");
+        let registry = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = FormatterConfig {
+            enforce_braced_expr: true,
+            ..FormatterConfig::for_profile(profile)
+        };
+        let literal = format_tcl("expr \"1 + 2\"\n", &config, registry.commands());
+        assert_eq!(literal, "expr {1 + 2}\n");
+        let dynamic = format_tcl("expr $value\n", &config, registry.commands());
+        assert_eq!(dynamic, "expr $value\n");
+        let shadowed = format_tcl(
+            "proc expr {args} {}\nexpr \"1 + 2\"\n",
+            &config,
+            registry.commands(),
+        );
+        assert!(shadowed.ends_with("expr \"1 + 2\"\n"), "{shadowed}");
+    }
 
     /// The seam's analyser ingress — the profile every test names a
     /// dialect through (the exact twin of the retired name resolver).
@@ -1811,6 +2371,8 @@ mod tests {
     /// unformatted rather than crashing.
     #[test]
     fn deeply_nested_if_survives_formatting() {
+        // Implementation contract: naming.editor.original-source-formatting-budget
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
         const DEPTH: usize = 2000;
         let mut src = String::new();
         for _ in 0..DEPTH {
@@ -1821,6 +2383,24 @@ mod tests {
             src.push_str("}\n");
         }
         let _ = fmt(&src);
+    }
+
+    #[test]
+    fn formatting_budget_preserves_complete_source_before_analysis() {
+        // Implementation contract: naming.editor.original-source-formatting-budget
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+        let source = format!(
+            "set value {{{}}}\r\n",
+            "{".repeat(128) + "opaque  " + &"}".repeat(128)
+        );
+        let config = FormatterConfig {
+            ensure_final_newline: true,
+            trim_trailing_whitespace: true,
+            ..FormatterConfig::default()
+        };
+        assert!(!source_within_formatting_budget(&source, &config));
+        assert_eq!(fmt_with(&source, &config), source);
+        assert!(source_within_formatting_budget("puts \"{{{{\"", &config));
     }
 
     /// A moderately nested body (well under `MAX_FORMAT_DEPTH`) still
@@ -1835,14 +2415,46 @@ mod tests {
 
     #[test]
     fn count_body_commands_counts_top_level_statements() {
-        assert_eq!(count_body_commands(""), 0);
-        assert_eq!(count_body_commands("  \n "), 0);
-        assert_eq!(count_body_commands("puts hi"), 1);
-        assert_eq!(count_body_commands("puts a\nputs b"), 2);
-        assert_eq!(count_body_commands("puts a; puts b"), 2);
-        // A `;` inside a nested brace/bracket is not a separator.
-        assert_eq!(count_body_commands("set x {a; b}"), 1);
-        assert_eq!(count_body_commands("set x [expr {1; 2}]"), 1);
+        // naming.editor.original-source-whitespace-geometry
+        // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+        let config = FormatterConfig::default().lexer_config();
+        for (source, expected) in [
+            ("", 0),
+            ("  \n ", 0),
+            ("puts hi", 1),
+            ("puts a\nputs b", 2),
+            ("puts a; puts b", 2),
+            ("set x {a; b}", 1),
+            ("set x [expr {1; 2}]", 1),
+            ("puts \"a; b\"", 1),
+            ("# ignored; comment\nputs hi", 1),
+        ] {
+            assert_eq!(
+                count_body_commands(source, config),
+                Some(expected),
+                "{source:?}"
+            );
+        }
+        assert!(count_body_commands("puts \"missing", config).is_none());
+    }
+
+    #[test]
+    fn command_count_retains_complete_body_grammar() {
+        // naming.editor.original-source-whitespace-geometry
+        // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+        let source = "puts x\n{y}";
+        let config = FormatterConfig::default().lexer_config();
+        assert_eq!(count_body_commands(source, config), Some(2));
+        let continued = tcl_lexer::LexerConfig {
+            brace_line_continuation: tcl_dialect::BraceLineContinuation::Continues,
+            ..config
+        };
+        assert_eq!(count_body_commands(source, continued), Some(1));
+        let strict = tcl_lexer::LexerConfig {
+            strict_quoting: true,
+            ..config
+        };
+        assert!(count_body_commands("puts {missing", strict).is_none());
     }
 
     #[test]
@@ -2035,7 +2647,10 @@ mod tests {
     #[test]
     fn trim_still_strips_structural_trailing_whitespace() {
         // Ordinary code lines (outside any literal) are still trimmed.
-        let out = trim_trailing_ws_preserving_literals("set a 1   \nset b 2   ");
+        let out = trim_trailing_ws_preserving_literals(
+            "set a 1   \nset b 2   ",
+            &FormatterConfig::default(),
+        );
         assert_eq!(out, "set a 1\nset b 2");
     }
 
@@ -2113,6 +2728,71 @@ mod tests {
             got, expected,
             "\ninput:    {input:?}\ngot:      {got:?}\nexpected: {expected:?}"
         );
+    }
+
+    #[test]
+    fn logical_default_formatting_retains_its_whole_context_over_mixed_specs() {
+        // naming.editor.logical-formatting-context
+        // docs/design/analysis/name-resolution-proofs/logical-formatting-context.md
+        let registry = CommandRegistry::build_default();
+        assert!(
+            !registry
+                .get("expr")
+                .unwrap()
+                .traits
+                .contains(Traits::EXPR_CONCATENATES_ARGS)
+        );
+        let config = FormatterConfig::default();
+        let identities = FormattingSourceLayout::new("expr $a + $b", &config, &registry);
+        assert!(identities.analysis.is_some());
+        let context = identities.input.context_registry();
+        assert_eq!(context.context().environment.id.as_str(), "tcl");
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(identities.input.analyser_profile(),)
+                .native_string_protocol()
+                .is_none()
+        );
+        let source = "expr $a + $b";
+        let map = SourceMap::new(source);
+        let tokens = Lexer::with_config(source, config.lexer_config())
+            .tokenise_all()
+            .unwrap();
+        let mut command = parse_commands(source, &map, &tokens).0.remove(0);
+        identify_body_args(&mut command, &registry, &identities, 0, &config, source);
+        assert!(command.source_roles.is_none());
+        assert!(command.logical_roles.is_some());
+        assert!(command.logical_context.is_some());
+        assert!(
+            command
+                .source_traits
+                .unwrap()
+                .contains(Traits::EXPR_CONCATENATES_ARGS)
+        );
+        assert!(command.args.iter().all(|arg| arg.original_input.is_none()));
+        assert!(
+            command
+                .args
+                .iter()
+                .skip(1)
+                .all(|arg| arg.original_word.is_some())
+        );
+        assert!(
+            matches!(command.source_words.as_ref().map(|words| &words.source),
+            Some(crate::original_invocation::OriginalRegistrySource::SourceTransitions(advice))
+                if advice.logical_source_input() == Some(&identities.input))
+        );
+        let mut foreign = FormatterConfig::default();
+        foreign.lexer_config_override = Some(tcl_lexer::LexerConfig {
+            strict_quoting: true,
+            ..config.lexer_config()
+        });
+        let mut command = parse_commands(source, &map, &tokens).0.remove(0);
+        identify_body_args(&mut command, &registry, &identities, 0, &foreign, source);
+        assert_eq!(command.source_traits, Some(Traits::empty()));
+        assert_eq!(command.source_roles, Some(Vec::new()));
+        assert!(command.logical_roles.is_none());
+        assert!(command.logical_context.is_none());
+        assert!(keyword_rewrites_for(&command, &registry, &foreign).is_empty());
     }
 
     #[test]
@@ -2496,6 +3176,175 @@ mod tests {
         }
     }
 
+    fn original_list_arg(
+        source: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> (FormatterConfig, CommandArg) {
+        let config = FormatterConfig::for_profile(profile);
+        let lexer_config = config.lexer_config();
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            lexer_config,
+        )
+        .unwrap();
+        let word = &plan.commands[0].words[0];
+        let policy = tcl_registry::InvocationDialect::of_profile(profile)
+            .authored_name_policy()
+            .unwrap();
+        let key =
+            tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                word,
+                WordValueRules::from_config(&lexer_config),
+                policy,
+            )
+            .unwrap();
+        let map = SourceMap::new(source);
+        let tokens = Lexer::with_config(source, lexer_config)
+            .tokenise_all()
+            .unwrap();
+        let mut command = parse_commands(source, &map, &tokens).0.remove(0);
+        let mut arg = command.args.remove(0);
+        arg.kind = ArgKind::ParamList;
+        arg.original_word = Some(word.clone());
+        arg.original_input =
+            Some(tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key));
+        (config, arg)
+    }
+
+    #[test]
+    fn original_param_spacing_retains_native_children_and_opaque_units() {
+        // Implementation contract: naming.editor.original-native-formal-list-formatting
+        // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = profile_of(name);
+            for (source, expected) in [
+                ("{a    b}", "{a b}"),
+                (r"{a\ b    c}", "{{a b} c}"),
+                (r"{{a\uD800 default}    b}", r"{{a\uD800 default} b}"),
+            ] {
+                let (config, arg) = original_list_arg(source, profile);
+                let map = SourceMap::new(source);
+                assert_eq!(
+                    render_param_list_arg(&map, &arg, &config, false),
+                    expected,
+                    "{name}"
+                );
+            }
+            let opaque = r"{a\uD800    b}";
+            let (config, arg) = original_list_arg(opaque, profile);
+            let map = SourceMap::new(opaque);
+            assert!(
+                normalise_original_param_list(
+                    arg.original_word.as_ref().unwrap(),
+                    arg.original_input.as_ref().unwrap(),
+                    &config,
+                )
+                .is_none(),
+                "{name}"
+            );
+            assert_eq!(
+                render_param_list_arg(&map, &arg, &config, false),
+                opaque,
+                "{name}"
+            );
+            let source = "{😀    b}";
+            let (config, arg) = original_list_arg(source, profile);
+            let expected = if name.starts_with("tcl8.") {
+                source
+            } else {
+                "{😀 b}"
+            };
+            assert_eq!(
+                render_param_list_arg(&SourceMap::new(source), &arg, &config, false),
+                expected,
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_param_spacing_declines_foreign_word_and_full_config() {
+        // Implementation contract: naming.editor.original-native-formal-list-formatting
+        // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+        let source = "{a    b}";
+        let (config, mut arg) = original_list_arg(source, profile_of("tcl8.6"));
+        let word = arg.original_word.as_ref().unwrap();
+        let input = arg.original_input.as_ref().unwrap();
+        let mut changed = config.clone();
+        let mut lexer = config.lexer_config();
+        lexer.strict_quoting = !lexer.strict_quoting;
+        changed.lexer_config_override = Some(lexer);
+        assert!(normalise_original_param_list(word, input, &changed).is_none());
+        let (_, foreign) = original_list_arg(" {a    b}", profile_of("tcl8.6"));
+        assert!(
+            normalise_original_param_list(word, foreign.original_input.as_ref().unwrap(), &config)
+                .is_none()
+        );
+        arg.original_input = None;
+        assert_eq!(
+            render_param_list_arg(&SourceMap::new(source), &arg, &config, false),
+            source
+        );
+    }
+
+    #[test]
+    fn original_lambda_spacing_checks_nested_formals_before_emission() {
+        // Implementation contract: naming.editor.original-native-formal-list-formatting
+        // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = profile_of(name);
+            for source in [r"{{a\uD800    b} {puts    ok}}", r"{a\\uD800 {puts    ok}}"] {
+                let (config, mut arg) = original_list_arg(source, profile);
+                arg.kind = ArgKind::LambdaLiteral;
+                arg.formatted_body = Some("puts ok".to_owned());
+                assert_eq!(
+                    render_lambda_literal_arg(
+                        &SourceMap::new(source),
+                        &arg,
+                        &config,
+                        "",
+                        0,
+                        false,
+                        false,
+                    ),
+                    source,
+                    "{name}"
+                );
+            }
+            let source = "{{a    b} {puts    ok} ::N}";
+            let (config, mut arg) = original_list_arg(source, profile);
+            arg.kind = ArgKind::LambdaLiteral;
+            arg.formatted_body = Some("puts ok".to_owned());
+            assert_eq!(
+                render_lambda_literal_arg(
+                    &SourceMap::new(source),
+                    &arg,
+                    &config,
+                    "",
+                    0,
+                    false,
+                    false,
+                ),
+                "{{a b} { puts ok } ::N}",
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_source_formatting_keeps_opaque_formal_word_verbatim() {
+        // Implementation contract: naming.editor.original-native-formal-list-formatting
+        // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let output = fmt_dialect(r"proc p {a\uD800    b} {return}", profile_of(name));
+            assert!(output.contains(r"{a\uD800    b}"), "{name}: {output}");
+            let output = fmt_dialect("proc p {a    b} {return}", profile_of(name));
+            assert!(output.starts_with("proc p {a b} "), "{name}: {output}");
+        }
+    }
+
     #[test]
     fn param_list_normalised() {
         check(
@@ -2642,6 +3491,54 @@ mod tests {
     }
 
     #[test]
+    fn expression_wrapping_preserves_string_terms_and_declines_comments() {
+        // naming.editor.original-source-whitespace-geometry
+        // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+        let config = FormatterConfig::for_profile(profile_of("tcl9.0"));
+        let expression = "\"a  b\" eq \"a  b\" && [string equal {c   d} {c   d}]";
+        let wrapped = wrap_braced_expr(expression, &config, 0).unwrap();
+        assert!(wrapped.contains("\"a  b\" eq \"a  b\""), "{wrapped}");
+        assert!(
+            wrapped.contains("[string equal {c   d} {c   d}]"),
+            "{wrapped}"
+        );
+        assert!(wrap_braced_expr("1 # && comment\n&& 2", &config, 0).is_none());
+        assert!(wrap_braced_expr("1 && \"missing quote", &config, 0).is_none());
+    }
+
+    #[test]
+    fn bracket_continuations_preserve_nested_word_data() {
+        // naming.editor.original-source-whitespace-geometry
+        // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+        let source = "set x [list \\\n \"a \\\n b\" {c \\\n d}]\n";
+        let result = fmt(source);
+        assert!(
+            result.contains("[list \"a \\\n b\" {c \\\n d}]"),
+            "{result:?}"
+        );
+    }
+
+    #[test]
+    fn multiline_braced_data_keeps_its_original_continuation() {
+        // naming.editor.original-source-whitespace-geometry
+        // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+        let source = "set x {a \\\n b}\n";
+        for name in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+            let profile = profile_of(name);
+            let context = tcl_registry::model::ingress::context_for_profile(profile);
+            assert_eq!(
+                format_tcl(
+                    source,
+                    &FormatterConfig::for_profile(profile),
+                    context.commands()
+                ),
+                source,
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
     fn force_expr_wrap() {
         check(
             "if {$variableaaaa == 1 && $variablebbbb == 2 && $variablecccc == 3 && $variabledddd == 4 && $variableeeee == 5 && $variableffff == 6} {\nputs hi\n}\n",
@@ -2703,6 +3600,43 @@ mod tests {
             ..FormatterConfig::default()
         };
         assert_eq!(format_tcl("puts $x\n", &cfg, &registry), "puts ${x}\n");
+    }
+
+    #[test]
+    fn procedure_spacing_uses_selected_source_traits() {
+        // naming.editor.original-source-formatting
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        let profile = profile_of("tcl8.6");
+        let registry = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = FormatterConfig {
+            blank_lines_between_procs: 2,
+            blank_lines_between_blocks: 1,
+            ..FormatterConfig::for_profile(profile)
+        };
+        let qualified = format_tcl(
+            "::proc first {} {}\n::proc second {} {}\n",
+            &config,
+            registry.commands(),
+        );
+        assert_eq!(qualified, "::proc first {} {}\n\n\n::proc second {} {}\n");
+        let shadowed = format_tcl(
+            "proc proc {args} {}\nproc first\nproc second\n",
+            &config,
+            registry.commands(),
+        );
+        assert!(
+            shadowed.ends_with("proc first\nproc second\n"),
+            "{shadowed}"
+        );
+        let source = "proc first {} {}\nproc second {} {}\n";
+        let identities = FormattingSourceLayout::new(source, &config, registry.commands());
+        let mut foreign = config.clone();
+        foreign.lexer_config_override = Some(tcl_lexer::LexerConfig {
+            strict_quoting: !config.lexer_config().strict_quoting,
+            ..config.lexer_config()
+        });
+        let unchanged = format_body(source, 0, &foreign, registry.commands(), &identities, 0);
+        assert_eq!(unchanged, source.trim_end_matches('\n'));
     }
 
     #[test]

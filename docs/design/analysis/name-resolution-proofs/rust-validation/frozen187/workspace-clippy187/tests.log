@@ -1,0 +1,42 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+error: redundant closure
+   --> rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs:117:36
+    |
+117 |             .map_or_else(Vec::new, |target| target.captured_arguments());
+    |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `crate::command_binding::source_transition_advice::source_callback::OriginalSourceCallbackProcedureTarget::captured_arguments`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+    = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: manual implementation of `.is_multiple_of()`
+    --> rust/tcl-compiler/src/analyser/oo.rs:2286:12
+     |
+2286 |         if words.len() % 2 == 0 {
+     |            ^^^^^^^^^^^^^^^^^^^^ help: replace with: `words.len().is_multiple_of(2)`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_is_multiple_of
+     = note: `-D clippy::manual-is-multiple-of` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::manual_is_multiple_of)]`
+
+error: this argument is passed by value, but not consumed in the function body
+   --> rust/tcl-compiler/src/analyser/utils.rs:534:28
+    |
+534 |         definition_parent: Option<crate::registry_invocation::OriginalSourceScriptBody>,
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value
+    = note: `-D clippy::needless-pass-by-value` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_pass_by_value)]`
+help: consider taking a reference instead
+    |
+534 |         definition_parent: Option<&crate::registry_invocation::OriginalSourceScriptBody>,
+    |                                   +
+
+error: could not compile `tcl-compiler` (lib) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 3 previous errors

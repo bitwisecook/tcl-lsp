@@ -27,6 +27,23 @@ use crate::model::binding::PackageTransition;
 
 const PACKAGE_DOMAINS: &[StateTransitionDomain] = &[StateTransitionDomain::Packages];
 
+// Tcl_PackageObjCmd's ifneeded branch retains the script in the package
+// database; it never evaluates that script during registration or lookup.
+// The future require operation keeps its independent open callback effect.
+const PACKAGE_REGISTRATION_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    static_footprint: StaticEffectFootprint {
+        accesses: &[StaticEffectAccess::new(
+            WorldStateDomain::PackageState,
+            EffectAccessMode::ReadWrite,
+            StaticInterpreterScope::Current,
+            StaticNamespaceScope::Any,
+            StaticSubjectScope::Wildcard,
+        )],
+        callback: CallbackEffect::NONE,
+    },
+    ..WorldEffectDescriptor::EMPTY
+};
+
 const fn package_descriptor(resolver: StateTransitionResolver) -> StateTransitionDescriptor {
     StateTransitionDescriptor {
         composition: StateTransitionComposition::Extend,
@@ -159,8 +176,11 @@ fn prefer_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
 
 /// `package unknown prefix` stores the fallback for a later unsatisfied
 /// `package require`; the zero-argument form is only a query.
-fn package_unknown_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (!args.is_empty())
+fn package_unknown_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count != 0)
         .then_some((0, ScriptTiming::Deferred))
         .into_iter()
         .collect()
@@ -268,6 +288,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "ifneeded",
         state_transitions: Some(package_descriptor(ifneeded_transitions)),
+        world_effects: Some(PACKAGE_REGISTRATION_EFFECTS),
         arity: Arity::new(2, 3),
         detail: "Registers script to be evaluated (in the global namespace) the next time package require needs this version and it is not yet provided; replaces any script already registered for the same package/version pair. With script omitted, returns the currently registered script, or an empty string if none is registered.",
         synopsis: "package ifneeded package version ?script?",
@@ -280,6 +301,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // it as part of the enclosing `package ifneeded` call's own scope.
         arg_roles: &[(2, ArgRole::Body)],
         body_kind: BodyKind::Structural,
+        body_execution: Some(
+            crate::body_execution::BodyExecutionSpec::DeferredGlobalScriptForFamily(Family::Tcl),
+        ),
         // `DEFERS_BODY` — "stored and run later" said in data, and scoped to
         // this subcommand rather than to `package` as a whole, since it is the
         // only `package` form with a body. tclsh 8.6.16 and 9.0.4,
@@ -415,6 +439,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // passed `-exact` (a literal extra "-exact" word) — which is
         // likewise always >= 2, so AtLeast(2) holds for every version.
         command_prefixes: &[(0, AppendedArity::AtLeast(2))],
+        // naming.callback.original-unknown-handler-lookup-scope
+        // docs/design/analysis/name-resolution-proofs/callback-original-unknown-handler-lookup-scope.md
+        // Tcl's package loader evaluates the fallback with TCL_EVAL_GLOBAL.
+        script_lookup_scope: Some(crate::ScriptLookupScope::GlobalFrame),
         script_timing_resolver: Some(package_unknown_script_timing),
         ..SubCommand::DEFAULT
     },
@@ -648,6 +676,55 @@ mod tests {
     }
 
     #[test]
+    fn package_ifneeded_stores_future_script_without_current_callback_effect() {
+        // Implementation contract: naming.package.ifneeded-current-effect-contract
+        // docs/design/analysis/name-resolution-proofs/package-ifneeded-current-effect-contract.md
+        use crate::{CallbackKinds, InvocationDialect, InvocationWords, WorldStateDomain};
+        let registry = CommandRegistry::build_default();
+        for release in tcl_dialect::TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(release);
+            for arguments in [
+                &["ifneeded", "p", "1"][..],
+                &["ifneeded", "p", "1", "rename ::package {}; error DEFERRED"][..],
+            ] {
+                let selected = registry
+                    .resolve_structured_invocation(
+                        InvocationWords::literals("package", arguments).with_dialect(dialect),
+                        dialect.authoring_query(),
+                    )
+                    .resolved()
+                    .expect("selected package registration");
+                let effects = selected.effect_footprint();
+                assert!(
+                    !effects.requires_world_barrier(),
+                    "{release:?} {arguments:?}"
+                );
+                assert!(!effects.callback().kinds.contains(CallbackKinds::SCRIPT));
+                assert!(!effects.callback().kinds.is_unknown());
+                assert!(
+                    effects
+                        .accesses()
+                        .iter()
+                        .any(|access| access.domain == WorldStateDomain::PackageState)
+                );
+                assert!(!effects.accesses().iter().any(|access| matches!(
+                    access.domain,
+                    WorldStateDomain::CommandBindings | WorldStateDomain::NamespaceLookup
+                )));
+            }
+            let require = registry
+                .resolve_structured_invocation(
+                    InvocationWords::literals("package", &["require", "p"]).with_dialect(dialect),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .expect("selected package require");
+            assert!(require.effect_footprint().requires_world_barrier());
+            assert!(require.effect_footprint().callback().kinds.is_unknown());
+        }
+    }
+
+    #[test]
     fn package_transition_grammar_is_contextual_and_queries_do_not_mutate() {
         use crate::model::binding::PackageTransition;
         use crate::{InvocationDialect, InvocationWords, StateTransition, TransitionSubject};
@@ -699,7 +776,7 @@ mod tests {
             .resolve_invocation("package", &["ifneeded", "p", "1", "set ::loaded 1"], None)
             .expect("registration resolves")
             .facts();
-        assert!(facts.state_transitions.declared().expect("declared package transitions").facts().iter().map(|fact| &fact.transition).any(|transition| matches!(transition, StateTransition::Package(PackageTransition::Ifneeded { script: Some(TransitionSubject::Literal(script)), .. }) if script == "set ::loaded 1")));
+        assert!(facts.state_transitions.declared().expect("declared package transitions").facts().iter().map(|fact| &fact.transition).any(|transition| matches!(transition, StateTransition::Package(PackageTransition::Ifneeded { script: Some(TransitionSubject::LocatedLiteral { value: script, .. }), .. }) if script == "set ::loaded 1")));
         let jim = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
             "jim",
             &[],
@@ -723,6 +800,42 @@ mod tests {
                 .arity
                 .accepts(2)
         );
+    }
+
+    #[test]
+    fn jim_package_inventory_keeps_hidden_list_and_excludes_ifneeded() {
+        // naming.package.jim-source-operation-table
+        // docs/design/analysis/name-resolution-proofs/package-jim-source-operation-table.md
+        // naming.package.jim-hidden-list
+        // docs/design/analysis/name-resolution-proofs/package-jim-hidden-list.md
+        // naming.package.ifneeded-native-entry-frame
+        // docs/design/analysis/name-resolution-proofs/package-ifneeded-native-entry-frame.md
+        // Authored catalogue coverage; this does not execute the native provider.
+        let dialect = crate::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        let registry = CommandRegistry::build_default();
+        let package = registry
+            .get_for_surface("package", dialect.authoring_query())
+            .expect("genuine Jim package catalogue");
+        let names = package
+            .subcommands
+            .iter()
+            .map(|operation| operation.name)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            names,
+            std::collections::BTreeSet::from(["forget", "provide", "require", "list", "names"])
+        );
+        assert!(package.subcommand("ifneeded").is_none());
+        for name in ["list", "names"] {
+            let operation = package.subcommand(name).expect("supported operation");
+            assert!(operation.arity.accepts(0));
+            assert!(!operation.arity.accepts(1));
+            assert_eq!(operation.return_type, Some(crate::TclType::List));
+            assert!(operation.arg_roles.is_empty());
+            assert!(operation.body_execution.is_none());
+        }
     }
 
     #[test]

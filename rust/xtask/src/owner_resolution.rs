@@ -69,6 +69,7 @@ pub fn run() -> Result<ExitCode> {
     problems.extend(validate_native_string_trim_consumers(&root)?);
     problems.extend(validate_native_list_storage_consumers(&root)?);
     problems.extend(validate_execution_name_policy_consumers(&root)?);
+    problems.extend(validate_counted_name_facade_consumers(&root)?);
     problems.extend(validate_f5_string_predicate_consumers(&root)?);
     if problems.is_empty() {
         let owner_count = parse_manifest(&contract)
@@ -1298,6 +1299,178 @@ fn validate_execution_name_policy_consumers(root: &Path) -> Result<Vec<String>> 
     Ok(problems)
 }
 
+// Native readonly facade consumers keep counted purpose owners. This bounded
+// inventory excludes syntax issuers and explicitly selected lexical adapters.
+const COUNTED_NAME_FACADES: &[&str] = &[
+    "rust/tcl-lsp-core/src/original_declaration.rs",
+    "rust/tcl-lsp-core/src/original_indexed_location.rs",
+    "rust/tcl-lsp-core/src/original_invocation.rs",
+    "rust/tcl-lsp-core/src/method_symbol.rs",
+    "rust/tcl-lsp-core/src/namespace_symbol.rs",
+    "rust/tcl-lsp-core/src/variable_symbol.rs",
+    "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+    "rust/tcl-lsp-core/src/original_command_rename.rs",
+    "rust/tcl-lsp-core/src/original_member_rename.rs",
+    "rust/tcl-lsp-core/src/math_function_symbol.rs",
+    "rust/tcl-lsp-core/src/procedure_symbol.rs",
+    "rust/tcl-lsp-core/src/completion/original_workspace.rs",
+    "rust/tcl-lsp-core/src/inlay_hints.rs",
+];
+
+#[derive(Clone, Copy)]
+struct NamingOwnerToken<'a> {
+    kind: rustc_lexer::TokenKind,
+    text: &'a str,
+}
+
+fn counted_name_production_tokens(source: &str) -> Vec<NamingOwnerToken<'_>> {
+    use rustc_lexer::TokenKind;
+    let mut offset = 0;
+    let tokens = rustc_lexer::tokenize(source)
+        .filter_map(|token| {
+            let text = &source[offset..offset + token.len];
+            offset += token.len;
+            (!matches!(
+                token.kind,
+                TokenKind::Whitespace | TokenKind::LineComment | TokenKind::BlockComment { .. }
+            ))
+            .then_some(NamingOwnerToken {
+                kind: token.kind,
+                text,
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut production = Vec::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        // Remove only the cfg(test) item itself, then resume any later
+        // production items. Literals/comments cannot fabricate this attribute.
+        if tokens.get(index..index + 7).is_some_and(|attribute| {
+            attribute
+                .iter()
+                .map(|token| token.text)
+                .eq(["#", "[", "cfg", "(", "test", ")", "]"])
+        }) {
+            index += 7;
+            let mut braces = 0usize;
+            while let Some(token) = tokens.get(index) {
+                index += 1;
+                match token.kind {
+                    TokenKind::OpenBrace => braces += 1,
+                    TokenKind::CloseBrace if braces == 1 => break,
+                    TokenKind::CloseBrace => braces = braces.saturating_sub(1),
+                    TokenKind::Semi if braces == 0 => break,
+                    _ => {}
+                }
+            }
+            continue;
+        }
+        production.push(tokens[index]);
+        index += 1;
+    }
+    production
+}
+
+fn counted_name_delimiter(literal: &str) -> bool {
+    match syn::parse_str::<syn::Lit>(literal) {
+        Ok(syn::Lit::Str(value)) => matches!(value.value().as_str(), "::" | ":" | "\0"),
+        Ok(syn::Lit::Char(value)) => matches!(value.value(), ':' | '\0'),
+        Ok(syn::Lit::Byte(value)) => matches!(value.value(), b':' | 0),
+        _ => false,
+    }
+}
+
+fn counted_name_zero(literal: &str) -> bool {
+    match syn::parse_str::<syn::Lit>(literal) {
+        Ok(syn::Lit::Int(value)) => value.base10_digits() == "0",
+        Ok(syn::Lit::Char(value)) => value.value() == '\0',
+        Ok(syn::Lit::Byte(value)) => value.value() == 0,
+        _ => false,
+    }
+}
+
+fn counted_name_local_recipes(source: &str) -> Vec<String> {
+    use rustc_lexer::TokenKind;
+    let tokens = counted_name_production_tokens(source);
+    let mut problems = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind == TokenKind::Ident && token.text == "from_utf8_lossy" {
+            problems.push("lossy resident name reconstruction".to_owned());
+        }
+        if token.kind != TokenKind::Dot {
+            continue;
+        }
+        let Some(method) = tokens.get(index + 1) else {
+            continue;
+        };
+        if tokens
+            .get(index + 2)
+            .is_none_or(|open| open.kind != TokenKind::OpenParen)
+        {
+            continue;
+        }
+        if matches!(
+            method.text,
+            "split"
+                | "rsplit"
+                | "split_once"
+                | "rsplit_once"
+                | "find"
+                | "rfind"
+                | "trim_start_matches"
+                | "trim_end_matches"
+        ) && tokens
+            .get(index + 3)
+            .is_some_and(|argument| counted_name_delimiter(argument.text))
+        {
+            problems.push(format!(
+                "local counted-name delimiter recipe: {}",
+                method.text
+            ));
+        }
+        if matches!(method.text, "split" | "take_while" | "position") {
+            let mut depth = 1usize;
+            let mut end = index + 3;
+            while let Some(next) = tokens.get(end) {
+                match next.kind {
+                    TokenKind::OpenParen => depth += 1,
+                    TokenKind::CloseParen => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                end += 1;
+            }
+            if tokens[index + 3..end].windows(3).any(|expression| {
+                expression[0].kind == TokenKind::Eq
+                    && expression[1].kind == TokenKind::Eq
+                    && counted_name_zero(expression[2].text)
+            }) {
+                problems.push(format!(
+                    "local zero-terminated name recipe: {}",
+                    method.text
+                ));
+            }
+        }
+    }
+    problems
+}
+
+fn validate_counted_name_facade_consumers(root: &Path) -> Result<Vec<String>> {
+    let mut problems = Vec::new();
+    for path in COUNTED_NAME_FACADES {
+        for problem in counted_name_local_recipes(&read(root, path)?) {
+            problems.push(format!(
+                "native readonly naming facade {path}: {problem}; use the shared purpose owner"
+            ));
+        }
+    }
+    Ok(problems)
+}
+
 fn parse_manifest(markdown: &str) -> Result<Vec<OwnerRow>, String> {
     let start = markdown
         .find(START_MARKER)
@@ -1914,5 +2087,36 @@ mod tests {
             "Command::ResolutionDrift { check } => resolution_drift::run(check),",
             "resolution-drift"
         ));
+    }
+    #[test]
+    fn counted_name_facades_reject_local_recipes_and_keep_production_after_tests() {
+        for source in [
+            r#"fn helper(name:&str) { name.rsplit_once("::"); }"#,
+            r#"fn helper(name:&str) { name.split(r"::"); }"#,
+            r#"fn helper(name:&[u8]) { name.split(|byte| *byte == 0); }"#,
+            r#"fn helper(name:&[u8]) { name.iter().position(|byte| *byte == b'\0'); }"#,
+            r#"fn helper(name:&[u8]) { String::from_utf8_lossy(name); }"#,
+            r#"#[cfg(test)] mod tests { fn fixture(){ s.split("::"); } }
+               fn later(name:&str){ name.split_once("::"); }"#,
+        ] {
+            assert!(!counted_name_local_recipes(source).is_empty(), "{source}");
+        }
+        let source = r##"
+            // name.split("::");
+            fn source_fixture(){ let fixture = r#"name.split("::")"#; }
+            #[cfg(test)] mod tests { fn fixture(){ s.split("::"); } }
+            fn production(){ original.matches_source(&image, config); }
+        "##;
+        assert!(counted_name_local_recipes(source).is_empty());
+    }
+
+    #[test]
+    fn counted_name_facade_inventory_uses_shared_purpose_owners() {
+        let root = crate::util::repo_root();
+        assert!(
+            validate_counted_name_facade_consumers(&root)
+                .unwrap()
+                .is_empty()
+        );
     }
 }

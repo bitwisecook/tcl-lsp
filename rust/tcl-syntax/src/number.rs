@@ -847,7 +847,8 @@ pub fn is_expr_number(
     expr_grammar_base: Option<tcl_dialect::TclVersion>,
 ) -> bool {
     if matches!(syntax, NumberSyntax::Jim | NumberSyntax::Jim080) {
-        return crate::scalar_getter::jim_expression_number(text.as_bytes()).is_some();
+        return crate::scalar_getter::jim_expression_number_for_syntax(text.as_bytes(), syntax)
+            .is_some();
     }
     tcl_dialect::scan_expr_number(text.as_bytes(), 0, syntax, expr_grammar_base)
         .is_some_and(|lexeme| lexeme.end() == text.len())

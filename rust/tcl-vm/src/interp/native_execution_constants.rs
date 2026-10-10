@@ -87,6 +87,44 @@ mod tests {
     use tcl_syntax::scalar_getter::NativeScalarCache;
 
     #[test]
+    fn array_existence_results_share_only_the_selected_native_environment_constant() {
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        // Original C case15/16/17 header windows bind the producer selection.
+        // This VM control separately checks owned model identity, not a C pointer.
+        use tcl_syntax::value::ValueOps;
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let mut vm = crate::native_fixture::core(profile);
+            for present in [false, true] {
+                let first = vm.array_existence_result(present).unwrap();
+                let second = vm.array_existence_result(present).unwrap();
+                let constant = matches!(
+                    vm.actual_native_invocation_dialect().tcl_version,
+                    Some(TclVersion::V8_5 | TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1)
+                );
+                assert_eq!(
+                    first.native_object_identity() == second.native_object_identity(),
+                    constant,
+                    "{engine} {present}"
+                );
+                assert_eq!(
+                    first.string_bytes().as_ref(),
+                    if present { b"1" } else { b"0" }
+                );
+                if constant {
+                    let version = vm.actual_native_invocation_dialect().tcl_version.unwrap();
+                    let instruction = vm.native_c_execution_boolean(present, version).unwrap();
+                    assert_eq!(
+                        first.native_object_identity(),
+                        instruction.native_object_identity()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn compiled_match_results_keep_native_constant_and_c84_pattern_owners() {
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(engine).unwrap();

@@ -50,6 +50,23 @@ impl ConditionalExpressionEvaluation {
         &self.tree
     }
 
+    /// Construct the native implicit command-name value from an exact checked
+    /// function occurrence. Fixed-table engines decline; no command-head word,
+    /// registration, runtime lookup or evaluation capability is created.
+    #[must_use]
+    pub fn original_function_command_name(
+        &self,
+        source: &str,
+        ordinal: usize,
+        dialect: crate::InvocationDialect,
+    ) -> Option<crate::mathfunc::NativeExpressionFunctionCommandName> {
+        // Proof: naming.expression.original-function-navigation
+        // docs/design/analysis/name-resolution-proofs/original-function-navigation.md
+        crate::mathfunc::NativeExpressionFunctionCommandName::from_original_expression(
+            self, source, ordinal, dialect,
+        )
+    }
+
     /// Original lexical grammar retained by the checked expression owner.
     /// This does not select a current runtime provider or compiler protocol.
     #[must_use]

@@ -29,6 +29,7 @@ use tcl_runtime_api::native_compilation::NativeEnsembleCompiler;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeEnsembleConfigurationProtocol {
     parameters: bool,
+    dying_namespace: bool,
 }
 
 impl InvocationDialect {
@@ -40,6 +41,7 @@ impl InvocationDialect {
         let version = self.native_command_name_protocol()?.version();
         (version >= TclVersion::V8_5).then_some(NativeEnsembleConfigurationProtocol {
             parameters: version >= TclVersion::V8_6,
+            dying_namespace: version >= TclVersion::V9_0,
         })
     }
 }
@@ -63,6 +65,21 @@ pub struct NativeEnsembleTablePlan {
 }
 
 impl NativeEnsembleConfigurationProtocol {
+    /// Original ensemble entry accepts only the selected actual namespace
+    /// lifetime. C8.5/8.6 test `NS_DYING`; C9 tests `NS_DEAD`.
+    #[must_use]
+    pub const fn permits_namespace_lifecycle(
+        self,
+        lifecycle: tcl_syntax::native_namespace_name::NativeNamespaceLifecycle,
+    ) -> bool {
+        use tcl_syntax::native_namespace_name::NativeNamespaceLifecycle;
+        match lifecycle {
+            NativeNamespaceLifecycle::Live => true,
+            NativeNamespaceLifecycle::Dying => self.dying_namespace,
+            NativeNamespaceLifecycle::Dead => false,
+        }
+    }
+
     /// Original-object create option table, including its native index order.
     #[must_use]
     pub fn create_options(self) -> &'static [&'static str] {
@@ -663,6 +680,34 @@ mod configuration_epoch_tests {
 #[cfg(test)]
 mod configuration_surface_tests {
     use super::*;
+
+    #[test]
+    fn actual_namespace_lifetime_policy_matches_pinned_ensemble_entry() {
+        // Native proof: naming.ensemble.original-command-holder-routing
+        // docs/design/analysis/name-resolution-proofs/ensemble-original-command-holder-routing.md
+        // Pinned C source entry checks complement the original public source
+        // controls; no namespace lifetime is inferred from a reporting name.
+        use tcl_syntax::native_namespace_name::NativeNamespaceLifecycle as State;
+        for version in TclVersion::ALL {
+            let recipe =
+                InvocationDialect::for_version(version).native_ensemble_configuration_protocol();
+            if version == TclVersion::V8_4 {
+                assert!(recipe.is_none());
+                continue;
+            }
+            let recipe = recipe.unwrap();
+            assert!(recipe.permits_namespace_lifecycle(State::Live));
+            assert_eq!(
+                recipe.permits_namespace_lifecycle(State::Dying),
+                version >= TclVersion::V9_0
+            );
+            assert!(!recipe.permits_namespace_lifecycle(State::Dead));
+        }
+        let jim = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        assert!(jim.native_ensemble_configuration_protocol().is_none());
+    }
 
     #[test]
     fn actual_release_tables_and_counted_mapping_keys_remain_separate() {

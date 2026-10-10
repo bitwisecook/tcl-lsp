@@ -1,0 +1,4 @@
+VERSION|0.84-9-g5bac7c9
+RESULT list 0 {file glob clock eventloop signal tclcompat array tree tclprefix history ensemble binary initjimsh jsonencode zlib syslog aio nshelper stdlib json posix namespace oo interp regexp readdir exec pack}
+RESULT names 0 {file glob clock eventloop signal tclcompat array tree tclprefix history ensemble binary initjimsh jsonencode zlib syslog aio nshelper stdlib json posix namespace oo interp regexp readdir exec pack}
+RESULT __r2286_absent__ 1 {package, unknown command "__r2286_absent__": should be forget, names, provide, require}

@@ -834,6 +834,28 @@ pub(crate) fn source_expression_from_invocation(
     span: Span,
     parent: Option<crate::command_binding::CommandAllocationSite>,
 ) -> Option<LiftedSourceExpression> {
+    source_expression_from_invocation_parsed(invocation, span, parent, |text| {
+        tcl_syntax::expr::parser::parse_expr_for_profile(text, profile)
+    })
+}
+
+pub(crate) fn source_expression_from_invocation_with_syntax_context(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    parser: tcl_syntax::expr::parser::ExprParseContext,
+    span: Span,
+    parent: Option<crate::command_binding::CommandAllocationSite>,
+) -> Option<LiftedSourceExpression> {
+    source_expression_from_invocation_parsed(invocation, span, parent, |text| {
+        tcl_syntax::expr::parser::parse_expr_with_syntax_context(text, &parser)
+    })
+}
+
+pub(crate) fn source_expression_from_invocation_parsed(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    span: Span,
+    parent: Option<crate::command_binding::CommandAllocationSite>,
+    parse: impl Fn(&str) -> crate::expr_ast::ExprNode,
+) -> Option<LiftedSourceExpression> {
     if invocation.facts.operation
         != tcl_registry::SemanticOperationId::StructuredLowering(
             tcl_registry::hooks::LoweringHookId::Expr,
@@ -852,10 +874,7 @@ pub(crate) fn source_expression_from_invocation(
             invocation.dialect?,
         )?;
         return Some(LiftedSourceExpression {
-            expression: tcl_syntax::expr::parser::parse_expr_for_profile(
-                &executed_source.text,
-                profile,
-            ),
+            expression: parse(&executed_source.text),
             span,
             expression_base: None,
             executed_source: Some(executed_source),
@@ -872,38 +891,49 @@ pub(crate) fn source_expression_from_invocation(
         return None;
     }
     Some(LiftedSourceExpression {
-        expression: tcl_syntax::expr::parser::parse_expr_for_profile(text, profile),
+        expression: parse(text),
         span,
         expression_base: None,
         executed_source: None,
     })
 }
 
-/// Positioned operand projection for a reached normal representation contract.
-#[must_use]
-pub(crate) fn source_expression_from_representation(
-    invocation: &crate::registry_invocation::NormalRepresentationInvocation,
-    profile: Option<&tcl_dialect::DialectProfile>,
-    span: Span,
-    parent: Option<crate::command_binding::CommandAllocationSite>,
-) -> Option<LiftedSourceExpression> {
-    invocation.source_expression(profile, span, parent)
-}
-
-/// Select the actual expression handler at this command, independently of opcodes.
-pub(crate) fn representation_expression_at(
+/// Representation expression reads with complete supplied metadata and grammar.
+/// Neither input supplies execution, source positions or a native cache by itself.
+pub(crate) fn representation_expression_with_metadata_context(
     tokens: &CommandTokens,
     registry: &tcl_registry::CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    parser: tcl_syntax::expr::parser::ExprParseContext,
     span: Span,
 ) -> Option<LiftedSourceExpression> {
     let invocation =
-        crate::registry_invocation::normal_representation_invocation(registry, None, tokens)?;
-    source_expression_from_representation(
-        &invocation,
-        registry.profile(),
-        span,
-        expression_parent(tokens),
-    )
+        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+            registry, context, tokens,
+        )?;
+    invocation.source_expression_with_syntax_context(parser, span, expression_parent(tokens))
+}
+
+/// Nested normal representation reads using the same actual parent context.
+pub(crate) fn lifted_representation_expressions_with_metadata_context(
+    tokens: Option<&CommandTokens>,
+    registry: &tcl_registry::CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    config: tcl_lexer::LexerConfig,
+    parser: tcl_syntax::expr::parser::ExprParseContext,
+) -> Vec<LiftedSourceExpression> {
+    lifted_calls(tokens, config)
+        .into_iter()
+        .filter_map(|lifted| {
+            representation_expression_with_metadata_context(
+                lifted.tokens.as_ref()?,
+                registry,
+                context,
+                parser,
+                lifted.span,
+            )
+        })
+        .collect()
 }
 
 fn expression_parent(
@@ -923,33 +953,36 @@ pub fn lifted_source_expressions(
     tokens: Option<&CommandTokens>,
     registry: &tcl_registry::CommandRegistry,
 ) -> Vec<LiftedSourceExpression> {
-    selected_lifted_expressions(tokens, registry, ExpressionReadPurpose::Executable)
+    selected_lifted_expressions(tokens, registry)
 }
 
-/// Normal operand-conversion reads of nested expressions, without an opcode
-/// or folding licence. The reached-handler carrier retains exact read sites.
+/// Original nested expressions under the supplied full metadata and grammar.
+/// Missing or foreign availability cannot borrow the registry's nominal profile.
 #[must_use]
-pub(crate) fn lifted_representation_expressions(
+pub(crate) fn lifted_source_expressions_with_metadata_context(
     tokens: Option<&CommandTokens>,
     registry: &tcl_registry::CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    config: tcl_lexer::LexerConfig,
+    parser: tcl_syntax::expr::parser::ExprParseContext,
 ) -> Vec<LiftedSourceExpression> {
-    selected_lifted_expressions(
-        tokens,
-        registry,
-        ExpressionReadPurpose::NormalRepresentation,
-    )
-}
-
-#[derive(Clone, Copy)]
-enum ExpressionReadPurpose {
-    Executable,
-    NormalRepresentation,
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return Vec::new();
+    };
+    lifted_calls(tokens, config).into_iter().filter_map(|lifted| {
+        let tokens = lifted.tokens.as_ref()?;
+        let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            registry, Some(context), tokens,
+        )?;
+        source_expression_from_invocation_with_syntax_context(
+            &invocation, parser, lifted.span, expression_parent(tokens),
+        )
+    }).collect()
 }
 
 fn selected_lifted_expressions(
     tokens: Option<&CommandTokens>,
     registry: &tcl_registry::CommandRegistry,
-    purpose: ExpressionReadPurpose,
 ) -> Vec<LiftedSourceExpression> {
     let context = registry
         .profile()
@@ -961,30 +994,14 @@ fn selected_lifted_expressions(
     .into_iter()
     .filter_map(|lifted| {
         let tokens = lifted.tokens.as_ref()?;
-        match purpose {
-            ExpressionReadPurpose::Executable => {
-                let invocation = crate::registry_invocation::resolved_tokens_invocation(
-                    registry, context, tokens,
-                )?;
-                source_expression_from_invocation(
-                    &invocation,
-                    registry.profile(),
-                    lifted.span,
-                    expression_parent(tokens),
-                )
-            }
-            ExpressionReadPurpose::NormalRepresentation => {
-                let invocation = crate::registry_invocation::normal_representation_invocation(
-                    registry, context, tokens,
-                )?;
-                source_expression_from_representation(
-                    &invocation,
-                    registry.profile(),
-                    lifted.span,
-                    expression_parent(tokens),
-                )
-            }
-        }
+        let invocation =
+            crate::registry_invocation::resolved_tokens_invocation(registry, context, tokens)?;
+        source_expression_from_invocation(
+            &invocation,
+            registry.profile(),
+            lifted.span,
+            expression_parent(tokens),
+        )
     })
     .collect()
 }

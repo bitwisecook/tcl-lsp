@@ -176,6 +176,7 @@ pub mod shimmer;
 pub mod side_effects;
 pub mod signature_scan;
 pub mod slot_allocation;
+pub mod source_graph;
 pub mod specialise_factories;
 pub mod ssa;
 pub mod state_ssa;

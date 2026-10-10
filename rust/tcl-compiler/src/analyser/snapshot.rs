@@ -232,6 +232,9 @@ mod tests {
             qualified_name: format!("::{name}"),
             params: Vec::new(),
             params_computed: false,
+            formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                tcl_dialect::ParameterGrammar::Tcl,
+            ),
             name_span: Span::new(0, 0),
             body_span: Span::new(0, 0),
             doc: String::new(),

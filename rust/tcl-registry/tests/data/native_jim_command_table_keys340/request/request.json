@@ -1,0 +1,19 @@
+{
+  "question": "Which original Jim command-table key spelling is publicly reported after same-slot procedure/alias replacement, namespace-relative creation, rename, delete and fresh publication?",
+  "purpose": "Fresh fullInit original public Tcl_Eval/C API or Jim equivalent control, no original key header/pointer identity claim. Each C provider executes exact source and records NOT_APPLICABLE for Jim-specific -all option; retain all six actual source/version/channel/compile/process receipts.",
+  "sources": [
+    {
+      "path": "root-replacement.tcl",
+      "sha256": "25694e24d326b8fa85986483d36fccb7738f5c7d06a24aa9a7a7813878d645df"
+    },
+    {
+      "path": "namespace-replacement.tcl",
+      "sha256": "18eaa3738815c0c379a23dad83eff745de875f66811c6cea81bf301e0af64dee"
+    },
+    {
+      "path": "rename-and-fresh-publication.tcl",
+      "sha256": "54fb15cccaa9b0da413737946decbeba345455b7fd29d303815a6a78d3744a6d"
+    }
+  ],
+  "encoding": "ASCII source; triple leading colons are intentional; no non-ASCII, counted NUL, split escapes or hidden substitutions."
+}

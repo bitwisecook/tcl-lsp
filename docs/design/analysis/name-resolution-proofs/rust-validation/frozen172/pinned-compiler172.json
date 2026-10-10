@@ -1,0 +1,10 @@
+{
+  "executable": "/workspace/.proofs/pinned-compiler172.elf",
+  "sha256": "cc55294bd9060b0990f0809c3e35c080f4bed7147148a91e83c0b8ebb84c2e8d",
+  "build_receipt": "/workspace/.proofs/recovery-compiler-build172.json",
+  "build_receipt_sha256": "8eb05057586c75c11e1b027bde2f76f067e34a6c6c4e51337a468af844a03479",
+  "source_snapshot_sha256": "c2cf3096da4e13dc4e869aa0ec5367f3fda3a4dd26df9faa037713c63ae29398",
+  "overall_build_exit": 101,
+  "partial_artifact_only": true,
+  "actual_artifact_fresh": false
+}

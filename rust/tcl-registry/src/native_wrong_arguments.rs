@@ -25,6 +25,7 @@ pub enum NativeWrongArgumentsOrigin {
 pub struct NativeWrongArgumentsProtocol {
     code: &'static str,
     origin: NativeWrongArgumentsOrigin,
+    string_result: Option<tcl_syntax::native_string::NativeStringProtocol>,
 }
 
 impl NativeWrongArgumentsProtocol {
@@ -32,6 +33,13 @@ impl NativeWrongArgumentsProtocol {
     #[must_use]
     pub const fn error_code(self) -> &'static str {
         self.code
+    }
+
+    /// C Tcl's append-based arity presenter produces an unknown-count String.
+    /// Jim and logical code recipes confer no native C String producer.
+    #[must_use]
+    pub const fn string_result(self) -> Option<tcl_syntax::native_string::NativeStringProtocol> {
+        self.string_result
     }
 
     /// Actual engine versus explicitly authored logical provider.
@@ -55,6 +63,9 @@ impl crate::InvocationDialect {
         Some(NativeWrongArgumentsProtocol {
             code,
             origin: NativeWrongArgumentsOrigin::Native,
+            string_result: string
+                .tcl_version()
+                .map(tcl_syntax::native_string::NativeStringProtocol::C),
         })
     }
 
@@ -72,6 +83,7 @@ impl crate::InvocationDialect {
         Some(NativeWrongArgumentsProtocol {
             code: "NONE",
             origin: NativeWrongArgumentsOrigin::Logical(provider),
+            string_result: None,
         })
     }
 }
@@ -92,6 +104,7 @@ mod tests {
             NativeWrongArgumentsOrigin::Logical(LogicalWrongArgumentsProvider::Tcl84CoreSimulation)
         );
         assert_eq!(protocol.error_code(), "NONE");
+        assert!(protocol.string_result().is_none());
         let mut unknown = crate::InvocationDialect::for_version(TclVersion::V9_0);
         unknown.native_family = None;
         unknown.core_point = None;
@@ -118,6 +131,14 @@ mod tests {
                 .unwrap();
             assert_eq!(protocol.error_code(), expected, "{name}");
             assert_eq!(protocol.origin(), NativeWrongArgumentsOrigin::Native);
+            let dialect = crate::InvocationDialect::of_profile(environment.analyser_profile());
+            assert_eq!(
+                protocol.string_result(),
+                dialect
+                    .tcl_version
+                    .map(tcl_syntax::native_string::NativeStringProtocol::C),
+                "{name}"
+            );
         }
     }
 }

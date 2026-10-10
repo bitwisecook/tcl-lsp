@@ -1,0 +1,365 @@
+{
+  "version": "8.5.19",
+  "command": [
+    "cc",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+    "/workspace/.proofs/2286-native-dictionary-body3.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+    "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/2286-native-dictionary-body3-8.5.19"
+  ],
+  "compile_exit": 0,
+  "exit_statuses": [
+    {
+      "case": "compiled-update-plain",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-remove",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-root-unset",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-root-invalid",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-root-replace",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-guest-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-guest-return",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-local-read-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-dict-read-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-dict-write-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-plain",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-remove",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-root-unset",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-root-invalid",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-root-replace",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-guest-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-guest-return",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-local-read-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-dict-read-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-dict-write-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-raw-nul",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-raw-nul",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-raw-ff",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-raw-ff",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-modified-nul",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-modified-nul",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-update-array-name",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "compiled-with-array-name",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-plain",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-remove",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-root-unset",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-root-invalid",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-root-replace",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-guest-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-guest-return",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-local-read-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-dict-read-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-dict-write-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-plain",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-remove",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-root-unset",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-root-invalid",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-root-replace",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-guest-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-guest-return",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-local-read-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-dict-read-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-dict-write-error",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-raw-nul",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-raw-nul",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-raw-ff",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-raw-ff",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-modified-nul",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-modified-nul",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-update-array-name",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    },
+    {
+      "case": "generic-with-array-name",
+      "exit": 0,
+      "rows": 1,
+      "stdout_hex": null
+    }
+  ],
+  "rows": 56,
+  "log": "/workspace/.proofs/2286-native-dictionary-body3-8.5.19.jsonl",
+  "log_sha256": "a56b511ad36379003353d7d317f2e68ad7edd89d3fe7ea65fbe555e03f9d44a3",
+  "binary": "/workspace/.proofs/2286-native-dictionary-body3-8.5.19",
+  "binary_sha256": "ff2a95137c6d8f8ffa7210ba775e51232368902fd3b6ec25858c245f86fcbed0",
+  "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+  "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+  "header": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h",
+  "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5"
+}

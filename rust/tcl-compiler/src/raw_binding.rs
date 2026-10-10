@@ -30,6 +30,7 @@ use crate::var_resolve::{
     canonical_place_key,
 };
 use std::collections::BTreeSet;
+use tcl_core_types::NameBytes;
 
 /// Immutable allocation of one callable implementation's persistent storage.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -51,8 +52,8 @@ pub enum RawBindingSlotId {
     Callable {
         /// Immutable callable allocation.
         allocation: CallableStorageIdentity,
-        /// Static declaration's name.
-        name: String,
+        /// Counted static-table name, independent of its source presentation.
+        name: NameBytes,
     },
 }
 
@@ -68,7 +69,11 @@ impl RawBindingSlotId {
     pub fn relocated(&self, relocation: &VariableProofRelocation) -> Self {
         match self {
             Self::Variable(cell) => {
-                let mut original = place::scalar(&cell.name, place::LOCAL_NS, false);
+                let mut original = place::scalar(
+                    cell.name.try_utf8().unwrap_or_default(),
+                    place::LOCAL_NS,
+                    false,
+                );
                 original.cell = Some((**cell).clone());
                 Self::Variable(Box::new(relocation.place(&original).cell.unwrap()))
             }
@@ -86,8 +91,8 @@ pub enum RawBindingContents {
     SelectedName {
         /// Absolute interpreter frame level.
         level: u32,
-        /// Already evaluated target variable name.
-        name: String,
+        /// Already evaluated counted target, resolved at the retained logical level.
+        name: NameBytes,
     },
     /// Unproved retargeting, allocation multiplicity or incoming wrapper contents.
     Unknown,
@@ -117,7 +122,7 @@ pub struct RawBindingArena {
     pub retiring_arrays: VariableCellSet,
     /// Members retired before their frozen callbacks; indices are literal keys,
     /// separate from the typed retained-root allocation identity.
-    pub retired_array_members: VariableCellTable<BTreeSet<String>>,
+    pub retired_array_members: VariableCellTable<BTreeSet<tcl_core_types::NameBytes>>,
 }
 
 impl RawBindingArena {
@@ -231,16 +236,12 @@ impl RawBindingArena {
                     };
                     let mut selected = frame;
                     selected.raw_bindings = self.clone();
-                    let slot = crate::var_resolve::resolve_alias_destination_slot(
-                        name, &selected, registry,
-                    );
+                    let slot = raw_destination_bytes(name.as_bytes(), &selected, registry);
                     if let Some(next) = self.bindings.get(&crate::var_resolve::cell_key(&slot)) {
                         current.clone_from(next);
                     } else {
                         selected.raw_bindings = Self::default();
-                        return crate::var_resolve::resolve_literal_place(
-                            name, &selected, false, registry,
-                        );
+                        return raw_value_bytes(name.as_bytes(), &selected, registry);
                     }
                 }
                 _ => return place::unknown_top(),
@@ -297,11 +298,47 @@ impl RawBindingArena {
     }
 }
 
+fn raw_destination_bytes(
+    name: &[u8],
+    context: &ResolveContext,
+    registry: &tcl_registry::CommandRegistry,
+) -> Place {
+    if context.execution_name_policy.is_some() {
+        crate::var_resolve::resolve_original_alias_destination_bytes(name, context, registry)
+    } else {
+        std::str::from_utf8(name).map_or_else(
+            |_| place::unknown_top(),
+            |name| crate::var_resolve::resolve_alias_destination_slot(name, context, registry),
+        )
+    }
+}
+
+fn raw_value_bytes(
+    name: &[u8],
+    context: &ResolveContext,
+    registry: &tcl_registry::CommandRegistry,
+) -> Place {
+    if context.execution_name_policy.is_some() {
+        crate::var_resolve::resolve_evaluated_variable_input(
+            tcl_syntax::naming::NativeVariableInputForm::Combined(name),
+            context,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Read,
+        )
+    } else {
+        std::str::from_utf8(name).map_or_else(
+            |_| place::unknown_top(),
+            |name| crate::var_resolve::resolve_literal_place(name, context, false, registry),
+        )
+    }
+}
+
 /// Static local names installed before formal parameter assignments.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct CapturedStaticBindings {
     /// Evaluated local name and retained wrapper allocation.
-    pub bindings: Vec<(String, VariableCellKey)>,
+    pub bindings: Vec<(NameBytes, VariableCellKey)>,
 }
 
 /// Definition-time static preparation preserves possible native errors.
@@ -362,14 +399,14 @@ impl ResolveContext {
                     let representation = candidate.contents_representation_at(&target);
                     Some(candidate.allocate_private_static(
                         allocation,
-                        &declaration.name,
+                        &NameBytes::from(declaration.name.as_str()),
                         value.as_deref(),
                         representation,
                     ))
                 }
                 Initialiser::Literal(value) => Some(candidate.allocate_private_static(
                     allocation,
-                    &declaration.name,
+                    &NameBytes::from(declaration.name.as_str()),
                     Some(value),
                     tcl_syntax::value::ValueRepresentation::Unknown,
                 )),
@@ -379,7 +416,9 @@ impl ResolveContext {
             };
             may_error |= possible_error;
             candidate.raw_bindings.pinned.insert(key.clone());
-            bindings.bindings.push((declaration.name.clone(), key));
+            bindings
+                .bindings
+                .push((declaration.name.as_str().into(), key));
         }
         *self = candidate;
         StaticCaptureResult::Prepared {
@@ -388,21 +427,230 @@ impl ResolveContext {
         }
     }
 
+    /// Capture the actual Jim static-list operand at the definition point.
+    /// Its list children retain original producers; copied contents and raw
+    /// wrappers have separate lifetime owners. Preparation remains conditional
+    /// on the native definition succeeding and supplies no Normal certificate.
+    pub(crate) fn capture_original_callable_statics(
+        &mut self,
+        allocation: &CallableStorageIdentity,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> StaticCaptureResult {
+        let Some(dialect) = self.invocation_dialect else {
+            return StaticCaptureResult::Unknown;
+        };
+        if self
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            != Some(input.policy())
+            || !input.policy().recipe().is_jim084()
+            || !input.is_current(self)
+            || allocation.incarnation == AllocationIncarnation::RepeatedFresh
+        {
+            return StaticCaptureResult::Unknown;
+        }
+        let declarations = match tcl_registry::native_procedure::parse_static_variables_bytes(
+            input.bytes(),
+            dialect,
+        ) {
+            Some(Ok(declarations)) => declarations,
+            Some(Err(_)) => return StaticCaptureResult::Invalid,
+            None => return StaticCaptureResult::Unknown,
+        };
+        let Some(children) = input.original_list_elements() else {
+            return StaticCaptureResult::Unknown;
+        };
+        if declarations.len() != children.len() {
+            return StaticCaptureResult::Unknown;
+        }
+        let mut candidate = self.clone();
+        let mut bindings = CapturedStaticBindings::default();
+        let mut may_error = false;
+        for (declaration, child) in declarations.iter().zip(&children) {
+            let (name, key, possible_error) = match candidate.capture_original_static_declaration(
+                allocation,
+                declaration,
+                child,
+                registry,
+            ) {
+                Ok(binding) => binding,
+                Err(outcome) => return outcome,
+            };
+            may_error |= possible_error;
+            candidate.raw_bindings.pinned.insert(key.clone());
+            bindings.bindings.push((name, key));
+        }
+        *self = candidate;
+        StaticCaptureResult::Prepared {
+            bindings,
+            may_error,
+        }
+    }
+
+    fn capture_original_static_declaration(
+        &mut self,
+        allocation: &CallableStorageIdentity,
+        declaration: &tcl_registry::native_procedure::ByteStaticVariableDeclaration,
+        child: &crate::signature_scan::scope::SignatureSourceNameInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Result<(NameBytes, VariableCellKey, bool), StaticCaptureResult> {
+        use tcl_registry::native_procedure::StaticVariableInitialiser as Initialiser;
+        let fields = child
+            .original_list_elements()
+            .ok_or(StaticCaptureResult::Unknown)?;
+        let first = fields.first().ok_or(StaticCaptureResult::Unknown)?;
+        let name = NameBytes::from(declaration.name.as_slice());
+        let selected_name = match declaration.initialiser {
+            Initialiser::CaptureCurrentCell(_) => first.bytes().strip_prefix(b"&"),
+            _ => Some(first.bytes()),
+        };
+        // The shared grammar selected the marker/name role. This byte
+        // correspondence authenticates its actual child, not a new Word.
+        if selected_name != Some(name.as_bytes())
+            || fields.iter().any(|field| !field.is_current(self))
+        {
+            return Err(StaticCaptureResult::Unknown);
+        }
+        let (key, possible_error) = match &declaration.initialiser {
+            Initialiser::CopyCurrent(_) | Initialiser::CaptureCurrentCell(_) => self
+                .capture_original_static_variable(
+                    allocation,
+                    &name,
+                    matches!(declaration.initialiser, Initialiser::CaptureCurrentCell(_)),
+                    registry,
+                )?,
+            Initialiser::Literal(value) => {
+                let input = fields.get(1).ok_or(StaticCaptureResult::Unknown)?;
+                if fields.len() != 2 || input.bytes() != value {
+                    return Err(StaticCaptureResult::Unknown);
+                }
+                let held = crate::command_binding::original_name_value::OriginalProducedNameValue::from_source_input(
+                    input, self,
+                ).ok_or(StaticCaptureResult::Unknown)?;
+                let captured = self.allocate_private_static(
+                    allocation,
+                    &name,
+                    std::str::from_utf8(held.bytes()).ok(),
+                    tcl_syntax::value::ValueRepresentation::Unknown,
+                );
+                self.retain_private_static_value(&captured.0, Some(&held), registry);
+                captured
+            }
+        };
+        Ok((name, key, possible_error))
+    }
+
+    fn capture_original_static_variable(
+        &mut self,
+        allocation: &CallableStorageIdentity,
+        name: &NameBytes,
+        reference: bool,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Result<(VariableCellKey, bool), StaticCaptureResult> {
+        if reference {
+            return self.capture_original_static_reference(name, registry);
+        }
+        let target = raw_value_bytes(name.as_bytes(), self, registry);
+        if target.kind == crate::place::PlaceKind::Unknown || target.dynamic {
+            return Err(StaticCaptureResult::Unknown);
+        }
+        let observers =
+            self.variable_observers_at(&target, tcl_registry::TraceOperation::Read, registry);
+        if target.observed
+            || observers.unknown_residual
+            || !observers.callbacks.is_empty()
+            || !observers.possible_callbacks.is_empty()
+        {
+            return Err(StaticCaptureResult::Unknown);
+        }
+        let presence = self.contents_presence(&target);
+        if presence == crate::var_resolve::ContentsPresence::Undefined {
+            return Err(StaticCaptureResult::Invalid);
+        }
+        let held = self
+            .original_name_read_result(&target, registry)
+            .map(|read| read.value().clone());
+        let value = self
+            .literal_contents_at(&target, registry)
+            .map(str::to_owned);
+        let representation = self.contents_representation_at(&target);
+        let (key, _) =
+            self.allocate_private_static(allocation, name, value.as_deref(), representation);
+        self.retain_private_static_value(&key, held.as_ref(), registry);
+        Ok((
+            key,
+            presence != crate::var_resolve::ContentsPresence::Defined,
+        ))
+    }
+
+    fn capture_original_static_reference(
+        &mut self,
+        name: &NameBytes,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Result<(VariableCellKey, bool), StaticCaptureResult> {
+        let slot = raw_destination_bytes(name.as_bytes(), self, registry);
+        let key = crate::var_resolve::cell_key(&slot);
+        if slot.kind == crate::place::PlaceKind::Unknown
+            || slot.cell.is_none()
+            || self.dynamic_bindings
+            || self.unknown_bindings.contains(&key)
+        {
+            return Err(StaticCaptureResult::Unknown);
+        }
+        if let Some(existing) = self.raw_bindings.bindings.get(&key) {
+            return if self.raw_bindings.slots.contains_key(existing) {
+                Ok((existing.clone(), false))
+            } else {
+                Err(StaticCaptureResult::Unknown)
+            };
+        }
+        // JimCreateProcedureStatics retains the VarVal selected by
+        // SetVariableFromAny. It does not read an existing link's target.
+        let link = self
+            .namespace_name_alias_bindings
+            .get(&key)
+            .or_else(|| self.name_alias_bindings.get(&key))
+            .cloned();
+        let target = link.unwrap_or_else(|| raw_value_bytes(name.as_bytes(), self, registry));
+        if target.kind == crate::place::PlaceKind::Unknown {
+            return Err(StaticCaptureResult::Unknown);
+        }
+        self.capture_raw_slot_at(&slot, &target, None, registry)
+            .ok_or(StaticCaptureResult::Invalid)
+    }
+
+    fn retain_private_static_value(
+        &mut self,
+        key: &VariableCellKey,
+        value: Option<&crate::command_binding::original_name_value::OriginalProducedNameValue>,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        let Some(value) = value else {
+            return;
+        };
+        let receiver = match self.raw_bindings.slots.get(key).map(|slot| &slot.contents) {
+            Some(RawBindingContents::Direct(receiver)) => (**receiver).clone(),
+            _ => return,
+        };
+        self.retain_original_name_value(&receiver, value, registry);
+    }
+
     fn allocate_private_static(
         &mut self,
         allocation: &CallableStorageIdentity,
-        name: &str,
+        name: &NameBytes,
         value: Option<&str>,
         representation: tcl_syntax::value::ValueRepresentation,
     ) -> (VariableCellKey, bool) {
         let identity = RawBindingSlotId::Callable {
             allocation: allocation.clone(),
-            name: name.to_owned(),
+            name: name.clone(),
         };
-        let mut target = place::scalar(name, place::LOCAL_NS, false);
+        let mut target = place::scalar(name.try_utf8().unwrap_or_default(), place::LOCAL_NS, false);
         target.cell = Some(CellIdentity {
             owner: CellOwner::RetainedSlot(Box::new(identity.clone())),
-            name: name.to_owned(),
+            name: name.clone(),
             generation: crate::place::CellGeneration::Incoming,
             interpreter: self.interpreter.clone(),
             storage_domain: None,
@@ -442,42 +690,59 @@ impl ResolveContext {
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<(VariableCellKey, bool)> {
         let slot = crate::var_resolve::resolve_alias_destination_slot(name, self, registry);
-        let slot_key = crate::var_resolve::cell_key(&slot);
+        let target = crate::var_resolve::resolve_literal_place(name, self, false, registry);
+        self.capture_raw_slot_at(&slot, &target, Some(name), registry)
+    }
+
+    fn capture_raw_slot_at(
+        &mut self,
+        slot: &Place,
+        target: &Place,
+        logical_name: Option<&str>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<(VariableCellKey, bool)> {
+        let slot_key = crate::var_resolve::cell_key(slot);
         if let Some(existing) = self.raw_bindings.bindings.get(&slot_key) {
             return Some((existing.clone(), false));
         }
-        let target = crate::var_resolve::resolve_literal_place(name, self, false, registry);
-        let presence = self.contents_presence(&target);
-        if presence == crate::var_resolve::ContentsPresence::Undefined {
+        let link = self
+            .namespace_name_alias_bindings
+            .get(&slot_key)
+            .or_else(|| self.name_alias_bindings.get(&slot_key))
+            .or_else(|| logical_name.and_then(|name| self.name_alias_bindings.get(name)))
+            .cloned();
+        let presence = self.contents_presence(target);
+        if link.is_none() && presence == crate::var_resolve::ContentsPresence::Undefined {
             return None;
         }
         let identity = RawBindingSlotId::Variable(Box::new(slot.cell.clone()?));
-        let contents = if canonical_place_key(&slot).is_none() {
+        let contents = if canonical_place_key(slot).is_none() {
             RawBindingContents::Unknown
-        } else if let Some(link) = self
-            .namespace_name_alias_bindings
-            .get(&slot_key)
-            .or_else(|| self.name_alias_bindings.get(name))
-        {
+        } else if let Some(link) = &link {
             self.raw_name_link(link)
         } else if self.namespace_alias_bindings.contains_key(&slot_key)
-            || self.alias_bindings.contains_key(name)
+            || self.alias_bindings.contains_key(&slot_key)
+            || logical_name.is_some_and(|name| self.alias_bindings.contains_key(name))
         {
             RawBindingContents::Unknown
         } else {
             let mut retained = target.clone();
             retained.cell.as_mut()?.owner = CellOwner::RetainedSlot(Box::new(identity.clone()));
             retained.cell.as_mut()?.generation = crate::place::CellGeneration::Incoming;
-            self.copy_retained_contents(&target, &retained);
+            self.copy_retained_contents(target, &retained);
             RawBindingContents::Direct(Box::new(retained))
         };
+        let held = self
+            .original_name_read_result(target, registry)
+            .map(|read| read.value().clone());
         let key = self
             .raw_bindings
             .insert(RawBindingSlot { identity, contents });
+        self.retain_private_static_value(&key, held.as_ref(), registry);
         self.raw_bindings.bindings.insert(slot_key, key.clone());
         Some((
             key,
-            presence != crate::var_resolve::ContentsPresence::Defined,
+            link.is_none() && presence != crate::var_resolve::ContentsPresence::Defined,
         ))
     }
 
@@ -527,8 +792,11 @@ impl ResolveContext {
         let Some(level) = level else {
             return RawBindingContents::Unknown;
         };
-        let name = match target.cell.as_ref().map(|cell| &cell.owner) {
-            Some(CellOwner::NamespaceIdentity(namespace)) => {
+        let Some(cell) = target.cell.as_ref() else {
+            return RawBindingContents::Unknown;
+        };
+        let name = match &cell.owner {
+            CellOwner::NamespaceIdentity(namespace) => {
                 // Jim namespace variables occupy the flat root table. The
                 // exact root receipt permits an absolute name for that flat
                 // key; a C tree namespace or its display cannot supply it.
@@ -538,10 +806,15 @@ impl ResolveContext {
                 {
                     return RawBindingContents::Unknown;
                 }
-                tcl_syntax::naming::qualify("::", &target.name)
+                let mut absolute = b"::".to_vec();
+                absolute.extend_from_slice(cell.name.as_bytes());
+                absolute.into()
             }
-            _ if target.is_global() => tcl_syntax::naming::qualify(&target.ns, &target.name),
-            _ => target.name.clone(),
+            CellOwner::Namespace(namespace) if self.execution_name_policy.is_none() => {
+                tcl_syntax::naming::qualify(namespace, &target.name).into()
+            }
+            CellOwner::Activation(_) => cell.name.clone(),
+            _ => return RawBindingContents::Unknown,
         };
         RawBindingContents::SelectedName { level, name }
     }
@@ -568,12 +841,12 @@ impl ResolveContext {
     ) {
         for (name, wrapper) in &statics.bindings {
             // Jim absolute names bypass the procedure static table.
-            if name.starts_with("::") {
+            if name.as_bytes().starts_with(b"::") {
                 continue;
             }
-            let slot = crate::var_resolve::resolve_alias_destination_slot(name, self, registry);
+            let slot = raw_destination_bytes(name.as_bytes(), self, registry);
             if slot.cell.is_none() || !self.raw_bindings.slots.contains_key(wrapper) {
-                self.unknown_bindings.insert(name.clone());
+                self.dynamic_bindings = true;
             } else {
                 let named = crate::var_resolve::cell_key(&slot);
                 self.raw_bindings.static_bindings.insert(named.clone());
@@ -590,7 +863,13 @@ impl ResolveContext {
         registry: &tcl_registry::CommandRegistry,
     ) {
         let slot = crate::var_resolve::resolve_alias_destination_slot(name, self, registry);
-        let named = crate::var_resolve::cell_key(&slot);
+        self.retarget_raw_binding_at_slot(&slot, target);
+    }
+
+    /// Retarget a separately selected direct slot without parsing a label or
+    /// changing the identity of an already captured raw wrapper.
+    pub(crate) fn retarget_raw_binding_at_slot(&mut self, slot: &Place, target: &Place) {
+        let named = crate::var_resolve::cell_key(slot);
         let Some(key) = self.raw_bindings.bindings.get(&named).cloned() else {
             return;
         };
@@ -609,7 +888,16 @@ impl ResolveContext {
         registry: &tcl_registry::CommandRegistry,
     ) -> bool {
         let slot = crate::var_resolve::resolve_alias_destination_slot(name, self, registry);
-        let named = crate::var_resolve::cell_key(&slot);
+        self.raw_static_unset_error_at_slot(&slot)
+    }
+
+    /// Classify the separately selected named slot without reading its target.
+    #[must_use]
+    pub(crate) fn raw_static_unset_error_at_slot(&self, slot: &Place) -> bool {
+        if slot.kind == place::PlaceKind::Unknown || slot.index.is_some() {
+            return false;
+        }
+        let named = crate::var_resolve::cell_key(slot);
         self.raw_bindings.static_bindings.contains(&named)
             && self
                 .raw_bindings
@@ -628,10 +916,21 @@ impl ResolveContext {
         registry: &tcl_registry::CommandRegistry,
     ) -> bool {
         let slot = crate::var_resolve::resolve_alias_destination_slot(name, self, registry);
-        if slot.index.is_some() || slot.observed {
+        if !self.detach_retained_binding_at_slot(&slot, source) {
             return false;
         }
-        let named = crate::var_resolve::cell_key(&slot);
+        self.alias_bindings.remove(name);
+        self.name_alias_bindings.remove(name);
+        true
+    }
+
+    /// Detach one actual named slot while the independently pinned wrapper
+    /// keeps its direct contents. A static-table fallback is not that slot.
+    pub(crate) fn detach_retained_binding_at_slot(&mut self, slot: &Place, source: u32) -> bool {
+        if slot.kind == place::PlaceKind::Unknown || slot.index.is_some() || slot.observed {
+            return false;
+        }
+        let named = crate::var_resolve::cell_key(slot);
         if self.raw_bindings.static_bindings.contains(&named) {
             return false;
         }
@@ -651,8 +950,8 @@ impl ResolveContext {
             return false;
         }
         self.raw_bindings.bindings.remove(&named);
-        self.alias_bindings.remove(name);
-        self.name_alias_bindings.remove(name);
+        self.alias_bindings.remove(&named);
+        self.name_alias_bindings.remove(&named);
         self.namespace_alias_bindings.remove(&named);
         self.namespace_name_alias_bindings.remove(&named);
         self.generations
@@ -860,5 +1159,329 @@ mod tests {
         });
         lexical.install_callable_statics(&statics, registry);
         assert_eq!(lexical.literal_value("x", registry), None);
+    }
+}
+
+#[cfg(test)]
+mod original_callable_static_tests {
+    use super::*;
+    use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+    use crate::var_resolve::{VariableExecutionFrame, restore_execution_frame};
+    use tcl_lexer::{LexerConfig, SourceImage, Span};
+    use tcl_syntax::{naming::ExecutionNamePolicy, word_rules::WordValueRules};
+
+    fn context() -> ResolveContext {
+        let dialect = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
+        );
+        let mut root = ResolveContext::default().in_frame(&VariableExecutionFrame::Global);
+        root.invocation_dialect = Some(dialect);
+        root.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(
+            dialect.authored_name_policy().unwrap(),
+        ));
+        root.enter_called_frame(&VariableExecutionFrame::Procedure {
+            namespace: "::".into(),
+            identity: "maker".into(),
+        })
+    }
+
+    fn input(bytes: &[u8], context: &ResolveContext) -> SignatureSourceNameInput {
+        let config = LexerConfig::from_grammar(context.invocation_dialect.unwrap().lexer_grammar);
+        let image = SourceImage::native(bytes);
+        let parsed = tcl_lexer::native_script_words_in(
+            image,
+            Span::new(0, u32::try_from(bytes.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        assert_eq!(parsed.commands.len(), 1);
+        assert_eq!(parsed.commands[0].words.len(), 1);
+        SignatureSourceNameInput::OriginalWord(
+            SignatureSourceNameKey::from_original_native_word(
+                &parsed.commands[0].words[0],
+                WordValueRules::from_config(&config),
+                context
+                    .execution_name_policy
+                    .unwrap()
+                    .native_recipe()
+                    .unwrap(),
+            )
+            .unwrap(),
+        )
+    }
+
+    fn allocation(offset: u32) -> CallableStorageIdentity {
+        CallableStorageIdentity {
+            site: CommandAllocationSite {
+                source: std::sync::Arc::new(crate::command_binding::SourceOriginId::authored(
+                    &"static declarations".into(),
+                )),
+                offset,
+            },
+            incarnation: AllocationIncarnation::First,
+            implementation_generation: 1,
+        }
+    }
+
+    fn capture(context: &mut ResolveContext, bytes: &[u8], offset: u32) -> CapturedStaticBindings {
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let operand = input(bytes, context);
+        match context.capture_original_callable_statics(&allocation(offset), &operand, registry) {
+            StaticCaptureResult::Prepared {
+                bindings,
+                may_error: false,
+            } => bindings,
+            other => panic!("unexpected capture: {other:?}"),
+        }
+    }
+
+    fn store(context: &mut ResolveContext, name: &[u8], value: &[u8], offset: u32) {
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let receiver = raw_value_bytes(name, context, registry);
+        assert_eq!(receiver.kind, place::PlaceKind::Scalar);
+        let value = crate::command_binding::original_name_value::OriginalProducedNameValue::from_source_input(
+            &input(value, context), context,
+        ).unwrap();
+        context.record_contents_write(&receiver, offset, false);
+        assert!(context.retain_original_name_value(&receiver, &value, registry));
+    }
+
+    fn read(context: &ResolveContext, name: &[u8]) -> Vec<u8> {
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let receiver = raw_value_bytes(name, context, registry);
+        let read = context.original_name_read_result(&receiver, registry).unwrap_or_else(|| {
+            let owner = receiver.cell.as_ref().map(|cell| match cell.owner {
+                CellOwner::RetainedSlot(_) => "retained",
+                CellOwner::Activation(_) => "activation",
+                CellOwner::NamespaceIdentity(_) => "namespace",
+                _ => "other",
+            });
+            panic!("static read {name:?}: frame={:?} kind={:?} owner={owner:?} presence={:?} normal={} stored={} generation={:?} current={:?}",
+                context.activation, receiver.kind, context.contents_presence(&receiver),
+                context.read_produces_value(&receiver, registry),
+                crate::var_resolve::canonical_binding_value_key(&receiver).is_some_and(|key| context.original_name_values.contains_key(&key)),
+                receiver.cell.as_ref().map(|cell| cell.generation),
+                context.generations.get(&crate::var_resolve::cell_key(&receiver)));
+        });
+        assert!(read.is_current(context, registry));
+        read.value().bytes().to_vec()
+    }
+
+    fn called(
+        context: &ResolveContext,
+        statics: &CapturedStaticBindings,
+        identity: &str,
+    ) -> ResolveContext {
+        let mut call = context.enter_called_frame(&VariableExecutionFrame::Procedure {
+            namespace: "::".into(),
+            identity: identity.into(),
+        });
+        call.install_callable_statics(
+            statics,
+            tcl_registry::model::ingress::static_context_for("jim").commands(),
+        );
+        call
+    }
+
+    #[test]
+    fn original_static_literals_keep_counted_names_and_opaque_value_children() {
+        // Implementation contract: naming.variable.original-callable-static-capture (docs/design/analysis/name-resolution-proofs/original-callable-static-capture.md).
+        let mut context = context();
+        let statics = capture(&mut context, b"{{x\0a FIRST} {x\0b \xff}}", 10);
+        assert_eq!(statics.bindings.len(), 2);
+        assert_eq!(statics.bindings[0].0.as_bytes(), b"x\0a");
+        assert_eq!(statics.bindings[1].0.as_bytes(), b"x\0b");
+        assert_ne!(statics.bindings[0].1, statics.bindings[1].1);
+        let mut first = called(&context, &statics, "first");
+        assert_eq!(read(&first, b"x\0a"), b"FIRST");
+        assert_eq!(read(&first, b"x\0b"), b"\xff");
+        store(&mut first, b"x\0a", b"SECOND", 20);
+        first.invalidate_shared_representations();
+        let restored = restore_execution_frame(&context, &first);
+        let later = called(&restored, &statics, "later");
+        assert_eq!(read(&later, b"x\0a"), b"SECOND");
+        assert_eq!(read(&later, b"x\0b"), b"\xff");
+    }
+
+    #[test]
+    fn original_static_copy_and_reference_have_distinct_content_lifetimes() {
+        // Implementation contract: naming.variable.original-callable-static-capture (docs/design/analysis/name-resolution-proofs/original-callable-static-capture.md).
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let mut context = context();
+        store(&mut context, b"x\0tail", b"OLD", 1);
+        let copied = capture(&mut context, b"{x\0tail}", 10);
+        let linked = capture(&mut context, b"{&x\0tail}", 20);
+        assert_ne!(copied.bindings[0].1, linked.bindings[0].1);
+        store(&mut context, b"x\0tail", b"NEW", 2);
+        assert_eq!(read(&called(&context, &copied, "copy"), b"x\0tail"), b"OLD");
+        assert_eq!(
+            read(&called(&context, &linked, "reference"), b"x\0tail"),
+            b"NEW"
+        );
+        store(&mut context, b"other\0tail", b"TARGET", 3);
+        let target = raw_value_bytes(b"other\0tail", &context, registry);
+        let target_cell = target.cell.clone();
+        let slot = raw_destination_bytes(b"x\0tail", &context, registry);
+        context.retarget_raw_binding_at_slot(&slot, &target);
+        let retargeted = called(&context, &linked, "retargeted");
+        assert_eq!(
+            raw_value_bytes(b"x\0tail", &retargeted, registry).cell,
+            target_cell
+        );
+        assert_eq!(read(&retargeted, b"x\0tail"), b"TARGET");
+        assert_eq!(
+            read(&called(&context, &copied, "copied-later"), b"x\0tail"),
+            b"OLD"
+        );
+    }
+
+    #[test]
+    fn original_reference_capture_owns_wrapper_presence_before_link_target_contents() {
+        // Implementation contract: naming.variable.original-callable-static-capture (docs/design/analysis/name-resolution-proofs/original-callable-static-capture.md).
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let mut context = context();
+        let slot = raw_destination_bytes(b"linked", &context, registry);
+        let target = raw_value_bytes(b"missing", &context, registry);
+        assert_eq!(
+            context.contents_presence(&target),
+            crate::var_resolve::ContentsPresence::Undefined
+        );
+        context.record_presence_slot(&slot);
+        context
+            .name_alias_bindings
+            .insert(crate::var_resolve::cell_key(&slot), target);
+        let copied_input = input(b"{linked}", &context);
+        let before = context.clone();
+        assert_eq!(
+            context.capture_original_callable_statics(&allocation(10), &copied_input, registry),
+            StaticCaptureResult::Invalid
+        );
+        assert_eq!(context, before);
+        let linked = capture(&mut context, b"{&linked}", 20);
+        store(&mut context, b"missing", b"LATER", 1);
+        let target_cell = raw_value_bytes(b"missing", &context, registry).cell;
+        let later = called(&context, &linked, "later");
+        assert_eq!(
+            raw_value_bytes(b"linked", &later, registry).cell,
+            target_cell
+        );
+        assert_eq!(read(&later, b"linked"), b"LATER");
+    }
+
+    #[test]
+    fn original_static_unset_preserves_fallback_and_detaches_only_the_named_wrapper() {
+        // Implementation contract: naming.variable.original-callable-static-capture (docs/design/analysis/name-resolution-proofs/original-callable-static-capture.md).
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let name = b"x\0tail";
+        let mut maker = context();
+        store(&mut maker, name, b"OLD", 1);
+        let retained = capture(&mut maker, b"{&x\0tail}", 10);
+        let words = [tcl_registry::InvocationWord::KnownBytes(name)];
+        let arguments = tcl_registry::InvocationArguments::structured(&words)
+            .with_dialect(maker.invocation_dialect.unwrap());
+        let facts = registry
+            .resolve_structured_invocation(
+                tcl_registry::InvocationWords::from_arguments(
+                    tcl_registry::InvocationWord::Literal("unset"),
+                    arguments,
+                ),
+                maker.invocation_dialect.unwrap().authoring_query(),
+            )
+            .resolved()
+            .unwrap()
+            .facts();
+        let operands = crate::variable_bindings::OriginalVariableInvocation::from_original_inputs(
+            vec![Some(input(name, &maker))],
+            Vec::new(),
+        );
+        crate::variable_bindings::transfer_source_namespace_cells_with_input(
+            &mut maker,
+            &facts,
+            arguments,
+            registry,
+            crate::variable_bindings::SourceNamespaceTransfer::new(false, 20, Some(&[0]))
+                .with_original_operands(&operands),
+        );
+        let named = raw_value_bytes(name, &maker, registry);
+        assert_eq!(
+            maker.contents_presence(&named),
+            crate::var_resolve::ContentsPresence::Undefined
+        );
+        store(&mut maker, name, b"NEW", 21);
+        assert_eq!(read(&maker, name), b"NEW");
+        assert_eq!(read(&called(&maker, &retained, "held"), name), b"OLD");
+
+        let fallback = capture(&mut maker, b"{{x\0tail KEEP}}", 30);
+        let mut entered = called(&maker, &fallback, "fallback");
+        let operands = crate::variable_bindings::OriginalVariableInvocation::from_original_inputs(
+            vec![Some(input(name, &entered))],
+            Vec::new(),
+        );
+        let slot = operands.raw_unset_slot(0, &entered, registry).unwrap();
+        assert!(entered.raw_static_unset_error_at_slot(&slot));
+        assert!(
+            crate::variable_bindings::source_variable_write_places_with_original_operands(
+                &facts, arguments, &entered, registry, &operands,
+            )
+            .is_empty()
+        );
+        crate::variable_bindings::transfer_source_namespace_cells_with_input(
+            &mut entered,
+            &facts,
+            arguments,
+            registry,
+            crate::variable_bindings::SourceNamespaceTransfer::new(false, 40, Some(&[0]))
+                .with_original_operands(&operands),
+        );
+        assert_eq!(read(&entered, name), b"KEEP");
+        assert!(entered.raw_static_unset_error_at_slot(&slot));
+    }
+
+    #[test]
+    fn original_static_capture_withdraws_atomically_for_unowned_or_observed_inputs() {
+        // Implementation contract: naming.variable.original-callable-static-capture (docs/design/analysis/name-resolution-proofs/original-callable-static-capture.md).
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let mut context = context();
+        store(&mut context, b"x", b"VALUE", 1);
+        let operand = input(b"{{first FIRST} x}", &context);
+        let mut observed = context.clone();
+        observed.mark_unenumerated_variable_observers();
+        let before = observed.clone();
+        assert_eq!(
+            observed.capture_original_callable_statics(&allocation(10), &operand, registry),
+            StaticCaptureResult::Unknown
+        );
+        assert_eq!(observed, before);
+        let malformed = input(b"{{first FIRST} {x VALUE EXTRA}}", &context);
+        let before = context.clone();
+        assert_eq!(
+            context.capture_original_callable_statics(&allocation(10), &malformed, registry),
+            StaticCaptureResult::Invalid
+        );
+        assert_eq!(context, before);
+        let held = crate::command_binding::original_name_value::OriginalProducedNameValue::from_source_input(
+            &operand, &context,
+        ).unwrap();
+        let stale = SignatureSourceNameInput::OriginalValue(
+            crate::signature_scan::scope::SignatureSourceNameValue::from_original_produced_value(
+                &held,
+            ),
+        );
+        context.invalidate_original_contents();
+        let before = context.clone();
+        assert_eq!(
+            context.capture_original_callable_statics(&allocation(10), &stale, registry),
+            StaticCaptureResult::Unknown
+        );
+        assert_eq!(context, before);
+        context.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6),
+        ));
+        let before = context.clone();
+        assert_eq!(
+            context.capture_original_callable_statics(&allocation(10), &operand, registry),
+            StaticCaptureResult::Unknown
+        );
+        assert_eq!(context, before);
     }
 }

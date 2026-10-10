@@ -53,6 +53,22 @@ mod tests {
     }
 
     #[test]
+    fn variable_prefix_copy_remove_report_and_counted_eval_keep_independent_extents() {
+        // Native proof: naming.variable.copied-prefix-storage-removal-report-evaluation
+        // docs/design/analysis/name-resolution-proofs/copied-prefix-storage-removal-report-evaluation.md
+        for version in TclVersion::ALL {
+            let protocol = NativeVariableTraceProtocol { version };
+            let original = b"watch A\0X";
+            assert_eq!(protocol.variable_prefix_storage(original), original);
+            assert!(protocol.variable_prefix_matches(original, b"watch A\0Y"));
+            assert!(!protocol.variable_prefix_matches(original, b"watch A\0YY"));
+            assert!(!protocol.variable_prefix_matches(original, b"watch A\xc0\x80X"));
+            assert_eq!(protocol.variable_prefix_report(original), b"watch A");
+            assert_eq!(protocol.variable_callback_source(original), original);
+        }
+    }
+
+    #[test]
     fn callback_purposes_select_native_result_and_metadata_ownership() {
         for version in [
             TclVersion::V8_4,
@@ -116,6 +132,48 @@ pub enum NativeTraceStateRecipe {
 }
 
 impl NativeVariableTraceProtocol {
+    /// Character-script trace callbacks enter the direct evaluator in the
+    /// triggering frame; they do not inherit the installer's compiler mode.
+    #[must_use]
+    pub const fn callback_compilation(self) -> crate::native_compilation::NativeCompilationContext {
+        // Source proof: naming.variable.trace-callback-direct-source (docs/design/analysis/name-resolution-proofs/trace-callback-direct-source.md).
+        crate::native_compilation::NativeCompilationContext {
+            mode: crate::native_compilation::NativeCompilationMode::Direct,
+            frame: crate::native_compilation::NativeCompilationFrame::ScriptCode,
+            loop_depth: 0,
+            catch_depth: Some(0),
+        }
+    }
+
+    /// Variable trace registration copies the complete counted prefix into
+    /// immutable storage. This pure extent supplies no registration or cell.
+    #[must_use]
+    pub fn variable_prefix_storage(self, original: &[u8]) -> &[u8] {
+        original
+    }
+
+    /// Variable trace removal compares counted length and native `strncmp`.
+    /// A common embedded zero stops comparison, while length remains counted.
+    #[must_use]
+    pub fn variable_prefix_matches(self, retained: &[u8], original: &[u8]) -> bool {
+        retained.len() == original.len()
+            && tcl_core_types::c_string_extent(retained)
+                == tcl_core_types::c_string_extent(original)
+    }
+
+    /// Variable `trace info` reports a prefix using a `CString` constructor.
+    #[must_use]
+    pub fn variable_prefix_report(self, retained: &[u8]) -> &[u8] {
+        tcl_core_types::c_string_extent(retained)
+    }
+
+    /// Variable callbacks append the complete copied prefix and evaluate the
+    /// assembled counted script with `Tcl_EvalEx` on all selected C releases.
+    #[must_use]
+    pub fn variable_callback_source(self, source: &[u8]) -> &[u8] {
+        source
+    }
+
     /// Match the counted command/execution trace prefix with native `strncmp`.
     /// Storage keeps every original byte; bytes after a common NUL do not
     /// distinguish prefixes of the same counted length during removal.

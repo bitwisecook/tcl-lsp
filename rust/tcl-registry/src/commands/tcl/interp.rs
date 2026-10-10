@@ -41,6 +41,15 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     ..SideEffect::DEFAULT
 }];
 
+// Alias forms select interpreter paths and change command bindings. They do
+// not alter interpreter policy; lifecycle effects remain in their transitions.
+const ALIAS_SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: true,
+    writes: false,
+    ..SideEffect::DEFAULT
+}];
+
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "interp subcommand ?arg arg ...?",
     ..FormSpec::DEFAULT
@@ -394,8 +403,11 @@ fn interp_alias_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, A
     }
 }
 
-fn interp_alias_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() >= 4)
+fn interp_alias_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count >= 4)
         .then_some((3, ScriptTiming::Deferred))
         .into_iter()
         .collect()
@@ -412,8 +424,11 @@ fn interp_bgerror_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8,
     }
 }
 
-fn interp_bgerror_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() >= 2)
+fn interp_bgerror_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count >= 2)
         .then_some((1, ScriptTiming::Deferred))
         .into_iter()
         .collect()
@@ -479,7 +494,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefix_resolver: Some(interp_alias_command_prefixes),
         script_timing_resolver: Some(interp_alias_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
-
+        side_effects: ALIAS_SIDE_EFFECTS,
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         // Declared once, by naming the stock descriptor (ledger C8).
         state_transitions: Some(crate::state_transition::command_binding::CREATES_ALIASES),
@@ -1054,14 +1069,14 @@ mod tests {
         assert!(matches!(
             &inherited.facts()[0].transition,
             StateTransition::Interpreter(InterpreterTransition::Create {
-                interpreter: Some(TransitionSubject::Literal(path)),
+                interpreter: Some(TransitionSubject::LocatedLiteral { value: path, .. }),
                 safety: ChildInterpreterSafety::Inherited,
             }) if path == "child"
         ));
         assert!(matches!(
             &safe.facts()[0].transition,
             StateTransition::Interpreter(InterpreterTransition::Create {
-                interpreter: Some(TransitionSubject::Literal(path)),
+                interpreter: Some(TransitionSubject::LocatedLiteral { value: path, .. }),
                 safety: ChildInterpreterSafety::Safe,
             }) if path == "child"
         ));
@@ -1123,13 +1138,13 @@ mod tests {
         assert!(matches!(
             &transitions.facts()[0].transition,
             StateTransition::Interpreter(InterpreterTransition::Delete {
-                interpreter: TransitionSubject::Literal(path),
+                interpreter: TransitionSubject::LocatedLiteral { value: path, .. },
             }) if path == "first"
         ));
         assert!(matches!(
             &transitions.facts()[1].transition,
             StateTransition::Interpreter(InterpreterTransition::Delete {
-                interpreter: TransitionSubject::Literal(path),
+                interpreter: TransitionSubject::LocatedLiteral { value: path, .. },
             }) if path == "missing"
         ));
     }
@@ -1288,6 +1303,67 @@ mod tests {
     }
 
     #[test]
+    fn original_alias_effects_separate_policy_reads_from_binding_lifecycle() {
+        // Implementation contract: naming.alias.original-fresh-creation-transfer
+        // docs/design/analysis/name-resolution-proofs/original-fresh-alias-creation-transfer.md
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            for (arguments, mutation) in [
+                (vec!["alias", "", "forward", "", "future", "HELD"], true),
+                (vec!["alias", "", "forward", ""], true),
+                (vec!["alias", "", "forward"], false),
+            ] {
+                let invocation = registry.resolve_structured_invocation(
+                    InvocationWords::literals("interp", &arguments).with_dialect(dialect),
+                    registry.own_surface_query(),
+                );
+                let facts = invocation.resolved().unwrap().facts();
+                let effects = facts.world_state_effects();
+                assert!(effects.accesses().iter().any(|access| {
+                    access.domain == WorldStateDomain::InterpreterPolicy
+                        && access.mode == EffectAccessMode::Read
+                }));
+                assert!(effects.accesses().iter().all(|access| {
+                    access.domain != WorldStateDomain::InterpreterPolicy
+                        || access.mode == EffectAccessMode::Read
+                }));
+                let transitions = facts.state_transitions.declared().unwrap();
+                assert_eq!(!transitions.facts().is_empty(), mutation);
+                if mutation {
+                    assert!(transitions.facts().iter().all(|fact| {
+                        matches!(fact.transition, StateTransition::CommandBinding(_))
+                            && fact.commit == StateTransitionCommit::MayCommitBeforeAbruptCompletion
+                    }));
+                    assert!(
+                        effects
+                            .callback()
+                            .kinds
+                            .contains(crate::world_effect::CallbackKinds::TRACE)
+                    );
+                }
+            }
+            let invocation = registry.resolve_structured_invocation(
+                InvocationWords::literals("interp", &["create", "child"]).with_dialect(dialect),
+                registry.own_surface_query(),
+            );
+            assert!(
+                invocation
+                    .resolved()
+                    .unwrap()
+                    .facts()
+                    .state_transitions
+                    .declared()
+                    .unwrap()
+                    .facts()
+                    .iter()
+                    .any(|fact| { matches!(fact.transition, StateTransition::Interpreter(_)) })
+            );
+        }
+    }
+
+    #[test]
     fn policy_setter_uses_the_transition_write_only_on_completion() {
         let registry = CommandRegistry::build_default();
         let invocation = registry.resolve_structured_invocation(
@@ -1319,16 +1395,16 @@ mod tests {
         assert!(matches!(
             &hidden.facts()[0].transition,
             StateTransition::Interpreter(InterpreterTransition::Hide {
-                visible: TransitionSubject::Literal(visible),
-                hidden: TransitionSubject::Literal(hidden),
+                visible: TransitionSubject::LocatedLiteral { value: visible, .. },
+                hidden: TransitionSubject::LocatedLiteral { value: hidden, .. },
                 ..
             }) if visible == "puts" && hidden == "puts"
         ));
         assert!(matches!(
             &exposed.facts()[0].transition,
             StateTransition::Interpreter(InterpreterTransition::Expose {
-                hidden: TransitionSubject::Literal(hidden),
-                visible: TransitionSubject::Literal(visible),
+                hidden: TransitionSubject::LocatedLiteral { value: hidden, .. },
+                visible: TransitionSubject::LocatedLiteral { value: visible, .. },
                 ..
             }) if hidden == "puts" && visible == "puts"
         ));

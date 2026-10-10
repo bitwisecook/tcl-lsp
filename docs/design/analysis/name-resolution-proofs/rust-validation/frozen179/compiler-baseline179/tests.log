@@ -1,0 +1,16 @@
+
+running 2 tests
+test command_binding::source_transition_advice::native_baseline::tests::native_baseline_source_roles_keep_unknown_actual_lookup_independent ... 
+thread 'command_binding::source_transition_advice::native_baseline::tests::native_baseline_source_roles_keep_unknown_actual_lookup_independent' (661408) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/native_baseline.rs:114:13:
+actual native inventory supplies its own conditional source receipt
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::source_transition_advice::native_baseline::tests::native_baseline_source_roles_refuse_original_shadows_and_deletions ... ok
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::native_baseline::tests::native_baseline_source_roles_keep_unknown_actual_lookup_independent
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 8297 filtered out; finished in 3.42s
+

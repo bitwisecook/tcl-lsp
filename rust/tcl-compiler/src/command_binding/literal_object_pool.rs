@@ -2,7 +2,7 @@
 // Copyright (C) 2026 James Deucker (bitwisecook)
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Ordinary literal objects in an actually fresh source interpreter.
+//! Original literal effects in an actually fresh source interpreter.
 //!
 //! `TclRegisterLiteral` can reuse the same object across separately compiled
 //! bodies. A host command can replace its intrep with an abstract-list type;
@@ -22,6 +22,8 @@ use super::{
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum LiteralPoolOrigin {
     Authored,
+    // Jim parser tokens own source bytes; this grants text evaluation only.
+    AuthoredJim,
     Native(tcl_runtime_api::native_literal::NativeEmptyLiteralWorld),
 }
 
@@ -41,7 +43,10 @@ impl SourceOrdinaryLiteralPool {
     ) -> Option<Self> {
         if options.unknown_entry
             || state.opaque_binding_mutation
-            || options.invocation_dialect?.family() != Some(tcl_dialect::model::Family::Tcl)
+            || !matches!(
+                options.invocation_dialect?.family(),
+                Some(tcl_dialect::model::Family::Tcl | tcl_dialect::model::Family::Jim)
+            )
         {
             return None;
         }
@@ -68,14 +73,27 @@ impl SourceOrdinaryLiteralPool {
         options: SourceAnalysisOptions<'_>,
     ) -> Option<LiteralPoolOrigin> {
         match (options.native_entry, state.baseline.native_entry.as_deref()) {
-            (None, None) => Some(LiteralPoolOrigin::Authored),
+            (None, None) => match options.invocation_dialect?.family()? {
+                tcl_dialect::model::Family::Tcl => Some(LiteralPoolOrigin::Authored),
+                tcl_dialect::model::Family::Jim
+                    if state.baseline.execution_name_policy
+                        == Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
+                            tcl_syntax::naming::NamePolicyProtocol::authored_jim084(),
+                        )) =>
+                {
+                    Some(LiteralPoolOrigin::AuthoredJim)
+                }
+                _ => None,
+            },
             (Some(captured), Some(original)) if captured == original => {
                 // Exact physical string policy remains independent of logical
                 // simulation. An empty Jim/modelled table supplies no C pool.
-                if !matches!(
-                    original.source_string_protocol,
-                    Some(tcl_syntax::native_string::NativeStringProtocol::C(_))
-                ) {
+                if options.invocation_dialect?.family() != Some(tcl_dialect::model::Family::Tcl)
+                    || !matches!(
+                        original.source_string_protocol,
+                        Some(tcl_syntax::native_string::NativeStringProtocol::C(_))
+                    )
+                {
                     return None;
                 }
                 let receipt = original.empty_literal_world.as_ref()?;
@@ -94,8 +112,15 @@ impl SourceOrdinaryLiteralPool {
     pub(super) fn effects_current(&self) -> bool {
         match &self.origin {
             LiteralPoolOrigin::Authored => true,
+            LiteralPoolOrigin::AuthoredJim => false,
             LiteralPoolOrigin::Native(receipt) => receipt.is_current(),
         }
+    }
+
+    /// Close evaluation of original source Text components only. Jim grants
+    /// no C pool reuse, object class, conversion, cache or numeric receipt.
+    pub(super) fn text_effects_current(&self) -> bool {
+        matches!(self.origin, LiteralPoolOrigin::AuthoredJim) || self.effects_current()
     }
 
     pub(super) const fn initial_numeric_representations(&self) -> bool {
@@ -109,8 +134,8 @@ impl SourceOrdinaryLiteralPool {
     pub(super) fn joined(&self, other: &Self) -> Option<Self> {
         (self.entry == other.entry
             && self.origin == other.origin
-            && self.effects_current()
-            && other.effects_current()
+            && self.text_effects_current()
+            && other.text_effects_current()
             && self.integer_contents == other.integer_contents)
             .then(|| Self {
                 entry: Arc::clone(&self.entry),
@@ -321,6 +346,39 @@ mod tests {
     use super::*;
 
     #[test]
+    fn original_jim_text_world_does_not_donate_c_literal_object_facts() {
+        // Implementation contract: naming.source.original-jim-text-evaluation
+        // docs/design/analysis/name-resolution-proofs/original-jim-text-evaluation.md
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let options = SourceAnalysisOptions {
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                registry.profile().unwrap(),
+            )),
+            ..Default::default()
+        };
+        let mut state = ModuleCommandBindings::initial_with_options(registry, options, None);
+        state.current_source_origin = Some(Arc::new(SourceOriginId::authored_image(
+            tcl_lexer::SourceImage::document(r"list p\uD800"),
+        )));
+        state.ordinary_literal_pool = SourceOrdinaryLiteralPool::at_entry(&state, options);
+        let pool = state.ordinary_literal_pool.as_ref().unwrap();
+        assert!(pool.text_effects_current());
+        assert!(!pool.effects_current());
+        assert!(!pool.authored_objects());
+        assert!(!pool.initial_numeric_representations());
+        assert!(pool.integer_contents.is_none());
+        assert!(pool.joined(pool).is_some());
+        let literal = crate::ir::WordExpr::Literal {
+            text: "1".into(),
+            source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 1)),
+        };
+        assert!(SourceOrdinaryLiteralObject::capture_word(&literal, &state).is_none());
+        state.mark_opaque_binding_mutation();
+        assert!(state.ordinary_literal_pool.is_none());
+        assert!(SourceOrdinaryLiteralPool::at_entry(&state, options).is_none());
+    }
+
+    #[test]
     fn scalar_list_length_needs_input_class_on_every_c_release() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
@@ -522,6 +580,7 @@ mod tests {
             name_protocol: None,
             compiled_variable_protocol: None,
             compiled_local_layout: None,
+            oo_classes: None,
             ensemble_target_objects: None,
             source_string_protocol: None,
             lexer_grammar: None,
@@ -530,6 +589,7 @@ mod tests {
             namespace_variable_tables: None,
             empty_literal_world: None,
             compiler_pass_environment: None,
+            command_resolvers: None,
             variable_observers:
                 tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
             math_functions: None,
@@ -563,6 +623,8 @@ mod tests {
 
     #[test]
     fn actual_empty_literal_pool_is_effect_only_and_expires_with_original_capture() {
+        // Implementation contract: naming.source.original-jim-text-evaluation
+        // docs/design/analysis/name-resolution-proofs/original-jim-text-evaluation.md
         let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
         let (mut vm, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
         let state = native_pool_state(&entry);
@@ -574,6 +636,23 @@ mod tests {
         assert!(!pool.authored_objects());
         assert!(!pool.initial_numeric_representations());
         assert!(pool.integer_contents.is_none());
+        let jim_registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let jim_options = SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                jim_registry.profile().unwrap(),
+            )),
+            ..Default::default()
+        };
+        let mut jim_state =
+            ModuleCommandBindings::initial_with_options(jim_registry, jim_options, None);
+        jim_state
+            .current_source_origin
+            .clone_from(&state.current_source_origin);
+        assert!(
+            SourceOrdinaryLiteralPool::at_entry(&jim_state, jim_options).is_none(),
+            "an actual C entry cannot donate a Jim source-text world"
+        );
         let literal = crate::ir::WordExpr::Literal {
             text: "1".into(),
             source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 1)),

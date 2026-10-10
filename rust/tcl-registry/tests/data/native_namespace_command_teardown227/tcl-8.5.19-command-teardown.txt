@@ -1,0 +1,16 @@
+    /*
+     * Delete all commands in this namespace. Be careful when traversing the
+     * hash table: when each command is deleted, it removes itself from the
+     * command table.
+     *
+     * Don't optimize to Tcl_NextHashEntry() because of traces.
+     */
+
+    for (entryPtr = Tcl_FirstHashEntry(&nsPtr->cmdTable, &search);
+	    entryPtr != NULL;
+	    entryPtr = Tcl_FirstHashEntry(&nsPtr->cmdTable, &search)) {
+	cmd = Tcl_GetHashValue(entryPtr);
+	Tcl_DeleteCommandFromToken((Tcl_Interp *) iPtr, cmd);
+    }
+    Tcl_DeleteHashTable(&nsPtr->cmdTable);
+    Tcl_InitHashTable(&nsPtr->cmdTable, TCL_STRING_KEYS);

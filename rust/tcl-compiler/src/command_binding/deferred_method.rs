@@ -9,6 +9,8 @@ use super::{
     ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext, SourceNativeInvocation,
     retained_script_operand, source_binding, source_effective_words,
 };
+use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+use tcl_core_types::NameBytes;
 
 /// Receiver selected by an original, validated method declaration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -24,10 +26,13 @@ pub enum SourceMethodReceiver {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceReceiverMethodEntry {
     name: String,
+    original_name: SignatureSourceNameInput,
     name_source: crate::ir::SourceSite,
     receiver: SourceMethodReceiver,
     exported: bool,
     declaring_class: Option<super::SourceCommandTarget>,
+    declaring_object: Option<super::SourceObjectAllocation>,
+    object_body_context: Option<super::SourceCommandTarget>,
     class_delegate: bool,
     delegate_allocation: Option<Arc<SourceClassDelegateAllocation>>,
     entry: super::SourceConstructorEntry,
@@ -45,13 +50,47 @@ struct SourceClassDelegateAllocation {
 
 /// Declared methods keyed by their original receiver table and frozen name.
 pub type SourceReceiverMethodEntries =
-    super::BTreeMap<(SourceMethodReceiver, String), SourceReceiverMethodEntry>;
+    super::BTreeMap<(SourceMethodReceiver, NameBytes), SourceReceiverMethodEntry>;
+
+#[derive(Clone, Copy)]
+pub(super) struct MethodParameterSource {
+    pub(super) parameters: tcl_dialect::ParameterGrammar,
+    pub(super) policy: tcl_syntax::naming::NamePolicyProtocol,
+}
+
+struct BoundedMethodDefinition {
+    grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    original_factory: super::registered_class_factory::OriginalClassFactoryState,
+    definition: ExecutedScriptSource,
+    parameters: tcl_dialect::ParameterGrammar,
+}
 
 impl SourceReceiverMethodEntry {
     /// Frozen declared method name.
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
+    }
+    /// Actual original declaration name, independent of reporting text.
+    #[must_use]
+    pub fn original_name_input(&self) -> &SignatureSourceNameInput {
+        &self.original_name
+    }
+    /// Select one exact original own-table name. The caller independently
+    /// supplies the current receiver/table and any dispatch or visibility proof.
+    #[must_use]
+    pub fn for_original_input<'a>(
+        entries: &'a SourceReceiverMethodEntries,
+        receiver: SourceMethodReceiver,
+        input: &SignatureSourceNameInput,
+    ) -> Option<&'a Self> {
+        input
+            .policy()
+            .recipe()
+            .oo_method_input(input.bytes())
+            .ok()?;
+        let entry = entries.get(&(receiver, NameBytes::from(input.bytes())))?;
+        (entry.original_name.policy() == input.policy()).then_some(entry)
     }
     /// Exact original name-word site, including its source provenance.
     #[must_use]
@@ -74,6 +113,26 @@ impl SourceReceiverMethodEntry {
     #[must_use]
     pub fn declaring_class(&self) -> Option<&super::SourceCommandTarget> {
         self.declaring_class.as_ref()
+    }
+    /// Actual own-object implementation owner, independent of its class.
+    #[must_use]
+    pub fn declaring_object(&self) -> Option<&super::SourceObjectAllocation> {
+        self.declaring_object.as_ref()
+    }
+    pub(super) fn body_context_provider(&self) -> Option<&super::SourceCommandTarget> {
+        self.declaring_class
+            .as_ref()
+            .or(self.object_body_context.as_ref())
+    }
+    pub(super) fn with_own_object_provider(
+        mut self,
+        receiver: &super::SourceObjectInstanceProof,
+    ) -> Self {
+        self.declaring_class = None;
+        self.declaring_object = Some(receiver.allocation().clone());
+        self.object_body_context = Some(receiver.class_target().clone());
+        self.receiver = SourceMethodReceiver::Class;
+        self
     }
     /// Native delegate methods inherit through the original class allocation;
     /// an ordinary self method never acquires that inheritance policy.
@@ -138,42 +197,14 @@ impl SourceCommandBindings {
         context: SourceExecutionContext<'_>,
         facts: &InvocationFacts,
     ) -> bool {
-        let Some(grammar) = context
-            .registry
-            .get_for_surface(
-                &native.target.command,
-                state
-                    .baseline
-                    .dialect
-                    .and_then(tcl_registry::InvocationDialect::authoring_query)
-                    .map(|query| query.with_realm(context.realm)),
-            )
-            .and_then(|spec| spec.definition_body)
-        else {
-            return false;
-        };
-        if !state.default_construction_dependencies_hold(grammar) {
-            return false;
-        }
-        let Some(argument) = facts.arg_roles.iter().find_map(|(index, role)| {
-            (*role == tcl_registry::ArgRole::Body)
-                .then_some(facts.argument_offset + usize::from(*index))
-        }) else {
-            return false;
-        };
-        let Some(definition) = retained_script_operand(
-            argument,
-            native.script_operands(),
-            state,
-            native.segment.span.start(),
-            context.config,
-        ) else {
-            return false;
-        };
-        let Some(parameters) = state
-            .baseline
-            .dialect
-            .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+        // naming.tcloo.original-lexical-member-context
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-lexical-member-context.md
+        let Some(BoundedMethodDefinition {
+            grammar,
+            original_factory,
+            definition,
+            parameters,
+        }) = select_bounded_method_definition(native, state, context, facts)
         else {
             return false;
         };
@@ -186,18 +217,32 @@ impl SourceCommandBindings {
         ) else {
             return false;
         };
-        if !segments.iter().all(|segment| {
-            closed_definition_member(grammar, &definition, &map, segment, state, context)
-        }) {
+        if !closed_bounded_method_segments(grammar, &definition, &map, &segments, state, context) {
             return false;
         }
+        let Some(policy) = state
+            .baseline
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        else {
+            return false;
+        };
+        // Closed declaration workers retain source scopes independently of
+        // the later inherited dispatch-chain and allocation checks.
+        self.register_original_method_bodies(
+            grammar,
+            &definition,
+            state.baseline.dialect,
+            parameters,
+            context,
+        );
         let mut entries = retained_class_entries(
             grammar,
             &definition,
             &map,
             &segments,
             state.baseline.dialect,
-            parameters,
+            MethodParameterSource { parameters, policy },
             context,
         );
         if !state.inherit_class_entries(grammar, &map, &segments, context, &mut entries) {
@@ -215,20 +260,32 @@ impl SourceCommandBindings {
             },
             context,
         );
-        if let Some(created) = state.record_class_definition(facts, native.target, context, entries)
+        if original_factory.recipe().support().is_some()
+            && let Some(names) = &mut entries.instance_methods
         {
+            Arc::make_mut(names).extend(
+                grammar
+                    .property_accessor_methods
+                    .iter()
+                    .map(|name| NameBytes::from(name.as_bytes())),
+            );
+        }
+        let created =
+            state.record_class_definition(facts, native, context, entries, original_factory);
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_OO_REGISTRATION offset={} installed={}",
+                native.segment.span.start(),
+                created.is_some()
+            );
+        }
+        if let Some(created) = created {
             self.record_definition_method_references(&created, references);
         }
-        self.register_original_method_bodies(
-            grammar,
-            &definition,
-            state.baseline.dialect,
-            parameters,
-            context,
-        );
         true
     }
-    fn register_original_method_bodies(
+    pub(super) fn register_original_method_bodies(
         &mut self,
         grammar: &tcl_registry::definer::DefinitionBodyGrammar,
         definition: &ExecutedScriptSource,
@@ -279,7 +336,7 @@ fn standalone_definition_class<'a>(
                     target,
                     layer: tcl_registry::ObjectDispatchLayer::Class,
                 },
-            ) => target.literal(),
+            ) => target.argument_index(),
             _ => None,
         });
     let name = configured.next()?;
@@ -302,24 +359,39 @@ fn standalone_definition_class<'a>(
                 .map(|query| query.with_realm(context.realm)),
         )?
         .definition_body?;
-    if configured.next().is_some()
-        || !state.source_lookup_is_closed(name, &context.namespace_identity())
-    {
+    if configured.next().is_some() {
         return None;
     }
-    let binding = source_binding(state, name, &context.namespace_identity());
+    let input = native
+        .original_variable_operands
+        .input(name, &state.source_variables)?;
+    let binding =
+        super::source_binding_from_original_input(state, input, &context.namespace_identity())?;
     let class = binding.proved_target()?;
     let identity = class.identity.as_ref()?;
-    let raw = state
-        .source_keys(name, &context.namespace_identity())
-        .into_iter()
-        .find_map(|slot| state.bindings.get(&slot))?;
-    if raw.len() != 1
-        || !matches!(raw.iter().next(), Some(super::MayBinding::Target(target))
-        if target.kind == super::BindingKind::Class && target.terminal
-            && target.prepended.is_empty() && target.token.as_ref() == Some(identity))
-    {
-        return None;
+    for path in state.original_command_paths_for_input(&context.namespace_identity(), input)? {
+        let mut occupied = false;
+        for slot in path {
+            let raw = state.original_bindings_for_key(&slot)?;
+            if raw
+                .iter()
+                .all(|binding| matches!(binding, super::MayBinding::Missing))
+            {
+                continue;
+            }
+            if raw.len() != 1
+                || !matches!(raw.iter().next(), Some(super::MayBinding::Target(target))
+                if target.kind == super::BindingKind::Class && target.terminal
+                    && target.prepended.is_empty() && target.token.as_ref() == Some(identity))
+            {
+                return None;
+            }
+            occupied = true;
+            break;
+        }
+        if !occupied {
+            return None;
+        }
     }
     let definition = state.class_definitions.get(identity)?;
     (definition.dispatcher.is_none()
@@ -384,6 +456,7 @@ fn capture_standalone_definition_references(
                         offset: segment.span.start(),
                     },
                     config: context.config,
+                    policy: state.baseline.execution_name_policy?.native_recipe()?,
                 },
                 &words,
                 &values,
@@ -408,7 +481,19 @@ fn capture_standalone_definition_references(
         .skip(3)
         .enumerate()
         .map(|(index, operand)| {
-            let name = arguments.literal_at(index + 2)?;
+            let name_input = native
+                .original_variable_operands
+                .input(index + 2, &state.source_variables)?
+                .clone();
+            let name = std::str::from_utf8(name_input.bytes())
+                .unwrap_or_default()
+                .to_owned();
+            let entry = SourceReceiverMethodEntry::for_original_input(
+                entries,
+                SourceMethodReceiver::Instance,
+                &name_input,
+            )
+            .cloned();
             super::definition_method_references::SourceDefinitionMethodReferencePhase::capture(
                 super::definition_method_references::DefinitionMethodReferenceCapture {
                     receiver: SourceMethodReceiver::Instance,
@@ -418,10 +503,9 @@ fn capture_standalone_definition_references(
                         offset: native.segment.span.start(),
                     },
                     operand: operand.clone(),
-                    name: name.to_owned(),
-                    entry: entries
-                        .get(&(SourceMethodReceiver::Instance, name.to_owned()))
-                        .cloned(),
+                    name,
+                    name_input,
+                    entry,
                     config: context.config,
                 },
             )
@@ -472,11 +556,55 @@ impl ModuleCommandBindings {
                 })
     }
 
+    /// An ordinary class-object method is selected from its own retained
+    /// table. Native classmethod delegates keep their separate allocation and
+    /// worker checks; an own entry does not acquire a delegate receipt.
+    pub(super) fn own_class_object_method_entry_is_current(
+        &self,
+        receiver: &super::SourceCommandTarget,
+        entry: &SourceReceiverMethodEntry,
+    ) -> bool {
+        !entry.class_delegate
+            && entry.receiver == SourceMethodReceiver::Class
+            && entry.exported
+            && receiver.kind == super::BindingKind::Class
+            && receiver.prepended.is_empty()
+            && entry.declaring_class.as_ref() == Some(receiver)
+            && !self.opaque_domain
+            && !self.tainted_object_dispatch.contains("*")
+            && !self.tainted_object_dispatch.contains(&receiver.command)
+            && self.retained_target_is_current(receiver)
+            && receiver
+                .identity
+                .as_ref()
+                .and_then(|identity| self.class_definitions.get(identity))
+                .is_some_and(|definition| {
+                    definition.dispatcher.is_none()
+                        && definition.implementation_generation
+                            == receiver.implementation_generation
+                        && self.class_definition_dependencies_hold(definition)
+                        && definition.receiver_method_entries.get(&(
+                            SourceMethodReceiver::Class,
+                            NameBytes::from(entry.original_name.bytes()),
+                        )) == Some(entry)
+                })
+    }
+
     pub(super) fn class_definition_dependencies_hold(
         &self,
         definition: &super::ClassDefinitionReceipt,
     ) -> bool {
         !self.opaque_domain
+            && definition
+                .original_factory
+                .as_ref()
+                .is_none_or(|factory| factory.is_current(self))
+            && definition.forward_method_entries.values().all(|entry| {
+                self.baseline
+                    .execution_name_policy
+                    .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                    .is_some_and(|policy| entry.closed_for_policy(policy))
+            })
             && definition.receiver_method_entries.values().all(|entry| {
                 !entry.class_delegate
                     || entry.delegate_allocation.as_ref().is_some_and(|delegate| {
@@ -537,18 +665,23 @@ impl ModuleCommandBindings {
             || !matches!(raw.iter().next(), Some(super::MayBinding::Target(target))
             if target.kind == super::BindingKind::Class && target.terminal
                 && target.prepended.is_empty() && target.token.as_ref() == Some(identity))
-            || !self
-                .bounded_constructions
-                .get(identity)
-                .is_some_and(|construction| {
-                    construction.implementation_generation == base.implementation_generation
-                })
         {
             return None;
         }
         let definition = self.class_definitions.get(identity)?;
+        // naming.tcloo.original-forward-registration-prefix
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-forward-registration-prefix.md
+        // The sealed declaration already owns the selected factory and local
+        // workers. A compatibility body rescan cannot withdraw that receipt
+        // merely because a retained forward has no script body. The Registry
+        // grammar is a const descriptor; its selected family, rather than its
+        // promoted address, identifies the inherited stock class system.
         if definition.dispatcher.is_some()
-            || definition.constructor_entry.is_some()
+            || definition.implementation_generation != base.implementation_generation
+            || !definition.lifecycle_entries_closed
+            || !definition.original_factory.as_ref().is_some_and(|factory| {
+                factory.recipe().grammar().family == grammar.family && factory.is_current(self)
+            })
             || definition.instance_methods.is_none()
             || !self.class_definition_dependencies_hold(definition)
             || self.tainted_object_dispatch.contains(&base.command)
@@ -599,6 +732,12 @@ impl ModuleCommandBindings {
                 .is_some_and(|(kind, _)| {
                     kind == tcl_registry::definer::NativeInheritedClassKind::Mixin
                 });
+            if mixin
+                && (!inherited.forward_method_entries.is_empty()
+                    || !entries.forward_method_entries.is_empty())
+            {
+                return false;
+            }
             // Overlapping mixin entries need a separate method-chain receipt.
             // Disjoint entries preserve the retained local activation unchanged.
             if mixin
@@ -617,17 +756,39 @@ impl ModuleCommandBindings {
             {
                 Arc::make_mut(local).extend(base.iter().cloned());
             }
-            entries.instance_variables = entries
-                .instance_variables
-                .take()
-                .zip(inherited.instance_variables)
-                .map(|(mut local, base)| {
-                    Arc::make_mut(&mut local).extend(base.iter().cloned());
-                    local
-                });
+            // Implicit variables belong to the selected implementation's
+            // declaring class. Inheriting a method does not merge its local
+            // resolver inventory into the child's own declaration table.
+            entries.lifecycle_entries_closed &= inherited.lifecycle_entries_closed;
+            if let Some(entry) = &inherited.constructor_entry
+                && (mixin || entries.constructor_entry.is_none())
+            {
+                let Some(provider) = &inherited.constructor_provider else {
+                    return false;
+                };
+                entries.constructor_entry = Some(Arc::clone(entry));
+                entries.constructor_provider = Some(provider.clone());
+            }
+            if let Some(entry) = &inherited.destructor_entry
+                && (mixin || entries.destructor_entry.is_none())
+            {
+                let Some(provider) = &inherited.destructor_provider else {
+                    return false;
+                };
+                entries.destructor_entry = Some(Arc::clone(entry));
+                entries.destructor_provider = Some(provider.clone());
+            }
             let local = Arc::make_mut(&mut entries.receiver_method_entries);
+            for (name, entry) in inherited.forward_method_entries.iter() {
+                if !local.contains_key(&(SourceMethodReceiver::Instance, name.clone())) {
+                    Arc::make_mut(&mut entries.forward_method_entries)
+                        .entry(name.clone())
+                        .or_insert_with(|| entry.clone());
+                }
+            }
             for (key, entry) in inherited.receiver_method_entries.iter() {
-                if key.0 == SourceMethodReceiver::Instance
+                if (key.0 == SourceMethodReceiver::Instance
+                    && !entries.forward_method_entries.contains_key(&key.1))
                     || (!mixin && entry.is_native_class_delegate())
                 {
                     local.entry(key.clone()).or_insert_with(|| entry.clone());
@@ -640,9 +801,10 @@ impl ModuleCommandBindings {
     fn record_class_definition(
         &mut self,
         facts: &InvocationFacts,
-        factory: &super::SourceCommandTarget,
+        native: SourceNativeInvocation<'_>,
         context: SourceExecutionContext<'_>,
         mut entries: RetainedClassEntries,
+        original_factory: super::registered_class_factory::OriginalClassFactoryState,
     ) -> Option<super::SourceCommandTarget> {
         let name = facts.state_transitions.declared().and_then(|transitions| {
             transitions
@@ -655,12 +817,17 @@ impl ModuleCommandBindings {
                             kind: tcl_registry::ObjectDispatchKind::Class,
                             ..
                         },
-                    ) => subject.literal(),
+                    ) => subject.argument_index(),
                     _ => None,
                 })
         })?;
-        let binding = source_binding(self, name, &context.namespace_identity());
+        let input = native
+            .original_variable_operands
+            .input(name, &self.source_variables)?;
+        let binding =
+            super::source_binding_from_original_input(self, input, &context.namespace_identity())?;
         let created = binding.proved_target()?;
+        let factory = native.target;
         let Some(identity) = &created.identity else {
             return None;
         };
@@ -672,11 +839,7 @@ impl ModuleCommandBindings {
                     if allocation.incarnation == super::AllocationIncarnation::RepeatedFresh {
                         return None;
                     }
-                    let grammar = context.registry.native_default_construction_grammar(
-                        &factory.command,
-                        self.baseline.dialect?,
-                        context.realm,
-                    )?;
+                    let grammar = original_factory.recipe().grammar();
                     let query = self
                         .baseline
                         .dialect
@@ -703,15 +866,27 @@ impl ModuleCommandBindings {
             identity.clone(),
             super::ClassDefinitionReceipt {
                 factory: factory.command.clone(),
+                original_factory: Some(original_factory),
                 implementation_generation: created.implementation_generation,
                 dispatcher: None,
                 instance_methods: entries.instance_methods,
                 instance_variables: entries.instance_variables,
                 dispatcher_methods: Arc::default(),
+                constructor_provider: entries.constructor_entry.as_ref().map(|_| {
+                    entries
+                        .constructor_provider
+                        .unwrap_or_else(|| created.clone())
+                }),
                 constructor_entry: entries.constructor_entry,
+                destructor_provider: entries.destructor_entry.as_ref().map(|_| {
+                    entries
+                        .destructor_provider
+                        .unwrap_or_else(|| created.clone())
+                }),
                 destructor_entry: entries.destructor_entry,
                 lifecycle_entries_closed: entries.lifecycle_entries_closed,
                 receiver_method_entries: entries.receiver_method_entries,
+                forward_method_entries: entries.forward_method_entries,
                 inherited_classes: entries.inherited_classes,
             },
         );
@@ -720,12 +895,16 @@ impl ModuleCommandBindings {
 }
 
 struct RetainedClassEntries {
-    instance_methods: Option<Arc<super::BTreeSet<String>>>,
-    instance_variables: Option<Arc<super::BTreeSet<String>>>,
+    instance_methods: Option<Arc<super::BTreeSet<NameBytes>>>,
+    instance_variables:
+        Option<Arc<super::receiver_variable_inventory::OriginalReceiverVariableInventory>>,
     constructor_entry: Option<Arc<super::SourceConstructorEntry>>,
+    constructor_provider: Option<super::SourceCommandTarget>,
     destructor_entry: Option<Arc<super::SourceConstructorEntry>>,
+    destructor_provider: Option<super::SourceCommandTarget>,
     lifecycle_entries_closed: bool,
     receiver_method_entries: Arc<SourceReceiverMethodEntries>,
+    forward_method_entries: Arc<super::deferred_forward::OriginalForwardEntries>,
     inherited_classes: Arc<Vec<super::SourceCommandTarget>>,
 }
 
@@ -768,15 +947,7 @@ fn capture_definition_method_references(
         let values = source_effective_words(words.words(), state.baseline.dialect, None);
         let head = values.first()?.as_registry_word().literal()?;
         let member = grammar.member(head)?;
-        if let Some((_, inherited)) =
-            state.closed_inherited_member(grammar, member, &values, context)
-        {
-            for (key, entry) in inherited.receiver_method_entries.iter() {
-                if key.0 == SourceMethodReceiver::Instance {
-                    entries.entry(key.clone()).or_insert_with(|| entry.clone());
-                }
-            }
-        }
+        retain_inherited_reference_entries(grammar, member, &values, state, context, &mut entries);
         if member.all_args_ref == Some(tcl_registry::definer::MemberRefKind::Method) {
             let receiver = match scope.receiver {
                 SourceMethodReceiver::Instance => {
@@ -795,11 +966,22 @@ fn capture_definition_method_references(
                         offset: segment.span.start(),
                     },
                     config: context.config,
+                    policy: state.baseline.execution_name_policy?.native_recipe()?,
                 },
                 &words,
                 &values,
                 &entries,
             )?);
+        }
+        if let Some(name) = original_forward_member_name(
+            grammar,
+            definition,
+            &words,
+            segment.span.start(),
+            state,
+            context,
+        ) {
+            entries.remove(&(scope.receiver, name));
         }
         apply_declared_visibility(
             grammar,
@@ -815,7 +997,10 @@ fn capture_definition_method_references(
             map,
             segment,
             state.baseline.dialect,
-            scope.parameters,
+            MethodParameterSource {
+                parameters: scope.parameters,
+                policy: state.baseline.execution_name_policy?.native_recipe()?,
+            },
             context,
         ) {
             if scope.receiver == SourceMethodReceiver::Class {
@@ -824,10 +1009,46 @@ fn capture_definition_method_references(
             references.push(capture_method_declaration_reference(
                 grammar, &words, &values, state, &entry, context,
             )?);
-            entries.insert((entry.receiver, entry.name.clone()), entry);
+            entries.insert(
+                (entry.receiver, NameBytes::from(entry.original_name.bytes())),
+                entry,
+            );
         }
     }
     Some(references)
+}
+
+fn retain_inherited_reference_entries(
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    member: &tcl_registry::definer::MemberSpec,
+    values: &[crate::registry_invocation::EffectiveInvocationWord],
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    entries: &mut SourceReceiverMethodEntries,
+) {
+    if let Some((_, inherited)) = state.closed_inherited_member(grammar, member, values, context) {
+        for (key, entry) in inherited.receiver_method_entries.iter() {
+            if key.0 == SourceMethodReceiver::Instance {
+                entries.entry(key.clone()).or_insert_with(|| entry.clone());
+            }
+        }
+    }
+}
+
+fn original_forward_member_name(
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    definition: &ExecutedScriptSource,
+    words: &crate::ir::CommandTokens,
+    offset: u32,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<NameBytes> {
+    let dialect = state.baseline.dialect?;
+    let policy = state.baseline.execution_name_policy?.native_recipe()?;
+    let forward = super::deferred_forward::original_forward_method(
+        grammar, definition, words, offset, dialect, policy, context,
+    )?;
+    Some(NameBytes::from(forward.name_input().bytes()))
 }
 
 fn capture_method_declaration_reference(
@@ -843,9 +1064,9 @@ fn capture_method_declaration_reference(
     };
     let strings = values
         .iter()
-        .map(|word| word.as_registry_word().literal())
+        .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
         .collect::<Option<Vec<_>>>()?;
-    let layout = grammar.receiver_method_layout(
+    let layout = grammar.receiver_method_layout_bytes(
         strings.first()?,
         &strings[1..],
         state
@@ -877,6 +1098,7 @@ fn capture_method_declaration_reference(
         invocation: entry.declaration().clone(),
         operand: words.words().get(name_at)?.clone(),
         name: entry.name.clone(),
+        name_input: entry.original_name.clone(),
         entry: Some(entry.clone()),
         config: context.config,
     })
@@ -914,6 +1136,7 @@ struct DefinitionReferenceInvocation {
     worker: super::SourceCommandTarget,
     site: CommandAllocationSite,
     config: tcl_lexer::LexerConfig,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
 }
 
 fn capture_reference_operands(
@@ -930,19 +1153,119 @@ fn capture_reference_operands(
         .iter()
         .zip(values)
         .skip(1)
-        .map(|(operand, value)| {
-            let name = value.as_registry_word().literal()?;
+        .enumerate()
+        .map(|(index, (operand, value))| {
+            value.literal_bytes()?;
+            let name_input = original_member_input(
+                &phase.site.source,
+                words,
+                phase.site.offset,
+                index + 1,
+                phase.policy,
+                phase.config,
+            )?;
+            let bytes = name_input.bytes();
             SourceDefinitionMethodReferencePhase::capture(DefinitionMethodReferenceCapture {
                 receiver: phase.receiver,
                 worker: phase.worker.clone(),
                 invocation: phase.site.clone(),
                 operand: operand.clone(),
-                name: name.to_owned(),
-                entry: entries.get(&(phase.receiver, name.to_owned())).cloned(),
+                name: std::str::from_utf8(bytes).unwrap_or_default().to_owned(),
+                entry: entries
+                    .get(&(phase.receiver, NameBytes::from(bytes)))
+                    .cloned(),
+                name_input,
                 config: phase.config,
             })
         })
         .collect()
+}
+
+fn closed_bounded_method_segments(
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    definition: &ExecutedScriptSource,
+    map: &tcl_lexer::SourceMap<'_>,
+    segments: &[crate::segmenter::SegmentedCommand],
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    segments.iter().all(|segment| {
+        let closed = closed_definition_member(grammar, definition, map, segment, state, context);
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_OO_MEMBER offset={} keyword={} closed={closed}",
+                segment.span.start(),
+                segment.name()
+            );
+        }
+        closed
+    })
+}
+
+fn select_bounded_method_definition(
+    native: SourceNativeInvocation<'_>,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    facts: &InvocationFacts,
+) -> Option<BoundedMethodDefinition> {
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        eprintln!(
+            "ORIGINAL_OO_REGISTRATION offset={} selected={} kind={:?} opaque={} policy={:?} roles={:?}",
+            native.segment.span.start(),
+            native.target.command,
+            native.target.kind,
+            state.has_opaque_domain(),
+            state.baseline.execution_name_policy,
+            facts.arg_roles
+        );
+    }
+    let grammar = context
+        .registry
+        .get_for_surface(
+            &native.target.command,
+            state
+                .baseline
+                .dialect
+                .and_then(tcl_registry::InvocationDialect::authoring_query)
+                .map(|query| query.with_realm(context.realm)),
+        )
+        .and_then(|spec| spec.definition_body)?;
+    let original_factory = super::registered_class_factory::OriginalClassFactoryState::capture(
+        native, state, context,
+    )?;
+    if !state.default_construction_dependencies_hold(grammar) {
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_OO_REGISTRATION declined=factory-dependencies offset={}",
+                native.segment.span.start()
+            );
+        }
+        return None;
+    }
+    let argument = facts.arg_roles.iter().find_map(|(index, role)| {
+        (*role == tcl_registry::ArgRole::Body)
+            .then_some(facts.argument_offset + usize::from(*index))
+    })?;
+    let definition = retained_script_operand(
+        argument,
+        native.script_operands(),
+        state,
+        native.segment.span.start(),
+        context.config,
+    )?;
+    let parameters = state
+        .baseline
+        .dialect
+        .and_then(tcl_registry::InvocationDialect::parameter_grammar)?;
+    Some(BoundedMethodDefinition {
+        grammar,
+        original_factory,
+        definition,
+        parameters,
+    })
 }
 
 fn retained_class_entries(
@@ -951,24 +1274,38 @@ fn retained_class_entries(
     map: &tcl_lexer::SourceMap<'_>,
     segments: &[crate::segmenter::SegmentedCommand],
     dialect: Option<tcl_registry::InvocationDialect>,
-    parameters: tcl_dialect::ParameterGrammar,
+    source: MethodParameterSource,
     context: SourceExecutionContext<'_>,
 ) -> RetainedClassEntries {
+    let MethodParameterSource { parameters, policy } = source;
     let lifecycle = retained_lifecycle_entries(
         grammar, definition, map, segments, dialect, parameters, context,
     );
     let lifecycle_entries_closed = lifecycle.is_some();
     let lifecycle = lifecycle.unwrap_or_default();
+    let forward_method_entries = super::deferred_forward::retained_forward_methods(
+        grammar, definition, map, segments, dialect, source, context,
+    );
+    let mut receiver_method_entries =
+        retained_method_entries(grammar, definition, map, segments, dialect, source, context);
+    Arc::make_mut(&mut receiver_method_entries).retain(|(receiver, name), _| {
+        *receiver != SourceMethodReceiver::Instance || !forward_method_entries.contains_key(name)
+    });
     RetainedClassEntries {
         inherited_classes: Arc::default(),
-        instance_methods: closed_instance_methods(grammar, map, segments, dialect, context),
-        instance_variables: retained_instance_variables(grammar, map, segments, dialect, context),
-        constructor_entry: lifecycle.constructor,
-        destructor_entry: lifecycle.destructor,
-        lifecycle_entries_closed,
-        receiver_method_entries: retained_method_entries(
-            grammar, definition, map, segments, dialect, parameters, context,
+        instance_methods: closed_instance_methods(
+            grammar, definition, map, segments, dialect, policy, context,
         ),
+        instance_variables: retained_instance_variables(
+            grammar, definition, map, segments, dialect, policy, context,
+        ),
+        constructor_entry: lifecycle.constructor,
+        constructor_provider: None,
+        destructor_entry: lifecycle.destructor,
+        destructor_provider: None,
+        lifecycle_entries_closed,
+        receiver_method_entries,
+        forward_method_entries,
     }
 }
 
@@ -976,12 +1313,17 @@ fn retained_class_entries(
 // from method source or the reported class command spelling.
 fn retained_instance_variables(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segments: &[crate::segmenter::SegmentedCommand],
     dialect: Option<tcl_registry::InvocationDialect>,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
     context: SourceExecutionContext<'_>,
-) -> Option<Arc<super::BTreeSet<String>>> {
-    let mut names = Vec::new();
+) -> Option<Arc<super::receiver_variable_inventory::OriginalReceiverVariableInventory>> {
+    let mut inventory =
+        super::receiver_variable_inventory::OriginalReceiverVariableInventory::empty(
+            grammar, policy,
+        )?;
     for segment in segments {
         let words = crate::ir::CommandTokens::from_segmented(map, context.config, segment);
         let values = source_effective_words(words.words(), dialect, None);
@@ -989,19 +1331,30 @@ fn retained_instance_variables(
         if !member.all_args_var {
             continue;
         }
-        let arguments = values
+        // Expanded arguments need their complete original sibling mapping;
+        // the written vector alone cannot certify a declaration inventory.
+        if words
+            .words()
             .iter()
-            .skip(1)
-            .map(|word| word.as_registry_word().literal().map(str::to_owned))
-            .collect::<Option<Vec<_>>>()?;
-        if let Some(slot) = member.slot {
-            slot.split_call(&arguments)?;
-            slot.apply(&mut names, &arguments);
-        } else {
-            names.extend(arguments);
+            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+        {
+            return None;
         }
+        let arguments = (1..words.words().len())
+            .map(|ordinal| {
+                original_member_input(
+                    &definition.origin,
+                    &words,
+                    segment.span.start(),
+                    ordinal,
+                    policy,
+                    context.config,
+                )
+            })
+            .collect::<Option<Vec<_>>>()?;
+        inventory.apply(member.slot, arguments)?;
     }
-    Some(Arc::new(names.into_iter().collect()))
+    Some(Arc::new(inventory))
 }
 
 fn retained_method_entries(
@@ -1010,7 +1363,7 @@ fn retained_method_entries(
     map: &tcl_lexer::SourceMap<'_>,
     segments: &[crate::segmenter::SegmentedCommand],
     dialect: Option<tcl_registry::InvocationDialect>,
-    parameters: tcl_dialect::ParameterGrammar,
+    source: MethodParameterSource,
     context: SourceExecutionContext<'_>,
 ) -> Arc<SourceReceiverMethodEntries> {
     let mut entries = super::BTreeMap::new();
@@ -1028,7 +1381,7 @@ fn retained_method_entries(
                 continue;
             };
             for ((_, name), mut entry) in retained_method_entries(
-                grammar, &block, &block_map, &inner, dialect, parameters, context,
+                grammar, &block, &block_map, &inner, dialect, source, context,
             )
             .as_ref()
             .clone()
@@ -1039,10 +1392,13 @@ fn retained_method_entries(
             continue;
         }
         apply_declared_visibility(grammar, map, segment, dialect, context, &mut entries);
-        if let Some(entry) = retained_method_entry(
-            grammar, definition, map, segment, dialect, parameters, context,
-        ) {
-            entries.insert((entry.receiver, entry.name.clone()), entry);
+        if let Some(entry) =
+            retained_method_entry(grammar, definition, map, segment, dialect, source, context)
+        {
+            entries.insert(
+                (entry.receiver, NameBytes::from(entry.original_name.bytes())),
+                entry,
+            );
         }
     }
     Arc::new(entries)
@@ -1071,35 +1427,61 @@ fn apply_declared_visibility(
     for name in values
         .iter()
         .skip(1)
-        .filter_map(|word| word.as_registry_word().literal())
+        .filter_map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
     {
-        if let Some(entry) = entries.get_mut(&(SourceMethodReceiver::Instance, name.to_owned())) {
+        if let Some(entry) =
+            entries.get_mut(&(SourceMethodReceiver::Instance, NameBytes::from(name)))
+        {
             entry.exported = effect == tcl_registry::definer::MemberVisibility::Exported;
         }
     }
 }
 
-fn retained_method_entry(
+pub(super) fn original_member_input(
+    origin: &super::SourceOriginId,
+    words: &crate::ir::CommandTokens,
+    offset: u32,
+    ordinal: usize,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    config: tcl_lexer::LexerConfig,
+) -> Option<SignatureSourceNameInput> {
+    let original = crate::registry_invocation::original_native_compiler_words(
+        origin.source_image(),
+        words.words(),
+        offset,
+        config,
+    )?;
+    Some(SignatureSourceNameInput::OriginalWord(
+        SignatureSourceNameKey::from_original_native_word(
+            original.get(ordinal)?,
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            policy,
+        )?,
+    ))
+}
+
+pub(super) fn retained_method_entry(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segment: &crate::segmenter::SegmentedCommand,
     dialect: Option<tcl_registry::InvocationDialect>,
-    parameters: tcl_dialect::ParameterGrammar,
+    source: MethodParameterSource,
     context: SourceExecutionContext<'_>,
 ) -> Option<SourceReceiverMethodEntry> {
+    let MethodParameterSource { parameters, policy } = source;
     let words = crate::ir::CommandTokens::from_segmented(map, context.config, segment);
     let values = source_effective_words(words.words(), dialect, None);
     let head = values.first()?.as_registry_word().literal()?;
     let arguments = values
         .iter()
         .skip(1)
-        .map(|word| word.as_registry_word().literal())
+        .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
         .collect::<Option<Vec<_>>>()?;
     let query = dialect
         .and_then(tcl_registry::InvocationDialect::authoring_query)
         .map(|query| query.with_realm(context.realm));
-    let layout = grammar.receiver_method_layout(head, &arguments, query)?;
+    let layout = grammar.receiver_method_layout_bytes(head.as_bytes(), &arguments, query)?;
     let receiver = match layout.receiver {
         tcl_registry::definer::DefinitionReceiver::Instance => SourceMethodReceiver::Instance,
         tcl_registry::definer::DefinitionReceiver::Class => SourceMethodReceiver::Class,
@@ -1108,18 +1490,34 @@ fn retained_method_entry(
         (*role == tcl_registry::ArgRole::Name)
             .then_some(usize::from(*index) + 1 + layout.member_word)
     })?;
-    let name = values.get(name_at)?.as_registry_word().literal()?;
     let name_word = words.words().get(name_at)?;
+    let original_name = original_member_input(
+        &definition.origin,
+        &words,
+        segment.span.start(),
+        name_at,
+        policy,
+        context.config,
+    )?;
+    policy
+        .recipe()
+        .oo_method_input(original_name.bytes())
+        .ok()?;
     let body = deferred_method_body(
         grammar, definition, map, segment, dialect, parameters, context,
     )?;
     let (declaration, _, source) = body.executed_script.as_ref()?;
     Some(SourceReceiverMethodEntry {
-        name: name.to_owned(),
+        name: std::str::from_utf8(original_name.bytes())
+            .unwrap_or_default()
+            .to_owned(),
         name_source: name_word.source().clone(),
         receiver,
-        exported: grammar.member_default_exported(name),
+        exported: grammar.member_default_exported_bytes(original_name.bytes()),
+        original_name,
         declaring_class: None,
+        declaring_object: None,
+        object_body_context: None,
         class_delegate: layout.class_delegate,
         delegate_allocation: None,
         entry: super::SourceConstructorEntry {
@@ -1166,9 +1564,10 @@ fn retained_lifecycle_entries(
             .iter()
             .skip(1)
             .map(|word| word.as_registry_word().literal())
-            .collect::<Option<Vec<_>>>()?;
-        if grammar
-            .single_native_inherited_class(member, &arguments, dialect)
+            .collect::<Option<Vec<_>>>();
+        if arguments
+            .as_ref()
+            .and_then(|arguments| grammar.single_native_inherited_class(member, arguments, dialect))
             .is_some()
         {
             continue;
@@ -1231,17 +1630,19 @@ fn retained_lifecycle_entries(
 // instance-definition grammar. Visibility is deliberately not a call licence.
 fn closed_instance_methods(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segments: &[crate::segmenter::SegmentedCommand],
     dialect: Option<tcl_registry::InvocationDialect>,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
     context: SourceExecutionContext<'_>,
-) -> Option<Arc<super::BTreeSet<String>>> {
+) -> Option<Arc<super::BTreeSet<NameBytes>>> {
     use tcl_registry::definer::{BuiltinMethodReceiver, MemberConstructionEffect};
     let mut names = grammar
         .builtin_object_methods
         .iter()
         .filter(|method| method.receiver == BuiltinMethodReceiver::AnyObject)
-        .map(|method| method.name.to_owned())
+        .map(|method| NameBytes::from(method.name.as_bytes()))
         .collect::<super::BTreeSet<_>>();
     for segment in segments {
         let words = crate::ir::CommandTokens::from_segmented(map, context.config, segment);
@@ -1252,15 +1653,21 @@ fn closed_instance_methods(
             .iter()
             .skip(1)
             .map(|word| word.as_registry_word().literal())
-            .collect::<Option<Vec<_>>>()?;
-        if grammar
-            .single_native_inherited_class(member, &arguments, dialect)
+            .collect::<Option<Vec<_>>>();
+        if arguments
+            .as_ref()
+            .and_then(|arguments| grammar.single_native_inherited_class(member, arguments, dialect))
             .is_some()
         {
             continue;
         }
         if grammar.construction_member_effect(member)
             == MemberConstructionEffect::DeferredInstanceMethod
+            || dialect.is_some_and(|dialect| {
+                grammar
+                    .native_deferred_forward_setter(member, dialect, values.len().saturating_sub(1))
+                    .is_some()
+            })
             || grammar.native_classmethod_declaration(
                 member,
                 dialect
@@ -1271,11 +1678,22 @@ fn closed_instance_methods(
             let name_at = member.arg_roles.iter().find_map(|(index, role)| {
                 (*role == tcl_registry::ArgRole::Name).then_some(usize::from(*index) + 1)
             })?;
-            let name = values.get(name_at)?.as_registry_word().literal()?;
-            if grammar.unknown_dispatch_method == Some(name) {
+            let name = original_member_input(
+                &definition.origin,
+                &words,
+                segment.span.start(),
+                name_at,
+                policy,
+                context.config,
+            )?;
+            if grammar
+                .unknown_dispatch_method
+                .is_some_and(|unknown| unknown.as_bytes() == name.bytes())
+            {
                 return None;
             }
-            names.insert(name.to_owned());
+            policy.recipe().oo_method_input(name.bytes()).ok()?;
+            names.insert(NameBytes::from(name.bytes()));
         } else if member.visibility_effect.is_some() {
             // Native visibility metadata cannot add or remove method names.
         } else if member
@@ -1293,7 +1711,7 @@ fn closed_instance_methods(
     Some(Arc::new(names))
 }
 
-fn closed_definition_member(
+pub(super) fn closed_definition_member(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
@@ -1301,6 +1719,8 @@ fn closed_definition_member(
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> bool {
+    // naming.tcloo.original-forward-registration-prefix
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-forward-registration-prefix.md
     let words = crate::ir::CommandTokens::from_segmented(map, context.config, segment);
     let values = source_effective_words(words.words(), state.baseline.dialect, None);
     let Some(head) = values
@@ -1317,7 +1737,7 @@ fn closed_definition_member(
     let arguments = values
         .iter()
         .skip(1)
-        .filter_map(|word| word.as_registry_word().literal())
+        .filter_map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
         .collect::<Vec<_>>();
     if arguments.len() + 1 != values.len() {
         return false;
@@ -1325,13 +1745,10 @@ fn closed_definition_member(
     let Some(outer) = grammar.member(head) else {
         return false;
     };
-    if grammar
-        .single_native_inherited_class(outer, &arguments, state.baseline.dialect)
-        .is_some()
+    if let Some(closed) =
+        closed_inherited_definition_member(grammar, outer, &values, &arguments, state, context)
     {
-        return state
-            .closed_inherited_member(grammar, outer, &values, context)
-            .is_some();
+        return closed;
     }
     if let Some(block) = class_definition_block(
         grammar,
@@ -1352,7 +1769,7 @@ fn closed_definition_member(
         }
         return closed_class_method_block(grammar, &block, state, context);
     }
-    let layout = grammar.receiver_method_layout(head, &arguments, query);
+    let layout = grammar.receiver_method_layout_bytes(head.as_bytes(), &arguments, query);
     let (member, shift, receiver) = layout.map_or(
         (
             outer,
@@ -1379,7 +1796,102 @@ fn closed_definition_member(
     {
         return false;
     }
+    if member.kind == tcl_registry::definer::MemberKind::FlagKeyed {
+        return valid_property_declarations(
+            grammar,
+            &arguments[shift..],
+            query,
+            state.baseline.dialect,
+        );
+    }
+    if shift == 0
+        && let Some(closed) = closed_original_forward_member(
+            grammar,
+            definition,
+            member,
+            &words,
+            (arguments.len(), segment.span.start()),
+            state,
+            context,
+        )
+    {
+        return closed;
+    }
     valid_closed_member_body(grammar, member, &values[shift..], state.baseline.dialect)
+}
+
+fn closed_original_forward_member(
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    definition: &ExecutedScriptSource,
+    member: &tcl_registry::definer::MemberSpec,
+    words: &crate::ir::CommandTokens,
+    shape: (usize, u32),
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<bool> {
+    let dialect = state.baseline.dialect?;
+    grammar.native_deferred_forward_setter(member, dialect, shape.0)?;
+    Some(
+        state
+            .baseline
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            .and_then(|policy| {
+                super::deferred_forward::original_forward_method(
+                    grammar, definition, words, shape.1, dialect, policy, context,
+                )
+            })
+            .is_some(),
+    )
+}
+
+fn closed_inherited_definition_member(
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    outer: &tcl_registry::definer::MemberSpec,
+    values: &[crate::registry_invocation::EffectiveInvocationWord],
+    arguments: &[&[u8]],
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<bool> {
+    let text_arguments = arguments
+        .iter()
+        .map(|argument| std::str::from_utf8(argument).ok())
+        .collect::<Option<Vec<_>>>();
+    if text_arguments
+        .as_ref()
+        .and_then(|arguments| {
+            grammar.single_native_inherited_class(outer, arguments, state.baseline.dialect)
+        })
+        .is_some()
+    {
+        return Some(
+            state
+                .closed_inherited_member(grammar, outer, values, context)
+                .is_some(),
+        );
+    }
+    None
+}
+
+fn valid_property_declarations(
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    arguments: &[&[u8]],
+    query: Option<tcl_dialect::model::SurfaceQuery<'_>>,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> bool {
+    let Some(declarations) = grammar.source_property_declarations_bytes(arguments, query) else {
+        return false;
+    };
+    let Some(dialect) = dialect else {
+        return false;
+    };
+    declarations.iter().all(|declaration| {
+        tcl_registry::native_property_lookup::native_property_declaration_validity(
+            dialect,
+            arguments[declaration.name_index()],
+        )
+        .is_some_and(|result| result.is_ok())
+    })
 }
 
 fn valid_closed_member_body(
@@ -1457,13 +1969,21 @@ fn valid_member_formals(
             *role == tcl_registry::ArgRole::ParamList
                 && values
                     .get(usize::from(*index) + 1)
-                    .and_then(|word| word.as_registry_word().literal())
-                    .is_none_or(|text| {
+                    .and_then(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
+                    .is_none_or(|bytes| {
                         dialect
-                            .and_then(tcl_registry::InvocationDialect::parameter_grammar)
-                            .is_none_or(|grammar| {
-                                tcl_syntax::formal_params::parse_formal_parameters_in(text, grammar)
-                                    .is_err()
+                            .filter(|dialect| dialect.parameter_grammar().is_some())
+                            .and_then(|dialect| {
+                                dialect.native_name_protocol().or_else(|| {
+                                    dialect
+                                        .authored_name_policy()
+                                        .map(tcl_syntax::naming::NamePolicyProtocol::recipe)
+                                })
+                            })
+                            .is_none_or(|protocol| {
+                                !super::formal_topology::native_formal_parameter_bytes_valid(
+                                    bytes, protocol,
+                                )
                             })
                     })
         })
@@ -1504,7 +2024,7 @@ fn class_definition_block(
     ))
 }
 
-fn closed_class_method(
+pub(super) fn closed_class_method(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     map: &tcl_lexer::SourceMap<'_>,
     segment: &crate::segmenter::SegmentedCommand,
@@ -1537,26 +2057,8 @@ fn closed_class_method(
         .map(|(at, _)| usize::from(*at) + 2)
         .max();
     values.len() == expected.unwrap_or(0)
-        && values
-            .iter()
-            .all(|word| word.as_registry_word().literal().is_some())
-        && member.arg_roles.iter().all(|(at, role)| {
-            *role != tcl_registry::ArgRole::ParamList
-                || state
-                    .baseline
-                    .dialect
-                    .and_then(tcl_registry::InvocationDialect::parameter_grammar)
-                    .is_some_and(|grammar| {
-                        tcl_syntax::formal_params::parse_formal_parameters_in(
-                            values[usize::from(*at) + 1]
-                                .as_registry_word()
-                                .literal()
-                                .unwrap(),
-                            grammar,
-                        )
-                        .is_ok()
-                    })
-        })
+        && values.iter().all(|word| word.literal_bytes().is_some())
+        && valid_member_formals(member, &values, state.baseline.dialect)
 }
 
 pub(super) fn original_definition_member(
@@ -1569,7 +2071,7 @@ pub(super) fn original_definition_member(
     original_definition_member_target(grammar, member, receiver, state, context).is_some()
 }
 
-fn original_definition_member_target(
+pub(super) fn original_definition_member_target(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     member: &tcl_registry::definer::MemberSpec,
     receiver: tcl_registry::definer::DefinitionReceiver,
@@ -1581,25 +2083,51 @@ fn original_definition_member_target(
         .dialect
         .and_then(tcl_registry::InvocationDialect::authoring_query)
         .map(|query| query.with_realm(context.realm));
-    let lookup = grammar.definition_member_lookup_for_receiver(member, receiver, query)?;
+    let mut lookup = grammar.definition_member_lookup_for_receiver(member, receiver, query)?;
+    if receiver == tcl_registry::definer::DefinitionReceiver::Instance
+        && !grammar.property_accessor_methods.is_empty()
+    {
+        let support = context
+            .registry
+            .native_class_factory_recipe(
+                "oo::configurable",
+                state.baseline.dialect?,
+                context.realm,
+            )?
+            .support()?;
+        lookup.namespace = support.definition_namespace(receiver);
+        if member.kind == tcl_registry::definer::MemberKind::FlagKeyed {
+            lookup.implementation = format!("{}::{}", lookup.namespace, member.keyword);
+        }
+    }
     let namespace_key = state.namespace_for_rooted_operand(lookup.namespace)?;
-    let binding = source_binding(state, member.keyword, &namespace_key);
-    binding
-        .proved_target()
-        .filter(|target| {
-            target.registry_backed
-                && target.prepended.is_empty()
-                && target.registry_identity().is_some_and(|identity| {
-                    crate::naming::normalise_qualified_name(identity)
-                        == crate::naming::normalise_qualified_name(&lookup.implementation)
-                })
-                && target.implementation_generation == 0
-                && !state.tainted_object_dispatch.contains("*")
-                && !state.tainted_object_dispatch.contains(&target.command)
-                && !state.source_step_observed()
-                && !state.source_execution_observed(target.identity.as_ref())
-        })
-        .cloned()
+    let policy = state.baseline.execution_name_policy?.native_recipe()?;
+    let target = state.original_registry_metadata_target(&namespace_key, member.keyword, policy)?;
+    let target = super::SourceCommandTarget {
+        runtime_implementation_generation: state
+            .runtime_implementation_generation(target.token.as_ref()),
+        command: target.command,
+        prepended: target.prepended,
+        original_prepended: None,
+        registry_backed: target.registry_backed,
+        kind: target.kind,
+        identity: target.token,
+        implementation_generation: target.implementation_generation,
+        implementation_allocation: target.implementation_allocation,
+    };
+    Some(target).filter(|target| {
+        target.registry_backed
+            && target.prepended.is_empty()
+            && target.registry_identity().is_some_and(|identity| {
+                crate::naming::normalise_qualified_name(identity)
+                    == crate::naming::normalise_qualified_name(&lookup.implementation)
+            })
+            && target.implementation_generation == 0
+            && !state.tainted_object_dispatch.contains("*")
+            && !state.tainted_object_dispatch.contains(&target.command)
+            && !state.source_step_observed()
+            && !state.source_execution_observed(target.identity.as_ref())
+    })
 }
 
 fn deferred_method_body(
@@ -1618,12 +2146,14 @@ fn deferred_method_body(
     let arguments = values
         .iter()
         .skip(1)
-        .map(|word| word.as_registry_word().literal())
-        .collect::<Option<Vec<_>>>()?;
+        .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
+        .collect::<Option<Vec<_>>>();
     let query = dialect
         .and_then(tcl_registry::InvocationDialect::authoring_query)
         .map(|query| query.with_realm(context.realm));
-    let layout = grammar.receiver_method_layout(head, &arguments, query);
+    let layout = arguments.as_ref().and_then(|arguments| {
+        grammar.receiver_method_layout_bytes(head.as_bytes(), arguments, query)
+    });
     let (member, shift) = layout.map_or((grammar.member(head)?, 0), |layout| {
         (layout.member, layout.member_word)
     });
@@ -1639,12 +2169,28 @@ fn deferred_method_body(
     {
         return None;
     }
-    let formals = if let Some(params_at) = find(tcl_registry::ArgRole::ParamList) {
-        let text = values.get(params_at)?.as_registry_word().literal()?;
-        tcl_syntax::formal_params::parse_formal_parameters_in(text, parameters).ok()?
+    let original_parameters = if let Some(params_at) = find(tcl_registry::ArgRole::ParamList) {
+        let dialect = dialect?;
+        let topology = super::formal_topology::capture(
+            definition.origin.source_image(),
+            words.words(),
+            segment.span.start(),
+            params_at,
+            config,
+            dialect,
+            dialect.authored_name_policy()?,
+        )?;
+        if dialect.parameter_grammar()? != parameters {
+            return None;
+        }
+        Some(topology)
     } else {
-        Vec::new()
+        None
     };
+    let formals = original_parameters.as_ref().map_or_else(
+        Vec::new,
+        super::formal_topology::OriginalFormalTopology::advisory_parameters,
+    );
     let word = words.words().get(body_at)?;
     let site = CommandAllocationSite {
         source: Arc::clone(&definition.origin),
@@ -1670,6 +2216,7 @@ fn deferred_method_body(
         receiver_method: true,
         future_frame: None,
         parameters: formals,
+        original_parameters,
         statics: None,
     };
     Some(body)
@@ -1679,7 +2226,145 @@ fn deferred_method_body(
 mod tests {
     use super::SourceCommandBindings;
     use crate::command_binding::SourceAnalysisOptions;
+    use tcl_core_types::NameBytes;
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn original_receiver_table_keeps_opaque_and_zero_names_distinct() {
+        let source = r"oo::class create C {self {method p\uD800 {} {return A}; method p\uD801 {} {return B}; method p\u0000tail {} {return ZERO}}}; C p\uD800; C p\uD801; C p\u0000tail";
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let bindings = SourceCommandBindings::analyse_with_options(
+                source,
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                &registry,
+                SourceAnalysisOptions {
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation:
+                        tcl_registry::native_compilation::NativeCompilationContext {
+                            mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                            ..Default::default()
+                        },
+                    ..Default::default()
+                },
+            );
+            let mut declarations = Vec::new();
+            for (spelling, expected) in [
+                (r"p\uD800", b"p\xed\xa0\x80".as_slice()),
+                (r"p\uD801", b"p\xed\xa0\x81".as_slice()),
+                (r"p\u0000tail", b"p\xc0\x80tail".as_slice()),
+            ] {
+                let offset =
+                    u32::try_from(source.rfind(&format!("C {spelling}")).unwrap()).unwrap();
+                let binding = bindings.invocation_at_source("C", offset);
+                let (_, entry) = binding.class_definition_method_entry().unwrap_or_else(|| {
+                    panic!("{name}: independently retained selector {spelling}")
+                });
+                assert_eq!(entry.original_name_input().bytes(), expected, "{name}");
+                declarations.push(entry.declaration().clone());
+            }
+            assert_ne!(declarations[0], declarations[1]);
+            assert_ne!(declarations[1], declarations[2]);
+        }
+    }
+
+    #[test]
+    fn original_overlapping_mixin_keeps_declared_body_without_a_dispatch_chain() {
+        // naming.tcloo.original-lexical-member-context
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-lexical-member-context.md
+        let source = "oo::class create M {method a::b {arg} {}}\n\
+                      oo::class create C {mixin M; method a::b {} {next 1 2}}";
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let bindings = SourceCommandBindings::analyse_with_options(
+                source,
+                config,
+                &registry,
+                SourceAnalysisOptions {
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation:
+                        tcl_registry::native_compilation::NativeCompilationContext {
+                            mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                            ..Default::default()
+                        },
+                    ..Default::default()
+                },
+            );
+            let offset = u32::try_from(source.find("next 1 2").unwrap()).unwrap();
+            let origin = bindings.source_origin().unwrap();
+            let body = bindings
+                .declared_receiver_body_entry_at(origin, offset)
+                .expect(name);
+            assert_eq!(body.source().base(), offset, "{name}");
+            let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+                "next 1 2", offset, config,
+            );
+            let command = commands.pop().unwrap();
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                &command,
+            );
+            bindings.stamp_original_tokens(&mut tokens);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(
+                binding
+                    .original_catalogue_source_candidate_from_tokens(&tokens, &registry)
+                    .is_some(),
+                "{name}: conditional source helper retains the exact original vector",
+            );
+            assert!(
+                bindings.original_completed_command_world().is_none(),
+                "{name}: the overlapping runtime method chain remains unavailable",
+            );
+        }
+    }
+
+    #[test]
+    fn original_receiver_formal_admission_preserves_counted_opaque_names() {
+        let source = r"oo::class create C {self {method first arg\uD800 {return FIRST}; method second arg\uD801 {return SECOND}}}; C first value; C second value";
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let bindings = SourceCommandBindings::analyse_with_options(
+                source,
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                &registry,
+                SourceAnalysisOptions {
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation:
+                        tcl_registry::native_compilation::NativeCompilationContext {
+                            mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                            ..Default::default()
+                        },
+                    ..Default::default()
+                },
+            );
+            for (method, expected) in [
+                ("first", b"arg\xed\xa0\x80".as_slice()),
+                ("second", b"arg\xed\xa0\x81".as_slice()),
+            ] {
+                let offset = u32::try_from(source.rfind(&format!("C {method}")).unwrap()).unwrap();
+                let binding = bindings.invocation_at_source("C", offset);
+                let (_, entry) = binding
+                    .class_definition_method_entry()
+                    .unwrap_or_else(|| panic!("{name}: selected original {method}"));
+                let body = bindings
+                    .declared_receiver_body_entry_at(
+                        &entry.declaration().source,
+                        entry.body().base(),
+                    )
+                    .expect("independent original receiver body declaration");
+                let topology = body
+                    .original_formal_topology()
+                    .expect("independent original formal-list producer");
+                assert_eq!(topology.parameters()[0].name, expected, "{name}");
+            }
+        }
+    }
 
     #[test]
     fn native_default_constructor_uses_captured_worker_identity_and_rejects_replacement() {
@@ -1773,7 +2458,10 @@ mod tests {
             let entry = binding
                 .class_definition_method_entries()
                 .and_then(|(_, entries)| {
-                    entries.get(&(super::SourceMethodReceiver::Instance, name.to_owned()))
+                    entries.get(&(
+                        super::SourceMethodReceiver::Instance,
+                        NameBytes::from(name.as_bytes()),
+                    ))
                 })
                 .expect("native visibility leaves the original method entry installed");
             assert_eq!(entry.is_exported(), expected, "{source}");
@@ -1836,7 +2524,10 @@ mod tests {
                 let entry = binding
                     .class_definition_method_entries()
                     .and_then(|(_, entries)| {
-                        entries.get(&(super::SourceMethodReceiver::Class, "find".to_owned()))
+                        entries.get(&(
+                            super::SourceMethodReceiver::Class,
+                            NameBytes::from(b"find".as_slice()),
+                        ))
                     });
                 assert_eq!(entry.is_some(), expected, "{dialect}: {source}");
                 if let Some(entry) = entry {
@@ -1900,7 +2591,10 @@ mod tests {
             let selected = binding
                 .class_definition_method_entries()
                 .and_then(|(_, entries)| {
-                    entries.get(&(super::SourceMethodReceiver::Class, "ping".to_owned()))
+                    entries.get(&(
+                        super::SourceMethodReceiver::Class,
+                        NameBytes::from(b"ping".as_slice()),
+                    ))
                 });
             assert_eq!(selected.is_some(), expected, "{source}: {binding:#?}");
             if let Some(entry) = selected {
@@ -1964,7 +2658,10 @@ mod tests {
             let selected = binding
                 .class_definition_method_entries()
                 .and_then(|(_, entries)| {
-                    entries.get(&(super::SourceMethodReceiver::Class, "ping".to_owned()))
+                    entries.get(&(
+                        super::SourceMethodReceiver::Class,
+                        NameBytes::from(b"ping".as_slice()),
+                    ))
                 });
             assert_eq!(selected.is_some(), expected, "{source}: {binding:#?}");
             if let Some(entry) = selected {
@@ -2033,7 +2730,10 @@ mod tests {
             );
             if let Some((target, entries)) = entries {
                 let entry = entries
-                    .get(&(super::SourceMethodReceiver::Instance, "ping".to_owned()))
+                    .get(&(
+                        super::SourceMethodReceiver::Instance,
+                        NameBytes::from(b"ping".as_slice()),
+                    ))
                     .unwrap();
                 assert_eq!(target.command, "::C");
                 assert_eq!(entry.body().text.try_text().unwrap(), expected.unwrap());
@@ -2042,9 +2742,10 @@ mod tests {
                     entry.frame(),
                     crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
                 ));
-                assert!(
-                    !entries.contains_key(&(super::SourceMethodReceiver::Class, "ping".to_owned()))
-                );
+                assert!(!entries.contains_key(&(
+                    super::SourceMethodReceiver::Class,
+                    NameBytes::from(b"ping".as_slice())
+                )));
                 let declaration = source.rfind("method ping").unwrap();
                 assert_eq!(
                     entry.declaration().offset,

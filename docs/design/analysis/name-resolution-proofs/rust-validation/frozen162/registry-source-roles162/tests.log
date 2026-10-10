@@ -1,0 +1,17 @@
+
+running 1 test
+test resolved_invocation::tests::source_enum_values_and_definition_bodies_use_the_selected_invocation ... 
+thread 'resolved_invocation::tests::source_enum_values_and_definition_bodies_use_the_selected_invocation' (622063) panicked at rust/tcl-registry/src/resolved_invocation.rs:3263:9:
+assertion `left == right` failed
+  left: []
+ right: [1]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    resolved_invocation::tests::source_enum_values_and_definition_bodies_use_the_selected_invocation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1466 filtered out; finished in 0.04s
+

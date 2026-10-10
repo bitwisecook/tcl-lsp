@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::handlers::original_registry_symbol_tests::original_formal_counts_survive_procedure_and_signature_records ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8266 filtered out; finished in 28.24s
+

@@ -1,0 +1,109 @@
+[
+  {
+    "id": "naming.variable.original-root-entry-frame",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-root-entry-frame.md",
+    "problem_statement": "A genuine Native namespace wrapper at the top-level analysis entry can differ from the initial model frame. Treating that difference as a nested call restores incoming unknown variables after independently completed root stores.",
+    "question": "Can an analysis retain its supplied entry frame through root completion while keeping nested caller restoration and unknown observer withdrawal independent?",
+    "conclusion": "The source analysis entry selects its supplied namespace-wrapped frame before walking the root chunk and binds incoming formals in that selected frame. Root completion therefore retains the selected variable context instead of restoring an unselected model parent. Nested body entry and caller restoration are unchanged. Literal contents remain available only through the existing current cell, successful access and observer kernels; an unknown callback still withdraws them. This frame selection supplies no new Native frame, successful invocation, cell contents, source edit or TMM value authority.",
+    "scope": "Rust source analysis entry and retained variable-state contract. The fixed C8.6 captured-entry control compares exact before-read and final namespace/frame identity, a known scalar store/read and an unknown-command counterexample. Its independently captured namespace table and observer premises are not a general fresh global or caller-state assumption. No execution result for this new Rust selector or native experiment is attached.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/native_result.rs",
+        "selector": "command_binding::native_result::tests::original_root_entry_retains_selected_frame_and_withdraws_after_unknown_observer",
+        "assertion": "Retains exact selected Native root namespace/frame and completed scalar contents at final publication; an unknown command still leaves dynamic bindings and refuses the value.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding.rs",
+        "symbol": "analyse_source_in_frame_with_options",
+        "purpose": "Establish the supplied analysis entry frame before root traversal, separately from nested-call restoration and handler completion."
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_resolve.rs",
+        "symbol": "restore_execution_frame",
+        "purpose": "Preserve the existing nested caller and outward-effects restoration boundary without applying it to an unselected model entry parent."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The fixed Rust selector is linked without an attached execution receipt. Existing native address, frame and alias observations remain separate questions and do not prove this implementation contract."
+    }
+  }
+]

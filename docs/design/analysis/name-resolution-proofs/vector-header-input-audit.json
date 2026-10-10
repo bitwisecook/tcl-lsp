@@ -1,0 +1,116 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/8.4.20.txt",
+    "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "4019582c89320db840006a2f5c99019d7470d44f443f5590d09355f11c524dae"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/8.5.19.txt",
+    "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "4019582c89320db840006a2f5c99019d7470d44f443f5590d09355f11c524dae"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/8.6.18.txt",
+    "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "4019582c89320db840006a2f5c99019d7470d44f443f5590d09355f11c524dae"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/9.0.4.txt",
+    "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "4019582c89320db840006a2f5c99019d7470d44f443f5590d09355f11c524dae"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/9.1.0.txt",
+    "sha256": "d441ffee0c85eb5d7889e69111bdab31f9ccc92042cc76244ef57ef700b2e605",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "4019582c89320db840006a2f5c99019d7470d44f443f5590d09355f11c524dae"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/Jim.txt",
+    "sha256": "4db06c56f638d3ef26a4a0373bc42ea44bb428786cdb73608ac0da5feee5af2b",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "4019582c89320db840006a2f5c99019d7470d44f443f5590d09355f11c524dae"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/completions/8.4.20.txt",
+    "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "5d2db2af6e35da1ee9a644e9a4195e49754dcfea330dfaff5103a63c42f5506e"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/completions/8.5.19.txt",
+    "sha256": "c13d4e1635e82b9d034c2d95296c3f60113974d5a58aa716a61c9a853da846a7",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "5d2db2af6e35da1ee9a644e9a4195e49754dcfea330dfaff5103a63c42f5506e"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/completions/8.6.18.txt",
+    "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "5d2db2af6e35da1ee9a644e9a4195e49754dcfea330dfaff5103a63c42f5506e"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/completions/9.0.4.txt",
+    "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "5d2db2af6e35da1ee9a644e9a4195e49754dcfea330dfaff5103a63c42f5506e"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/completions/9.1.0.txt",
+    "sha256": "bbcfc7019aa52583346f3a125934d6ba7c7f73992a2118d5a10c16d7608f1e03",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "5d2db2af6e35da1ee9a644e9a4195e49754dcfea330dfaff5103a63c42f5506e"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/completions/Jim.txt",
+    "sha256": "96b430b799b776a794657b1323e333e3c36658935c8f19fdf81f215d11725301",
+    "captured_manifest_stream_exact_match": true,
+    "case_count": 10,
+    "source_sha256": "5d2db2af6e35da1ee9a644e9a4195e49754dcfea330dfaff5103a63c42f5506e"
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_headers/8.4.20.txt",
+    "sha256": "06131ac9067d58dbc6e6d9b7f4b5b8da12ae59cdbca4a35152c9980854af9034",
+    "full_output_hash_match": true,
+    "case_count": 8
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_headers/8.5.19.txt",
+    "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+    "full_output_hash_match": true,
+    "case_count": 8
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_headers/8.6.18.txt",
+    "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+    "full_output_hash_match": true,
+    "case_count": 8
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_headers/9.0.4.txt",
+    "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+    "full_output_hash_match": true,
+    "case_count": 8
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_headers/9.1.0.txt",
+    "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
+    "full_output_hash_match": true,
+    "case_count": 8
+  }
+]

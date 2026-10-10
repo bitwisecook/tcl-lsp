@@ -1,0 +1,722 @@
+[
+  {
+    "id": "naming.editor.original-variable-rename-opaque-root",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/editor-original-variable-rename-opaque-root.md",
+    "problem_statement": "C8.6 source escapes D800 and D801 can produce distinct original units with equally unusable display names. Renaming by a reporting string can merge the siblings or rewrite the array index.",
+    "question": "Does the original variable edit plan replace only the selected byte/policy root tail while preserving the opaque sibling and original combined array index?",
+    "conclusion": "The edit contract selects the authentic original symbol and plans exact source replacements for its root tail only. The regression applies the emitted edits and checks that D800 becomes changed(k) in declaration/read while D801 remains untouched, even after reporting variables and qualified names are cleared. Native provider results and runtime cell changes are not claimed.",
+    "scope": "Current Rust source edit correspondence, original byte/policy symbol, selected receiver purpose, independently issued written root/list-container geometry, complete source/grammar currency and typed coverage. Native Tcl/Jim/BIG-IP language observations motivate separate questions and do not execute this invariant. Named tests are linked coverage obligations; no execution result is asserted. Edit authority is distinct from readonly selection, source occurrence counts and any physical runtime frame/cell/value capability.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "plan",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "sha256": "6d33395aaf6db04061ef7918172271e256494e47526d84005eafde8dbedd605c",
+        "description": "Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.",
+        "contains": "original_variable_rename_keeps_opaque_siblings_and_array_indices"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "selector": "variable_symbol::rename::tests::original_variable_rename_keeps_opaque_siblings_and_array_indices",
+        "status": "linked",
+        "assertion": "The edit contract selects the authentic original symbol and plans exact source replacements for its root tail only. The regression applies the emitted edits and checks that D800 becomes changed(k) in declaration/read while D801 remains untouched, even after reporting variables and qualified names are cleared. Native provider results and runtime cell changes are not claimed."
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "symbol": "original_variable_rename_edits",
+        "purpose": "Requires complete source/grammar, typed root/frame/coverage/collision facts and independently editable original geometry before issuing all source replacements."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/variable_symbol.rs",
+        "symbol": "renamed_input",
+        "purpose": "Retains each original receiver purpose and root/index geometry when deriving proposed native input bytes."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types.rs",
+        "symbol": "original_variable_rename_is_complete",
+        "purpose": "Withdraws editing when original target/alias/read coverage for the selected source symbol is incomplete."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_variable_root_name_edit",
+        "purpose": "Checks original written lexical delimiters and root extent before issuing one immutable source edit."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_name_input_edits",
+        "purpose": "Retains genuine original list-container geometry and refuses overlapping or unrelated-child edits."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_input_matches_source",
+        "purpose": "Checks original input/source-span correspondence under the consumer complete source and grammar; shared by namespace and variable editors."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-lsp-core",
+        "variable_symbol::rename::tests::original_variable_rename_keeps_opaque_siblings_and_array_indices"
+      ],
+      "limitations": "The exact current source selector identifies the implementation assertion; naming it or matching its comment is not an execution claim. No passing Rust execution receipt is attached. All native providers remain not-tested for this Rust edit question."
+    }
+  },
+  {
+    "id": "naming.editor.original-variable-rename-lexical-geometry",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/editor-original-variable-rename-lexical-geometry.md",
+    "problem_statement": "A variable declaration, unbraced dollar read and braced dollar read can denote the same selected root but have different written delimiters and root/index geometry. Replacing a reconstructed whole name can change an index or lexical form.",
+    "question": "Does the emitted original variable edit preserve braced/unbraced dollar delimiters and the separately selected array index while changing the authentic root tail?",
+    "conclusion": "The edit contract rechecks each original root name extent against the full source image, selected string protocol and original root/index input. The regression applies the actual edits to set a(k), $a(k) and ${a(k)} forms and requires their delimiters and index k to remain exact. Successful runtime reads or stores are outside this source edit contract.",
+    "scope": "Current Rust source edit correspondence, original byte/policy symbol, selected receiver purpose, independently issued written root/list-container geometry, complete source/grammar currency and typed coverage. Native Tcl/Jim/BIG-IP language observations motivate separate questions and do not execute this invariant. Named tests are linked coverage obligations; no execution result is asserted. Edit authority is distinct from readonly selection, source occurrence counts and any physical runtime frame/cell/value capability.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "plan",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "sha256": "6d33395aaf6db04061ef7918172271e256494e47526d84005eafde8dbedd605c",
+        "description": "Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.",
+        "contains": "original_variable_rename_preserves_lexical_braces_and_separate_array_index"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "selector": "variable_symbol::rename::tests::original_variable_rename_preserves_lexical_braces_and_separate_array_index",
+        "status": "linked",
+        "assertion": "The edit contract rechecks each original root name extent against the full source image, selected string protocol and original root/index input. The regression applies the actual edits to set a(k), $a(k) and ${a(k)} forms and requires their delimiters and index k to remain exact. Successful runtime reads or stores are outside this source edit contract."
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "symbol": "original_variable_rename_edits",
+        "purpose": "Requires complete source/grammar, typed root/frame/coverage/collision facts and independently editable original geometry before issuing all source replacements."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/variable_symbol.rs",
+        "symbol": "renamed_input",
+        "purpose": "Retains each original receiver purpose and root/index geometry when deriving proposed native input bytes."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types.rs",
+        "symbol": "original_variable_rename_is_complete",
+        "purpose": "Withdraws editing when original target/alias/read coverage for the selected source symbol is incomplete."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_variable_root_name_edit",
+        "purpose": "Checks original written lexical delimiters and root extent before issuing one immutable source edit."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_name_input_edits",
+        "purpose": "Retains genuine original list-container geometry and refuses overlapping or unrelated-child edits."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_input_matches_source",
+        "purpose": "Checks original input/source-span correspondence under the consumer complete source and grammar; shared by namespace and variable editors."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-lsp-core",
+        "variable_symbol::rename::tests::original_variable_rename_preserves_lexical_braces_and_separate_array_index"
+      ],
+      "limitations": "The exact current source selector identifies the implementation assertion; naming it or matching its comment is not an execution claim. No passing Rust execution receipt is attached. All native providers remain not-tested for this Rust edit question."
+    }
+  },
+  {
+    "id": "naming.editor.original-variable-rename-frame-currency",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/editor-original-variable-rename-frame-currency.md",
+    "problem_statement": "Two procedures can declare local with the same spelling in independent frames. Equal spelling, stale analysis or an already occupied replacement could produce an edit that merges unrelated source symbols.",
+    "question": "Does a local variable edit retain the selected authentic source frame and refuse changed source or a typed replacement collision?",
+    "conclusion": "The edit contract requires complete current source/grammar and the selected typed frame symbol before planning geometry. The regression applies edits to p only while q retains local, then requires changed-source and occupied changed-name cases to refuse. The frame correspondence is source ownership, not an entered runtime frame or current cell.",
+    "scope": "Current Rust source edit correspondence, original byte/policy symbol, selected receiver purpose, independently issued written root/list-container geometry, complete source/grammar currency and typed coverage. Native Tcl/Jim/BIG-IP language observations motivate separate questions and do not execute this invariant. Named tests are linked coverage obligations; no execution result is asserted. Edit authority is distinct from readonly selection, source occurrence counts and any physical runtime frame/cell/value capability.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "plan",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "sha256": "6d33395aaf6db04061ef7918172271e256494e47526d84005eafde8dbedd605c",
+        "description": "Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.",
+        "contains": "original_variable_rename_uses_authentic_local_frame_and_refuses_stale_or_colliding_sources"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "selector": "variable_symbol::rename::tests::original_variable_rename_uses_authentic_local_frame_and_refuses_stale_or_colliding_sources",
+        "status": "linked",
+        "assertion": "The edit contract requires complete current source/grammar and the selected typed frame symbol before planning geometry. The regression applies edits to p only while q retains local, then requires changed-source and occupied changed-name cases to refuse. The frame correspondence is source ownership, not an entered runtime frame or current cell."
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "symbol": "original_variable_rename_edits",
+        "purpose": "Requires complete source/grammar, typed root/frame/coverage/collision facts and independently editable original geometry before issuing all source replacements."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/variable_symbol.rs",
+        "symbol": "renamed_input",
+        "purpose": "Retains each original receiver purpose and root/index geometry when deriving proposed native input bytes."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types.rs",
+        "symbol": "original_variable_rename_is_complete",
+        "purpose": "Withdraws editing when original target/alias/read coverage for the selected source symbol is incomplete."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_variable_root_name_edit",
+        "purpose": "Checks original written lexical delimiters and root extent before issuing one immutable source edit."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_name_input_edits",
+        "purpose": "Retains genuine original list-container geometry and refuses overlapping or unrelated-child edits."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_input_matches_source",
+        "purpose": "Checks original input/source-span correspondence under the consumer complete source and grammar; shared by namespace and variable editors."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-lsp-core",
+        "variable_symbol::rename::tests::original_variable_rename_uses_authentic_local_frame_and_refuses_stale_or_colliding_sources"
+      ],
+      "limitations": "The exact current source selector identifies the implementation assertion; naming it or matching its comment is not an execution claim. No passing Rust execution receipt is attached. All native providers remain not-tested for this Rust edit question."
+    }
+  },
+  {
+    "id": "naming.editor.original-variable-rename-alias-coverage",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/editor-original-variable-rename-alias-coverage.md",
+    "problem_statement": "A global alias derives its local tail from the target, while an explicit upvar local alias has an independently written name. Renaming all equal displayed reads or editing only qualified targets would respectively damage the independent alias or omit derived reads.",
+    "question": "Does the original edit plan account for both derived global reads and independently named upvar aliases when renaming one selected namespace variable?",
+    "conclusion": "The edit contract requires complete original target/read coverage and preserves the actual alias naming purpose. The regression applies edits to the namespace declaration, global target and derived $v read, plus the upvar target, while alias and $alias remain exact. Unknown/computed targets without independently editable geometry decline; native alias execution and cell identity are separate questions.",
+    "scope": "Current Rust source edit correspondence, original byte/policy symbol, selected receiver purpose, independently issued written root/list-container geometry, complete source/grammar currency and typed coverage. Native Tcl/Jim/BIG-IP language observations motivate separate questions and do not execute this invariant. Named tests are linked coverage obligations; no execution result is asserted. Edit authority is distinct from readonly selection, source occurrence counts and any physical runtime frame/cell/value capability.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "plan",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "sha256": "6d33395aaf6db04061ef7918172271e256494e47526d84005eafde8dbedd605c",
+        "description": "Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.",
+        "contains": "original_variable_rename_accounts_for_derived_and_independent_alias_reads"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "selector": "variable_symbol::rename::tests::original_variable_rename_accounts_for_derived_and_independent_alias_reads",
+        "status": "linked",
+        "assertion": "The edit contract requires complete original target/read coverage and preserves the actual alias naming purpose. The regression applies edits to the namespace declaration, global target and derived $v read, plus the upvar target, while alias and $alias remain exact. Unknown/computed targets without independently editable geometry decline; native alias execution and cell identity are separate questions."
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "symbol": "original_variable_rename_edits",
+        "purpose": "Requires complete source/grammar, typed root/frame/coverage/collision facts and independently editable original geometry before issuing all source replacements."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/variable_symbol.rs",
+        "symbol": "renamed_input",
+        "purpose": "Retains each original receiver purpose and root/index geometry when deriving proposed native input bytes."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types.rs",
+        "symbol": "original_variable_rename_is_complete",
+        "purpose": "Withdraws editing when original target/alias/read coverage for the selected source symbol is incomplete."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_variable_root_name_edit",
+        "purpose": "Checks original written lexical delimiters and root extent before issuing one immutable source edit."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_name_input_edits",
+        "purpose": "Retains genuine original list-container geometry and refuses overlapping or unrelated-child edits."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_input_matches_source",
+        "purpose": "Checks original input/source-span correspondence under the consumer complete source and grammar; shared by namespace and variable editors."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-lsp-core",
+        "variable_symbol::rename::tests::original_variable_rename_accounts_for_derived_and_independent_alias_reads"
+      ],
+      "limitations": "The exact current source selector identifies the implementation assertion; naming it or matching its comment is not an execution claim. No passing Rust execution receipt is attached. All native providers remain not-tested for this Rust edit question."
+    }
+  },
+  {
+    "id": "naming.server.original-variable-rename-plans",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/server-original-variable-rename-plans.md",
+    "problem_statement": "A namespace variable rename can cross equal-source documents and encounter a replacement declared in another URI. A local plan or display-based collision check can miss a document owner or merge original byte slots.",
+    "question": "Does Server variable rename require independently inspected source plans for every URI and reject a typed replacement occupied elsewhere in the workspace?",
+    "conclusion": "The Server contract constructs the proposed original symbol, checks typed workspace occupancy, independently reads/analyzes each participating URI and delegates its exact source plan to the shared Core editor. The regression applies both emitted document plans for D800 while preserving D801, then requires a separately indexed changed declaration to refuse. Missing document/coverage or invalid URI is terminal; no native execution or workspace runtime cell is granted.",
+    "scope": "Current Rust source edit correspondence, original byte/policy symbol, selected receiver purpose, independently issued written root/list-container geometry, complete source/grammar currency and typed coverage. Native Tcl/Jim/BIG-IP language observations motivate separate questions and do not execute this invariant. Named tests are linked coverage obligations; no execution result is asserted. Edit authority is distinct from readonly selection, source occurrence counts and any physical runtime frame/cell/value capability.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "C Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested for this Rust edit contract",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "plan",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "sha256": "8837a17c9c7c7636b882f5c2f8414a42a4faad407d707f588c7402b8e122ff44",
+        "description": "Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.",
+        "contains": "original_variable_rename_shares_source_plans_and_typed_workspace_collisions"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "selector": "tests::original_variable_rename_shares_source_plans_and_typed_workspace_collisions",
+        "status": "linked",
+        "assertion": "The Server contract constructs the proposed original symbol, checks typed workspace occupancy, independently reads/analyzes each participating URI and delegates its exact source plan to the shared Core editor. The regression applies both emitted document plans for D800 while preserving D801, then requires a separately indexed changed declaration to refuse. Missing document/coverage or invalid URI is terminal; no native execution or workspace runtime cell is granted."
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+        "symbol": "original_variable_rename_edits",
+        "purpose": "Requires complete source/grammar, typed root/frame/coverage/collision facts and independently editable original geometry before issuing all source replacements."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/variable_symbol.rs",
+        "symbol": "renamed_input",
+        "purpose": "Retains each original receiver purpose and root/index geometry when deriving proposed native input bytes."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types.rs",
+        "symbol": "original_variable_rename_is_complete",
+        "purpose": "Withdraws editing when original target/alias/read coverage for the selected source symbol is incomplete."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_variable_root_name_edit",
+        "purpose": "Checks original written lexical delimiters and root extent before issuing one immutable source edit."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_name_input_edits",
+        "purpose": "Retains genuine original list-container geometry and refuses overlapping or unrelated-child edits."
+      },
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "symbol": "cross_document_original_variable_rename",
+        "purpose": "Keeps independent URI owners, typed workspace collisions and all document coverage before returning the combined edit set."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "symbol": "original_variable_occurrences",
+        "purpose": "Reports typed source occupancy without reconstructing optional presentation strings."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+        "symbol": "original_input_matches_source",
+        "purpose": "Checks original input/source-span correspondence under the consumer complete source and grammar; shared by namespace and variable editors."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-lsp-server",
+        "tests::original_variable_rename_shares_source_plans_and_typed_workspace_collisions"
+      ],
+      "limitations": "The exact current source selector identifies the implementation assertion; naming it or matching its comment is not an execution claim. No passing Rust execution receipt is attached. All native providers remain not-tested for this Rust edit question."
+    }
+  }
+]

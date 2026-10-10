@@ -210,7 +210,7 @@ pub fn finalise_optimisations(
     // body) can keep that `$b` reference in the emitted output, so the def is not
     // actually dead. Drop any def-elimination whose target variable still appears
     // in another surviving optimisation's replacement text.
-    drop_def_elims_resurrected_by_replacements(&cu.source, registry, &mut selected);
+    drop_def_elims_resurrected_by_replacements(cu, registry, &mut selected);
     // Re-canonicalise: `couple_propagated_const_dead_stores` appends its O109
     // removals in `cu.procedures` / `cu.methods` HashMap-iteration order, which
     // differs run-to-run and — critically — between the offset-0 per-procedure
@@ -223,20 +223,96 @@ pub fn finalise_optimisations(
     selected
 }
 
-/// The variable a first-arg-writing statement (`set` / `incr` / `append` /
-/// `lappend` / `lset` — the registry's `writes_first_arg_variable` set)
-/// writes, parsed from its source text (`set b 0` → `b`); base name only (an
-/// array element's `(key)` suffix is dropped). `None` for any other shape or a
-/// non-literal (substituted) target name.
-fn elim_target_var(span_text: &str, registry: &CommandRegistry) -> Option<String> {
-    let mut words = span_text.split_whitespace();
-    let cmd = words.next()?;
-    if !registry.writes_first_arg_variable(cmd) {
+/// Exact original definition operands for the command removed by this edit.
+/// This is a protective source-rewrite query: names can withdraw a deletion,
+/// never establish runtime cells or authorise executing the replacement.
+/// Unavailable original geometry/selection stays unavailable.
+fn elim_target_vars(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    deletion: tcl_lexer::Span,
+) -> Option<Vec<String>> {
+    let module = &cu.ir_module;
+    if module.source.try_text().ok()? != cu.source
+        || module.registry_snapshot.as_ref()?.semantic_key() != registry.snapshot().semantic_key()
+    {
         return None;
     }
-    let name = words.next()?;
-    let base = name.split_once('(').map_or(name, |(b, _)| b);
-    (!base.is_empty() && !base.contains('$') && !base.contains('[')).then(|| base.to_string())
+    let first = cu
+        .all_body_function_units()
+        .flat_map(|unit| {
+            unit.cfg.blocks.iter().flat_map(move |(&block, data)| {
+                data.statements
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(index, _)| {
+                        let span =
+                            unit.abs_span(unit.cfg.statement_source_edit_span(block, index)?);
+                        (deletion.start() <= span.start() && span.end() <= deletion.end())
+                            .then_some((span, unit, block, index))
+                    })
+            })
+        })
+        .min_by_key(|(span, _, _, _)| (span.start(), std::cmp::Reverse(span.len())));
+    let Some((_, unit, block, index)) = first else {
+        // A non-statement deletion (for example a whole declaration) is not a
+        // variable definition. Definition-removal codes need their own carrier.
+        return Some(Vec::new());
+    };
+    let tokens = unit.cfg.source_tokens_at(block, index)?;
+    let binding = tokens.source_binding.as_ref()?;
+    let origin = binding.source_origin()?;
+    if !matches!(
+        origin.kind(),
+        crate::command_binding::SourceOriginKind::Authored(_)
+    ) || origin.source_image() != &module.source
+        || binding
+            .original_lexer_config_for_tokens(tokens)?
+            .normalized()
+            != module.lexer_config.normalized()
+    {
+        return None;
+    }
+    let normal = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry,
+        Some(unit.invocation_metadata_context(registry)?),
+        tokens,
+    )?;
+    normal_definition_reference_names(&normal, &binding.variable_context, registry)
+}
+
+/// Combine original operand names and already-bound canonical projections.
+/// The common operand/cell owners select CString/counting, array decomposition
+/// and aliases; this consumer never parses a reporting command head or argv.
+fn normal_definition_reference_names(
+    normal: &crate::registry_invocation::NormalTransferInvocation,
+    context: &crate::var_resolve::ResolveContext,
+    registry: &CommandRegistry,
+) -> Option<Vec<String>> {
+    let outputs = normal.variable_output_arguments()?;
+    let mut names = normal.definition_names();
+    // Unknown variable operands cannot turn an absence of printable names
+    // into a licence to delete their original definition.
+    for index in outputs {
+        normal.argument_literal(index)?;
+    }
+    for place in normal.definition_places(context, registry) {
+        let canonical = crate::var_resolve::canonical_binding_value_name(&place)?;
+        names.push(canonical);
+        names.push(place.name);
+    }
+    let mut roots = Vec::new();
+    for name in names {
+        // These are selected values, not substitution syntax. In particular
+        // a literal `$name` must keep its leading dollar byte.
+        roots.push(
+            tcl_syntax::naming::split_element_ref(&name)
+                .map_or(name.clone(), |(base, _)| base.to_owned()),
+        );
+    }
+    roots.sort_unstable();
+    roots.dedup();
+    Some(roots)
 }
 
 /// Drop a def-elimination (empty replacement) when its target variable still
@@ -253,19 +329,23 @@ fn elim_target_var(span_text: &str, registry: &CommandRegistry) -> Option<String
 /// is applied all-or-nothing, never partially, exactly as
 /// [`select_non_overlapping`] guarantees earlier in this tail.
 fn drop_def_elims_resurrected_by_replacements(
-    source: &str,
+    cu: &CompilationUnit,
     registry: &CommandRegistry,
     selected: &mut Vec<Optimisation>,
 ) {
-    let elims: Vec<(usize, String)> = selected
+    // naming.optimiser.original-definition-resurrection-guard
+    // docs/design/analysis/name-resolution-proofs/optimiser-original-definition-resurrection-guard.md
+    let elims: Vec<(usize, Option<Vec<String>>)> = selected
         .iter()
         .enumerate()
         .filter(|(_, o)| o.replacement.trim().is_empty())
-        .filter_map(|(i, o)| {
-            let s = o.span.start() as usize;
-            let e = (o.span.end() as usize).min(source.len());
-            let var = elim_target_var(source.get(s..e)?, registry)?;
-            Some((i, var))
+        .map(|(i, o)| {
+            let names = elim_target_vars(cu, registry, o.span).and_then(|names| {
+                (!names.is_empty()
+                    || !matches!(o.code, DiagCode::O109 | DiagCode::O125 | DiagCode::O126))
+                .then_some(names)
+            });
+            (i, names)
         })
         .collect();
     if elims.is_empty() {
@@ -273,12 +353,17 @@ fn drop_def_elims_resurrected_by_replacements(
     }
     let mut drop: Vec<usize> = elims
         .iter()
-        .filter(|(i, var)| {
+        .filter(|(i, names)| {
+            let Some(names) = names else {
+                return true;
+            };
             let group = selected[*i].group;
             selected.iter().enumerate().any(|(j, o)| {
                 j != *i
                     && !(group.is_some() && o.group == group)
-                    && count_var_refs(&o.replacement, var) > 0
+                    && names
+                        .iter()
+                        .any(|name| count_var_refs(&o.replacement, name) > 0)
             })
         })
         .map(|(i, _)| *i)
@@ -427,6 +512,9 @@ fn couple_const_dead_stores_in_function(
 ) {
     use crate::def_use::DefKind;
 
+    let Some(metadata) = fu.invocation_metadata_context(registry) else {
+        return;
+    };
     // Per-variable def count — only single-def scalars qualify.
     let mut def_count: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
     for chain in fu.def_use.chains.values() {
@@ -443,7 +531,11 @@ fn couple_const_dead_stores_in_function(
         source,
         selected,
         def_count,
-        scope_aliases: super::elimination::scan_scope_aliases(&fu.cfg, registry),
+        scope_aliases: super::elimination::scan_scope_aliases_with_metadata_context(
+            &fu.cfg,
+            registry,
+            Some(metadata),
+        ),
         rmw_hidden: super::elimination::collect_rmw_hidden_reads(fu, registry),
         traced,
     };
@@ -1422,7 +1514,9 @@ mod tests {
         // are exempt. Both members must survive, or the assignment lands twice.
         let source = "set msg \"error\"\nif {$ok} { return } else { log $msg }";
         let mut selected = sink_group(source);
-        drop_def_elims_resurrected_by_replacements(source, &registry(), &mut selected);
+        let registry = registry();
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        drop_def_elims_resurrected_by_replacements(&cu, &registry, &mut selected);
         assert_eq!(
             selected.len(),
             2,
@@ -1446,12 +1540,119 @@ mod tests {
             ),
             "puts $msg",
         ));
-        drop_def_elims_resurrected_by_replacements(source, &registry(), &mut selected);
+        let registry = registry();
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        drop_def_elims_resurrected_by_replacements(&cu, &registry, &mut selected);
         assert_eq!(
             selected.len(),
             1,
             "the whole O125 group must go, leaving only the unrelated rewrite, got {selected:?}",
         );
         assert_eq!(selected[0].code, DiagCode::O100);
+    }
+    /// Manufactured proposals test only finalisation's safety gate; they do
+    /// not assert that an optimiser pass emits these proposals for the source.
+    fn guarded_removal(source: &str, command: &str, replacement: &str) -> Vec<Optimisation> {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let cu = CompilationUnit::build_for_profile(
+            source,
+            registry,
+            false,
+            registry.profile().unwrap(),
+        );
+        let start = u32::try_from(source.find(command).unwrap()).unwrap();
+        let end = start + u32::try_from(command.len()).unwrap();
+        let raw = vec![
+            Optimisation::new(
+                DiagCode::O109,
+                "definition removal",
+                Span::new(start, end),
+                "",
+            ),
+            Optimisation::new(
+                DiagCode::O100,
+                "surviving source",
+                Span::new(
+                    u32::try_from(source.len()).unwrap(),
+                    u32::try_from(source.len()).unwrap(),
+                ),
+                replacement,
+            ),
+        ];
+        finalise_optimisations(&raw, &cu, registry, registry.profile())
+    }
+
+    #[test]
+    fn original_definition_guard_keeps_quoted_qualified_and_alias_names() {
+        // naming.optimiser.original-definition-resurrection-guard
+        // docs/design/analysis/name-resolution-proofs/optimiser-original-definition-resurrection-guard.md
+        for (source, command, replacement) in [
+            ("set {b c} 0\n", "set {b c} 0", "puts ${b c}"),
+            ("set \"b c\" 0\n", "set \"b c\" 0", "puts ${b c}"),
+            ("::set b 0\n", "::set b 0", "puts $b"),
+            (
+                "interp alias {} assign {} set\nassign {b c} 0\n",
+                "assign {b c} 0",
+                "puts ${b c}",
+            ),
+            (
+                "interp alias {} assign {} set b\nassign 0\n",
+                "assign 0",
+                "puts $b",
+            ),
+            ("set {b(c} 0\n", "set {b(c} 0", "puts ${b(c}"),
+            ("set {$b} 0\n", "set {$b} 0", "puts ${$b}"),
+            ("set $target 0\n", "set $target 0", "puts $b"),
+            ("proc set {name value} {}\nset b 0\n", "set b 0", "puts $b"),
+        ] {
+            let selected = guarded_removal(source, command, replacement);
+            assert!(
+                selected.iter().all(|opt| opt.code != DiagCode::O109),
+                "{source:?}: {selected:?}"
+            );
+        }
+        let selected = guarded_removal("set {b c} 0\n", "set {b c} 0", "puts ${other name}");
+        assert!(
+            selected.iter().any(|opt| opt.code == DiagCode::O109),
+            "unrelated replacement: {selected:?}"
+        );
+    }
+
+    #[test]
+    fn original_definition_guard_declines_foreign_source_registry_and_missing_carrier() {
+        // naming.optimiser.original-definition-resurrection-guard
+        // docs/design/analysis/name-resolution-proofs/optimiser-original-definition-resurrection-guard.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let source = "set {b c} 0\n";
+        let cu = CompilationUnit::build_for_profile(
+            source,
+            registry,
+            false,
+            registry.profile().unwrap(),
+        );
+        let span = Span::new(0, u32::try_from(source.trim_end().len()).unwrap());
+        assert!(
+            elim_target_vars(&cu, registry, span)
+                .unwrap()
+                .contains(&"b c".to_owned())
+        );
+        let mut stale = cu.clone();
+        stale.source.replace_range(..3, "put");
+        assert_eq!(elim_target_vars(&stale, registry, span), None);
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        assert_eq!(elim_target_vars(&cu, foreign, span), None);
+        stale = cu.clone();
+        stale.ir_module.lexer_config.strict_quoting ^= true;
+        assert_eq!(elim_target_vars(&stale, registry, span), None);
+        stale = cu;
+        stale.top_level.cfg.command_binding_sites.clear();
+        for block in stale.top_level.cfg.blocks.values_mut() {
+            for statement in &mut block.statements {
+                if let Some(tokens) = statement.tokens_mut() {
+                    tokens.source_binding = None;
+                }
+            }
+        }
+        assert_eq!(elim_target_vars(&stale, registry, span), None);
     }
 }

@@ -1,0 +1,34 @@
+TclCompileStringLenCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to defintion of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+
+    if (parsePtr->numWords != 2) {
+	return TCL_ERROR;
+    }
+
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    if (tokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+	/*
+	 * Here someone is asking for the length of a static string. Just push
+	 * the actual character (not byte) length.
+	 */
+
+	char buf[TCL_INTEGER_SPACE];
+	int len = Tcl_NumUtfChars(tokenPtr[1].start, tokenPtr[1].size);
+
+	len = sprintf(buf, "%d", len);
+	PushLiteral(envPtr, buf, len);
+    } else {
+	SetLineInformation (1);
+	CompileTokens(envPtr, tokenPtr, interp);
+	TclEmitOpcode(INST_STR_LEN, envPtr);
+    }
+    return TCL_OK;
+}

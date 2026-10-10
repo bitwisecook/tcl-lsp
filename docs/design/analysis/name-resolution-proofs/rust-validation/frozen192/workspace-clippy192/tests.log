@@ -1,0 +1,124 @@
+    Checking tcl-core-types v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-core-types)
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-dialect)
+    Checking tcl-platform v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-platform)
+    Checking smallvec v1.16.2
+    Checking hashbrown v0.17.1
+    Checking indexmap v2.14.2
+    Checking tcl-lexer v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-lexer)
+    Checking serde_json v1.0.151
+    Checking tcl-host-c-abi v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-host-c-abi)
+    Checking tcl-host-native v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-host-native)
+    Checking tcl-test-support v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-test-support)
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+    Checking parking_lot_core v0.9.12
+    Checking tcl-engine-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-engine-api)
+    Checking tcl-userdirs v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-userdirs)
+    Checking parking_lot v0.12.5
+    Checking either v1.18.0
+    Checking rayon v1.12.0
+    Checking temp-env v0.3.6
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+   Compiling rustix v1.1.5
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+    Checking tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bytecode)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking xattr v1.6.1
+    Checking tar v0.4.46
+    Checking bumpalo v3.20.3
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+   Compiling generic-array v0.14.7
+    Checking zopfli v0.8.3
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking zip v8.6.0
+    Checking tcl-sandbox v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-sandbox)
+    Checking terminal_size v0.4.4
+    Checking clap_builder v4.6.7
+    Checking clap v4.6.7
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+    Checking hashlink v0.12.2
+    Checking dashmap v6.2.1
+    Checking clap_complete v4.6.11
+    Checking tcl-f5mku v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-f5mku)
+    Checking hashbrown v0.16.1
+    Checking salsa v0.28.5
+    Checking generic-array v1.4.5
+    Checking combine v4.6.8
+    Checking russh v0.64.1
+    Checking russh-sftp v3.0.1
+    Checking rbpf v0.4.1
+   Compiling wasmtime-internal-core v49.0.2
+   Compiling cranelift-srcgen v0.136.2
+   Compiling cranelift-assembler-x64-meta v0.136.2
+   Compiling pulley-macros v49.0.2
+   Compiling tcl-cli v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cli)
+   Compiling cranelift-bitset v0.136.2
+   Compiling log v0.4.34
+   Compiling cranelift-isle v0.136.2
+    Checking rusqlite v0.40.2
+   Compiling pulley-interpreter v49.0.2
+    Checking crypto-common v0.1.7
+    Checking block-buffer v0.10.4
+   Compiling target-lexicon v0.13.5
+   Compiling cranelift-codegen-shared v0.136.2
+   Compiling pulldown-cmark v0.13.4
+   Compiling cranelift-codegen-meta v0.136.2
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+    Checking digest v0.10.7
+    Checking cranelift-entity v0.136.2
+   Compiling cranelift-assembler-x64 v0.136.2
+    Checking mcf v0.6.0
+    Checking cobs v0.3.0
+    Checking memo-map v0.3.4
+    Checking password-hash v0.6.1
+    Checking unicase v2.9.0
+    Checking pulldown-cmark-escape v0.11.0
+   Compiling bigip-report-gen-rust v0.1.0 (/workspace/.checkpoints/naming-validation/rust/bigip-report-gen/rust)
+    Checking cpufeatures v0.2.17
+    Checking sha2 v0.10.9
+    Checking sha-crypt v0.6.0
+    Checking minijinja v2.24.0
+    Checking postcard v1.1.3
+    Checking cranelift-bforest v0.136.2
+   Compiling cranelift-codegen v0.136.2
+    Checking ls-types v0.0.6
+    Checking gimli v0.33.0
+    Checking arbitrary v1.4.2
+    Checking cranelift-control v0.136.2
+    Checking tower-lsp-server v0.23.0
+    Checking tcl-irules v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-irules)
+    Checking tcl-sslictcl v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-sslictcl)
+    Checking tcl-bigip v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bigip)
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-engine-tclvm)
+    Checking tcl-spec-hooks v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-spec-hooks)
+    Checking tcl-diagram v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-diagram)
+error: this function has too many lines (108/100)
+   --> rust/tcl-diagram/src/data.rs:803:1
+    |
+803 | / fn walk_statement(
+804 | |     stmt: &Statement,
+805 | |     caller_qname: &str,
+806 | |     context: &DiagramContext<'_>,
+807 | |     depth: usize,
+808 | | ) -> Option<Value> {
+    | |__________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+    = note: `-D clippy::too-many-lines` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: this function has too many lines (124/100)
+   --> rust/tcl-diagram/src/data.rs:987:1
+    |
+987 | / pub fn diagram_data_for_analysis(
+988 | |     source: &str,
+989 | |     analysis: &AnalysisResult,
+990 | |     module: &Module,
+991 | |     availability: &tcl_registry::model::ContextRegistry,
+992 | | ) -> Value {
+    | |__________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: could not compile `tcl-diagram` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

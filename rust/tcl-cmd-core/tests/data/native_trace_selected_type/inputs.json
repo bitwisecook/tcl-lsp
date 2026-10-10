@@ -1,0 +1,284 @@
+[
+  {
+    "label": "DIRECT_ASCII_var_info",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "766172"
+    ]
+  },
+  {
+    "label": "DIRECT_RAW_ZERO_var_info",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "76617200ff"
+    ]
+  },
+  {
+    "label": "DIRECT_ENCODED_ZERO_var_info",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "766172c080ff"
+    ]
+  },
+  {
+    "label": "ASCII_SOURCE_var_info",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "766172"
+    ],
+    "source_hex": "747261636520696e666f20766172"
+  },
+  {
+    "label": "COUNTED_SOURCE_RAW_ZERO_var_info",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "76617200ff"
+    ],
+    "source_hex": "747261636520696e666f2076617200ff"
+  },
+  {
+    "label": "DIRECT_ASCII_var_add",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "766172"
+    ]
+  },
+  {
+    "label": "DIRECT_RAW_ZERO_var_add",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "76617200ff"
+    ]
+  },
+  {
+    "label": "DIRECT_ENCODED_ZERO_var_add",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "766172c080ff"
+    ]
+  },
+  {
+    "label": "ASCII_SOURCE_var_add",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "766172"
+    ],
+    "source_hex": "74726163652061646420766172"
+  },
+  {
+    "label": "COUNTED_SOURCE_RAW_ZERO_var_add",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "76617200ff"
+    ],
+    "source_hex": "7472616365206164642076617200ff"
+  },
+  {
+    "label": "DIRECT_ASCII_com_info",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "636f6d"
+    ]
+  },
+  {
+    "label": "DIRECT_RAW_ZERO_com_info",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "636f6d00ff"
+    ]
+  },
+  {
+    "label": "DIRECT_ENCODED_ZERO_com_info",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "636f6dc080ff"
+    ]
+  },
+  {
+    "label": "ASCII_SOURCE_com_info",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "636f6d"
+    ],
+    "source_hex": "747261636520696e666f20636f6d"
+  },
+  {
+    "label": "COUNTED_SOURCE_RAW_ZERO_com_info",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "636f6d00ff"
+    ],
+    "source_hex": "747261636520696e666f20636f6d00ff"
+  },
+  {
+    "label": "DIRECT_ASCII_com_add",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "636f6d"
+    ]
+  },
+  {
+    "label": "DIRECT_RAW_ZERO_com_add",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "636f6d00ff"
+    ]
+  },
+  {
+    "label": "DIRECT_ENCODED_ZERO_com_add",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "636f6dc080ff"
+    ]
+  },
+  {
+    "label": "ASCII_SOURCE_com_add",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "636f6d"
+    ],
+    "source_hex": "74726163652061646420636f6d"
+  },
+  {
+    "label": "COUNTED_SOURCE_RAW_ZERO_com_add",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "636f6d00ff"
+    ],
+    "source_hex": "74726163652061646420636f6d00ff"
+  },
+  {
+    "label": "DIRECT_ASCII_exec_info",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "65786563"
+    ]
+  },
+  {
+    "label": "DIRECT_RAW_ZERO_exec_info",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "6578656300ff"
+    ]
+  },
+  {
+    "label": "DIRECT_ENCODED_ZERO_exec_info",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "65786563c080ff"
+    ]
+  },
+  {
+    "label": "ASCII_SOURCE_exec_info",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "65786563"
+    ],
+    "source_hex": "747261636520696e666f2065786563"
+  },
+  {
+    "label": "COUNTED_SOURCE_RAW_ZERO_exec_info",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "696e666f",
+      "6578656300ff"
+    ],
+    "source_hex": "747261636520696e666f206578656300ff"
+  },
+  {
+    "label": "DIRECT_ASCII_exec_add",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "65786563"
+    ]
+  },
+  {
+    "label": "DIRECT_RAW_ZERO_exec_add",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "6578656300ff"
+    ]
+  },
+  {
+    "label": "DIRECT_ENCODED_ZERO_exec_add",
+    "channel": "original object argv",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "65786563c080ff"
+    ]
+  },
+  {
+    "label": "ASCII_SOURCE_exec_add",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "65786563"
+    ],
+    "source_hex": "7472616365206164642065786563"
+  },
+  {
+    "label": "COUNTED_SOURCE_RAW_ZERO_exec_add",
+    "channel": "counted native source",
+    "argv_hex": [
+      "7472616365",
+      "616464",
+      "6578656300ff"
+    ],
+    "source_hex": "747261636520616464206578656300ff"
+  }
+]

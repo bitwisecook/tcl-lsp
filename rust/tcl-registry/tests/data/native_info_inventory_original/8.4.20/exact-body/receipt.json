@@ -1,0 +1,17 @@
+{
+  "id": "exact-body",
+  "command": [
+    "/workspace/.proofs/captured-native-info-inventory193/8.4.20/probe",
+    "7"
+  ],
+  "timeout_seconds": 5,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "ff23140f1e9f930c3fc35589b4f70b5fc5812a535e5158174c59a367aa0f73d5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|6|382e342e3230",
+    "INFO|1|44|77726f6e67202320617267733a2073686f756c642062652022696e666f20626f64792070726f636e616d6522"
+  ],
+  "reported_version": "8.4.20"
+}

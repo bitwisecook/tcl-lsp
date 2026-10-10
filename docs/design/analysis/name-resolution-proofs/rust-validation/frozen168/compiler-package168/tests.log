@@ -1,0 +1,35 @@
+
+running 15 tests
+test analyser::diagnostics::unresolved::require_ordering_tests::a_command_above_its_require_is_hinted ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::a_command_below_its_require_is_silent ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::a_conditional_require_anchors_nothing ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::a_deferred_call_above_its_require_is_a_hint_and_not_a_warning ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::a_missing_require_stays_w120_and_is_not_also_hinted ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::a_providing_file_is_silent ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::consumed_command_names_use_the_post_argument_lookup_point ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::many_commands_above_one_require_hint_once ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::original_package_advice_distinguishes_queries_and_genuine_source_provisions ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::package_source_advice_does_not_reparse_mutated_reporting_invocations_or_packages ... 
+thread 'analyser::diagnostics::unresolved::require_ordering_tests::package_source_advice_does_not_reparse_mutated_reporting_invocations_or_packages' (635548) panicked at rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs:985:13:
+assertion `left == right` failed: csv::join {a b}
+  left: []
+ right: [(W120, Span { start: 0, end: 9 })]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::diagnostics::unresolved::require_ordering_tests::possible_consumed_names_preserve_navigation_without_absence_or_rename_authority ... 
+thread 'analyser::diagnostics::unresolved::require_ordering_tests::possible_consumed_names_preserve_navigation_without_absence_or_rename_authority' (635549) panicked at rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs:841:14:
+possible native role retains navigation
+FAILED
+test analyser::diagnostics::unresolved::require_ordering_tests::reviewed_command_suggestions_keep_original_word_extent_and_full_context ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::the_hint_is_off_when_disabled ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::unresolved_slot_advice_respects_temporal_deletion_and_custom_fallback ... ok
+test analyser::diagnostics::unresolved::require_ordering_tests::unresolved_slot_advice_uses_current_namespace_and_exported_import ... ok
+
+failures:
+
+failures:
+    analyser::diagnostics::unresolved::require_ordering_tests::package_source_advice_does_not_reparse_mutated_reporting_invocations_or_packages
+    analyser::diagnostics::unresolved::require_ordering_tests::possible_consumed_names_preserve_navigation_without_absence_or_rename_authority
+
+test result: FAILED. 13 passed; 2 failed; 0 ignored; 0 measured; 8219 filtered out; finished in 29.20s
+

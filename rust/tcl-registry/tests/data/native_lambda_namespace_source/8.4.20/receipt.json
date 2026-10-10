@@ -1,0 +1,42 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/native-lambda-namespace188/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.006200606992933899,
+  "reported_version": "8.4.20",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "f2cf19f936f7bb9c252c50a79f40899011b3644d5ac88bc62cfe368f97bfc4cb",
+  "runner_sha256": "65ee1b73a04ce12a6e7f088b55fa3864782572b16a780c11daa026554d9aeb47",
+  "stdout_sha256": "e81e213f9613bde119d207d206cf172531256eb41637beede003b5c580210a6e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a"
+  },
+  "rows": [
+    "version 8.4.20",
+    "observation ns-create status 0 result {} errorCode {}",
+    "observation colon-ns-create status 0 result {} errorCode {}",
+    "observation relative-colon status 1 result {invalid command name \"apply\"} errorCode NONE",
+    "observation absolute-colon status 1 result {invalid command name \"apply\"} errorCode NONE",
+    "observation relative-plain status 1 result {invalid command name \"apply\"} errorCode NONE",
+    "observation absolute-plain status 1 result {invalid command name \"apply\"} errorCode NONE",
+    "observation default-root status 1 result {invalid command name \"apply\"} errorCode NONE",
+    "observation empty-root status 1 result {invalid command name \"apply\"} errorCode NONE",
+    "observation counted-relative-colon status 1 result {invalid command name \"apply\"} errorCode NONE",
+    "observation counted-absolute status 1 result {invalid command name \"apply\"} errorCode NONE",
+    "observation counted-leading-null status 1 result {invalid command name \"apply\"} errorCode NONE",
+    "observation unicode-ns-create status 0 result {} errorCode {}",
+    "observation unicode-relative-colon status 1 result {invalid command name \"apply\"} errorCode NONE"
+  ],
+  "input_channel": "ASCII LF source-file CLI; binary-produced counted NUL and explicit Unicode Tcl escape",
+  "boundary": "Question: which namespace current result does direct Apply select for the fixed original namespace values, including relative colon, binary-produced NUL and escaped Unicode? Sequential catches retain unsupported Apply surfaces. No original physical object/token/header, entered-frame correspondence, arbitrary Normal or compiler admission is inferred."
+}

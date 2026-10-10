@@ -42,6 +42,27 @@ pub enum NativeNamespaceObjectProducer {
     ObjectNamespace,
 }
 
+/// C command-table retirement frontier used by namespace teardown.
+/// This pure order recipe supplies no live namespace or command authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeNamespaceCommandTeardown {
+    /// Tcl 8.4/8.5 restart at the table's first entry after each command deletion.
+    RepeatedFirstEntry,
+    /// Tcl 8.6/9 retain a complete table snapshot for each deletion pass.
+    SnapshotPass,
+}
+
+impl NativeNamespaceCommandTeardown {
+    /// Number of entries selected from the current original table frontier.
+    #[must_use]
+    pub const fn frontier_len(self, available: usize) -> usize {
+        match self {
+            Self::RepeatedFirstEntry if available > 0 => 1,
+            Self::RepeatedFirstEntry | Self::SnapshotPass => available,
+        }
+    }
+}
+
 /// Pure native C recipe; this value alone authenticates no engine or object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NativeNamespaceNameRecipe(TclVersion);
@@ -57,6 +78,19 @@ impl NativeNamespaceNameRecipe {
     #[must_use]
     pub const fn version(self) -> TclVersion {
         self.0
+    }
+
+    /// The original C command-table traversal around delete callbacks.
+    #[must_use]
+    pub const fn command_teardown(self) -> NativeNamespaceCommandTeardown {
+        match self.0 {
+            TclVersion::V8_4 | TclVersion::V8_5 => {
+                NativeNamespaceCommandTeardown::RepeatedFirstEntry
+            }
+            TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1 => {
+                NativeNamespaceCommandTeardown::SnapshotPass
+            }
+        }
     }
 
     /// Whether the native resolved cache permits this actual lifecycle state.

@@ -1,0 +1,17 @@
+
+running 1 test
+test command_binding::original_math_function::tests::original_fixed_function_absence_retains_source_snapshot_without_command_name ... 
+thread 'command_binding::original_math_function::tests::original_fixed_function_absence_retains_source_snapshot_without_command_name' (652185) panicked at rust/tcl-compiler/src/command_binding/original_math_function.rs:871:13:
+assertion `left == right` failed: jim: fixed=false lookup_closed=true reached=None snapshots=[(false, false, false, true, true, false)]
+  left: Unknown
+ right: Absent
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::original_math_function::tests::original_fixed_function_absence_retains_source_snapshot_without_command_name
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8266 filtered out; finished in 0.32s
+

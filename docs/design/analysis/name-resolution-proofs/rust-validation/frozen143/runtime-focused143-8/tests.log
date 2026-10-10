@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_array::tests::variable_container_storage_matches_all_native_columns ... 
+thread 'cmd_array::tests::variable_container_storage_matches_all_native_columns' (570870) panicked at src/cmd_array.rs:834:21:
+assertion `left == right` failed: tcl8.4 case 0: array set a {k OLD};set c [catch {set a} r];list $c $r
+  left: [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 97, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 32, 97, 114, 114, 97, 121, 125]
+ right: [49, 32, 123, 99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 97, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 32, 97, 114, 114, 97, 121, 125]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_array::tests::variable_container_storage_matches_all_native_columns
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1222 filtered out; finished in 2.99s
+

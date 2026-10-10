@@ -34,6 +34,7 @@
 fn reportable_dead_assignment(
     statement: &crate::ir::Statement,
     registry: &tcl_registry::CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> bool {
     match statement {
         crate::ir::Statement::AssignConst { .. } => true,
@@ -46,19 +47,21 @@ fn reportable_dead_assignment(
             let Some(binding) = &tokens.source_binding else {
                 return false;
             };
-            crate::registry_invocation::normal_transfer_invocation(registry, None, tokens)
-                .and_then(|normal| {
-                    normal
-                        .stored_value_word(&binding.variable_context, registry)
-                        .map(|word| {
-                            matches!(
-                                word,
-                                crate::ir::WordExpr::Literal { .. }
-                                    | crate::ir::WordExpr::BracedLiteral { .. }
-                            )
-                        })
-                })
-                .unwrap_or(false)
+            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                registry, context, tokens,
+            )
+            .and_then(|normal| {
+                normal
+                    .stored_value_word(&binding.variable_context, registry)
+                    .map(|word| {
+                        matches!(
+                            word,
+                            crate::ir::WordExpr::Literal { .. }
+                                | crate::ir::WordExpr::BracedLiteral { .. }
+                        )
+                    })
+            })
+            .unwrap_or(false)
         }
         _ => false,
     }
@@ -128,7 +131,7 @@ fn dead_store_has_visible_or_synthetic_effects(
     // ``upvar``) write through to a different scope — the
     // local "no use" verdict is unsafe. Policy sets hold *base*
     // names, so an element symbol (`a(k)`) checks its base too.
-    let var_base = crate::naming::normalise_var_name(var);
+    let var_base = crate::naming::split_array_name_braced(var, true).0;
     if visibility.scope_aliases.contains(var) || visibility.scope_aliases.contains(var_base) {
         return true;
     }
@@ -151,12 +154,14 @@ fn dead_store_has_visible_or_synthetic_effects(
     false
 }
 
-/// Find the original command span only for removable assignment candidates.
+/// Find the original span of a conditional dead-assignment diagnostic.
+/// Supplied availability metadata grants no executable removal.
 fn reportable_dead_assignment_span(
     fu: &crate::compilation_unit::FunctionUnit,
     definition: &crate::def_use::DefSite,
     original_overwrite: bool,
     registry: &tcl_registry::CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     place_suppressed: &HashSet<(String, i32)>,
 ) -> Option<tcl_lexer::Span> {
     let block = fu.cfg.block_by_name(&definition.block)?;
@@ -170,7 +175,7 @@ fn reportable_dead_assignment_span(
     // original overwrite receipt identifies its literal native setter
     // independently of the legacy statement category; its conditional
     // diagnostic still grants no executable removal.
-    if !original_overwrite && !reportable_dead_assignment(stmt, registry) {
+    if !original_overwrite && !reportable_dead_assignment(stmt, registry, context) {
         return None;
     }
     // Suppress when this element write is observed by a read the
@@ -527,7 +532,7 @@ file; this call falls through to the 'unknown' handler."
         // name-level SSA mis-folds but that a read actually observes.
         let place_suppressed = self.place_suppressed_dead_stores(fu);
         let generation = self.analysis_context();
-        let registry = self.registry.as_deref().unwrap_or(generation.commands());
+        let registry = generation.commands();
         let unread_layout = std::cell::OnceCell::new();
         let visibility = DeadStoreVisibility {
             scope_aliases,
@@ -605,6 +610,7 @@ file; this call falls through to the 'unknown' handler."
                 &chain.definition,
                 overwrite.is_some(),
                 registry,
+                Some(generation.as_ref().into()),
                 &place_suppressed,
             ) else {
                 continue;
@@ -655,7 +661,7 @@ file; this call falls through to the 'unknown' handler."
         };
         for advice in crate::registry_invocation::conditional_declared_overwrite_advice(&report) {
             let name = advice.name();
-            let base = crate::naming::normalise_var_name(name);
+            let base = crate::naming::split_array_name_braced(name, true).0;
             let span = advice.target();
             if !advice.owns_source(&image)
                 || scope_aliases.contains(name)
@@ -730,15 +736,11 @@ file; this call falls through to the 'unknown' handler."
     /// top-level word walk.  Braced (`Str`) words are literal text — a
     /// `$var` inside one is not a read — so they are never descended.
     fn narrow_to_read_var(&self, stmt_span: tcl_lexer::Span, var: &str) -> Option<tcl_lexer::Span> {
-        // De-sigil + drop any array-index suffix so `$a(k)` / `${a}` / `$a`
-        // all compare equal to the chain's scalar/element base name.
-        fn base(text: &str) -> &str {
-            let inner = text.strip_prefix("${").map_or_else(
-                || text.strip_prefix('$').unwrap_or(text),
-                |i| i.strip_suffix('}').unwrap_or(i),
-            );
-            inner.split('(').next().unwrap_or(inner)
-        }
+        // The SSA name is already resolved: a leading dollar is literal.
+        // Source sigils and the selected release's lexical extent belong to
+        // the shared scanner, separately from the combined-name split owner.
+        // naming.diagnostics.original-variable-name-anchor
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-variable-name-anchor.md
         /// First `$target` `Var` token within `slice` (whose absolute start
         /// is `abs_base`), descending into command-substitution contents.
         /// `depth` bounds pathological nesting.
@@ -752,17 +754,28 @@ file; this call falls through to the 'unknown' handler."
             if depth > 4 {
                 return None;
             }
-            let sm = tcl_lexer::SourceMap::new(slice);
             let toks = tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(slice), config)
                 .tokenise_all()
                 .ok()?;
             for t in &toks {
                 match t.kind {
-                    tcl_lexer::TokenType::Var if base(sm.token_text(*t)) == target => {
-                        return Some(tcl_lexer::Span::new(
-                            t.span.start() + abs_base,
-                            t.span.end() + abs_base,
-                        ));
+                    tcl_lexer::TokenType::Var => {
+                        let Ok(Some(reference)) = tcl_lexer::scan_var_ref(
+                            slice.as_bytes(),
+                            t.span.start() as usize,
+                            config,
+                        ) else {
+                            continue;
+                        };
+                        let name = std::str::from_utf8(reference.name).ok()?;
+                        let root =
+                            crate::naming::split_element_ref(name).map_or(name, |(root, _)| root);
+                        if root == target {
+                            return Some(tcl_lexer::Span::new(
+                                t.span.start() + abs_base,
+                                u32::try_from(reference.next).ok()? + abs_base,
+                            ));
+                        }
                     }
                     // A `[…]` word: recurse into its inner script (the span
                     // covers `[inner` and excludes the closing `]`; the
@@ -788,7 +801,7 @@ file; this call falls through to the 'unknown' handler."
             }
             None
         }
-        let target = base(var);
+        let target = crate::naming::split_element_ref(var).map_or(var, |(root, _)| root);
         let slice = source_slice(&self.source, stmt_span)?;
         find_var(&slice, stmt_span.start(), target, self.lexer_config(), 0)
     }
@@ -1311,7 +1324,7 @@ file; this call falls through to the 'unknown' handler."
         ctx: &ReadBeforeSetCtx<'_>,
     ) {
         let exists_guards =
-            collect_existence_guards(fu, self.registry.as_deref(), self.lexer_config());
+            collect_existence_guards(fu, self.analysis_context().commands(), self.lexer_config());
         let mut w210_min = self.definite_missing_read_spans(fu, ctx, &exists_guards);
         let original_image = tcl_lexer::SourceImage::document(&self.source);
         let declared_flow = ir_proc.and_then(|procedure| {
@@ -1343,7 +1356,7 @@ file; this call falls through to the 'unknown' handler."
                     },
                 )
             });
-            suppress_declared_read_warnings(fu, ctx, declared_flow.as_ref(), &mut w210_min);
+            suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
             self.emit_w210_read_spans(w210_min, ctx);
             self.emit_declaration_potential_reads(potential);
             return;
@@ -1395,7 +1408,7 @@ file; this call falls through to the 'unknown' handler."
                 },
             )
         });
-        suppress_declared_read_warnings(fu, ctx, declared_flow.as_ref(), &mut w210_min);
+        suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
         self.emit_w210_read_spans(w210_min, ctx);
         self.emit_declaration_potential_reads(potential);
     }
@@ -1461,8 +1474,8 @@ file; this call falls through to the 'unknown' handler."
             // command created is not statically knowable, so only a read
             // of a wholly-unwritten, unaliased array reports. Policy sets
             // are base-keyed, so the base is checked for those too.
-            if let Some(open) = var.find('(') {
-                let base = &var[..open];
+            let (base, element) = crate::naming::split_array_name_braced(var, true);
+            if element.is_some() {
                 let base_defined = fu
                     .def_use
                     .chains
@@ -1888,8 +1901,10 @@ file; this call falls through to the 'unknown' handler."
             if barrier_body_locally_sets(
                 stmt_opt,
                 var,
-                self.registry.as_deref(),
-                self.lexer_config(),
+                &self.source,
+                &self.result,
+                &self.analysis_context(),
+                crate::ssa::SsaSourceView::at_statement(&fu.ssa, use_id, use_index).source_tokens(),
             ) {
                 continue;
             }
@@ -1915,7 +1930,7 @@ file; this call falls through to the 'unknown' handler."
                 ctx.exists_guards,
                 &fu.ssa,
                 use_site,
-                self.registry.as_deref(),
+                self.analysis_context().commands(),
                 self.lexer_config(),
             ) {
                 continue;
@@ -2210,206 +2225,228 @@ file; this call falls through to the 'unknown' handler."
         true
     }
 
-    /// **W210 (provably-unset regexp / scan output).** A `regexp` / `scan`
-    /// with literal pattern + input that can be statically proven not to
-    /// match leaves its output variables unset, so a later read of one is a
-    /// real read-before-set.  Handles both the top-level call form and the
-    /// call embedded in an `if` / `while` condition (firing only on the
-    /// no-match branch).
+    /// W210 from a selected original matcher that leaves its targets unchanged.
+    /// Logical source advice follows the same represented SSA value; Native
+    /// emission additionally requires independent closed read-absence proof.
     pub(super) fn emit_provably_unset_w210(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         considered: &HashSet<crate::cfg::BlockId>,
-        defined_vars: &HashSet<String>,
+        ctx: &ReadBeforeSetCtx<'_>,
+        params: &HashSet<&str>,
     ) {
-        use crate::ir::Statement;
-        use std::fmt::Write as _;
-
-        let config = self.lexer_config();
-        // var name -> (def_block, def_stmt_idx); idx == -1 means "from the
-        // start of the block" (the embedded-condition no-match target).
-        let mut provably_unset: std::collections::HashMap<String, (crate::cfg::BlockId, i32)> =
-            std::collections::HashMap::new();
-
-        for &bn in considered {
-            let Some(block) = fu.cfg.blocks.get(&bn) else {
+        // naming.diagnostics.original-matcher-output-retention
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-matcher-output-retention.md
+        let Some(input) = self.result.resolved_input.as_ref() else {
+            return;
+        };
+        let context = input.context_registry();
+        let logical = self.result.allows_retained_logical_declaration_advice();
+        let origins = self.collect_no_match_origins(fu, considered, &context, logical);
+        let mut spans = std::collections::HashMap::new();
+        for &block in considered {
+            let Some(data) = fu.ssa.blocks.get(&block) else {
                 continue;
             };
-            // Top-level regexp / scan calls.
-            for (idx, stmt) in block.statements.iter().enumerate() {
-                let Statement::Call {
-                    command,
-                    canonical_command,
-                    args,
-                    defs,
-                    ..
-                } = stmt
+            for (index, statement) in data.statements.iter().enumerate() {
+                let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                for (&symbol, &version) in &statement.uses {
+                    if statement.quoted_uses.contains(&symbol)
+                        || statement.name_only_uses.contains(&symbol)
+                        || !origins.get(&symbol).is_some_and(|candidates| {
+                            candidates.iter().any(|origin| {
+                                origin.version == version && origin.reaches(fu, block, index)
+                            })
+                        })
+                    {
+                        continue;
+                    }
+                    let name = fu.ssa.var_name(symbol);
+                    let span = if logical {
+                        if params.contains(name)
+                            || ctx.scope_aliases.contains(name)
+                            || ctx.extra_known_defined.contains(name)
+                            || ctx.supp.suppresses(name)
+                            || ctx
+                                .cell_facts
+                                .known_defined
+                                .contains(fu.ssa.cell_key(symbol))
+                            || fu.dynamic_names.writes
+                        {
+                            continue;
+                        }
+                        let startup = startup_read_facts(
+                            fu.ssa.cell_key(symbol),
+                            0,
+                            false,
+                            ctx.initial_global,
+                            ctx.global_aliases,
+                            Some(context.context().authoring_query()),
+                        );
+                        if startup.readable {
+                            continue;
+                        }
+                        let Some(statement) = fu
+                            .cfg
+                            .blocks
+                            .get(&block)
+                            .and_then(|data| data.statements.get(index))
+                        else {
+                            continue;
+                        };
+                        let Some(span) =
+                            self.narrow_to_read_var(fu.abs_span(statement.span()), name)
+                        else {
+                            continue;
+                        };
+                        span
+                    } else {
+                        let Some(span) = original_missing_matcher_read_span(
+                            fu,
+                            view,
+                            symbol,
+                            context.commands(),
+                        ) else {
+                            continue;
+                        };
+                        span
+                    };
+                    spans
+                        .entry(name.to_owned())
+                        .and_modify(|earlier: &mut tcl_lexer::Span| {
+                            if span.start() < earlier.start() {
+                                *earlier = span;
+                            }
+                        })
+                        .or_insert(span);
+                }
+            }
+        }
+        self.emit_w210_read_spans(spans, ctx);
+    }
+
+    fn collect_no_match_origins(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        considered: &HashSet<crate::cfg::BlockId>,
+        context: &tcl_registry::model::ContextRegistry,
+        logical: bool,
+    ) -> std::collections::HashMap<crate::ssa::Symbol, Vec<NoMatchOutputOrigin>> {
+        use crate::registry_invocation::source_structure::original_registry_words_for_tokens;
+        let mut origins = std::collections::HashMap::new();
+        for &block in considered {
+            let Some(data) = fu.cfg.blocks.get(&block) else {
+                continue;
+            };
+            for index in 0..data.statements.len() {
+                let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                let Some(words) =
+                    original_registry_words_for_tokens(&self.source, &self.result, tokens)
                 else {
                     continue;
                 };
-                let canon = canonical_command.as_deref().unwrap_or(command);
-                // Name-guarded on purpose (not `pattern_type == Regex`): this
-                // check statically evaluates `regexp`'s no-match result from
-                // its exact positional form (pattern / input after the
-                // options, trailing out-vars), paired with `scan` — per-form
-                // value semantics the registry does not model.
-                let is_regexp = canon == "::regexp" || command == "regexp";
-                let is_scan = canon == "::scan" || command == "scan";
-                if (!is_regexp && !is_scan) || defs.is_empty() {
-                    continue;
-                }
-                if let Some(no_match) = regexp_scan_no_match(is_regexp, args)
-                    && no_match
-                {
-                    for d in defs {
-                        provably_unset
-                            .entry(d.clone())
-                            .or_insert_with(|| (bn, i32::try_from(idx).unwrap_or(i32::MAX)));
-                    }
-                }
+                record_no_match_outputs(
+                    fu,
+                    NoMatchCallSite {
+                        producer: block,
+                        index,
+                        dominator: block,
+                        branch_entry: false,
+                    },
+                    &selected_matcher_no_match_outputs(&words, context),
+                    logical,
+                    &mut origins,
+                );
             }
-            // regexp / scan embedded in the branch condition.
             if let Some(crate::cfg::Terminator::Branch {
                 condition,
+                condition_base,
                 true_target,
                 false_target,
                 ..
-            }) = &block.terminator
+            }) = &data.terminator
+                && let Some((words, negated)) =
+                    self.original_condition_matcher(condition, *condition_base)
             {
-                Self::collect_embedded_provably_unset(
-                    condition,
-                    *true_target,
-                    *false_target,
-                    &mut provably_unset,
-                    config,
+                let outputs = selected_matcher_no_match_outputs(&words, context);
+                let head = words
+                    .head_source()
+                    .and_then(|head| head.word())
+                    .map(tcl_lexer::NativeWord::span);
+                let index = (0..data.statements.len())
+                    .find(|&index| {
+                        crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index)
+                            .source_tokens()
+                            .and_then(|tokens| tokens.words().first())
+                            .is_some_and(|word| Some(word.source().span) == head)
+                    })
+                    .unwrap_or(data.statements.len());
+                record_no_match_outputs(
+                    fu,
+                    NoMatchCallSite {
+                        producer: block,
+                        index,
+                        dominator: if negated { *true_target } else { *false_target },
+                        branch_entry: true,
+                    },
+                    &outputs,
+                    logical,
+                    &mut origins,
                 );
             }
         }
-
-        if provably_unset.is_empty() {
-            return;
-        }
-
-        // Fire on every executable use after the def (same block) or in a
-        // block dominated by the def block.
-        let mut reported: FxHashSet<String> = FxHashSet::default();
-        let mut block_ids: Vec<crate::cfg::BlockId> = considered.iter().copied().collect();
-        block_ids.sort_unstable();
-        for bn in block_ids {
-            let Some(ssa_block) = fu.ssa.blocks.get(&bn) else {
-                continue;
-            };
-            for (idx, s) in ssa_block.statements.iter().enumerate() {
-                for &sym in s.uses.keys() {
-                    // A quoted (unevaluated brace-word) mention is not a read
-                    // here — see `emit_read_before_set_diagnostics`.
-                    if s.quoted_uses.contains(&sym) {
-                        continue;
-                    }
-                    let name = fu.ssa.var_name(sym);
-                    if reported.contains(name) {
-                        continue;
-                    }
-                    let Some((def_block, def_idx)) = provably_unset.get(name) else {
-                        continue;
-                    };
-                    let in_def_block_after =
-                        bn == *def_block && i32::try_from(idx).unwrap_or(i32::MAX) > *def_idx;
-                    let dominated = bn != *def_block && block_dominated_by(&fu.ssa, bn, *def_block);
-                    if !(in_def_block_after || dominated) {
-                        continue;
-                    }
-                    let span = match fu.cfg.blocks.get(&bn).and_then(|b| b.statements.get(idx)) {
-                        Some(st) if !st.span().is_empty() => fu.abs_span(st.span()),
-                        _ => continue,
-                    };
-                    reported.insert(name.to_owned());
-                    let mut message = format!("Variable '{name}' is read before it is set");
-                    if let Some(similar) = undefined_var_suggestion(name, defined_vars) {
-                        let _ = write!(message, "; did you mean '{similar}'?");
-                    }
-                    self.result
-                        .diagnostics
-                        .push(crate::analyser::types::Diagnostic::new(
-                            DiagCode::W210,
-                            span,
-                            message,
-                            Severity::Warning,
-                        ));
-                }
-            }
-        }
+        origins
     }
 
-    /// Walk a branch `condition` for an embedded `[regexp …]` / `[scan …]`
-    /// command substitution that provably can't match, recording its output
-    /// variables as provably-unset on the no-match branch target (only when
-    /// the condition is exactly `[cmd]` → false target, or `![cmd]` → true
-    /// target; more complex shapes are skipped).
-    fn collect_embedded_provably_unset(
+    /// The condition's retained absolute source base owns expression offsets.
+    /// Detached text, transformed expressions and multiple commands decline.
+    fn original_condition_matcher(
+        &self,
         condition: &ExprNode,
-        true_target: crate::cfg::BlockId,
-        false_target: crate::cfg::BlockId,
-        provably_unset: &mut std::collections::HashMap<String, (crate::cfg::BlockId, i32)>,
-        config: tcl_lexer::LexerConfig,
-    ) {
-        let (cmd_node, no_match_target) = match condition {
-            ExprNode::Command { .. } => (condition, false_target),
+        base: Option<u32>,
+    ) -> Option<(
+        crate::registry_invocation::source_structure::OriginalRegistryWords,
+        bool,
+    )> {
+        let (command, negated) = match condition {
+            ExprNode::Command { .. } => (condition, false),
             ExprNode::Unary {
                 op: UnaryOp::Not | UnaryOp::WordNot,
                 operand,
-            } if matches!(operand.as_ref(), ExprNode::Command { .. }) => {
-                (operand.as_ref(), true_target)
-            }
-            _ => return,
+            } if matches!(operand.as_ref(), ExprNode::Command { .. }) => (operand.as_ref(), true),
+            _ => return None,
         };
-        let ExprNode::Command { text, .. } = cmd_node else {
-            return;
+        let ExprNode::Command { text, start, end } = command else {
+            return None;
         };
-        // Strip the surrounding `[` … `]` and segment the interior.
-        let inner = text
-            .strip_prefix('[')
-            .and_then(|s| s.strip_suffix(']'))
-            .unwrap_or(text);
-        let segs = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
-        let Some(seg) = segs.first() else {
-            return;
+        let start = base?.checked_add(*start)?;
+        let end = base?.checked_add(*end)?;
+        if self
+            .source
+            .get(usize::try_from(start).ok()?..usize::try_from(end).ok()?)?
+            != text
+        {
+            return None;
+        }
+        let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+        let config = self.result.body_lexer_config?;
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            inner,
+            start.checked_add(1)?,
+            config,
+        );
+        let [command] = commands.as_slice() else {
+            return None;
         };
-        let Some(cmd) = seg.texts.first() else {
-            return;
-        };
-        let bare = cmd
-            .trim_start_matches(':')
-            .rsplit("::")
-            .next()
-            .unwrap_or(cmd);
-        // Same name-guard rationale as `emit_provably_unset_w210`: exact
-        // `regexp` / `scan` form semantics, not a generic regex-pattern query.
-        let is_regexp = bare == "regexp";
-        let is_scan = bare == "scan";
-        if !is_regexp && !is_scan {
-            return;
-        }
-        let args: Vec<String> = seg.texts[1..].to_vec();
-        let pos = skip_options(&args, if is_regexp { &["-start"] } else { &[] });
-        if pos + 2 > args.len() {
-            return;
-        }
-        let out_vars = &args[(pos + 2).min(args.len())..];
-        if out_vars.is_empty() {
-            return;
-        }
-        if regexp_scan_no_match(is_regexp, &args) != Some(true) {
-            return;
-        }
-        for v in out_vars {
-            let name = crate::naming::normalise_var_name(v);
-            if !name.is_empty() {
-                provably_unset
-                    .entry(name.to_string())
-                    .or_insert((no_match_target, -1));
-            }
-        }
+        crate::registry_invocation::source_structure::source_registry_words(
+            &self.source,
+            &self.result,
+            command,
+        )
+        .map(|words| (words, negated))
     }
 
     /// I230 / I231 — constant branch / switch-arm condition.
@@ -2614,109 +2651,83 @@ file; this call falls through to the 'unknown' handler."
     /// The standard channels (`stdin`, `stdout`, `stderr`) are
     /// always accepted.  Unknown / overdefined types skip the
     /// check (could be anything).
-    pub(super) fn emit_channel_diagnostics(
-        &mut self,
-        fu: &crate::compilation_unit::FunctionUnit,
-        registry: &tcl_registry::CommandRegistry,
-    ) {
-        use crate::ir::Statement;
-        use tcl_registry::ArgRole;
-
-        const STANDARD_CHANNELS: &[&str] = &["stdout", "stderr", "stdin"];
-
+    pub(super) fn emit_channel_diagnostics(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        let context = self.analysis_context();
         for (&bn, block) in &fu.ssa.blocks {
             for (statement_index, ssa_stmt) in block.statements.iter().enumerate() {
-                let Statement::Call {
-                    command,
-                    args,
-                    span,
-                    tokens,
-                    ..
-                } = &ssa_stmt.statement
+                let crate::ir::Statement::Call { command, .. } = &ssa_stmt.statement else {
+                    continue;
+                };
+                let Some(tokens) =
+                    crate::ssa::SsaSourceView::at_statement(&fu.ssa, bn, statement_index)
+                        .source_tokens()
                 else {
                     continue;
                 };
-                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                let channel_indices =
-                    registry.arg_indices_for_role(command, &arg_refs, ArgRole::Channel);
-                if channel_indices.is_empty() {
-                    continue;
-                }
-                for idx in channel_indices {
-                    if idx >= args.len() {
-                        continue;
-                    }
-                    let arg_text = &args[idx];
-                    // Tight range: the channel argument word (`argv[0]` is the
-                    // command name, so `args[idx]` is `argv[idx + 1]`), not the
-                    // whole command. Falls back to the command span when the
-                    // per-word tokens are unavailable.
-                    let arg_span = tokens
-                        .as_ref()
-                        .and_then(|t| t.argv.get(idx + 1))
-                        .map_or_else(|| fu.abs_span(*span), |&s| fu.abs_span(s));
-                    // Extract bare var name from ``$var`` / ``${var}``.
-                    let var_name: Option<&str> =
-                        if arg_text.starts_with("${") && arg_text.ends_with('}') {
-                            Some(&arg_text[2..arg_text.len() - 1])
-                        } else if let Some(rest) = arg_text.strip_prefix('$') {
-                            Some(rest)
-                        } else {
-                            None
-                        };
-
-                    if let Some(name) = var_name {
-                        let Some(sym) = fu.ssa.var_symbol_at(bn, statement_index, name) else {
+                let arguments = super::original_roles::channel_arguments(
+                    &self.source,
+                    &self.result,
+                    tokens,
+                    std::sync::Arc::clone(&context),
+                );
+                for argument in arguments {
+                    let message = if let Some((name, reference_span)) =
+                        super::original_roles::scalar_variable_reference(&argument.word)
+                    {
+                        let mut reads = tokens
+                            .variable_accesses
+                            .iter()
+                            .filter(|access| access.source.span == reference_span)
+                            .filter_map(|access| {
+                                fu.ssa.read_reference_at(
+                                    bn,
+                                    statement_index,
+                                    &access.source,
+                                    &access.original_spelling,
+                                )
+                            });
+                        let Some(read) = reads.next() else {
                             continue;
                         };
-                        let Some(&version) = ssa_stmt.uses.get(&sym) else {
+                        if reads.any(|other| other != read) {
+                            continue;
+                        }
+                        let sym = read.symbol;
+                        let Some(version) = read.version else {
                             continue;
                         };
-                        let key: crate::ssa::ValueKey = (sym, version);
-                        let Some(var_type) = fu.types.get(&key) else {
+                        let Some(var_type) = fu.types.get(&(sym, version)) else {
                             continue;
                         };
                         let Some(type_label) = non_channel_union_label(var_type) else {
                             continue;
                         };
-                        let message = format!(
-                            "Variable '${name}' passed as channel to '{command}' \
-                             has type {type_label}, not CHANNEL.",
-                        );
-                        self.result
-                            .diagnostics
-                            .push(crate::analyser::types::Diagnostic::new(
-                                DiagCode::W126,
-                                arg_span,
-                                message,
-                                Severity::Warning,
-                            ));
+                        format!(
+                            "Variable '${name}' passed as channel to '{command}' has type {type_label}, not CHANNEL."
+                        )
                     } else {
-                        // Literal — strip surrounding braces / quotes.
-                        let literal = arg_text
-                            .trim_matches('"')
-                            .trim_start_matches('{')
-                            .trim_end_matches('}');
-                        if STANDARD_CHANNELS.contains(&literal) {
+                        let Some(literal) = argument.literal else {
+                            continue;
+                        };
+                        if matches!(literal.as_slice(), b"stdin" | b"stdout" | b"stderr") {
                             continue;
                         }
-                        // Only warn for clearly-not-substituted literals.
-                        if arg_text.contains('$') || arg_text.contains('[') {
+                        let Ok(literal) = std::str::from_utf8(&literal) else {
                             continue;
-                        }
-                        let message = format!(
-                            "String literal '{literal}' used as channel argument to \
-                             '{command}' — expected a channel from open/socket/chan create.",
-                        );
-                        self.result
-                            .diagnostics
-                            .push(crate::analyser::types::Diagnostic::new(
-                                DiagCode::W126,
-                                arg_span,
-                                message,
-                                Severity::Warning,
-                            ));
-                    }
+                        };
+                        format!(
+                            "String literal '{literal}' used as channel argument to '{command}' — expected a channel from open/socket/chan create."
+                        )
+                    };
+                    self.result.diagnostics.push(
+                        crate::analyser::types::Diagnostic::new(
+                            DiagCode::W126,
+                            argument.word.span(),
+                            message,
+                            Severity::Warning,
+                        )
+                        .with_subject(argument.subject),
+                    );
                 }
             }
         }
@@ -2763,7 +2774,8 @@ file; this call falls through to the 'unknown' handler."
             } else {
                 fu.diagnostic_value_facts().executable_blocks().clone()
             };
-        let registry = self.profile_registry();
+        let context = self.analysis_context();
+        let registry = context.commands();
         for finding in crate::interval_bounds::find_divide_by_zero_with_entered_operands(
             &fu.cfg,
             &fu.ssa,
@@ -2774,10 +2786,8 @@ file; this call falls through to the 'unknown' handler."
             // 9.0), and this process analyses documents of several dialects.
             crate::intervals::numbers_for_dialect(Some(self.profile)),
             crate::interval_bounds::BoundsSemantics {
-                registry: &registry,
-                context: Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-                    self.profile,
-                )),
+                registry,
+                context: Some(context.as_ref().into()),
                 grammar: self.grammar(),
             },
         ) {
@@ -2825,9 +2835,8 @@ file; this call falls through to the 'unknown' handler."
                     .copied()
                     .collect()
             };
-        let Some(registry) = self.registry.as_deref() else {
-            return;
-        };
+        let context = self.analysis_context();
+        let registry = context.commands();
         let findings = crate::interval_bounds::find_interval_bounds_resolved(
             &fu.cfg,
             &fu.ssa,
@@ -2837,9 +2846,7 @@ file; this call falls through to the 'unknown' handler."
             crate::intervals::numbers_for_dialect(Some(self.profile)),
             crate::interval_bounds::BoundsSemantics {
                 registry,
-                context: Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-                    self.profile,
-                )),
+                context: Some(context.as_ref().into()),
                 grammar: self.grammar(),
             },
         );
@@ -3057,27 +3064,22 @@ file; this call falls through to the 'unknown' handler."
         if !self.profile.is_irules() {
             return;
         }
-        let points = crate::place_bridge::build_point_resolve_contexts_with_entry(
-            &fu.cfg,
-            crate::connection_scope::irules_function_resolve_context(qname),
-            registry,
-        );
+        let Some(points) = fu.ssa.point_contexts.as_ref() else {
+            return;
+        };
+        let context = self.analysis_context();
+        if context.commands().snapshot().semantic_key() != registry.snapshot().semantic_key() {
+            return;
+        }
         let mut emitted = FxHashSet::default();
         for (&id, block) in &fu.cfg.blocks {
             for (index, statement) in block.statements.iter().enumerate() {
                 let before = points.before_statement(id, index);
                 let after = points.after_statement(id, index);
-                for access in irules_cell_accesses(statement, before, after, registry, self.profile)
-                {
+                for access in irules_cell_accesses(statement, before, after, &context) {
                     self.emit_irules_cell_access(fu, qname, statement, access, &mut emitted);
                 }
-                for name in irules_possible_namespace_writes(
-                    statement,
-                    before,
-                    after,
-                    registry,
-                    self.profile,
-                ) {
+                for name in irules_possible_namespace_writes(statement, before, after, &context) {
                     let span = fu.abs_span(statement.span());
                     if span.is_empty()
                         || !emitted.insert((DiagCode::Irule6001, span.start(), name.clone()))
@@ -3221,7 +3223,9 @@ file; this call falls through to the 'unknown' handler."
                     if place.dynamic || place.ns != crate::place::LOCAL_NS {
                         continue;
                     }
-                    let cell = crate::connection_scope::EventCell::Connection(place.name.clone());
+                    let Some(cell) = crate::connection_scope::cell_from_place(&place) else {
+                        continue;
+                    };
                     let Some(notes) = concerns.get(&cell) else {
                         continue;
                     };
@@ -3319,9 +3323,9 @@ fn irules_cell_accesses(
     statement: &crate::ir::Statement,
     before: &crate::var_resolve::ResolveContext,
     after: &crate::var_resolve::ResolveContext,
-    registry: &tcl_registry::CommandRegistry,
-    profile: &'static tcl_dialect::DialectProfile,
+    context: &tcl_registry::model::ContextRegistry,
 ) -> Vec<IrulesCellAccess> {
+    let registry = context.commands();
     let mut accesses: Vec<_> = crate::place_bridge::statement_mutation_places_with_continuation(
         statement, before, after, registry,
     )
@@ -3340,11 +3344,9 @@ fn irules_cell_accesses(
     else {
         return accesses;
     };
-    let semantic = Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-        profile,
-    ));
+
     let Some(normal) =
-        crate::registry_invocation::normal_transfer_invocation(registry, semantic, tokens)
+        crate::registry_invocation::normal_transfer_invocation_in_context(context, tokens)
     else {
         return accesses;
     };
@@ -3408,19 +3410,17 @@ fn irules_possible_namespace_writes(
     statement: &crate::ir::Statement,
     before: &crate::var_resolve::ResolveContext,
     after: &crate::var_resolve::ResolveContext,
-    registry: &tcl_registry::CommandRegistry,
-    profile: &'static tcl_dialect::DialectProfile,
+    context: &tcl_registry::model::ContextRegistry,
 ) -> Vec<String> {
+    let registry = context.commands();
     let Some(tokens) = statement.tokens() else {
         return Vec::new();
     };
-    let semantic = Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-        profile,
-    ));
+
     let Some(normal) =
-        crate::registry_invocation::normal_transfer_invocation(registry, semantic, tokens)
+        crate::registry_invocation::normal_transfer_invocation_in_context(context, tokens)
     else {
-        return irules_possible_handler_namespace_writes(tokens, before, after, registry, semantic);
+        return irules_possible_handler_namespace_writes(tokens, before, after, context);
     };
     let state = match normal.variable_binding_phase() {
         tcl_registry::native_compilation::VariableOperandBindingPhase::AfterArguments => before,
@@ -3448,11 +3448,11 @@ fn irules_possible_handler_namespace_writes(
     tokens: &crate::ir::CommandTokens,
     before: &crate::var_resolve::ResolveContext,
     after: &crate::var_resolve::ResolveContext,
-    registry: &tcl_registry::CommandRegistry,
-    semantic: Option<tcl_registry::model::semantic::SemanticContext>,
+    context: &tcl_registry::model::ContextRegistry,
 ) -> Vec<String> {
+    let registry = context.commands();
     let Some(possible) =
-        crate::registry_invocation::possible_variable_name_operands(registry, semantic, tokens)
+        crate::registry_invocation::possible_variable_name_operands_in_context(context, tokens)
     else {
         return Vec::new();
     };
@@ -3684,7 +3684,7 @@ fn function_declaration_flow(
     procedure: &crate::ir::Procedure,
     image: &tcl_lexer::SourceImage,
     registry: &tcl_registry::CommandRegistry,
-) -> Option<crate::command_binding::DeclarationFlowReport> {
+) -> Option<std::sync::Arc<crate::command_binding::DeclarationFlowReport>> {
     fu.ssa.blocks.iter().find_map(|(&block, data)| {
         (0..data.statements.len())
             .chain(std::iter::once(usize::MAX))
@@ -3728,7 +3728,9 @@ fn original_unrepresented_use_advice(
     definition: &crate::def_use::DefSite,
     variable: &str,
     registry: &tcl_registry::CommandRegistry,
-    layout: &std::cell::OnceCell<Option<crate::command_binding::DeclarationFlowReport>>,
+    layout: &std::cell::OnceCell<
+        Option<std::sync::Arc<crate::command_binding::DeclarationFlowReport>>,
+    >,
 ) -> bool {
     let Some(block) = fu.cfg.block_id(&definition.block) else {
         return false;
@@ -3795,7 +3797,9 @@ fn original_unread_store_advice(
     definition: &crate::def_use::DefSite,
     variable: &str,
     registry: &tcl_registry::CommandRegistry,
-    layout: &std::cell::OnceCell<Option<crate::command_binding::DeclarationFlowReport>>,
+    layout: &std::cell::OnceCell<
+        Option<std::sync::Arc<crate::command_binding::DeclarationFlowReport>>,
+    >,
 ) -> bool {
     let Some(block) = fu.cfg.block_id(&definition.block) else {
         return false;
@@ -3852,7 +3856,7 @@ pub(crate) fn report_original_store_diagnostic_gates(
                 chain.definition.statement_index,
                 &chain.key.0
             ),
-            reportable_dead_assignment(statement, registry),
+            reportable_dead_assignment(statement, registry, None),
             original_overwrite_advice(fu, &chain.definition, variable, registry),
             tokens.map(|tokens| &tokens.argv_texts),
             tokens
@@ -3897,33 +3901,27 @@ fn statement_is_synthetic_effect(stmt: &crate::ir::Statement) -> bool {
 fn barrier_body_locally_sets(
     stmt: Option<&crate::ir::Statement>,
     var: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
-    config: tcl_lexer::LexerConfig,
+    source: &str,
+    analysis: &crate::analyser::AnalysisResult,
+    context: &tcl_registry::model::ContextRegistry,
+    original_tokens: Option<&crate::ir::CommandTokens>,
 ) -> bool {
-    use crate::ir::Statement;
-    let Some(registry) = registry else {
+    let registry = context.commands();
+    let Some(config) = analysis.body_lexer_config else {
         return false;
     };
-    let Some(
-        Statement::Barrier {
-            command,
-            args,
-            tokens,
-            ..
-        }
-        | Statement::Call {
-            command,
-            args,
-            tokens,
-            ..
-        },
-    ) = stmt
-    else {
+    let Some(tokens) = original_tokens else {
         return false;
     };
+    if crate::registry_invocation::source_structure::original_segment_for_tokens(
+        source, analysis, tokens,
+    )
+    .is_none()
+    {
+        return false;
+    }
     if let Some(possible) = tokens
-        .as_ref()
-        .and_then(|tokens| tokens.evaluated_body())
+        .evaluated_body()
         .and_then(|region| region.possible_bodies.as_ref())
     {
         return possible.conditional_sources.iter().flatten().any(|advice| {
@@ -3936,19 +3934,36 @@ fn barrier_body_locally_sets(
             )
         });
     }
-    // Preserve opaque foreign-body lexical suppression. It grants no store
-    // in this frame and is separate from selected same-frame body advice.
-    if !matches!(stmt, Some(Statement::Barrier { .. })) {
+    if !matches!(stmt, Some(crate::ir::Statement::Barrier { .. })) {
         return false;
     }
-    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    registry
-        .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
-        .into_iter()
-        .filter_map(|idx| args.get(idx))
-        .any(|body_text| {
+    let Some(words) =
+        crate::registry_invocation::source_structure::original_registry_words_for_tokens(
+            source, analysis, tokens,
+        )
+    else {
+        return false;
+    };
+    // Potentially evaluated foreign-frame scripts provide lexical ownership
+    // only. Reference-only syntax cannot supply this suppression; an authored
+    // Body role is never a completed store in the enclosing frame.
+    words
+        .source_script_bodies_for(
+            context,
+            crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+        )
+        .iter()
+        .any(|body| {
+            if !body.matches_source(&tcl_lexer::SourceImage::document(source), config)
+                || !body.matches_context(context)
+            {
+                return false;
+            }
+            let Some(text) = source.get(body.content_span().as_range()) else {
+                return false;
+            };
             crate::script_binds::script_binds_name(
-                body_text,
+                text,
                 var,
                 crate::script_binds::Ownership::BindingsOrNameReads,
                 registry,
@@ -3963,10 +3978,9 @@ fn barrier_body_locally_sets(
 /// Such a reference is not a value read, so it must not raise W210.
 fn existence_query_cells(
     stmt: &crate::ir::Statement,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<crate::var_resolve::VariableCellKey> {
-    let registry = registry.unwrap_or(tcl_registry::default_registry());
     let Some(tokens) = stmt.tokens() else {
         return Vec::new();
     };
@@ -4000,7 +4014,7 @@ fn existence_exempt(
     exists_guards: &[super::helpers::ExistenceGuard],
     ssa: &crate::ssa::SsaFunction,
     use_site: &crate::def_use::UseSite,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> bool {
     let Some(use_id) = ssa.block_id(&use_site.block) else {
@@ -4015,12 +4029,8 @@ fn existence_exempt(
     {
         return true;
     }
-    let original_cells = super::helpers::original_read_cells_at(
-        ssa,
-        (use_id, index),
-        cell,
-        registry.unwrap_or(tcl_registry::default_registry()),
-    );
+    let original_cells =
+        super::helpers::original_read_cells_at(ssa, (use_id, index), cell, registry);
     exists_guards.iter().any(|(guarded, block)| {
         (original_cells.contains(guarded) || ssa.point_contexts.is_none() && guarded == cell)
             && block_dominated_by(ssa, use_id, *block)
@@ -4167,52 +4177,267 @@ fn regexp_literal_no_match(pat: &str, inp: &str, options: &[String]) -> bool {
     }
 }
 
-/// `Some(true)` when a `regexp` / `scan` call (`is_regexp` selects the arg
-/// order) with literal pattern + input provably can't match; `Some(false)`
-/// when it might match; `None` when the args can't be statically resolved
-/// (dynamic substitution, too few args).
-fn regexp_scan_no_match(is_regexp: bool, args: &[String]) -> Option<bool> {
-    let value_opts: &[&str] = if is_regexp { &["-start"] } else { &[] };
-    let pos = skip_options(args, value_opts);
-    if pos + 1 >= args.len() {
-        return None;
+/// One unchanged output in the represented source-value projection.
+struct NoMatchOutputOrigin {
+    dominator: crate::cfg::BlockId,
+    index: usize,
+    version: crate::ssa::Version,
+    branch_entry: bool,
+}
+impl NoMatchOutputOrigin {
+    fn reaches(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        block: crate::cfg::BlockId,
+        index: usize,
+    ) -> bool {
+        if block == self.dominator {
+            self.branch_entry || index > self.index
+        } else {
+            block_dominated_by(&fu.ssa, block, self.dominator)
+        }
     }
-    let a = &args[pos];
-    let b = &args[pos + 1];
-    // `regexp ?opts? PATTERN STRING …`; `scan STRING FORMAT …`.
-    let (pat, inp) = if is_regexp { (a, b) } else { (b, a) };
-    // Dynamic substitution markers — runtime value unknown.
-    if pat.contains(['$', '[']) || inp.contains(['$', '[']) {
-        return None;
-    }
-    if is_regexp {
-        let opts: Vec<String> = args[..pos].to_vec();
-        Some(regexp_literal_no_match(pat, inp, &opts))
+}
+struct NoMatchCallSite {
+    producer: crate::cfg::BlockId,
+    index: usize,
+    dominator: crate::cfg::BlockId,
+    branch_entry: bool,
+}
+
+fn record_no_match_outputs(
+    fu: &crate::compilation_unit::FunctionUnit,
+    site: NoMatchCallSite,
+    outputs: &[String],
+    logical: bool,
+    origins: &mut std::collections::HashMap<crate::ssa::Symbol, Vec<NoMatchOutputOrigin>>,
+) {
+    let Some(data) = fu.ssa.blocks.get(&site.producer) else {
+        return;
+    };
+    let point = if site.index == data.statements.len() {
+        usize::MAX
     } else {
-        Some(crate::scan_predicate::scan_provably_no_match(pat, inp))
+        site.index
+    };
+    let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, site.producer, point);
+    for name in outputs {
+        let symbol = view.symbol(name).or_else(|| {
+            logical
+                .then(|| {
+                    fu.ssa
+                        .cell_symbol(&crate::var_resolve::VariableCellKey::Authored(name.clone()))
+                })
+                .flatten()
+        });
+        let Some(symbol) = symbol else {
+            continue;
+        };
+        let before = data.statements[..site.index]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, statement)| {
+                fu.ssa
+                    .value_clobbers
+                    .get(&site.producer)
+                    .and_then(|markers| markers.get(&index))
+                    .and_then(|versions| versions.get(&symbol))
+                    .map(|&(_, fresh)| fresh)
+                    .or_else(|| statement.defs.get(&symbol).copied())
+            })
+            .or_else(|| data.entry_versions.get(&symbol).copied())
+            .unwrap_or(0);
+        // Failure retains a preceding value, and any later version is separate.
+        if before != 0 {
+            continue;
+        }
+        let version = data
+            .statements
+            .get(site.index)
+            .and_then(|statement| statement.defs.get(&symbol))
+            .copied()
+            .unwrap_or(before);
+        origins
+            .entry(symbol)
+            .or_default()
+            .push(NoMatchOutputOrigin {
+                dominator: site.dominator,
+                index: site.index,
+                version,
+                branch_entry: site.branch_entry,
+            });
     }
 }
 
-/// Index of the first non-option argument in `args`, skipping `-option`
-/// flags and the values of options in `value_opts`.
-fn skip_options(args: &[String], value_opts: &[&str]) -> usize {
-    let mut i = 0;
-    while i < args.len() {
-        let a = &args[i];
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if a.starts_with('-') {
-            i += 1;
-            if value_opts.contains(&a.as_str()) && i < args.len() {
-                i += 1;
+fn original_missing_matcher_read_span(
+    fu: &crate::compilation_unit::FunctionUnit,
+    view: crate::ssa::SsaSourceView<'_>,
+    symbol: crate::ssa::Symbol,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<tcl_lexer::Span> {
+    view.source_tokens()?
+        .variable_accesses
+        .iter()
+        .filter_map(|access| {
+            let read = view.read_reference(&access.source, &access.original_spelling)?;
+            if read.symbol != symbol
+                || !view
+                    .read_contents_presence_alternatives_at(
+                        &access.source,
+                        &access.original_spelling,
+                        registry,
+                    )
+                    .is_some_and(crate::ssa::SsaReadPresenceAlternatives::may_be_undefined)
+                || super::helpers::original_read_is_live_array_scalar(access, registry)
+            {
+                return None;
             }
+            Some(fu.abs_span(access.source.span))
+        })
+        .min_by_key(|span| span.start())
+}
+
+/// Complete selected source matcher layout and decoded effective literal argv.
+/// A handler descriptor identifies the authored protocol; it never proves an
+/// installed handler, physical target, normal completion or current absence.
+fn selected_matcher_no_match_outputs(
+    words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Vec<String> {
+    use tcl_registry::variable_output::NativeVariableOutputSpec;
+    // naming.diagnostics.original-matcher-output-retention
+    // docs/design/analysis/name-resolution-proofs/diagnostic-original-matcher-output-retention.md
+    let Some(layout) = SourceMatcherLayout::from_original(words, context) else {
+        return Vec::new();
+    };
+    let pattern = layout.arguments[layout.pattern];
+    let input = layout.arguments[layout.input];
+    if !pattern.is_ascii()
+        || !input.is_ascii()
+        || pattern.contains('\0')
+        || input.contains('\0')
+        || pattern.len() > 1024
+        || input.len() > 8192
+    {
+        return Vec::new();
+    }
+    let no_match = match layout.protocol {
+        NativeVariableOutputSpec::Regexp => {
+            let options = layout.arguments[..layout.pattern]
+                .iter()
+                .map(|option| (*option).to_owned())
+                .collect::<Vec<_>>();
+            !options.iter().any(|option| option == "-start")
+                && regexp_literal_no_match(pattern, input, &options)
+        }
+        NativeVariableOutputSpec::Scan => {
+            scan_literal_no_match(pattern, input, layout.outputs.len())
+        }
+    };
+    if !no_match {
+        return Vec::new();
+    }
+    layout
+        .outputs
+        .into_iter()
+        .filter_map(|index| {
+            let name = *layout.arguments.get(index)?;
+            (!name.is_empty()).then(|| name.to_owned())
+        })
+        .collect()
+}
+
+struct SourceMatcherLayout<'a> {
+    protocol: tcl_registry::variable_output::NativeVariableOutputSpec,
+    arguments: Vec<&'a str>,
+    outputs: Vec<usize>,
+    pattern: usize,
+    input: usize,
+}
+impl<'a> SourceMatcherLayout<'a> {
+    fn from_original(
+        words: &'a crate::registry_invocation::source_structure::OriginalRegistryWords,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<Self> {
+        use tcl_registry::{
+            ArgRole, native_compilation::SuccessfulHandlerSpec,
+            variable_output::NativeVariableOutputSpec,
+        };
+        let facts = words.with_source_schema(context, |invocation| invocation.facts())?;
+        let SuccessfulHandlerSpec::ConditionalVariableOperands(protocol) =
+            facts.successful_handler?
+        else {
+            return None;
+        };
+        if !facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true) {
+            return None;
+        }
+        let arguments = words
+            .arguments()
+            .iter()
+            .map(|word| std::str::from_utf8(word.literal_bytes()?).ok())
+            .collect::<Option<Vec<_>>>()?;
+        if facts.frozen_argument_count != Some(arguments.len()) {
+            return None;
+        }
+        let indices = |role| {
+            facts.arg_roles.iter().filter_map(move |&(index, found)| {
+                (role == found).then_some(facts.argument_offset + usize::from(index))
+            })
+        };
+        let outputs = indices(ArgRole::VarWrite).collect::<Vec<_>>();
+        if outputs.is_empty() {
+            return None;
+        }
+        let (pattern, input) = match protocol {
+            NativeVariableOutputSpec::Regexp => {
+                let pattern = indices(ArgRole::Pattern).next()?;
+                (pattern, pattern.checked_add(1)?)
+            }
+            NativeVariableOutputSpec::Scan => {
+                let pattern = indices(ArgRole::ScanFormat).next()?;
+                (pattern, pattern.checked_sub(1)?)
+            }
+        };
+        arguments.get(pattern)?;
+        arguments.get(input)?;
+        Some(Self {
+            protocol,
+            arguments,
+            outputs,
+            pattern,
+            input,
+        })
+    }
+}
+
+/// The shared parser validates the complete dialect-common plain conversion
+/// subset before the existing first-conversion no-match kernel is consulted.
+fn scan_literal_no_match(format: &str, input: &str, output_count: usize) -> bool {
+    let chars = format.chars().collect::<Vec<_>>();
+    let mut index = 0;
+    let mut conversions = 0;
+    while index < chars.len() {
+        if chars[index] != '%' {
+            index += 1;
             continue;
         }
-        break;
+        index += 1;
+        let Ok(conversion) = tcl_syntax::scan::parse_conversion(&chars, &mut index) else {
+            return false;
+        };
+        if conversion.suppress
+            || conversion.width.is_some()
+            || conversion.size.is_some()
+            || conversion.xpg_index.is_some()
+            || !matches!(conversion.verb, '%' | 'd' | 'o' | 'x' | 'X' | 's' | 'c')
+        {
+            return false;
+        }
+        conversions += usize::from(conversion.verb != '%');
     }
-    i
+    conversions == output_count && crate::scan_predicate::scan_provably_no_match(format, input)
 }
 
 /// Return ``true`` when ``body`` contains a ``$param`` /
@@ -4390,32 +4615,405 @@ mod issue996_tests {
     }
 
     #[test]
-    fn opaque_body_local_set_uses_the_analyser_lexer_config() {
-        let registry = tcl_registry::CommandRegistry::build_default();
+    fn opaque_body_local_set_requires_original_body_owner() {
+        // naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        // Lexical suppression only; this test proves no entered child/store.
+        let source = "interp create child\ninterp eval child {set x 1; puts $x}\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let config = analysis.body_lexer_config.unwrap();
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            &segments[1],
+        );
+        analysis
+            .retained_command_realm()
+            .unwrap()
+            .stamp_original_tokens(&mut tokens);
         let stmt = crate::ir::Statement::Barrier {
-            span: tcl_lexer::Span::new(0, 0),
+            span: tokens.argv[0],
             reason: "child interpreter".to_owned(),
             command: "interp".to_owned(),
             canonical_command: Some("::interp".to_owned()),
             args: vec![
                 "eval".to_owned(),
                 "child".to_owned(),
-                "{set}x 1; puts $x".to_owned(),
+                "set x 1; puts $x".to_owned(),
             ],
-            tokens: None,
+            tokens: Some(tokens.clone()),
         };
-
         assert!(barrier_body_locally_sets(
             Some(&stmt),
             "x",
-            Some(&registry),
-            tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+            source,
+            &analysis,
+            &context,
+            Some(&tokens)
         ));
         assert!(!barrier_body_locally_sets(
             Some(&stmt),
             "x",
-            Some(&registry),
-            tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+            source,
+            &analysis,
+            &context,
+            None
         ));
+        assert!(!barrier_body_locally_sets(
+            Some(&stmt),
+            "x",
+            "interp create child\ninterp eval child {set y 1; puts $y}\n",
+            &analysis,
+            &context,
+            Some(&tokens)
+        ));
+    }
+}
+
+#[cfg(test)]
+mod source_body_purpose_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_registry::{
+        ArgRole, Arity, CommandRegistry, CommandSpec, InvocationArguments, ScriptTiming,
+    };
+
+    fn reference_only(_arguments: InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+        vec![(0, ScriptTiming::ReferenceOnly)]
+    }
+
+    #[test]
+    fn original_reference_only_body_cannot_supply_local_store_suppression() {
+        // naming.source.original-script-region-purpose
+        // docs/design/analysis/name-resolution-proofs/original-script-region-purpose.md
+        // Diagnostic suppression capability; no executed store or child entry.
+        let source = "reference-script {set x 1; puts $x}\nrun-script {set x 1; puts $x}";
+        let mut registry = CommandRegistry::build_default();
+        for (name, timing) in [
+            (
+                "reference-script",
+                Some(reference_only as tcl_registry::ScriptTimingResolver),
+            ),
+            ("run-script", None),
+        ] {
+            registry.insert(CommandSpec {
+                name,
+                arity: Arity::exact(1),
+                arg_roles: &[(0, ArgRole::Body)],
+                script_timing_resolver: timing,
+                ..CommandSpec::DEFAULT
+            });
+        }
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context = Arc::new(
+            tcl_registry::model::context_for_profile(profile)
+                .with_command_store(Arc::new(registry)),
+        );
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl8.6");
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        for (index, expected) in [(0, false), (1, true)] {
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                &segments[index],
+            );
+            analysis
+                .retained_command_realm()
+                .unwrap()
+                .stamp_original_tokens(&mut tokens);
+            let words =
+                crate::registry_invocation::source_structure::original_registry_words_for_tokens(
+                    source, &analysis, &tokens,
+                )
+                .expect("original source producer");
+            assert_eq!(
+                words.source_script_bodies(&context).len(),
+                1,
+                "both bodies remain original syntax"
+            );
+            let stmt = crate::ir::Statement::Barrier {
+                span: tokens.argv[0],
+                reason: "authored foreign body".into(),
+                command: segments[index].texts[0].clone(),
+                canonical_command: None,
+                args: segments[index].texts[1..].to_vec(),
+                tokens: Some(tokens.clone()),
+            };
+            assert_eq!(
+                barrier_body_locally_sets(
+                    Some(&stmt),
+                    "x",
+                    source,
+                    &analysis,
+                    &context,
+                    Some(&tokens)
+                ),
+                expected
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_variable_anchor_tests {
+    fn anchor(source: &str, dialect: &str, target: &str) -> Option<tcl_lexer::Span> {
+        let environment = tcl_registry::model::resolve_environment(dialect);
+        let profile = environment.unit_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let mut analyser = crate::analyser::Analyser::new().with_resolved_input(input);
+        analyser.source = source.to_owned();
+        analyser.narrow_to_read_var(
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            target,
+        )
+    }
+
+    #[test]
+    fn variable_read_anchor_preserves_literal_name_and_complete_reference_geometry() {
+        // naming.diagnostics.original-variable-name-anchor
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-variable-name-anchor.md
+        // Lexical anchor controls, not variable existence, W210 admission or
+        // successful native reads. A braced scalar may contain an unmatched '('.
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            for (source, target, reference) in [
+                ("puts $a ${a(b}", "a(b", "${a(b}"),
+                ("puts ${literal} ${$literal}", "$literal", "${$literal}"),
+                ("puts ${é}", "é", "${é}"),
+                ("puts $a(k)", "a(k)", "$a(k)"),
+                ("puts ${a(k)}", "a(k)", "${a(k)}"),
+                ("puts ${}", "", "${}"),
+                ("set marker 1; puts [list ${a(b}]", "a(b", "${a(b}"),
+            ] {
+                let start = u32::try_from(source.find(reference).unwrap()).unwrap();
+                let expected =
+                    tcl_lexer::Span::new(start, start + u32::try_from(reference.len()).unwrap());
+                assert_eq!(
+                    anchor(source, dialect, target),
+                    Some(expected),
+                    "{dialect}: {source:?}"
+                );
+            }
+            for (source, target) in [
+                ("puts $a", "a(b"),
+                ("puts ${literal}", "$literal"),
+                ("puts {${a(b}}", "a(b"),
+                ("puts ${unclosed", "unclosed"),
+                ("puts $a(", "a("),
+            ] {
+                assert_eq!(
+                    anchor(source, dialect, target),
+                    None,
+                    "{dialect}: {source:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn variable_read_anchor_uses_retained_braced_and_bare_name_grammar() {
+        // naming.diagnostics.original-variable-name-anchor
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-variable-name-anchor.md
+        // Exact source/configuration discrimination, not a native cell or
+        // completion observation. Bare Unicode is Jim syntax only.
+        let source = "puts ${a{b}c}";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "jim"] {
+            assert_eq!(anchor(source, dialect, "a{b}c"), None);
+            assert_eq!(
+                anchor(source, dialect, "a{b"),
+                Some(tcl_lexer::Span::new(5, 11))
+            );
+        }
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            assert_eq!(
+                anchor(source, dialect, "a{b}c"),
+                Some(tcl_lexer::Span::new(5, 13))
+            );
+            assert_eq!(anchor(source, dialect, "a{b"), None);
+        }
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert_eq!(anchor("puts $é", dialect, "é"), None);
+        }
+        assert_eq!(
+            anchor("puts $é", "jim", "é"),
+            Some(tcl_lexer::Span::new(5, 8))
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_matcher_admission_tests {
+    use super::*;
+
+    fn output_names(source: &str, dialect: &str) -> Vec<String> {
+        let analysis = Analyser::new().analyse(source, dialect);
+        let config = analysis.body_lexer_config.unwrap();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            source,
+            &analysis,
+            commands.last().unwrap(),
+        );
+        words.map_or_else(Vec::new, |words| {
+            selected_matcher_no_match_outputs(
+                &words,
+                &analysis.resolved_input.as_ref().unwrap().context_registry(),
+            )
+        })
+    }
+
+    #[test]
+    fn selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_barriers() {
+        // naming.diagnostics.original-matcher-output-retention
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-matcher-output-retention.md
+        // Selected conditional source protocol and decoded original argv only;
+        // none of these Native analyses grants current output cells or reads.
+        for dialect in [
+            "tcl", "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim",
+        ] {
+            for source in [
+                "regexp x y v",
+                "scan abc %d v",
+                "regexp x y {$v}",
+                "interp alias {} matcher {} regexp x y; matcher v",
+                "interp alias {} matcher {} regexp -nocase x; matcher Y v",
+                "rename regexp matcher; matcher x y v",
+                "interp alias {} matcher {} regexp x y; rename matcher moved; moved v",
+            ] {
+                let expected = if source.contains("{$v}") { "$v" } else { "v" };
+                assert_eq!(
+                    output_names(source, dialect),
+                    vec![expected],
+                    "{dialect}: {source}"
+                );
+            }
+            for source in [
+                "namespace eval app {proc regexp args {}}; ::app::regexp x y v",
+                "proc regexp args {}; regexp x y v",
+                "proc scan args {}; scan abc %d v",
+                "interp alias {} matcher {} regexp x y; rename regexp gone; proc regexp args {}; matcher v",
+                "interp alias {} matcher {} regexp -inline x y; matcher v",
+                "regexp -bogus x y v",
+                "regexp -about x y v",
+                "regexp -nocase x X v",
+                "regexp -expanded {a b} ab v",
+                "regexp -start end x y v",
+                "regexp {$p} y v",
+                "scan abc %b v",
+                "scan abc {%d %d} v",
+                "scan abc %2d v",
+                "scan abc %n v",
+                "scan abc %bad v",
+                "regexp é y v",
+            ] {
+                assert!(
+                    output_names(source, dialect).is_empty(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_matcher_query_refuses_missing_foreign_and_stale_source_inputs() {
+        // naming.diagnostics.original-matcher-output-retention
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-matcher-output-retention.md
+        let source = "regexp x y v";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let config = analysis.body_lexer_config.unwrap();
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            source, &analysis, &command,
+        )
+        .unwrap();
+        assert_eq!(
+            selected_matcher_no_match_outputs(
+                &words,
+                &analysis.resolved_input.as_ref().unwrap().context_registry()
+            ),
+            vec!["v"]
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        assert!(selected_matcher_no_match_outputs(&words, foreign).is_empty());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            crate::registry_invocation::source_structure::source_registry_words(
+                source, &missing, &command
+            )
+            .is_none()
+        );
+        assert!(
+            crate::registry_invocation::source_structure::source_registry_words(
+                "regexp x z v",
+                &analysis,
+                &command
+            )
+            .is_none()
+        );
+        let mut changed = analysis.clone();
+        changed.body_lexer_config = Some(tcl_lexer::LexerConfig::for_profile(Some(
+            tcl_dialect::DialectProfile::find("jim").unwrap(),
+        )));
+        assert!(
+            crate::registry_invocation::source_structure::source_registry_words(
+                source, &changed, &command
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_no_match_diagnostics_keep_prior_and_intervening_values_and_literal_names() {
+        // naming.diagnostics.original-matcher-output-retention
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-matcher-output-retention.md
+        // Emitted conditional Logical diagnostics, not Native current contents.
+        for (source, expected) in [
+            ("proc f {} {regexp x y v; puts $v}", Some("$v")),
+            ("proc f {} {scan abc %d v; puts $v}", Some("$v")),
+            ("proc f {} {if {![regexp x y v]} {puts $v}}", Some("$v")),
+            ("proc f {} {regexp x y {$v}; puts ${$v}}", Some("${$v}")),
+            ("proc f {} {set v OLD; regexp x y v; puts $v}", None),
+            ("proc f {v} {regexp x y v; puts $v}", None),
+            ("proc f {} {regexp x y v; set v NEW; puts $v}", None),
+            (
+                "proc f {} {if {![regexp x y v]} {set v NEW; puts $v}}",
+                None,
+            ),
+            (
+                "namespace eval app {proc regexp {pattern input name} {upvar 1 $name output; set output CUSTOM; return 0}}; proc f {} {if {![::app::regexp x y v]} {puts $v}}",
+                None,
+            ),
+            (
+                "set marker PRELUDE\nproc f {} {if {![regexp x y v]} {puts $v}}",
+                Some("$v"),
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert!(analysis.allows_retained_logical_declaration_advice());
+            let spans = analysis
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == DiagCode::W210)
+                .map(|diagnostic| &source[diagnostic.span.as_range()])
+                .collect::<Vec<_>>();
+            assert_eq!(spans, expected.into_iter().collect::<Vec<_>>(), "{source}");
+        }
     }
 }

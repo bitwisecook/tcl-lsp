@@ -556,6 +556,18 @@ mod tests {
 
     #[test]
     fn command_cache_getters_match_all_native_original_object_rows() {
+        // Native proof: naming.command-cache.original-wide-getter
+        // docs/design/analysis/name-resolution-proofs/command-cache-original-wide-getter.md
+        // Native proof: naming.command-cache.original-double-getter
+        // docs/design/analysis/name-resolution-proofs/command-cache-original-double-getter.md
+        // Native proof: naming.command-cache.original-boolean-getter
+        // docs/design/analysis/name-resolution-proofs/command-cache-original-boolean-getter.md
+        // Native proof: naming.command-cache.original-list-length-getter
+        // docs/design/analysis/name-resolution-proofs/command-cache-original-list-length-getter.md
+        // Native proof: naming.command-cache.original-dictionary-size-getter
+        // docs/design/analysis/name-resolution-proofs/command-cache-original-dictionary-size-getter.md
+        // Native proof: naming.command-cache.original-character-length-getter
+        // docs/design/analysis/name-resolution-proofs/command-cache-original-character-length-getter.md
         use tcl_syntax::native_object::NativeObjectCacheSnapshot;
         use tcl_syntax::value::ValueOps;
         const INPUTS: [&[u8]; 6] = [b"1", b"1.0", b"true", b"1 2", b"1 x", b"bad"];
@@ -679,6 +691,8 @@ mod tests {
 
     #[test]
     fn command_cache_priming_matches_every_native_original_object_row() {
+        // Native proof: naming.command-cache.original-compiler-priming
+        // docs/design/analysis/name-resolution-proofs/command-cache-original-compiler-priming.md
         const FIXTURES: [&str; 5] = [
             include_str!("../tests/data/native_command_cache_priming/8.4.20.tsv"),
             include_str!("../tests/data/native_command_cache_priming/8.5.19.tsv"),
@@ -959,6 +973,16 @@ mod tests {
                 },
                 |&version| tcl_registry::InvocationDialect::for_version(version),
             );
+            let jim_context = dialect
+                .native_scalar_getter_protocol()
+                .filter(|protocol| protocol.is_jim084())
+                .map(|_| {
+                    let context = crate::native_source::NativeJimObjectContext::new(dialect)
+                        .expect("selected original Jim fixture context");
+                    context
+                        .select_numeric_host(std::rc::Rc::new(tcl_host_native::NativeHost::new()));
+                    context
+                });
             for line in fixture.lines() {
                 let input = inputs[field(line, "case").parse::<usize>().unwrap()];
                 // The C fixture has both storage kinds; Jim's seven rows
@@ -972,6 +996,10 @@ mod tests {
                     obj::new_string_bytes(input)
                 };
                 let value = obj::Owned::fresh(object);
+                if let Some(context) = &jim_context {
+                    crate::native_source::bind_context(value.as_ptr(), context)
+                        .expect("original scalar belongs to selected Jim fixture");
+                }
                 let boolean = native_boolean(value.as_ptr(), dialect);
                 assert_eq!(
                     boolean.is_ok(),
@@ -1009,6 +1037,9 @@ mod tests {
 
     #[test]
     fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
+        // Native proof: naming.numeric.primitive-int-original-width-cache
+        // docs/design/analysis/name-resolution-proofs/numeric-primitive-int-original-width-cache.md
+
         use tcl_syntax::scalar_getter::NativeScalarGetterErrorCode;
         const FIXTURES: [&str; 5] = [
             include_str!(

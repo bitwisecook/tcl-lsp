@@ -1,0 +1,64 @@
+{
+  "id": "naming.namespace.command-teardown-frontier",
+  "problem_statement": "Command delete callbacks can create or replace command entries while the same namespace is being dismantled. A snapshot-only traversal postpones callback-created entries in Tcl8.4/8.5 and changes trace-visible order.",
+  "question": "Which C releases restart at the first command-table entry after each deletion, and which retain an entire table frontier for one pass?",
+  "source_entries": [
+    {
+      "provider": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c",
+      "source_sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "source_copy": "tcl-8.4.20-tclNamesp.c",
+      "excerpt_file": "tcl-8.4.20-command-teardown.txt",
+      "excerpt_sha256": "25e45517b8c90fabc792156b80bee403604b0fccda14ddfcabb75c319d14f9bb",
+      "start_line": 746,
+      "end_line": 759,
+      "scope": "Pinned implementation text, independently of actual Native202 public observations; no native process or Rust assertion pass is claimed by this read-only source capture."
+    },
+    {
+      "provider": "8.5.19",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c",
+      "source_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "source_copy": "tcl-8.5.19-tclNamesp.c",
+      "excerpt_file": "tcl-8.5.19-command-teardown.txt",
+      "excerpt_sha256": "eadfe9fb1eceab0de4305e3644fc2ebf142fdc1d9b8128d5ee0f5fc1e1e51422",
+      "start_line": 1107,
+      "end_line": 1122,
+      "scope": "Pinned implementation text, independently of actual Native202 public observations; no native process or Rust assertion pass is claimed by this read-only source capture."
+    },
+    {
+      "provider": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c",
+      "source_sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "source_copy": "tcl-8.6.18-tclNamesp.c",
+      "excerpt_file": "tcl-8.6.18-command-teardown.txt",
+      "excerpt_sha256": "7254f4aaa3b4568bc07966467400ad6427ad72c7e14c0b12168a664df17af553",
+      "start_line": 1090,
+      "end_line": 1119,
+      "scope": "Pinned implementation text, independently of actual Native202 public observations; no native process or Rust assertion pass is claimed by this read-only source capture."
+    },
+    {
+      "provider": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c",
+      "source_sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "source_copy": "tcl-9.0.4-tclNamesp.c",
+      "excerpt_file": "tcl-9.0.4-command-teardown.txt",
+      "excerpt_sha256": "cc31f776e8d614edd90c8384b3f8c57d0f2b224ca1f20a1ecc725f1282bf5c6b",
+      "start_line": 1274,
+      "end_line": 1303,
+      "scope": "Pinned implementation text, independently of actual Native202 public observations; no native process or Rust assertion pass is claimed by this read-only source capture."
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c",
+      "source_sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "source_copy": "tcl-9.1.0-tclNamesp.c",
+      "excerpt_file": "tcl-9.1.0-command-teardown.txt",
+      "excerpt_sha256": "cc31f776e8d614edd90c8384b3f8c57d0f2b224ca1f20a1ecc725f1282bf5c6b",
+      "start_line": 1273,
+      "end_line": 1302,
+      "scope": "Pinned implementation text, independently of actual Native202 public observations; no native process or Rust assertion pass is claimed by this read-only source capture."
+    }
+  ],
+  "public_control_proof": "naming.namespace.original-command-holder-routing",
+  "conclusion": "Pinned C8.4/8.5 TclTeardownNamespace restarts Tcl_FirstHashEntry after every Tcl_DeleteCommandFromToken. Pinned C8.6/9 snapshots command pointers per pass and then repeats until the table is empty. Source text alone issues no native namespace token or command authority."
+}

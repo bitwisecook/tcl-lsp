@@ -55,7 +55,8 @@ impl CodegenCtx<'_> {
         }
         let entry = self.native_entry?;
         if entry.execution_point?.tcl_version().is_none()
-            || entry.command_name_policy()?.authority() != tcl_syntax::naming::NamePolicyAuthority::Native
+            || entry.command_name_policy()?.authority()
+                != tcl_syntax::naming::NamePolicyAuthority::Native
         {
             return None;
         }
@@ -1622,6 +1623,7 @@ mod tests {
             compiled_variable_protocol:
                 tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(point),
             compiled_local_layout: None,
+            oo_classes: None,
             ensemble_target_objects: None,
             source_string_protocol: dialect.native_source_string_protocol(),
             lexer_grammar: Some(profile.grammar),
@@ -1630,6 +1632,7 @@ mod tests {
             namespace_variable_tables: None,
             empty_literal_world: None,
             compiler_pass_environment: None,
+            command_resolvers: None,
             variable_observers: NativeVariableObserverPresence::Unknown,
             math_functions: None,
             closed: true,

@@ -1,0 +1,19 @@
+{
+  "id": "UNSET_WRITE",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.4.20/probe",
+    "4"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "74d6fb715d2796e91ef932f895046da9f722c68a39f41bc0c90e217dcce29811",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e342e3230",
+    "UNSET_WRITE_INPUT|0|7365742078204f4c443b2061667465722030207b756e73657420787d3b20767761697420783b20696e666f206578697374732078",
+    "UNSET_WRITE|0|30",
+    "UNSET_WRITE_OPTIONS_NOT_TESTED|0|no-Tcl_GetReturnOptions"
+  ],
+  "reported_version": "8.4.20"
+}

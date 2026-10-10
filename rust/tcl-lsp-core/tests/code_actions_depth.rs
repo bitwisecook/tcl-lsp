@@ -65,8 +65,9 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::{DiagCode, run_all_checks};
 use tcl_lexer::LexerConfig;
 use tcl_lsp_core::code_actions::{
-    ActionKind, CodeAction, ContextDiagnostic, check_diagnostic_actions, code_actions,
-    context_diagnostic_actions, profiles_action,
+    ActionKind, CodeAction, ContextDiagnostic, ContextDiagnosticData, DiagnosticEditSource,
+    check_diagnostic_actions, code_actions, context_diagnostic_actions,
+    context_diagnostic_actions_in_analysis, profiles_action,
 };
 use tcl_lsp_core::definition::LspRange;
 
@@ -105,14 +106,43 @@ fn irules_checks(
     run_all_checks(&cu, registry, Some(profile))
 }
 
-/// The plain-Tcl compiler-checks output (`run_all_checks`) for `source`.
+fn lexical_taint_analysis(
+    source: &str,
+    registry: &tcl_registry::CommandRegistry,
+) -> AnalysisResult {
+    let point = tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79);
+    let profile = tcl_dialect::DialectProfile::projected_from_point(
+        "explicit-lexical-taint-advice",
+        &[],
+        "Logical taint source advice",
+        point,
+    )
+    .intern();
+    let context = tcl_lsp_core::context_for_dialect_profile(profile)
+        .with_command_store(registry.snapshot().shared_registry());
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::new(context),
+        LexerConfig::for_profile(Some(profile)),
+    );
+    let analysis = Analyser::new()
+        .with_resolved_input(input)
+        .analyse(source, profile.name);
+    assert!(analysis.allows_lexical_declaration_advice());
+    analysis
+}
+
+/// Compiler warnings produced under the independently selected Logical source context.
 fn tcl_checks(
     source: &str,
     registry: &tcl_registry::CommandRegistry,
 ) -> Vec<tcl_compiler::compiler_checks::Diagnostic> {
-    let cu =
-        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, None);
-    run_all_checks(&cu, registry, None)
+    let analysis = lexical_taint_analysis(source, registry);
+    let profile = analysis.resolved_profile().unwrap();
+    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
+        .with_interprocedural(registry, Some(profile));
+    run_all_checks(&cu, registry, Some(profile))
 }
 
 /// Turn a real compiler diagnostic into the `ContextDiagnostic` the LSP hands
@@ -128,6 +158,7 @@ fn as_context_diagnostic(
     let column = u32::try_from(start - line_start).unwrap_or(0);
     let width = d.span.end().saturating_sub(d.span.start());
     ContextDiagnostic {
+        data: ContextDiagnosticData::from_compiler_diagnostic(d),
         code: d.code.to_string(),
         message: d.message.clone(),
         range: selection(line, column, column + width),
@@ -733,6 +764,18 @@ fn check_actions_surface_irule5004_dns_return_fix() {
     let registry = irules_registry();
     let src = "when DNS_REQUEST {\n    DNS::return\n}\n";
     let checks = irules_checks(src, &registry);
+    let profile = tcl_dialect::DialectProfile::irules();
+    let context = tcl_lsp_core::context_for_dialect_profile(profile)
+        .with_command_store(registry.snapshot().shared_registry());
+    let analysis = Analyser::new()
+        .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(context),
+            LexerConfig::for_dialect("f5-irules"),
+        ))
+        .analyse(src, profile.name);
+    let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
     assert!(
         checks
             .iter()
@@ -740,8 +783,13 @@ fn check_actions_surface_irule5004_dns_return_fix() {
         "expected an IRULE5004 check carrying a fix; got {checks:?}",
     );
     let none_disabled = std::collections::HashSet::new();
-    let actions =
-        check_diagnostic_actions(src, whole(src), &checks, &none_disabled, &no_suppression());
+    let actions = check_diagnostic_actions(
+        &current,
+        whole(src),
+        &checks,
+        &none_disabled,
+        &no_suppression(),
+    );
     // Fix description is `Add 'return' after DNS::return`.
     let fix = find(&actions, "after DNS::return").expect("an IRULE5004 quick-fix");
     assert_eq!(fix.kind, ActionKind::QuickFix);
@@ -770,9 +818,22 @@ fn check_actions_irule5004_suppressed_when_disabled() {
     let registry = irules_registry();
     let src = "when DNS_REQUEST {\n    DNS::return\n}\n";
     let checks = irules_checks(src, &registry);
+    let profile = tcl_dialect::DialectProfile::irules();
+    let context = tcl_lsp_core::context_for_dialect_profile(profile)
+        .with_command_store(registry.snapshot().shared_registry());
+    let analysis = Analyser::new()
+        .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(context),
+            LexerConfig::for_dialect("f5-irules"),
+        ))
+        .analyse(src, profile.name);
+    let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
     let mut disabled = std::collections::HashSet::new();
     disabled.insert("IRULE5004".to_string());
-    let actions = check_diagnostic_actions(src, whole(src), &checks, &disabled, &no_suppression());
+    let actions =
+        check_diagnostic_actions(&current, whole(src), &checks, &disabled, &no_suppression());
     assert!(
         find(&actions, "after DNS::return").is_none(),
         "disabled IRULE5004 must offer no fix; got {:?}",
@@ -780,276 +841,62 @@ fn check_actions_irule5004_suppressed_when_disabled() {
     );
 }
 
-// context_diagnostic_actions — iRules taint encode-wrap / redundant-encoder
-
+// Context prose cannot issue an edit target or a selected sink.
 #[test]
-fn context_t106_removes_redundant_encoder_wrapper() {
-    // T106 marks a redundant `[ENCODER $var]` wrapper; the fix unwraps it back
-    // to the bare `$var`. The diag carries the tainted var in its message.
-    let src = "set out [html_encode $clean]\n";
-    let diags = vec![ContextDiagnostic {
-        code: "T106".to_string(),
-        message: "redundant encoder applied to already-safe $clean".to_string(),
-        range: cursor(0, 0),
-    }];
-    let actions = context_diagnostic_actions(src, &diags);
-    let unwrap =
-        find(&actions, "Remove redundant encoder").expect("a T106 redundant-encoder removal");
-    assert_eq!(unwrap.kind, ActionKind::QuickFix);
-    assert_eq!(unwrap.edits.len(), 1);
-    assert!(
-        edits_well_formed(unwrap) && edits_in_bounds(unwrap, src),
-        "{unwrap:?}"
-    );
-    // The replacement is the bare variable reference (no encoder, no brackets).
-    assert_eq!(
-        unwrap.edits[0].new_text, "$clean",
-        "unwrap should restore the bare var: {:?}",
-        unwrap.edits[0].new_text,
-    );
-}
-
-#[test]
-fn context_t100_subst_offers_nocommands_fix() {
-    // T100 on a `subst` sink offers a mechanical, single-flag fix:
-    // `-nocommands` disables the only hazard the diagnostic names (command
-    // substitution) without touching the call's variable/backslash
-    // substitution behaviour — the exact mitigation `subst`'s own hover
-    // snippet recommends.
-    let src = "set out [subst $tainted]\n";
-    let diags = vec![ContextDiagnostic {
-        code: "T100".to_string(),
-        message: "Tainted variable $tainted flows into subst; possible code injection".to_string(),
-        range: cursor(0, 9),
-    }];
-    let actions = context_diagnostic_actions(src, &diags);
-    let fix = find(&actions, "-nocommands").expect("a T100 subst -nocommands fix");
-    assert_eq!(fix.kind, ActionKind::QuickFix);
-    assert_eq!(fix.edits.len(), 1);
-    assert!(
-        edits_well_formed(fix) && edits_in_bounds(fix, src),
-        "{fix:?}"
-    );
-    assert_eq!(fix.edits[0].new_text, " -nocommands");
-    // Applying the edit at its own range must produce a well-formed
-    // `subst -nocommands $tainted` call.
-    let col = fix.edits[0].range.start_character as usize;
-    let line = src.lines().next().unwrap();
-    let mut patched = line.to_string();
-    patched.insert_str(col, &fix.edits[0].new_text);
-    assert_eq!(patched, "set out [subst -nocommands $tainted]");
-}
-
-#[test]
-fn context_t100_non_subst_sink_offers_no_fix() {
-    // T100 on a non-`subst` sink (`eval`) has no single-flag mitigation, so
-    // no quick fix is offered — matches the diagnostic's own hover advice
-    // (`{*}$cmdList` / direct invocation), neither of which is a mechanical
-    // same-shape rewrite.
-    let src = "eval $tainted\n";
-    let diags = vec![ContextDiagnostic {
-        code: "T100".to_string(),
-        message: "Tainted variable $tainted flows into eval; possible code injection".to_string(),
-        range: cursor(0, 5),
-    }];
-    let actions = context_diagnostic_actions(src, &diags);
-    assert!(
-        find(&actions, "-nocommands").is_none(),
-        "eval sink must not offer the subst-only fix: {actions:?}"
-    );
-}
-
-#[test]
-fn context_irule3001_wraps_tainted_var_with_html_encode() {
-    // IRULE3001 (reflected XSS) offers an `[html_encode $var]` wrap, and — since
-    // `html_encode` is a user proc, not a built-in — inserts the helper proc at
-    // top-of-file when it isn't already defined.
-    //
-    // tclsh: the html_encode body the fix injects neutralises the markup
-    // metacharacters —
-    //   string map {& &amp; < &lt; > &gt;} "a<b>c" -> a&lt;b&gt;c   (8.6 + 9.0),
-    // so wrapping a tainted value in it is a meaning-preserving escape.
-    let src = "when HTTP_REQUEST {\n    HTTP::respond 200 content $userdata\n}\n";
-    let diags = vec![ContextDiagnostic {
-        code: "IRULE3001".to_string(),
-        message: "reflected XSS: tainted $userdata reaches the response body".to_string(),
-        range: selection(1, 0, 38),
-    }];
-    let actions = context_diagnostic_actions(src, &diags);
-    let wrap = find(&actions, "html_encode").expect("an IRULE3001 html_encode wrap");
-    assert_eq!(wrap.kind, ActionKind::QuickFix);
-    assert!(
-        edits_well_formed(wrap) && edits_in_bounds(wrap, src),
-        "{wrap:?}"
-    );
-    // One edit wraps the var; another inserts the helper proc at line 0.
-    assert_eq!(wrap.edits.len(), 2, "wrap + helper-proc insert: {wrap:?}");
-    let wrap_edit = wrap
-        .edits
-        .iter()
-        .find(|e| e.new_text == "[html_encode $userdata]")
-        .expect("the in-place wrap edit");
-    assert!(
-        wrap_edit.range.start_line == 1,
-        "wrap is on the tainted line"
-    );
-    let helper = wrap
-        .edits
-        .iter()
-        .find(|e| e.new_text.contains("proc html_encode"))
-        .expect("the helper-proc insertion edit");
-    assert_eq!(
-        (helper.range.start_line, helper.range.start_character),
-        (0, 0),
-        "helper proc inserts at top of file: {helper:?}",
-    );
-}
-
-#[test]
-fn context_irule3001_skips_helper_when_already_defined() {
-    // When `html_encode` is already defined in the file, the wrap fix offers
-    // only the in-place wrap edit — no duplicate helper-proc insertion.
-    let src = concat!(
-        "proc html_encode {s} { return $s }\n",
-        "when HTTP_REQUEST {\n",
-        "    HTTP::respond 200 content $userdata\n",
-        "}\n",
-    );
-    let diags = vec![ContextDiagnostic {
-        code: "IRULE3001".to_string(),
-        message: "XSS: $userdata".to_string(),
-        range: selection(2, 0, 38),
-    }];
-    let actions = context_diagnostic_actions(src, &diags);
-    let wrap = find(&actions, "html_encode").expect("an IRULE3001 wrap");
-    assert_eq!(
-        wrap.edits.len(),
-        1,
-        "helper already defined -> only the wrap edit: {wrap:?}",
-    );
-    assert!(
-        wrap.edits
-            .iter()
-            .all(|e| !e.new_text.contains("proc html_encode")),
-        "must not re-insert the helper proc: {wrap:?}",
-    );
-}
-
-#[test]
-fn context_collect_bootstrap_for_irule1005() {
-    // IRULE1005 (a data event read without the matching `protocol::collect`)
-    // offers a "collect bootstrap" quick-fix using the registry-declared
-    // handler and default priority, anchored at the enclosing handler.
-    let src = concat!(
-        "when HTTP_REQUEST_DATA {\n",
-        "    set d [HTTP::payload]\n",
-        "}\n",
-    );
-    let diags = vec![ContextDiagnostic {
-        code: "IRULE1005".to_string(),
-        // The data event word lives in the diag range; protocols come from the
-        // `X::collect` mentions in the message.
-        message: "HTTP_REQUEST_DATA fires without a prior HTTP::collect".to_string(),
-        range: selection(0, 5, 22),
-    }];
-    let actions = context_diagnostic_actions(src, &diags);
-    let boot = find(&actions, "collect' bootstrap").expect("an IRULE1005 collect-bootstrap action");
-    assert_eq!(boot.kind, ActionKind::QuickFix);
-    assert_eq!(boot.edits.len(), 1);
-    assert!(
-        edits_well_formed(boot) && edits_in_bounds(boot, src),
-        "{boot:?}"
-    );
-    let new_text = &boot.edits[0].new_text;
-    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
-    let handler = registry.event_handler_spec().expect("event handler spec");
-    let priority = handler
-        .event_handler_priority
-        .expect("event handler priority policy");
-    assert!(
-        new_text.contains("HTTP::collect")
-            && new_text.contains(&format!(
-                "{} HTTP_REQUEST {} {}",
-                handler.name, priority.keyword, priority.default_priority,
-            )),
-        "bootstrap should add a prioritised HTTP::collect block: {new_text:?}",
-    );
-    // Inserted at the enclosing `when` (line 0), column 0.
-    assert_eq!(
+fn context_messages_without_an_issuer_never_create_taint_or_bootstrap_edits() {
+    for (source, code, message) in [
         (
-            boot.edits[0].range.start_line,
-            boot.edits[0].range.start_character
+            "set out [html_encode $clean]\n",
+            "T106",
+            "redundant encoder $clean",
         ),
-        (0, 0),
-        "bootstrap anchors at the enclosing when: {:?}",
-        boot.edits[0],
-    );
-}
-
-#[test]
-fn context_collect_bootstrap_for_irule1006_converts_utf16_columns() {
-    // The emoji occupies one Rust `char`, but two LSP UTF-16 code units. The
-    // range begins at UTF-16 column 7 and covers `HTTP::payload` through 20.
-    let src = concat!("when HTTP_RESPONSE {\n", "    😀 HTTP::payload\n", "}\n",);
-    let diags = vec![ContextDiagnostic {
-        code: "IRULE1006".to_string(),
-        message: "HTTP::payload needs an HTTP::collect bootstrap".to_string(),
-        range: selection(1, 7, 20),
-    }];
-
-    let actions = context_diagnostic_actions(src, &diags);
-    let boot = find(&actions, "HTTP::collect").expect("UTF-16 payload range keeps bootstrap");
-    assert!(
-        boot.edits[0].new_text.contains("HTTP::collect"),
-        "registry-derived payload bootstrap: {boot:?}"
-    );
-    assert!(edits_well_formed(boot) && edits_in_bounds(boot, src));
-}
-
-#[test]
-fn context_collect_bootstrap_never_anchors_at_invalid_nested_handler() {
-    let src = concat!(
-        "::when HTTP_REQUEST {\n",
-        "    if {1} {\n",
-        "        :::when client_data {\n",
-        "            TCP::payload\n",
-        "        }\n",
-        "    }\n",
-        "}\n",
-    );
-    let diags = vec![ContextDiagnostic {
-        code: "IRULE1005".to_string(),
-        message: "CLIENT_DATA fires without a prior TCP::collect".to_string(),
-        range: selection(2, 16, 27),
-    }];
-
-    let actions = context_diagnostic_actions(src, &diags);
-    assert!(
-        !actions.is_empty()
-            && actions
-                .iter()
-                .all(|action| action.edits[0].range.start_line == 0),
-        "an invalid nested when is not an event boundary; any bootstrap must be \
-         a new top-level handler: {actions:?}"
-    );
-}
-
-#[test]
-fn context_actions_empty_for_unrelated_code() {
-    // A context diagnostic whose code the provider doesn't handle (and a
-    // message naming no `$var`) yields no actions. Negative control.
-    let src = "set x 1\n";
-    let diags = vec![ContextDiagnostic {
-        code: "W999".to_string(),
-        message: "some unrelated warning".to_string(),
-        range: cursor(0, 0),
-    }];
-    assert!(
-        context_diagnostic_actions(src, &diags).is_empty(),
-        "unhandled context diagnostic -> no actions",
-    );
-    // Empty diag list is also a no-op (no panic).
-    assert!(context_diagnostic_actions(src, &[]).is_empty());
+        (
+            "set out [subst $tainted]\n",
+            "T100",
+            "Tainted $tainted into subst;",
+        ),
+        ("eval $tainted\n", "T100", "Tainted $tainted into subst;"),
+        (
+            "when HTTP_REQUEST {HTTP::respond 200 content $userdata}\n",
+            "IRULE3001",
+            "XSS $userdata",
+        ),
+        (
+            "proc {html_encode} {s} {return $s}\n",
+            "IRULE3001",
+            "XSS $s",
+        ),
+        (
+            "when HTTP_REQUEST_DATA {HTTP::payload}\n",
+            "IRULE1005",
+            "HTTP::collect",
+        ),
+        (
+            "when HTTP_RESPONSE {HTTP::payload}\n",
+            "IRULE1006",
+            "HTTP::collect",
+        ),
+        ("when CLIENT_ACCEPTED {log local0. $x}\n", "IRULE3003", "$x"),
+    ] {
+        let diagnostic = ContextDiagnostic {
+            code: code.to_owned(),
+            message: message.to_owned(),
+            data: None,
+            range: cursor(0, 0),
+        };
+        let analysis = analyse_dialect(source, "f5-irules");
+        assert!(context_diagnostic_actions(source, std::slice::from_ref(&diagnostic)).is_empty());
+        assert!(
+            context_diagnostic_actions_in_analysis(
+                source,
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+                std::slice::from_ref(&diagnostic)
+            )
+            .is_empty(),
+            "{code}"
+        );
+    }
 }
 
 // profiles_action — iRules `# Profiles:` header (insert / update / no-op)
@@ -1264,6 +1111,7 @@ fn out_of_range_positions_never_panic() {
     let _ = context_diagnostic_actions(
         src,
         &[ContextDiagnostic {
+            data: None,
             code: "IRULE3001".to_string(),
             message: "$missing".to_string(),
             range: cursor(999, 999),
@@ -1358,7 +1206,13 @@ fn context_t101_strip_crlf_fix_clears_its_own_diagnostic() {
         .expect("puts of a tainted value raises T101");
 
     let diag = as_context_diagnostic(t101, src);
-    let actions = context_diagnostic_actions(src, std::slice::from_ref(&diag));
+    let analysis = lexical_taint_analysis(src, &registry);
+    let actions = context_diagnostic_actions_in_analysis(
+        src,
+        &analysis,
+        &registry,
+        std::slice::from_ref(&diag),
+    );
     let fix = find(&actions, "Sanitise").expect("a T101 CR/LF-stripping quick fix");
     assert_eq!(fix.kind, ActionKind::QuickFix);
     assert!(
@@ -1407,7 +1261,13 @@ fn context_t103_regex_quote_fix_clears_its_own_diagnostic() {
         .expect("a tainted regexp pattern raises T103");
 
     let diag = as_context_diagnostic(t103, src);
-    let actions = context_diagnostic_actions(src, std::slice::from_ref(&diag));
+    let analysis = lexical_taint_analysis(src, &registry);
+    let actions = context_diagnostic_actions_in_analysis(
+        src,
+        &analysis,
+        &registry,
+        std::slice::from_ref(&diag),
+    );
     let fix = find(&actions, "regex::quote").expect("a T103 regex::quote quick fix");
     assert_eq!(fix.kind, ActionKind::QuickFix);
     assert!(

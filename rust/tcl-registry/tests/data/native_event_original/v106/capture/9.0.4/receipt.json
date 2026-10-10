@@ -1,0 +1,466 @@
+{
+  "provider": "9.0.4",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclIndexObj.c": "5ae0b7f7da756611674d4f80dd04a0646e64674fb3f829805ebebd73866d552a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclTrace.c": "b091fe603d801002a17d6d4c18de08f43e7aa7851abc64849ab2b1f7aac52904",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclTimer.c": "9be43ec6af72e0ba19422b277c6badb07fec3e604fbaeef8ee6147d3bc21284e",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEvent.c": "e6b69ac0fc6c9c335af90623398d06eb2d8ef7d2df5574327a52f622a37e31e4",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67"
+  },
+  "probe_sha256": "d12f655970e0f356451ae31671821682c330c17a638c017c0532ae65423090b5",
+  "inputs_sha256": "8974ae4ce744ecced90120b0ad8853655b1bf92636249f4adbe4fdabb00d0c46",
+  "runner_sha256": "74227d0d71958f68cf2ca608258972345dd7a13354a53fbae309aeb6b0716226",
+  "queue_sha256": "6240f33086da1411a3448bd030a6b13395cf03e9bbe35edbc36b04def0c82bee",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+    "/workspace/.proofs/native-event-original106/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-native-event-original106/9.0.4/probe"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "cases": [
+    {
+      "id": "GLOBAL_FROM_NAMESPACE",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "0"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "d79adf7cfe95b98dcb7924725db048542ece0aaf4533cb878e67484940522d7e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "GLOBAL_FROM_NAMESPACE_INPUT|0|736574203a3a646f6e6520303b206e616d657370616365206576616c204e207b7661726961626c652078204c4f43414c3b2061667465722030207b736574207820474c4f42414c3b20736574203a3a646f6e6520317d3b207677616974203a3a646f6e653b206c69737420247820243a3a787d",
+        "GLOBAL_FROM_NAMESPACE|0|4c4f43414c20474c4f42414c",
+        "GLOBAL_FROM_NAMESPACE_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "GLOBAL_FROM_PROC",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "1"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "62573b2a7f5edc27b724199838e92228be596330dea8cb9931dcf61dc3148009",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "GLOBAL_FROM_PROC_INPUT|0|736574203a3a78204f4c443b2070726f632070207b7d207b7365742078204c4f43414c3b2061667465722030207b7365742078204e45577d3b20767761697420783b206c69737420247820243a3a787d3b2070",
+        "GLOBAL_FROM_PROC|0|4c4f43414c204e4557",
+        "GLOBAL_FROM_PROC_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "SAME_WRITE",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "2"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "9cdf52c2ea48e3c6d01a1f7852b48e4a76d47713950c69e17167559a5930dde7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "SAME_WRITE_INPUT|0|73657420782053414d453b20736574206c6f67207b7d3b2061667465722030207b73657420782053414d453b206c617070656e64206c6f672053414d457d3b2061667465722030207b7365742078204e4558543b206c617070656e64206c6f67204e4558547d3b20767761697420783b20736574206c6f67",
+        "SAME_WRITE|0|53414d45204e455854",
+        "SAME_WRITE_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "ARRAY_SAME_WRITE",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "3"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "c972d9b5ea1d81b9dc604318542b8f426dd62d314a6e0a58ac7630e551ed5fd4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "ARRAY_SAME_WRITE_INPUT|0|6172726179207365742061207b6b204f4c447d3b2061667465722030207b7365742061286b29204f4c447d3b2061667465722030207b7365742061286b29204e45577d3b2076776169742061286b293b207365742061286b29",
+        "ARRAY_SAME_WRITE|0|4e4557",
+        "ARRAY_SAME_WRITE_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "UNSET_WRITE",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "4"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "ddced4f8750752faa1ff8e6e030e65d4da6dff02a81864efb0d5bf0bf874b0b4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "UNSET_WRITE_INPUT|0|7365742078204f4c443b2061667465722030207b756e73657420787d3b20767761697420783b20696e666f206578697374732078",
+        "UNSET_WRITE|0|30",
+        "UNSET_WRITE_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "NO_SOURCES",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "5"
+      ],
+      "timeout_seconds": 2,
+      "process_status": "external-timeout",
+      "process_exit": null,
+      "stdout_sha256": "1ec3d11e7c1bec1b3e4c7f9f810ba547725d542236dd75430bfb4b921ae0fb74",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "NO_SOURCES_INPUT|0|767761697420616273656e74"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "CONCAT_TRIM",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "6"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "b300c04d0ee734475e4e518a8ab88ac350f3f6606ff01d4278d80429175efe2c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "CONCAT_TRIM_INPUT|0|73657420646f6e6520303b2061667465722030207b207365747d207b20646f6e65207d207b31207d3b20767761697420646f6e653b2073657420646f6e65",
+        "CONCAT_TRIM|0|31",
+        "CONCAT_TRIM_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "PURE_LIST_SCRIPT",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "7"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "c609f1283eae0901fbff3c17871098dc75069d2a2ca696b2a56b76cf06f21db6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "PURE_LIST_SCRIPT_INPUT|0|73657420646f6e6520303b2073657420626f6479205b6c6973742073657420646f6e65207b4120427d5d3b20616674657220302024626f64793b20767761697420646f6e653b2073657420646f6e65",
+        "PURE_LIST_SCRIPT|0|412042",
+        "PURE_LIST_SCRIPT_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "CANCEL_COUNTED",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "8"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "c646ba6037fc5f797b1eff2770bdc32e8798b0b8e2a5228335dda1378dd3b88f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "CANCEL_COUNTED_INPUT|0|73657420646f6e6520303b2061667465722030207b73657420646f6e6520317d3b2061667465722063616e63656c207b73657420646f6e6520317d3b207570646174653b2073657420646f6e65",
+        "CANCEL_COUNTED|0|30",
+        "CANCEL_COUNTED_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "CANCEL_CONCAT",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "9"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "ded0cc0525e9553a93eb23af04810b3f89c5ef27625188ac288f71e1532a23ad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "CANCEL_CONCAT_INPUT|0|73657420646f6e6520303b2061667465722030207b73657420646f6e6520317d3b2061667465722063616e63656c207b207365747d207b20646f6e652031207d3b207570646174653b2073657420646f6e65",
+        "CANCEL_CONCAT|0|30",
+        "CANCEL_CONCAT_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "INFO_SCRIPT",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "10"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "6c026dbd3cdb55e98b5e903b3aae393a69ffbd218f51607217d1afe740c214ae",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "INFO_SCRIPT_INPUT|0|736574206964205b61667465722069646c65207b73657420646f6e6520317d5d3b206c696e646578205b616674657220696e666f202469645d2030",
+        "INFO_SCRIPT|0|73657420646f6e652031",
+        "INFO_SCRIPT_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "INFO_KIND",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "11"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "31d49e37ad031b6af9e71fc5c683f044be7295cc62a730cdac93ca877d302d8f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "INFO_KIND_INPUT|0|736574206964205b61667465722030207b73657420646f6e6520317d5d3b206c696e646578205b616674657220696e666f202469645d2031",
+        "INFO_KIND|0|74696d6572",
+        "INFO_KIND_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "INFO_MISSING",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "12"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "e50a834628b2ad7f8559e542c6d61edf0bd21d644390993a7404f7bb2ce10ad6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "INFO_MISSING_INPUT|0|616674657220696e666f206166746572233939393939393939",
+        "INFO_MISSING|1|6576656e74202261667465722339393939393939392220646f65736e2774206578697374",
+        "INFO_MISSING_OPTIONS|1|2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b494e4e4552207b616674657220696e666f2061667465722339393939393939397d7d202d6572726f72636f6465207b54434c204c4f4f4b5550204556454e542061667465722339393939393939397d202d6572726f72696e666f207b6576656e74202261667465722339393939393939392220646f65736e27742065786973740a202020207768696c6520657865637574696e670a22616674657220696e666f206166746572233939393939393939227d202d6572726f726c696e652031"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "UPDATE_IDLE",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "13"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "a4eabf2d1fe083804bba2a802758d4b03297341ee3f3cd0913fc735c58beef44",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "UPDATE_IDLE_INPUT|0|7365742078204f4c443b2061667465722030207b73657420782054494d45527d3b2061667465722069646c65207b73657420782049444c457d3b207570646174652069646c657461736b733b207365742078",
+        "UPDATE_IDLE|0|49444c45",
+        "UPDATE_IDLE_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "DELAY_NO_EVENTS",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "14"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "f9c4928c633c35908cac3b0a21e5dd8568d507919c2907874cdc11d818d55dc6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "DELAY_NO_EVENTS_INPUT|0|7365742078204f4c443b2061667465722030207b73657420782054494d45527d3b20616674657220313b207365742078",
+        "DELAY_NO_EVENTS|0|4f4c44",
+        "DELAY_NO_EVENTS_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "AFTER_ABBREVIATION",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "15"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "8c3373c36be63d9b9234642469028fc81fc63e191c615a111b50eb3c08554952",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "AFTER_ABBREVIATION_INPUT|0|616674657220696e",
+        "AFTER_ABBREVIATION|0|",
+        "AFTER_ABBREVIATION_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "AFTER_AMBIGUOUS",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "16"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "affa43ba47f5b7a90d1fc2739bc4b86a0a9cae19617b77d9d647a694d5e4552c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "AFTER_AMBIGUOUS_INPUT|0|61667465722069",
+        "AFTER_AMBIGUOUS|1|62616420617267756d656e74202269223a206d7573742062652063616e63656c2c2069646c652c20696e666f2c206f7220616e20696e7465676572",
+        "AFTER_AMBIGUOUS_OPTIONS|1|2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b494e4e4552207b616674657220697d7d202d6572726f72636f6465207b54434c204c4f4f4b555020494e44455820617267756d656e7420697d202d6572726f72696e666f207b62616420617267756d656e74202269223a206d7573742062652063616e63656c2c2069646c652c20696e666f2c206f7220616e20696e74656765720a202020207768696c6520657865637574696e670a2261667465722069227d202d6572726f726c696e652031"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "UPDATE_ABBREVIATION",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "17"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "05fd52c039da64c904f99c54d79dc0f9035f5b31b191f6c3e4cc4cb1c41afb83",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "UPDATE_ABBREVIATION_INPUT|0|7570646174652069",
+        "UPDATE_ABBREVIATION|0|",
+        "UPDATE_ABBREVIATION_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "PREFIX_BGERROR",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "18"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "external-timeout",
+      "process_exit": null,
+      "stdout_sha256": "535659defdf97c08694be8e5b5c46128088764d47e7940bc49287754d67e3923",
+      "stderr_sha256": "af2fa5a8e3b45df78d8f3338a26e1eb055adeffb7d9bed26c4b376c9058902ca",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "PREFIX_BGERROR_INPUT|0|73657420646f6e6520303b2070726f632068616e646c6572207b707265666978206d6573736167657d207b736574203a3a646f6e65205b6c697374202470726566697820246d6573736167655d7d3b20696e746572702062676572726f72207b7d205b6c6973742068616e646c6572205052455d3b2061667465722030207b6572726f7220424f4f4d7d3b20767761697420646f6e653b2073657420646f6e65"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "ORIGINAL_LIST_RAW_FF",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "19"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "bd9f6f1d6fa648f35741542ec9f79da7b294aaf978c82a1ea7f8ea0bef1c3edf",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "ORIGINAL_LIST_RAW_FF_SCHEDULE_INPUT|0|6bff",
+        "ORIGINAL_LIST_RAW_FF_SCHEDULE|0|61667465722330",
+        "ORIGINAL_LIST_RAW_FF_SCHEDULE_OPTIONS|0|2d636f64652030202d6c6576656c2030",
+        "ORIGINAL_LIST_RAW_FF_UPDATE|0|",
+        "ORIGINAL_LIST_RAW_FF_UPDATE_OPTIONS|0|2d636f64652030202d6c6576656c2030",
+        "ORIGINAL_LIST_RAW_FF_VALUE|0|56414c5545",
+        "ORIGINAL_LIST_RAW_FF_VALUE_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "ORIGINAL_LIST_RAW_ZERO",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "20"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "f5517e3916159685271724d5d5ac3e7926474ae109df20091a62a3c70ea166f7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "ORIGINAL_LIST_RAW_ZERO_SCHEDULE_INPUT|0|6b007461696c",
+        "ORIGINAL_LIST_RAW_ZERO_SCHEDULE|0|61667465722330",
+        "ORIGINAL_LIST_RAW_ZERO_SCHEDULE_OPTIONS|0|2d636f64652030202d6c6576656c2030",
+        "ORIGINAL_LIST_RAW_ZERO_UPDATE|0|",
+        "ORIGINAL_LIST_RAW_ZERO_UPDATE_OPTIONS|0|2d636f64652030202d6c6576656c2030",
+        "ORIGINAL_LIST_RAW_ZERO_VALUE|0|56414c5545",
+        "ORIGINAL_LIST_RAW_ZERO_VALUE_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "ORIGINAL_LIST_ENCODED_ZERO",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original106/9.0.4/probe",
+        "21"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "cb41ec443ae1a3956666a70bc741739accfebbb38d5d38a06406e097916f947b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|392e302e34",
+        "ORIGINAL_LIST_ENCODED_ZERO_SCHEDULE_INPUT|0|6bc0807461696c",
+        "ORIGINAL_LIST_ENCODED_ZERO_SCHEDULE|0|61667465722330",
+        "ORIGINAL_LIST_ENCODED_ZERO_SCHEDULE_OPTIONS|0|2d636f64652030202d6c6576656c2030",
+        "ORIGINAL_LIST_ENCODED_ZERO_UPDATE|0|",
+        "ORIGINAL_LIST_ENCODED_ZERO_UPDATE_OPTIONS|0|2d636f64652030202d6c6576656c2030",
+        "ORIGINAL_LIST_ENCODED_ZERO_VALUE|0|56414c5545",
+        "ORIGINAL_LIST_ENCODED_ZERO_VALUE_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "9.0.4"
+    }
+  ],
+  "executable_sha256": "ba6d16821ec0cbcd5e8c1b414c258ad76e482e2fe1d6c600c4981d2514a1293b"
+}

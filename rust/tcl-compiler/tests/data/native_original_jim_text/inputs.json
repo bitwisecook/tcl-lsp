@@ -1,0 +1,29 @@
+{
+  "purpose": "Measure Normal versus abrupt source completion of escaped or quoted original Text-only words and an opaque original procedure head in fresh engines; compare the exact C source entry modes and Jim source separately. Result bytes and codes only, no physical literal pool or compiler admission assertion.",
+  "cases": [
+    {
+      "id": "UNQUOTED_ESCAPED",
+      "source": "set value p\\uD800"
+    },
+    {
+      "id": "QUOTED_ESCAPED",
+      "source": "set value \"p\\uD800\""
+    },
+    {
+      "id": "EMPTY_QUOTED",
+      "source": "set value \"\""
+    },
+    {
+      "id": "OPAQUE_PROC_HEAD",
+      "source": "proc p\\uD800 {argument} {return $argument}; p\\uD800 VALUE"
+    },
+    {
+      "id": "UNKNOWN_VARIABLE",
+      "source": "set value \"$missing\""
+    },
+    {
+      "id": "UNKNOWN_COMMAND_THEN_LITERAL",
+      "source": "missing_command; set value p\\uD800"
+    }
+  ]
+}

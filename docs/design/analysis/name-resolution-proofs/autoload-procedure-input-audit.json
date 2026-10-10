@@ -1,0 +1,60 @@
+{
+  "scope": "Exact retained source/hash/output/projection checks only; no provider or Rust launch.",
+  "checks": [
+    {
+      "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.4.20.tsv",
+      "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+      "check": "Five reached code0 rows, each retained key hex decodes; exact retained probe digest matches this provider receipt."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.5.19.tsv",
+      "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+      "check": "Five reached code0 rows, each retained key hex decodes; exact retained probe digest matches this provider receipt."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.6.18.tsv",
+      "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+      "check": "Five reached code0 rows, each retained key hex decodes; exact retained probe digest matches this provider receipt."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_autoload_keys/9.0.4.tsv",
+      "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+      "check": "Five reached code0 rows, each retained key hex decodes; exact retained probe digest matches this provider receipt."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_autoload_keys/9.1.0.tsv",
+      "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+      "check": "Five reached code0 rows, each retained key hex decodes; exact retained probe digest matches this provider receipt."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.4.txt",
+      "sha256": "8b14197afedbbcca0a966ac750c7f478fbfa99343b4088f89982657f4164bc32",
+      "check": "All three original stdout rows match native.tsv provider/case/holder/name/completion/result projection and manifest whole-stream hash; process status0."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.5.txt",
+      "sha256": "8b14197afedbbcca0a966ac750c7f478fbfa99343b4088f89982657f4164bc32",
+      "check": "All three original stdout rows match native.tsv provider/case/holder/name/completion/result projection and manifest whole-stream hash; process status0."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.6.txt",
+      "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+      "check": "All three original stdout rows match native.tsv provider/case/holder/name/completion/result projection and manifest whole-stream hash; process status0."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/authored_procedure_names/9.0.txt",
+      "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+      "check": "All three original stdout rows match native.tsv provider/case/holder/name/completion/result projection and manifest whole-stream hash; process status0."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/authored_procedure_names/9.1.txt",
+      "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+      "check": "All three original stdout rows match native.tsv provider/case/holder/name/completion/result projection and manifest whole-stream hash; process status0."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/authored_procedure_names/jim.txt",
+      "sha256": "3b7a95a4c9d2a6779e6835e72e3db256e8d28d84352b8d71194abff7a6cb5c6f",
+      "check": "All three original stdout rows match native.tsv provider/case/holder/name/completion/result projection and manifest whole-stream hash; process status0."
+    }
+  ]
+}

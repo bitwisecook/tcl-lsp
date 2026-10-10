@@ -99,12 +99,16 @@ pub type CommandPrefixResolver =
 
 /// Resolver for invocation-sensitive executable-argument timing.
 ///
+/// Receives actual structured argument knowledge; a selector-dependent
+/// descriptor must abstain on an unknown selector, while a payload may stay
+/// unknown. Expansion requires independently proved argv cardinality.
 /// Returns `(arg_index, timing)` pairs in the same coordinates as
 /// [`ArgRoleResolver`]. The registry only accepts an answer for an argument
 /// currently classified as [`ArgRole::Body`], [`ArgRole::LambdaLiteral`], or
 /// [`ArgRole::CommandPrefix`], so a resolver cannot turn ordinary data into
 /// executable code by itself.
-pub type ScriptTimingResolver = fn(args: &[&str]) -> Vec<(u8, ScriptTiming)>;
+pub type ScriptTimingResolver =
+    for<'w> fn(crate::InvocationArguments<'w>) -> Vec<(u8, ScriptTiming)>;
 
 /// A call-site restriction that depends on *where* the call sits — a
 /// lexical/dispatch context arity and dialect gating can't see — rather
@@ -120,7 +124,8 @@ pub type ScriptTimingResolver = fn(args: &[&str]) -> Vec<(u8, ScriptTiming)>;
 /// fact. Takes plain data rather than any analyser-internal type since
 /// this crate has no dependency on `tcl-compiler` and can't reference
 /// `Analyser`/`scope_path` directly.
-pub type ContextGate = fn(args: &[&str], in_event_body: bool) -> Option<&'static str>;
+pub type ContextGate =
+    fn(args: crate::InvocationArguments<'_>, in_event_body: bool) -> Option<&'static str>;
 
 /// The value shape a *non-subcommand* first word may take for a command
 /// whose first word usually dispatches to a subcommand.
@@ -497,6 +502,78 @@ pub struct CaseInvocation {
     pub nocase: bool,
 }
 
+#[derive(Default)]
+struct CaseOptionScan {
+    index: usize,
+    mode: Option<CaseMatchMode>,
+    special_option: Option<&'static str>,
+    nocase: bool,
+    saw_regex_value_option: bool,
+    outer_options_ended: bool,
+}
+
+impl CaseOptionScan {
+    fn select_mode(&mut self, mode: CaseMatchMode) -> Option<()> {
+        if self.mode.is_some() {
+            return None;
+        }
+        self.mode = Some(mode);
+        Some(())
+    }
+
+    fn consume_option(
+        &mut self,
+        descriptor: &CaseListSpec,
+        args: &[Option<&str>],
+        option: &OptionSpec,
+    ) -> Option<()> {
+        let name = option.name;
+        let mode = if descriptor.exact_option == Some(name) {
+            Some(CaseMatchMode::Exact)
+        } else if descriptor.glob_option == Some(name) {
+            Some(CaseMatchMode::Glob)
+        } else if descriptor.regex_option == Some(name) {
+            Some(CaseMatchMode::Regexp)
+        } else {
+            None
+        };
+        if let Some(mode) = mode {
+            self.select_mode(mode)?;
+            self.index += 1;
+        } else if descriptor.nocase_option == Some(name) {
+            self.nocase = true;
+            self.index += 1;
+        } else {
+            let values = args
+                .iter()
+                .map(|word| {
+                    word.map_or(
+                        crate::InvocationWord::Dynamic,
+                        crate::InvocationWord::Literal,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let consumed = option.value_word_count_for_arguments(
+                crate::InvocationArguments::structured(&values),
+                self.index,
+            )?;
+            if consumed == 0 {
+                if !descriptor.special_match_options.contains(&name) {
+                    return None;
+                }
+                self.select_mode(CaseMatchMode::Other)?;
+                self.special_option = Some(name);
+                self.index += 1;
+            } else {
+                self.saw_regex_value_option |=
+                    descriptor.value_options_require_regex.contains(&name);
+                self.index += 1 + consumed;
+            }
+        }
+        Some(())
+    }
+}
+
 /// A validated inline pattern/action pair.  Indices are post-command-name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InlineCaseClause {
@@ -640,153 +717,52 @@ impl CaseListSpec {
         )
     }
 
-    /// Original operand layout with an unknown subject retained as unknown.
-    /// Options and clauses still use this descriptor's normal grammar.
-    #[allow(clippy::too_many_lines)] // option and outer-shape grammar are one descriptor operation
-    pub(crate) fn invocation_values(
+    /// Readonly operand layout with an unknown subject retained as unknown.
+    /// Options and clauses use this descriptor's selected source grammar.
+    /// This predicts possible source positions, not matching or execution.
+    #[must_use]
+    pub fn invocation_values(
         self,
         args: &[Option<&str>],
         options: &[&crate::hover::OptionSpec],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
-        let mut mode = CaseMatchMode::Exact;
-        let mut special_option = None;
-        let mut saw_match_mode = false;
-        let mut nocase = false;
-        let mut saw_regex_value_option = false;
-        let mut i = 0usize;
+        self.invocation_values_with_clause_validation(args, options, dialect, true)
+    }
+
+    /// Readonly outer source shape with unknown clause-list values retained.
+    /// Option selection and exact inline parity remain checked; a sole action
+    /// word is not decoded as a value or admitted as an executable script.
+    #[must_use]
+    pub fn source_invocation_values(
+        self,
+        args: &[Option<&str>],
+        options: &[&crate::hover::OptionSpec],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<CaseInvocation> {
+        self.invocation_values_with_clause_validation(args, options, dialect, false)
+    }
+
+    fn invocation_values_with_clause_validation(
+        self,
+        args: &[Option<&str>],
+        options: &[&crate::hover::OptionSpec],
+        dialect: Option<SurfaceQuery<'_>>,
+        validate_clause_list: bool,
+    ) -> Option<CaseInvocation> {
         let shape = tcl_syntax::case_list::CaseListShape {
             clause_flags: self.clause_flags,
             clause_value_flags: self.clause_value_flags,
         };
-        let mut outer_options_ended = false;
-        // Segmenters pass a braced Expect clause list as one content word;
-        // its first element may itself begin with `-re`/`-timeout`, which is
-        // clause grammar, not a command-level option.  A flag-bearing,
-        // subject-less case list with one remaining word is therefore already
-        // in list form and must bypass the command-option scan.
         let per_clause_flags = self.subject_args == 0 && !self.clause_flags.is_empty();
         let sole_clause_list = per_clause_flags && args.len() == 1;
-        let two_arg_optionless = self.option_scan_reserved_for_arguments(
-            crate::InvocationArguments::structured(
-                &args
-                    .iter()
-                    .map(|word| {
-                        word.map_or(
-                            crate::InvocationWord::Dynamic,
-                            crate::InvocationWord::Literal,
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            ),
-            dialect,
-            2,
-        ) == Some(2);
-        if !(sole_clause_list || self.subject_args == 1 && args.len() == 2 && two_arg_optionless) {
-            while let Some(word) = args.get(i).copied().flatten() {
-                if !word.starts_with('-') {
-                    break;
-                }
-                let option = Self::resolve_option(options, word);
-                // A subjectless descriptor has two option vocabularies at
-                // this position. Its clause flags own the first inline
-                // clause, including `--`; only a matching, value-taking
-                // command option remains an outer option. This keeps `-re`
-                // and friends attached to their pattern while still making
-                // `-timeout 5 {pattern body}` an action-less final pattern.
-                // The outer-shape selectors are exact descriptor spellings:
-                // `-brace` is deliberately not a prefix abbreviation.
-                let clause_flag = shape.resolve_flag(word);
-                let force_selector = self.clause_force_inline_flag == Some(word)
-                    || self.clause_force_list_shape.is_some_and(|shape| {
-                        shape.matches_values(args, self.clause_force_list_flag, i)
-                    });
-                if self.subject_args == 0
-                    && (force_selector
-                        || clause_flag.is_some_and(|flag| {
-                            !shape.flag_takes_value(flag)
-                                || !option.is_some_and(OptionSpec::takes_value)
-                        }))
-                {
-                    break;
-                }
-                // `--` is a descriptor-owned terminator, not necessarily a
-                // documented option entry. Recognise it before looking up a
-                // command option so the following hyphenated subject remains
-                // positional (notably `switch -- -x {...}`).
-                if self.end_options_option == Some(word) {
-                    i += 1;
-                    outer_options_ended = true;
-                    break;
-                }
-                let option = option?;
-                let option_name = option.name;
-                if self.exact_option == Some(option_name) {
-                    if saw_match_mode {
-                        return None;
-                    }
-                    saw_match_mode = true;
-                    mode = CaseMatchMode::Exact;
-                    i += 1;
-                } else if self.glob_option == Some(option_name) {
-                    if saw_match_mode {
-                        return None;
-                    }
-                    saw_match_mode = true;
-                    mode = CaseMatchMode::Glob;
-                    i += 1;
-                } else if self.regex_option == Some(option_name) {
-                    if saw_match_mode {
-                        return None;
-                    }
-                    saw_match_mode = true;
-                    mode = CaseMatchMode::Regexp;
-                    i += 1;
-                } else if self.nocase_option == Some(option_name) {
-                    nocase = true;
-                    i += 1;
-                } else {
-                    let values = args
-                        .iter()
-                        .map(|word| {
-                            word.map_or(
-                                crate::InvocationWord::Dynamic,
-                                crate::InvocationWord::Literal,
-                            )
-                        })
-                        .collect::<Vec<_>>();
-                    let consumed = option.value_word_count_for_arguments(
-                        crate::InvocationArguments::structured(&values),
-                        i,
-                    )?;
-                    if consumed == 0 {
-                        if self.special_match_options.contains(&option_name) {
-                            if saw_match_mode {
-                                return None;
-                            }
-                            saw_match_mode = true;
-                            mode = CaseMatchMode::Other;
-                            special_option = Some(option_name);
-                            i += 1;
-                            continue;
-                        }
-                        return None;
-                    }
-                    saw_regex_value_option |=
-                        self.value_options_require_regex.contains(&option_name);
-                    i += 1 + consumed;
-                }
-            }
-        }
-        if saw_regex_value_option && mode != CaseMatchMode::Regexp {
-            return None;
-        }
-        // Descriptor-specialised match modes (currently Tcl 9.1's integer
-        // switch mode) compare values intrinsically and cannot be combined
-        // with the string-only case-folding modifier.
-        if mode == CaseMatchMode::Other && nocase {
-            return None;
-        }
+        let scan =
+            self.scan_invocation_options(args, options, dialect, &shape, sole_clause_list)?;
+        let mut i = scan.index;
+        let mode = scan.mode.unwrap_or(CaseMatchMode::Exact);
+        let special_option = scan.special_option;
+        let nocase = scan.nocase;
+        let outer_options_ended = scan.outer_options_ended;
         // Selectors are descriptor syntax, not ordinary command options.
         // They are considered only while the outer scan is active: after an
         // outer `--`, an option-shaped word is positional data instead.
@@ -831,7 +807,7 @@ impl CaseListSpec {
         }
         let remaining = args.len() - i;
         if force_list {
-            if remaining != 1 || !self.valid_clause_list(args[i]?) {
+            if remaining != 1 || validate_clause_list && !self.valid_clause_list(args[i]?) {
                 return None;
             }
             Some(CaseInvocation {
@@ -849,7 +825,7 @@ impl CaseListSpec {
             // a value-taking `-timeout 5`, so counting raw list elements
             // rejects valid clauses and leaves generic consumers unable to
             // recurse their bodies.
-            if !self.valid_clause_list(args[i]?) {
+            if validate_clause_list && !self.valid_clause_list(args[i]?) {
                 return None;
             }
             Some(CaseInvocation {
@@ -888,6 +864,70 @@ impl CaseListSpec {
         } else {
             None
         }
+    }
+
+    fn scan_invocation_options(
+        self,
+        args: &[Option<&str>],
+        options: &[&crate::hover::OptionSpec],
+        dialect: Option<SurfaceQuery<'_>>,
+        shape: &tcl_syntax::case_list::CaseListShape,
+        sole_clause_list: bool,
+    ) -> Option<CaseOptionScan> {
+        let mut scan = CaseOptionScan::default();
+        // A sole subject-less clause-list word owns its own clause flags.
+        // The selected two-word switch exception keeps option-like subjects.
+        let values = args
+            .iter()
+            .map(|word| {
+                word.map_or(
+                    crate::InvocationWord::Dynamic,
+                    crate::InvocationWord::Literal,
+                )
+            })
+            .collect::<Vec<_>>();
+        let two_arg_optionless = self.option_scan_reserved_for_arguments(
+            crate::InvocationArguments::structured(&values),
+            dialect,
+            2,
+        ) == Some(2);
+        if !(sole_clause_list || self.subject_args == 1 && args.len() == 2 && two_arg_optionless) {
+            while let Some(word) = args.get(scan.index).copied().flatten() {
+                if !word.starts_with('-') {
+                    break;
+                }
+                let option = Self::resolve_option(options, word);
+                // Clause flags and exact outer-shape selectors retain the
+                // first inline clause; value-taking command options stay outer.
+                let clause_flag = shape.resolve_flag(word);
+                let force_selector = self.clause_force_inline_flag == Some(word)
+                    || self.clause_force_list_shape.is_some_and(|shape| {
+                        shape.matches_values(args, self.clause_force_list_flag, scan.index)
+                    });
+                if self.subject_args == 0
+                    && (force_selector
+                        || clause_flag.is_some_and(|flag| {
+                            !shape.flag_takes_value(flag)
+                                || !option.is_some_and(OptionSpec::takes_value)
+                        }))
+                {
+                    break;
+                }
+                // The descriptor's terminator wins before option lookup.
+                if self.end_options_option == Some(word) {
+                    scan.index += 1;
+                    scan.outer_options_ended = true;
+                    break;
+                }
+                scan.consume_option(&self, args, option?)?;
+            }
+        }
+        if scan.saw_regex_value_option && scan.mode != Some(CaseMatchMode::Regexp)
+            || scan.mode == Some(CaseMatchMode::Other) && scan.nocase
+        {
+            return None;
+        }
+        Some(scan)
     }
 
     /// Whether the descriptor's two-word optionless form may assign a body
@@ -1002,11 +1042,49 @@ impl CaseListSpec {
         })
     }
 
+    /// Presentation position for a complete flag-free list with a dangling
+    /// pattern. Exact outer options/subject grammar is shared with invocation
+    /// selection, but no successful match, body or executable roles follow.
+    #[must_use]
+    pub fn presentation_clause_list_argument(
+        self,
+        args: &[Option<&str>],
+        options: &[&crate::hover::OptionSpec],
+        dialect: Option<SurfaceQuery<'_>>,
+        rules: tcl_syntax::word_rules::WordValueRules,
+    ) -> Option<usize> {
+        // Implementation contract: naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+
+        if !self.clause_flags.is_empty() || !self.clause_value_flags.is_empty() {
+            return None;
+        }
+        let layout =
+            self.invocation_values_with_clause_validation(args, options, dialect, false)?;
+        let argument = layout.clause_list_index?;
+        let elements = rules
+            .split_list(args.get(argument).copied().flatten()?)
+            .ok()?;
+        (!elements.is_empty() && !elements.len().is_multiple_of(2)).then_some(argument)
+    }
+
     /// Parse descriptor-declared inline pattern/action clauses.  A future
     /// case-list command gets the same body locations by changing only its
     /// descriptor; consumers never infer flag or value arity themselves.
     #[must_use]
     pub fn inline_clauses(self, args: &[&str], start: usize) -> Option<Vec<InlineCaseClause>> {
+        self.inline_clause_positions(&args.iter().copied().map(Some).collect::<Vec<_>>(), start)
+    }
+
+    /// Inline clause ordinals with unknown payload values retained. Only words
+    /// that can choose a clause flag require a value; unknown flag selection
+    /// declines instead of guessing where its pattern or action begins.
+    #[must_use]
+    pub fn inline_clause_positions(
+        self,
+        args: &[Option<&str>],
+        start: usize,
+    ) -> Option<Vec<InlineCaseClause>> {
         let shape = tcl_syntax::case_list::CaseListShape {
             clause_flags: self.clause_flags,
             clause_value_flags: self.clause_value_flags,
@@ -1017,8 +1095,9 @@ impl CaseListSpec {
             let mut mode = CaseMatchMode::Exact;
             let mut options_ended = false;
             let mut flag_indices = Vec::new();
-            while let Some(word) = args.get(i).copied() {
-                if options_ended || !word.starts_with('-') {
+            while !self.clause_flags.is_empty() && !options_ended && i < args.len() {
+                let word = args[i]?;
+                if !word.starts_with('-') {
                     break;
                 }
                 let flag = shape.resolve_flag(word)?;
@@ -1038,7 +1117,7 @@ impl CaseListSpec {
             }
             let pattern_index = i;
             args.get(pattern_index)?;
-            let body_index = pattern_index + 1;
+            let body_index = pattern_index.checked_add(1)?;
             let body_index = args.get(body_index).is_some().then_some(body_index);
             if body_index.is_none() && !self.allow_omitted_final_body {
                 return None;
@@ -1049,10 +1128,8 @@ impl CaseListSpec {
                 body_index,
                 mode,
             });
-            let Some(body_index) = body_index else {
-                break;
-            };
-            i = body_index + 1;
+            let Some(body_index) = body_index else { break };
+            i = body_index.checked_add(1)?;
         }
         (!clauses.is_empty()).then_some(clauses)
     }
@@ -1521,6 +1598,11 @@ pub struct CommandSpec {
     /// Static option values carry timing directly on [`crate::hover::OptionArg`].
     pub script_timing_resolver: Option<ScriptTimingResolver>,
 
+    /// Lookup frame for selected executable operands, independent of timing.
+    /// Consumers must retain the operand producer and the actual entry table;
+    /// the receiving command's head or helper namespace supplies neither.
+    pub script_lookup_scope: Option<crate::ScriptLookupScope>,
+
     /// Which substitutions this call performs over its own argument text, for
     /// a [`Traits::PERFORMS_SUBSTITUTION`] command whose switches change the
     /// answer (`subst -novariables`).
@@ -1897,6 +1979,12 @@ pub struct CommandSpec {
     pub native_compilation: Option<crate::native_compilation::NativeCompilationSpec>,
     /// Audited successful handler transfer, independent of compiler selection.
     pub successful_handler: Option<crate::native_compilation::SuccessfulHandlerSpec>,
+    /// Selected variable receiver grammar, indexed after the selected head or
+    /// subcommand. This is naming metadata only, independent of successful
+    /// execution and whole-array roles. `None` inherits; an empty slice rejects
+    /// a receiver grammar for this descriptor.
+    pub variable_receivers:
+        Option<&'static [(u8, crate::resolved_invocation::VariableReceiverOperandForm)]>,
 
     /// Which interpreter owns the command's evaluated body arguments.
     ///
@@ -2094,6 +2182,11 @@ pub struct CommandSpec {
     /// the surrounding syntax (`use pool` → `pool`), or are prose
     /// (`"(removed)"`) — those keep the message-only deprecation warning.
     pub deprecated_replacement_drop_in: bool,
+
+    /// Typed source advice for a deprecated argument shape. The selected
+    /// descriptor owns the diagnostic and proposal; consumers require original
+    /// written words and offer review edits without a runtime equivalence claim.
+    pub source_deprecation_advice: Option<crate::deprecation::SourceDeprecationAdvice>,
 
     /// `<proto>::payload` byte-array layout — `Some` when this command's
     /// getter returns raw bytes (a binary source) and its `replace` form is a
@@ -2301,13 +2394,24 @@ fn option_table_from<'a>(
     package_version: Option<&str>,
     prefix_matching: PrefixMatching,
 ) -> KeywordTable<'static> {
+    keyword_table_for_available_options(
+        options.filter(|option| {
+            option.supports_dialect(dialect, parent_surface)
+                && option.available_for_version(package_version)
+        }),
+        prefix_matching,
+    )
+}
+
+/// The shared keyword vocabulary after the caller selects exact availability.
+pub(crate) fn keyword_table_for_available_options<'a>(
+    options: impl Iterator<Item = &'a OptionSpec>,
+    prefix_matching: PrefixMatching,
+) -> KeywordTable<'static> {
+    // naming.minifier.complete-logical-metadata
+    // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
     let mut keywords: Vec<Keyword<'static>> = Vec::new();
     for opt in options {
-        if !opt.supports_dialect(dialect, parent_surface)
-            || !opt.available_for_version(package_version)
-        {
-            continue;
-        }
         for name in std::iter::once(opt.name).chain(opt.aliases.iter().copied()) {
             if !keywords.iter().any(|k| k.name == name) {
                 keywords.push(Keyword {
@@ -2583,6 +2687,7 @@ impl CommandSpec {
         command_prefixes: &[],
         command_prefix_resolver: None,
         script_timing_resolver: None,
+        script_lookup_scope: None,
         substitution_resolver: None,
         callback_taint_inputs: &[],
         return_type: None,
@@ -2647,6 +2752,7 @@ impl CommandSpec {
         procedure_definition: None,
         native_compilation: None,
         successful_handler: None,
+        variable_receivers: None,
         body_interpreter: BodyInterpreter::Current,
         body_arg_implicit_args: 0,
         taint_output_sink: None,
@@ -2675,6 +2781,7 @@ impl CommandSpec {
         xc_translatable: None,
         deprecated_replacement: None,
         deprecated_replacement_drop_in: false,
+        source_deprecation_advice: None,
         byte_array_payload: None,
         byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         definition_body: None,
@@ -3062,6 +3169,13 @@ impl CommandSpec {
     /// `definitionnamespace` in 9.0).
     #[must_use]
     pub fn resolve_subcommand(&self, word: &str) -> Option<&SubCommand> {
+        self.resolve_subcommand_bytes(word.as_bytes())
+    }
+
+    /// Resolve selected operand bytes without Unicode conversion or an input
+    /// extent policy. The caller supplies those independent native facts.
+    #[must_use]
+    pub fn resolve_subcommand_bytes(&self, word: &[u8]) -> Option<&SubCommand> {
         self.resolve_subcommand_filtered(word, |_| true)
     }
 
@@ -3074,6 +3188,17 @@ impl CommandSpec {
         word: &str,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&SubCommand> {
+        self.resolve_subcommand_bytes_for_dialect(word.as_bytes(), dialect)
+    }
+
+    /// Byte-valued counterpart of [`Self::resolve_subcommand_for_dialect`].
+    /// Availability and prefix matching come from the same descriptor table.
+    #[must_use]
+    pub fn resolve_subcommand_bytes_for_dialect(
+        &self,
+        word: &[u8],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<&SubCommand> {
         let parent = self.surface;
         self.resolve_subcommand_filtered(word, |s| match s.surface.or(parent) {
             Some(d) => surface_admits(d, dialect.as_ref()),
@@ -3083,7 +3208,7 @@ impl CommandSpec {
 
     fn resolve_subcommand_filtered(
         &self,
-        word: &str,
+        word: &[u8],
         avail: impl Fn(&SubCommand) -> bool,
     ) -> Option<&SubCommand> {
         // One matcher for the whole codebase: build the visible table and ask
@@ -3102,7 +3227,7 @@ impl CommandSpec {
                 }),
             self.prefix_matching,
         );
-        let canonical = table.resolve(word).unique()?;
+        let canonical = table.resolve_bytes(word).unique()?;
         self.subcommands
             .iter()
             .find(|s| s.name == canonical && avail(s))
@@ -3526,6 +3651,11 @@ pub struct SubCommand {
     /// Dynamic executable-argument phase (after the subcommand word).
     pub script_timing_resolver: Option<ScriptTimingResolver>,
 
+    /// Lookup frame for selected executable operands, independent of timing.
+    /// Consumers must retain the operand producer and the actual entry table;
+    /// the receiving command's head or helper namespace supplies neither.
+    pub script_lookup_scope: Option<crate::ScriptLookupScope>,
+
     /// External callback substitutions for deferred executable arguments,
     /// keyed by their index after the subcommand word.  Option values carry
     /// the same fact on [`crate::hover::OptionArg`]; this table covers plain
@@ -3601,6 +3731,11 @@ pub struct SubCommand {
     /// Fixed positional words before the selected invocation's option run.
     /// Counted after the command head, or after a selected subcommand word.
     pub option_prefix_words: usize,
+
+    /// Trailing positional words excluded from this subcommand's option scan.
+    /// This selects the same structural boundary as
+    /// [`CommandSpec::reserved_trailing_words`], after the subcommand word.
+    pub reserved_trailing_words: usize,
 
     /// Typed relations between this subcommand's options and arguments
     /// (E-R14), checked natively.
@@ -3693,6 +3828,12 @@ pub struct SubCommand {
     pub native_compilation: Option<crate::native_compilation::NativeCompilationSpec>,
     /// Audited successful handler transfer, independent of compiler selection.
     pub successful_handler: Option<crate::native_compilation::SuccessfulHandlerSpec>,
+    /// Selected variable receiver grammar, indexed after the selected head or
+    /// subcommand. This is naming metadata only, independent of successful
+    /// execution and whole-array roles. `None` inherits; an empty slice rejects
+    /// a receiver grammar for this descriptor.
+    pub variable_receivers:
+        Option<&'static [(u8, crate::resolved_invocation::VariableReceiverOperandForm)]>,
 
     /// Interpreter realm for this subcommand's evaluated body arguments.
     /// See [`CommandSpec::body_interpreter`].
@@ -3886,6 +4027,9 @@ pub struct SubSubCommand {
     /// empty table: its C arm takes `cmdname` and nothing else, so inheriting
     /// the parent's union would offer flags that are not options there at all.
     pub options: Option<&'static [OptionSpec]>,
+    /// Fixed positional words after this nested selector before its options.
+    /// Relevant when this operation declares its own option table.
+    pub option_prefix_words: usize,
 }
 
 /// The option table one call dispatches on, as resolved by
@@ -3897,6 +4041,8 @@ pub struct OptionScope {
     pub options: &'static [OptionSpec],
     /// The gate an option declaring none of its own inherits.
     pub surface: Option<&'static [SpecSurface]>,
+    /// Positional words after the outer selector before this option table.
+    pub option_prefix_words: usize,
     /// The second-level operation whose own table this is; `None` when the
     /// answer came from the subcommand's table.
     pub sub_subcommand: Option<&'static str>,
@@ -3925,6 +4071,7 @@ impl SubSubCommand {
         surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
         options: None,
+        option_prefix_words: 0,
     };
 
     /// Whether this second-level subcommand exists given the resolved
@@ -3993,6 +4140,7 @@ impl SubCommand {
         command_prefixes: &[],
         command_prefix_resolver: None,
         script_timing_resolver: None,
+        script_lookup_scope: None,
         callback_taint_inputs: &[],
         return_type: None,
         var_write_typing: VarWriteTyping::ReturnValue,
@@ -4011,6 +4159,7 @@ impl SubCommand {
         command_table_effect: None,
         options: &[],
         option_prefix_words: 0,
+        reserved_trailing_words: 0,
         option_relations: &[],
         constraints: None,
         option_placement: OptionPlacement::Leading,
@@ -4033,6 +4182,7 @@ impl SubCommand {
         body_execution: None,
         native_compilation: None,
         successful_handler: None,
+        variable_receivers: None,
         body_interpreter: BodyInterpreter::Current,
         byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         closed_value_args: &[],
@@ -4181,12 +4331,14 @@ impl SubCommand {
                 options,
                 surface: op.surface.or(inherited),
                 sub_subcommand: Some(op.name),
+                option_prefix_words: 1 + op.option_prefix_words,
             };
         }
         OptionScope {
             options: self.options,
             surface: inherited,
             sub_subcommand: None,
+            option_prefix_words: self.option_prefix_words,
         }
     }
 
@@ -4320,9 +4472,10 @@ impl SubCommand {
     }
 
     /// Resolve a second-level subcommand word to its [`SubSubCommand`],
-    /// accepting a unique non-empty prefix (`info object cl` ⇒ `class`) the way
-    /// Tcl's ensemble dispatch does. An exact match always wins; an ambiguous
-    /// prefix (several candidates) resolves to `None`.
+    /// using this subcommand's authored [`Self::prefix_matching`] policy.
+    /// Enabled tables accept a unique non-empty prefix (`info object cl` ⇒
+    /// `class`); strict tables require an exact word. An ambiguous prefix
+    /// resolves to `None`.
     #[must_use]
     pub fn resolve_sub_subcommand(&self, word: &str) -> Option<&'static SubSubCommand> {
         self.resolve_sub_subcommand_filtered(word, |_| true)
@@ -4394,8 +4547,12 @@ impl SubCommand {
             .filter(|sub| avail(sub))
             .collect();
         let names: Vec<&'static str> = available.iter().map(|sub| sub.name).collect();
-        tcl_cmd_core::ensemble::resolve_subcommand(&names, word.as_bytes(), true)
-            .map(|index| available[index])
+        tcl_cmd_core::ensemble::resolve_subcommand(
+            &names,
+            word.as_bytes(),
+            self.prefix_matching.accepts_prefixes(),
+        )
+        .map(|index| available[index])
     }
 
     /// Whether `word` resolves to a second-level subcommand of this
@@ -4483,6 +4640,51 @@ mod tests {
 
     use super::*;
     use crate::registry::CommandRegistry;
+
+    #[test]
+    fn byte_subcommand_resolution_retains_dialect_and_operand_boundaries() {
+        // Native proof: naming.selector.selected-byte-descriptor-lookup
+        // docs/design/analysis/name-resolution-proofs/selected-byte-descriptor-lookup.md
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("string").expect("registered string");
+        let old = Some(SurfaceQuery::core(Family::Tcl, "8.6"));
+        let current = Some(SurfaceQuery::core(Family::Tcl, "9.1"));
+        assert_eq!(
+            spec.resolve_subcommand_bytes_for_dialect(b"in", old)
+                .map(|s| s.name),
+            Some("index")
+        );
+        assert!(
+            spec.resolve_subcommand_bytes_for_dialect(b"insert", old)
+                .is_none()
+        );
+        assert!(
+            spec.resolve_subcommand_bytes_for_dialect(b"in", current)
+                .is_none()
+        );
+        assert_eq!(
+            spec.resolve_subcommand_bytes_for_dialect(b"insert", current)
+                .map(|s| s.name),
+            Some("insert")
+        );
+        for word in [
+            b"index\0tail".as_slice(),
+            b"index\xff",
+            b"\xc0\x80",
+            b"\xed\xa0\x80",
+        ] {
+            assert!(
+                spec.resolve_subcommand_bytes_for_dialect(word, current)
+                    .is_none()
+            );
+        }
+        assert_eq!(
+            spec.resolve_subcommand_for_dialect("index", current)
+                .map(|s| s.name),
+            spec.resolve_subcommand_bytes_for_dialect(b"index", current)
+                .map(|s| s.name)
+        );
+    }
 
     #[test]
     fn a_writer_declared_only_by_its_assigned_variable_index_must_say_how_it_writes() {
@@ -4726,6 +4928,39 @@ mod tests {
         sub_subcommands: OPS,
         ..SubCommand::DEFAULT
     };
+
+    #[test]
+    fn nested_keyword_resolution_honours_the_authored_prefix_policy() {
+        let exact = SubCommand {
+            prefix_matching: PrefixMatching::Strict,
+            ..OP_HOLDER
+        };
+        assert_eq!(
+            OP_HOLDER.resolve_sub_subcommand("cla").map(|sub| sub.name),
+            Some("classic")
+        );
+        assert!(exact.resolve_sub_subcommand("cla").is_none());
+        assert_eq!(
+            exact.resolve_sub_subcommand("classic").map(|sub| sub.name),
+            Some("classic")
+        );
+        assert!(
+            exact
+                .resolve_sub_subcommand_gated("mod", None, Some("2.0"))
+                .is_none()
+        );
+        assert_eq!(
+            exact
+                .resolve_sub_subcommand_gated("modern", None, Some("2.0"))
+                .map(|sub| sub.name),
+            Some("modern")
+        );
+        assert!(
+            exact
+                .resolve_sub_subcommand_gated("modern", None, Some("1.0"))
+                .is_none()
+        );
+    }
 
     #[test]
     fn sub_subcommand_resolution_honours_the_package_floor() {

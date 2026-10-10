@@ -31,7 +31,6 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
-use tcl_dialect::model::SpecProvider;
 use tcl_registry::Arity;
 use tcl_registry::lifecycle::Lifecycle;
 
@@ -45,13 +44,13 @@ use tcl_dialect::model::SpecSurface;
 /// caller has already consumed: `args` / `arg_tokens` / `arg_expand` are the
 /// slices *after* that prefix (the command name for the simple path; the
 /// command name + subcommand word for the subcommand path), and `cmd_tok`
-/// anchors the diagnostic span.  Bundled to keep [`Analyser::check_simple_arity`]
+/// anchors the diagnostic span.  Bundled to keep [`Analyser::emit_source_signature_arity`]
 /// under the argument limit.
-struct ArityWords<'a> {
-    args: &'a [String],
-    arg_tokens: &'a [tcl_lexer::Token],
-    arg_expand: &'a [bool],
-    cmd_tok: tcl_lexer::Token,
+pub(in crate::analyser) struct ArityWords<'a> {
+    pub(in crate::analyser) args: &'a [String],
+    pub(in crate::analyser) arg_tokens: &'a [tcl_lexer::Token],
+    pub(in crate::analyser) arg_expand: &'a [bool],
+    pub(in crate::analyser) cmd_tok: tcl_lexer::Token,
 }
 
 /// Positional-argument lower bound + whether any positional word is
@@ -60,7 +59,7 @@ struct ArityWords<'a> {
 /// registry command, nothing for a same-file user call). A `{*}`-expanded
 /// word contributes an unknown number of runtime arguments, so once one
 /// is seen the count becomes a lower bound only — matches
-/// [`Analyser::check_simple_arity`]'s original inline formula exactly;
+/// [`Analyser::emit_source_signature_arity`]'s original inline formula exactly;
 /// shared here so [`Analyser::queue_user_call_arity_candidate`] doesn't
 /// reimplement it.
 /// The tight E003 anchor: the span covering the run of *surplus*
@@ -76,99 +75,64 @@ pub(in crate::analyser) struct ExcessArgs {
     pub delete_from: u32,
 }
 
-/// Compute the [`ExcessArgs`] anchor. `positional_start` is the index of
-/// the first positional word (after any leading option flags), `max` the
-/// command's maximum positional count, `fallback_delete_from` the widened
-/// end of whatever word precedes the first positional (the command head or
-/// subcommand word) for the `max == 0` case. Returns `None` — so
-/// [`arity_verdict`] falls back to the whole-command span — when the
-/// positional region contains a `{*}` expansion (which makes "the first
-/// surplus word" ambiguous) or the index arithmetic can't land on a real
-/// token.
-fn excess_positional_span(
-    arg_tokens: &[tcl_lexer::Token],
-    arg_expand: &[bool],
-    positional_start: usize,
+/// A removal proposal needs a consecutive, wholly written suffix of the
+/// guaranteed counted operands. Captures, expansions and interleaved options
+/// retain the count claim without acquiring a deletion extent.
+pub(super) fn source_excess_arguments(
+    original: &crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
+    count: &tcl_registry::InvocationArgumentCount,
     max: usize,
-    source_map: &tcl_lexer::SourceMap<'_>,
-    fallback_delete_from: u32,
 ) -> Option<ExcessArgs> {
-    if (positional_start..arg_tokens.len()).any(|i| arg_expand.get(i).copied().unwrap_or(false)) {
+    if count.indeterminate {
         return None;
     }
-    let first_excess = positional_start.checked_add(max)?;
-    let first = arg_tokens.get(first_excess)?;
-    let last = arg_tokens.last()?;
-    let delete_from = match first_excess.checked_sub(1).and_then(|i| arg_tokens.get(i)) {
-        Some(prev) => widen_token_end_in(source_map, *prev),
-        None => fallback_delete_from,
-    };
+    let surplus = count.operands.get(max..)?;
+    let first = *surplus.first()?;
+    let written = original.written_index(first)?;
+    for (delta, &argument) in surplus.iter().enumerate() {
+        if original.written_index(argument)? != written.checked_add(delta)? {
+            return None;
+        }
+    }
+    let last = original.word(*surplus.last()?)?;
+    if last.span().end() != original.invocation_span().end() {
+        return None;
+    }
+    let delete_from =
+        written
+            .checked_sub(1)
+            .map_or(Some(original.head().span().end()), |previous| {
+                original
+                    .written_word(previous)
+                    .map(|word| word.span().end())
+            })?;
     Some(ExcessArgs {
-        span: tcl_lexer::Span::new(first.span.start(), widen_token_end_in(source_map, *last)),
+        span: tcl_lexer::Span::new(original.word(first)?.span().start(), last.span().end()),
         delete_from,
     })
 }
 
-/// Everything [`excess_positional_span`] needs except the `max`, kept so a
-/// deferred verdict can recompute the surplus once the resolved floor has
-/// chosen a window.
-///
-/// A gated call's `max` is not known during the walk, and the surplus run
-/// depends on it: anchoring to the fallback's `max` and then reporting
-/// against a window with a *smaller* `max` deletes only the tail of the
-/// surplus and leaves a call that is still wrong. The word spans are already
-/// widened here, so recomputation needs no second source-map pass.
-#[derive(Debug, Clone)]
-pub(in crate::analyser) struct ExcessInputs {
-    /// `(start, widened end)` per argument word, in order.
-    words: Vec<(u32, u32)>,
-    /// Index of the first positional word, after any leading option flags.
-    positional_start: usize,
-    /// Deletion start for the `max == 0` case.
-    fallback_delete_from: u32,
-    /// A `{*}` expansion in the positional region makes "the first surplus
-    /// word" ambiguous, so every `max` abstains.
-    blocked_by_expansion: bool,
-}
-
-impl ExcessInputs {
-    /// Capture the inputs, widening each word end once.
-    fn capture(
-        arg_tokens: &[tcl_lexer::Token],
-        arg_expand: &[bool],
-        positional_start: usize,
-        source_map: &tcl_lexer::SourceMap<'_>,
-        fallback_delete_from: u32,
-    ) -> Self {
-        Self {
-            words: arg_tokens
-                .iter()
-                .map(|tok| (tok.span.start(), widen_token_end_in(source_map, *tok)))
-                .collect(),
-            positional_start,
-            fallback_delete_from,
-            blocked_by_expansion: (positional_start..arg_tokens.len())
-                .any(|i| arg_expand.get(i).copied().unwrap_or(false)),
-        }
-    }
-
-    /// The surplus run for `max`, mirroring [`excess_positional_span`].
-    pub(in crate::analyser) fn at(&self, max: usize) -> Option<ExcessArgs> {
-        if self.blocked_by_expansion {
-            return None;
-        }
-        let first_excess = self.positional_start.checked_add(max)?;
-        let (first_start, _) = *self.words.get(first_excess)?;
-        let (_, last_end) = *self.words.last()?;
-        let delete_from = match first_excess.checked_sub(1).and_then(|i| self.words.get(i)) {
-            Some((_, prev_end)) => *prev_end,
-            None => self.fallback_delete_from,
-        };
-        Some(ExcessArgs {
-            span: tcl_lexer::Span::new(first_start, last_end),
-            delete_from,
-        })
-    }
+pub(super) fn source_arity_verdict(
+    original: &crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
+    display_name: &str,
+    arity: Arity,
+    count: &tcl_registry::InvocationArgumentCount,
+    synopsis: Option<&str>,
+) -> Option<crate::analyser::types::Diagnostic> {
+    let diagnostic = arity_verdict(
+        display_name,
+        arity,
+        usize::from(count.minimum),
+        count.indeterminate,
+        original.invocation_span(),
+        source_excess_arguments(original, count, usize::from(arity.max)),
+        synopsis,
+    )?;
+    let subject = original.subject_extent(
+        crate::analyser::RegistrySourceDiagnosticKind::Arity,
+        diagnostic.span,
+    )?;
+    Some(diagnostic.with_subject(subject))
 }
 
 fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usize, bool) {
@@ -201,9 +165,8 @@ pub(in crate::analyser) struct SeenPositional {
     pub(in crate::analyser) span: tcl_lexer::Span,
 }
 
-/// One invocation as the E-R14 relation checker reads it — the whole result
-/// of [`scan_invocation_words`], kept together so the three facts a verdict
-/// depends on cannot be passed apart.
+/// Selected source options and positionals retained together for relationship
+/// verdicts, including the independent completeness obligation.
 #[derive(Debug, Default)]
 pub(in crate::analyser) struct ScannedInvocation {
     pub(in crate::analyser) options: Vec<SeenOption>,
@@ -236,8 +199,11 @@ fn relation_span(
         }
     };
     let spans: Vec<tcl_lexer::Span> = present.iter().copied().filter_map(span_of).collect();
-    match (spans.first(), spans.last()) {
-        (Some(first), Some(last)) => tcl_lexer::Span::new(first.start(), last.end()),
+    match (
+        spans.iter().map(|span| span.start()).min(),
+        spans.iter().map(|span| span.end()).max(),
+    ) {
+        (Some(start), Some(end)) => tcl_lexer::Span::new(start, end),
         _ => fallback,
     }
 }
@@ -348,126 +314,8 @@ pub(in crate::analyser) fn option_relation_diagnostics(
     out
 }
 
-/// Whether a word's value is statically known — the precondition for proving
-/// a relation term *absent*.
-///
-/// A `Var`/`Cmd` token is a substitution outright; a `$`/`[` anywhere else in
-/// the text is an interpolation inside a quoted word. Both mean the word could
-/// be anything at run time, including the very option a `requires` relation is
-/// about to complain is missing.
-fn statically_known_word(text: &str, token: Option<&tcl_lexer::Token>) -> bool {
-    if token.is_some_and(|tok| {
-        matches!(
-            tok.kind,
-            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-        )
-    }) {
-        return false;
-    }
-    !text.contains('$') && !text.contains('[')
-}
-
-/// Read one invocation's option and positional words — **the single walk the
-/// E-R14 relation checker judges from**, shared by the ordinary command path
-/// and the object-instance dispatch path.
-///
-/// `args` / `arg_tokens` / `arg_expand` are the words *after* whatever prefix
-/// the caller has already consumed (the command word, or the command and
-/// method words), so the indices a relation names line up with the synopsis.
-///
-/// The third return is `complete`: whether the call was read to its end with
-/// every word statically known. Only `complete` licenses proving a term
-/// *absent*, which is what keeps a `requires` relation from accusing a
-/// `{*}$opts` call of omitting an option the expansion may well supply.
-///
-/// [`tcl_registry::OptionPlacement`] decides where options may be found.
-/// `Leading` stops at the first non-option word — what core Tcl's own C option
-/// loops do, so a later option-shaped word there is a positional and reading
-/// it as an option would invent a relation the interpreter never applies.
-/// `Anywhere` keeps recognising declared options between positional words, up
-/// to an explicit `--`, which is the script-level `foreach {flag value}`
-/// shape (`http::geturl`).
-pub(in crate::analyser) fn scan_invocation_words(
-    option_specs: &[&'static tcl_registry::prelude::OptionSpec],
-    placement: tcl_registry::OptionPlacement,
-    args: &[String],
-    arg_tokens: &[tcl_lexer::Token],
-    arg_expand: &[bool],
-    source: &str,
-    fallback_span: tcl_lexer::Span,
-) -> ScannedInvocation {
-    let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
-    let span_at = |index: usize| {
-        arg_tokens.get(index).map_or(fallback_span, |token| {
-            super::super::utils::full_word_span(*token, source)
-        })
-    };
-    let known = |index: usize| {
-        args.get(index)
-            .is_some_and(|text| statically_known_word(text, arg_tokens.get(index)))
-            && !expanded(index)
-    };
-    let mut options: Vec<SeenOption> = Vec::new();
-    let mut positionals: Vec<SeenPositional> = Vec::new();
-    let mut complete = true;
-    let mut i = 0usize;
-    let mut in_options = true;
-    while i < args.len() {
-        if expanded(i) {
-            // An expanded word could be anything, options included, so the
-            // walk stops and nothing may be proven absent.
-            complete = false;
-            break;
-        }
-        if in_options && args[i] == "--" {
-            in_options = false;
-            i += 1;
-            continue;
-        }
-        if in_options && let Some(opt) = option_specs.iter().find(|o| o.matches(&args[i])) {
-            let consumed = opt.value_word_count(args, i);
-            let value = (consumed > 0 && known(i + 1))
-                .then(|| args.get(i + 1).cloned())
-                .flatten();
-            options.push(SeenOption {
-                name: opt.name,
-                span: span_at(i),
-                value,
-            });
-            i += 1 + consumed;
-            continue;
-        }
-        if in_options && placement == tcl_registry::OptionPlacement::Leading {
-            // The leading run is over; everything from here is positional.
-            in_options = false;
-        }
-        if !known(i) {
-            complete = false;
-        }
-        positionals.push(SeenPositional {
-            value: known(i).then(|| args[i].clone()),
-            span: span_at(i),
-        });
-        i += 1;
-    }
-    ScannedInvocation {
-        options,
-        positionals,
-        complete,
-    }
-}
-
-/// Compatibility adapter for existing end-offset consumers. The delimiter
-/// policy itself lives once in [`super::super::utils::full_word_span`], which
-/// delegates to the lexer's authoritative `word_span` helper.
-fn widen_token_end(tok: tcl_lexer::Token, source: &str) -> u32 {
-    super::super::utils::full_word_span(tok, source).end()
-}
-
-/// [`widen_token_end`] against an already-built [`tcl_lexer::SourceMap`], for
-/// the per-command / per-word call sites — see
-/// [`super::super::utils::full_word_span_in`] for why the rebuild is
-/// quadratic there.
+/// Extend a token through its authentic closing delimiter using the shared
+/// source map and authoritative whole-word geometry.
 fn widen_token_end_in(source_map: &tcl_lexer::SourceMap<'_>, tok: tcl_lexer::Token) -> u32 {
     super::super::utils::full_word_span_in(source_map, tok).end()
 }
@@ -491,6 +339,12 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
     arg_tokens: &[tcl_lexer::Token],
     parameter_indices: &[usize],
 ) {
+    let Some(grammar) = tcl_registry::InvocationDialect::of_profile(
+        analyser.resolved_analysis_input().unit_profile(),
+    )
+    .parameter_grammar() else {
+        return;
+    };
     for &index in parameter_indices {
         let (Some(params), Some(token)) = (args.get(index), arg_tokens.get(index)) else {
             continue;
@@ -498,9 +352,11 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
         if !is_literal_list_word(params, token) {
             continue;
         }
-        let Err(error) =
-            crate::signature_scan::params::parse_param_list_strict(params, analyser.word_rules())
-        else {
+        let Err(error) = crate::signature_scan::params::parse_param_list_strict_in(
+            params,
+            analyser.word_rules(),
+            grammar,
+        ) else {
             continue;
         };
         let span = super::super::utils::full_word_span(*token, &analyser.source);
@@ -574,6 +430,12 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
     arg_tokens: &[tcl_lexer::Token],
     lambda_indices: &[usize],
 ) {
+    let Some(grammar) = tcl_registry::InvocationDialect::of_profile(
+        analyser.resolved_analysis_input().unit_profile(),
+    )
+    .parameter_grammar() else {
+        return;
+    };
     for &index in lambda_indices {
         let (Some(lambda), Some(token)) = (args.get(index), arg_tokens.get(index)) else {
             continue;
@@ -588,7 +450,8 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
         let Some(params) = fields.first() else {
             continue;
         };
-        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params, word_rules)
+        let Err(error) =
+            crate::signature_scan::params::parse_param_list_strict_in(params, word_rules, grammar)
         else {
             continue;
         };
@@ -617,78 +480,6 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
     }
 }
 
-/// Two shape-based reasons `first_arg` is never W001 regardless of whether
-/// it names a real subcommand of the resolved ensemble — split out of
-/// [`Analyser::emit_w001_unknown_subcommand`] to keep that function under
-/// the line-count lint.
-/// Which option table an option scan runs against, and how its dispatch
-/// treats abbreviated spellings.
-struct OptionScanContext {
-    /// The resolved option table (command-level, or the subcommand's).
-    options: &'static [tcl_registry::hover::OptionSpec],
-    /// Dialect set the options inherit when they declare none.
-    parent_surface: Option<&'static [SpecSurface]>,
-    /// First argument index the scan starts at (1 past a subcommand word).
-    start_idx: usize,
-    /// The resolved subcommand path, for messages — just the subcommand
-    /// (`chan configure`), or the subcommand plus the second-level operation
-    /// whose own option table answered (`namespace ensemble configure`).
-    sub_name: Option<String>,
-    /// Whether abbreviations resolve in this table.
-    prefix_matching: tcl_registry::abbrev::PrefixMatching,
-    /// Mandatory trailing operands the scan must stop before, from
-    /// [`tcl_registry::CommandSpec::reserved_trailing_words`]. `subst`'s
-    /// `string`, `switch`'s `string` and pattern list, `lsearch`'s `list` and
-    /// `pattern` are operands whatever their shape: the C implementations
-    /// stop scanning for switches before them, so a `-`-looking value there
-    /// is data, not an option.
-    reserved_trailing_words: usize,
-}
-
-/// The dialect-available options (canonical spellings plus declared aliases)
-/// as a [`tcl_registry::abbrev::KeywordTable`], for abbreviation resolution.
-///
-/// Tcl's own option table holds the aliases, so `-bd` prefix-matches exactly
-/// like `-borderwidth`.
-fn option_keyword_table(
-    options: &'static [tcl_registry::hover::OptionSpec],
-    available: impl Fn(&tcl_registry::hover::OptionSpec) -> bool,
-    prefix_matching: tcl_registry::abbrev::PrefixMatching,
-) -> tcl_registry::abbrev::KeywordTable<'static> {
-    tcl_registry::abbrev::KeywordTable::from_keywords(
-        options.iter().filter(|opt| available(opt)).flat_map(|opt| {
-            std::iter::once(opt.name)
-                .chain(opt.aliases.iter().copied())
-                .map(move |name| tcl_registry::abbrev::Keyword {
-                    name,
-                    min_abbrev: opt.min_abbrev,
-                })
-        }),
-        prefix_matching,
-    )
-}
-
-fn shape_exempt_from_w001(sig: &super::dispatch::SubcommandSig, first_arg: &str) -> bool {
-    // A command may declare a *default* form selected by a first word of a
-    // particular value shape rather than a subcommand — `after` dispatches
-    // on `cancel` / `idle` / `info`, but an integer first word is a
-    // millisecond delay (`after 200 {…}`), not an unknown subcommand. The
-    // shape comes from the spec's `default_form_first_word`; no command is
-    // named here. (Non-matching words such as `after foo` remain genuine
-    // errors and still fire.)
-    if sig.matches_default_form(first_arg) {
-        return true;
-    }
-    // A subcommand name never starts with `.`, so a `.`-prefixed first word
-    // is a Tk window pathname, not an unknown subcommand.  This covers both
-    // the geometry-manager shortcut (`grid .w ?args?` for `grid configure
-    // .w …`, per grid.n / pack.n / place.n) and widget-creation commands
-    // (`entry .e …`, `canvas .c …`), whose registry `subcommands` describe
-    // the created widget's *instance* command rather than a first-word
-    // subcommand of the creator.  Either way `.path` is never W001.
-    first_arg.starts_with('.')
-}
-
 /// Describe [`Arity`]'s [`Arity::step`] / [`Arity::also_exact`] shape in
 /// prose for the E005 message — `"0, 2, 4, …"` for a plain progression,
 /// `"2, or 3, 5, 7, …"` when `also_exact` adds an exception (`switch`'s
@@ -707,7 +498,7 @@ fn describe_step_shape(arity: Arity) -> String {
 /// Compare a resolved [`Arity`] against an observed positional-argument
 /// count and build the E002 / E003 / E005 diagnostic, or `None` when the
 /// count fits. Shared by the registry-command arity path
-/// ([`Analyser::check_simple_arity`]), the same-file proc / `TclOO`
+/// ([`Analyser::emit_source_signature_arity`]), the same-file proc / `TclOO`
 /// method / `interp alias` / `rename` arity path
 /// ([`Analyser::flush_arity_diagnostics`]), and the `TclOO` method-call
 /// arity check ([`super::var_command`]), so all three diagnostics carry
@@ -843,20 +634,6 @@ fn dialect_availability_suffix_for_rows(rows: &[SpecSurface]) -> String {
     format!(" (available in: {})", labels.join(", "))
 }
 
-/// The *content* range of a subcommand word token — excluding a wrapper
-/// delimiter (`{…}` / `"…"`) when present.  Wrapper tokens carry the opening
-/// delimiter via `content_offset` and intentionally exclude the closing
-/// delimiter from `span.end` (see the word-token closing-delimiter
-/// convention); using the content range gives `length` (not `{length}` /
-/// `"length"`) for a wrapped subcommand and is identical to the full span for
-/// a bare `Esc` word (`content_offset == 0`). Shared by the W001 diagnostic
-/// span and its "did you mean" [`CodeFix`](super::types::CodeFix) span so the
-/// squiggle and the quick-fix target the same text.
-fn subcommand_content_span(tok: tcl_lexer::Token) -> tcl_lexer::Span {
-    let content_start = tok.span.start() + u32::from(tok.content_offset);
-    tcl_lexer::Span::new(content_start, tok.span.end())
-}
-
 /// Namespace-qualify `cmd_name`'s resolution candidates the Tcl way: current
 /// namespace first, then global. Shared by the builtin-shadowing suppression
 /// check ([`Analyser::flush_arity_diagnostics`]) and the same-file
@@ -887,19 +664,9 @@ fn qualify_candidates_with_path(ns: &str, cmd_name: &str, path: &[&str]) -> Vec<
     crate::naming::command_resolution_candidates(ns, path, cmd_name)
 }
 
-/// Whole-file facts needed to decide whether a same-file call resolves to a
-/// user definition rather than falling through to a registry builtin.
-///
-/// Shared by the two same-file "does this call resolve away from the
-/// builtin" suppression checks — [`Analyser::flush_arity_diagnostics`]
-/// (suppress a builtin arity mismatch) and
-/// [`Analyser::flush_disabled_command_diagnostics`] (suppress a
-/// disabled-in-dialect warning) — both need the identical resolution rule,
-/// so a fix to one (e.g. the `rename`-target gap this closed) automatically
-/// applies to the other. Built once per flush pass over the fully-merged
-/// post-walk facts (`all_procs` / `all_classes` / `command_aliases` /
-/// `renamed_commands` / `ensemble_namespaces` — populated cross-item after
-/// every per-item body has been grafted).
+/// Deferred user-call and subcommand reporting facts over the merged file.
+/// Whole-command exclusions use their own typed original publication geometry;
+/// this compatibility projection supplies no Native naming or handler proof.
 ///
 /// Owns its data (rather than borrowing `Analyser`) so a flush loop can
 /// build it once up front and then freely take/mutate other `Analyser`
@@ -1005,29 +772,6 @@ impl UserResolutionFacts {
                     .is_some_and(|&off| !enforce_order || off < call_off)
         }) || self.stub_names.contains(bare)
     }
-
-    /// Whether **any** of an invocation's already-resolved command-resolution
-    /// candidates names a command this document itself declares — a proc, a
-    /// class, an `interp alias`, a static `rename` target, an ensemble
-    /// namespace, or a `# tcl-lsp: stub` name.
-    ///
-    /// The order-gated sibling ([`Self::resolves_to_user`]) answers "which
-    /// definition is in effect *at this call*", which is what a
-    /// wrong-arguments verdict needs. This one answers the weaker question
-    /// W120 asks — "does this file define the command at all" — for which
-    /// order is irrelevant: `package require` is a statement about what the
-    /// *file* needs loaded, and a file that defines the command needs nothing
-    /// loaded to make the name exist, whatever line the definition is on.
-    /// Deliberately permissive for the same reason the non-proc set is
-    /// (a file with `proc ::argparse {args}` beside a call to it must not be
-    /// told to `package require argparse`).
-    pub(super) fn declares_any(&self, candidates: &[String], bare: &str) -> bool {
-        candidates.iter().any(|c| {
-            self.non_proc_qnames.contains(c.as_str())
-                || self.proc_offsets.contains_key(c.as_str())
-                || self.rename_offsets.contains_key(c.as_str())
-        }) || self.stub_names.contains(bare)
-    }
 }
 
 /// Shift a resolved [`Arity`] down by an `interp alias` / `TclOO`
@@ -1059,43 +803,38 @@ pub(super) fn shift_arity(arity: Arity, prepended: u16) -> Arity {
     Arity::new(min, max)
 }
 
-/// Add `extra` to both bounds of `arity` — the inverse of [`shift_arity`].
-/// Used for `oo::class create NAME ?args?`'s mandatory leading object-name
-/// word: a caller-side *extra* required argument ahead of the
-/// constructor's own parameters, the opposite of an alias/forward's
-/// baked-in prepended args (which the *target* never sees).
-fn bump_arity(arity: Arity, extra: u16) -> Arity {
-    let min = arity.min.saturating_add(extra);
-    let max = if arity.is_unlimited() {
-        Arity::UNLIMITED
-    } else {
-        arity.max.saturating_add(extra)
+/// Family advice retains the Native canonical definer and explicitly Logical
+/// source model as separate admission paths. A report-map default alone grants
+/// neither family classification nor current object dispatch.
+pub(super) fn is_tcloo_source_class(analyser: &Analyser, class: &super::types::ClassDef) -> bool {
+    if class.source_name_ambiguous.is_observed() {
+        return false;
+    }
+    let analysis = &analyser.result;
+    if analysis.allows_retained_logical_declaration_advice() {
+        return analyser
+            .retained_logical_class_definer_grammar(&class.qualified_name)
+            .is_some_and(|grammar| grammar.family == tcl_registry::definer::DefinerFamily::TclOo);
+    }
+    let source = &analyser.source;
+    let Some(publication) = class.source_name.as_ref() else {
+        return false;
     };
-    Arity::new(min, max)
-}
-
-/// Whether `metaclass` denotes a genuine `TclOO` class. Snit (`snit::type` /
-/// `snit::widget` / `::snit::widgetadaptor`) and [incr Tcl] (`itcl::class`)
-/// instantiate via `TypeName instanceName ?args?`, never `new`/`create` — a
-/// class recorded under one of those metaclasses must not be
-/// constructor-arity-checked here.
-///
-/// Registry-driven, not a hardcoded metaclass-name list: `metaclass` is
-/// itself a definer *command* name (`oo::class`, `snit::type`, `itcl::class`,
-/// …), each registered with a [`DefinitionBodyGrammar`](tcl_registry::definer::DefinitionBodyGrammar)
-/// tagged by [`DefinerFamily`](tcl_registry::definer::DefinerFamily), so any
-/// future `TclOo`-family metaclass the registry gains is recognised
-/// automatically. Shared with `var_command.rs`'s `e001_for_bare_object_dispatch`
-/// (the E001 "`$obj` with no method word" check), so the two paths that both
-/// need to tell `TclOO` apart from snit/itcl never disagree on the same input.
-pub(super) fn is_tcloo_metaclass(
-    registry: Option<&tcl_registry::CommandRegistry>,
-    metaclass: &str,
-) -> bool {
-    registry.and_then(|r| r.get(metaclass)).is_some_and(|s| {
-        s.definition_body
-            .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::TclOo)
-    })
+    let mut records = analysis.original_class_declarations().filter(|record| {
+        record.name() == publication && record.name_input().span() == class.name_span
+    });
+    let Some(record) = records.next() else {
+        return false;
+    };
+    if records.next().is_some() {
+        return false;
+    }
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    crate::command_binding::OriginalSourceClassDeclaration::from_class(source, analysis, record)
+        .and_then(|declaration| declaration.grammar(&input.context_registry()))
+        .is_some_and(|grammar| grammar.family == tcl_registry::definer::DefinerFamily::TclOo)
 }
 
 impl Analyser {
@@ -1106,59 +845,27 @@ impl Analyser {
     /// command registry.
     pub(in crate::analyser) fn emit_w146_literal_argument_validation(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        arg_single: &[bool],
-        arg_expand: &[bool],
-        scope_path: &[usize],
+        original: Option<&super::super::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(original) = original else {
             return;
         };
-        let source_map = super::super::state::Analyser::source_map(
-            &self.source,
-            &self.cached_line_index,
-            self.cached_line_index_source_len,
-        );
-        let words: Vec<_> = args
-            .iter()
-            .enumerate()
-            .map(|(index, text)| {
-                crate::signature_scan::command_prefix::invocation_word(
-                    Some(&source_map),
-                    text,
-                    arg_tokens.get(index).copied(),
-                    arg_single.get(index).copied().unwrap_or(false),
-                    arg_expand.get(index).copied().unwrap_or(false),
-                )
-            })
-            .collect();
-        let Some(validation) = registry
-            .resolve_structured_invocation(
-                tcl_registry::InvocationWords::structured(
-                    tcl_registry::InvocationWord::Literal(cmd_name),
-                    &words,
-                ),
-                Some(self.analysis_context().context().authoring_query()),
-            )
-            .resolved()
-            .and_then(|invocation| invocation.validate_literal_arguments())
+        let Some(tcl_registry::LiteralArgumentValidation::Invalid(issue)) = original
+            .with_schema(crate::analyser::diagnostic_registry::source_literal_validation)
+            .flatten()
         else {
             return;
         };
-        let tcl_registry::LiteralArgumentValidation::Invalid(issue) = validation else {
+        let Some(operand) = original.word(issue.argument_index) else {
             return;
         };
-        let Some(token) = arg_tokens.get(issue.argument_index).copied() else {
+        let Some(subject) = original.subject(
+            super::super::RegistrySourceDiagnosticKind::LiteralArgument,
+            Some(issue.argument_index),
+        ) else {
             return;
         };
-        let source_map = super::super::state::Analyser::source_map(
-            &self.source,
-            &self.cached_line_index,
-            self.cached_line_index_source_len,
-        );
-        let span = tcl_lexer::word_span(&source_map, token);
+        let span = operand.span();
         let allowed = issue.allowed_values.join(", ");
         let (message, invalid_description) = match &issue.reason {
             tcl_registry::LiteralArgumentIssueReason::Empty => (
@@ -1199,1176 +906,432 @@ impl Analyser {
             Severity::Warning,
         )
         .with_fixes(fixes);
-        let namespace = self.command_resolution_namespace(scope_path);
-        let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        self.pending_arity
-            .push((cmd_name.to_owned(), namespace, enforce_order, diagnostic));
+        self.result
+            .diagnostics
+            .push(diagnostic.with_subject(subject));
     }
 
-    /// **W002** — the command is disabled in the active dialect profile: it
-    /// exists in the registry but not for the active dialect (e.g. `dict` under
-    /// `tcl8.4`, added in 8.5).  Only a *literal* command head is checked — a
-    /// `$obj` / `[cmd]` head is W307's concern.
-    ///
-    /// Queues the candidate onto [`Self::pending_disabled_commands`] rather
-    /// than emitting inline: whether the call actually reaches the disabled
-    /// builtin depends on same-file facts (a shadowing proc / class / `interp
-    /// alias` / static `rename` / `namespace ensemble create`) that may not
-    /// be fully known until the whole file (or, on the per-item path, every
-    /// grafted body) has been walked — a forward-declared shadowing proc is
-    /// the common case a same-pass check would miss entirely.
-    /// [`Self::flush_disabled_command_diagnostics`] resolves every candidate
-    /// post-walk using the same current-namespace-then-global resolution and
-    /// top-level order gate as [`Self::flush_arity_diagnostics`].
+    /// Whole-command availability advice from retained original source.
+    /// Later original declarations can withdraw nominal Registry metadata.
     pub(in crate::analyser) fn emit_w002_disabled_command(
         &mut self,
-        cmd_name: &str,
-        cmd_tok: tcl_lexer::Token,
+        original: Option<crate::registry_invocation::OriginalSourceCommandAvailability>,
         scope_path: &[usize],
     ) {
-        // A dynamic command head (`$obj method`, `[lookup] arg`) is resolved at
-        // runtime — W307 handles it, not W002.
-        if matches!(
-            cmd_tok.kind,
-            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-        ) {
-            return;
-        }
-        let Some(registry) = self.registry.as_deref() else {
+        // naming.diagnostic.original-command-source-unavailability
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-command-source-unavailability.md
+        use tcl_registry::model::CommandSourceUnavailabilityKind;
+        let Some(original) = original else {
             return;
         };
-        let bare = cmd_name.trim_start_matches(':');
-        if bare.is_empty() {
-            return;
-        }
-        let generation = self.analysis_context();
-        // EXISTS in the active dialect's context → fine.  UNKNOWN everywhere →
-        // W123's concern.  Only DISALLOWED (exists in some dialect, not this
-        // one) fires.  Resolution goes through the resolved context so the
-        // composed (version|vendor) authoring mask admits the dialect's
-        // embedded Tcl core.  Existence must be checked
-        // *dialect-agnostically*: the analyser registry only loads the
-        // active dialect, so `get(bare)` misses an iRules command like
-        // `when`/`log`/`session` under tcl8.6, so use the
-        // dialect-independent `known_in_any_dialect`.
-        let realm = self
-            .evaluated_body_invocation
-            .as_ref()
-            .filter(|(offset, _)| *offset == cmd_tok.span.start())
-            .and_then(|(_, proof)| proof.invocation_realm())
-            .or_else(|| {
-                self.head_identities
-                    .invocation_at_source(cmd_name, cmd_tok.span.start())
-                    .invocation_realm()
-            })
-            .unwrap_or_default();
-        if generation
-            .context()
-            .resolve_spec_in_realm(registry, bare, realm)
-            .is_some()
-            || !registry.known_in_any_dialect(bare)
-        {
-            return;
-        }
-        // "Disabled here" needs a dialect that has the command and that this
-        // document's world is related to: a `tcl8.4` document writing a `tcl8.6`
-        // command, a `jim` document writing a Tcl command Jim's roster omits.
-        // A name only an unrelated environment offers — Expect's `system` in a
-        // `jim` document — is not disabled here, it is unknown here: W123
-        // reports it, as it would any other name nothing defines.
-        if registry
-            .providers_in_any_dialect(bare)
-            .is_some_and(|offered| !generation.context().is_related_to_a_provider_of(offered))
-        {
-            return;
-        }
-        // An earlier *unconditional* user proc with this name shadows the
-        // would-be-disabled built-in at the call site.
-        let qualified = crate::naming::normalise_qualified_name(bare);
-        if super::utils::proc_shadows_call(&self.result.all_procs, &qualified, cmd_tok.span.start())
-        {
-            return;
-        }
-        // measurements §4b: the 31 iRules-"disabled" stock builtins are two
-        // mechanisms, not one. A command **present in TMM's interpreter but
-        // refused by the rule compiler** at load (reachable via `eval` at
-        // runtime — `rename` demonstrably works) is a *policy* statement
-        // about rule source, not a statement about the language, so it draws
-        // the distinct IRULE2004 policy warning instead of the
-        // undifferentiated W002. An interpreter-absent command falls through
-        // to W002 below — its unavailability is a language fact. A
-        // compiler-refused name reached only through dynamic `eval`
-        // (variable-held) is never a literal head here, so it is not
-        // flagged at all — it works at runtime (§4c).
-        if self.profile.is_irules() && tcl_registry::irules_policy::rule_loader_refuses(bare, realm)
-        {
-            let diag = crate::analyser::types::Diagnostic::new(
+        let descriptor = original.descriptor();
+        let reporting_name = original
+            .original_head()
+            .try_text()
+            .unwrap_or_default()
+            .to_owned();
+        let (code, message) = match descriptor.kind() {
+            CommandSourceUnavailabilityKind::RuleLoaderRefused => (
                 DiagCode::Irule2004,
-                cmd_tok.span,
                 format!(
-                    "'{cmd_name}' is refused by the iRules rule compiler when written \
-                     literally in rule source; the command exists in TMM's interpreter \
-                     and is reachable through eval at runtime."
+                    "'{reporting_name}' is refused by the authored iRules rule-loader surface when written literally in rule source."
                 ),
-                Severity::Warning,
-            );
-            let ns = self.command_resolution_namespace(scope_path);
-            let enforce_order = !self.scope_path_in_proc_body(scope_path);
-            self.pending_disabled_commands
-                .push((cmd_name.to_string(), ns, enforce_order, diag));
-            return;
-        }
-        // The "available in: …" hint is read from the spec's own dialect gate.
-        // A command exclusive to a *different* dialect family (an iRules-only
-        // name, Jim's `loop`, referenced from a `tcl8.6` file) isn't loaded in
-        // this registry, so its gate is read from the rows every dialect's
-        // specs of the name state.
-        let suffix = registry.get(bare).map_or_else(
-            || {
-                registry
-                    .providers_in_any_dialect(bare)
-                    .filter(|offered| !offered.unrestricted)
-                    .map_or_else(String::new, |offered| {
-                        dialect_availability_suffix_for_rows(&offered.rows)
-                    })
-            },
-            |spec| dialect_availability_suffix(spec.surface),
-        );
+            ),
+            CommandSourceUnavailabilityKind::Unavailable => {
+                let suffix = dialect_availability_suffix_for_rows(&descriptor.providers().rows);
+                (
+                    DiagCode::W002,
+                    format!(
+                        "Registry command '{reporting_name}' is disabled in the active dialect profile{suffix}"
+                    ),
+                )
+            }
+        };
         let diag = crate::analyser::types::Diagnostic::new(
-            DiagCode::W002,
-            cmd_tok.span,
-            format!("'{cmd_name}' is disabled in the active dialect profile{suffix}"),
+            code,
+            original.original_head().span(),
+            message,
             Severity::Warning,
-        );
+        )
+        .with_subject(crate::analyser::DiagnosticSubject::CommandAvailability(
+            std::sync::Arc::new(original),
+        ));
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
         self.pending_disabled_commands
-            .push((cmd_name.to_string(), ns, enforce_order, diag));
+            .push((reporting_name, ns, enforce_order, diag));
     }
 
-    /// Resolve a command's signature, honouring the active scoped command
-    /// environment.
-    ///
-    /// Inside a scoped body (a `report::defstyle` style script, …) a scoped
-    /// head (`top`, `columns`) resolves to its scoped signature; every other
-    /// head — including the ordinary core commands used in the body
-    /// (`set`, `split`, `string`) — falls back to the global registry.  This
-    /// is the single scope-aware chokepoint that keeps the arity / subcommand
-    /// emitters generic: they never learn a scoped command name.
-    #[must_use]
-    pub(in crate::analyser) fn resolve_command_signature(
-        &self,
-        cmd_name: &str,
-    ) -> Option<super::dispatch::CommandSignature> {
-        if let Some(env) = self.body_scope_stack.last()
-            && let Some(scoped) = env.command(cmd_name)
-        {
-            return Some(super::dispatch::signature_for_scoped_command(scoped));
-        }
-        let registry = self.registry.as_deref()?;
-        let generation = self.analysis_context();
-        super::dispatch::signature_for_command(registry, cmd_name, generation.context())
-    }
-
-    /// **W001.** Emit "Unknown subcommand" warning for commands
-    /// whose registry signature is a [`SubcommandSig`](super::dispatch::SubcommandSig)
-    /// when the first argument doesn't resolve to a known subcommand.
-    ///
-    /// Skips:
-    ///
-    /// - commands the registry doesn't know (no signature),
-    /// - simple-command signatures (no subcommand dispatch),
-    /// - signatures with `allow_unknown == true` (generated
-    ///   dialect packs),
-    /// - a `{*}`-expanded subcommand word (`cmd {*}bogus …`) — its literal
-    ///   text is not what ends up in the subcommand position at run time,
-    /// - first-arg values containing ``$`` / ``[`` (dynamic
-    ///   substitution — runtime-resolved),
-    /// - empty arg lists (handled by the E001 emitter).
-    ///
-    /// When emission is warranted, includes a "did you mean…?"
-    /// suffix using [`crate::text::suggest_similar`] over the
-    /// known subcommand set (max 1 suggestion within the length-scaled
-    /// edit-distance budget), and anchors the diagnostic at the subcommand token's
-    /// *content* range only ([`subcommand_content_span`]) — not the command
-    /// name — so the squiggle sits tightly on the one word that is actually
-    /// wrong, matching the "did you mean" fix's replacement range.
-    ///
-    /// A verdict is not pushed directly: the genuinely-unknown-subcommand
-    /// case is queued into [`Analyser::pending_arity`] — the same queue the
-    /// sibling E002/E003 arity check and W004 use, since a wrong subcommand
-    /// name is the same species of "call is malformed against the resolved
-    /// registry signature" as a wrong argument count — and the
-    /// subcommand-level-disabled-in-dialect case into
-    /// [`Analyser::pending_disabled_commands`] (the same queue
-    /// [`Self::emit_w002_disabled_command`] uses). Both are resolved
-    /// post-walk through [`UserResolutionFacts`], the identical shadow
-    /// computation every one of those checks shares. This covers the same
-    /// tricky-Tcl surface: a same-file `proc string {…}`, an `oo::class` /
-    /// snit / itcl class named `string`, an `interp alias` pointed at
-    /// `string`, a `namespace ensemble create -command string`, a static
-    /// `rename` target, or an inline `# tcl-lsp: stub string` all resolve
-    /// the call to something the registry ensemble signature has nothing to
-    /// do with, so none of them may draw a false "unknown subcommand".
+    /// W001, W002 and W145 selector diagnostics from original source schema.
+    /// The retained context owns identity, availability and prefix resolution;
+    /// a captured, dynamic or expanded selector has no written subject here.
+    /// Suggestions replace the complete original selector word and need review.
     pub(in crate::analyser) fn emit_w001_unknown_subcommand(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        cmd_tok: tcl_lexer::Token,
-        arg_tokens: &[tcl_lexer::Token],
-        arg_expand_in: &[bool],
-        scope_path: &[usize],
+        original: Option<&crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        use super::dispatch::CommandSignature;
+        use crate::analyser::diagnostic_registry::{
+            RegistrySourceDiagnosticKind, source_subcommand_diagnostic,
+        };
+        use tcl_registry::AuthoredSourceSubcommandDiagnostic;
 
-        if self.registry.is_none() {
-            return;
-        }
-        let Some(first_arg) = args.first() else {
-            // Empty arg list — E001 path; not in scope here.
+        let Some(original) = original else {
             return;
         };
-        // A `{*}`-expanded subcommand word splices its *elements* into the
-        // subcommand position at run time, not its literal text.
-        // `arg_expand_in` is parallel to the full argv (command name at
-        // index 0); drop that slot so it lines up with `args`.
-        let arg_expand: &[bool] = arg_expand_in.get(1..).unwrap_or(&[]);
-        if arg_expand.first().copied().unwrap_or(false) {
+        let Some(word) = original.literal(0) else {
             return;
-        }
-        // Dynamic-value subcommand position — can't resolve statically.
-        if arg_tokens
-            .first()
-            .is_some_and(|tok| has_substitution(first_arg, tok))
-        {
-            return;
-        }
-        // Scope-aware resolution: an ensemble scoped command (`top`, `data`)
-        // inside a `report::defstyle` body is checked against its scoped
-        // subcommand set, so `top bogus` still draws W001. Tk
-        // geometry/widget ensemble commands (`grid` / `pack` / `wm` / …)
-        // are additionally recognised regardless of the active dialect — a
-        // `.tcl` script may `package require Tk` at runtime, so W001 fires
-        // on `grid bogus` under every dialect (the Tk-tagged fallback
-        // below; Tk is a library over a Tcl base, not a profile).
-        let tk_fallback = || {
-            let registry = self.registry.as_deref()?;
-            let spec = registry.get(cmd_name)?;
-            spec.surface
-                .is_some_and(|rows| {
-                    rows.iter()
-                        .any(|row| row.provider == SpecProvider::Package("Tk"))
-                })
-                .then(|| super::dispatch::signature_for_command_any_dialect(registry, cmd_name))
-                .flatten()
         };
-        let Some(CommandSignature::WithSubcommands(sig)) = self
-            .resolve_command_signature(cmd_name)
-            .or_else(tk_fallback)
+        let Some(subject) = original.subject(RegistrySourceDiagnosticKind::Subcommand, Some(0))
         else {
-            // Not a registered ensemble — buffer as a widget-dispatch
-            // candidate, resolved post-walk.
-            self.record_widget_dispatch_candidate(
-                cmd_name,
-                args,
-                cmd_tok,
-                arg_tokens,
-                arg_expand_in,
-            );
             return;
         };
-        if sig.allow_unknown {
+        let Some(outcome) = original.with_schema(source_subcommand_diagnostic).flatten() else {
             return;
-        }
-        if shape_exempt_from_w001(&sig, first_arg) {
-            return;
-        }
-        // Resolve the word through the shared registry abbreviation API:
-        // a unique prefix (`string le` ⇒ `length`) is legal and must
-        // not trip W001; an ambiguous one (`string l`) is a guaranteed
-        // runtime error with its own diagnostic (W145) rather than an
-        // "unknown subcommand" guess.
-        match sig.resolve_word(first_arg) {
-            tcl_registry::abbrev::KeywordMatch::Unique(_) => return,
-            tcl_registry::abbrev::KeywordMatch::Ambiguous(candidates) => {
-                let candidates: Vec<String> = candidates.iter().map(|s| (*s).to_string()).collect();
-                self.emit_w145_ambiguous_abbreviation(
-                    cmd_name,
-                    first_arg,
-                    &candidates,
-                    cmd_tok,
-                    arg_tokens,
+        };
+        let command = original.command();
+        let span = original
+            .word(0)
+            .expect("subject retains original word")
+            .span();
+        let (code, message, fixes) = match outcome {
+            AuthoredSourceSubcommandDiagnostic::Disabled { canonical, surface } => (
+                DiagCode::W002,
+                format!(
+                    "'{command} {canonical}' is disabled in the active dialect profile{}",
+                    dialect_availability_suffix(surface)
+                ),
+                Vec::new(),
+            ),
+            AuthoredSourceSubcommandDiagnostic::Unknown { candidates } => {
+                let mut message = format!("Unknown subcommand '{word}' for '{command}'");
+                let suggestions = crate::text::suggest_similar(
+                    word,
+                    candidates.iter().copied(),
+                    1,
+                    crate::text::scaled_max_distance(word),
                 );
-                return;
+                let fixes = suggestions
+                    .first()
+                    .map(|best| {
+                        use std::fmt::Write as _;
+                        let _ = write!(message, "; did you mean '{best}'?");
+                        vec![super::types::CodeFix {
+                            span,
+                            new_text: (*best).to_owned(),
+                            description: format!("Replace with '{best}'"),
+                            safety: crate::irules_checks::FixSafety::RequiresReview,
+                        }]
+                    })
+                    .unwrap_or_default();
+                (DiagCode::W001, message, fixes)
             }
-            tcl_registry::abbrev::KeywordMatch::Unknown => {}
-        }
-        // The subcommand is unknown *in the active dialect* — before
-        // reporting it as nonexistent, check whether it exists in some
-        // *other* dialect (e.g. a Tcl 9.0-only subcommand under an 8.6
-        // profile) and report disabled-in-dialect instead.
-        if self.check_disabled_in_other_dialect_subcommand(
-            cmd_name, first_arg, cmd_tok, arg_tokens, scope_path,
-        ) {
-            return;
-        }
-        // A statically-declared ensemble's subcommand table can't reflect a
-        // runtime `namespace ensemble configure <cmd> -map [dict replace
-        // [namespace ensemble configure <cmd> -map] NAME impl]` patch (the
-        // real tcllib `dicttool.tcl` idiom for `dict getnull`/`print`/
-        // `is_dict`/…) — if a proc exists at this
-        // ensemble's conventional implementation location for the written
-        // subcommand name, treat it as known rather than reporting a false
-        // "unknown subcommand". Registry-driven via
-        // `CommandSpec::implementation_namespace`, so it applies to any
-        // future ensemble that declares one, not just `dict`.
-        if self.dynamic_ensemble_subcommand_known(cmd_name, first_arg)
-            || self.statically_mapped_ensemble_subcommand_known(cmd_name, first_arg, scope_path)
-        {
-            return;
-        }
-        self.push_w001_unknown_subcommand(
-            cmd_name, first_arg, &sig, cmd_tok, arg_tokens, scope_path,
-        );
-    }
-
-    /// Queue the W001 verdict for a genuinely unknown subcommand word, with
-    /// its "did you mean…?" suffix and matching quick fix.
-    ///
-    /// Split out of [`Self::emit_w001_unknown_subcommand`], which is all
-    /// abstention checks up to this point.
-    fn push_w001_unknown_subcommand(
-        &mut self,
-        cmd_name: &str,
-        first_arg: &str,
-        sig: &super::dispatch::SubcommandSig,
-        cmd_tok: tcl_lexer::Token,
-        arg_tokens: &[tcl_lexer::Token],
-        scope_path: &[usize],
-    ) {
-        let ns = self.command_resolution_namespace(scope_path);
-        let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
-        let candidates: Vec<&str> = sig.subcommands.keys().map(String::as_str).collect();
-        let suggestions = crate::text::suggest_similar(
-            first_arg,
-            candidates.iter().copied(),
-            1,
-            crate::text::scaled_max_distance(first_arg),
-        );
-        let mut fixes: Vec<super::types::CodeFix> = Vec::new();
-        // Anchor the squiggle at the subcommand token's content range only —
-        // not the command name — so it sits tightly on the one word that is
-        // actually wrong; the "did you mean" fix targets the identical range.
-        let span = match arg_tokens.first() {
-            Some(sub_tok) => subcommand_content_span(*sub_tok),
-            None => cmd_tok.span,
+            AuthoredSourceSubcommandDiagnostic::Ambiguous { candidates } => {
+                let listed = candidates
+                    .iter()
+                    .map(|candidate| format!("'{candidate}'"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let fixes = candidates
+                    .into_iter()
+                    .map(|candidate| super::types::CodeFix {
+                        span,
+                        new_text: candidate.to_owned(),
+                        description: format!("Expand to '{command} {candidate}'"),
+                        safety: crate::irules_checks::FixSafety::RequiresReview,
+                    })
+                    .collect();
+                (
+                    DiagCode::W145,
+                    format!("Ambiguous abbreviation '{word}' for '{command}': matches {listed}."),
+                    fixes,
+                )
+            }
         };
-        if let Some(best) = suggestions.first() {
-            use std::fmt::Write as _;
-            let _ = write!(message, "; did you mean '{best}'?");
-            fixes.push(super::types::CodeFix {
-                span,
-                new_text: (*best).to_string(),
-                description: format!("Replace with '{best}'"),
-                // W001: an edit-distance guess at the intended subcommand.
-                safety: crate::irules_checks::FixSafety::RequiresReview,
-            });
-        }
-        self.pending_arity.push((
-            cmd_name.to_string(),
-            ns,
-            enforce_order,
-            crate::analyser::types::Diagnostic::new(
-                DiagCode::W001,
-                span,
-                message,
-                Severity::Warning,
-            )
-            .with_fixes(fixes),
-        ));
-    }
-
-    /// **W145.** The subcommand word prefixes more than one subcommand, so
-    /// the call is a guaranteed runtime error (`string l` →
-    /// `unknown or ambiguous subcommand "l"` in real tclsh).
-    ///
-    /// The message quotes the *matching* candidates rather than the whole
-    /// table — that is what the user needs to disambiguate — and offers one
-    /// `RequiresReview` quick fix per candidate, since the tool cannot know
-    /// which was meant.
-    ///
-    /// Abstains when the file configured this ensemble with
-    /// `namespace ensemble … -prefixes 0`: prefix matching is off there, so
-    /// the word is a plain unknown subcommand and W001 owns it.  A strict
-    /// registry table never produces `Ambiguous` in the first place.
-    fn emit_w145_ambiguous_abbreviation(
-        &mut self,
-        cmd_name: &str,
-        word: &str,
-        candidates: &[String],
-        cmd_tok: tcl_lexer::Token,
-        arg_tokens: &[tcl_lexer::Token],
-    ) {
-        if self.result.ensemble_refuses_prefixes(cmd_name) {
-            return;
-        }
-        let span = match arg_tokens.first() {
-            Some(sub_tok) => subcommand_content_span(*sub_tok),
-            None => cmd_tok.span,
-        };
-        let listed = candidates
-            .iter()
-            .map(|c| format!("'{c}'"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let fixes: Vec<super::types::CodeFix> = candidates
-            .iter()
-            .map(|candidate| super::types::CodeFix {
-                span,
-                new_text: candidate.clone(),
-                description: format!("Expand to '{cmd_name} {candidate}'"),
-                // The tool cannot know which candidate was meant, so this is
-                // never auto-applied by Fix All.
-                safety: crate::irules_checks::FixSafety::RequiresReview,
-            })
-            .collect();
         self.result.diagnostics.push(
-            crate::analyser::types::Diagnostic::new(
-                DiagCode::W145,
-                span,
-                format!("Ambiguous abbreviation '{word}' for '{cmd_name}': matches {listed}."),
-                Severity::Warning,
-            )
-            .with_fixes(fixes),
+            crate::analyser::types::Diagnostic::new(code, span, message, Severity::Warning)
+                .with_fixes(fixes)
+                .with_subject(subject),
         );
     }
 
-    /// Whether `cmd_name subcommand_name …` is a call into an ensemble
-    /// whose `-map` may have been reconfigured at runtime to add
-    /// `subcommand_name`, pointing at a proc this file defines at the
-    /// ensemble's conventional implementation location — the real tcllib
-    /// `dicttool.tcl` idiom: `proc ::tcl::dict::getnull {d args} {...} ;
-    /// namespace ensemble configure dict -map [dict replace [namespace
-    /// ensemble configure dict -map] getnull ::tcl::dict::getnull]`.
-    ///
-    /// Deliberately does **not** require observing an actual `namespace
-    /// ensemble configure -map` call in the file — only that
-    /// [`tcl_registry::CommandSpec::implementation_namespace`] is set (so
-    /// this stays inert for every other ensemble, `string`/`array`/…, whose
-    /// subcommands are C `switch` arms with no such backing namespace) and
-    /// that a same-named proc exists there. This is a deliberate,
-    /// conservative-suppression trade: a proc defined at
-    /// `<implementation_namespace>::<subcommand_name>` but never actually
-    /// spliced into the ensemble's map (a genuine "unknown subcommand"
-    /// error at run time) is wrongly suppressed here — the same
-    /// risk-tolerance precedent as W123's file-wide "any `package require`
-    /// suppresses every unknown-command diagnostic" abstention, and much
-    /// narrower in scope (this ensemble, this subcommand name, a proc
-    /// already known to exist).
-    fn dynamic_ensemble_subcommand_known(&self, cmd_name: &str, subcommand_name: &str) -> bool {
-        let Some(registry) = self.registry.as_deref() else {
-            return false;
-        };
-        let Some(spec) = registry.get(cmd_name) else {
-            return false;
-        };
-        let Some(ns) = spec.implementation_namespace else {
-            return false;
-        };
-        self.result
-            .all_procs
-            .contains_key(&format!("{ns}::{subcommand_name}"))
-    }
-
-    /// Whether `cmd_name subcommand_name` is a call into an ensemble whose
-    /// `-map`/`-subcommands` *this file itself* literally, statically
-    /// extends via `namespace ensemble create`/`configure`
-    /// ([`super::super::handlers::Analyser::handle_namespace_ensemble`],
-    /// which populates [`AnalysisResult::ensemble_subcommand_targets`]) —
-    /// the real `tk/library/systray.tcl` idiom:
-    /// `namespace ensemble configure tk -map [dict merge [namespace
-    /// ensemble configure tk -map] {systray ::tk::systray sysnotify
-    /// ::tk::sysnotify::sysnotify}]`, which splices `systray`/`sysnotify`
-    /// onto the pre-existing, registry-builtin `tk` ensemble.
-    ///
-    /// Complements [`Self::dynamic_ensemble_subcommand_known`] (which needs
-    /// [`tcl_registry::CommandSpec::implementation_namespace`] — unset for
-    /// `tk`, since `tk systray`'s own genuinely 2-level nested-ensemble
-    /// shape doesn't fit that field's single-hop `<ns>::<subcommand>`
-    /// convention anyway) with the general, ensemble-agnostic fact this
-    /// file's own analysis already recorded, rather than a `tk`-specific
-    /// escape hatch.
-    ///
-    /// [`AnalysisResult::ensemble_subcommand_targets`]: super::super::types::AnalysisResult::ensemble_subcommand_targets
-    fn statically_mapped_ensemble_subcommand_known(
-        &self,
-        cmd_name: &str,
-        subcommand_name: &str,
-        scope_path: &[usize],
-    ) -> bool {
-        let ns = self.command_resolution_namespace(scope_path);
-        crate::naming::bareword_resolution_candidates(&ns, cmd_name)
-            .into_iter()
-            .any(|cand| {
-                self.result
-                    .ensemble_subcommand_targets
-                    .get(&cand)
-                    .is_some_and(|subs| subs.contains_key(subcommand_name))
-            })
-    }
-
-    /// `first_arg` is unknown in the active dialect profile but exists as a
-    /// real subcommand in some *other* dialect (e.g. a Tcl 9.0-only
-    /// subcommand checked under an 8.6 profile) — the
-    /// subcommand-level analogue of the whole-command W002 check
-    /// (`emit_w002_disabled_command`): it EXISTS, just not here, so report
-    /// disabled-in-dialect rather than "Unknown subcommand" with a
-    /// misleading spelling suggestion. Deferred like the whole-command
-    /// form (buffered into `pending_disabled_commands`, not emitted
-    /// inline): whether `cmd_name` itself resolves to the registry
-    /// ensemble, rather than a same-file proc/alias/rename/class/ensemble
-    /// that shadows it, can depend on facts not yet known mid-walk.
-    /// Returns whether it handled (and buffered) the site — the caller
-    /// should return without falling through to W001 either way.
-    /// Split out of [`Self::emit_w001_unknown_subcommand`] to keep that
-    /// function under the line-count lint.
-    fn check_disabled_in_other_dialect_subcommand(
-        &mut self,
-        cmd_name: &str,
-        first_arg: &str,
-        cmd_tok: tcl_lexer::Token,
-        arg_tokens: &[tcl_lexer::Token],
-        scope_path: &[usize],
-    ) -> bool {
-        use super::dispatch::{CommandSignature, signature_for_command_any_dialect};
-
-        let Some(registry) = self.registry.as_deref() else {
-            return false;
-        };
-        let Some(CommandSignature::WithSubcommands(any_sig)) =
-            signature_for_command_any_dialect(registry, cmd_name)
-        else {
-            return false;
-        };
-        if !any_sig.is_known(first_arg) {
-            return false;
-        }
-        let span = match arg_tokens.first() {
-            Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
-            None => cmd_tok.span,
-        };
-        // Best-effort "available in: …" hint from the registry's own
-        // dialect gate on the matching `SubCommand` entry (falling back to
-        // the parent command's, the same inheritance
-        // `emit_w004_dialect_invalid_option` uses). An abbreviated
-        // `first_arg` that doesn't literally match a `SubCommand.name` just
-        // yields no hint — the base message stays accurate either way.
-        let suffix = registry.get(cmd_name).map_or(String::new(), |spec| {
-            spec.subcommands
-                .iter()
-                .find(|s| s.name == first_arg)
-                .map_or(String::new(), |sub| {
-                    dialect_availability_suffix(sub.surface.or(spec.surface))
-                })
-        });
-        let diag = crate::analyser::types::Diagnostic::new(
-            DiagCode::W002,
-            span,
-            format!("'{cmd_name} {first_arg}' is disabled in the active dialect profile{suffix}"),
-            Severity::Warning,
-        );
-        let ns = self.command_resolution_namespace(scope_path);
-        let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        self.pending_disabled_commands
-            .push((cmd_name.to_string(), ns, enforce_order, diag));
-        true
-    }
-
-    /// **E002 / E003 / W147.** Argument-count and leading-option checks for simple (non-
-    /// subcommand) commands: skip leading declared
-    /// option flags, then compare the positional-argument count
-    /// against the registry signature's arity bounds.
-    ///
-    /// Option skipping uses the dialect-filtered
-    /// [`CommandSig::leading_options`](super::dispatch::CommandSig::leading_options)
-    /// set, so switches introduced in a later Tcl release (e.g.
-    /// `regsub -command`, 9.0+) are only skipped under a dialect that
-    /// declares them.  This prevents both a false positive (declared
-    /// switches counted as positional → spurious E003) and a dialect
-    /// leak (9.0-only switches skipped under 8.x).
-    ///
-    /// `arg_expand[i]` marks an argument preceded by the Tcl 8.5+
-    /// `{*}` expansion prefix.  A `{*}`-expanded word contributes an
-    /// unknown number of runtime arguments, so option skipping stops
-    /// at the first such word and the positional upper bound becomes
-    /// unbounded — only the count of *non-expanded* positional words
-    /// can still trip E003.
-    ///
-    /// **Intentional gaps:**
-    /// - The `leading_options` skip is name-only, so the *value*
-    ///   of a value-taking leading option is **not** skipped.
-    /// - Statically-resolvable literal `{*}` expansions (`{*}{a b c}`)
-    ///   are not refined to their element count; the conservative form
-    ///   here can miss a genuine over-arity but never invents a false
-    ///   positive.
-    ///
-    /// Subcommand-dispatch commands are handled by
-    /// [`Self::emit_w001_unknown_subcommand`] and skipped here;
-    /// per-subcommand arity is not checked.
-    // The bare-ensemble deferral adds a few lines over the threshold; the
-    // block shares `ns` / `enforce_order` / `cmd_tok` with the inline path,
-    // so lifting it out would need an argument list longer than the lint it
-    // would silence.
-    #[allow(clippy::too_many_lines)]
+    /// Original Registry signatures use the retained source selection and
+    /// shared count axes. User calls, object calls and lambda parameter lists
+    /// retain their own separate declaration owners.
     pub(in crate::analyser) fn emit_arity_diagnostics(
         &mut self,
         cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        arg_expand_in: &[bool],
-        cmd_tok: tcl_lexer::Token,
-        scope_path: &[usize],
-    ) {
-        use super::dispatch::CommandSignature;
-
-        // `arg_expand_in` is parallel to the full argv (command name at
-        // index 0); drop that slot so it lines up with `args`.
-        let arg_expand: &[bool] = arg_expand_in.get(1..).unwrap_or(&[]);
-
-        // Same-file proc / TclOO forward / `interp alias` / static
-        // `rename` arity — queued unconditionally, independent of the
-        // registry resolution below, since a user proc can shadow a
-        // builtin name (`proc ::ns::close {...}` inside `::ns`).
-        self.queue_user_call_arity_candidate(
-            cmd_name,
-            &ArityWords {
-                args,
-                arg_tokens,
-                arg_expand,
-                cmd_tok,
-            },
-            scope_path,
-        );
-
-        // `TclOO` constructor-call arity (`ClassName new ?args?` /
-        // `ClassName create name ?args?` / `ClassName createWithNamespace
-        // name ::ns ?args?`) and `next`/`nextto` call-site arity — see
-        // [`Self::queue_tcloo_arity_candidates`].
-        self.queue_tcloo_arity_candidates(
-            cmd_name,
-            &ArityWords {
-                args,
-                arg_tokens,
-                arg_expand,
-                cmd_tok,
-            },
-            scope_path,
-        );
-
-        // `apply {{params} body} ?arg ...?` — a direct call to an inline
-        // lambda. Unlike the two candidates above, the lambda's own arity
-        // is fully knowable at the call site (no forward reference, no
-        // cross-item merge to wait for), so this checks synchronously
-        // rather than through the pending/flush queue.
-        self.emit_apply_lambda_arity(cmd_name, args, arg_tokens, arg_expand, cmd_tok, scope_path);
-
-        // Scope-aware: a head inside a scoped command environment resolves to
-        // its scoped signature (`top set …`, `columns`), everything else to
-        // the global registry via the active profile.
-        match self.resolve_command_signature(cmd_name) {
-            Some(CommandSignature::Simple(sig)) => {
-                self.check_simple_arity(
-                    cmd_name,
-                    cmd_name,
-                    &sig,
-                    &ArityWords {
-                        args,
-                        arg_tokens,
-                        arg_expand,
-                        cmd_tok,
-                    },
-                    scope_path,
-                );
-            }
-            Some(CommandSignature::WithSubcommands(sig)) => {
-                // Per-subcommand arity on `args[1:]`.  The W001
-                // unknown-subcommand path is handled separately by
-                // [`Self::emit_w001_unknown_subcommand`].
-                let Some(sub_name) = args.first() else {
-                    // **E001.** A subcommand-dispatch command invoked with no
-                    // subcommand at all (`string` / `dict` / `info` on its
-                    // own). Skipped when the registry's `subcommand_required`
-                    // is `false` — a bare call has a well-defined default
-                    // (e.g. `history` == `history info`), so it is not an
-                    // arity error at all, not merely a suppressed one.
-                    // Otherwise queued as a `pending_arity` candidate so an
-                    // earlier shadowing user proc / class / alias / ensemble
-                    // / stub suppresses it, exactly like the E002 / E003
-                    // paths.
-                    let ns = self.command_resolution_namespace(scope_path);
-                    let enforce_order = !self.scope_path_in_proc_body(scope_path);
-                    // A versioned parent cannot answer "was a subcommand
-                    // required?" here: the shape depends on the resolved
-                    // floor, which a later `package require` still raises.
-                    // Buffer and let the post-walk pass decide.
-                    if !sig.arity_windows.is_empty() {
-                        let axis = self.gated_arity_axis(cmd_name);
-                        self.pending_gated_bare_ensemble.push(
-                            super::version_gate::GatedBareEnsemble {
-                                axis,
-                                windows: sig.arity_windows,
-                                fallback: tcl_registry::Arity::at_least(u16::from(
-                                    sig.subcommand_required,
-                                )),
-                                cmd_name: cmd_name.to_string(),
-                                namespace: ns,
-                                enforce_order,
-                                span: cmd_tok.span,
-                            },
-                        );
-                        return;
-                    }
-                    if !sig.subcommand_required {
-                        return;
-                    }
-                    self.pending_arity.push((
-                        cmd_name.to_string(),
-                        ns,
-                        enforce_order,
-                        crate::analyser::types::Diagnostic::new(
-                            DiagCode::E001,
-                            cmd_tok.span,
-                            format!("'{cmd_name}' requires a subcommand"),
-                            Severity::Error,
-                        ),
-                    ));
-                    return;
-                };
-                // A `{*}`-expanded subcommand word resolves to an unknown
-                // name at runtime; skip resolution and arity entirely.
-                if arg_expand.first().copied().unwrap_or(false) {
-                    return;
-                }
-                // Dynamic subcommand value — can't resolve statically.
-                if arg_tokens
-                    .first()
-                    .is_some_and(|tok| has_substitution(sub_name, tok))
-                {
-                    return;
-                }
-                // Resolve exact-or-unique-prefix so an abbreviated subcommand
-                // (`string le $s`) is arity-checked against `length`.
-                let Some(sub_sig) = sig.resolve(sub_name) else {
-                    // Unknown / ambiguous subcommand — W001's job, not arity.
-                    return;
-                };
-                let display_name = format!("{cmd_name} {sub_name}");
-                self.check_simple_arity(
-                    cmd_name,
-                    &display_name,
-                    sub_sig,
-                    &ArityWords {
-                        args: &args[1..],
-                        arg_tokens: arg_tokens.get(1..).unwrap_or(&[]),
-                        arg_expand: arg_expand.get(1..).unwrap_or(&[]),
-                        cmd_tok,
-                    },
-                    scope_path,
-                );
-            }
-            None => {}
-        }
-    }
-
-    /// Compare a positional-argument count against a single
-    /// [`CommandSig`]'s arity bounds and queue an E002 / E003
-    /// candidate.  Shared by the simple-command and per-subcommand
-    /// arity paths in [`Self::emit_arity_diagnostics`].
-    ///
-    /// `resolution_name` is the base command name used by the
-    /// post-walk [`Self::flush_arity_diagnostics`] to honour a
-    /// shadowing user proc / class / alias (e.g. `file` for the
-    /// `file link` subcommand check), while `display_name` is the
-    /// human-facing name shown in the message (`file link`).
-    ///
-    /// `args` / `arg_tokens` / `arg_expand` are the slices *after*
-    /// whatever prefix the caller has already consumed (the command
-    /// name for the simple path; the command name and subcommand word
-    /// for the subcommand path), so the leading-option scan and
-    /// positional count operate on the same coordinate system as
-    /// `sig`.
-    ///
-    /// A `sig` carrying [`tcl_registry::Traits::STRUCTURALLY_CHECKED_ARITY`]
-    /// (`if`) is skipped entirely: its registry `arity` is a descriptive
-    /// floor only, and its dedicated structural diagnostic (E004) already
-    /// covers every too-few-/malformed-shape case this generic check
-    /// would otherwise duplicate.
-    // Capturing the surplus-run inputs for a gated call adds a few lines over
-    // the threshold, and they are the same `arg_tokens` / `arg_expand` /
-    // `positional_start` / source map the inline path already holds.
-    #[allow(clippy::too_many_lines)]
-    fn check_simple_arity(
-        &mut self,
-        resolution_name: &str,
-        display_name: &str,
-        sig: &super::dispatch::CommandSig,
         words: &ArityWords<'_>,
         scope_path: &[usize],
+        original: Option<&crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        if sig
-            .traits
-            .contains(tcl_registry::Traits::STRUCTURALLY_CHECKED_ARITY)
-        {
+        self.queue_user_call_arity_candidate(cmd_name, words, scope_path);
+        self.queue_tcloo_arity_candidates(cmd_name, words, scope_path);
+        let Some(original) = original else {
+            return;
+        };
+        self.emit_source_lambda_arity(original, cmd_name);
+        self.emit_source_option_relationships(original, cmd_name);
+        self.emit_source_signature_arity(original, cmd_name);
+    }
+
+    /// Descriptive declaration arity remains distinct from builtin signatures.
+    /// The sealed issuer validates direct-written geometry and all lookup
+    /// barriers; no Registry option, concatenation or dispatch fact is donated.
+    pub(in crate::analyser) fn emit_declared_source_arity(
+        &mut self,
+        original: crate::command_binding::OriginalDeclaredCommandWords,
+        display_name: &str,
+    ) {
+        use crate::analyser::diagnostic_registry::{
+            DeclaredSourceDiagnosticKind, DeclaredSourceDiagnosticSubject,
+        };
+        let Some(arity) = original.source_arity() else {
+            return;
+        };
+        let words = original.original_words();
+        let (Some(first), Some(last)) = (words.first(), words.last()) else {
+            return;
+        };
+        let span = tcl_lexer::Span::new(first.span().start(), last.span().end());
+        let max = usize::from(arity.max);
+        let excess = words
+            .get(max.saturating_add(1))
+            .zip(words.get(max))
+            .map(|(surplus, kept)| ExcessArgs {
+                span: tcl_lexer::Span::new(surplus.span().start(), last.span().end()),
+                delete_from: kept.span().end(),
+            });
+        let Some(diagnostic) = arity_verdict(
+            display_name,
+            arity,
+            original.arguments().len(),
+            false,
+            span,
+            excess,
+            None,
+        ) else {
+            return;
+        };
+        let Some(subject) = DeclaredSourceDiagnosticSubject::at_extent(
+            std::sync::Arc::new(original),
+            DeclaredSourceDiagnosticKind::Arity,
+            diagnostic.span,
+        ) else {
+            return;
+        };
+        self.result
+            .diagnostics
+            .push(diagnostic.with_subject(subject));
+    }
+
+    fn emit_source_signature_arity(
+        &mut self,
+        original: &crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
+        display_name: &str,
+    ) {
+        use crate::analyser::diagnostic_registry::source_arity;
+        let Some(shape) = original.with_schema(source_arity).flatten() else {
+            return;
+        };
+        let axis = self.lifecycle_axis(shape.command);
+        if shape.missing_subcommand {
+            if !shape.windows.is_empty() {
+                self.pending_gated_bare_ensemble
+                    .push(super::version_gate::GatedBareEnsemble {
+                        axis,
+                        windows: shape.windows,
+                        fallback: shape.arity,
+                        display_name: display_name.to_owned(),
+                        original: original.clone(),
+                    });
+            } else if shape.arity.min > 0 {
+                self.queue_source_arity_diagnostic(
+                    original,
+                    crate::analyser::types::Diagnostic::new(
+                        DiagCode::E001,
+                        original.head().span(),
+                        format!("'{display_name}' requires a subcommand"),
+                        Severity::Error,
+                    ),
+                );
+            }
             return;
         }
-        let ArityWords {
-            args,
-            arg_tokens,
-            arg_expand,
-            cmd_tok,
-        } = *words;
-        let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
-
-        // Skip leading declared option flags *and the value word(s) each
-        // consumes*.  Stop at the first non-option word, the option
-        // terminator `--` (consumed), or a `{*}`-expanded word (whose value
-        // can't be classified).  Skipping the value words is what keeps a
-        // value-taking option (`regsub -start 0 …`, `file link -symbolic
-        // dst src`) from having its value counted as a positional argument
-        // — the same `value_word_count` skip the W004 dialect-option loop
-        // uses.
-        let mut i = 0usize;
-        while i < args.len() {
-            if expanded(i) {
-                break;
-            }
-            let arg = &args[i];
-            if arg == "--" {
-                i += 1;
-                break;
-            }
-            if let Some(opt) = sig.leading_option_specs.iter().find(|o| o.matches(arg)) {
-                // Skip the flag itself plus however many value words it
-                // consumes at this position (0 for a bare flag).
-                i += 1 + opt.value_word_count(args, i);
-            } else if sig.leading_options.contains(arg) {
-                // Recognised as an option name but no spec carries its value
-                // arity (e.g. a form-only or generated option) — skip just
-                // the flag word, matching the prior name-only behaviour.
-                i += 1;
-            } else {
-                break;
-            }
-        }
-        let positional_start = i.min(args.len());
-        let (nargs_min, positional_any_expand) =
-            count_positionals(args, arg_expand, positional_start);
-
-        // The relation checker reads its own walk rather than reusing the
-        // arity skip above: the arity question is "where do the positionals
-        // start", which stops at the first unclassifiable word, while a
-        // relation must also know the option *values*, the positional words,
-        // and whether the call was readable to its end.
-        let source = self.source.clone();
-        let call = scan_invocation_words(
-            &sig.leading_option_specs,
-            sig.option_placement,
-            args,
-            arg_tokens,
-            arg_expand,
-            &source,
-            cmd_tok.span,
+        let display_name = shape.subcommand.map_or_else(
+            || display_name.to_owned(),
+            |sub| format!("{display_name} {}", sub.name),
         );
-        self.queue_option_relation_violations(
-            resolution_name,
-            display_name,
-            sig,
-            &call,
-            cmd_tok,
-            scope_path,
-        );
-
-        let full_span = match arg_tokens.last() {
-            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
-            None => cmd_tok.span,
-        };
-
-        // Capture the call-site command-resolution namespace so the
-        // post-walk flush can resolve this command the Tcl way (current
-        // namespace → global) and only suppress the arity check when
-        // the call actually resolves to a user definition — not to any
-        // same-tail-named proc elsewhere in the file. Uses the proc's
-        // *defining* namespace (so `close` inside a body of
-        // `proc ::ns::x` resolves through `::ns`), not just lexical
-        // `namespace eval` nesting.
-        let ns = self.command_resolution_namespace(scope_path);
-
-        // Top-level calls (module body, `namespace eval` bodies, and
-        // conditionals) execute in source order during load, so a
-        // shadowing proc only silences the builtin arity check when its
-        // definition lexically precedes the call.  Calls inside a proc
-        // body resolve after the whole script has loaded, so order is
-        // not enforced there.
-        let enforce_order = !self.scope_path_in_proc_body(scope_path);
-
-        // Collect as a *candidate*; the post-walk
-        // [`Self::flush_arity_diagnostics`] drops it if the call
-        // resolves to a user proc / class / alias / ensemble / stub.
-        // A class / alias / ensemble / stub match suppresses regardless
-        // of definition order; a *proc* match additionally honours
-        // `enforce_order` (in-order/reachability gate).
-        let excess = {
-            // One hoisted map for all three word-span resolutions below: this
-            // runs once per command in the document (see
-            // `utils::full_word_span_in`).
-            let source_map = self.cached_source_map();
-            excess_positional_span(
-                arg_tokens,
-                arg_expand,
-                positional_start,
-                usize::from(sig.arity.max),
-                &source_map,
-                widen_token_end_in(&source_map, cmd_tok),
-            )
-        };
-        // A command whose signature changed across its owning package's
-        // releases cannot be judged here at all: the shape that applies
-        // depends on the resolved floor, and a `package require` further down
-        // the file still raises it. Buffer the inputs and let
-        // `flush_gated_arity_calls` form the verdict once the floor is known
-        // — including whether the count is simply wrong (E002/E003) or is
-        // right for a *different* release (W149).
-        if !sig.arity_windows.is_empty() {
-            let axis = self.gated_arity_axis(resolution_name);
-            // The surplus run depends on the `max` the floor selects, so it is
-            // captured rather than computed: `excess` above is anchored to the
-            // fallback and would delete the wrong run for any window narrower
-            // than it.
-            let excess_inputs = {
-                let source_map = self.cached_source_map();
-                ExcessInputs::capture(
-                    arg_tokens,
-                    arg_expand,
-                    positional_start,
-                    &source_map,
-                    widen_token_end_in(&source_map, cmd_tok),
-                )
-            };
+        if !shape.windows.is_empty() {
             self.pending_gated_arity
                 .push(super::version_gate::GatedArityCall {
                     axis,
-                    windows: sig.arity_windows,
-                    fallback: sig.arity,
-                    display_name: display_name.to_string(),
-                    resolution_name: resolution_name.to_string(),
-                    namespace: ns,
-                    enforce_order,
-                    nargs_min,
-                    positional_any_expand,
-                    span: full_span,
-                    excess_inputs,
-                    synopsis: sig.synopsis,
+                    windows: shape.windows,
+                    fallback: shape.arity,
+                    display_name,
+                    original: original.clone(),
+                    synopsis: shape.synopsis,
                 });
-            return;
-        }
-
-        if let Some(diag) = arity_verdict(
-            display_name,
-            sig.arity,
-            nargs_min,
-            positional_any_expand,
-            full_span,
-            excess,
-            sig.synopsis,
+        } else if let Some(diagnostic) = source_arity_verdict(
+            original,
+            &display_name,
+            shape.arity,
+            &shape.count,
+            shape.synopsis,
         ) {
-            self.pending_arity
-                .push((resolution_name.to_string(), ns, enforce_order, diag));
+            self.queue_source_arity_diagnostic(original, diagnostic);
         }
     }
 
-    /// The version axis governing `resolution_name`'s arity windows.
-    ///
-    /// Resolves the spec back out of the registry rather than threading the
-    /// axis through [`super::dispatch::CommandSig`]: only a command that
-    /// actually declares windows ever asks, which is almost none of them, and
-    /// [`Analyser::lifecycle_axis`] is already the single place that decides
-    /// which axis a spec sits on.
-    fn gated_arity_axis(
-        &self,
-        resolution_name: &str,
-    ) -> Option<super::version_gate::VersionGateAxis> {
-        let registry = self.profile_registry();
-        let spec = registry.get(resolution_name)?;
-        self.lifecycle_axis(spec)
+    pub(super) fn queue_source_arity_diagnostic(
+        &mut self,
+        original: &crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
+        diagnostic: crate::analyser::types::Diagnostic,
+    ) {
+        let Some(subject) = original.subject_extent(
+            crate::analyser::RegistrySourceDiagnosticKind::Arity,
+            diagnostic.span,
+        ) else {
+            return;
+        };
+        self.pending_arity.push((
+            original.command().to_owned(),
+            String::new(),
+            false,
+            diagnostic.with_subject(subject),
+        ));
     }
 
-    /// **W147 / W152** for every registry-declared option relation this call
-    /// violates (E-R14).
-    ///
-    /// Option relations are registry data, checked **natively**: the whole
-    /// evaluation is [`tcl_registry::OptionRelation::evaluate`] over the facts
-    /// the option walk above already collected, with no hook and no VM entry
-    /// (principle P-B). A `constraints` hook runs only where a spec declares
-    /// one *and* the declarative relations reported nothing.
-    ///
-    /// The generic analyser only projects the option words and the positional
-    /// words around them; dynamic option names and `{*}` expansions leave
-    /// `complete` false, and every relation whose verdict would need to prove
-    /// a term *absent* then abstains. No repair is offered because choosing
-    /// which option expresses the caller's intent is inherently ambiguous.
-    ///
-    /// A relation carrying a lifecycle is *buffered* rather than queued: a
-    /// relation declared `-introduced 2.0` does not exist in a file whose
-    /// owning package resolves to 1.x, and — like every other lifecycle fact —
-    /// the floor is not known until every `package require` has been walked.
-    /// An unversioned relation keeps the inline path exactly as it was.
-    fn queue_option_relation_violations(
+    fn emit_source_option_relationships(
         &mut self,
-        resolution_name: &str,
+        original: &crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
         display_name: &str,
-        sig: &super::dispatch::CommandSig,
-        call: &ScannedInvocation,
-        cmd_tok: tcl_lexer::Token,
-        scope_path: &[usize],
     ) {
-        let reports = option_relation_diagnostics(
-            display_name,
-            &sig.option_relations,
-            sig.constraints_hook,
-            call,
-            cmd_tok.span,
-        );
-        if reports.is_empty() {
+        use crate::analyser::diagnostic_registry::source_option_relationships;
+        let Some(facts) = original.with_schema(source_option_relationships).flatten() else {
+            return;
+        };
+        if facts.relations.is_empty() && facts.constraints.is_none() {
             return;
         }
-        let ns = self.command_resolution_namespace(scope_path);
-        let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        for (lifecycle, diagnostic) in reports {
+        let fallback = original.head().span();
+        let value = |argument: usize| {
+            original
+                .words()
+                .arguments()
+                .get(argument)
+                .and_then(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .map(str::to_owned)
+        };
+        let call = ScannedInvocation {
+            options: facts
+                .scan
+                .options
+                .iter()
+                .filter(|option| option.available)
+                .map(|option| SeenOption {
+                    name: option.option.name,
+                    span: original
+                        .word(option.argument)
+                        .map_or(fallback, tcl_lexer::NativeWord::span),
+                    value: option
+                        .values
+                        .as_ref()
+                        .and_then(|values| value(values.start)),
+                })
+                .collect(),
+            positionals: facts
+                .positionals
+                .iter()
+                .map(|&argument| SeenPositional {
+                    value: value(argument),
+                    span: original
+                        .word(argument)
+                        .map_or(fallback, tcl_lexer::NativeWord::span),
+                })
+                .collect(),
+            complete: facts.complete,
+        };
+        let axis = original
+            .with_schema(crate::analyser::diagnostic_registry::source_descriptors)
+            .and_then(|selected| self.lifecycle_axis(selected.command));
+        for (lifecycle, diagnostic) in option_relation_diagnostics(
+            display_name,
+            &facts.relations,
+            facts.constraints,
+            &call,
+            fallback,
+        ) {
+            let Some(subject) = original.subject_extent(
+                crate::analyser::RegistrySourceDiagnosticKind::ArgumentRelationship,
+                diagnostic.span,
+            ) else {
+                continue;
+            };
+            let diagnostic = diagnostic.with_subject(subject);
             if lifecycle.is_unspecified() {
                 self.pending_arity.push((
-                    resolution_name.to_string(),
-                    ns.clone(),
-                    enforce_order,
+                    original.command().to_owned(),
+                    String::new(),
+                    false,
                     diagnostic,
                 ));
             } else {
-                self.record_gated_option_conflict(
-                    resolution_name,
-                    lifecycle,
-                    ns.clone(),
-                    enforce_order,
-                    diagnostic,
-                );
+                self.pending_option_conflicts
+                    .push(super::version_gate::GatedOptionConflict {
+                        axis,
+                        lifecycle,
+                        resolution_name: original.command().to_owned(),
+                        namespace: String::new(),
+                        enforce_order: false,
+                        diagnostic,
+                    });
             }
         }
     }
 
-    /// **E002 / E003** for `apply {{params} body} ?arg ...?`: check the
-    /// trailing arguments against the inline lambda's *own* declared
-    /// parameter list — the same "wrong # args" `TclOO`/`proc` argument
-    /// binding rules apply to a lambda (confirmed against tclsh 9.0.4:
-    /// `apply {{a b} {}} 1` fails `wrong # args: should be "apply
-    /// lambdaExpr a b"`).
-    ///
-    /// A no-op when the first argument isn't a *braced* literal lambda
-    /// (matching [`Analyser::parse_apply_lambda_elements`]'s guard — a
-    /// dynamic `apply $lambda …` is opaque and left unchecked, the same
-    /// any-uncertainty-abstains convention as every other arity path here).
-    ///
-    /// Queued through [`Self::pending_arity`] rather than pushed
-    /// immediately: `apply` is an ordinary command name and can be shadowed
-    /// by a user `proc apply {lambda x} {…}` exactly like any other
-    /// builtin (confirmed against tclsh 9.0.4 — a user-defined `apply`
-    /// resolves ahead of the language builtin), so this candidate must go
-    /// through the same post-walk builtin-shadowing suppression
-    /// (`Self::flush_arity_diagnostics`) as every other simple-command
-    /// arity check, rather than bypassing it.
-    fn emit_apply_lambda_arity(
+    /// A lambda call's count belongs to its original selected Apply grammar.
+    /// The lambda value is parsed as a list and strict parameter list under
+    /// the retained dialect; lambda data is never segmented as a script.
+    fn emit_source_lambda_arity(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        arg_expand: &[bool],
-        cmd_tok: tcl_lexer::Token,
-        scope_path: &[usize],
+        original: &crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
+        display_name: &str,
     ) {
-        // The head must actually resolve to `apply` — registry hook
-        // resolution, not a name literal, decides that (the same
-        // [`AnalyserHookId::Apply`] gate the handler dispatch uses).
-        // Without the gate, any command whose first argument is a braced
-        // literal (`proc {a b} {…}`) would be arity-checked as a lambda.
-        if !matches!(
-            self.resolve_analyser_hook(cmd_name, args),
-            Some(tcl_registry::hooks::AnalyserHookId::Apply)
-        ) {
+        use crate::analyser::diagnostic_registry::source_lambda_call;
+        let Some(layout) = original.with_schema(source_lambda_call).flatten() else {
+            return;
+        };
+        let Some(input) = original
+            .words()
+            .original_argument_value_input(layout.lambda_argument)
+        else {
+            return;
+        };
+        let Some(fields) = input.original_list_elements() else {
+            return;
+        };
+        if !(2..=3).contains(&fields.len()) {
             return;
         }
-        let Some(elements) = self.parse_apply_lambda_elements(args, arg_tokens) else {
+        let Some(dialect) = original.words().dialect() else {
             return;
         };
-        let Some((_, params_text)) = elements.first() else {
+        let Some(parameters) = crate::signature_scan::formal_parameters::SignatureSourceFormalParameterValue::from_original_input(&fields[0], dialect) else { return; };
+        let Some(arity) =
+            crate::signature_scan::arity::arity_from_count_shape(parameters.argument_count_shape())
+        else {
             return;
         };
-        let params =
-            crate::signature_scan::params::parse_param_list(params_text, self.word_rules());
-        let arity = crate::signature_scan::arity::arity_of(&params);
-        // Positional count starts *after* the lambda literal (index 1).
-        let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 1);
-        let full_span = match arg_tokens.last() {
-            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
-            None => cmd_tok.span,
-        };
-        // Positional args (and so the surplus run) start after the lambda
-        // literal at index 1.
-        let excess = {
-            let source_map = self.cached_source_map();
-            excess_positional_span(
-                arg_tokens,
-                arg_expand,
-                1,
-                usize::from(arity.max),
-                &source_map,
-                widen_token_end_in(&source_map, cmd_tok),
-            )
-        };
-        if let Some(diag) = arity_verdict(
-            "apply",
-            arity,
-            nargs_min,
-            positional_any_expand,
-            full_span,
-            excess,
-            None,
-        ) {
-            let ns = self.command_resolution_namespace(scope_path);
-            let enforce_order = !self.scope_path_in_proc_body(scope_path);
-            self.pending_arity
-                .push((cmd_name.to_string(), ns, enforce_order, diag));
+        if let Some(diagnostic) =
+            source_arity_verdict(original, display_name, arity, &layout.count, None)
+        {
+            self.queue_source_arity_diagnostic(original, diagnostic);
         }
     }
 
-    /// Post-walk flush of the [`Self::pending_disabled_commands`] candidates
-    /// collected by [`Self::emit_w002_disabled_command`] and the subcommand
-    /// form embedded in [`Self::emit_w001_unknown_subcommand`].
-    ///
-    /// Runs after the command walk completes, when `all_procs`,
-    /// `all_classes`, `command_aliases`, `renamed_commands` and
-    /// `ensemble_namespaces` are fully populated (post cross-item merge on
-    /// the per-item path). A candidate is dropped exactly when
-    /// [`UserResolutionFacts::resolves_to_user`] says the call resolves to a
-    /// user definition rather than the builtin the candidate warns about —
-    /// the identical resolution rule [`Self::flush_arity_diagnostics`] uses
-    /// to suppress a builtin-arity mismatch, so e.g. a namespace-scoped `proc
-    /// ::ns::dict {...}` correctly suppresses a `dict` call inside `::ns`,
-    /// and an `interp alias {} dict {} …` / `rename myimpl dict` /
-    /// `oo::class create dict {…}` established anywhere in the file
-    /// (unconditionally for aliases/classes/ensembles/stubs; only when
-    /// lexically preceding a top-level call for a proc/rename target)
-    /// likewise suppresses it.
-    ///
-    /// Idempotent: drains `pending_disabled_commands`, so a second call is a
-    /// no-op.
+    /// Publish current whole-command advice and legacy subcommand reports.
+    /// Typed original publication geometry owns whole-command shadowing.
     pub(in crate::analyser) fn flush_disabled_command_diagnostics(&mut self) {
         if self.pending_disabled_commands.is_empty() {
             return;
@@ -2376,6 +1339,14 @@ impl Analyser {
         let facts = UserResolutionFacts::build(self);
         let pending = std::mem::take(&mut self.pending_disabled_commands);
         for (cmd_name, ns, enforce_order, diag) in pending {
+            if let Some(original) = diag.command_availability() {
+                if original.matches_analysis(&self.result)
+                    && !original.has_source_declaration_shadow(&self.result, enforce_order)
+                {
+                    self.result.diagnostics.push(diag);
+                }
+                continue;
+            }
             let call_off = diag.span.start();
             let path = crate::analyser::scope::implicit_command_namespace_path_at(
                 &self.result.global_scope,
@@ -2388,64 +1359,55 @@ impl Analyser {
         }
     }
 
-    /// Whether `name` resolves to a registry command that only exists once a
-    /// `required_package` / `tcllib_package` is loaded, and this document
-    /// neither `package require`s nor `package provide`s it — with the
-    /// profile's ambient packages excluded, exactly as
-    /// [`Analyser::is_package_gated_non_ambient`] and the W120 emitter do.
-    ///
-    /// Such a call has **no proven identity**: the registry's `CommandSpec`
-    /// describes the package's command, but nothing in this document says
-    /// that package is what the name will resolve to at run time — which is
-    /// the very thing W120 is emitted to say. Asserting a hard arity *error*
-    /// against that spec while simultaneously warning that the package is not
-    /// loaded is self-contradictory, and it is wrong whenever the name is
-    /// actually supplied by something else: a proc defined in a file this one
-    /// `source`s, an `interp alias` set up by its host application.
-    ///
-    /// The real corpus case is
-    /// georgtree/argparse's own `proc ::argparse {args}`: a sibling file that
-    /// `source`s it and calls `argparse` with no arguments — which real tclsh
-    /// 9.0.4 / 8.6.16 both run happily, printing `case0` — must not draw
-    /// `Too few arguments for 'argparse': expected at least 1, got 0`
-    /// resolved against the *package's* spec that this workspace never loads.
-    /// Whole-file `source`-graph knowledge is not available here (the analyser
-    /// is single-file by construction, see
-    /// [`Analyser::emit_missing_package_require_diagnostics`]), so the sound
-    /// answer is to abstain and let W120 carry the (retractable, warning-level)
-    /// report.
-    ///
-    /// The true positive is untouched: a document that *does* `package
-    /// require argparse` has proven the identity, W120 does not fire, and a
-    /// bad-arity call to it is still an error.
-    fn spec_is_an_unloaded_package_command(&self, name: &str) -> bool {
-        // Resolution reads the un-overlaid generation's store (as the old
-        // `registry_for_profile` call did); the ambient answer reads this
-        // walk's own — possibly pack-overlaid — context, exactly the old
-        // `profile_registry().is_ambient_package` split.
-        let base = crate::environment_ingress::context_for_profile(self.profile);
-        let Some(pkg) = base
-            .context()
-            .resolve_spec(base.commands(), name)
-            .and_then(tcl_registry::CommandSpec::owning_package)
-        else {
+    fn selected_source_package_is_unmentioned(
+        &self,
+        subject: &crate::analyser::RegistrySourceDiagnosticSubject,
+    ) -> bool {
+        let Some(package) = subject.owning_package() else {
             return false;
         };
-        if self.analysis_context().context().ambient_package(pkg) {
+        let Some(context) = subject.words().context() else {
+            return true;
+        };
+        if context.ambient_package(package) || context.is_required(package) {
             return false;
         }
+        let Some(head) = subject
+            .words()
+            .head_source()
+            .and_then(|source| source.word())
+        else {
+            return true;
+        };
+        let policy = subject
+            .words()
+            .head_source()
+            .and_then(|source| source.input())
+            .map(crate::signature_scan::scope::SignatureSourceNameInput::policy);
+        let matches = |name: &crate::signature_scan::original_name::SourcePackageName| {
+            let Some(key) = name.input().original_word_key() else {
+                return false;
+            };
+            let word = key.original_word();
+            word.image() == head.image()
+                && word.config() == head.config()
+                && policy.is_some_and(|policy| policy == name.key().policy())
+                && name.key().bytes() == package.as_bytes()
+        };
+        // These are authentic source applicability records, not package-table
+        // installation or successful package loading observations.
         !self
             .result
             .package_requires
             .iter()
-            .map(|pr| pr.name.as_str())
+            .filter_map(|record| record.original_name.as_ref())
             .chain(
                 self.result
                     .package_provides
                     .iter()
-                    .map(|pp| pp.name.as_str()),
+                    .filter_map(|record| record.original_name.as_ref()),
             )
-            .any(|imported| imported == pkg)
+            .any(matches)
     }
 
     /// Post-walk flush of the [`Self::pending_arity`] / [`Self::pending_user_call_arity`]
@@ -2481,10 +1443,6 @@ impl Analyser {
     /// (dialect-invalid-option) candidates, and W001 (unknown-subcommand)
     /// candidates (see its field doc); the *shadowing* suppression never
     /// inspects `diag.code`, so all three share it with no special-casing.
-    /// The package-loaded gate below is the one exception, and it is scoped
-    /// to the arity verdicts because only they assert against the resolved
-    /// spec's own argument counts — see
-    /// [`Self::spec_is_an_unloaded_package_command`].
     pub fn flush_arity_diagnostics(&mut self) {
         if self.pending_arity.is_empty() && self.pending_user_call_arity.is_empty() {
             return;
@@ -2493,25 +1451,28 @@ impl Analyser {
 
         let pending = std::mem::take(&mut self.pending_arity);
         for (cmd_name, ns, enforce_order, diag) in pending {
+            if let Some(subject) = diag.registry_source()
+                && matches!(
+                    subject.kind(),
+                    crate::analyser::RegistrySourceDiagnosticKind::Arity
+                        | crate::analyser::RegistrySourceDiagnosticKind::ArgumentRelationship
+                )
+            {
+                // The sealed source selection owns naming/shadow applicability;
+                // a reporting-name lookup cannot change that semantic purpose.
+                if subject.kind() != crate::analyser::RegistrySourceDiagnosticKind::Arity
+                    || !self.selected_source_package_is_unmentioned(subject)
+                {
+                    self.result.diagnostics.push(diag);
+                }
+                continue;
+            }
             let call_off = diag.span.start();
             let path = crate::analyser::scope::implicit_command_namespace_path_at(
                 &self.result.global_scope,
                 call_off,
             );
             if facts.resolves_to_user(&cmd_name, &ns, path, enforce_order, call_off) {
-                continue;
-            }
-            // Arity verdicts only — the *count* claim is the one that needs
-            // the spec to be the command actually being called. W001
-            // (unknown subcommand) and W004 (dialect-invalid option) share
-            // this queue but are claims about the *word the user wrote*
-            // against a name the registry knows, and they stay useful for a
-            // package the file has not required yet (`wm bogus` is still a
-            // typo whether or not `package require Tk` is present) — the two
-            // TP tests in `fp::sty` pin exactly that.
-            if matches!(diag.code, DiagCode::E002 | DiagCode::E003 | DiagCode::E005)
-                && self.spec_is_an_unloaded_package_command(&cmd_name)
-            {
                 continue;
             }
             self.result.diagnostics.push(diag);
@@ -2567,215 +1528,83 @@ impl Analyser {
         }
     }
 
-    /// Idempotent: drains `pending_ctor_arity`, so a second call is a no-op.
-    ///
-    /// Resolves each queued registry-declared class-manufacturer candidate against
-    /// `all_classes` (fully populated post-walk, after every per-item body
-    /// has been grafted) using the same current-namespace-then-global
-    /// resolution and top-level order gate as the same-file proc/alias
-    /// arity path. Only calls with a reachable manufacturer descriptor for
-    /// the resolved class family are checked; unrelated methods with the
-    /// same spelling are dropped.
-    ///
-    /// A candidate resolving to a class with no explicit constructor
-    /// anywhere in its MRO is dropped — `TclOO`'s inherited default
-    /// constructor accepts any argument count (confirmed against tclsh
-    /// 9.0.4). The descriptor's structural leading words are folded into
-    /// the expected bound (`bump_arity`) before comparison.
+    /// Resolve constructor signature advice through its retained original
+    /// class factory, canonical lifecycle declarations and complete source argv.
     pub fn flush_ctor_arity_diagnostics(&mut self) {
-        if self.pending_ctor_arity.is_empty() {
-            return;
-        }
         let pending = std::mem::take(&mut self.pending_ctor_arity);
-        let mut diags: Vec<super::types::Diagnostic> = Vec::new();
-        {
-            for cand in &pending {
-                let candidates = qualify_candidates(&cand.ns, &cand.class_name);
-                let Some(class_qn) = candidates.iter().find_map(|c| {
-                    let cd = self.result.all_classes.get(c)?;
-                    let in_effect = !cand.enforce_order || cd.name_span.start() < cand.call_off;
-                    in_effect.then_some(c.as_str())
-                }) else {
-                    continue; // not a (yet-defined) class call — nothing to check
-                };
-                let Some(method) = self.class_manufacturer_method(class_qn, &cand.manufacturer)
-                else {
-                    continue; // wrong family, hidden method, or explicitly unexported
-                };
-                let extra = u16::from(method.constructor_args_from.saturating_sub(1));
-                let provider = self
-                    .result
-                    .class_hierarchy()
-                    .constructor_provider(class_qn, &self.source)
-                    .map(str::to_owned);
-                let Some(provider) = provider else {
-                    // No explicit constructor anywhere in the MRO — TclOO's
-                    // inherited default constructor accepts any argument
-                    // count. The manufacturer's own
-                    // mandatory leading words are a separate requirement
-                    // enforced by the dispatcher itself, independent of the
-                    // constructor: `oo::class create Foo {}; Foo create` still
-                    // raises "wrong # args" (confirmed against tclsh 9.0.4)
-                    // even though nothing constrains the constructor args that
-                    // may follow the name. The descriptor covers every method
-                    // layout through the same rule.
-                    if extra > 0 {
-                        let arity = bump_arity(Arity::at_least(0), extra);
-                        let display_name = format!("{} {}", cand.class_name, cand.manufacturer);
-                        if let Some(diag) = arity_verdict(
-                            &display_name,
-                            arity,
-                            cand.nargs_min,
-                            cand.positional_any_expand,
-                            cand.full_span,
-                            None,
-                            None,
-                        ) {
-                            diags.push(diag);
-                        }
-                    }
-                    continue;
-                };
-                // `constructor_provider` picked `provider` from its *final*
-                // (last-declared) constructor only — re-select within it,
-                // honouring both the empty-body exclusion and (for a
-                // top-level call) definition order: a class created via
-                // `oo::class create Foo {}` and only later given a
-                // `constructor` through a separate `oo::define Foo { … }`
-                // has no constructor in effect for any call between the
-                // two (confirmed against tclsh 9.0.4). A redefinition
-                // mid-file is honoured the same way — the constructor
-                // *in effect at the call site*, not simply the last one
-                // written anywhere in the file, the same convention
-                // `resolve_indirect_call_target` uses for a same-file proc.
-                // When the immediate provider has no qualifying entry, this
-                // abstains rather than walking further up the MRO for an
-                // ancestor's constructor that might have been in effect —
-                // a conservative, sound-by-abstention simplification for
-                // this rare a combination (order-sensitive call *and*
-                // multiple inheritance/redefinition), not a soundness gap.
-                let Some(ctor) = self.result.all_classes.get(&provider).and_then(|cd| {
-                    cd.constructors.iter().rev().find(|c| {
-                        !super::class_hierarchy::is_empty_method_body(&self.source, c.body_span)
-                            && (!cand.enforce_order || c.name_span.start() < cand.call_off)
-                    })
-                }) else {
-                    continue;
-                };
-                let arity = ctor.arity();
-                let arity = bump_arity(arity, extra);
-                let display_name = format!("{} {}", cand.class_name, cand.manufacturer);
-                if let Some(diag) = arity_verdict(
-                    &display_name,
-                    arity,
-                    cand.nargs_min,
-                    cand.positional_any_expand,
-                    cand.full_span,
+        let diagnostics = pending
+            .into_iter()
+            .filter_map(|candidate| {
+                let advice =
+                    std::sync::Arc::new(super::types::OriginalConstructorArityAdvice::assess(
+                        candidate.original,
+                        &self.result,
+                        &self.source,
+                    )?);
+                let count = advice.argument_count();
+                arity_verdict(
+                    &candidate.display_name,
+                    advice.arity(),
+                    usize::from(count.minimum),
+                    count.indeterminate,
+                    advice.call().span()?,
                     None,
                     None,
-                ) {
-                    diags.push(diag);
-                }
-            }
-        }
-        self.result.diagnostics.extend(diags);
+                )
+                .map(|diagnostic| {
+                    diagnostic.with_subject(crate::analyser::DiagnosticSubject::ObjectSourceArity(
+                        std::sync::Arc::new(
+                            crate::analyser::ObjectSourceAritySubject::Constructor(advice),
+                        ),
+                    ))
+                })
+            })
+            .collect::<Vec<_>>();
+        self.result.diagnostics.extend(diagnostics);
     }
 
-    /// Idempotent: drains `pending_next_arity`, so a second call is a no-op.
-    ///
-    /// Resolves each queued `next` / `nextto` candidate against
-    /// `all_classes` (fully populated post-walk) via
-    /// [`super::class_hierarchy::ClassHierarchy::next_provider`], treating
-    /// the enclosing method's own class as the receiver's MRO — the same
-    /// "same instance" simplification [`super::var_command::Analyser::method_arity_diagnostic`]
-    /// already makes for `$obj method` dispatch. This is exact for single
-    /// inheritance (confirmed against tclsh 9.0.4: a linear chain's MRO
-    /// tail from any ancestor onward is identical regardless of which
-    /// subclass views it); with mixins or multiple inheritance a
-    /// subclass's C3-style linearisation can reorder ancestors, so a
-    /// `next` inherited unchanged into such a subclass could in principle
-    /// resolve to a different provider there than this check assumes — a
-    /// known, narrow imprecision in the same spirit as this module's other
-    /// documented gaps, not a soundness hole for the common case.
-    ///
-    /// A `nextto` target that isn't a locally-known class, or a `next`
-    /// past the end of the MRO chain (a real `next` there is itself a
-    /// runtime error — Tcl raises "no next" — not an arity mismatch), is
-    /// silently dropped. A forwarded method (`forward` — see
-    /// [`super::var_command::Analyser::method_arity_diagnostic`]'s own hop
-    /// chase) is not resolved further here; forwarding to `next`/`nextto`
-    /// is vanishingly rare and left unchecked rather than duplicating that
-    /// hop logic.
+    /// Resolve readonly declaration-owned next-chain signature questions.
+    /// Current receiver dispatch and source metadata order remain distinct.
     pub fn flush_next_arity_diagnostics(&mut self) {
-        if self.pending_next_arity.is_empty() {
-            return;
-        }
         let pending = std::mem::take(&mut self.pending_next_arity);
-        let mut diags: Vec<super::types::Diagnostic> = Vec::new();
-        {
-            let hierarchy = self.result.class_hierarchy();
-            for cand in &pending {
-                let start_from = match &cand.target_class {
-                    Some(name) => {
-                        let candidates = qualify_candidates(&cand.ns, name);
-                        let Some(qn) = candidates
-                            .into_iter()
-                            .find(|c| self.result.all_classes.contains_key(c.as_str()))
-                        else {
-                            continue; // dynamic / cross-file / unresolvable target class
-                        };
-                        Some(qn)
-                    }
-                    None => None,
-                };
-                // `member_next_provider` routes the two nameless slots to
-                // their own providers, so a `next` inside a `constructor`
-                // (or `destructor`) is arity-checked exactly like one
-                // inside a plain `method`.  Dropping it silently would let a
-                // real `wrong # args` crash into a superclass constructor go
-                // undiagnosed.
-                let Some(provider) = hierarchy.member_next_provider(
-                    &cand.class_qualified,
-                    &cand.method_name,
-                    &cand.class_qualified,
-                    start_from.as_deref(),
-                    &self.source,
-                ) else {
-                    continue;
-                };
-                let Some(method_def) =
-                    self.result.all_classes.get(provider).and_then(|cd| {
-                        super::class_hierarchy::class_member_def(cd, &cand.method_name)
-                    })
-                else {
-                    continue;
-                };
-                if method_def.kind == "forward" {
-                    continue;
-                }
-                let arity = method_def.arity();
-                if let Some(diag) = arity_verdict(
-                    &cand.display_name,
+        let diagnostics = pending
+            .into_iter()
+            .filter_map(|candidate| {
+                let arity = candidate
+                    .original
+                    .source_arity(&self.result, &self.source)?;
+                let count = candidate.original.source_argument_count()?;
+                let first = candidate.original.original_words().first()?.span();
+                let last = candidate.original.original_words().last()?.span();
+                arity_verdict(
+                    &candidate.display_name,
                     arity,
-                    cand.nargs_min,
-                    cand.positional_any_expand,
-                    cand.full_span,
+                    usize::from(count.minimum),
+                    count.indeterminate,
+                    tcl_lexer::Span::new(first.start(), last.end()),
                     None,
                     None,
-                ) {
-                    diags.push(diag);
-                }
-            }
-        }
-        self.result.diagnostics.extend(diags);
+                )
+                .map(|diagnostic| {
+                    diagnostic.with_subject(crate::analyser::DiagnosticSubject::ObjectSourceArity(
+                        std::sync::Arc::new(
+                            crate::analyser::ObjectSourceAritySubject::LexicalNext(
+                                candidate.original,
+                            ),
+                        ),
+                    ))
+                })
+            })
+            .collect::<Vec<_>>();
+        self.result.diagnostics.extend(diagnostics);
     }
 
     /// Queue the `TclOO`-specific arity candidates a call may trigger,
     /// alongside the ordinary same-file/registry checks
     /// [`Self::emit_arity_diagnostics`] always runs: a constructor call
     /// (queued when the first word has a manufacturer descriptor in the
-    /// registry) and a `next`/`nextto` call (queued whenever the
-    /// registry marks the command [`tcl_registry::Traits::TCLOO_NEXT_CHAIN`]).
+    /// registry) and a next-chain source call selected by its authentic
+    /// original lexical member and Registry helper grammar.
     /// Both are resolved post-walk, once `all_classes` is fully
     /// populated — see [`Self::flush_ctor_arity_diagnostics`] /
     /// [`Self::flush_next_arity_diagnostics`]. Split out purely to keep
@@ -2786,19 +1615,8 @@ impl Analyser {
         words: &ArityWords<'_>,
         scope_path: &[usize],
     ) {
-        if words.args.first().is_some_and(|word| {
-            self.registry
-                .as_deref()
-                .is_some_and(|registry| registry.manufacturer_methods(word).next().is_some())
-        }) {
-            self.queue_ctor_arity_candidate(cmd_name, words, scope_path);
-        }
-        if self.registry.as_deref().is_some_and(|r| {
-            r.get(cmd_name)
-                .is_some_and(|sig| sig.traits.contains(tcl_registry::Traits::TCLOO_NEXT_CHAIN))
-        }) {
-            self.queue_next_arity_candidate(cmd_name, words, scope_path);
-        }
+        self.queue_ctor_arity_candidate(cmd_name, words, scope_path);
+        self.queue_next_arity_candidate(cmd_name, words, scope_path);
     }
 
     /// Queue a same-file user-call arity candidate for every command
@@ -2813,7 +1631,7 @@ impl Analyser {
     /// can't back up.
     ///
     /// User procs have no declared option flags, so — unlike
-    /// [`Self::check_simple_arity`] — there is no leading-option skip:
+    /// [`Self::emit_source_signature_arity`] — there is no leading-option skip:
     /// every word is positional from index 0.
     fn queue_user_call_arity_candidate(
         &mut self,
@@ -2867,110 +1685,52 @@ impl Analyser {
         });
     }
 
-    /// Queue a constructor-call arity candidate whose first word has at
-    /// least one registry manufacturer descriptor —
-    /// [`Self::flush_ctor_arity_diagnostics`] resolves it post-walk against
-    /// `all_classes`, which mid-walk may not yet hold a forward-referenced
-    /// class. A call whose head doesn't resolve to a locally-known class is
-    /// silently dropped at flush time, exactly like
-    /// [`Self::queue_user_call_arity_candidate`].
-    ///
-    /// `words.args` still has the keyword at index 0; the positional count
-    /// starts at index 1 so the keyword itself is never counted.
+    /// Queue only a retained original class-factory call. Alias captures and
+    /// moved names are owned by that producer rather than re-parsed strings.
     fn queue_ctor_arity_candidate(
         &mut self,
         cmd_name: &str,
         words: &ArityWords<'_>,
         scope_path: &[usize],
     ) {
-        if cmd_name.is_empty() || cmd_name.contains(['$', '[']) {
-            return; // dynamic class name — nothing to resolve statically
-        }
-        let ArityWords {
-            args,
-            arg_tokens,
-            arg_expand,
-            cmd_tok,
-        } = *words;
-        let manufacturer = args[0].clone();
-        let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 1);
-        let full_span = match arg_tokens.last() {
-            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
-            None => cmd_tok.span,
+        let Some(original) = super::types::OriginalConstructorArityCall::from_source(
+            &self.source,
+            &self.result,
+            words.cmd_tok.span.start(),
+            !self.scope_path_in_proc_body(scope_path),
+        ) else {
+            return;
         };
         self.pending_ctor_arity
             .push(super::types::PendingCtorArity {
-                class_name: cmd_name.to_string(),
-                ns: self.command_resolution_namespace(scope_path),
-                enforce_order: !self.scope_path_in_proc_body(scope_path),
-                manufacturer,
-                call_off: cmd_tok.span.start(),
-                full_span,
-                nargs_min,
-                positional_any_expand,
+                original: std::sync::Arc::new(original),
+                display_name: cmd_name.to_owned(),
             });
     }
 
-    /// Queue a `TclOO` `next` / `nextto` call-site arity candidate.
-    ///
-    /// The callee is never named at the call site — it's derived from
-    /// *where* the call sits ([`Analyser::current_method_context`]).
-    /// Silently drops the candidate when the call isn't lexically inside
-    /// a method body: a `next`/`nextto` there is a runtime error in Tcl
-    /// itself ("next may only be called from inside a method"), not an
-    /// arity mismatch, and no other diagnostic here models that shape.
-    ///
-    /// `nextto`'s explicit target-class word (marked [`ArgRole::Name`] at
-    /// index 0 in the registry — see `tcl-registry/src/commands/tcl/nextto.rs`)
-    /// is read directly off `words.args`, structurally, never by
-    /// comparing `cmd_name` against the literal string `"nextto"`.
+    /// Queue only the complete original Registry helper shape in its genuine
+    /// lexical body. Reporting names never select the class or member.
     fn queue_next_arity_candidate(
         &mut self,
         cmd_name: &str,
         words: &ArityWords<'_>,
         scope_path: &[usize],
     ) {
-        use tcl_registry::ArgRole;
-        let Some((class_qualified, method_name)) = self.current_method_context(scope_path) else {
+        let Some(context) = self.current_method_context(scope_path) else {
             return;
         };
-        let ArityWords {
-            args,
-            arg_tokens,
-            arg_expand,
-            cmd_tok,
-        } = *words;
-        let has_target_class = self
-            .registry
-            .as_ref()
-            .and_then(|r| r.get(cmd_name))
-            .is_some_and(|sig| {
-                sig.arg_roles
-                    .iter()
-                    .any(|&(i, role)| i == 0 && role == ArgRole::Name)
-            });
-        let target_class = has_target_class.then(|| args.first().cloned()).flatten();
-        // A `nextto` with no target word at all has nothing to resolve —
-        // the registry's own `Arity::at_least(1)` already reports it.
-        if has_target_class && target_class.is_none() {
+        let Some(original) = super::types::OriginalLexicalNextCall::from_source(
+            context,
+            &self.result,
+            &self.source,
+            &words.cmd_tok,
+        ) else {
             return;
-        }
-        let start = usize::from(has_target_class);
-        let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, start);
-        let full_span = match arg_tokens.last() {
-            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
-            None => cmd_tok.span,
         };
         self.pending_next_arity
             .push(super::types::PendingNextArity {
-                class_qualified,
-                method_name,
-                target_class,
-                ns: self.command_resolution_namespace(scope_path),
-                display_name: cmd_name.to_string(),
-                full_span,
-                nargs_min,
-                positional_any_expand,
+                original: std::sync::Arc::new(original),
+                display_name: cmd_name.to_owned(),
             });
     }
 
@@ -3052,11 +1812,9 @@ impl Analyser {
     /// `interp alias`'s prepended arguments shift the eventual arity
     /// down (real partial application, confirmed against tclsh 9.0.4);
     /// chained aliases/renames accumulate the shift transitively.
-    /// Hop-limited as a defensive guard against a self-referential
-    /// rename/alias cycle (never legitimate Tcl). Reaching a registry
-    /// builtin only counts once at least one hop has happened — a
-    /// *direct* hit on a builtin name is [`Self::check_simple_arity`]'s
-    /// job, not this one's.
+    /// Hop-limited for cycles among authored user declarations. Builtin
+    /// targets are handled once by the genuine original call-site source
+    /// schema, including selected count axes and captured selector prefixes.
     /// The declaration of `qualified` that `cand`'s call actually dispatches
     /// — the latest one written before it under the top-level order gate,
     /// the last in the file inside a body.
@@ -3086,7 +1844,6 @@ impl Analyser {
         const MAX_HOPS: u8 = 8;
         let mut cur = cand.cmd_name.clone();
         let mut prepended_total: u16 = 0;
-        let mut hopped = false;
         // Whether `cur` was just reached via a *rename* hop (as opposed
         // to being the original call name or an alias hop's target).
         // `rename OLD NEW` moves the command's identity to `NEW` once
@@ -3146,7 +1903,6 @@ impl Analyser {
                 Some(old)
             }) {
                 cur.clone_from(old);
-                hopped = true;
                 via_rename_hop = true;
                 continue;
             }
@@ -3173,495 +1929,302 @@ impl Analyser {
                 prepended_total = prepended_total
                     .saturating_add(u16::try_from(prepended.len()).unwrap_or(u16::MAX));
                 cur.clone_from(target);
-                hopped = true;
                 via_rename_hop = false;
                 continue;
             }
-            if hopped {
-                // Mirrors `command_binding.rs::default_binding`: only an
-                // unqualified global name the registry knows is a
-                // builtin.
-                let bare = cur.strip_prefix("::").unwrap_or(&cur);
-                if !bare.contains("::")
-                    && let Some(sig) = self.registry.as_deref().and_then(|r| r.get(bare))
-                {
-                    return Some(shift_arity(sig.arity, prepended_total));
-                }
-            }
+            // No named Registry fallback: the call-site source-schema owner
+            // already covers genuine builtin targets and effective prefixes.
             return None;
         }
         None
     }
 
-    /// **E004.** Emit a precise "malformed `if`" diagnostic from a
-    /// registry [`tcl_registry::ClauseShapeChecker`] hook — the grammar
-    /// walk itself lives once, in `tcl-registry`
-    /// (`commands::tcl::if_::walk_if`), shared with the `if_arg_roles`
-    /// highlighting resolver, so this emitter never re-parses `if`'s
-    /// shape independently.
-    ///
-    /// Dispatched generically off the resolved command spec's
-    /// `clause_shape_check` hook (see
-    /// [`Self::emit_dispatch_site_diagnostics`]) rather than
-    /// `cmd_name == "if"`, so a namespace-qualified `::if` is covered
-    /// too — registry name resolution already normalises the leading
-    /// `::` for every command. `if` is the only hook today, so the
-    /// diagnostic code below is hardcoded to `E004`; a second hook
-    /// consumer would need this to carry its own code.
-    ///
-    /// Verified against Tcl 9.0.4's `TclNRIfObjCmd` /
-    /// `IfConditionCallback` (`generic/tclCmdIL.c`) and tclsh 8.6 (same
-    /// algorithm): a leading `else`/`elseif` bareword condition
-    /// (`if else {a}`) is *not* a malformed `if` — it is a well-formed
-    /// `if` whose condition fails at expression-evaluation time (an
-    /// invalid-bareword error), a distinct problem this diagnostic does
-    /// not own.
-    ///
-    /// Anchors on the offending word(s) — the dangling keyword or
-    /// condition for a missing expression/script, or just the extra
-    /// words for a trailing-words error — not the whole `if` statement,
-    /// which can span many lines in an `elseif` chain. Offers a code fix
-    /// only where one is unambiguous:
-    /// - **extra words** — merge them into the final recognised body by
-    ///   wrapping the untouched source slice from that body through the
-    ///   last extra word in one more brace pair (preserves original
-    ///   word delimiters and whitespace verbatim; no re-parsing);
-    /// - **a dangling `elseif`/`else` clause following at least one
-    ///   complete clause** — remove it, restoring the last well-formed
-    ///   prefix;
-    /// - a missing *first* clause (`if` alone, or `if {cond}` with
-    ///   nothing else) offers no fix: there is no well-formed prefix to
-    ///   fall back to, and inventing a body would be a guess, not a
-    ///   mechanical fix.
+    /// **E004.** Shape advice from the genuinely selected clause grammar over
+    /// structured argv. Unknown payloads keep their positions, while unknown
+    /// selector words cannot select a shape. The typed subject owns the
+    /// offending written operand; captures cannot borrow its span. Fixes
+    /// require a complete consecutive vector of ordinary original words.
     pub(in crate::analyser) fn emit_e004_clause_shape_diagnostic(
         &mut self,
-        cmd_name: &str,
-        checker: tcl_registry::ClauseShapeChecker,
-        args: &[String],
-        cmd_tok: tcl_lexer::Token,
-        arg_tokens: &[tcl_lexer::Token],
+        original: Option<&super::super::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
         use tcl_registry::ClauseShapeError;
-
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some(error) = checker(&arg_strs) else {
+        let Some(original) = original else { return };
+        let Some(issue) = original
+            .with_schema(super::super::diagnostic_registry::source_clause_issue)
+            .flatten()
+        else {
             return;
         };
-
-        let word_span = |i: usize| {
-            arg_tokens.get(i).map_or(cmd_tok.span, |t| {
-                super::super::utils::full_word_span(*t, &self.source)
-            })
+        let error = issue.error();
+        let argument = match error {
+            ClauseShapeError::MissingExpr { after } => after,
+            ClauseShapeError::MissingBody { after } => Some(after),
+            ClauseShapeError::ExtraWords { first_extra } => Some(first_extra),
         };
-
-        let (span, message) = match error {
-            ClauseShapeError::MissingExpr { after: None } => (
-                cmd_tok.span,
-                format!("No expression after \"{cmd_name}\" argument"),
-            ),
-            ClauseShapeError::MissingExpr { after: Some(i) } => (
-                word_span(i),
-                format!(
-                    "No expression after \"{}\" argument",
-                    args.get(i).map_or("", String::as_str)
-                ),
-            ),
-            ClauseShapeError::MissingBody { after: i } => (
-                word_span(i),
-                format!(
-                    "No script following \"{}\" argument",
-                    args.get(i).map_or("", String::as_str)
-                ),
-            ),
-            ClauseShapeError::ExtraWords { first_extra } => {
-                let start = arg_tokens.get(first_extra).map(|t| t.span.start());
-                let end = arg_tokens.last().map(|t| widen_token_end(*t, &self.source));
-                let span = match (start, end) {
-                    (Some(s), Some(e)) => tcl_lexer::Span::new(s, e),
-                    _ => cmd_tok.span,
-                };
-                // Matches Tcl's own message text exactly: `Tcl_IfObjCmd`
-                // builds this from a *static* string, always naming "if"
-                // literally — never the invoked spelling (unlike the
-                // other two messages above, which do use it).
-                (
-                    span,
-                    "Extra words after \"else\" clause in \"if\" command".to_string(),
-                )
+        let Some(subject) = original.subject(
+            super::super::RegistrySourceDiagnosticKind::ClauseShape,
+            argument,
+        ) else {
+            return;
+        };
+        let mut span = argument.map_or(original.head().span(), |index| {
+            original.word(index).unwrap().span()
+        });
+        let label = |index| {
+            original
+                .literal(index)
+                .or_else(|| original.word(index)?.try_text().ok())
+                .unwrap_or("argument")
+        };
+        let message = match error {
+            ClauseShapeError::MissingExpr { after: None } => {
+                format!("No expression after \"{}\" argument", original.command())
+            }
+            ClauseShapeError::MissingExpr { after: Some(index) } => {
+                format!("No expression after \"{}\" argument", label(index))
+            }
+            ClauseShapeError::MissingBody { after } => {
+                format!("No script following \"{}\" argument", label(after))
+            }
+            ClauseShapeError::ExtraWords { .. } => {
+                if let Some(last) = original
+                    .words()
+                    .arguments()
+                    .len()
+                    .checked_sub(1)
+                    .and_then(|index| original.word(index))
+                {
+                    span = tcl_lexer::Span::new(span.start(), last.span().end());
+                }
+                "Extra words after \"else\" clause in \"if\" command".to_owned()
             }
         };
-
-        let fixes = self.e004_fixes(args, arg_tokens, error);
-
+        // Edits require an entirely written, ordinary and consecutive vector.
+        // Captured prefixes and expansion children never borrow editable words.
+        let written_spans = (0..original.words().arguments().len())
+            .map(|index| {
+                (original.written_index(index)? == index).then_some(())?;
+                Some(original.word(index)?.span())
+            })
+            .collect::<Option<Vec<_>>>();
+        let fixes =
+            written_spans.map_or_else(Vec::new, |spans| self.e004_fixes(&spans, issue.repair()));
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(DiagCode::E004, span, message, Severity::Error)
+                .with_subject(subject)
                 .with_fixes(fixes),
         );
     }
 
-    /// **W142.** Runs a resolved command's [`tcl_registry::CommandSpec::context_gate`]
-    /// — a restriction keyed on lexical/dispatch context rather than
-    /// argument shape (iRules `return`: bare-only directly inside a `when
-    /// EVENT { … }` body, full syntax inside any `proc`). `self.current_event`
-    /// is explicitly cleared for the duration of a `proc` body walk
-    /// (`handle_proc_command`) — a proc is a new call frame, entered only
-    /// when later called, never inline — so it reads `None` there even when
-    /// the `proc` statement itself sits lexically inside a `when` body
-    /// (itself a separate, independently-flagged `Irule5006` placement
-    /// error). Passing it straight through is enough to distinguish the two
-    /// contexts.
+    /// Original selected lexical-context advice. The event flag is source
+    /// context; this method grants no native event or procedure frame.
     pub(in crate::analyser) fn emit_w142_context_gate(
         &mut self,
-        gate: tcl_registry::ContextGate,
-        args: &[String],
-        cmd_tok: tcl_lexer::Token,
+        original: Option<&super::super::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some(message) = gate(&arg_strs, self.current_event.is_some()) else {
+        let Some(original) = original else { return };
+        let Some(message) = original
+            .with_schema(|schema| schema.authored_source_context_gate(self.current_event.is_some()))
+            .flatten()
+        else {
             return;
         };
-        self.result
-            .diagnostics
-            .push(crate::analyser::types::Diagnostic::new(
+        let Some(subject) = original.subject(
+            super::super::RegistrySourceDiagnosticKind::ContextGate,
+            None,
+        ) else {
+            return;
+        };
+        self.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(
                 DiagCode::W142,
-                cmd_tok.span,
-                message.to_string(),
+                original.head().span(),
+                message.to_owned(),
                 Severity::Warning,
-            ));
+            )
+            .with_subject(subject),
+        );
     }
 
-    /// Code fixes for [`Self::emit_e004_clause_shape_diagnostic`]. See
-    /// that method's doc comment for which cases get a fix and why.
+    /// Proposals use anchors authored by the same selected clause grammar and
+    /// complete original word spans. No condition spelling selects an anchor.
     fn e004_fixes(
         &self,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        error: tcl_registry::ClauseShapeError,
+        argument_spans: &[tcl_lexer::Span],
+        repair: Option<tcl_registry::ClauseShapeRepair>,
     ) -> Vec<super::types::CodeFix> {
-        use tcl_registry::ClauseShapeError;
-
-        match error {
-            ClauseShapeError::ExtraWords { first_extra } => {
-                // `first_extra >= 2` always: the walk only reaches
-                // `ExtraWords` after consuming the mandatory first
-                // clause's body (index >= 1), so the recognised final
-                // body this merges from is always in range.
-                let Some(body_tok) = arg_tokens.get(first_extra - 1) else {
-                    return Vec::new();
-                };
-                let Some(last_tok) = arg_tokens.last() else {
-                    return Vec::new();
-                };
-                let start = body_tok.span.start();
-                let end = widen_token_end(*last_tok, &self.source);
-                let Some(slice) = self.source.get(start as usize..end as usize) else {
-                    return Vec::new();
-                };
-                vec![super::types::CodeFix {
-                    span: tcl_lexer::Span::new(start, end),
-                    new_text: format!("{{{slice}}}"),
-                    description: "Merge trailing words into the if body".to_string(),
-                    // E004: merging the trailing words into the body is one reading of
-                    // a malformed `if`; a missing `elseif` keyword is another.
-                    safety: crate::irules_checks::FixSafety::RequiresReview,
-                }]
-            }
-            ClauseShapeError::MissingExpr {
-                after: Some(kw_idx),
-            } => {
-                // A dangling `elseif` always follows a complete clause
-                // (the walk only reaches the `elseif`/`else` lookup after
-                // consuming one), so removing from the keyword onward
-                // always restores a well-formed prefix.
-                self.remove_dangling_clause_fix(kw_idx, arg_tokens)
-            }
-            ClauseShapeError::MissingBody { after } => {
-                // `after` names the last present word of the *dangling*
-                // clause (a condition, `then`, or `else`) — walk back to
-                // the `elseif`/`else` keyword that opened it. Word 0 is
-                // never a real keyword (it is always the mandatory first
-                // condition, whatever its text), so the search excludes
-                // it — `after` staying at 0 or 1 there means the very
-                // first clause never completed, and no prefix fix
-                // exists.
-                let Some(start_idx) = (1..=after)
-                    .rev()
-                    .find(|&k| args.get(k).is_some_and(|w| w == "elseif" || w == "else"))
-                else {
-                    return Vec::new();
-                };
-                self.remove_dangling_clause_fix(start_idx, arg_tokens)
-            }
-            ClauseShapeError::MissingExpr { after: None } => Vec::new(),
-        }
-    }
-
-    /// A [`super::types::CodeFix`] removing every word from
-    /// `arg_tokens[start_idx]` through the end of the command —
-    /// restoring the well-formed `if` prefix that precedes a dangling
-    /// trailing clause.
-    fn remove_dangling_clause_fix(
-        &self,
-        start_idx: usize,
-        arg_tokens: &[tcl_lexer::Token],
-    ) -> Vec<super::types::CodeFix> {
-        let (Some(start_tok), Some(last_tok)) = (arg_tokens.get(start_idx), arg_tokens.last())
+        use tcl_registry::ClauseShapeRepair;
+        let Some(repair) = repair else {
+            return Vec::new();
+        };
+        let start_index = match repair {
+            ClauseShapeRepair::MergeTrailingWords { body } => body,
+            ClauseShapeRepair::RemoveTrailingClause { keyword } => keyword,
+        };
+        let (Some(first), Some(last)) = (argument_spans.get(start_index), argument_spans.last())
         else {
             return Vec::new();
         };
-        let start = start_tok.span.start();
-        let end = widen_token_end(*last_tok, &self.source);
+        let span = tcl_lexer::Span::new(first.start(), last.end());
+        let (new_text, description) = match repair {
+            ClauseShapeRepair::MergeTrailingWords { .. } => {
+                let Some(slice) = self.source.get(span.as_range()) else {
+                    return Vec::new();
+                };
+                (
+                    format!("{{{slice}}}"),
+                    "Merge trailing words into the if body",
+                )
+            }
+            ClauseShapeRepair::RemoveTrailingClause { .. } => {
+                (String::new(), "Remove incomplete trailing clause")
+            }
+        };
         vec![super::types::CodeFix {
-            span: tcl_lexer::Span::new(start, end),
-            new_text: String::new(),
-            description: "Remove incomplete trailing clause".to_string(),
-            // E004: deleting the dangling clause discards written code.
+            span,
+            new_text,
+            description: description.to_owned(),
+            // Merging or deleting written code requires choosing its intended meaning.
             safety: crate::irules_checks::FixSafety::RequiresReview,
         }]
     }
 
-    /// **W304.** Emit "Missing option terminator (`--`)" diagnostics
-    /// for option-bearing commands whose first positional argument
-    /// could be misinterpreted as an option.
-    ///
-    /// Resolves the command's option-
-    /// terminator profile via
-    /// [`tcl_registry::CommandRegistry::resolve_option_terminator`],
-    /// scans for the first positional argument that lacks a
-    /// preceding `--`, and emits a tristate-severity diagnostic:
-    ///
-    /// - **OFF** (no diagnostic) — the value is provably non-`-`-
-    ///   prefixed (a non-dynamic literal whose representative token
-    ///   isn't a `Var`/`Cmd` and whose text doesn't start with `-`).
-    /// - **INFO** — dynamic value (`Var` / `Cmd` token) with no
-    ///   proof of starting with `-`.  When the value is a single-
-    ///   token `Var` whose most recent literal `set` resolves to a
-    ///   non-`-`-prefixed value, an additional "origin" diagnostic
-    ///   is emitted at the resolution site to explain the INFO
-    ///   downgrade.
-    /// - **WARNING** — the value is known to start with `-`: either
-    ///   a literal whose first character is `-`, or a `Var` whose
-    ///   constant-propagated value starts with `-`.
-    ///
-    /// The diagnostic carries a code-fix that prepends `"-- "` to
-    /// the positional-argument span (with a one-byte extension for
-    /// `Cmd` tokens whose lexer span excludes the closing `]`).
+    /// **W304.** Original source advice before the first data-or-option
+    /// boundary in a selected vocabulary that admits `--`. Unknown values
+    /// remain conditional; a preceding textual assignment supplies no current
+    /// cell value or severity promotion.
     pub(in crate::analyser) fn emit_w304_missing_option_terminator(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        cmd_tok: tcl_lexer::Token,
-        arg_tokens: &[tcl_lexer::Token],
+        original: Option<&super::super::diagnostic_registry::OriginalDiagnosticInvocation>,
+        command: &str,
     ) {
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(original) = original else {
             return;
         };
-        if args.is_empty() || arg_tokens.is_empty() {
-            return;
-        }
-
-        // Resolve the option-terminator profile *dialect-agnostically*:
-        // resolving with no dialect means W304 still fires on a command
-        // that the active dialect disables (e.g. `exec` / `glob` under
-        // f5-irules, which also draw W002 / W123).  Passing the dialect
-        // here would over-filter via `get_for_surface` and silently drop
-        // those W304s.
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some(profile) = registry.resolve_option_terminator(cmd_name, &arg_strs, None) else {
+        let Some(scan) = original
+            .with_schema(crate::analyser::diagnostic_registry::source_diagnostic_options)
+            .flatten()
+        else {
             return;
         };
-
-        let Some(positional_idx) = first_positional_without_terminator(args, &profile) else {
+        if !scan.accepts_terminator {
+            return;
+        }
+        let (argument, dynamic) = match scan.boundary {
+            tcl_registry::AuthoredSourceOptionBoundary::Dynamic(index) => (index, true),
+            tcl_registry::AuthoredSourceOptionBoundary::Unknown(index) => (index, false),
+            _ => return,
+        };
+        let Some(word) = original.word(argument) else {
             return;
         };
-        if positional_idx >= arg_tokens.len() {
+        let Some(subject) = original.subject(
+            super::super::RegistrySourceDiagnosticKind::OptionTerminator,
+            Some(argument),
+        ) else {
             return;
-        }
-
-        let tok = arg_tokens[positional_idx];
-        let text = &args[positional_idx];
-
-        let is_dynamic = matches!(
-            tok.kind,
-            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-        );
-        let looks_like_option = text.starts_with('-');
-
-        // OFF — non-dynamic value that does not start with `-` can
-        // never be confused with an option.
-        if !is_dynamic && !looks_like_option {
-            return;
-        }
-
-        let command_label = match profile.subcommand {
-            Some(sub) => format!("{cmd_name} {sub}"),
-            None => cmd_name.to_string(),
         };
-
-        // Build the code-fix span.  For ``Cmd`` (`[…]`) tokens the
-        // lexer span covers ``[inner`` but excludes the closing
-        // ``]``; extend by one byte when the byte after ``span.end``
-        // is ``]`` so the replacement encompasses the bracket pair.
-        // (Body-local: the fix text is the argument's own source slice, so it is
-        // computable in an isolated body and rebased by the graft.)
-        let (fix_span, diag_end) = self.compute_w304_fix_span(tok);
-        // The *fix* needs the argument's own source text; the *warning* does
-        // not.  A span that cannot be sliced costs the fix, never the finding.
-        let fixes = Analyser::source_slice(
-            &self.source,
-            fix_span.start() as usize,
-            fix_span.end() as usize,
-        )
-        .map(|fix_src| {
-            vec![super::types::CodeFix {
-                span: fix_span,
-                new_text: format!("-- {fix_src}"),
-                description: "Insert '--' option terminator".to_string(),
-                // W304: `--` stops the following word being read as an
-                // option, which is the whole point — a call that meant it
-                // as one changes.
-                safety: crate::irules_checks::FixSafety::BehaviourHardening,
-            }]
-        })
-        .unwrap_or_default();
-        let diag_span = tcl_lexer::Span::new(tok.span.start(), diag_end);
-        // Suppress unused-warning on the rare path where `cmd_tok`
-        // isn't needed (the diagnostic anchors at the positional
-        // arg's span, not the command head).
-        let _ = cmd_tok;
-
-        // The `Var` dynamic-not-option branch of `classify_w304` resolves the
-        // variable against the most recent literal `set` in the *whole file*
-        // (`last_literal_set_value_for_var` scans `self.source`).  An isolated
-        // proc body's `self.source` is only the body, so an enclosing-scope set
-        // would be missed.  On the per-item path, defer that one source-dependent
-        // case to the tail (where `self.source` is the full file); every other
-        // branch is body-local and emitted inline.
-        if self.capture_global_reads.is_some()
-            && is_dynamic
-            && !looks_like_option
-            && matches!(tok.kind, tcl_lexer::TokenType::Var)
-        {
-            self.pending_w304
-                .push((tok, command_label, fixes, diag_span));
-            return;
-        }
-
-        let (severity, message, origin) =
-            self.classify_w304(tok, is_dynamic, looks_like_option, &command_label);
-        self.result.diagnostics.push(
-            crate::analyser::types::Diagnostic::new(DiagCode::W304, diag_span, message, severity)
-                .with_fixes(fixes),
-        );
-        if let Some(origin_diag) = origin {
-            self.result.diagnostics.push(origin_diag);
-        }
-    }
-
-    /// **W217.** An `unset` whose leading option words (`-nocomplain` / `--`)
-    /// consume *every* argument, so the call unsets no variable at all.
-    ///
-    /// This is almost always a mistake: either a variable name was forgotten,
-    /// or the author meant to unset a variable whose name begins with `-` (e.g.
-    /// a variable literally named `-nocomplain`) and needs a `--` terminator in
-    /// front of it — `unset -nocomplain` is parsed as the flag, not the name.
-    ///
-    /// Fires only when at least one option word was consumed **and** no variable
-    /// name follows (`unset -nocomplain`, `unset --`, `unset -nocomplain --`).
-    /// A call with any real variable (`unset -nocomplain $x`, `unset x`,
-    /// `unset foo -nocomplain` where `-nocomplain` is a name) stays silent.
-    /// Carries a fix that inserts `--` before the first option word so the
-    /// remaining words are unset as variable names.
-    pub(in crate::analyser) fn emit_w217_unset_option_only(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-    ) {
-        if cmd_name != "unset" || args.is_empty() || arg_tokens.len() != args.len() {
-            return;
-        }
-        // `unset` recognises only `-nocomplain` (skippable, repeatable) and `--`
-        // (terminator); any other word ends option parsing and is a variable
-        // name.  Mirrors `lower_unset` and the registry `unset` arg-role
-        // resolver (verified against tclsh 8.6/9.0).
-        let mut i = 0;
-        while i < args.len() {
-            match args[i].as_str() {
-                "-nocomplain" => i += 1,
-                "--" => {
-                    i += 1;
-                    break;
-                }
-                _ => break,
-            }
-        }
-        // Fire only when the options consumed every argument (no variable name
-        // remains) after consuming at least one option word.
-        if i == 0 || i < args.len() {
-            return;
-        }
-
-        let first = arg_tokens[0];
-        let last = arg_tokens[args.len() - 1];
-        let diag_span = tcl_lexer::Span::new(first.span.start(), last.span.end());
-        // Fix: prepend `--` to the first option word so every following word —
-        // including a `-`-named variable — is unset as a variable name.
-        // As W304 above: an unusable span costs the fix, not the warning.
-        let fixes = Analyser::source_slice(
-            &self.source,
-            first.span.start() as usize,
-            first.span.end() as usize,
-        )
-        .map(|slice| {
-            vec![super::types::CodeFix {
-                span: first.span,
-                new_text: format!("-- {slice}"),
-                description: "Insert '--' so the following words are variable names".to_string(),
-                // W217: as W304 — `--` re-reads the following words as
-                // variable names rather than options.
-                safety: crate::irules_checks::FixSafety::BehaviourHardening,
-            }]
-        })
-        .unwrap_or_default();
+        let source_extent = word.span();
+        let suffix = scan.subcommands.join(" ");
+        let label = if suffix.is_empty() {
+            command.to_owned()
+        } else {
+            format!("{command} {suffix}")
+        };
+        let (severity, message) = if dynamic {
+            (
+                Severity::Suggestion,
+                format!(
+                    "'{label}' parses leading '-' as options. Insert '--' before substituted input if it is intended as data."
+                ),
+            )
+        } else {
+            (
+                Severity::Warning,
+                format!(
+                    "'{label}' argument starts with '-'. Add '--' before this value if it is intended as data."
+                ),
+            )
+        };
+        let fixes = word
+            .try_text()
+            .ok()
+            .map(|spelling| {
+                vec![super::types::CodeFix {
+                    span: source_extent,
+                    new_text: format!("-- {spelling}"),
+                    description: "Insert '--' option terminator".to_owned(),
+                    safety: crate::irules_checks::FixSafety::BehaviourHardening,
+                }]
+            })
+            .unwrap_or_default();
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
-                DiagCode::W217,
-                diag_span,
-                "`unset` unsets no variable here — `-nocomplain` / `--` are consumed as \
-options. To unset a variable whose name begins with `-`, put `--` before it \
-(e.g. `unset -- -nocomplain`)."
-                    .to_string(),
-                Severity::Warning,
+                DiagCode::W304,
+                source_extent,
+                message,
+                severity,
             )
-            .with_fixes(fixes),
+            .with_fixes(fixes)
+            .with_subject(subject),
         );
     }
 
-    /// Emit the per-item path's pending W304 diagnostics, classifying each
-    /// `$var` against the **full-file** most-recent-literal-`set` resolution
-    /// (impossible inside an isolated body, whose `self.source` is only the
-    /// body).  All inputs are absolute by the time the tail runs (the graft
-    /// rebased the token, fix, and diagnostic spans), so the result is identical
-    /// to the inline whole-file emission.  No-op on the `analyse` path
-    /// (`pending_w304` empty).
+    /// W217: the selected dialect option protocol consumed every unset word.
+    /// A captured option can explain the source shape, but cannot acquire a
+    /// written operand or an insertion that reclassifies the captured prefix.
+    pub(in crate::analyser) fn emit_w217_unset_option_only(
+        &mut self,
+        original: Option<&crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation>,
+    ) {
+        use crate::analyser::diagnostic_registry::{
+            RegistrySourceDiagnosticKind as Kind, source_unset_option_only_arguments,
+        };
+        let Some(original) = original else { return };
+        let Some(arguments) = original
+            .with_schema(source_unset_option_only_arguments)
+            .flatten()
+        else {
+            return;
+        };
+        let Some(last) = arguments.end.checked_sub(1) else {
+            return;
+        };
+        let subject = original
+            .subject_range(Kind::OptionOnly, arguments.start..=last)
+            .or_else(|| original.subject(Kind::OptionOnly, None));
+        let Some(subject) = subject else { return };
+        let span = match &subject {
+            crate::analyser::DiagnosticSubject::RegistrySource(subject) => subject.span(),
+            _ => return,
+        };
+        let fixes = original
+            .word(arguments.start)
+            .filter(|_| original.written_index(arguments.start) == Some(0))
+            .and_then(|word| Some((word.span(), word.try_text().ok()?)))
+            .map(|(span, spelling)| {
+                vec![super::types::CodeFix {
+                    span,
+                    new_text: format!("-- {spelling}"),
+                    description: "Insert '--' so the following words are variable names".to_owned(),
+                    safety: crate::irules_checks::FixSafety::BehaviourHardening,
+                }]
+            })
+            .unwrap_or_default();
+        self.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(
+                DiagCode::W217, span,
+                "`unset` unsets no variable here — `-nocomplain` / `--` are consumed as options. To unset a variable whose name begins with `-`, put `--` before it (e.g. `unset -- -nocomplain`).".to_owned(),
+                Severity::Warning,
+            ).with_fixes(fixes).with_subject(subject),
+        );
+    }
+
+    /// Clear compatibility buffers; source-owned W304 advice is emitted at
+    /// its retained original invocation without whole-file value inference.
     pub(in crate::analyser) fn flush_w304_diagnostics(&mut self) {
-        let pending = std::mem::take(&mut self.pending_w304);
-        for (tok, command_label, fixes, diag_span) in pending {
-            let (severity, message, origin) = self.classify_w304(tok, true, false, &command_label);
-            self.result.diagnostics.push(
-                crate::analyser::types::Diagnostic::new(
-                    DiagCode::W304,
-                    diag_span,
-                    message,
-                    severity,
-                )
-                .with_fixes(fixes),
-            );
-            if let Some(origin_diag) = origin {
-                self.result.diagnostics.push(origin_diag);
-            }
-        }
+        self.pending_w304.clear();
     }
 
     /// Emit the per-item path's deferred W103 / W300 dynamic-argument
@@ -3758,42 +2321,46 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         }
     }
 
-    /// **IRULE2002.** Warn when a deprecated iRules command is used —
-    /// the command's spec carries a `deprecated_replacement`.  Only fires
-    /// under the `f5-irules` dialect.
-    ///
-    /// When the spec additionally marks the replacement as a drop-in
-    /// rename (`deprecated_replacement_drop_in` — the replacement accepts
-    /// the same argument list, e.g. `client_addr` → `IP::client_addr`),
-    /// the diagnostic carries a quick fix swapping exactly the command
-    /// head token for the replacement name.  Non-mechanical replacements
-    /// (`ip_addr` → `IP::addr … mask …`, `use pool` → `pool`, prose like
-    /// `"(removed)"`) keep the message-only warning.
+    /// IRULE2002 source deprecation advice from the selected original descriptor.
+    /// Metadata can propose a drop-in spelling; source ownership alone makes
+    /// the edit a review proposal, without entered replacement-handler proof.
     pub(in crate::analyser) fn emit_irule2002_deprecated_command(
         &mut self,
-        cmd_name: &str,
-        cmd_tok: tcl_lexer::Token,
+        original: Option<&crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        if !self.profile.is_irules() {
+        use crate::analyser::diagnostic_registry::{
+            RegistrySourceDiagnosticKind, source_descriptors,
+        };
+        let Some(original) = original else {
+            return;
+        };
+        if original
+            .context()
+            .context()
+            .authoring_query()
+            .core
+            .nearest()
+            .is_none_or(|(family, _)| family != tcl_dialect::model::Family::F5Irules)
+        {
             return;
         }
-        let Some(spec) = self.registry.as_deref().and_then(|r| r.get(cmd_name)) else {
+        let Some(descriptors) = original.with_schema(source_descriptors) else {
             return;
         };
-        let Some(replacement) = spec.deprecated_replacement else {
+        let Some(replacement) = descriptors.command.deprecated_replacement else {
             return;
         };
-        let fixes = if spec.deprecated_replacement_drop_in {
+        let Some(subject) = original.subject(RegistrySourceDiagnosticKind::DeprecatedCommand, None)
+        else {
+            return;
+        };
+        let span = original.head().span();
+        let fixes = if descriptors.command.deprecated_replacement_drop_in {
             vec![super::types::CodeFix {
-                span: cmd_tok.span,
-                new_text: replacement.to_string(),
+                span,
+                new_text: replacement.to_owned(),
                 description: format!("Replace with '{replacement}'"),
-                // IRULE2002: offered only when the registry marks the replacement
-                // `deprecated_replacement_drop_in` — its contract is that the
-                // replacement takes the deprecated command's argument list unchanged,
-                // so swapping the head is a pure re-spelling. A replacement that
-                // restructures arguments carries no fix at all (see the `else` arm).
-                safety: crate::irules_checks::FixSafety::SemanticsEquivalent,
+                safety: crate::irules_checks::FixSafety::RequiresReview,
             }]
         } else {
             Vec::new()
@@ -3801,11 +2368,15 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
                 DiagCode::Irule2002,
-                cmd_tok.span,
-                format!("'{cmd_name}' is deprecated in iRules. Use '{replacement}' instead."),
+                span,
+                format!(
+                    "'{}' is deprecated in iRules. Use '{replacement}' instead.",
+                    original.command()
+                ),
                 Severity::Warning,
             )
-            .with_fixes(fixes),
+            .with_fixes(fixes)
+            .with_subject(subject),
         );
     }
 
@@ -3961,144 +2532,63 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         }
     }
 
-    /// **IRULE2001.** Warn that `matchclass` is deprecated — use
-    /// `class match` instead.  Only fires under the `f5-irules` dialect.
-    /// This fires *alongside* IRULE2002 at the same span (the
-    /// command head): `matchclass` carries both a `deprecated_replacement`
-    /// (→ IRULE2002) and a dedicated rule (→ IRULE2001).
-    pub(in crate::analyser) fn emit_irule2001_matchclass(
+    /// Typed Registry source shape advice for the selected deprecated command.
+    /// Complete original word spellings preserve braces, quotes, substitutions,
+    /// escapes and newlines; captured or expanded argument layouts get no edit.
+    pub(in crate::analyser) fn emit_source_deprecation_advice(
         &mut self,
-        cmd_name: &str,
-        arg_tokens: &[tcl_lexer::Token],
-        cmd_tok: tcl_lexer::Token,
+        original: Option<&crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        if !self.profile.is_irules() || cmd_name != "matchclass" {
+        use crate::analyser::diagnostic_registry::{
+            RegistrySourceDiagnosticKind, source_descriptors,
+        };
+        let Some(original) = original else {
+            return;
+        };
+        let Some(descriptors) = original.with_schema(source_descriptors) else {
+            return;
+        };
+        let Some(advice) = descriptors.command.source_deprecation_advice else {
+            return;
+        };
+        if !advice.applies_to(original.context().context().authoring_query()) {
             return;
         }
-        // Auto-fix `matchclass` → `class match`, a 1:1 rename (same argument
-        // order).  The iRules forms are:
-        //   * 3-arg `matchclass <item> <operator> <class>` → preserve all three
-        //     verbatim as `class match <item> <operator> <class>`.
-        //   * 2-arg shorthand `matchclass <item> <class>` → expand with the
-        //     default operator: `class match <item> equals <class>`.
-        // Any other arity is ambiguous, so we still warn but offer NO quick-fix
-        // rather than corrupt the command.  (Gating on `>= 2` and always forcing
-        // `equals` mangled the 3-arg form — e.g. `matchclass [HTTP::uri]
-        // starts_with $::admin_paths` became `class match [HTTP::uri] equals
-        // starts_with`, dropping the real class and operator.)  The raw source
-        // slices preserve `$var` / `[cmd]` substitutions verbatim (the
-        // substituted `args` values would drop them).  The lexer reports
-        // representative spans for `[cmd …]` / `${name}` / `"…"` words without
-        // their closing delimiter, so each slice — and the whole-command fix
-        // range — is widened through trailing closers; otherwise
-        // `[HTTP::uri]` would round-trip as `[HTTP::uri`.
-        let word_end = |t: &tcl_lexer::Token| {
-            crate::optimiser::helpers::spans::full_rewrite_span(&self.source, t.span).end()
+        let Some(subject) = original.subject(RegistrySourceDiagnosticKind::DeprecatedCommand, None)
+        else {
+            return;
         };
-        // One unusable span drops the whole rewrite: a fix assembled from a
-        // partial argument list would corrupt the command.
-        let raw = |t: &tcl_lexer::Token| {
-            Analyser::source_slice(&self.source, t.span.start() as usize, word_end(t) as usize)
-                .map(str::to_owned)
-        };
-        let raws: Option<Vec<String>> = arg_tokens.iter().map(raw).collect();
-        let new_text = match raws.as_deref() {
-            Some([item, cls]) => Some(format!("class match {item} equals {cls}")),
-            Some([item, operator, cls]) => Some(format!("class match {item} {operator} {cls}")),
-            _ => None,
-        };
-        let fixes = new_text
-            .map(|new_text| {
-                let end = arg_tokens.last().map_or(cmd_tok.span.end(), word_end);
-                vec![super::types::CodeFix {
-                    span: tcl_lexer::Span::new(cmd_tok.span.start(), end),
+        let span = original.head().span();
+        let count = original.words().arguments().len();
+        let raw = (0..count)
+            .map(|index| {
+                (original.written_index(index) == Some(index)).then_some(())?;
+                original.word(index)?.try_text().ok()
+            })
+            .collect::<Option<Vec<_>>>();
+        let fixes = raw
+            .as_deref()
+            .and_then(|arguments| advice.replacement(arguments))
+            .and_then(|new_text| {
+                let last = original.word(count.checked_sub(1)?)?;
+                Some(vec![super::types::CodeFix {
+                    span: tcl_lexer::Span::new(span.start(), last.span().end()),
                     new_text,
-                    description: "Replace with 'class match'".to_string(),
-                    // IRULE2001: the rewrite restructures the argument list (it supplies
-                    // the `equals` operator the two-word `matchclass` form defaults to) —
-                    // exactly the case the registry's `deprecated_replacement_drop_in`
-                    // contract excludes from mechanical swapping.
+                    description: advice.description().to_owned(),
                     safety: crate::irules_checks::FixSafety::RequiresReview,
-                }]
+                }])
             })
             .unwrap_or_default();
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
-                DiagCode::Irule2001,
-                cmd_tok.span,
-                "'matchclass' is deprecated since BIG-IP v10. \
-Use 'class match <item> <operator> <class>' instead."
-                    .to_string(),
+                advice.code(),
+                span,
+                advice.message().to_owned(),
                 Severity::Warning,
             )
-            .with_fixes(fixes),
+            .with_fixes(fixes)
+            .with_subject(subject),
         );
-    }
-
-    /// Classify the positional value for W304: tristate severity,
-    /// human-readable message, and an optional "origin" diagnostic
-    /// for the constant-propagated INFO path.  Split out of
-    /// [`Self::emit_w304_missing_option_terminator`] to keep that
-    /// method's body within the clippy `too_many_lines` budget.
-    fn classify_w304(
-        &self,
-        tok: tcl_lexer::Token,
-        is_dynamic: bool,
-        looks_like_option: bool,
-        command_label: &str,
-    ) -> (Severity, String, Option<super::types::Diagnostic>) {
-        if is_dynamic && !looks_like_option {
-            if matches!(tok.kind, tcl_lexer::TokenType::Var) {
-                let var_name = self.var_name_from_token(tok);
-                let resolved = var_name.and_then(|name| {
-                    last_literal_set_value_for_var(
-                        &self.source,
-                        &name,
-                        tok.span.start(),
-                        self.lexer_config(),
-                    )
-                });
-                if let Some((resolved_text, resolved_span, var_text)) = resolved {
-                    if resolved_text.starts_with('-') {
-                        let message = format!(
-                            "'{command_label}' parses leading '-' as options. \
-This value currently resolves to '{resolved_text}', so add '--' to force \
-data parsing."
-                        );
-                        return (Severity::Warning, message, None);
-                    }
-                    let message = format!(
-                        "'{command_label}' parses leading '-' as options. \
-This value is reported at INFO because '{var_text}' currently resolves to \
-static literal '{resolved_text}'. Keep '--' to guard against future \
-option-injection regressions if the variable changes."
-                    );
-                    let origin = crate::analyser::types::Diagnostic::new(
-                        DiagCode::W304,
-                        resolved_span,
-                        format!(
-                            "'{var_text}' is currently assigned static \
-literal '{resolved_text}' here; this is why the diagnostic is INFO."
-                        ),
-                        Severity::Suggestion,
-                    );
-                    return (Severity::Suggestion, message, Some(origin));
-                }
-            }
-            // Command substitution / unresolved variable — INFO
-            // with the substituted-input message.
-            let message = format!(
-                "'{command_label}' parses leading '-' as options. \
-Insert '--' before substituted input to reduce option-injection risk."
-            );
-            return (Severity::Suggestion, message, None);
-        }
-        // ALWAYS: literal value that starts with `-`.
-        let message = format!(
-            "'{command_label}' argument starts with '-'. Add '--' \
-before this value so it is treated as data, not an option."
-        );
-        (Severity::Warning, message, None)
     }
 
     /// Extract the variable name for a `Var` token using the
@@ -4124,289 +2614,126 @@ before this value so it is treated as data, not an option."
         Some(text.to_string())
     }
 
-    /// Compute the W304 code-fix span and diagnostic end position.
-    ///
-    /// For `Cmd` tokens (`[…]`) the lexer span excludes the closing
-    /// `]`; we extend the span by one byte when the next character
-    /// is `]` so the prepended ``-- `` doesn't split the bracket
-    /// pair.  All other token kinds use the lexer span directly.
-    fn compute_w304_fix_span(&self, tok: tcl_lexer::Token) -> (tcl_lexer::Span, u32) {
-        let span_start = tok.span.start();
-        let span_end = tok.span.end();
-        if matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
-            let after = span_end as usize;
-            if after < self.source.len() && self.source.as_bytes()[after] == b']' {
-                let extended = span_end + 1;
-                return (tcl_lexer::Span::new(span_start, extended), extended);
-            }
-        }
-        (tcl_lexer::Span::new(span_start, span_end), span_end)
-    }
-
-    /// Resolve which option table an option scan should use for this call,
-    /// and how its dispatch treats prefixes.
-    ///
-    /// `None` = abstain: the registry does not know the command, the call has
-    /// no arguments, an ensemble's subcommand word is dynamic or
-    /// `{*}`-expanded, the subcommand does not resolve, or the resolved table
-    /// is empty.
-    fn option_scan_context(
-        &self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        arg_expand: &[bool],
-    ) -> Option<OptionScanContext> {
-        let registry = self.registry.as_deref()?;
-        if args.is_empty() || arg_tokens.is_empty() {
-            return None;
-        }
-        let spec = registry.get(cmd_name)?;
-        // A `-prefixes 0` ensemble in this file turns prefix matching off for
-        // its option table too, so abbreviations there are plain unknown
-        // options rather than ambiguities.
-        let prefix_matching = if self.result.prefixless_ensembles.contains(cmd_name) {
-            tcl_registry::abbrev::PrefixMatching::Strict
-        } else {
-            spec.prefix_matching
-        };
-        let (options, parent_surface, start_idx, sub_name, reserved_trailing_words) =
-            if spec.subcommands.is_empty() {
-                (
-                    spec.options,
-                    spec.surface,
-                    0usize,
-                    None::<String>,
-                    spec.reserved_trailing_words,
-                )
-            } else {
-                // Ensemble-shaped: index 0 is always the subcommand word.  A
-                // `{*}`-expanded or substituted word resolves to an unknown name
-                // at runtime; abstain rather than guess.
-                if arg_expand.first().copied().unwrap_or(false) {
-                    return None;
-                }
-                if arg_tokens
-                    .first()
-                    .is_some_and(|tok| has_substitution(&args[0], tok))
-                {
-                    return None;
-                }
-                let sub = spec.resolve_subcommand_for_dialect(
-                    &args[0],
-                    Some(self.analysis_context().context().authoring_query()),
-                )?;
-                // A two-level ensemble dispatches once more on the next word, and
-                // its operations can carry genuinely different option tables
-                // (`namespace ensemble create` vs `configure`). Read
-                // that word only when it is a literal: a `{*}`-expanded or
-                // substituted dispatch word resolves at run time, and
-                // `option_scope` keeps the subcommand's wider table for it rather
-                // than guessing which operation is meant.
-                let dispatch = args.get(1).filter(|_| {
-                    !arg_expand.get(1).copied().unwrap_or(false)
-                        && !arg_tokens
-                            .get(1)
-                            .is_some_and(|tok| has_substitution(&args[1], tok))
-                });
-                let scope = sub.option_scope(
-                    dispatch.map(String::as_str),
-                    Some(self.analysis_context().context().authoring_query()),
-                    None,
-                    spec.surface,
-                );
-                let name = match scope.sub_subcommand {
-                    Some(op) => format!("{} {op}", sub.name),
-                    None => sub.name.to_owned(),
-                };
-                // No subcommand declares a reserved trailing operand today,
-                // the same convention `resolve_option_terminator` keeps: the
-                // field lives on `CommandSpec`, and an ensemble's parent
-                // reservation describes the parent's argument positions, not
-                // a subcommand's.
-                (scope.options, scope.surface, 1usize, Some(name), 0usize)
-            };
-        (!options.is_empty()).then_some(OptionScanContext {
-            options,
-            parent_surface,
-            start_idx,
-            sub_name,
-            prefix_matching,
-            reserved_trailing_words,
-        })
-    }
-
-    /// **W004.** Emit "Command option is not available in the active
-    /// dialect" warning for option-bearing commands invoked with an
-    /// option whose registry entry restricts it to a dialect that
-    /// doesn't include the active one.
-    ///
-    /// Examples:
-    /// `lsearch -stride` on Tcl 8.4 / 8.5 (option is 8.6+),
-    /// `regsub -command` / `clock scan -validate` /
-    /// `fconfigure -nodelay` on Tcl 8.x (options are 9.0+).
-    ///
-    /// Walks args looking for `-foo`-shaped flags, asks the registry
-    /// for the matching `OptionSpec`, and fires when
-    /// `OptionSpec::supports_dialect` returns false.  Substituted
-    /// flag values (`-foo $bar`, `-foo [cmd]`) are skipped because
-    /// the dispatching is only on the *flag name*; we don't have to
-    /// inspect the value.  `--` terminates the scan.
-    ///
-    /// Subcommand-scoped options resolve the first arg against the
-    /// registry's own [`tcl_registry::CommandSpec::resolve_subcommand_for_dialect`]
-    /// — the same unique-prefix-abbreviation resolver `string le` (⇒
-    /// `length`) relies on elsewhere — rather than an exact-name match, so
-    /// an abbreviated subcommand (`chan conf -inputmode` ⇒ `configure`) is
-    /// still checked. An ensemble-shaped command (non-empty `subcommands`)
-    /// always dispatches on its first word, so when that word can't be
-    /// statically resolved (dynamic, `{*}`-expanded, unknown, or an
-    /// ambiguous prefix) this abstains entirely rather than falling back to
-    /// the parent `CommandSpec`'s own `options` — that table describes a
-    /// different argument position and is never reachable at index 0 of a
-    /// real ensemble call.
-    ///
-    /// Candidates are queued onto [`Analyser::pending_arity`] rather than
-    /// pushed directly, so a call whose `cmd_name` resolves to a same-file
-    /// user proc / class / alias / ensemble / stub — which really does
-    /// dispatch to that definition, not the registry builtin the option
-    /// table describes — is suppressed post-walk by
-    /// [`Self::flush_arity_diagnostics`] exactly like an arity candidate.
+    /// **W004.** Explain excluded exact option rows from the same retained
+    /// source descriptor, vocabulary and value-width owner as lifecycle advice.
+    /// Values and reserved operands never become new option candidates.
     pub(in crate::analyser) fn emit_w004_dialect_invalid_option(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        arg_expand: &[bool],
-        scope_path: &[usize],
+        original: Option<&super::super::diagnostic_registry::OriginalDiagnosticInvocation>,
+        command: &str,
     ) {
-        let Some(context) = self.option_scan_context(cmd_name, args, arg_tokens, arg_expand) else {
+        let Some(original) = original else {
             return;
         };
-        let OptionScanContext {
-            options,
-            parent_surface,
-            start_idx,
-            sub_name,
-            prefix_matching,
-            reserved_trailing_words,
-        } = context;
-
-        // The command's mandatory trailing operands are never option
-        // candidates — `subst -commands` is `subst`'s *string* operand, and
-        // tclsh 8.6.18 prints `-commands` for `puts [subst -commands]` rather
-        // than rejecting a 9.1-only switch. Same rule, same owner field, as
-        // the registry's own `source_option_layout_is_proven` (#2136).
-        let scan_end = args.len().saturating_sub(reserved_trailing_words);
-        let mut i = start_idx;
-        while i < scan_end {
-            let arg = args[i].as_str();
-            if arg == "--" {
-                break;
-            }
-            if !arg.starts_with('-') || arg.len() < 2 {
-                i += 1;
+        let Some(scan) = original
+            .with_schema(crate::analyser::diagnostic_registry::source_diagnostic_options)
+            .flatten()
+        else {
+            return;
+        };
+        let subcommand = (!scan.subcommands.is_empty()).then(|| scan.subcommands.join(" "));
+        for selected in scan
+            .options
+            .into_iter()
+            .filter(|selected| !selected.available)
+        {
+            let Some(word) = original.word(selected.argument) else {
                 continue;
-            }
-            // Skip negative number literals (`-1`, `-1.5`).
-            let rest = &arg[1..].trim_start_matches('-');
-            if !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit() || c == '.') {
-                i += 1;
+            };
+            let Some(spelling) = original.literal(selected.argument) else {
                 continue;
-            }
-            // Skip dynamic-value args (Var / Cmd tokens).  The flag
-            // name itself comes from the arg text, but if the
-            // representative token is a substitution we can't know
-            // it's actually `-foo`.
-            if i < arg_tokens.len() {
-                let tok = arg_tokens[i];
-                if matches!(
-                    tok.kind,
-                    tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-                ) {
-                    i += 1;
-                    continue;
-                }
-            }
-            // Find a matching OptionSpec (canonical name or alias).  When it is
-            // dialect-gated out, emit W004.  Either way, skip the value word(s)
-            // it consumes, so a value that itself looks like a flag
-            // (`-command -bar`) is not mistakenly tested as an option.
-            if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
-                // Profile gating (§5.2): surface_admits(gate, &mask) plus the
-                // version ceiling — an inherited option on a vendor command
-                // resolves under that vendor's composed profile, and a
-                // later-version option never leaks below its ceiling.
-                if !self
-                    .analysis_context()
-                    .context()
-                    .option_available(opt, parent_surface)
-                    && i < arg_tokens.len()
-                {
-                    let span = arg_tokens[i].span;
-                    // Message exactly: `Option 'X' on 'cmd'[ sub] is not
-                    // available in the active dialect (D).`
-                    let sub_suffix = sub_name
-                        .as_deref()
-                        .map_or(String::new(), |n| format!(" {n}"));
-                    let consumed = 1 + opt.value_word_count(args, i);
-                    let fixes = self.w004_remove_option_fix(arg, arg_tokens, i, consumed);
-                    let diag = crate::analyser::types::Diagnostic::new(
-                        DiagCode::W004,
-                        span,
-                        format!(
-                            "Option '{arg}' on '{cmd_name}'{sub_suffix} is not available \
-in the active dialect ({}).",
-                            self.dialect()
-                        ),
-                        Severity::Warning,
-                    )
-                    .with_fixes(fixes);
-                    let ns = self.command_resolution_namespace(scope_path);
-                    let enforce_order = !self.scope_path_in_proc_body(scope_path);
-                    self.pending_arity
-                        .push((cmd_name.to_string(), ns, enforce_order, diag));
-                }
-                i += 1 + opt.value_word_count(args, i);
+            };
+            let Some(subject) = original.subject(
+                super::super::RegistrySourceDiagnosticKind::DisabledOption,
+                Some(selected.argument),
+            ) else {
                 continue;
-            }
-            // No exact spelling or declared alias: the word may still be an
-            // abbreviation. A unique prefix is legal and is left to the
-            // canonical-option handling above once resolved; an ambiguous one
-            // is a guaranteed runtime error (W145).
-            let generation = self.analysis_context();
-            let table = option_keyword_table(
-                options,
-                |opt| generation.context().option_available(opt, parent_surface),
-                prefix_matching,
-            );
-            match table.resolve(arg) {
-                tcl_registry::abbrev::KeywordMatch::Ambiguous(candidates)
-                    if i < arg_tokens.len() =>
-                {
-                    let candidates: Vec<String> =
-                        candidates.iter().map(|s| (*s).to_string()).collect();
-                    let span = arg_tokens[i].span;
-                    self.emit_w145_ambiguous_option(
-                        cmd_name,
-                        sub_name.as_deref(),
-                        arg,
-                        &candidates,
-                        span,
-                    );
-                }
-                tcl_registry::abbrev::KeywordMatch::Unique(canonical) => {
-                    // A unique abbreviation consumes exactly what the
-                    // canonical option consumes.
-                    if let Some(opt) = options.iter().find(|o| o.name == canonical) {
-                        i += 1 + opt.value_word_count(args, i);
-                        continue;
-                    }
-                }
-                _ => {}
-            }
-            i += 1;
+            };
+            let suffix = subcommand
+                .as_deref()
+                .map_or(String::new(), |sub| format!(" {sub}"));
+            let fixes = Self::original_option_removal_fix(original, &selected, spelling);
+            self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W004, word.span(),
+                format!("Option '{spelling}' on '{command}'{suffix} is not available in the active dialect ({}).", self.dialect()),
+                Severity::Warning,
+            ).with_fixes(fixes).with_subject(subject));
         }
+        if let tcl_registry::AuthoredSourceOptionBoundary::Ambiguous {
+            argument,
+            candidates,
+        } = scan.boundary
+        {
+            let Some(word) = original.word(argument) else {
+                return;
+            };
+            let Some(spelling) = original.literal(argument) else {
+                return;
+            };
+            let Some(subject) = original.subject(
+                super::super::RegistrySourceDiagnosticKind::DisabledOption,
+                Some(argument),
+            ) else {
+                return;
+            };
+            let before = self.result.diagnostics.len();
+            self.emit_w145_ambiguous_option(
+                command,
+                subcommand.as_deref(),
+                spelling,
+                &candidates
+                    .iter()
+                    .map(|word| (*word).to_owned())
+                    .collect::<Vec<_>>(),
+                word.span(),
+            );
+            if let Some(diagnostic) = self.result.diagnostics.get_mut(before) {
+                diagnostic.subject = Some(subject);
+            }
+        }
+    }
+
+    fn original_option_removal_fix(
+        original: &super::super::diagnostic_registry::OriginalDiagnosticInvocation,
+        selected: &tcl_registry::AuthoredSourceOption<'_>,
+        spelling: &str,
+    ) -> Vec<super::types::CodeFix> {
+        let Some(values) = &selected.values else {
+            return Vec::new();
+        };
+        let Some(first) = original.word(selected.argument) else {
+            return Vec::new();
+        };
+        let last = if values.is_empty() {
+            Some(first)
+        } else {
+            original.word(values.end - 1)
+        };
+        let Some(last) = last else {
+            return Vec::new();
+        };
+        let Some(written) = original.written_index(selected.argument) else {
+            return Vec::new();
+        };
+        if !(selected.argument..values.end).all(|argument| {
+            original.written_index(argument) == Some(written + argument - selected.argument)
+        }) {
+            return Vec::new();
+        }
+        let end = original
+            .word(values.end)
+            .filter(|next| {
+                next.span().start() >= last.span().end()
+                    && original.written_index(values.end)
+                        == Some(written + values.end - selected.argument)
+            })
+            .map_or(last.span().end(), |next| next.span().start());
+        vec![super::types::CodeFix {
+            span: tcl_lexer::Span::new(first.span().start(), end),
+            new_text: String::new(),
+            description: format!("Remove '{spelling}' option"),
+            safety: crate::irules_checks::FixSafety::RequiresReview,
+        }]
     }
 
     /// **W145** at an option word. Same contract as the subcommand form:
@@ -4442,49 +2769,6 @@ in the active dialect ({}).",
             ),
     Severity::Warning,
 ).with_fixes(fixes));
-    }
-
-    /// Build the "remove option" fix for a W004 candidate: deletes the flag
-    /// token at `flag_idx` through the last of its `consumed` words (the
-    /// flag plus any value word(s)).  Extends through the start of the
-    /// following argument token when one exists, so the result reads
-    /// cleanly with no doubled separator; otherwise ends at the last
-    /// consumed token's true closing delimiter via
-    /// [`tcl_lexer::word_closer_offset`] so a braced/quoted flag or value
-    /// (`{-stride}`, `"-stride"`) doesn't leave a stray `}` / `"` behind —
-    /// see `docs/design/contracts/lexing.md`.
-    fn w004_remove_option_fix(
-        &self,
-        arg: &str,
-        arg_tokens: &[tcl_lexer::Token],
-        flag_idx: usize,
-        consumed: usize,
-    ) -> Vec<super::types::CodeFix> {
-        let Some(&flag_tok) = arg_tokens.get(flag_idx) else {
-            return Vec::new();
-        };
-        let last_idx = flag_idx + consumed - 1;
-        let Some(&last_tok) = arg_tokens.get(last_idx) else {
-            return Vec::new();
-        };
-        let end = if let Some(next_tok) = arg_tokens.get(flag_idx + consumed) {
-            next_tok.span.start()
-        } else {
-            let sm = Analyser::source_map(
-                &self.source,
-                &self.cached_line_index,
-                self.cached_line_index_source_len,
-            );
-            tcl_lexer::word_closer_offset(&sm, last_tok).map_or(last_tok.span.end(), |c| c + 1)
-        };
-        vec![super::types::CodeFix {
-            span: tcl_lexer::Span::new(flag_tok.span.start(), end),
-            new_text: String::new(),
-            description: format!("Remove '{arg}'"),
-            // W004: deleting an option the active dialect lacks drops whatever
-            // the author wanted it to do.
-            safety: crate::irules_checks::FixSafety::RequiresReview,
-        }]
     }
 
     /// **W003.** Emit "Expression operator not available in active
@@ -4784,33 +3068,6 @@ fn is_irules_only_expr_op(name: &str) -> bool {
 /// Never scans into a command's `reserved_trailing_words` (e.g.
 /// `switch`'s trailing `string` + pattern-list, which C Tcl's own
 /// option-scanning loop excludes structurally, regardless of shape — see
-/// [`tcl_registry::spec::CommandSpec::reserved_trailing_words`]).
-fn first_positional_without_terminator(
-    args: &[String],
-    profile: &tcl_registry::ResolvedTerminator,
-) -> Option<usize> {
-    let mut i = profile.scan_start;
-    let n = args.len().saturating_sub(profile.reserved_trailing_words);
-    while i < n {
-        let arg = args[i].as_str();
-        if arg == "--" {
-            return None;
-        }
-        if arg.starts_with('-') {
-            // Skip the option and the value word(s) it consumes (arity-aware).
-            let consumed = profile
-                .options
-                .iter()
-                .find(|o| o.matches(arg))
-                .map_or(0, |o| o.value_word_count(args, i));
-            i += 1 + consumed;
-            continue;
-        }
-        return Some(i);
-    }
-    None
-}
-
 /// Locate the most-recent literal `set var value` assignment whose
 /// command-head precedes `before_offset`.
 ///
@@ -5223,5 +3480,224 @@ mod w117_tests {
             );
         }
         assert!(!is_irules_only_expr_op("notanoperator"));
+    }
+}
+
+#[cfg(test)]
+mod selected_formal_tests {
+    use crate::analyser::Analyser;
+    use tcl_core_types::DiagCode;
+
+    #[test]
+    fn original_formal_diagnostics_use_selected_name_grammar_and_whole_words() {
+        // naming.variable.original-readonly-formal-topology
+        // docs/design/analysis/name-resolution-proofs/original-readonly-formal-topology.md
+        // Source consumer contract; these assertions do not enter a native frame.
+        for name in ["a::b", "a(1)"] {
+            let source = format!("proc target {{{name}}} {{}}");
+            for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let diagnostic = analysis
+                    .diagnostics
+                    .iter()
+                    .find(|d| d.code == DiagCode::E006)
+                    .expect(dialect);
+                assert_eq!(
+                    &source[diagnostic.span.start() as usize..diagnostic.span.end() as usize],
+                    format!("{{{name}}}")
+                );
+            }
+            let jim = Analyser::new().analyse(&source, "jimtcl");
+            assert!(
+                !jim.diagnostics.iter().any(|d| d.code == DiagCode::E006),
+                "Jim source name grammar: {name}: {:?}",
+                jim.diagnostics
+            );
+        }
+    }
+
+    #[test]
+    fn original_formal_diagnostics_reject_three_fields_and_withdraw_known_shadows() {
+        // naming.variable.original-readonly-formal-topology
+        // docs/design/analysis/name-resolution-proofs/original-readonly-formal-topology.md
+        let malformed = "proc target {{a b c}} {}";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let analysis = Analyser::new().analyse(malformed, dialect);
+            assert!(
+                analysis
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == DiagCode::E006),
+                "selected malformed formal: {dialect}"
+            );
+        }
+        for source in [
+            "rename proc define; define target {{a b c}} {}",
+            "interp alias {} define {} proc target; define {{a b c}} {}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl9.0");
+            assert!(
+                analysis
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == DiagCode::E006),
+                "effective original formal role: {source}"
+            );
+        }
+        let source = "proc proc args {}
+proc target {{a b c}} {}";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        assert!(
+            !analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::E006),
+            "a known replacement has no original formal-list role: {:?}",
+            analysis.diagnostics
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_class_family_tests {
+    use super::*;
+    use crate::analyser::types::{MetaclassProvenance, SourceNameAmbiguity};
+    use std::sync::Arc;
+
+    const SOURCE: &str = "oo::class create Dog { method bark {} { return woof } }\n[Dog new]\n";
+
+    fn inspected_analysis(dialect: &str) -> Analyser {
+        let mut analyser = Analyser::new();
+        let result = analyser.analyse(SOURCE, dialect);
+        analyser.context = result
+            .resolved_input
+            .as_ref()
+            .map(|input| input.context_registry());
+        analyser.resolved_input = result.resolved_input.clone();
+        analyser.source = SOURCE.to_owned();
+        analyser.result = result;
+        analyser
+    }
+
+    fn family_is_tcloo(analyser: &Analyser) -> bool {
+        analyser
+            .result
+            .all_classes
+            .get("::Dog")
+            .is_some_and(|class| is_tcloo_source_class(analyser, class))
+    }
+
+    #[test]
+    fn logical_class_family_uses_observed_definer_without_borrowing_native_formals() {
+        // naming.diagnostics.retained-logical-class-family
+        // docs/design/analysis/name-resolution-proofs/diagnostic-retained-logical-class-family.md
+        let analyser = inspected_analysis("tcl");
+        assert!(analyser.result.allows_retained_logical_declaration_advice());
+        let class = analyser.result.all_classes.get("::Dog").unwrap();
+        assert_eq!(class.metaclass_provenance, MetaclassProvenance::Observed);
+        assert!(class.source_name.is_none());
+        assert!(family_is_tcloo(&analyser));
+        let dialect = tcl_registry::InvocationDialect::of_profile(
+            analyser
+                .result
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .unit_profile(),
+        );
+        assert!(dialect.native_name_protocol().is_none());
+        assert!(dialect.parameter_grammar().is_none());
+        assert!(
+            analyser
+                .result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::E001)
+        );
+    }
+
+    #[test]
+    fn logical_class_family_refuses_defaults_missing_and_stale_source_context() {
+        // naming.diagnostics.retained-logical-class-family
+        // docs/design/analysis/name-resolution-proofs/diagnostic-retained-logical-class-family.md
+        let mut analyser = inspected_analysis("tcl");
+        assert!(family_is_tcloo(&analyser));
+        let original = analyser.result.all_classes.get("::Dog").unwrap().clone();
+        analyser
+            .result
+            .all_classes
+            .get_mut("::Dog")
+            .unwrap()
+            .metaclass_provenance = MetaclassProvenance::StandIn;
+        assert!(!family_is_tcloo(&analyser));
+        analyser
+            .result
+            .all_classes
+            .insert("::Dog".into(), original.clone());
+        analyser
+            .result
+            .all_classes
+            .get_mut("::Dog")
+            .unwrap()
+            .source_name_ambiguous = SourceNameAmbiguity::Observed;
+        assert!(!family_is_tcloo(&analyser));
+        analyser.result.all_classes.insert("::Dog".into(), original);
+        analyser.source.push_str("# changed whole input");
+        assert!(!family_is_tcloo(&analyser));
+        analyser.source = SOURCE.to_owned();
+        analyser.profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").unit_profile();
+        analyser.result.dialect = "tcl9.1".into();
+        assert!(
+            family_is_tcloo(&analyser),
+            "display profiles cannot replace the retained context"
+        );
+        let retained_context = analyser.context.clone();
+        let unavailable =
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
+        analyser.context = Some(Arc::new(
+            unavailable.with_command_store(retained_context.as_ref().unwrap().commands().clone()),
+        ));
+        assert!(
+            !family_is_tcloo(&analyser),
+            "same store with another context is stale"
+        );
+        analyser.context = retained_context;
+        let retained_input = analyser.result.resolved_input.take();
+        assert!(
+            !family_is_tcloo(&analyser),
+            "a copied lexical flag supplies no Logical input"
+        );
+        analyser.result.resolved_input = retained_input;
+        assert!(family_is_tcloo(&analyser));
+    }
+
+    #[test]
+    fn native_and_hosted_family_classification_cannot_fall_back_to_logical_reports() {
+        // naming.diagnostics.retained-logical-class-family
+        // docs/design/analysis/name-resolution-proofs/diagnostic-retained-logical-class-family.md
+        for dialect in [
+            "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl", "irules", "tmsh",
+        ] {
+            let mut analyser = inspected_analysis(dialect);
+            assert!(
+                !analyser.result.allows_retained_logical_declaration_advice(),
+                "{dialect}"
+            );
+            assert!(
+                analyser
+                    .retained_logical_class_definer_grammar("::Dog")
+                    .is_none(),
+                "{dialect}"
+            );
+            if let Some(class) = analyser.result.all_classes.get_mut("::Dog") {
+                // Retain every reporting field but remove its canonical source producer.
+                class.source_name = None;
+                assert!(
+                    !family_is_tcloo(&analyser),
+                    "{dialect}: reports cannot donate a Native class receipt"
+                );
+            }
+        }
     }
 }

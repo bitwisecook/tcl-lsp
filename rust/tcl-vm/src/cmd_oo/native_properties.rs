@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original C9.1 property metadata and borrowed native List table ownership.
 use super::{
-    BTreeMap, BTreeSet, Code, Completion, Method, OoId, OoState, Rc, TclOoPropertyKind, Value, Vm,
-    apply_property_bytes, display_oo_bytes, native_context, native_method_key, ok,
-    oo_invoke_value_with_head, private_storage_name_bytes, slot_ref_class, slot_ref_obj,
+    BTreeMap, BTreeSet, Code, Completion, Method, MethodParameters, OoId, OoState, Rc,
+    TclOoPropertyKind, Value, Vm, apply_property_bytes, display_oo_bytes, native_context,
+    native_method_key, ok, oo_invoke_value_with_head, private_storage_name_bytes, slot_ref_class,
+    slot_ref_obj,
 };
 use tcl_registry::native_property_lookup::{
     NativePropertyGraphDependents, NativePropertyInvalidation,
@@ -484,7 +485,7 @@ pub(super) fn set_property_slot(
     target: OoId,
     class: bool,
     writable: bool,
-    operation: &str,
+    operation: tcl_registry::definer::SlotOp,
     names: &[Value],
 ) -> Result<BTreeSet<String>, ValueError> {
     let recipe = vm
@@ -503,7 +504,10 @@ pub(super) fn set_property_slot(
             .intern_method_key(tcl_core_types::NameBytes::from(bytes.as_ref()));
         incoming.push((name, original));
     }
-    let mut members = if matches!(operation, "-set" | "-clear") {
+    let mut members = if matches!(
+        operation,
+        tcl_registry::definer::SlotOp::Set | tcl_registry::definer::SlotOp::Clear
+    ) {
         BTreeMap::new()
     } else {
         vm.oo
@@ -513,17 +517,17 @@ pub(super) fn set_property_slot(
             .unwrap_or_default()
     };
     match operation {
-        "-set" | "-append" => {
+        tcl_registry::definer::SlotOp::Set | tcl_registry::definer::SlotOp::Append => {
             for (name, original) in incoming {
                 members.entry(name).or_insert_with(|| original.clone());
             }
         }
-        "-remove" => {
+        tcl_registry::definer::SlotOp::Remove => {
             for (name, _) in incoming {
                 members.remove(&name);
             }
         }
-        "-clear" => {}
+        tcl_registry::definer::SlotOp::Clear => {}
         _ => {
             return Err(ValueError::CommandProtocolUnavailable(
                 "native property slot operation",
@@ -575,7 +579,12 @@ fn compare_original_members(
     let b = b
         .native_string_bytes(protocol)
         .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
-    let utf = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(tcl_dialect::TclVersion::V9_1);
+    let version = protocol
+        .tcl_version()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "property member string comparison",
+        ))?;
+    let utf = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version);
     Ok(utf.decode_units(&a).cmp(&utf.decode_units(&b)))
 }
 
@@ -620,8 +629,10 @@ pub(super) struct NativePropertyAccessor {
 }
 pub(super) fn default_method(original: &Value, writable: bool) -> Method {
     Method {
-        params: Vec::new(),
-        has_args: false,
+        parameters: MethodParameters {
+            values: Vec::new(),
+            has_args: false,
+        },
         compiled_body: None,
         body_src: Value::empty(),
         forward: None,
@@ -629,7 +640,10 @@ pub(super) fn default_method(original: &Value, writable: bool) -> Method {
             original: original.clone(),
             writable,
         })),
+        intrinsic: None,
+        visibility_only: false,
         exported: false,
+        private: false,
     }
 }
 
@@ -716,7 +730,7 @@ pub(super) fn invoke_default(
     }
     let Some(recipe) = vm
         .actual_native_invocation_dialect()
-        .native_property_lookup_protocol()
+        .native_property_name_protocol()
     else {
         return crate::command::completion_from_cmd_error(
             vm,
@@ -881,7 +895,7 @@ pub(super) fn define_original_properties(
 ) -> Completion<Value> {
     let recipe = vm
         .actual_native_invocation_dialect()
-        .native_property_lookup_protocol()
+        .native_property_name_protocol()
         .expect("selected original property definition");
     let options = recipe.definition_options();
     let kinds = recipe.definition_kinds();
@@ -1038,6 +1052,8 @@ mod tests {
     }
     #[test]
     fn opaque_property_lookup_uses_original_accessor_members() {
+        // Native proof: naming.property.opaque-name-custom-getter-option-cache
+        // docs/design/analysis/name-resolution-proofs/property-opaque-name-custom-getter-option-cache.md
         let mut vm = instance();
         let class = resolve_object_value(&mut vm, &Value::string("C"))
             .unwrap()
@@ -1073,6 +1089,8 @@ mod tests {
     }
     #[test]
     fn default_property_methods_retain_original_clientdata_and_leave_its_primary() {
+        // Native proof: naming.property.original-accessor-clientdata
+        // docs/design/analysis/name-resolution-proofs/property-original-accessor-clientdata.md
         let mut vm = instance();
         let class = resolve_object_value(&mut vm, &Value::string("C"))
             .unwrap()
@@ -1096,7 +1114,7 @@ mod tests {
             drop(result);
             let mut canonical = b"-".to_vec();
             canonical.extend_from_slice(tcl_core_types::c_string_extent(name));
-            let (reader, writer) = recipe.accessor_names(&canonical);
+            let (reader, writer) = recipe.member_accessor_names(&canonical);
             for key in [reader, writer] {
                 let key = vm
                     .oo
@@ -1151,6 +1169,8 @@ mod tests {
     }
     #[test]
     fn property_epochs_follow_mutations_before_definition_failure() {
+        // Native proof: naming.property.original-foundation-epoch-and-cache
+        // docs/design/analysis/name-resolution-proofs/property-original-foundation-epoch-and-cache.md
         let mut vm = instance();
         let id = resolve_object_value(&mut vm, &Value::string("o"))
             .unwrap()

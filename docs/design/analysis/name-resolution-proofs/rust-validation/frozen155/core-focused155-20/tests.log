@@ -1,0 +1,15 @@
+
+running 1 test
+test semantic_tokens::original::original_source_schema_tests::logical_qualified_head_colours_keep_original_decoded_boundaries ... 
+thread 'semantic_tokens::original::original_source_schema_tests::logical_qualified_head_colours_keep_original_decoded_boundaries' (607307) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:1312:13:
+\u003a\u003aformat {%d} 7
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    semantic_tokens::original::original_source_schema_tests::logical_qualified_head_colours_keep_original_decoded_boundaries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2650 filtered out; finished in 0.97s
+

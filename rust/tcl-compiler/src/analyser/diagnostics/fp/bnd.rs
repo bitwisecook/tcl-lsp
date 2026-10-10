@@ -81,9 +81,7 @@ fn fp_bnd_01_loop_index_past_append_slot_fires() {
             &unit.procedures["::f"],
             crate::interval_bounds::BoundsSemantics {
                 registry,
-                context: Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-                    profile,
-                )),
+                context: Some(static_context_for(D).into()),
                 grammar: profile.grammar,
             },
         );

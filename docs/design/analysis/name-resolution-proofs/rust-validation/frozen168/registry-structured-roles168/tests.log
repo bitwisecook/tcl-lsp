@@ -1,0 +1,16 @@
+
+running 2 tests
+test resolved_invocation::logical_binding_result_tests::selected_logical_result_binding_axis_keeps_native_effects_unknown ... 
+thread 'resolved_invocation::logical_binding_result_tests::selected_logical_result_binding_axis_keeps_native_effects_unknown' (635526) panicked at rust/tcl-registry/src/resolved_invocation.rs:6901:13:
+assertion failed: schema.facts().effects.requires_world_barrier()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test resolved_invocation::logical_binding_result_tests::structured_conditional_and_output_roles_keep_unknown_payloads ... ok
+
+failures:
+
+failures:
+    resolved_invocation::logical_binding_result_tests::selected_logical_result_binding_axis_keeps_native_effects_unknown
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 1470 filtered out; finished in 0.39s
+

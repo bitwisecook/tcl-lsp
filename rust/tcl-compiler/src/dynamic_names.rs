@@ -833,6 +833,7 @@ fn variable_word_has_unknown_root(
         | Word::Dynamic
         | Word::Expanded
         | Word::KnownExpansion(_)
+        | Word::KnownByteExpansion(_)
         | Word::Opaque => true,
     }
 }

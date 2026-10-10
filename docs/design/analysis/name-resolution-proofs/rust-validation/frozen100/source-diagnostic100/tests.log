@@ -1,0 +1,33 @@
+warning: function `exported_at_import` is never used
+    --> rust/tcl-lsp-core/src/definition.rs:3638:15
+     |
+3638 | pub(crate) fn exported_at_import(
+     |               ^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `exported_original_at_import` is never used
+    --> rust/tcl-lsp-core/src/definition.rs:3651:4
+     |
+3651 | fn exported_original_at_import(analysis: &AnalysisResult, ctx: CallResolution<'_>,
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-lsp-core` (lib test) generated 2 warnings
+    Finished `test` profile [unoptimized] target(s) in 0.24s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_core-f816994f92f0f9f0)
+
+running 1 test
+test code_actions::diagnostic_context::tests::original_source_diagnostic_advice_shares_guarded_schema_and_whole_word_geometry ... 
+thread 'code_actions::diagnostic_context::tests::original_source_diagnostic_advice_shares_guarded_schema_and_whole_word_geometry' (402448) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:623:13:
+known source cell barrier: proc HTTP::respond {args} {return custom}; when HTTP_REQUEST {HTTP::respond 200 content ok}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    code_actions::diagnostic_context::tests::original_source_diagnostic_advice_shares_guarded_schema_and_whole_word_geometry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2558 filtered out; finished in 0.48s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

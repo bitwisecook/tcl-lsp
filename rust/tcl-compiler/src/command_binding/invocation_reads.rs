@@ -195,6 +195,7 @@ impl SourceCommandBindings {
                 })
                 .map(|observations| Arc::from(observations.as_slice()))
         });
+        binding = self.attach_original_variable_operands(binding, origin, offset);
         self.attach_compiler_invocation(binding, origin, offset)
     }
 
@@ -261,20 +262,23 @@ impl SourceCommandBindings {
         arguments: tcl_registry::InvocationArguments<'_>,
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
+        operands: &crate::variable_bindings::OriginalVariableInvocation,
     ) {
-        let native_reads: Vec<_> = crate::variable_bindings::source_variable_read_places(
-            facts,
-            arguments,
-            &state.source_variables,
-            context.registry,
-        )
-        .into_iter()
-        .map(|place| SourceInvocationVariableRead {
-            place,
-            variable_context: Arc::clone(&state.source_variables),
-            context_fingerprint: SourceVariableAccess::fingerprint(&state.source_variables),
-        })
-        .collect();
+        let native_reads: Vec<_> =
+            crate::variable_bindings::source_variable_read_places_with_original_operands(
+                facts,
+                arguments,
+                &state.source_variables,
+                context.registry,
+                operands,
+            )
+            .into_iter()
+            .map(|place| SourceInvocationVariableRead {
+                place,
+                variable_context: Arc::clone(&state.source_variables),
+                context_fingerprint: SourceVariableAccess::fingerprint(&state.source_variables),
+            })
+            .collect();
         let bounded = facts.arg_roles_complete
             && native_reads.iter().all(|read| {
                 !read.place.observed && read.place.kind != crate::place::PlaceKind::Unknown

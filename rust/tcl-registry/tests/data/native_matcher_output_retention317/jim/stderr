@@ -1,0 +1,4 @@
+/workspace/.proofs/native-matcher-output-retention317/probe.tcl:20: Error: wrong # args: should be "interp"
+Traceback (most recent call last):
+  File "/workspace/.proofs/native-matcher-output-retention317/probe.tcl", line 20
+    interp alias {} matcher_alias {} regexp x y

@@ -26,6 +26,8 @@
 //! [`CommandRegistry`] and the dialect string; every position is 0-based
 //! and UTF-16 counted, matching the LSP wire convention.
 
+mod original;
+
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{
     Analyser, AnalysisResult, ProcDef, ResolvedAnalysisInput, Scope, ScopeKind, VarDef,
@@ -64,6 +66,34 @@ fn pos_value(line_index: &LineIndex, source: &str, offset: u32) -> Value {
 
 /// References use the same called-slot identity as rename and code lenses.
 fn find_proc_reference_sites(proc: &ProcDef, analysis: &AnalysisResult, source: &str) -> Vec<Span> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let mut declarations = analysis
+            .original_procedure_declarations()
+            .filter(|row| row.metadata() == proc);
+        let Some(declaration) = declarations.next() else {
+            return Vec::new();
+        };
+        if declarations.next().is_some() {
+            return Vec::new();
+        }
+        let mut sites = analysis
+            .command_invocations
+            .iter()
+            .filter(|invocation| {
+                crate::original_declaration::invocation_targets_declaration(
+                    source,
+                    analysis,
+                    invocation,
+                    declaration,
+                    true,
+                )
+            })
+            .map(|invocation| invocation.range)
+            .collect::<Vec<_>>();
+        sites.sort_unstable_by_key(|span| (span.start(), span.end()));
+        sites.dedup();
+        return sites;
+    }
     let mut sites = crate::references::proc_reference_spans(
         analysis,
         crate::definition::CallResolution::document_only(),
@@ -256,7 +286,7 @@ pub fn symbol_graph(source: &str, dialect: &'static tcl_dialect::DialectProfile)
     )];
 
     // Every proc's deduplicated references, in declaration order.
-    let mut all_procs: Vec<&ProcDef> = result.all_procs.values().collect();
+    let mut all_procs = crate::procedure_symbol::declarations(source, &result).unwrap_or_default();
     all_procs.sort_by_key(|p| p.name_span.start());
     let mut proc_references = serde_json::Map::new();
     for proc in all_procs {
@@ -287,12 +317,17 @@ pub fn symbol_graph(source: &str, dialect: &'static tcl_dialect::DialectProfile)
         })
         .collect();
 
-    let total_procs = result.all_procs.len();
+    let original = original::procedure_view(source, &result, None);
+    let total_procs = original
+        .as_ref()
+        .and_then(|graph| graph["nodes"].as_array())
+        .map_or_else(|| result.all_procs.len(), Vec::len);
     let total_variables = count_variables(&result.global_scope, 0);
     let total_namespaces = count_namespaces(&result.global_scope, 0);
 
     json!({
         "scopes": scopes,
+        "declarations": original,
         "proc_references": Value::Object(proc_references),
         "package_requires": package_requires,
         "summary": {
@@ -347,9 +382,24 @@ fn find_call_sites_in_scope(
     let Some(containing_body) = ir_module.procedures.get(containing_proc) else {
         return Vec::new();
     };
-    let Some(callee) = analysis.all_procs.get(callee_qname) else {
-        return Vec::new();
+    let original_callee = if analysis.allows_lexical_declaration_advice() {
+        None
+    } else {
+        let mut declarations = analysis.original_procedure_declarations().filter(|row| {
+            original::compiled_label(source, analysis, ir_module, row) == Some(callee_qname)
+        });
+        let Some(first) = declarations.next() else {
+            return Vec::new();
+        };
+        if declarations.next().is_some() {
+            return Vec::new();
+        }
+        Some(first)
     };
+    let legacy_callee = analysis
+        .allows_lexical_declaration_advice()
+        .then(|| analysis.all_procs.get(callee_qname))
+        .flatten();
     let mut sites = Vec::new();
     for inv in &analysis.command_invocations {
         if inv.range.start() < containing_body.span.start()
@@ -357,7 +407,25 @@ fn find_call_sites_in_scope(
         {
             continue;
         }
-        if !crate::references::invocation_calls_proc(analysis, inv, callee_qname, callee, source) {
+        let matches = original_callee.map_or_else(
+            || {
+                legacy_callee.is_some_and(|callee| {
+                    crate::references::invocation_calls_proc(
+                        analysis,
+                        inv,
+                        callee_qname,
+                        callee,
+                        source,
+                    )
+                })
+            },
+            |callee| {
+                crate::original_declaration::invocation_targets_declaration(
+                    source, analysis, inv, callee, true,
+                )
+            },
+        );
+        if !matches {
             continue;
         }
         sites.push(pos_value(line_index, source, inv.range.start()));
@@ -371,7 +439,21 @@ fn resolve_invocation_target(
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     proc_names_sorted: &[String],
     source: &str,
+    ir_module: &IrModule,
 ) -> Option<String> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let mut selected = analysis
+            .original_procedure_declarations()
+            .filter(|row| {
+                crate::original_declaration::invocation_targets_declaration(
+                    source, analysis, inv, row, true,
+                )
+            })
+            .filter_map(|row| original::compiled_label(source, analysis, ir_module, row))
+            .filter(|label| proc_names_sorted.iter().any(|name| name == label));
+        let first = selected.next()?;
+        return selected.next().is_none().then(|| first.to_owned());
+    }
     proc_names_sorted.iter().find_map(|qname| {
         let proc = analysis.all_procs.get(qname)?;
         crate::references::invocation_calls_proc(analysis, inv, qname, proc, source)
@@ -386,6 +468,8 @@ fn build_nodes(
     interproc: &tcl_compiler::interprocedural::InterproceduralAnalysis,
     ir_module: &IrModule,
     line_index: &LineIndex,
+    analysis: &AnalysisResult,
+    source: &str,
 ) -> Vec<Value> {
     proc_names
         .iter()
@@ -395,13 +479,17 @@ fn build_nodes(
                 .procedures
                 .get(qname)
                 .map(|p| line0(line_index, p.span.start()));
-            let effects = effect_region_str(summary.effect_reads | summary.effect_writes);
+            let matched = analysis.allows_lexical_declaration_advice() || {
+                let mut rows = analysis.original_procedure_declarations().filter(|row|
+                    original::compiled_label(source, analysis, ir_module, row) == Some(qname.as_str()));
+                rows.next().is_some() && rows.next().is_none()
+            };
             json!({
                 "name": qname,
                 "params": summary.params,
                 "line": line,
-                "pure": summary.pure,
-                "effects": effects,
+                "pure": matched.then_some(summary.pure),
+                "effects": matched.then(|| effect_region_str(summary.effect_reads | summary.effect_writes)),
             })
         })
         .collect()
@@ -471,7 +559,14 @@ pub fn call_graph(
     proc_names.sort();
     let proc_set: std::collections::HashSet<&str> = proc_names.iter().map(String::as_str).collect();
 
-    let nodes = build_nodes(&proc_names, interproc, ir_module, &line_index);
+    let nodes = build_nodes(
+        &proc_names,
+        interproc,
+        ir_module,
+        &line_index,
+        &analysis,
+        source,
+    );
 
     // Edges + bookkeeping.
     let mut edges: Vec<Value> = Vec::new();
@@ -502,7 +597,9 @@ pub fn call_graph(
         if is_inside_proc(inv.range, ir_module) {
             continue;
         }
-        if let Some(target) = resolve_invocation_target(&analysis, inv, &proc_names, source) {
+        if let Some(target) =
+            resolve_invocation_target(&analysis, inv, &proc_names, source, ir_module)
+        {
             let pos = pos_value(&line_index, source, inv.range.start());
             top_level
                 .entry(target)
@@ -546,12 +643,24 @@ pub fn call_graph(
         .collect();
     leaf_procs.sort();
 
-    json!({
+    let compiled = json!({
+        "projection": "compiled-ir",
         "nodes": nodes,
         "edges": edges,
         "roots": roots,
         "leaf_procs": leaf_procs,
-    })
+    });
+    if let Some(mut original) =
+        original::procedure_view(source, &analysis, Some((ir_module, interproc)))
+    {
+        original
+            .as_object_mut()
+            .expect("graph object")
+            .insert("compiled".to_owned(), compiled);
+        original
+    } else {
+        compiled
+    }
 }
 
 // dataflow graph
@@ -602,6 +711,7 @@ fn collect_taint_warnings(
     let mut push = |code: &str, span: Span, message: &str, variable: &str, sink: &str| {
         out.push(json!({
             "code": code,
+            "source_span": [span.start(), span.end()],
             "line": line0(line_index, span.start()),
             "message": message,
             "variable": variable,

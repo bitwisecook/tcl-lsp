@@ -16,47 +16,22 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Resolving a **script argument that was built rather than written**.
+//! Structural source assistance for scripts built with a list-prefix command.
 //!
-//! A Tcl script argument is usually a literal braced block — `uplevel #0 {
-//! upvar #0 ::tk::Priv ::tk::Priv }` — and every pass that walks code keys on
-//! that shape.  Real code just as often *builds* the script with `list`:
+//! A single command substitution such as `[list upvar 1 a b]` can retain its
+//! source word layout for compatibility consumers. The registry selects the
+//! builder's `BUILDS_COMMAND_PREFIX` trait; a complete literal bare head and
+//! one inner command are required. Dynamic heads and multiple commands decline.
 //!
-//! ```tcl
-//! uplevel #0 [list upvar #0 ::tk::Priv.$disp ::tk::Priv]
-//! namespace eval :: [list source [file join $::tk_library $file.tcl]]
-//! ```
+//! This projection supplies source spans and syntax. It does not establish an
+//! entered script, an effective Native argument vector, command selection or
+//! a frame. Original callback and script-body consumers use their independently
+//! selected typed issuers for those questions. The enclosing command's selected
+//! argument roles determine whether a value occupies a script position.
 //!
-//! Tk's own `library/tk.tcl` uses both of those.  They are not dynamic: `list`
-//! packs its already-substituted arguments into exactly one command, and Tcl
-//! then evaluates it deterministically.  A 3-way comparison on tclsh 9.0.4 and
-//! 8.6.16 (direct `upvar`, braced `uplevel {upvar …}`, `uplevel [list upvar
-//! …]`) shows the three are functionally identical — only the `[list …]` form
-//! is the one an unaware analyser or semantic-token walker misses.
-//!
-//! [`list_quoted_script_command`] is the one predicate that answers "is this
-//! `[…]` argument a statically known command, and which one?", so the
-//! analyser's body gate and the LSP's declaration highlighting cannot drift
-//! apart about it.
-//!
-//! # What it deliberately does not resolve
-//!
-//! The direction is *abstain on doubt*.  Only a `[…]` whose sole inner command
-//! is a call to a [`Traits::BUILDS_COMMAND_PREFIX`] command (`list`, resolved
-//! from the registry) with a literal, resolvable first word resolves; `[list
-//! $cb …]`, `[$build x]`, `[list a; list b]`, and a widget-path head all keep
-//! today's opaque-barrier behaviour.
-//!
-//! # Substitution timing
-//!
-//! Each word of the resolved command is a **pre-substituted** list element:
-//! `[list set v $x]` builds `set v <the value of x>`, with `$x` read in the
-//! *building* frame, before the script is evaluated.  A consumer must
-//! therefore treat each word as a value that is already known to Tcl — which
-//! is exactly how the segmented words read, since their spans still point at
-//! the source text that produced them.  A word that is not statically knowable
-//! (`::tk::Priv.$disp`) stays a dynamic word and the usual dynamic-word guards
-//! skip it.
+//! Builder arguments undergo substitution in the building frame. Their source
+//! spans describe the expressions that produce list elements; they do not turn
+//! unknown values into literals or move variable reads into a later frame.
 //!
 //! [`Traits::BUILDS_COMMAND_PREFIX`]: tcl_registry::Traits::BUILDS_COMMAND_PREFIX
 
@@ -65,17 +40,12 @@ use tcl_registry::CommandRegistry;
 
 use crate::segmenter::SegmentedCommand;
 
-/// The command a `[list HEAD word …]` script argument provably *is*, or
-/// `None` when the argument is not that shape.
+/// Project the source layout of a single literal-head list-built script.
 ///
-/// `tok` / `text` are a command-substitution word as the segmenter reports it
-/// — a [`TokenType::Cmd`] token, whose `text` keeps the surrounding `[`/`]`.
-/// The returned [`SegmentedCommand`] is the *effective* command: word 0 is
-/// `HEAD` and the remaining words are the ones `list` packs after it, each
-/// keeping its own real source span, so a consumer's ranges land on the
-/// user's text rather than on synthetic positions.
-///
-/// See the module docs for what is deliberately left unresolved.
+/// `tok` and `text` retain the complete command-substitution word. The returned
+/// segment drops the builder head and preserves the original producer spans.
+/// This compatibility projection supplies neither Native dispatch nor entered
+/// script execution; callers retain the enclosing selected argument role.
 #[must_use]
 pub fn list_quoted_script_command(
     registry: &CommandRegistry,
@@ -88,6 +58,44 @@ pub fn list_quoted_script_command(
     let seg =
         crate::signature_scan::command_prefix::list_quoted_command_segment(registry, tok, text)?;
     drop_leading_word(&seg)
+}
+
+/// Project only the written target geometry from the sealed original builder
+/// and its selected source target. Captured alias arguments cannot borrow
+/// written spans. This supplies no execution, value object or entered frame.
+pub(crate) fn original_list_built_script_command(
+    words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    producer: &SegmentedCommand,
+) -> Option<SegmentedCommand> {
+    use crate::registry_invocation::InvocationWordOrigin;
+    use crate::registry_invocation::source_structure::OriginalRegistrySource;
+    let OriginalRegistrySource::ProducedPrefix(prefix) = words.source() else {
+        return None;
+    };
+    let originals = prefix.producer().original_words();
+    let head = originals.first()?;
+    let image = head.image();
+    let config = head.config();
+    let tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(image),
+        config,
+        producer,
+    );
+    let captured = crate::registry_invocation::original_native_compiler_words(
+        image,
+        tokens.words(),
+        producer.argv.first()?.span.start(),
+        config,
+    )?;
+    if captured != originals
+        || words.origins()
+            != (1..originals.len())
+                .map(InvocationWordOrigin::Written)
+                .collect::<Vec<_>>()
+    {
+        return None;
+    }
+    drop_leading_word(producer)
 }
 
 /// [`list_quoted_script_command`] for a `list HEAD word …` call that is
@@ -109,8 +117,7 @@ pub fn list_build_effective_command(
         .flatten()
 }
 
-/// Re-anchor `seg` one word to the right: drop the `list` head so word 0 is
-/// the command the built script really invokes.
+/// Drop the builder head while retaining the remaining source geometry.
 fn drop_leading_word(seg: &SegmentedCommand) -> Option<SegmentedCommand> {
     let head = *seg.argv.get(1)?;
     let start = head.span.start();
@@ -210,5 +217,57 @@ mod tests {
             "`concat` does not carry BUILDS_COMMAND_PREFIX — its result is \
              not a well-formed one-command list"
         );
+    }
+    #[test]
+    fn original_list_builder_projection_preserves_selected_producers_and_refuses_shadows() {
+        // naming.source.original-produced-command-prefix
+        // docs/design/analysis/name-resolution-proofs/original-produced-command-prefix.md
+        for (source, expected) in [
+            ("uplevel #0 [list upvar #0 original local]", true),
+            (
+                "rename list build; uplevel #0 [build upvar #0 original local]",
+                true,
+            ),
+            (
+                "interp alias {} build {} list; uplevel #0 [build upvar #0 original local]",
+                true,
+            ),
+            (
+                "proc list args {}; uplevel #0 [list upvar #0 original local]",
+                false,
+            ),
+            (
+                "rename list {}; uplevel #0 [list upvar #0 original local]",
+                false,
+            ),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+            let parent =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .pop()
+                    .unwrap();
+            let body = parent.argv[2];
+            let sm = tcl_lexer::SourceMap::new(source);
+            let child = crate::parsing::syntax::descend::descend_token(&sm, body, config);
+            let commands = crate::parsing::syntax::segment::segments_from_tree(child.tree(), &sm);
+            let producer = &commands[0];
+            let words =
+                crate::registry_invocation::source_structure::source_produced_command_prefix_words(
+                    source, &analysis, producer,
+                );
+            let projected = words
+                .as_ref()
+                .and_then(|words| original_list_built_script_command(words, producer));
+            assert_eq!(projected.is_some(), expected, "{source}");
+            if let Some(projected) = projected {
+                assert_eq!(projected.texts, ["upvar", "#0", "original", "local"]);
+                assert_eq!(projected.argv, producer.argv[1..]);
+                let input = analysis.resolved_input.as_ref().unwrap();
+                let realm = analysis.retained_command_realm().unwrap();
+                assert_eq!(words, crate::registry_invocation::source_structure::source_produced_command_prefix_words_in(source, input, realm, producer));
+                assert!(crate::registry_invocation::source_structure::source_produced_command_prefix_words_in(&format!("{source} "), input, realm, producer).is_none());
+            }
+        }
     }
 }

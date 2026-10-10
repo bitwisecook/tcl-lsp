@@ -98,6 +98,26 @@ pub struct RuleProcedureTarget {
 }
 
 impl RuleProcedureTarget {
+    /// Written rule component of a literal rule/procedure target, for source
+    /// reports whose caller independently resolves configuration objects.
+    /// Relative spellings remain relative; no partition or rule owner is
+    /// fabricated. Local, malformed and unknown targets supply no candidate.
+    #[must_use]
+    pub fn referenced_rule_spelling(target: &str) -> Option<&str> {
+        // Implementation contract: naming.consumer.original-rule-reference-candidates
+        // docs/design/analysis/name-resolution-proofs/original-rule-reference-candidates.md
+        let (rule, procedure) = target.rsplit_once("::")?;
+        if rule.is_empty() || procedure.is_empty() || procedure.contains('/') {
+            return None;
+        }
+        if rule.starts_with('/') {
+            RuleIdentity::new(rule).ok()?;
+        } else if rule.contains('/') || rule.contains("::") {
+            return None;
+        }
+        Some(rule)
+    }
+
     /// Resolve documented local, partition-root and absolute-folder call forms.
     ///
     /// # Errors
@@ -153,5 +173,33 @@ mod tests {
         assert!(RuleIdentity::new("/Common/../helpers").is_err());
         assert!(RuleIdentity::new("helpers").is_err());
         assert!(RuleProcedureTarget::resolve("::helpers::local", Some(&current)).is_err());
+    }
+    #[test]
+    fn original_rule_spelling_candidates_do_not_fabricate_ownership() {
+        // Implementation contract: naming.consumer.original-rule-reference-candidates
+        // docs/design/analysis/name-resolution-proofs/original-rule-reference-candidates.md
+        for (target, spelling) in [
+            ("Lib::one", "Lib"),
+            ("/Common/folder/Lib::one", "/Common/folder/Lib"),
+        ] {
+            assert_eq!(
+                RuleProcedureTarget::referenced_rule_spelling(target),
+                Some(spelling)
+            );
+        }
+        for target in [
+            "local",
+            "::plain",
+            "Lib::",
+            "Lib::nested::one",
+            "/Common/../Lib::one",
+            "Lib::bad/name",
+        ] {
+            assert_eq!(RuleProcedureTarget::referenced_rule_spelling(target), None);
+        }
+        assert_eq!(
+            RuleProcedureTarget::resolve("Lib::one", None),
+            Err(RuleIdentityError::MissingOwner)
+        );
     }
 }

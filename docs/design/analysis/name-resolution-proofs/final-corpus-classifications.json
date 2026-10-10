@@ -1,0 +1,122 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/provenance.json",
+    "sha256": "5eae5fcd8bf8025aba2f96b43de5502ad08924c8540f2bb6fc2a97d5519f445d",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.command-trace.opaque-prefix-report-and-removal",
+      "naming.command-trace.counted-zero-prefix-storage-removal",
+      "naming.command-trace.counted-zero-callback-evaluation"
+    ],
+    "reason": "Ten original counted source/result observer captures independently matched to their exact encoded source SHA and full stdout; each program/channel remains distinct."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/opaque-provenance.json",
+    "sha256": "0022622eb2984069c024b8fa814d07bdd3748cccaaa3835c7bc1a7b438796e31",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.command-trace.opaque-prefix-report-and-removal"
+    ],
+    "reason": "Five original direct-output opaque trace captures with exact source/driver checksums and byte-equal separate stdout."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/counted-nul-provenance.json",
+    "sha256": "29005d8e9a718552b73eea82391c76231c3600bfaf4b8a8af4c0ffcbe22c9806",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.command-trace.counted-zero-prefix-storage-removal",
+      "naming.command-trace.counted-zero-callback-evaluation"
+    ],
+    "reason": "Five original counted-zero direct-output captures; exact source/streams verified, missing original driver/build attribution retained as a replay limitation."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_bindings/provenance.json",
+    "sha256": "89aff8337440efa2f25a7421c3d7b1268433e0594c702d5ebe266327d49fd80d",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-compiler.plain-name",
+      "naming.namespace-compiler.empty-and-separator-tail",
+      "naming.namespace-compiler.unmatched-closing-tail",
+      "naming.namespace-compiler.interleaved-values",
+      "naming.namespace-compiler.declined-prefix-residual",
+      "naming.namespace-compiler.dynamic-final-text",
+      "naming.namespace-compiler.mixed-dynamic-prefix",
+      "naming.namespace-compiler.literal-expansion-and-empty-call"
+    ],
+    "reason": "Exact20 bodies×5 C original physical compiler observations: probe and all full stdout digests checked; separate hook/opcode/local purposes and bytecode-absence sentinel retained."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json",
+    "sha256": "57f1bd14ef228a7dca67f92158e83a49e4a78ee0dbe7d9a832f428cdefe878c5",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-compiler.variable-value-residual",
+      "naming.namespace-compiler.global-prefix-residual",
+      "naming.namespace-compiler.qualified-variable-value-residual"
+    ],
+    "reason": "Independent5 bodies×5 C declined-attempt literal/local observations; exact executed source and whole output checksums verified, distinct from20-body opcode matrix."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_final_token/manifest.json",
+    "sha256": "95c5e4a4742fa223cf7cb2dbb2696ce3f247067c00b4c966acebae7d40177641",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-parser.final-original-token"
+    ],
+    "reason": "Exact8 source parser controls×5 release stdout; original source checksum and every retained complete stdout matched, build attribution gaps preserved."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_selected_worker_names/manifest.json",
+    "sha256": "61a1b93314beccb3b69a21779d43c89fa716197ec22c96c37f2adeb1e98cca6b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.ensemble-worker.structured-compiler-collision",
+      "naming.ensemble-worker.original-cmdname-primary",
+      "naming.ensemble-worker.jim-root-creation-frontier"
+    ],
+    "reason": "Exact independently reached compiled-collision/cached-worker branches and separate actual Jim setup rejection; skipped C branches are no-measurement limitations, not guest failures."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_namespace_origin/provenance.json",
+    "sha256": "867b10f594c09c68e990f9ac08c4c89abdd5bee7bd917c502bc1d69ff1ab4121",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-origin.script-import-chain"
+    ],
+    "reason": "Five actual ASCII import-chain result captures matched by payload SHA/result bytes to their permanent windows; missing exact presenter wrapper retained as a strict replay limitation."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/cases.json",
+    "sha256": "54d1ea302fd422ea940a6515829534de798a4966bcb849d78cab715f2a2c68dd",
+    "classification": "input-fixture",
+    "proof_ids": [
+      "naming.procedure-source.colon-namespace-home",
+      "naming.procedure-source.colon-local-name",
+      "naming.procedure-source.name-before-malformed-formals"
+    ],
+    "reason": "Exact three original script payloads independently equal every capture and rows projection source; inputs supply no execution evidence themselves."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/manifest.json",
+    "sha256": "0427ea0b076aa02ff6426538b6fcad4970a29ddfa2989386b7deea9702d86495",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.procedure-source.colon-namespace-home",
+      "naming.procedure-source.colon-local-name",
+      "naming.procedure-source.name-before-malformed-formals"
+    ],
+    "reason": "Actual18 shell source/result/error observations with source/case/raw stream equality; exact original presenter retained, historical checkpoint runner dependency remains explicit."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_procedure_parse_context/manifest.json",
+    "sha256": "07a3d2f2b7e324fc2c6ab1ec7e08f92ed57a48b1b54ccbe36eabf3ac9ed1da2e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.procedure-error.original-name-context",
+      "naming.procedure-error.counted-zero-name-context",
+      "naming.procedure-error.long-name-and-argv-context",
+      "naming.procedure-error.body-line-context"
+    ],
+    "reason": "Exact7 C8.4 counted original name/body/call/error-publication windows: probe and whole TSV checksums verified, result-before-metadata order and unmeasured side-store/header limits retained."
+  }
+]

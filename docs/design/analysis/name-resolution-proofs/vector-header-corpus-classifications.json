@@ -1,0 +1,35 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/manifest.json",
+    "sha256": "8ffcfc6a89e0fc6a102a27bf669543d843fccf43c41125cd34811c6be686f478",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.object-vector.missing-handler-result",
+      "naming.object-vector.native-error-result-publication",
+      "naming.object-vector.nested-error-result-primary",
+      "naming.object-vector.successful-native-result-reset"
+    ],
+    "reason": "Exact probe source SHA and all six full captured streams compared with persisted fixtures; case/channel/result/argument windows split by their actual command purposes, no runtime-version or pointer identity inferred."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_object_vector/completions/manifest.json",
+    "sha256": "d89241cf1b2d6c707e195fa9c4d239e83e0ca9e4504c8628e1d1745c06e81755",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.object-vector.completion.return-boundary",
+      "naming.object-vector.completion.break-continue-argument-frontier",
+      "naming.object-vector.completion.error-list-result-storage"
+    ],
+    "reason": "Exact probe source SHA and all six full captured streams compared with persisted fixtures; case/channel/result/argument windows split by their actual command purposes, no runtime-version or pointer identity inferred."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_headers/manifest.json",
+    "sha256": "f7c731a9d9d43ab78d5ff73308d5d224298a21b7692aef11dae02df2042f5244",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.procedure.counted-formal-header-selection",
+      "naming.procedure.counted-body-header-selection"
+    ],
+    "reason": "Original counted probe SHA and all40 output rows/digests checked; formal/body pointer-selection questions remain distinct from argument acceptance, formal storage and procedure invocation."
+  }
+]

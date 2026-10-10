@@ -214,17 +214,16 @@ impl ExprSyntaxError {
         // The profile handed in is the resolution (see `parse_expr_for_profile`).
         let resolved = profile.unwrap_or_else(|| DialectProfile::plain_tcl());
         let (raw, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
-        if has_unknown && let Some(error) = Self::first_invalid_character(source, &raw) {
-            return error;
-        }
-        let tokens: Vec<ExprToken> = raw.into_iter().filter(|t| !t.kind.is_skipped()).collect();
-        Scan::new(
+        let lexical = has_unknown
+            .then(|| Self::first_invalid_character(source, &raw))
+            .flatten();
+        Self::diagnose_tokens(
             source.as_bytes(),
-            &tokens,
+            raw,
+            lexical,
             super::parser::numbers_for(profile, resolved),
             resolved.expr_grammar_base,
         )
-        .run()
     }
 
     /// Diagnose using independently retained lexical and expression grammar axes.
@@ -241,20 +240,16 @@ impl ExprSyntaxError {
             expr_grammar_base,
             f5_word_grammar,
         );
-        if has_unknown && let Some(error) = Self::first_invalid_character(source, &raw) {
-            return error;
-        }
-        let tokens: Vec<_> = raw
-            .into_iter()
-            .filter(|token| !token.kind.is_skipped())
-            .collect();
-        Scan::new(
+        let lexical = has_unknown
+            .then(|| Self::first_invalid_character(source, &raw))
+            .flatten();
+        Self::diagnose_tokens(
             source.as_bytes(),
-            &tokens,
+            raw,
+            lexical,
             grammar.numbers,
             expr_grammar_base,
         )
-        .run()
     }
 
     /// The simple message plus C's quoted context (and postscript, where C adds
@@ -348,22 +343,47 @@ impl ExprSyntaxError {
             expr_grammar_base,
             f5_word_grammar,
         );
-        if unknown {
-            let uncovered = (0..source.len()).find(|offset| {
-                !raw.iter()
-                    .any(|token| (token.start as usize..=token.end as usize).contains(offset))
-            });
-            if let Some(at) = uncovered {
-                let mut error = Self::at(ExprSyntaxErrorKind::InvalidCharacter, at, 1);
-                error.word = vec![source[at]];
-                return error;
-            }
-        }
+        let lexical = unknown
+            .then(|| {
+                (0..source.len())
+                    .find(|offset| {
+                        !raw.iter().any(|token| {
+                            (token.start as usize..=token.end as usize).contains(offset)
+                        })
+                    })
+                    .and_then(|at| Self::lexical_character(source, at))
+            })
+            .flatten();
+        Self::diagnose_tokens(source, raw, lexical, grammar.numbers, expr_grammar_base)
+    }
+
+    fn diagnose_tokens<Text: super::ExprText>(
+        source: &[u8],
+        raw: Vec<ExprToken<Text>>,
+        lexical: Option<Self>,
+        numbers: crate::number::NumberSyntax,
+        expr_grammar_base: Option<TclVersion>,
+    ) -> Self {
         let tokens: Vec<_> = raw
             .into_iter()
             .filter(|token| !token.kind.is_skipped())
             .collect();
-        Scan::new(source, &tokens, grammar.numbers, expr_grammar_base).run()
+        if let Some(error) = lexical {
+            // C classifies each lexeme before advancing to the next. A later
+            // rejected character cannot replace a definite earlier syntax
+            // error (tcl8.5.19/generic/tclCompExpr.c:686-749). Preserve the full
+            // source for quoting, but do not let tokens after that character
+            // provide lookahead. EOF-dependent diagnoses point at source.len()
+            // and cannot win this ordering check.
+            let end = tokens.partition_point(|token| (token.end as usize) < error.at);
+            let earlier = Scan::new(source, &tokens[..end], numbers, expr_grammar_base).run();
+            return if earlier.at < error.at {
+                earlier
+            } else {
+                error
+            };
+        }
+        Scan::new(source, &tokens, numbers, expr_grammar_base).run()
     }
 
     /// Exact original bytes in the native parse error-info frame.
@@ -1077,6 +1097,69 @@ mod tests {
                 format!("TCL PARSE EXPR {code}"),
                 "code for {source}"
             );
+        }
+    }
+
+    #[test]
+    fn original_reference_bareword_precedes_later_lexical_rejection() {
+        // Public observation: naming.expression.variable-reference-boundaries
+        // docs/design/analysis/name-resolution-proofs/expression-variable-reference-boundaries.md
+        // Native341 C8.5/C8.6 original source `${a{b}c}` reports the bareword c,
+        // not the later brace. These assert only the measured public message;
+        // text/byte/checked ingress parity is a separate implementation binding.
+        use super::super::parser::{
+            CheckedExprParse, ExprParseContext, parse_expr_bytes_checked_with_context,
+        };
+        let source = "${a{b}c}";
+        let expected = "invalid bareword \"c\"\nin expression \"${a{b}c}\";\nshould be \"$c\" or \"{c}\" or \"c(...)\" or ...";
+        for dialect in ["tcl8.5", "tcl8.6"] {
+            let profile = DialectProfile::find(dialect).unwrap();
+            let context = ExprParseContext::for_profile(profile);
+            assert_eq!(
+                ExprSyntaxError::diagnose_for_profile(source, Some(profile)).message(source),
+                expected
+            );
+            let error = ExprSyntaxError::diagnose_with_expression_grammar(
+                source,
+                &context.lexer_grammar,
+                context.expr_grammar_base,
+                context.f5_word_grammar,
+            );
+            assert_eq!(error.message(source), expected);
+            let error = ExprSyntaxError::diagnose_bytes_with_expression_grammar(
+                source.as_bytes(),
+                &context.lexer_grammar,
+                context.expr_grammar_base,
+                context.f5_word_grammar,
+            );
+            assert_eq!(error.message_bytes(source.as_bytes()), expected.as_bytes());
+            let CheckedExprParse::ProvedSyntaxFailure(failure) =
+                parse_expr_bytes_checked_with_context(source.as_bytes(), &context)
+            else {
+                panic!("original rejected source must retain syntax failure");
+            };
+            assert_eq!(
+                failure
+                    .native_diagnostic_bytes_with_context(source.as_bytes(), &context)
+                    .unwrap()
+                    .message,
+                expected.as_bytes()
+            );
+        }
+    }
+
+    #[test]
+    fn incomplete_prefix_does_not_replace_a_later_lexical_error() {
+        // Implementation control for the public observation binding above:
+        // an unfinished prefix does not prove EOF while source remains.
+        for source in ["1 + @", "(@", "f(@", "@foo"] {
+            let error = ExprSyntaxError::diagnose(source, Some("tcl8.6"));
+            assert_eq!(
+                error.kind,
+                ExprSyntaxErrorKind::InvalidCharacter,
+                "{source}"
+            );
+            assert_eq!(error.at, source.find('@').unwrap(), "{source}");
         }
     }
 

@@ -132,44 +132,21 @@ pub(super) struct ObjdefineAbortCandidate {
     pub prior_state_conditional: bool,
 }
 
-/// The recorded state of one child interpreter:
-/// safe flag plus the explicit hide / expose deltas layered over the
-/// registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base set.
+/// Child source declaration and scoped visibility advice, independently of
+/// actual entered interpreter state or native hidden allocations.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(super) struct InterpState {
     /// Created with `-safe`.
     pub safe: bool,
-    /// Commands explicitly `interp hide`-den in this interpreter.
-    pub hidden: HashSet<String>,
-    /// Names callable regardless of the safe-hidden base set: explicit
-    /// `interp expose` targets, **and** names the interpreter has locally
-    /// (re)defined (e.g. `proc source {} {…}` inside its body) — C creates
-    /// those in the ordinary command table, entirely independent of the
-    /// separate hidden-command table, so a hidden built-in's name becomes
-    /// callable the moment the child defines its own command by that name
-    /// (tclsh 9.0.4-verified).
-    pub exposed: HashSet<String>,
-    /// A hide / expose operation on this interpreter used a dynamic
-    /// command operand — its visible command set is unknowable, so the
-    /// safe-context gate abstains entirely for its evaluation bodies.
+    /// Original scoped source visibility, independent of current callability.
+    pub visibility: Option<super::SourceInterpreterVisibilitySnapshot>,
+    /// An original visibility operation could not retain its source operands.
+    /// Its evaluation bodies cannot reuse the withdrawn source snapshot.
     pub tainted: bool,
 }
 
-/// One child-interpreter evaluation context on the walk stack — the
-/// effective command-visibility state for the `interp eval` body being
-/// walked.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub(super) struct SafeInterpCtx {
-    /// The registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base
-    /// set applies (the interpreter was created `-safe`).  A normal
-    /// interpreter with explicit `interp hide`s carries `false` — only
-    /// its own hidden set applies.
-    pub base_hidden: bool,
-    /// Commands explicitly hidden in this interpreter.
-    pub hidden_extra: HashSet<String>,
-    /// Commands re-exposed over the base set.
-    pub exposed: HashSet<String>,
-}
+/// Source-only child visibility snapshots retain complete original inputs.
+pub(super) type SafeInterpCtx = super::SourceInterpreterVisibilitySnapshot;
 
 /// One `interp eval` body on the walk stack — the interpreter-domain
 /// identity of the script currently being analysed.
@@ -211,11 +188,9 @@ pub enum DispatchReceiver {
     /// handle.  A `$var` can hold anything at run time, so its class
     /// evidence comes from the SSA type lattice / constructor harvest only.
     Variable,
-    /// `objcmd method` — a bareword *named* instance command bound by
-    /// `CLASS create NAME`.  Its class comes from
-    /// `AnalysisResult::instance_classes` gated on
-    /// `AnalysisResult::created_instance_commands` — the same contract the
-    /// LSP's `receiver_instance_class` uses for hover/definition/completion.
+    /// `objcmd method` — a named receiver retained by the genuine original
+    /// source-instance issuer. The carrier supplies conditional class metadata;
+    /// actual Native dispatch and object lifetime require their own proofs.
     InstanceCommand,
     /// `my method` — a bareword head the registry declares a **self-dispatch
     /// keyword** (`CommandRegistry::method_dispatch_keyword` answering
@@ -370,6 +345,10 @@ pub struct Analyser {
     /// entries) and read by handlers that need to re-slice the outer
     /// source — recovery and CFG/SSA diagnostic emission.
     pub source: String,
+    /// Static original words from this walk's genuine complete command
+    /// vectors. Missing or conflicting producers never use a display name.
+    pub(super) original_static_source_names:
+        HashMap<Span, Option<crate::signature_scan::original_name::SourceOriginalNameOccurrence>>,
     /// The resolved dialect profile — the ingest identity
     /// (dialect-profile-model.md §2.4). Set once at the top of
     /// [`Self::analyse`] from the caller's dialect string via
@@ -1224,18 +1203,11 @@ pub struct Analyser {
     /// plus every grafted body's (already rebased to absolute offsets),
     /// merged so the replay can run in one global source-order pass.
     pub(super) deferred_instance_replays: Vec<(u32, bool, String, Vec<String>, String)>,
-    /// Bareword `objcmd method` dispatch sites captured while
-    /// `pending_instances` is active — a `CLASS create NAME` creation earlier
-    /// in the same deferred pass has not resolved `instance_classes` yet (it
-    /// resolves only post-graft, in [`Self::replay_deferred_instances`]), so
-    /// the site is held here instead of going straight into
-    /// `var_command_sites`.  Finalised right after that replay: a candidate
-    /// whose name the replay actually bound in `instance_classes` becomes a
-    /// real `var_command_sites` entry; every other candidate (a coroutine /
-    /// `interp create` / registry-factory / external-class name that merely
-    /// *looked* like a pending class instance at record time) is dropped —
-    /// the same soundness bar the non-deferred `analyse` path applies
-    /// immediately.  `None` on the whole-file path (sites resolve inline).
+    /// Complete original bareword receiver sites retained during per-item scans.
+    /// Once canonical declarations join, the shared source-instance issuer
+    /// validates each site's ordered context and mutation blockers. Labels in
+    /// presentation maps never admit a receiver. Whole-document scans use the
+    /// same issuer inline.
     pub(super) pending_bareword_dispatch_sites: Option<Vec<VarCommandSite>>,
     /// **Experimental probe flag.**  When `true`, the per-item path does *not*
     /// take the duplicate-definition fallback, to measure the residual
@@ -1338,6 +1310,25 @@ impl Analyser {
         self.ingress_grammar.unwrap_or(self.profile.grammar)
     }
 
+    /// Complete source invocation axes from the retained entry or actual
+    /// authoring environment. This supplies no entered handler or name lookup.
+    pub(super) fn original_source_invocation_dialect(
+        &self,
+    ) -> Option<tcl_registry::InvocationDialect> {
+        match self.source_analysis_entry.as_deref() {
+            Some(entry) => entry
+                .options()
+                .source_invocation_dialect(self.lexer_config()),
+            None => self.registry.as_deref().map(|registry| {
+                crate::environment_ingress::authoring_invocation_dialect(
+                    registry,
+                    None,
+                    self.lexer_config(),
+                )
+            }),
+        }
+    }
+
     /// The command surface this document analyses against: `registry` plus
     /// the document's own `# tcl-lsp: stub` declarations.
     ///
@@ -1379,14 +1370,22 @@ impl Analyser {
     /// [`Self::lexer_config`] for the **whole-file** segmentation at the top of
     /// [`Self::analyse`] — the one place that stands where a Tcl runtime's
     /// `source` stands, and therefore the only place that may skip a leading
-    /// byte-order mark.  Whether it does is the dialect's
-    /// business: Tcl 9's `source` strips a leading U+FEFF, Tcl 8.x's does not
-    /// and genuinely fails on such a file.
+    /// byte-order mark. An independently supplied full input retains its
+    /// own BOM treatment. Default ingress uses the selected file grammar:
+    /// Tcl 9's `source` strips a leading U+FEFF; Tcl 8.x's does not.
     pub(super) fn file_lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig {
-            leading_bom: tcl_lexer::LexerConfig::for_file_grammar(self.grammar()).leading_bom,
-            ..self.lexer_config()
-        }
+        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
+        // docs/design/analysis/name-resolution-proofs/original-ilx-method-source-candidates.md
+        // A supplied whole configuration owns the document boundary as well
+        // as its retained body/Realm input. Only default ingress selects the
+        // profile's source-file BOM treatment.
+        self.resolved_input.as_ref().map_or_else(
+            || tcl_lexer::LexerConfig {
+                leading_bom: tcl_lexer::LexerConfig::for_file_grammar(self.grammar()).leading_bom,
+                ..self.lexer_config()
+            },
+            |input| input.config,
+        )
     }
 
     /// A [`tcl_lexer::SourceMap`] over [`Self::source`], built from the
@@ -1549,6 +1548,7 @@ impl Analyser {
             result: AnalysisResult::default(),
             current_scope_path: Vec::new(),
             source: String::new(),
+            original_static_source_names: HashMap::new(),
             profile: tcl_dialect::DialectProfile::plain_tcl(),
             ingress_grammar: None,
             unit_profile: None,
@@ -1997,26 +1997,53 @@ impl Analyser {
     /// this does not retain the document's temporal execution world.
     #[must_use]
     pub fn resolved_analysis_input(&self) -> super::input::ResolvedAnalysisInput {
-        super::input::ResolvedAnalysisInput::new(
+        let input = super::input::ResolvedAnalysisInput::new(
             self.profile,
             self.unit_profile.unwrap_or(self.profile),
             self.analysis_context(),
             self.lexer_config(),
-        )
+        );
+        match self.vendor_source_name_policy() {
+            Some(policy) => input.with_vendor_source_policy(policy),
+            None => input,
+        }
+    }
+
+    /// Select the same source interpretation without walking diagnostics or
+    /// constructing an analysis projection. Its editing input is sealed once.
+    pub(crate) fn readonly_source_registry_realm(
+        source: &str,
+        input: super::input::ResolvedAnalysisInput,
+    ) -> (
+        crate::realm::CommandBindingRealm,
+        super::input::ResolvedAnalysisInput,
+    ) {
+        let profile = input.analyser_profile();
+        let mut analyser = Self::new().with_resolved_input(input);
+        analyser.resolve_walk_environment(profile.name);
+        analyser.registry = Some(analyser.profile_registry());
+        let realm = analyser.document_command_realm(source);
+        (realm, analyser.resolved_analysis_input())
     }
 
     pub(super) fn document_command_realm(&self, source: &str) -> crate::realm::CommandBindingRealm {
-        let registry = self.registry.as_deref().expect("registry just stashed");
-        if let Some(entry) = &self.source_analysis_entry {
-            crate::realm::document_realm_bindings_with_source_entry(
-                source,
-                self.lexer_config(),
-                registry,
-                entry,
-            )
-        } else {
-            crate::realm::document_realm_bindings_with_config(source, self.lexer_config(), registry)
-        }
+        // naming.minifier.logical-source-header
+        // docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md
+        // naming.source.original-declared-command-word-contract
+        // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
+        let input = self.resolved_analysis_input();
+        let declarations = crate::command_binding::SourceDeclaredCommandContracts::for_document(
+            source,
+            self.file_path.as_deref(),
+            &input,
+            self.source_analysis_entry.as_deref(),
+        );
+        crate::realm::document_realm_with_declared_contracts(
+            source,
+            &input,
+            self.source_analysis_entry.as_deref(),
+            &declarations,
+        )
     }
 
     /// Supply a pre-built [`crate::compilation_unit::CompilationUnit`] for the
@@ -2076,10 +2103,27 @@ impl Analyser {
     pub fn analyse(&mut self, source: &str, dialect: &str) -> AnalysisResult {
         use std::collections::HashSet;
 
+        #[cfg(debug_assertions)]
+        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        #[cfg(debug_assertions)]
+        let trace_phase = |stage: &str| {
+            if let Some(start) = phase_start {
+                eprintln!(
+                    "ANALYSER_PHASE bytes={} stage={stage} ms={}",
+                    source.len(),
+                    start.elapsed().as_millis()
+                );
+            }
+        };
+        #[cfg(debug_assertions)]
+        trace_phase("initial");
         self.unresolved_commands_emitted = false;
         // Stash the source so handlers (recovery, diagnostic
         // emitters) can re-slice it.
         self.source = source.to_string();
+        self.original_static_source_names.clear();
         let tk_ambient = self.resolve_walk_environment(dialect);
         // Tell pack hooks which dialect they are running under, for the
         // length of this walk. Deriving a hook's `ctx.dialect` from the call's
@@ -2091,6 +2135,7 @@ impl Analyser {
         let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
         self.result.dialect = dialect.to_string();
         self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
         self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_accumulation_enabled =
@@ -2106,52 +2151,7 @@ impl Analyser {
         self.irules_file_profiles = None;
         self.irules_event_bodies = None;
         self.irules_debug_flags = None;
-        // File-suppression pre-scan: merge codes from any
-        // top-of-file ``# tcl-lsp: disable=CODE`` directives into
-        // ``self.disabled_diagnostics`` so later emitter passes
-        // honour them. The constructor-provided
-        // ``disabled_diagnostics`` set (LSP user-config) and the
-        // file-directive set are unioned — both sources should
-        // take effect.
-        //
-        // File-level suppression also lives in
-        // ``result.suppressed_lines[-1]`` (a per-line map keyed by a
-        // sentinel ``-1`` for file-wide); merging the codes into
-        // ``disabled_diagnostics`` gives the directives effect at the
-        // analyser-internal level.
-        let file_codes = super::utils::parse_file_suppression(source);
-        for code in &file_codes {
-            self.disabled_diagnostics.insert(code.clone());
-        }
-        if !file_codes.is_empty() {
-            // Record the ``result.suppressed_lines[-1]`` sentinel so
-            // downstream consumers (the LSP suppression filter,
-            // code-action UX) see the file-wide directive set in one
-            // place.
-            self.result
-                .suppressed_lines
-                .insert(-1, file_codes.iter().cloned().collect());
-        }
-        // Pre-scan for next-line ``# noqa`` suppressions.  Handles
-        // orphaned noqa at the tail of a brace body and noqa
-        // before a comment line that itself generates a
-        // diagnostic.  Merges into ``suppressed_lines`` alongside
-        // the command-attached ``apply_preceding_noqa`` pass that
-        // runs per segmented command in the dispatch loop below.
-        merge_noqa_line_suppressions(
-            &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
-        );
-        // Inline ``# tcl-lsp: stub …`` block scan.  After
-        // capturing the parsed records, build the per-document
-        // overlay so analyser / compiler queries see the
-        // user-declared stubs as first-class commands (without
-        // mutating the global registry).
-        let (overlay_cmds, overlay_exprs) =
-            super::utils::document_stub_declarations(source, self.file_path.as_deref(), dialect);
-        self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
-        self.result.stub_commands = overlay_cmds;
-        self.result.stub_expr_defs = overlay_exprs;
+        self.retain_walk_directives(source, dialect);
 
         // Segment with re-segmentation recovery so an unclosed delimiter
         // mid-file doesn't drop later top-level declarations.
@@ -2159,8 +2159,18 @@ impl Analyser {
         // ``self`` so per-command handlers (registry-driven body
         // iteration in ``process_command``) reuse it.
         self.registry = Some(self.profile_registry());
+        #[cfg(debug_assertions)]
+        trace_phase("realm-start");
         self.head_identities = self.document_command_realm(source);
+        #[cfg(debug_assertions)]
+        trace_phase("realm-complete");
         self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
+        self.result.original_command_world =
+            self.head_identities.original_completed_command_world();
+        self.retain_original_comment_suppressions(source);
+        self.record_original_formal_variables();
+        #[cfg(debug_assertions)]
+        trace_phase("retained-inventory");
         // Precompute the iRules file-profile stack (no-op off f5-irules) so
         // the per-command IRULE1001 hint can consult it without recomputing.
         self.compute_irules_file_profiles();
@@ -2191,6 +2201,8 @@ impl Analyser {
 
         // Ghost-token recovery (see method doc).
         let ghost_recovery_applied = self.apply_ghost_recovery(source, &mut commands);
+        #[cfg(debug_assertions)]
+        trace_phase("segmented");
 
         // Walk each command through the dispatcher.  The dispatcher
         // wires ``recover_stray_close_bracket``,
@@ -2202,23 +2214,13 @@ impl Analyser {
         // in `namespace eval <ns> { ... }` — relative definitions re-home,
         // absolute ones stay put, and call-site candidates gain the seeded
         // tier, all through the ordinary scope machinery.
-        if let Some(seed) = self.seed_namespace_key.take() {
-            self.path_constant_source_namespace = Some(seed.clone());
-            let end = u32::try_from(source.len()).unwrap_or(u32::MAX);
-            let mut base: Vec<usize> = Vec::new();
-            for segment in crate::naming::key_segments(&seed) {
-                let mut child =
-                    super::types::Scope::new(super::types::ScopeKind::Namespace, &segment);
-                child.body_span = Some(tcl_lexer::Span::new(0, end));
-                let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &base)
-                    .expect("seed scope path is self-built");
-                parent.children.push(child);
-                base.push(parent.children.len() - 1);
-            }
-            self.seed_scope_path = base;
-        }
+        self.seed_walk_namespace(source);
         let file_env_pushed = self.seed_file_scope_env(source);
+        #[cfg(debug_assertions)]
+        trace_phase("walk-start");
         self.walk_commands_top_level(&commands, ghost_recovery_applied);
+        #[cfg(debug_assertions)]
+        trace_phase("walk-complete");
         if file_env_pushed {
             self.body_scope_stack.pop();
         }
@@ -2244,13 +2246,87 @@ impl Analyser {
         // the path the workspace class-factory index is computed from, and a
         // metaclass missing there is invisible to every other document.
         self.record_literal_parameter_definitions();
+        self.retain_original_callback_signature_lookups(source);
+        #[cfg(debug_assertions)]
+        trace_phase("parameter-definitions");
         if !self.structure_only {
             self.run_diagnostic_emitters(source);
         }
+        #[cfg(debug_assertions)]
+        trace_phase("diagnostics-complete");
 
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
+        #[cfg(debug_assertions)]
+        trace_phase("complete");
         result
+    }
+
+    fn seed_walk_namespace(&mut self, source: &str) {
+        if let Some(seed) = self.seed_namespace_key.take() {
+            self.path_constant_source_namespace = Some(seed.clone());
+            let end = u32::try_from(source.len()).unwrap_or(u32::MAX);
+            let mut base: Vec<usize> = Vec::new();
+            for segment in crate::naming::key_segments(&seed) {
+                let mut child =
+                    super::types::Scope::new(super::types::ScopeKind::Namespace, &segment);
+                child.body_span = Some(tcl_lexer::Span::new(0, end));
+                let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &base)
+                    .expect("seed scope path is self-built");
+                parent.children.push(child);
+                base.push(parent.children.len() - 1);
+            }
+            self.seed_scope_path = base;
+        }
+    }
+
+    /// Next-line comment syntax is selected after retaining the actual
+    /// complete input, declared contracts and original source realm.
+    pub(super) fn retain_original_comment_suppressions(&mut self, source: &str) {
+        if let Some(lines) =
+            super::utils::parse_noqa_line_suppressions_from_analysis(source, &self.result)
+        {
+            merge_noqa_line_suppressions(&mut self.result.suppressed_lines, lines);
+        }
+    }
+
+    fn retain_walk_directives(&mut self, source: &str, dialect: &str) {
+        // File-suppression pre-scan: merge codes from any
+        // top-of-file ``# tcl-lsp: disable=CODE`` directives into
+        // ``self.disabled_diagnostics`` so later emitter passes
+        // honour them. The constructor-provided
+        // ``disabled_diagnostics`` set (LSP user-config) and the
+        // file-directive set are unioned — both sources should
+        // take effect.
+        //
+        // File-level suppression also lives in
+        // ``result.suppressed_lines[-1]`` (a per-line map keyed by a
+        // sentinel ``-1`` for file-wide); merging the codes into
+        // ``disabled_diagnostics`` gives the directives effect at the
+        // analyser-internal level.
+        let file_codes = super::utils::parse_file_suppression(source);
+        for code in &file_codes {
+            self.disabled_diagnostics.insert(code.clone());
+        }
+        if !file_codes.is_empty() {
+            // Record the ``result.suppressed_lines[-1]`` sentinel so
+            // downstream consumers (the LSP suppression filter,
+            // code-action UX) see the file-wide directive set in one
+            // place.
+            self.result
+                .suppressed_lines
+                .insert(-1, file_codes.iter().cloned().collect());
+        }
+        // Inline ``# tcl-lsp: stub …`` block scan.  After
+        // capturing the parsed records, build the per-document
+        // overlay so analyser / compiler queries see the
+        // user-declared stubs as first-class commands (without
+        // mutating the global registry).
+        let (overlay_cmds, overlay_exprs) =
+            super::utils::document_stub_declarations(source, self.file_path.as_deref(), dialect);
+        self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
+        self.result.stub_commands = overlay_cmds;
+        self.result.stub_expr_defs = overlay_exprs;
     }
 
     /// Walk a top-level command stream through the dispatcher (the body of
@@ -2490,12 +2566,14 @@ impl Analyser {
         dialect: &str,
     ) -> (AnalysisResult, Vec<super::snapshot::AnalyserSnapshot>) {
         self.source = source.to_string();
+        self.original_static_source_names.clear();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
         self.irules_debug_flags = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
         self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_accumulation_enabled =
@@ -2519,12 +2597,6 @@ impl Analyser {
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
-        // Next-line ``# noqa`` pre-scan — see ``analyse`` for
-        // rationale.
-        merge_noqa_line_suppressions(
-            &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
-        );
 
         // Build + stash the dialect-aware registry so
         // ``process_command`` 's body-iteration loop has access
@@ -2536,6 +2608,9 @@ impl Analyser {
         self.registry = Some(self.profile_registry());
         self.head_identities = self.document_command_realm(source);
         self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
+        self.result.original_command_world =
+            self.head_identities.original_completed_command_world();
+        self.retain_original_comment_suppressions(source);
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.as_deref().expect("registry just stashed"),
@@ -2560,6 +2635,7 @@ impl Analyser {
 
         // Same structural + diagnostic-emission tail as ``analyse``.
         self.record_literal_parameter_definitions();
+        self.retain_original_callback_signature_lookups(source);
         self.run_diagnostic_emitters(source);
 
         let result = std::mem::take(&mut self.result);
@@ -2586,12 +2662,14 @@ impl Analyser {
         finalise: bool,
     ) -> AnalysisResult {
         self.source = source.to_string();
+        self.original_static_source_names.clear();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
         self.irules_debug_flags = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
         self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_accumulation_enabled =
@@ -2613,12 +2691,6 @@ impl Analyser {
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
-        // Next-line ``# noqa`` pre-scan — see ``analyse`` for
-        // rationale.
-        merge_noqa_line_suppressions(
-            &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
-        );
 
         // Same registry + line-index prelude as
         // ``analyse_chunked`` — see that doc-comment.  Without
@@ -2628,6 +2700,9 @@ impl Analyser {
         self.registry = Some(self.profile_registry());
         self.head_identities = self.document_command_realm(source);
         self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
+        self.result.original_command_world =
+            self.head_identities.original_completed_command_world();
+        self.retain_original_comment_suppressions(source);
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.as_deref().expect("registry just stashed"),
@@ -2654,6 +2729,7 @@ impl Analyser {
 
         if finalise {
             self.record_literal_parameter_definitions();
+            self.retain_original_callback_signature_lookups(source);
             self.run_diagnostic_emitters(source);
         }
 
@@ -3042,6 +3118,8 @@ impl Analyser {
                         PackageRequireOrigin::Provides(from.clone())
                     };
                     out.push(SignaturePackageRequire {
+                        original_name: None,
+                        original_requirements: Vec::new(),
                         name: loaded.clone(),
                         version: None,
                         requirements: Vec::new(),
@@ -3059,6 +3137,22 @@ impl Analyser {
     }
 
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
+        #[cfg(debug_assertions)]
+        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        #[cfg(debug_assertions)]
+        let trace_phase = |stage: &str| {
+            if let Some(start) = phase_start {
+                eprintln!(
+                    "DIAGNOSTIC_PHASE bytes={} stage={stage} ms={}",
+                    source.len(),
+                    start.elapsed().as_millis()
+                );
+            }
+        };
+        #[cfg(debug_assertions)]
+        trace_phase("initial");
         // Declared package availability first: every emitter below that asks
         // "is this package available here?" — W120, H301, the W123 widening,
         // the Tk activation gate — reads `package_requires`, so the declared
@@ -3087,11 +3181,15 @@ impl Analyser {
         self.finalise_invocation_resolutions();
         self.retain_positioned_command_definitions();
         self.publish_load_level_destructions();
+        #[cfg(debug_assertions)]
+        trace_phase("invocations");
         // Attach every namespace-qualified occurrence to the cell it names,
         // now that the whole file's `namespace eval` bodies have been walked
         // — a qualified read can precede its declaring `namespace eval`
         // textually and still resolve at run time.
         self.attach_qualified_var_references();
+        #[cfg(debug_assertions)]
+        trace_phase("variable-references");
         let diag_registry = self.profile_registry();
         self.emit_unresolved_command_diagnostics(&diag_registry);
         self.flush_disabled_command_diagnostics();
@@ -3115,8 +3213,14 @@ impl Analyser {
         // Q8's assistance half. Disjoint from W120 by construction — that
         // fires when the requirement is absent, this when it is merely late.
         self.emit_package_require_ordering_hints(&diag_registry);
+        #[cfg(debug_assertions)]
+        trace_phase("command-diagnostics");
         self.emit_variable_usage_diagnostics();
+        #[cfg(debug_assertions)]
+        trace_phase("variable-usage");
         self.emit_cfg_ssa_diagnostics(source);
+        #[cfg(debug_assertions)]
+        trace_phase("cfg-ssa");
         self.flush_objdefine_abort_diagnostics();
         self.emit_lexer_warning_diagnostics();
         self.emit_w116_w117_stub_shadows();
@@ -3127,6 +3231,21 @@ impl Analyser {
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
         self.canonicalize_result_order();
+        #[cfg(debug_assertions)]
+        trace_phase("complete");
+    }
+
+    pub(super) fn retain_original_callback_signature_lookups(&mut self, source: &str) {
+        let retained = self.result.command_invocations.iter().map(|invocation| {
+            let prefix = std::sync::Arc::clone(invocation.original_callback_prefix.as_ref()?);
+            let offset = prefix.source_registration().map(|registration| registration.site().offset)
+                .or_else(|| prefix.lookup().map(|lookup| lookup.site().offset))?;
+            let lookup = crate::registry_invocation::source_structure::source_callback_procedure_target_at(source, &self.result, offset, &prefix)?;
+            super::SourceCallbackSignatureLookup::from_original_lookup(&self.result, prefix, std::sync::Arc::new(lookup)).map(std::sync::Arc::new)
+        }).collect::<Vec<_>>();
+        for (invocation, lookup) in self.result.command_invocations.iter_mut().zip(retained) {
+            invocation.original_callback_signature_lookup = lookup;
+        }
     }
 
     /// Canonicalise the order of the walk-populated, order-sensitive result
@@ -3918,6 +4037,26 @@ mod tests {
         let _ = a.analyse("# tcl-lsp: disable=W210,W211\nproc foo {} {}\n", "tcl");
         assert!(a.disabled_diagnostics.contains("W210"));
         assert!(a.disabled_diagnostics.contains("W211"));
+    }
+
+    #[test]
+    fn original_next_line_noqa_matches_all_actual_analyser_ingresses() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {script:body}\n# tcl-lsp: stubs-end\nhold {\n# noqa: W210\n# comment-only\n}\n";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let full = Analyser::new().analyse(source, profile.name);
+        let (chunked, _) =
+            Analyser::new().analyse_chunked(source, vec![commands.clone()], profile.name);
+        let snapshot = Analyser::new().analyse_commands(source, &commands, profile.name, true);
+        let isolated = Analyser::new().analyse_per_item(source, profile.name);
+        assert!(full.suppressed_lines.get(&5).unwrap().contains("W210"));
+        for result in [chunked, snapshot, isolated] {
+            assert_eq!(result.suppressed_lines, full.suppressed_lines);
+        }
     }
 
     #[test]
@@ -6196,25 +6335,14 @@ mod tests {
         assert_eq!(e004.len(), 1, "got {e004:?}");
     }
 
-    // -- FN (documented, intentional scope boundary): a renamed `if` is
-    // not checked. `if`'s registry `clause_shape_check` hook is looked
-    // up by resolving `cmd_name` as written — namespace-qualification
-    // (`::if`) resolves through it (see
-    // `tp_qualified_double_colon_if_is_checked_too`), but a `rename if
-    // myif` target does not, since that requires chasing the same
-    // same-file rename/alias graph the arity checker's
-    // `resolve_indirect_call_target` uses — a distinct, heavier
-    // mechanism not wired up to this dispatch-site check. Real Tcl
-    // *does* validate a renamed `if`'s shape (the C source's own doc
-    // comment: `Tcl_IfObjCmd` runs for "if" or "the name to which if was
-    // renamed"), so this is a genuine, narrow gap — not a false
-    // negative this test is happy about, just one it pins so a future
-    // fix shows up as an intentional behaviour change.
+    // Original move lineage retains the selected clause grammar.
     #[test]
-    fn fn_renamed_if_is_not_currently_checked() {
+    fn renamed_if_keeps_its_original_clause_shape() {
+        // naming.diagnostic.original-control-advice
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-control-advice.md
         let src = "rename if myif\nmyif {1} { a } { b } { c }\n";
         let e004 = e004_diags(src);
-        assert_eq!(e004.len(), 0, "got {e004:?}");
+        assert_eq!(e004.len(), 1, "got {e004:?}");
     }
 
     // -- Redundant-diagnostic fix: `if`'s registry `arity` floor no

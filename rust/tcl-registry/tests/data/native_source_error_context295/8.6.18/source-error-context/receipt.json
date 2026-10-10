@@ -1,0 +1,56 @@
+{
+  "provider": "8.6.18",
+  "command": [
+    "/workspace/.proofs/native-source-error-context295-capture/8.6.18/probe.elf",
+    "-",
+    "/workspace/.proofs/native-source-error-context295-capture/source.tcl",
+    "-"
+  ],
+  "exit": 0,
+  "seconds": 0.005260097997961566,
+  "rows": [
+    "VERSION|0|382e362e3138",
+    "source_boom.code\t31",
+    "source_boom.result\t6261642051",
+    "source_boom.errorInfo\t62616420510a202020207768696c6520657865637574696e670a226572726f72202262616420246122220a202020202870726f6365647572652022736f757263655f626f6f6d22206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22246e616d65205122",
+    "source_boom.errorCode\t4e4f4e45",
+    "source_boom.stackCode\t30",
+    "source_boom.stack\t494e4e4552207b72657475726e496d6d207b62616420517d207b7d7d2043414c4c207b736f757263655f626f6f6d20517d",
+    "dynamic_boom.code\t31",
+    "dynamic_boom.result\t6261642051",
+    "dynamic_boom.errorInfo\t62616420510a202020207768696c6520657865637574696e670a2224636f6d6d616e64202262616420246122220a202020202870726f636564757265202264796e616d69635f626f6f6d22206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22246e616d65205122",
+    "dynamic_boom.errorCode\t4e4f4e45",
+    "dynamic_boom.stackCode\t30",
+    "dynamic_boom.stack\t494e4e4552207b696e766f6b6553746b31206572726f72207b62616420517d7d2043414c4c207b64796e616d69635f626f6f6d20517d",
+    "missing.code\t31",
+    "missing.result\t696e76616c696420636f6d6d616e64206e616d652022646566696e6974656c795f6d697373696e675f636f6d6d616e6422",
+    "missing.errorCode\t54434c204c4f4f4b555020434f4d4d414e4420646566696e6974656c795f6d697373696e675f636f6d6d616e64",
+    "ORIGINAL|0|"
+  ],
+  "executable_sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+  "compile_receipt_sha256": "a6121380a2596a325c3acae2e6e006c3c28ca3b417c0dcee43f2ea206438f6e2",
+  "source_sha256": {
+    "original": "f45133624091c7f1e1f7450d2abff682e14af522381b47ba15118ce8c482617f"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInterp.c": "b2597dfae723709bd21c6dfe9dd0cd4eb6d38f90ea082419b59a2aa2c00881ca",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPkg.c": "83845b75b4da27d7ae67afd5b15135153d68557681cd9659f75d4d4e027135a2",
+    "/workspace/.proofs/native-source-error-context295-capture/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c": "c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3"
+  },
+  "stdout_sha256": "808b0913f7a7a45cee38c644db4a572d502d35bdfe40c0045445818f47a014bc",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  "reported_cli_provider_version_association": "version 8.6.18 initial_class {} alias_command {}",
+  "provider_version_receipt_sha256": "9a89b544c51fe11d8dc302119e7047e0cdc0dceb183572c743c430a88c155af1",
+  "channel": "External C API driver: fresh full Tcl_Init or Jim core/static extensions per control; independent exact prelude, original counted source, query evaluations in one interpreter; source is not surrounded by catch/eval/puts; C Tcl_EvalEx flags0, Jim original counted object Jim_EvalObj; public counted hex completions only"
+}

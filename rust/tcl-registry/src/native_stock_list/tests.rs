@@ -64,6 +64,9 @@ fn resident_bytes(row: &str) -> Option<&'static [u8]> {
 
 #[test]
 fn stock_length_native_same_object_matrix() {
+    // Native proof: naming.list.stock-length-same-original-storage
+    // docs/design/analysis/name-resolution-proofs/list.stock-length-same-original-storage.md
+
     let fixtures = [
         (
             "tcl8.4",
@@ -174,6 +177,9 @@ fn unknown_stock_cache_and_empty_preservation_do_not_mint_list() {
 
 #[test]
 fn empty_list_root_provider_requires_generic_normal_result() {
+    // Native proof: naming.list.empty-result-compiled-pool-reuse
+    // docs/design/analysis/name-resolution-proofs/list.empty-result-compiled-pool-reuse.md
+
     use crate::list_object_methods::NativeListMethod;
     let operands = [];
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -257,4 +263,57 @@ fn object_length_dispatch_requires_actual_storage_and_distinct_logical_origin() 
         protocol.action(Class::Numeric, false),
         Some(Action::ConvertToList)
     );
+}
+
+#[test]
+fn original_jim_source_length_requires_its_own_dialect_and_physical_class() {
+    // Native proof: naming.list.original-jim-source-length-conversion
+    // docs/design/analysis/name-resolution-proofs/list-original-jim-source-length-conversion.md
+    // This pure policy selects conversion; it does not supply a Source object or context.
+    use NativeObjectLengthAction as Action;
+    use NativeStockListCacheDisposition as Cache;
+    use NativeStockListInputClass as Class;
+    let operands = [InvocationWord::Dynamic];
+    let (facts, jim) = selected("llength", &operands, "jim");
+    let protocol = jim.native_object_length_protocol().unwrap();
+    assert_eq!(
+        protocol.action(Class::JimSource, false),
+        Some(Action::ConvertToList)
+    );
+    assert_eq!(protocol.action(Class::Unknown, false), None);
+    assert_eq!(
+        facts
+            .stock_list_length_protocol(
+                InvocationArguments::structured(&operands).with_dialect(jim)
+            )
+            .unwrap()
+            .normal_cache_disposition(Class::JimSource, Some(b"A  B")),
+        Some(Cache::List)
+    );
+    for version in TclVersion::ALL {
+        let dialect = InvocationDialect::for_version(version);
+        let protocol = dialect.native_object_length_protocol().unwrap();
+        assert_eq!(protocol.action(Class::JimSource, false), None);
+        assert_eq!(protocol.action(Class::JimSource, true), None);
+        let (facts, _) = selected(
+            "llength",
+            &operands,
+            match version {
+                TclVersion::V8_4 => "tcl8.4",
+                TclVersion::V8_5 => "tcl8.5",
+                TclVersion::V8_6 => "tcl8.6",
+                TclVersion::V9_0 => "tcl9.0",
+                TclVersion::V9_1 => "tcl9.1",
+            },
+        );
+        assert_eq!(
+            facts
+                .stock_list_length_protocol(
+                    InvocationArguments::structured(&operands).with_dialect(dialect)
+                )
+                .unwrap()
+                .normal_cache_disposition(Class::JimSource, Some(b"A  B")),
+            None
+        );
+    }
 }

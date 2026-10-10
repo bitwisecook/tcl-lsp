@@ -141,6 +141,9 @@ impl ShimmerExpectation {
     }
 }
 
+/// Standalone catalogue advice for the explicitly supplied command spelling.
+/// Actual function consumers use [`invocation_shimmer_expectation`] after the
+/// shared owner selects a normal representation contract under retained metadata.
 /// Like [`arg_shimmer_type`] but returning the full [`ShimmerExpectation`]
 /// (expected type + transparency list) for consumers that must suppress the
 /// warning on transparent current intreps.

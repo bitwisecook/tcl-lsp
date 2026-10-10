@@ -1,0 +1,5 @@
+/workspace/.proofs/native-oo-bootstrap-capability074-v2/probe.c: In function ‘snapshot’:
+/workspace/.proofs/native-oo-bootstrap-capability074-v2/probe.c:96:43: error: ‘Command’ has no member named ‘objClientData2’; did you mean ‘objClientData’?
+   96 |     int nativeClientSame = nativeCommand->objClientData2 == object;
+      |                                           ^~~~~~~~~~~~~~
+      |                                           objClientData

@@ -33,9 +33,9 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::ensemble::EnsembleConfig;
-use crate::interp::{error_code_list, obj_bytes, Code, Command, Interp};
+use crate::interp::{Code, Command, Interp, error_code_list, obj_bytes};
 use crate::list;
-use crate::namespace::{NsId, GLOBAL};
+use crate::namespace::{GLOBAL, NsId};
 use crate::obj::{self, TclObj};
 use tcl_syntax::value::ValueOps;
 
@@ -201,9 +201,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let spec = tcl_registry::default_registry()
         .get_for_surface("namespace", dialect)
         .expect("namespace execution profile");
-    let Some(subcommand) =
-        spec.resolve_subcommand_for_dialect(&String::from_utf8_lossy(&raw), dialect)
-    else {
+    let Some(subcommand) = spec.resolve_subcommand_bytes_for_dialect(&raw, dialect) else {
         let available: Vec<_> = spec
             .subcommands
             .iter()
@@ -344,7 +342,7 @@ fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 interp,
                 argv[index + 2],
                 tcl_syntax::naming::NativeNamespaceLookupOperation::Delete,
-            )
+            );
         }
         Ok(None) => {}
         Err(error) => return interp.report_cmd_error(error.into()),
@@ -515,7 +513,7 @@ fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp,
                     original,
                     tcl_syntax::naming::NativeNamespaceLookupOperation::Parent,
-                )
+                );
             }
             Err(error) => return interp.report_cmd_error(error.into()),
         }
@@ -530,7 +528,7 @@ fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     "namespace parent token width",
                 )
                 .into(),
-            )
+            );
         }
     };
     match tcl_cmd_core::namespace::parent_original(interp, target) {
@@ -556,7 +554,7 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp,
                     original,
                     tcl_syntax::naming::NativeNamespaceLookupOperation::Children,
-                )
+                );
             }
             Err(error) => return interp.report_cmd_error(error.into()),
         }
@@ -571,7 +569,7 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     "namespace children token width",
                 )
                 .into(),
-            )
+            );
         }
     };
     let pattern = if let Some(&original) = argv.get(3) {
@@ -616,8 +614,11 @@ fn ns_qualifiers(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .into(),
         );
     };
-    interp.set_result_bytes(policy.recipe().namespace_qualifier_bytes(&bytes));
-    Code::Ok
+    namespace_text_result(
+        interp,
+        argv[2],
+        policy.recipe().namespace_text_result(&bytes, false),
+    )
 }
 
 /// `namespace tail string` — the simple name after the last `::` (pure text).
@@ -635,7 +636,49 @@ fn ns_tail(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .into(),
         );
     };
-    interp.set_result_bytes(policy.recipe().namespace_tail_bytes(&bytes));
+    namespace_text_result(
+        interp,
+        argv[2],
+        policy.recipe().namespace_text_result(&bytes, true),
+    )
+}
+
+/// Apply the selected direct worker producer through the existing object owners.
+fn namespace_text_result(
+    interp: &mut Interp,
+    original: *mut TclObj,
+    result: tcl_syntax::naming::NativeNamespaceTextResult<'_>,
+) -> Code {
+    use tcl_syntax::naming::NativeNamespaceTextResult;
+    match result {
+        NativeNamespaceTextResult::Original => interp.set_result(original),
+        NativeNamespaceTextResult::Counted(bytes) => interp.set_result_bytes(bytes),
+        NativeNamespaceTextResult::Append(bytes) => {
+            let dialect = interp.native_invocation_dialect();
+            let Some(append) = dialect.native_object_append_protocol(None) else {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "namespace text append protocol",
+                    )
+                    .into(),
+                );
+            };
+            let objects = crate::value_ops::RuntimeAppendObjects {
+                dialect,
+                binary_recipe: None,
+            };
+            let receiver = crate::value_ops::RuntimeAppendValue::fresh_string(b"");
+            match tcl_cmd_core::native_append::append_counted_bytes(
+                &objects,
+                append.recipe(),
+                &receiver,
+                bytes,
+            ) {
+                Ok(result) => interp.set_result(result.as_ptr()),
+                Err(error) => return interp.report_cmd_error(error.into()),
+            }
+        }
+    }
     Code::Ok
 }
 
@@ -919,7 +962,10 @@ fn ns_import_source_names(interp: &mut Interp, patterns: &[*mut TclObj]) -> Code
             destination.extend_from_slice(protocol.namespace_tail_bytes(&source));
             let mut alias = source.clone();
             let mut seen = std::collections::BTreeSet::new();
-            while let Some((target, prefix)) = interp.alias_info_at(GLOBAL, &alias) {
+            while let Some((target, prefix)) = match interp.alias_info_at(GLOBAL, &alias) {
+                Ok(prefix) => prefix,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            } {
                 if !seen.insert(alias.clone()) {
                     return interp.report_cmd_error(
                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -1033,7 +1079,7 @@ fn ns_path(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         "namespace path token width",
                     )
                     .into(),
-                )
+                );
             }
         };
         return match tcl_cmd_core::namespace::namespace_objects_original(
@@ -1063,7 +1109,7 @@ fn ns_path(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp,
                     element,
                     tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
-                )
+                );
             }
             Err(error) => return interp.report_cmd_error(error.into()),
         };
@@ -1108,7 +1154,7 @@ pub(crate) fn ns_operation_not_found(
                     "namespace operation diagnostic purpose",
                 )
                 .into(),
-            )
+            );
         }
     };
     let materialization = match interp
@@ -1125,7 +1171,7 @@ pub(crate) fn ns_operation_not_found(
                     "namespace diagnostic String producer issuer",
                 )
                 .into(),
-            )
+            );
         }
     };
     let code = match error.error_code {
@@ -1204,7 +1250,7 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 interp,
                 argv[2],
                 tcl_syntax::naming::NativeNamespaceLookupOperation::Inscope,
-            )
+            );
         }
         Err(error) => return interp.report_cmd_error(error.into()),
     };
@@ -1335,7 +1381,7 @@ fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     "namespace code token width",
                 )
                 .into(),
-            )
+            );
         }
     };
     let ns_name = match tcl_cmd_core::namespace::NamespaceObjectBackend::produce_namespace_object(
@@ -1389,7 +1435,7 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 interp,
                 argv[2],
                 tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
-            )
+            );
         }
         Err(error) => return interp.report_cmd_error(error.into()),
     };
@@ -1407,7 +1453,7 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                         "namespace upvar local name",
                     ),
-                )
+                );
             }
         };
         let code =
@@ -1470,6 +1516,38 @@ fn ns_upvar_jim(
 /// `namespace ensemble create|exists ...` — the canonical `ens sub`→target
 /// redirect (the generalised `dict for`→`::tcl::dict::for` mechanism).
 fn ns_ensemble(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() >= 3 {
+        let original = match interp.native_string_bytes(&argv[1]) {
+            Ok(original) => original,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        if let Some(helper) = interp
+            .native_invocation_dialect()
+            .native_namespace_scripted_helper(&original)
+        {
+            let helper = obj::Owned::fresh(crate::interp::new_string(&helper));
+            let mut forwarded = Vec::with_capacity(argv.len() - 1);
+            forwarded.push(helper.as_ptr());
+            forwarded.extend_from_slice(&argv[2..]);
+            return interp.dispatch(&forwarded);
+        }
+    }
+    if let Some(protocol) = interp
+        .native_invocation_dialect()
+        .native_ensemble_configuration_protocol()
+    {
+        let lifecycle = match interp.native_current_namespace_lifecycle() {
+            Ok(lifecycle) => lifecycle,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        if !protocol.permits_namespace_lifecycle(lifecycle) {
+            return interp.report_cmd_error(tcl_cmd_core::CmdError::with_error_code_bytes(
+                b"tried to manipulate ensemble of deleted namespace".to_vec(),
+                b"TCL ENSEMBLE DEAD".to_vec(),
+            ));
+        }
+    }
+
     if argv.len() < 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"subcommand ?arg ...?");
     }
@@ -1503,11 +1581,10 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     let ns = interp.current_ns();
-    // Default ensemble command is the namespace's own FQN. The same FQN is
-    // what CRT_MAP qualifies relative `-map` targets against, so keep it
-    // separately — `command` is overwritten by an explicit `-command`.
+    // Mapping targets use the implementation namespace; publication retains
+    // the original -command operand and its independent token routing.
     let ns_fqn = interp.namespaces().qualified_name(ns);
-    let mut command = ns_fqn.clone();
+    let mut command = None;
     let mut cfg = EnsembleConfig {
         originals: Default::default(),
         ns,
@@ -1538,11 +1615,10 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Err(error) => return interp.report_cmd_error(error),
         };
         let Some(shared) = resolved.shared() else {
-            // `-command` names the command rather than configuring it. C
-            // creates that command in the ensemble's namespace (`cxtPtr =
-            // nsPtr`) and reports it via `Tcl_GetCommandFullName`, so a
-            // relative name binds — and reads back — fully qualified.
-            command = qualify_in_ns(&ns_fqn, &obj_bytes(pair[1]));
+            command = Some(match interp.native_string_bytes(&pair[1]) {
+                Ok(bytes) => bytes,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            });
             continue;
         };
         if let Err(e) = apply_ensemble_option(&mut cfg, shared, pair[1], &ns_fqn, interp, true) {
@@ -1550,8 +1626,20 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
 
-    interp.create_ensemble(&command, cfg);
-    interp.set_result_bytes(&command);
+    let selected = interp
+        .namespaces_mut()
+        .ensemble_publication_at(ns, command.as_deref());
+    let Some((holder, simple)) = selected else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "ensemble publication context",
+            )
+            .into(),
+        );
+    };
+    let reporting = interp.namespaces().command_fqn_at(holder, &simple);
+    interp.create_ensemble_in_slot(holder, &simple, cfg);
+    interp.set_result_bytes(&reporting);
     Code::Ok
 }
 
@@ -1962,6 +2050,8 @@ mod tests {
 
     #[test]
     fn original_namespace_origin_matches_five_native_import_chains() {
+        // Native proof: naming.namespace-origin.script-import-chain
+        // docs/design/analysis/name-resolution-proofs/namespace-origin.script-import-chain.md
         fn decode(hex: &str) -> Vec<u8> {
             hex.as_bytes()
                 .as_chunks::<2>()
@@ -2095,10 +2185,10 @@ mod tests {
                 assert!(
                     crate::ensemble::NativeEnsembleObjects::pointer(&query.originals.map).is_none()
                 );
-                assert!(crate::ensemble::NativeEnsembleObjects::pointer(
-                    &another_query.originals.map
-                )
-                .is_none());
+                assert!(
+                    crate::ensemble::NativeEnsembleObjects::pointer(&another_query.originals.map)
+                        .is_none()
+                );
                 assert_eq!(unsafe { (*original).ref_count }, references - 1);
             });
         }
@@ -2464,14 +2554,9 @@ namespace eval ::caller {
                 tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
             )));
             interp.set_dialect_profile(unknown);
-            // Profile installation reaches release-global variable naming
-            // first; later refusals must preserve that original host frontier.
-            let setup_refusal = Some(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                    "variable naming",
-                ),
-            );
-            assert_eq!(interp.native_access_refusal(), setup_refusal);
+            // Installing a profile performs no unavailable namespace-code
+            // operation. The actual attempted purpose owns its typed refusal.
+            assert_eq!(interp.native_access_refusal(), None);
             assert!(
                 interp
                     .native_invocation_dialect()
@@ -2490,7 +2575,15 @@ namespace eval ::caller {
                 Code::Error
             );
             assert_eq!(interp.result_bytes(), b"UNCHANGED");
-            assert_eq!(interp.native_access_refusal(), setup_refusal);
+            assert!(interp.host_refusal_pending());
+            assert_eq!(
+                interp.native_access_refusal(),
+                Some(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "namespace code",
+                    )
+                )
+            );
         });
     }
 
@@ -2509,10 +2602,12 @@ namespace eval ::caller {
                 Code::Ok
             );
             assert_eq!(interp.result_obj(), script.as_ptr());
-            assert!(interp
-                .native_invocation_dialect()
-                .native_namespace_code_policy()
-                .is_none());
+            assert!(
+                interp
+                    .native_invocation_dialect()
+                    .native_namespace_code_policy()
+                    .is_none()
+            );
         });
     }
 
@@ -3182,7 +3277,9 @@ namespace eval ::caller {
         // A redefinition inside the delete callback unlinks the dying token's
         // entry itself (Tcl_DeleteCommandFromToken's CMD_DYING branch), so the
         // replacement is a distinct token the current snapshot no longer names.
-        // tclsh 9.0.4 only: 8.6.16 crashes on this script.
+        // Native proof: naming.namespace.original-command-holder-routing
+        // docs/design/analysis/name-resolution-proofs/namespace-original-command-holder-routing.md
+        // The original C86, C90 and C91 controls complete with this order.
         assert_eq!(
             teardown_log(&format!(
                 "{}
@@ -3482,7 +3579,11 @@ namespace eval ::caller {
     }
 
     #[test]
-    fn retained_object_teardown_cannot_delete_replacement_private_dispatcher() {
+    fn retained_object_teardown_preserves_recreated_method_dispatch() {
+        // Native proof: naming.namespace.original-command-holder-routing
+        // docs/design/analysis/name-resolution-proofs/namespace-original-command-holder-routing.md
+        // The original public control reports no private dispatcher command,
+        // while the recreated object's method still invokes my successfully.
         pins(
             br#"set r [namespace eval N {
                     oo::class create C {method m {} {return OLD}}
@@ -3501,7 +3602,7 @@ namespace eval ::caller {
                     p
                 }]
                 list $r [info commands ::N::o::my] [::N::o n]"#,
-            b"OLD ::N::o::my NEW",
+            b"OLD {} NEW",
         );
     }
 
@@ -5973,3 +6074,6 @@ mod native_ensemble_tests;
 
 #[cfg(test)]
 mod native_upvar_tests;
+
+#[cfg(test)]
+mod native_holder_routing;

@@ -1425,6 +1425,61 @@ pub struct NativeBootstrapInputs {
     pub default_library: Option<Vec<u8>>,
 }
 
+/// The original purpose of a copied Jim interpreter value. This selects only
+/// a string extent; independently live source and target object owners are required.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeJimInterpreterCopyPurpose {
+    /// JimInterpCopyObj copies all counted bytes of scripts, arguments and results.
+    Object,
+    /// JimInterpCopyVariable passes Jim_String to NewStringObj with length -1.
+    ChildStartupVariable,
+}
+
+impl NativeJimInterpreterCopyPurpose {
+    /// Select the original API's input extent without changing the source object.
+    #[must_use]
+    pub fn input(self, original: &[u8]) -> &[u8] {
+        match self {
+            Self::Object => original,
+            Self::ChildStartupVariable => tcl_core_types::c_string_extent(original),
+        }
+    }
+}
+
+/// Provider-specific child initialisation, separate from the original core
+/// constructor. The Jim recipe refers to the pinned static-extension roster;
+/// a backend still admits only extensions it implements.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeChildInitialisation {
+    names: tcl_syntax::naming::NativeNameProtocol,
+}
+
+impl NativeChildInitialisation {
+    /// JimInterpCommand explicitly initializes its compiled static extensions.
+    /// C retains its independently selected child constructor path.
+    #[must_use]
+    pub const fn initialises_jim_static_extensions(self) -> bool {
+        matches!(self.names, tcl_syntax::naming::NativeNameProtocol::Jim084)
+    }
+
+    /// JimInterpCommand's exact GLOBAL_ONLY variable-copy operands. Missing
+    /// parent values are not synthesized; C grants no Jim variable-copy plan.
+    #[must_use]
+    pub const fn copied_parent_variables(self) -> &'static [&'static [u8]] {
+        match self.names {
+            tcl_syntax::naming::NativeNameProtocol::Jim084 => &[
+                b"argv",
+                b"argc",
+                b"argv0",
+                b"jim::argv0",
+                b"jim::exe",
+                b"jim::lineedit",
+            ],
+            tcl_syntax::naming::NativeNameProtocol::C(_) => &[],
+        }
+    }
+}
+
 /// Actual audited constructor family; this grants no library initialization.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NativeBootstrapProtocol {
@@ -1436,6 +1491,13 @@ impl NativeBootstrapProtocol {
     #[must_use]
     pub const fn names(self) -> tcl_syntax::naming::NativeNameProtocol {
         self.names
+    }
+
+    /// The child API's initialisation purpose. No parent object, library
+    /// command identity or current child state follows from this recipe.
+    #[must_use]
+    pub const fn child_initialisation(self) -> NativeChildInitialisation {
+        NativeChildInitialisation { names: self.names }
     }
 
     /// Whether the core constructor registers the native binary command.
@@ -1542,6 +1604,8 @@ impl crate::InvocationDialect {
 mod native_bootstrap_tests {
     use super::*;
 
+    // Native proof: naming.bootstrap.original-root-cells
+    // docs/design/analysis/name-resolution-proofs/bootstrap-original-root-cells.md
     #[test]
     fn constructor_root_order_and_undefined_cells_match_native_capture() {
         let fixture = include_str!("../tests/data/native_bootstrap/core-roots.tsv");

@@ -1,0 +1,8 @@
+
+running 3 tests
+test analyser::diagnostics::original_roles::tests::original_channel_diagnostics_preserve_typed_anchor_and_shadow_controls ... ok
+test analyser::diagnostics::original_roles::tests::original_channel_roles_keep_values_words_and_declaration_owners ... ok
+test command_binding::executed_script_source::tests::original_body_value_mapping_keeps_native_units_and_original_channels_separate ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 8231 filtered out; finished in 12.83s
+

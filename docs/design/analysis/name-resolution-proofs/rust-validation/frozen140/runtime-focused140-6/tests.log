@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_namespace::tests::jim_root_command_context_requires_its_live_original_top_object ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1212 filtered out; finished in 3.31s
+

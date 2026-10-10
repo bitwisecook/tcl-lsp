@@ -1,0 +1,51 @@
+TclCompileDictUnsetCmd(
+    Tcl_Interp *interp,		/* Used for looking up stuff. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    Tcl_Size i, numWords = parsePtr->numWords;
+    Tcl_LVTIndex dictVarIndex;
+
+    /*
+     * There must be at least one argument after the variable name for us to
+     * compile to bytecode.
+     */
+
+    /* TODO: Consider support for compiling expanded args. */
+    if (numWords < 3 || OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * The dictionary variable must be a local scalar that is knowable at
+     * compile time; anything else exceeds the complexity of the opcode. So
+     * discover what the index is.
+     */
+
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    dictVarIndex = TclLocalScalarFromToken(tokenPtr, envPtr);
+    if (OutOfUintRange(dictVarIndex)) {
+	return TclCompileBasicMin2ArgCmd(interp, parsePtr, cmdPtr, envPtr);
+    }
+
+    /*
+     * Remaining words (the key path) can be handled normally.
+     */
+
+    for (i=2 ; i<numWords ; i++) {
+	tokenPtr = TokenAfter(tokenPtr);
+	PUSH_TOKEN(		tokenPtr, i);
+    }
+
+    /*
+     * Now emit the instruction to do the dict manipulation.
+     */
+
+    OP44(			DICT_UNSET, numWords - 2, dictVarIndex);
+    return TCL_OK;
+}

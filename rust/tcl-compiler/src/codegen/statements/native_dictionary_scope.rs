@@ -54,7 +54,7 @@ struct NativeScopeBodyTasks {
 }
 
 impl CodegenCtx<'_> {
-    pub(super) fn native_preparation_receipt_tasks(&self, visits: &[Visit]) -> Option<Vec<Task>> {
+    pub(super) fn native_preparation_receipt_tasks(visits: &[Visit]) -> Option<Vec<Task>> {
         visits
             .iter()
             .map(|visit| match visit {
@@ -73,7 +73,7 @@ impl CodegenCtx<'_> {
         command: &tcl_lexer::NativeScriptCommandWords,
         visits: &[Visit],
     ) -> Option<Vec<Task>> {
-        let mut tasks = self.native_preparation_receipt_tasks(visits)?;
+        let mut tasks = Self::native_preparation_receipt_tasks(visits)?;
         let saved = NativeNamespaceRollback {
             instructions: self.instructions.len(),
             labels: self.label_positions.clone(),
@@ -131,7 +131,7 @@ impl CodegenCtx<'_> {
         let finish = NativeScopeBodyTasks { body, handler, end };
         match &recipe.kind {
             Kind::Update { .. } => {
-                Self::native_dictionary_update_tasks(command, &recipe, &mut tasks, finish)?
+                Self::native_dictionary_update_tasks(command, &recipe, &mut tasks, finish)?;
             }
             Kind::With {
                 empty_body: true, ..

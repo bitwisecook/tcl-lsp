@@ -1,0 +1,79 @@
+{
+  "question": "Original lambda conversion and parameter diagnostic byte extents, separate from lambda cache/body/frame admission",
+  "cases": [
+    {
+      "id": "ONE_ASCII",
+      "lambda_hex": "6f7061717565",
+      "counted_source_hex": "6170706c7920226f706171756522"
+    },
+    {
+      "id": "RAW_ZERO",
+      "lambda_hex": "6f7061717565007461696c",
+      "counted_source_hex": "6170706c7920226f7061717565007461696c22"
+    },
+    {
+      "id": "ENCODED_ZERO",
+      "lambda_hex": "6f7061717565c0807461696c",
+      "counted_source_hex": "6170706c7920226f7061717565c0807461696c22"
+    },
+    {
+      "id": "OPAQUE_FF",
+      "lambda_hex": "6f7061717565ff7461696c",
+      "counted_source_hex": "6170706c7920226f7061717565ff7461696c22"
+    },
+    {
+      "id": "SURROGATE_D800",
+      "lambda_hex": "6f7061717565eda080",
+      "counted_source_hex": "6170706c7920226f7061717565eda08022"
+    },
+    {
+      "id": "UNMATCHED_BRACE",
+      "lambda_hex": "7b",
+      "counted_source_hex": "6170706c7920227b22"
+    },
+    {
+      "id": "EMPTY_LIST",
+      "lambda_hex": "",
+      "counted_source_hex": "6170706c79202222"
+    },
+    {
+      "id": "FOUR_ELEMENTS",
+      "lambda_hex": "61206220632064",
+      "counted_source_hex": "6170706c7920226120622063206422"
+    },
+    {
+      "id": "BRACED_FF",
+      "lambda_hex": "7b78ff7d",
+      "counted_source_hex": "6170706c7920227b78ff7d22"
+    },
+    {
+      "id": "VALID_TWO",
+      "lambda_hex": "7b7d207b72657475726e204f4b7d",
+      "counted_source_hex": "6170706c7920227b7d207b72657475726e204f4b7d22"
+    },
+    {
+      "id": "VALID_THREE",
+      "lambda_hex": "7b7d207b72657475726e204f4b7d203a3a",
+      "counted_source_hex": "6170706c7920227b7d207b72657475726e204f4b7d203a3a22"
+    },
+    {
+      "id": "PARAM_FIELDS",
+      "lambda_hex": "7b7b61206220637d7d207b7d",
+      "counted_source_hex": "6170706c7920227b7b61206220637d7d207b7d22"
+    },
+    {
+      "id": "PARAM_FIELDS_RAW_ZERO",
+      "lambda_hex": "7b7b61206220637d7d207b7d005441494c",
+      "counted_source_hex": "6170706c7920227b7b61206220637d7d207b7d005441494c22"
+    }
+  ],
+  "channels": [
+    "Direct original string-object argv, independent fresh interpreter per case",
+    "Counted script source with literal quoted lambda text; no source escape re-encoding or Document ReadChars"
+  ],
+  "limits": [
+    "Tcl8.4 apply is absent; Jim own handler remains an independent measured answer",
+    "Return-options/errorcode getters unavailable through C8.4/Jim selected probe API",
+    "No lambda header/cache/layout/free callbacks or Normal guarantee measured"
+  ]
+}

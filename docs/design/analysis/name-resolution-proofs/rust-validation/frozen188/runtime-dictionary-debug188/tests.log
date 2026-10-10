@@ -1,0 +1,29 @@
+
+running 2 tests
+test cmd_array::tests::dictionary_update_first_original_mapping_reaches_caller_storage ... FAILED
+test cmd_array::tests::variable_container_storage_matches_all_native_columns ... FAILED
+
+failures:
+
+---- cmd_array::tests::dictionary_update_first_original_mapping_reaches_caller_storage stdout ----
+
+thread 'cmd_array::tests::dictionary_update_first_original_mapping_reaches_caller_storage' (683612) panicked at src/cmd_array.rs:863:17:
+assertion `left == right` failed: jim
+  left: [49, 32, 123, 105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 100, 105, 99, 116, 32, 117, 112, 100, 97, 116, 101, 34, 125, 32, 66, 69, 70, 79, 82, 69, 32, 48, 32, 123, 102, 105, 114, 115, 116, 32, 78, 69, 87, 125]
+ right: [48, 32, 49, 32, 78, 69, 87, 32, 49, 32, 123, 102, 105, 114, 115, 116, 32, 78, 69, 87, 125]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- cmd_array::tests::variable_container_storage_matches_all_native_columns stdout ----
+
+thread 'cmd_array::tests::variable_container_storage_matches_all_native_columns' (683693) panicked at src/cmd_array.rs:837:25:
+assertion `left == right` failed: jim case 8: if {[llength [info commands dict]] == 0} {list UNAVAILABLE} else {array set blocked {k OLD};set d {first NEW second OTHER};set ok BEFORE;set entered 0;set c [catch {dict update d first ok second blocked {set entered 1}} r];list $c $ok $entered [catch {set blocked} v] $v}; caught result (Ok): [105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 100, 105, 99, 116, 32, 117, 112, 100, 97, 116, 101, 34]
+  left: [49, 32, 66, 69, 70, 79, 82, 69, 32, 48, 32, 48, 32, 123, 107, 32, 79, 76, 68, 125]
+ right: [48, 32, 78, 69, 87, 32, 49, 32, 48, 32, 79, 84, 72, 69, 82]
+
+
+failures:
+    cmd_array::tests::dictionary_update_first_original_mapping_reaches_caller_storage
+    cmd_array::tests::variable_container_storage_matches_all_native_columns
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 1230 filtered out; finished in 12.88s
+

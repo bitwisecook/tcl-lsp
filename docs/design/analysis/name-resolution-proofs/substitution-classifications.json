@@ -1,0 +1,408 @@
+[
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/inputs.json",
+    "sha256": "364bf581c1b5d6b4e6b2b321ae4005d553f7c84fe120ca17c0c61e443022c307",
+    "classification": "input-fixture",
+    "proof_ids": [],
+    "reason": "Ten complete exact native template input hex arrays; no observed outcome."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/manifest.json",
+    "sha256": "762b4287fd6746d901efbfb000d1bc4e50012af00d0260ca9364e395f88377f4",
+    "classification": "provider-scaffolding",
+    "proof_ids": [],
+    "reason": "Finite provider/input/variant/source mapping, not an independently observed guest answer."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.4.20.json",
+    "sha256": "9aac3b4133f72a9c85c20ab494a86c35a85e56631126d0c9d95464a8080961cf",
+    "classification": "provider-scaffolding",
+    "proof_ids": [
+      "naming.substitution.compiler-source-purpose"
+    ],
+    "reason": "Exact pinned native function source window/full source digest; source-inspection evidence only."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.5.19.json",
+    "sha256": "ba1772af2cf3f9ad9416853099aceee4669f53023c5f040a8b898ac089255266",
+    "classification": "provider-scaffolding",
+    "proof_ids": [
+      "naming.substitution.compiler-source-purpose"
+    ],
+    "reason": "Exact pinned native function source window/full source digest; source-inspection evidence only."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.6.18.json",
+    "sha256": "1a31bc570e4965fb2cc150a6337ab2c88e04fb02f8e20663a3aded0d9c88e009",
+    "classification": "provider-scaffolding",
+    "proof_ids": [
+      "naming.substitution.compiler-source-purpose"
+    ],
+    "reason": "Exact pinned native function source window/full source digest; source-inspection evidence only."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.0.4.json",
+    "sha256": "f5ab0243e1ecfd6e11fe6434d5f6f5792f574c7394643955d8fb5caf38f69b0b",
+    "classification": "provider-scaffolding",
+    "proof_ids": [
+      "naming.substitution.compiler-source-purpose"
+    ],
+    "reason": "Exact pinned native function source window/full source digest; source-inspection evidence only."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.1.0.json",
+    "sha256": "5ae5ddbaf48a6ef7bea8d63ad9b90937ff27c362e681ad72f95739d44ce9fbe0",
+    "classification": "provider-scaffolding",
+    "proof_ids": [
+      "naming.substitution.compiler-source-purpose"
+    ],
+    "reason": "Exact pinned native function source window/full source digest; source-inspection evidence only."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v1/8.4.20/receipt.json",
+    "sha256": "2e6107045ad05496c4ddde80919d37d225243a5a08493b21f443dbfea53c0338",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context"
+    ],
+    "reason": "Exact original stock-command wrapper result/header/cache/context capture. This translation unit has no direct Tcl_SubstObj invocation; direct-API observation is not attributed to these rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v1/8.5.19/receipt.json",
+    "sha256": "6bc565f5e980db54b9af199a86fed570cef16f9252546088da8bb9798f0e0fe1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context"
+    ],
+    "reason": "Exact original stock-command wrapper result/header/cache/context capture. This translation unit has no direct Tcl_SubstObj invocation; direct-API observation is not attributed to these rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v1/8.6.18/receipt.json",
+    "sha256": "18c2b5684e496a25236828fb78710b0aa2355f4ce0b39a69c06305e649d985de",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context"
+    ],
+    "reason": "Exact original stock-command wrapper result/header/cache/context capture. This translation unit has no direct Tcl_SubstObj invocation; direct-API observation is not attributed to these rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v1/9.0.4/receipt.json",
+    "sha256": "f8112753b7c92e35d75fbc77be1602880589cf2897677a14bed9c70676fa090c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context"
+    ],
+    "reason": "Exact original stock-command wrapper result/header/cache/context capture. This translation unit has no direct Tcl_SubstObj invocation; direct-API observation is not attributed to these rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v1/9.1.0/receipt.json",
+    "sha256": "5de06c76c4d4e8f40ebf883f8ec2a9747ce06aa7515daff287bd35176d932c36",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context"
+    ],
+    "reason": "Exact original stock-command wrapper result/header/cache/context capture. This translation unit has no direct Tcl_SubstObj invocation; direct-API observation is not attributed to these rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v2/8.4.20/receipt.json",
+    "sha256": "a0b8dd5601f2af48d8b0594a46ab92c7f2b007f89d75d4d6d38a1e1d6ef78772",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context"
+    ],
+    "reason": "Exact original stock-command wrapper result/header/cache/context capture. This translation unit has no direct Tcl_SubstObj invocation; direct-API observation is not attributed to these rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v2/8.5.19/receipt.json",
+    "sha256": "e8fbd9242c8a60db870668b1bf436de3106a3390470869bba2c50eec2dd2311f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context"
+    ],
+    "reason": "Exact original stock-command wrapper result/header/cache/context capture. This translation unit has no direct Tcl_SubstObj invocation; direct-API observation is not attributed to these rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v2/8.6.18/receipt.json",
+    "sha256": "52e374f5646a615d95979639dc1d2a8890652498a46836e9e8986f1e0b50274c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context"
+    ],
+    "reason": "Exact original stock-command wrapper result/header/cache/context capture. This translation unit has no direct Tcl_SubstObj invocation; direct-API observation is not attributed to these rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v2/9.0.4/receipt.json",
+    "sha256": "170201e5d9c6edce9d89480e499a5d22f671394ce82145f2fe614fa80a8ea5d3",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context"
+    ],
+    "reason": "Exact original stock-command wrapper result/header/cache/context capture. This translation unit has no direct Tcl_SubstObj invocation; direct-API observation is not attributed to these rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v2/9.1.0/receipt.json",
+    "sha256": "b8e4eee64900fbe9b843f7f99d309deebbbe68da3e3034dd9e2abe8ccffdda12",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context"
+    ],
+    "reason": "Exact original stock-command wrapper result/header/cache/context capture. This translation unit has no direct Tcl_SubstObj invocation; direct-API observation is not attributed to these rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v3/8.4.20/receipt.json",
+    "sha256": "c08ef41b9994b9b9ad40c856d9479b05d7042277f2c10122b0be4674cca9f3aa",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v3/8.5.19/receipt.json",
+    "sha256": "b4654083aa62a4c34989179d959527a11b337c90d0cfeaf51f0a8e746b18d8ad",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v3/8.6.18/receipt.json",
+    "sha256": "a53bb63648d9be0204b081bea201037db1ca1ebbef76d22d914ab49197778d3e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v3/9.0.4/receipt.json",
+    "sha256": "5cc4f192969fb126100cbf0d18528d0ca8dd2b3034db701fd7b3f8f11415016c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v3/9.1.0/receipt.json",
+    "sha256": "aaadb8c81ef294aa5e7ace96b0947796706823f8fd4885716395112f140f4b1b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v4/8.4.20/receipt.json",
+    "sha256": "f7b8a76f425a3839fc6fad252ea822ed44a6701cf4fdcfb7f9f3f0806f487df3",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.root-frame-probe-failure"
+    ],
+    "reason": "Original configured probe compiled0, processSIGSEGV(-11), zero rows; observed harness-process failure only, no native guest semantic answer."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v4/8.5.19/receipt.json",
+    "sha256": "d72ec93a6e53b3e51c273362848fcd29ee34e18213745490f12a53e571873e6d",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v4/8.6.18/receipt.json",
+    "sha256": "8a9f796771877c110f352b546031d84826482886a4afd0117bdc52d15be26aa8",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v4/9.0.4/receipt.json",
+    "sha256": "4b8ffa42d27aacdc449cc4b11b739af2e893d40fde5ff8066ead3190e2d5d5ea",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v4/9.1.0/receipt.json",
+    "sha256": "746094e198f1b4415357e647e619de8e472017fe17a2d14cab064ed4fee22374",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v5/8.4.20/receipt.json",
+    "sha256": "da56a9b5f7123fa08e0a2cbb9bb76e906e41addc057cce76bdb825a81680511f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v5/8.5.19/receipt.json",
+    "sha256": "92798c4cbee68e6379088292b819fc927bdc451a6f02926f5988ed6126e39d5e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v5/8.6.18/receipt.json",
+    "sha256": "21c251ffef4cbb02381bcafae6000562e566301651a4be900e6b4d5b0d2b722e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v5/9.0.4/receipt.json",
+    "sha256": "3ac7fe19a6e1965e49b9aa350e3970656746ce47e9f9f8d112995d1bc6ed1083",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v5/9.1.0/receipt.json",
+    "sha256": "912fe931b455c1231de5b123958c6bad57664f8b8f6b47ab7788e2eee76c5d4e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v6/8.4.20/receipt.json",
+    "sha256": "5436df2cea8adcfc91031f1fa630d2dc1075fe3b616b61346d916d2c98e03f5f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v6/8.5.19/receipt.json",
+    "sha256": "83091afccce1641bb647a41d4ad0b87b2b55ae9d4115ee0d60defb01f955d624",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v6/8.6.18/receipt.json",
+    "sha256": "969ff08a9150a13962a7c5512a24d4cb277dd4919ead068b51621d2ef1795f8d",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v6/9.0.4/receipt.json",
+    "sha256": "4b49fdc218993431db83f2ee0c0c1e64ce82468195d6867ce83433dbf0be5fd5",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_substitution_owner/v6/9.1.0/receipt.json",
+    "sha256": "e86284c732def0a3db51ddf783e8a6c6f00311cabe412ac211114aedad4d7f4a",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.substitution.counted-template-completions",
+      "naming.substitution.original-cache-fields",
+      "naming.substitution.namespace-and-local-context",
+      "naming.substitution.direct-object-api"
+    ],
+    "reason": "Finite original configured native substitution capture with exact source/provider/stream receipt; answers scoped result/header/cache/context questions, not Rust execution."
+  }
+]

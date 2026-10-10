@@ -207,6 +207,55 @@ mod tests {
     }
 
     #[test]
+    fn list_intrinsic_code_retains_unknown_effects_and_requires_native_cardinality() {
+        // Source-inspection proof: naming.list.constructor-intrinsic-return-code
+        // docs/design/analysis/name-resolution-proofs/list-constructor-intrinsic-return-code.md
+        let contract = NativeResultContract::ListArguments { from: 0 };
+        let operands = [
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::KnownBytes(b"\xff\0"),
+        ];
+        let mut dialects = tcl_dialect::TclVersion::ALL
+            .map(crate::InvocationDialect::for_version)
+            .to_vec();
+        dialects.push(crate::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        ));
+        for dialect in dialects {
+            for words in [&[][..], operands.as_slice()] {
+                let args = InvocationArguments::structured(words).with_dialect(dialect);
+                assert_eq!(
+                    contract.list_constructor_completion_code(args, 0),
+                    Some(crate::completion::CompletionCode::Ok)
+                );
+                assert_eq!(contract.list_constructor_completion_code(args, 1), None);
+                assert_eq!(
+                    NativeResultContract::ListArguments { from: 1 }
+                        .list_constructor_completion_code(args, 0),
+                    None
+                );
+            }
+            for words in [
+                [crate::InvocationWord::Expanded],
+                [crate::InvocationWord::Opaque],
+            ] {
+                let args = InvocationArguments::structured(&words).with_dialect(dialect);
+                assert_eq!(contract.list_constructor_completion_code(args, 0), None);
+            }
+        }
+        assert_eq!(
+            contract
+                .list_constructor_completion_code(InvocationArguments::structured(&operands), 0),
+            None
+        );
+        let hosted = crate::model::ingress::static_context_for("f5-irules").commands();
+        let args = InvocationArguments::structured(&operands).with_dialect(
+            crate::InvocationDialect::of_profile(hosted.profile().unwrap()),
+        );
+        assert_eq!(contract.list_constructor_completion_code(args, 0), None);
+    }
+
+    #[test]
     fn arithmetic_sequence_provider_requires_actual_native_result_axes() {
         let contract = NativeResultContract::ArithmeticSequence;
         let operands = [crate::InvocationWord::Dynamic];
@@ -1092,6 +1141,26 @@ impl NativeResultSelection {
 }
 
 impl NativeResultContract {
+    /// Intrinsic code of the selected stock list constructor after argv
+    /// evaluation. Pointer retention and result publication return OK in the
+    /// selected C/Jim handler. This grants no release-effect closure, observer
+    /// closure, successful entry, Normal certificate or list serialization.
+    #[must_use]
+    pub fn list_constructor_completion_code(
+        self,
+        args: InvocationArguments<'_>,
+        argument_offset: usize,
+    ) -> Option<crate::completion::CompletionCode> {
+        // Source-inspection proof: naming.list.constructor-intrinsic-return-code
+        // docs/design/analysis/name-resolution-proofs/list-constructor-intrinsic-return-code.md
+        if self != (Self::ListArguments { from: 0 }) || argument_offset != 0 {
+            return None;
+        }
+        args.exact_argv_len()?;
+        args.dialect()?.native_string_protocol()?;
+        Some(crate::completion::CompletionCode::Ok)
+    }
+
     /// Original operand captured by the selected native namespace wrapper.
     /// Actual namespace/receiver ownership and normal completion are separate
     /// prerequisites; this grants no callback execution or visibility proof.

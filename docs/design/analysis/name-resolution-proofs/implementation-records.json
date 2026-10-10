@@ -1,0 +1,227 @@
+[
+  {
+    "id": "naming.proof-records.exact-evidence-and-coverage",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/exact-evidence-and-coverage.md",
+    "problem_statement": "A retained native result can be silently detached from changed source bytes, a missing JSON row, another test function or an incomplete capture inventory. Treating a structurally valid subset as complete would conceal unreviewed native questions. The proof consumer needs to distinguish exact retained evidence from an output assertion or coverage claim borrowed from another owner.",
+    "question": "Does the proof gate reject changed evidence, missing row selectors, escaping paths, adjacent-function comment donation, unindexed pages/test annotations and pending capture coverage while keeping structural audit distinct from complete certification?",
+    "conclusion": "The gate checks complete file digests and selected rows, repository-contained paths, exact question/document/provider bindings and the current corpus census. Every proof page and explicitly marked Rust question requires an indexed record. Pending capture review and unlinked tests fail complete certification. Structural audit neither executes a native probe nor certifies completed coverage.",
+    "scope": "Python proof-consumer implementation contract. The fixed synthetic controls exercise validator rejection paths; they do not constitute C Tcl, Jim or BIG-IP language observations.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This Python validator invariant is not a native-language observation; no provider result is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This Python validator invariant is not a native-language observation; no provider result is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This Python validator invariant is not a native-language observation; no provider result is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This Python validator invariant is not a native-language observation; no provider result is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This Python validator invariant is not a native-language observation; no provider result is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This Python validator invariant is not a native-language observation; no provider result is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This Python validator invariant is not a native-language observation; no provider result is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "check-name-resolution-proofs",
+        "role": "implementation",
+        "path": "scripts/dev/check-name-resolution-proofs.py",
+        "sha256": "e977bdc7b7828f168c142ff47bb8517bd334ab9fc77423e047d7fbed1166f53c",
+        "description": "Exact proof-validator or fixed negative-control source; not a native capture."
+      },
+      {
+        "id": "test_name_resolution_proofs",
+        "role": "implementation",
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "sha256": "542a07f90691a093690f5655c86eb6776dc81e61386bb1d23b828f9e2bb288b8",
+        "description": "Exact proof-validator or fixed negative-control source; not a native capture."
+      },
+      {
+        "id": "reviewed-classification-merger",
+        "role": "implementation",
+        "path": "scripts/dev/update-name-resolution-proof-index.py",
+        "sha256": "3e04c6dc9fe8fa712582f5c4807ed9b1f08ca0197d5dd4e2406398ee319cdf12",
+        "description": "Every candidate classification is validated against exact current artifact bytes and issued question IDs before any census update."
+      },
+      {
+        "id": "actual-python-controls",
+        "role": "reconfirmation",
+        "path": "docs/design/analysis/name-resolution-proofs/proof-tool-controls.json",
+        "sha256": "3e50d3a70694e0bec34a178b716438fbdccfba846903b4530cd1bb8292f09471",
+        "description": "Actual ten-control Python unittest execution with original command, Python/source digests, status and separate stdout/stderr bytes. This is implementation evidence, not native language execution."
+      },
+      {
+        "id": "actual-python-controls-current-index",
+        "role": "reconfirmation",
+        "path": "docs/design/analysis/name-resolution-proofs/proof-tool-controls-index.json",
+        "sha256": "3ced0731de6021701cdb9e2800bd3d562580e10c238f941a28c6cb46836fcd01",
+        "description": "Actual ten-control Python implementation execution at the current three listed script digests. The independent previous receipt remains retained; no native or Rust outcome is inferred."
+      },
+      {
+        "id": "actual-python-controls-current-annotations",
+        "role": "reconfirmation",
+        "path": "docs/design/analysis/name-resolution-proofs/proof-tool-controls-annotations.json",
+        "sha256": "cf95569b0cf4f72bb6b45aea506a6616a462b9a725f24d536752dc15d3085892",
+        "description": "Actual current ten-control Python implementation execution, with exact source/interpreter digests and separate streams. Prior independent receipts remain scoped to their listed source versions."
+      },
+      {
+        "id": "actual-python-controls-explicit-headings",
+        "role": "reconfirmation",
+        "path": "docs/design/analysis/name-resolution-proofs/proof-tool-controls-headings.json",
+        "sha256": "0ed385c5b2981b2b9e44cac8a8d1def62ba5e43c145628bd0b82ccf6d7bdf7e2",
+        "description": "Actual eleven-control Python implementation execution at the listed source/interpreter digests. Captured status and stdout/stderr stay separate from any native or Rust result."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_changed_bytes_and_missing_rows_are_rejected",
+        "assertion": "Reject the named evidence/coverage authority mismatch using a fixed synthetic control.",
+        "status": "linked"
+      },
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_pending_capture_cannot_certify_complete_coverage",
+        "assertion": "Reject the named evidence/coverage authority mismatch using a fixed synthetic control.",
+        "status": "linked"
+      },
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_pointer_root_and_escaped_keys_remain_distinct",
+        "assertion": "Reject the named evidence/coverage authority mismatch using a fixed synthetic control.",
+        "status": "linked"
+      },
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_paths_cannot_escape_the_repository",
+        "assertion": "Reject the named evidence/coverage authority mismatch using a fixed synthetic control.",
+        "status": "linked"
+      },
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_adjacent_function_cannot_donate_its_proof_comment",
+        "assertion": "Reject the named evidence/coverage authority mismatch using a fixed synthetic control.",
+        "status": "linked"
+      },
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_missing_provider_and_native_donation_to_rust_contract_fail",
+        "assertion": "Reject the named evidence/coverage authority mismatch using a fixed synthetic control.",
+        "status": "linked"
+      },
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_missing_capture_is_retained_as_unavailable",
+        "assertion": "Missing artifacts stay in the census under their original digest and block certification; a hash does not restore evidence bytes.",
+        "status": "linked"
+      },
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_generated_python_cache_is_not_a_capture",
+        "assertion": "Generated Python bytecode is excluded, while an actual failed capture in the same directory remains required evidence.",
+        "status": "linked"
+      },
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_classification_merge_cannot_accept_changed_input_or_unknown_question",
+        "assertion": "Changed artifact inputs and unknown question IDs are refused without partial census mutation.",
+        "status": "linked"
+      },
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_unindexed_question_page_and_rust_annotation_block_certification",
+        "assertion": "A new proof page or explicitly marked Rust question cannot escape the index and permit false complete certification.",
+        "status": "linked"
+      },
+      {
+        "path": "scripts/dev/test_name_resolution_proofs.py",
+        "selector": "test_scope_and_conclusion_cannot_borrow_partial_heading_names",
+        "assertion": "A longer or different heading cannot stand in for the required explicit scope or conclusion despite matching body text.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "scripts/dev/check-name-resolution-proofs.py",
+        "symbol": "validate",
+        "purpose": "Own complete retained-evidence and census validation."
+      },
+      {
+        "path": "scripts/dev/update-name-resolution-proof-index.py",
+        "symbol": "merge_classifications",
+        "purpose": "Publishes a reviewed classification only against exact inventoried bytes and a known question."
+      },
+      {
+        "path": "scripts/dev/check-name-resolution-proofs.py",
+        "symbol": "marked_questions",
+        "purpose": "Requires an indexed question for each explicit Rust proof annotation."
+      }
+    ],
+    "replay": {
+      "command": [
+        "python3",
+        "scripts/dev/test_name_resolution_proofs.py"
+      ],
+      "limitations": "Runs only fixed Python implementation controls. The latest attached receipt records eleven passing controls at the exact listed source digests; changed source requires a new run. Independent receipts retain their own source/count scope. Native and Rust execution remain separate obligations."
+    }
+  }
+]

@@ -38,15 +38,16 @@
 //!   {$n * [f [expr {$n - 1}]]}]`) — a common pattern worth
 //!   converting to an accumulator recurrence.
 
-use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Procedure, Script, Statement};
-use crate::naming::normalise_qualified_name;
 
 use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
+
+mod inventory;
+use inventory::Inventory;
 
 /// Whether `tailcall` is available in `dialect` — TIP 327, Tcl 8.6+,
 /// derived from the profile's modelled runtime rather than a name list
@@ -79,24 +80,41 @@ fn lassign_supported(dialect: Option<&'static tcl_dialect::DialectProfile>) -> b
 
 /// Run the tail-call detection pass. Emits `O121` for every
 /// self-call in tail position (bare-call + return-subst variants),
-/// plus the hint-only `O122` loop-conversion and `O123`
-/// accumulator-candidate diagnostics described in the module docs.
+/// plus the guarded `O122` loop-conversion rewrite and hint-only `O123`
+/// accumulator-candidate diagnostic described in the module docs.
 ///
 /// O121 is gated on `tailcall`-supporting dialects (Tcl 8.6+ per TIP
 /// 327).  Pre-8.6 dialects keep the O122 recursion-to-loop hint but
 /// not the O121 `tailcall` suggestion.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let emit_o121 = tailcall_supported(ctx.dialect);
-    for (qname, proc) in &cu.ir_module.procedures {
+    for proc in cu.ir_module.procedures.values() {
         if !proc.body.is_authored_source() {
             continue;
         }
-        let self_names = self_name_variants(qname);
+        let Some(inventory) = Inventory::capture(ctx, &cu.ir_module, proc) else {
+            continue;
+        };
         let mut sites: Vec<TailSite> = Vec::new();
-        collect_tail_sites(ctx, &proc.body, &self_names, proc, &mut sites, emit_o121, 0);
+        collect_tail_sites(
+            ctx,
+            &proc.body,
+            &inventory,
+            proc,
+            &mut sites,
+            emit_o121 && inventory.complete && inventory.frame_effects_closed,
+            0,
+        );
 
-        let total_self_calls = count_self_calls_in_script(ctx.source, &proc.body, &self_names);
-        if !sites.is_empty()
+        let total_self_calls = inventory.calls.len() + inventory.readonly_calls;
+        if inventory.complete
+            && inventory.loop_commands_preserved
+            && inventory.frame_effects_closed
+            && inventory
+                .calls
+                .values()
+                .all(|call| call.retains_formal_roots || call.assignments_preserve_effects)
+            && !sites.is_empty()
             && sites.len() == total_self_calls
             && proc.body.is_fully_authored_source()
         {
@@ -106,14 +124,17 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             // a parameter reassignment (`set p v` for single
             // param, `lassign` for multiple).  Multi-param
             // bodies need `lassign` (Tcl 8.5+).
-            if proc.params.len() <= 1 || lassign_supported(ctx.dialect) {
-                emit_loop_conversion(ctx, proc, &sites);
+            if sites.iter().all(|site| site.retains_formal_roots)
+                || proc.params.len() <= 1
+                || lassign_supported(ctx.dialect)
+            {
+                emit_loop_conversion(ctx, proc, &inventory, &sites);
             }
         }
 
         // O123: any non-tail self-call embedded in an expression
         // → accumulator candidate (hint-only).
-        if non_tail_self_call_in_expression(&proc.body, &self_names, ctx.registry, 0) {
+        if inventory.complete && !inventory.accumulator_returns.is_empty() {
             let mut opt = Optimisation::new(
                 DiagCode::O123,
                 format!(
@@ -142,6 +163,9 @@ struct TailSite {
     /// holding more than one command — which makes the O122 loop
     /// conversion unsafe.
     args: Option<Vec<String>>,
+    /// Every original formal object is passed unchanged and fetched quietly.
+    /// Redundant assignments can be omitted only under this source owner.
+    retains_formal_roots: bool,
 }
 
 /// Produce the replacement parameter reassignment for a tail
@@ -165,6 +189,41 @@ fn make_reassignment(params: &[String], args: &[String]) -> String {
     }
 }
 
+/// Render proved fixed scalar destinations under the original source channel.
+/// Every tail site must select the same complete formal binding topology.
+fn loop_parameter_source_words(
+    ctx: &PassContext<'_>,
+    inventory: &Inventory,
+    original: &crate::command_binding::ExecutedScriptSource,
+    sites: &[TailSite],
+) -> Option<Vec<String>> {
+    let topology = inventory.formal_topology.as_ref()?;
+    let mut parameter_words = None;
+    for site in sites {
+        let arguments = site.args.as_ref()?;
+        let names = topology.fixed_scalar_binding_names(arguments.len())?;
+        let words = names
+            .iter()
+            .map(|name| {
+                tcl_syntax::backslash::native_literal_source_word(
+                    name.as_bytes(),
+                    original.origin.source_image().channel(),
+                    ctx.lexer_config(),
+                    topology.source_string_protocol(),
+                )
+            })
+            .collect::<Option<Vec<_>>>()?;
+        if parameter_words
+            .as_ref()
+            .is_some_and(|previous| previous != &words)
+        {
+            return None;
+        }
+        parameter_words = Some(words);
+    }
+    parameter_words
+}
+
 /// Emit the O122 while-loop conversion rewrite on top of the
 /// full proc span. Falls back silently when the proc's
 /// `body_source` is not available (synthetic procs) or when
@@ -172,468 +231,89 @@ fn make_reassignment(params: &[String], args: &[String]) -> String {
 fn emit_loop_conversion(
     ctx: &mut PassContext<'_>,
     proc: &crate::ir::Procedure,
+    inventory: &Inventory,
     sites: &[TailSite],
 ) {
     let Some(body_source) = &proc.body_source else {
         return;
     };
-    if proc.params.is_empty() {
-        return;
-    }
-    // Every tail-call site must pass exactly `params.len()` args
-    // — otherwise the loop conversion would lose information.
-    for site in sites {
-        if site
-            .args
-            .as_ref()
-            .is_none_or(|args| args.len() != proc.params.len())
-        {
-            return;
-        }
-    }
-    // Find the body_source within the outer source so we can
-    // translate absolute call-site spans to body-local offsets.
-    let proc_range = proc.span.as_range();
-    if proc_range.end > ctx.source.len() {
-        return;
-    }
-    let proc_text = &ctx.source[proc_range.clone()];
-    let Some(body_offset_in_proc) = proc_text.find(body_source.as_str()) else {
+    let Some(original) = proc.body.executed_source.as_deref() else {
         return;
     };
-    let body_start_abs = proc_range.start + body_offset_in_proc;
-
-    // Replace every tail-call site with the reassignment — in
-    // reverse order so earlier substitutions don't shift later
-    // offsets.
+    if !matches!(original.mapping, crate::command_binding::ExecutedScriptMapping::Contiguous { base } if base == proc.body_offset)
+        || original.text.bytes() != body_source.as_bytes()
+    {
+        return;
+    }
+    let Some(parameter_words) = loop_parameter_source_words(ctx, inventory, original, sites) else {
+        return;
+    };
+    if parameter_words.len() > 1
+        && !lassign_supported(ctx.dialect)
+        && sites.iter().any(|site| !site.retains_formal_roots)
+    {
+        return;
+    }
+    let proc_range = proc.span.as_range();
+    let Some(proc_text) = ctx.source.get(proc_range.clone()) else {
+        return;
+    };
+    let body_start = usize::try_from(proc.body_offset).ok();
+    let Some(body_start) = body_start else {
+        return;
+    };
+    let Some(body_end) = body_start.checked_add(body_source.len()) else {
+        return;
+    };
+    // A loop body is inserted only inside this original, contiguous brace
+    // operand. The unchanged header retains the selected definer, source name,
+    // parameter-list spelling and surrounding namespace qualification.
+    if body_start <= proc_range.start
+        || body_end >= proc_range.end
+        || ctx.source.as_bytes().get(body_start - 1) != Some(&b'{')
+        || ctx.source.as_bytes().get(body_end) != Some(&b'}')
+        || ctx.source.get(body_start..body_end) != Some(body_source.as_str())
+    {
+        return;
+    }
     let mut modified = body_source.clone();
     let mut ordered = sites.to_vec();
-    ordered.sort_by_key(|s| std::cmp::Reverse(s.span.start()));
+    ordered.sort_by_key(|site| std::cmp::Reverse(site.span.start()));
     for site in ordered {
-        let site_range = site.span.as_range();
-        if site_range.start < body_start_abs || site_range.end > body_start_abs + modified.len() {
+        let range = site.span.as_range();
+        if range.start < body_start || range.end > body_end {
             return;
         }
-        let rel_start = site_range.start - body_start_abs;
-        let rel_end = site_range.end - body_start_abs;
-        let Some(args) = &site.args else {
+        let Some(arguments) = &site.args else {
             return;
         };
-        let reassign = make_reassignment(&proc.params, args);
-        modified.replace_range(rel_start..rel_end, &reassign);
+        let reassignment = if parameter_words.is_empty() || site.retains_formal_roots {
+            "continue".to_owned()
+        } else {
+            format!(
+                "{}; continue",
+                make_reassignment(&parameter_words, arguments)
+            )
+        };
+        let local = range.start - body_start..range.end - body_start;
+        if !modified.is_char_boundary(local.start) || !modified.is_char_boundary(local.end) {
+            return;
+        }
+        modified.replace_range(local, &reassignment);
     }
-
-    // Re-indent the body for the `while {1}` nesting (add 4
-    // spaces to every non-empty line).
-    let trimmed = modified.trim_end();
-    let reindented: String = trimmed
-        .split('\n')
-        .map(|line| {
-            if line.trim().is_empty() {
-                line.to_owned()
-            } else {
-                format!("    {line}")
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    // Pull the short name + params_raw from the proc so the
-    // replacement matches the original shape.
-    let short_name = &proc.name;
-    let params_raw = if proc.params_raw.is_empty() {
-        proc.params.join(" ")
-    } else {
-        proc.params_raw.clone()
-    };
-    let replacement = format!(
-        "proc {short_name} {{{params_raw}}} {{\n    while {{1}} {{{reindented}\n    }}\n}}"
-    );
-
+    // Do not indent original lines: spaces in multiline literals are values.
+    // A branch which falls through still completes the procedure normally;
+    // rewritten recursive sites continue explicitly after argument evaluation.
+    let loop_body = format!("\n    while {{1}} {{\n{modified}\nreturn\n    }}\n");
+    let relative = body_start - proc_range.start..body_end - proc_range.start;
+    let mut replacement = proc_text.to_owned();
+    replacement.replace_range(relative, &loop_body);
     ctx.report(Optimisation::new(
         DiagCode::O122,
-        format!("Convert tail-recursive '{short_name}' to iterative loop"),
-        full_rewrite_span(ctx.source, proc.span),
+        format!("Convert tail-recursive '{}' to iterative loop", proc.name),
+        proc.span,
         replacement,
     ));
-}
-
-/// Count every textual reference to a self-name across the script — tail,
-/// non-tail, inside conditions, inside argument substitutions.  Reads the
-/// source-level argument text to catch `[self …]` substitutions the IR does
-/// not parse into a Call.
-///
-/// This is O122's safety gate: the loop conversion fires only when the count
-/// equals the number of tail-position sites, i.e. when nothing recurses
-/// outside a tail call.  A control-flow condition is not a tail position and
-/// the loop body would still evaluate it, so `if {[f $n]} …` counts.
-/// Conditions live in the IR as a parsed `ExprNode` rather than argument
-/// text, hence the count from their source slice.
-fn count_self_calls_in_script(
-    source: &str,
-    script: &Script,
-    self_names: &HashSet<String>,
-) -> usize {
-    let mut count = 0;
-    count_self_calls_in_script_impl(source, script, self_names, &mut count);
-    count
-}
-
-fn count_self_calls_in_script_impl(
-    source: &str,
-    script: &Script,
-    self_names: &HashSet<String>,
-    count: &mut usize,
-) {
-    for stmt in &script.statements {
-        count_self_calls_in_stmt(source, stmt, self_names, count);
-    }
-}
-
-/// Count self-calls in the source text covered by `span`, for the IR nodes
-/// — expression conditions — that keep no argument text.
-fn count_self_calls_in_span(
-    source: &str,
-    span: tcl_lexer::Span,
-    self_names: &HashSet<String>,
-) -> usize {
-    source
-        .get(span.as_range())
-        .map_or(0, |text| count_bracket_self_calls(text, self_names))
-}
-
-fn count_self_calls_in_stmt(
-    source: &str,
-    stmt: &Statement,
-    self_names: &HashSet<String>,
-    count: &mut usize,
-) {
-    match stmt {
-        Statement::NativeCall { .. } => *count = count.saturating_add(1),
-        Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
-            if self_names.contains(command) {
-                *count += 1;
-            }
-            for arg in args {
-                *count += count_bracket_self_calls(arg, self_names);
-            }
-        }
-        Statement::Return {
-            value: Some(v),
-            braced,
-            ..
-        } if !*braced => {
-            *count += count_bracket_self_calls(v, self_names);
-        }
-        Statement::AssignValue { value, .. } => {
-            *count += count_bracket_self_calls(value, self_names);
-        }
-        Statement::If {
-            clauses, else_body, ..
-        } => {
-            for c in clauses {
-                *count += count_self_calls_in_span(source, c.condition_span, self_names);
-                count_self_calls_in_script_impl(source, &c.body, self_names, count);
-            }
-            if let Some(eb) = else_body {
-                count_self_calls_in_script_impl(source, eb, self_names, count);
-            }
-        }
-        Statement::For {
-            init,
-            next,
-            body,
-            condition_span,
-            ..
-        } => {
-            *count += count_self_calls_in_span(source, *condition_span, self_names);
-            count_self_calls_in_script_impl(source, init, self_names, count);
-            count_self_calls_in_script_impl(source, next, self_names, count);
-            count_self_calls_in_script_impl(source, body, self_names, count);
-        }
-        Statement::While {
-            body,
-            condition_span,
-            ..
-        } => {
-            *count += count_self_calls_in_span(source, *condition_span, self_names);
-            count_self_calls_in_script_impl(source, body, self_names, count);
-        }
-        Statement::Foreach {
-            body, iterators, ..
-        } => {
-            for it in iterators {
-                if !it.list_braced {
-                    *count += count_bracket_self_calls(&it.list_arg, self_names);
-                }
-            }
-            count_self_calls_in_script_impl(source, body, self_names, count);
-        }
-        // A body that runs in this frame and carries nothing else to read.
-        // `Block` and `UpFrame` are here because the wildcard this match used
-        // to close with counted them as zero (#2118).
-        Statement::Catch { body, .. }
-        | Statement::Block { body, .. }
-        | Statement::UpFrame { body, .. } => {
-            count_self_calls_in_script_impl(source, body, self_names, count);
-        }
-        Statement::Try {
-            body,
-            handlers,
-            finally_body,
-            ..
-        } => {
-            count_self_calls_in_script_impl(source, body, self_names, count);
-            for h in handlers {
-                count_self_calls_in_script_impl(source, &h.body, self_names, count);
-            }
-            if let Some(fb) = finally_body {
-                count_self_calls_in_script_impl(source, fb, self_names, count);
-            }
-        }
-        Statement::Switch { .. } => count_self_calls_in_switch(source, stmt, self_names, count),
-        // A fused statement keeps a parsed expression or a bare amount string
-        // in place of argument text, so there is nothing for the scanner to
-        // read and the arms were never written: `set acc [expr {$acc + [f …]}]`
-        // (`AssignExpr`), `expr {[f …]}` (`ExprEval`) and `incr acc [f …]`
-        // (`Incr`) all counted zero. Under-counting is the unsound direction —
-        // it makes the tail-site count match the total and opens the gate —
-        // so each is read from its own source slice, the mechanism #2030
-        // established for a condition that keeps no argument text. Reading the
-        // whole statement over-counts a self-name that only *looks* like a
-        // call, which merely refuses the conversion (#2118).
-        Statement::AssignExpr { span, .. }
-        | Statement::ExprEval { span, .. }
-        | Statement::Incr { span, .. } => {
-            *count += count_self_calls_in_span(source, *span, self_names);
-        }
-        // A braced `return {[f …]}` — the unbraced form is counted above —
-        // is literal text, and an `AssignConst` value is a constant by
-        // construction: neither runs a call. Naming them rather than falling
-        // through a wildcard is what makes this match exhaustive, so the next
-        // fused variant is a compile error here instead of a silently-opened
-        // gate.
-        Statement::AssignConst { .. } | Statement::Return { .. } => {}
-    }
-}
-
-/// The `switch` arm of [`count_self_calls_in_stmt`], split out to keep that
-/// match readable now that it names every statement variant.
-fn count_self_calls_in_switch(
-    source: &str,
-    stmt: &Statement,
-    self_names: &HashSet<String>,
-    count: &mut usize,
-) {
-    let Statement::Switch {
-        arms,
-        default_body,
-        subject,
-        subject_braced,
-        ..
-    } = stmt
-    else {
-        return;
-    };
-    if !*subject_braced {
-        *count += count_bracket_self_calls(subject, self_names);
-    }
-    for a in arms {
-        if let Some(b) = &a.body {
-            count_self_calls_in_script_impl(source, b, self_names, count);
-        }
-    }
-    if let Some(db) = default_body {
-        count_self_calls_in_script_impl(source, db, self_names, count);
-    }
-}
-
-/// Count `[selfname args…]` command-substitution occurrences
-/// inside `text`. Uses a simple bracket scanner — enough to
-/// catch the common accumulator-pattern shapes.
-fn count_bracket_self_calls(text: &str, self_names: &HashSet<String>) -> usize {
-    let bytes = text.as_bytes();
-    let mut count = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] != b'[' {
-            i += 1;
-            continue;
-        }
-        i += 1;
-        // Skip whitespace.
-        while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
-            i += 1;
-        }
-        // Extract the head word.
-        let start = i;
-        while i < bytes.len() {
-            let b = bytes[i];
-            if b.is_ascii_alphanumeric() || b == b'_' {
-                i += 1;
-            } else if b == b':' && i + 1 < bytes.len() && bytes[i + 1] == b':' {
-                i += 2;
-            } else {
-                break;
-            }
-        }
-        if let Ok(head) = std::str::from_utf8(&bytes[start..i])
-            && self_names.contains(head)
-        {
-            count += 1;
-        }
-    }
-    count
-}
-
-/// Whether `value` (a `return` argument) is an accumulator-eligible
-/// non-tail self-recursion, gated on the argument being an `[expr {…}]`
-/// wrapper:
-///
-/// 1. the argument is an `[expr {…}]` command substitution (not a plain
-///    `[self …]` tail call, which O121 already handles) — the head is
-///    recognised via the registry's `EXPR_CONCATENATES_ARGS` trait, not a
-///    name match;
-/// 2. it embeds **exactly one** self-call — tree recursion like
-///    `fib` (`[fib …] + [fib …]`, two calls) is *not* a simple
-///    accumulator and must not fire;
-/// 3. it contains an associative operator (`+` / `*`) so introducing an
-///    accumulator parameter is meaningful.
-fn is_accumulator_pattern(
-    value: &str,
-    self_names: &HashSet<String>,
-    registry: Option<&tcl_registry::CommandRegistry>,
-) -> bool {
-    let Some((head, _)) = parse_return_subst(
-        value,
-        tcl_lexer::LexerConfig::for_profile(
-            registry.and_then(tcl_registry::CommandRegistry::profile),
-        ),
-    ) else {
-        return false;
-    };
-    let head_is_expr = registry.and_then(|r| r.get(&head)).is_some_and(|s| {
-        s.traits
-            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-    });
-    if !head_is_expr {
-        return false;
-    }
-    if count_bracket_self_calls(value, self_names) != 1 {
-        return false;
-    }
-    value.contains('+') || value.contains('*')
-}
-
-/// Detect a non-tail self-call embedded in an expression body
-/// or a return's command substitution — the accumulator pattern.
-/// `depth` is the nesting level of `script` — see
-/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
-fn non_tail_self_call_in_expression(
-    script: &Script,
-    self_names: &HashSet<String>,
-    registry: Option<&tcl_registry::CommandRegistry>,
-    depth: u32,
-) -> bool {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
-        return false;
-    }
-    for stmt in &script.statements {
-        if non_tail_in_stmt(stmt, self_names, registry, depth) {
-            return true;
-        }
-    }
-    false
-}
-
-fn non_tail_in_stmt(
-    stmt: &Statement,
-    self_names: &HashSet<String>,
-    registry: Option<&tcl_registry::CommandRegistry>,
-    depth: u32,
-) -> bool {
-    match stmt {
-        Statement::Return {
-            value: Some(v),
-            braced,
-            ..
-        } => {
-            // Braced `return {[f $n]}` is literal text — never
-            // executed as a call.
-            if *braced {
-                return false;
-            }
-            is_accumulator_pattern(v, self_names, registry)
-        }
-        // Accumulator sites come from `return` statements only, so
-        // an assignment never contributes an O123 candidate.
-        Statement::If {
-            clauses, else_body, ..
-        } => {
-            clauses
-                .iter()
-                .any(|c| non_tail_self_call_in_expression(&c.body, self_names, registry, depth + 1))
-                || else_body.as_ref().is_some_and(|b| {
-                    non_tail_self_call_in_expression(b, self_names, registry, depth + 1)
-                })
-        }
-        Statement::Switch {
-            arms, default_body, ..
-        } => {
-            arms.iter().any(|a| {
-                a.body.as_ref().is_some_and(|b| {
-                    non_tail_self_call_in_expression(b, self_names, registry, depth + 1)
-                })
-            }) || default_body.as_ref().is_some_and(|b| {
-                non_tail_self_call_in_expression(b, self_names, registry, depth + 1)
-            })
-        }
-        Statement::For {
-            init, body, next, ..
-        } => {
-            non_tail_self_call_in_expression(init, self_names, registry, depth + 1)
-                || non_tail_self_call_in_expression(body, self_names, registry, depth + 1)
-                || non_tail_self_call_in_expression(next, self_names, registry, depth + 1)
-        }
-        Statement::While { body, .. }
-        | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => {
-            non_tail_self_call_in_expression(body, self_names, registry, depth + 1)
-        }
-        Statement::Try {
-            body,
-            handlers,
-            finally_body,
-            ..
-        } => {
-            non_tail_self_call_in_expression(body, self_names, registry, depth + 1)
-                || handlers.iter().any(|h| {
-                    non_tail_self_call_in_expression(&h.body, self_names, registry, depth + 1)
-                })
-                || finally_body.as_ref().is_some_and(|fb| {
-                    non_tail_self_call_in_expression(fb, self_names, registry, depth + 1)
-                })
-        }
-        _ => false,
-    }
-}
-
-/// Return the set of command names that refer to `qname` — the
-/// normalised qualified name, its short (final) segment, and the
-/// global form without the leading `::`.
-fn self_name_variants(qname: &str) -> HashSet<String> {
-    let mut names: HashSet<String> = HashSet::new();
-    let normalised = normalise_qualified_name(qname);
-    names.insert(normalised.clone());
-    if let Some(short) = normalised.rsplit("::").next()
-        && !short.is_empty()
-    {
-        names.insert(short.to_owned());
-    }
-    if let Some(stripped) = normalised.strip_prefix("::") {
-        names.insert(stripped.to_owned());
-    }
-    names
 }
 
 /// Record the tail site for a bare self-call, `f $args`, and report its
@@ -648,7 +328,7 @@ fn self_name_variants(qname: &str) -> HashSet<String> {
 fn collect_bare_call_site(
     ctx: &mut PassContext<'_>,
     span: tcl_lexer::Span,
-    command: &str,
+    _command: &str,
     proc: &Procedure,
     sites: &mut Vec<TailSite>,
     emit_o121: bool,
@@ -656,10 +336,10 @@ fn collect_bare_call_site(
     let rewrite_span = full_rewrite_span(ctx.source, span);
     let call_text = ctx.source.get(rewrite_span.as_range());
     if emit_o121 {
-        let replacement = match call_text {
-            Some(text) => format!("tailcall {text}"),
-            None => format!("tailcall {command}"),
+        let Some(text) = call_text else {
+            return;
         };
+        let replacement = format!("tailcall {text}");
         ctx.report(Optimisation::new(
             DiagCode::O121,
             format!("Use tailcall for self-recursion in proc '{}'", proc.name),
@@ -669,41 +349,36 @@ fn collect_bare_call_site(
     }
     // `[list …]` must receive the words as written, so a braced or quoted
     // argument stays one element.
-    let args = call_text.and_then(|text| {
-        split_call_arguments(text, tcl_lexer::LexerConfig::for_profile(ctx.dialect))
-    });
+    let args = call_text.and_then(|text| split_call_arguments(text, ctx.lexer_config()));
     sites.push(TailSite {
         span: rewrite_span,
         args,
+        retains_formal_roots: false,
     });
 }
 
 /// Record the tail site for a return substitution, `return [f $args]`, and
-/// report its O121 rewrite. Does nothing when `value` is not a single
+/// report its O121 rewrite. Does nothing when the returned value is not a single
 /// command substitution of a self-name.
 fn collect_return_subst_site(
     ctx: &mut PassContext<'_>,
     span: tcl_lexer::Span,
-    value: &str,
-    self_names: &HashSet<String>,
+    tokens: &crate::ir::CommandTokens,
+    inventory: &Inventory,
     proc: &Procedure,
     sites: &mut Vec<TailSite>,
     emit_o121: bool,
 ) {
-    let config = tcl_lexer::LexerConfig::for_profile(ctx.dialect);
-    let Some((call_head, call_args)) = parse_return_subst(value, config) else {
+    let config = ctx.lexer_config();
+    let Some((call_span, call_text)) = original_return_command(ctx, tokens) else {
         return;
     };
-    if !self_names.contains(&call_head) {
+    let Some(call) = inventory.call_at(call_span) else {
         return;
-    }
+    };
     let rewrite_span = full_rewrite_span(ctx.source, span);
-    if emit_o121 {
-        let replacement = if call_args.is_empty() {
-            format!("tailcall {call_head}")
-        } else {
-            format!("tailcall {call_head} {call_args}")
-        };
+    if emit_o121 && call.tailcall_command_preserved && call.retains_formal_roots {
+        let replacement = format!("tailcall {call_text}");
         ctx.report(Optimisation::new(
             DiagCode::O121,
             format!("Use tailcall for self-recursion in proc '{}'", proc.name),
@@ -711,14 +386,14 @@ fn collect_return_subst_site(
             replacement,
         ));
     }
-    let args = if call_args.is_empty() {
-        Some(Vec::new())
-    } else {
-        split_call_arguments(&format!("{call_head} {call_args}"), config)
-    };
+    let args = call
+        .written_arguments()
+        .then(|| split_call_arguments(&call_text, config))
+        .flatten();
     sites.push(TailSite {
         span: rewrite_span,
         args,
+        retains_formal_roots: call.retains_formal_roots,
     });
 }
 
@@ -735,7 +410,7 @@ fn collect_return_subst_site(
 fn collect_tail_sites(
     ctx: &mut PassContext<'_>,
     script: &Script,
-    self_names: &HashSet<String>,
+    inventory: &Inventory,
     proc: &Procedure,
     sites: &mut Vec<TailSite>,
     emit_o121: bool,
@@ -748,30 +423,52 @@ fn collect_tail_sites(
         return;
     };
     match last {
-        Statement::Call { span, command, .. } if self_names.contains(command) => {
-            collect_bare_call_site(ctx, *span, command, proc, sites, emit_o121);
+        Statement::Call { span, command, .. } if inventory.call_at(*span).is_some() => {
+            collect_bare_call_site(
+                ctx,
+                *span,
+                command,
+                proc,
+                sites,
+                emit_o121
+                    && inventory.call_at(*span).is_some_and(|call| {
+                        call.tailcall_command_preserved && call.retains_formal_roots
+                    }),
+            );
+            if let Some(site) = sites.last_mut() {
+                site.retains_formal_roots = inventory
+                    .call_at(*span)
+                    .is_some_and(|call| call.retains_formal_roots);
+            }
+            if !inventory
+                .call_at(*span)
+                .is_some_and(inventory::SelfCall::written_arguments)
+                && let Some(site) = sites.last_mut()
+            {
+                site.args = None;
+            }
         }
         Statement::Return {
             span,
-            value: Some(v),
+            value: Some(_),
             braced,
             ..
         } => {
             // `return {[f $n]}` is a braced literal — the substitution is
             // never executed — so neither O121 nor the site count toward
             // O122 should fire.
-            if !*braced {
-                collect_return_subst_site(ctx, *span, v, self_names, proc, sites, emit_o121);
+            if !*braced && let Some(tokens) = script.retained_source_tokens_for_statement(last) {
+                collect_return_subst_site(ctx, *span, tokens, inventory, proc, sites, emit_o121);
             }
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
-                collect_tail_sites(ctx, &c.body, self_names, proc, sites, emit_o121, depth + 1);
+                collect_tail_sites(ctx, &c.body, inventory, proc, sites, emit_o121, depth + 1);
             }
             if let Some(eb) = else_body {
-                collect_tail_sites(ctx, eb, self_names, proc, sites, emit_o121, depth + 1);
+                collect_tail_sites(ctx, eb, inventory, proc, sites, emit_o121, depth + 1);
             }
         }
         Statement::Switch {
@@ -779,11 +476,11 @@ fn collect_tail_sites(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    collect_tail_sites(ctx, b, self_names, proc, sites, emit_o121, depth + 1);
+                    collect_tail_sites(ctx, b, inventory, proc, sites, emit_o121, depth + 1);
                 }
             }
             if let Some(db) = default_body {
-                collect_tail_sites(ctx, db, self_names, proc, sites, emit_o121, depth + 1);
+                collect_tail_sites(ctx, db, inventory, proc, sites, emit_o121, depth + 1);
             }
         }
         _ => {}
@@ -854,6 +551,48 @@ fn split_call_arguments(command_text: &str, config: tcl_lexer::LexerConfig) -> O
     Some(words)
 }
 
+/// Original sole command substitution of the retained Return value word.
+/// The value's compatibility text cannot choose a nested implementation or
+/// fabricate an editable source span.
+fn original_return_command(
+    ctx: &PassContext<'_>,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<(tcl_lexer::Span, String)> {
+    if tokens.words().len() != 2 {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    let words = crate::registry_invocation::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        ctx.lexer_config(),
+    )?;
+    let word = words.get(1)?;
+    let arena = word.executable_parts();
+    let [part] = arena.list(arena.root()) else {
+        return None;
+    };
+    let tcl_lexer::ExecutablePart::Command { body } = part.part else {
+        return None;
+    };
+    let bytes = arena.bytes(body)?;
+    let image = tcl_lexer::SourceImage::from_bytes(bytes, arena.image().channel());
+    let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+        &image,
+        body.start(),
+        ctx.lexer_config(),
+    )?;
+    let [command] = commands.as_slice() else {
+        return None;
+    };
+    if command.is_partial {
+        return None;
+    }
+    Some((command.span, std::str::from_utf8(bytes).ok()?.to_owned()))
+}
+
 /// Parse a `return` value's text looking for a `[cmd args…]`
 /// command substitution shape. Returns `(cmd, args_text)` or
 /// `None` if the text is not a *single* command substitution.
@@ -864,6 +603,7 @@ fn split_call_arguments(command_text: &str, config: tcl_lexer::LexerConfig) -> O
 /// the syntactically invalid `tailcall a $x][b $y`. Lexing the value and
 /// requiring exactly one top-level `Cmd` word rejects the concat, nested-close
 /// (`[a]] [b`), and trailing-text shapes a naive strip would accept.
+#[cfg(test)]
 fn parse_return_subst(value: &str, config: tcl_lexer::LexerConfig) -> Option<(String, String)> {
     let v = value.trim();
     let sm = tcl_lexer::SourceMap::new(v);
@@ -890,13 +630,14 @@ fn parse_return_subst(value: &str, config: tcl_lexer::LexerConfig) -> Option<(St
     if inner.is_empty() {
         return None;
     }
-    // Split on the first whitespace run.
-    if let Some(pos) = inner.find(char::is_whitespace) {
-        let head = inner[..pos].to_owned();
-        let rest = inner[pos..].trim().to_owned();
-        return Some((head, rest));
+    // Keep each grouped word as written: a quoted or braced command name may
+    // itself contain whitespace, escapes or non-ASCII units.
+    let mut words = split_command_words(inner, config)?;
+    if words.is_empty() {
+        return None;
     }
-    Some((inner.to_owned(), String::new()))
+    let head = words.remove(0);
+    Some((head, words.join(" ")))
 }
 
 #[cfg(test)]
@@ -906,15 +647,22 @@ mod tests {
 
     use crate::interprocedural::InterproceduralAnalysis;
 
-    fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+    fn registry() -> &'static CommandRegistry {
+        tcl_registry::model::ingress::static_context_for("tcl8.6")
+            .commands()
+            .as_ref()
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
         let reg = registry();
-        let cu = CompilationUnit::build_for(source, &reg, false);
-        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
-        ctx.registry = Some(&reg);
+        let cu = CompilationUnit::build_for_dialect(source, reg, false, "tcl8.6");
+        let mut ctx = PassContext::with_dialect(
+            &cu.source,
+            InterproceduralAnalysis::default(),
+            reg.profile(),
+        );
+        ctx.registry = Some(reg);
+        ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
@@ -923,14 +671,17 @@ mod tests {
         source: &str,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> Vec<Optimisation> {
-        let reg = registry();
-        let cu = CompilationUnit::build_for(source, &reg, false);
+        let reg = tcl_registry::model::ingress::static_context_for(dialect.name)
+            .commands()
+            .clone();
+        let cu = CompilationUnit::build_for_profile(source, &reg, false, dialect);
         let mut ctx = PassContext::with_dialect(
             &cu.source,
             InterproceduralAnalysis::default(),
             Some(dialect),
         );
         ctx.registry = Some(&reg);
+        ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
@@ -1006,21 +757,88 @@ mod tests {
     }
 
     #[test]
-    fn self_name_variants_cover_short_absolute_bare() {
-        let v = self_name_variants("::ns::foo");
-        assert!(v.contains("::ns::foo"));
-        assert!(v.contains("foo"));
-        assert!(v.contains("ns::foo"));
+    fn unrelated_short_name_is_not_the_original_procedure() {
+        let source = "namespace eval other {proc f {n} {return OTHER}}; namespace eval here {proc f {n} {::other::f $n}}";
+        assert!(
+            run_pass(source)
+                .iter()
+                .all(|item| !matches!(item.code, DiagCode::O121 | DiagCode::O122))
+        );
+    }
+
+    #[test]
+    fn original_allocation_and_grouped_names_control_tail_rewrites() {
+        // Implementation contract: naming.optimiser.original-tail-call-inventory
+        // docs/design/analysis/name-resolution-proofs/original-tail-call-inventory.md
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let profile = tcl_registry::model::ingress::static_context_for(dialect)
+                .commands()
+                .profile()
+                .unwrap();
+            for source in [
+                "proc \"f name\" {n} {\"f name\" $n}",
+                "proc {f😀} {n} {{f😀} $n}",
+            ] {
+                let options = run_pass_with_dialect(source, profile);
+                let loop_rewrite = options
+                    .iter()
+                    .find(|option| option.code == DiagCode::O122)
+                    .unwrap_or_else(|| {
+                        panic!("{dialect}: exact original scalar self call {options:?}")
+                    });
+                assert!(
+                    loop_rewrite
+                        .replacement
+                        .starts_with(source.split(" {n}").next().unwrap())
+                );
+                assert!(loop_rewrite.replacement.contains("continue"));
+            }
+            for source in [
+                "proc f {n} {rename f g; proc f {n} {return REPLACED}; f $n}",
+                "namespace eval other {proc f {n} {return OTHER}}; proc f {n} {::other::f $n}",
+                "proc f {args} {f {*}$args}",
+            ] {
+                assert!(
+                    run_pass_with_dialect(source, profile)
+                        .iter()
+                        .all(|option| option.code != DiagCode::O122),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn produced_expression_commands_retain_readonly_self_identity() {
+        // Implementation contract: naming.optimiser.original-tail-call-inventory
+        // docs/design/analysis/name-resolution-proofs/original-tail-call-inventory.md
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let profile = tcl_registry::model::ingress::static_context_for(dialect)
+                .commands()
+                .profile()
+                .unwrap();
+            for source in [
+                r#"proc f {n} {expr "\[f 0\]"; f $n}"#,
+                r#"interp alias {} a {} f; proc f {n} {expr "\[a 0\]"; f $n}"#,
+            ] {
+                assert!(
+                    run_pass_with_dialect(source, profile)
+                        .iter()
+                        .all(|option| option.code != DiagCode::O122),
+                    "{dialect}: readonly non-tail self call"
+                );
+            }
+        }
     }
 
     #[test]
     fn tail_call_bare_variant_fires() {
-        let opts =
-            run_pass("proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}");
+        let opts = run_pass("proc ::f {n} {f $n}");
         assert!(
-            opts.iter()
-                .any(|o| o.code == DiagCode::O121 && o.replacement.contains("tailcall")),
-            "expected O121, got {opts:?}",
+            opts.iter().any(
+                |option| option.code == DiagCode::O121 && option.replacement == "tailcall f $n"
+            ),
+            "{opts:?}"
         );
     }
 
@@ -1031,7 +849,7 @@ mod tests {
         // O121 would normally fire — but on tcl8.4 / tcl8.5 / f5-irules
         // / cadence-eda-tcl (8.4-based) the suggestion is incorrect
         // (the dialect can't run `tailcall`).
-        let src = "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
+        let src = "proc ::f {n} {f $n}";
         for dialect in [
             "tcl8.4",
             "tcl8.5",
@@ -1052,7 +870,7 @@ mod tests {
 
     #[test]
     fn o121_fires_on_8_6_plus_dialects() {
-        let src = "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
+        let src = "proc ::f {n} {f $n}";
         for dialect in [
             "tcl8.6",
             "tcl9.0",
@@ -1074,18 +892,16 @@ mod tests {
 
     #[test]
     fn o122_loop_conversion_still_fires_pre_8_6_for_single_param() {
-        // O122 is dialect-agnostic for single-param bodies (it emits
-        // a bare `set`, no `lassign`).  A pre-8.6 dialect should
-        // still see the loop-conversion suggestion.
-        let src = "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
         let opts = run_pass_with_dialect(
-            src,
+            "proc ::f {n} {f $n}",
             tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
         );
-        assert!(
-            opts.iter().any(|o| o.code == DiagCode::O122),
-            "O122 expected on tcl8.4 single-param body, got {opts:?}",
-        );
+        let option = opts
+            .iter()
+            .find(|option| option.code == DiagCode::O122)
+            .expect("unchanged scalar root needs no newer assignment worker");
+        assert!(option.replacement.contains("continue"));
+        assert!(!option.replacement.contains("set "));
     }
 
     #[test]
@@ -1105,28 +921,19 @@ mod tests {
     }
 
     #[test]
-    fn o122_multi_param_rewrite_uses_list_not_braces() {
-        // The multi-param reassignment must be
-        // `lassign [list …] a b`, never the braced `lassign {…} a b`
-        // form (which breaks `[expr {…}]` args with a hard tclsh error).
-        let src = "proc ::f {a b} {\n    if {$a <= 0} { return $b }\n    f [expr {$a - 1}] [expr {$b + $a}]\n}";
-        let opts = run_pass_with_dialect(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        );
-        let opt = opts
-            .iter()
-            .find(|o| o.code == DiagCode::O122)
-            .expect("O122 should fire on multi-param tail recursion");
+    fn o122_bracketed_word_geometry_does_not_close_changed_formal_release() {
+        let source = "proc ::f {a b} {f [expr {$a - 1}] [expr {$b + $a}]}";
         assert!(
-            opt.replacement.contains("lassign [list "),
-            "O122 must use `lassign [list …]`, got {:?}",
-            opt.replacement,
+            run_pass(source)
+                .iter()
+                .all(|option| option.code != DiagCode::O122)
         );
-        assert!(
-            !opt.replacement.contains("lassign {"),
-            "O122 must not emit a braced `lassign {{…}}`, got {:?}",
-            opt.replacement,
+        assert_eq!(
+            split_call_arguments(
+                "f [expr {$a - 1}] [expr {$b + $a}]",
+                tcl_lexer::LexerConfig::default()
+            ),
+            Some(vec!["[expr {$a - 1}]".into(), "[expr {$b + $a}]".into()])
         );
     }
 
@@ -1150,27 +957,22 @@ mod tests {
     }
 
     #[test]
-    fn tail_call_inside_if_branch_fires() {
-        let opts = run_pass(
-            "proc ::fact {n} {\n\
-                 if {$n <= 1} { return 1 } else { fact [expr {$n - 1}] }\n\
-             }",
-        );
+    fn tail_call_branch_requires_closed_condition_and_frame_release() {
+        // Fixed arity and source spelling do not close an unknown incoming object's release.
+        let opts = run_pass("proc fact {n} {if {$n <= 1} {return 1} else {fact [expr {$n - 1}]}}");
         assert!(
-            opts.iter().any(|o| o.code == DiagCode::O121),
-            "expected O121 inside else branch, got {opts:?}",
+            opts.iter()
+                .all(|option| !matches!(option.code, DiagCode::O121 | DiagCode::O122))
         );
     }
 
     #[test]
-    fn return_substitution_variant_fires() {
-        let opts = run_pass(
-            "proc ::fact {n} { if {$n <= 1} { return 1 } else { return [fact [expr {$n - 1}]] } }",
-        );
+    fn return_substitution_requires_independent_old_frame_release() {
+        // Fixed arity and source spelling do not close an unknown incoming object's release.
+        let opts = run_pass("proc fact {n} {return [fact [expr {$n - 1}]]}");
         assert!(
             opts.iter()
-                .any(|o| o.code == DiagCode::O121 && o.replacement.contains("tailcall")),
-            "expected O121 for return [self …] variant, got {opts:?}",
+                .all(|option| !matches!(option.code, DiagCode::O121 | DiagCode::O122))
         );
     }
 
@@ -1190,80 +992,45 @@ mod tests {
 
     #[test]
     fn o122_loop_conversion_rewrite_when_all_self_calls_are_tail() {
-        // Every self-call is in a tail position → emit a
-        // real source rewrite (not hint-only).
-        let opts =
-            run_pass("proc ::fact {n} { if {$n <= 1} { return 1 } else { fact [expr {$n - 1}] } }");
+        let opts = run_pass("proc ::fact {} {fact}");
         let opt = opts
             .iter()
-            .find(|o| o.code == DiagCode::O122)
-            .expect("O122 should fire");
-        assert!(!opt.hint_only, "O122 is a real rewrite, not a hint");
+            .find(|option| option.code == DiagCode::O122)
+            .expect("empty frame has no incoming object release");
+        assert!(!opt.hint_only);
+        assert!(opt.replacement.contains("while {1}") && opt.replacement.contains("continue"));
+    }
+
+    #[test]
+    fn o122_unchanged_multi_param_roots_omit_stores() {
+        let opts = run_pass("proc ::f {a b} {f $a $b}");
+        let opt = opts
+            .iter()
+            .find(|option| option.code == DiagCode::O122)
+            .expect("unchanged roots require no stores");
+        assert!(opt.replacement.contains("continue"));
+        assert!(!opt.replacement.contains("lassign"));
+    }
+
+    #[test]
+    fn o122_bracketed_return_arguments_require_original_release_owners() {
+        // Fixed arity and source spelling do not close an unknown incoming object's release.
+        let opts = run_pass("proc fact {n acc} {return [fact [expr {$n - 1}] [expr {$acc * $n}]]}");
         assert!(
-            opt.replacement.contains("while {1}"),
-            "expected while-loop replacement, got {:?}",
-            opt.replacement,
-        );
-        assert!(
-            opt.replacement.contains("set n") || opt.replacement.contains("lassign"),
-            "expected parameter reassignment in loop body, got {:?}",
-            opt.replacement,
+            opts.iter()
+                .all(|option| !matches!(option.code, DiagCode::O121 | DiagCode::O122))
         );
     }
 
     #[test]
-    fn o122_multi_param_uses_lassign() {
-        // Two-param tail-recursive proc → lassign for simultaneous
-        // reassignment.
+    fn o122_gcd_arguments_do_not_prove_incoming_object_class() {
+        // Fixed arity and source spelling do not close an unknown incoming object's release.
         let opts = run_pass(
-            "proc ::f {a b} { if {$a <= 0} { return $b } else { f [expr {$a - 1}] [expr {$b + 1}] } }",
+            "proc gcd {a b} {if {$b == 0} {return $a} else {return [gcd $b [expr {$a % $b}]]}}",
         );
-        let opt = opts
-            .iter()
-            .find(|o| o.code == DiagCode::O122)
-            .expect("O122 should fire");
         assert!(
-            opt.replacement.contains("lassign"),
-            "expected lassign for multi-param reassignment, got {:?}",
-            opt.replacement,
-        );
-    }
-
-    #[test]
-    fn o122_fires_when_return_subst_args_are_bracketed_words() {
-        // `return [fact [expr …] [expr …]]` passes two arguments, so the
-        // one-argument-per-parameter gate holds and the whole proc becomes
-        // a loop. Each bracketed word must survive the rewrite whole.
-        let opts = run_pass(
-            "proc fact {n acc} {\n    if {$n <= 1} { return $acc }\n    return [fact [expr {$n - 1}] [expr {$acc * $n}]]\n}",
-        );
-        let opt = opts
-            .iter()
-            .find(|o| o.code == DiagCode::O122)
-            .expect("O122 should fire for bracketed return-substitution args");
-        assert!(
-            opt.replacement
-                .contains("lassign [list [expr {$n - 1}] [expr {$acc * $n}]] n acc"),
-            "expected both bracketed words kept whole, got {:?}",
-            opt.replacement,
-        );
-    }
-
-    #[test]
-    fn o122_fires_for_gcd_shape_with_one_bracketed_arg() {
-        // Mixed plain / bracketed words — the design doc's GCD example.
-        let opts = run_pass(
-            "proc gcd {a b} {\n    if {$b == 0} {\n        return $a\n    } else {\n        return [gcd $b [expr {$a % $b}]]\n    }\n}",
-        );
-        let opt = opts
-            .iter()
-            .find(|o| o.code == DiagCode::O122)
-            .expect("O122 should fire for the GCD shape");
-        assert!(
-            opt.replacement
-                .contains("lassign [list $b [expr {$a % $b}]] a b"),
-            "expected two words for `$b [expr …]`, got {:?}",
-            opt.replacement,
+            opts.iter()
+                .all(|option| !matches!(option.code, DiagCode::O121 | DiagCode::O122))
         );
     }
 
@@ -1307,7 +1074,7 @@ mod tests {
     #[test]
     fn o122_suppressed_when_tail_call_expands_its_args() {
         // `{*}` makes the runtime word count unknown, so the loop
-        // conversion must stand down and leave O121 in place.
+        // conversion and frame elimination require independent object capabilities.
         let opts = run_pass(
             "proc f {a b} {\n    if {$a == 0} { return $b }\n    return [f {*}[list [expr {$a - 1}] $b]]\n}",
         );
@@ -1316,8 +1083,8 @@ mod tests {
             "O122 must not fire on a `{{*}}`-expanded tail call, got {opts:?}",
         );
         assert!(
-            opts.iter().any(|o| o.code == DiagCode::O121),
-            "O121 should still fire, got {opts:?}",
+            opts.iter().all(|o| o.code != DiagCode::O121),
+            "unknown expanded values cannot prove frame teardown, got {opts:?}",
         );
     }
 
@@ -1341,112 +1108,201 @@ mod tests {
     }
 
     #[test]
-    fn o122_keeps_braced_variable_arguments_parseable() {
-        // `${n}` must reach the reassignment whole. Cut back to `${n` the
-        // rewritten proc no longer parses.
-        let opts = run_pass("proc f {n} {\n    if {$n <= 1} { return $n }\n    return [f ${n}]\n}");
-        let opt = opts
+    fn o122_braced_same_cell_argument_needs_no_reassignment() {
+        let options = run_pass("proc f {n} {f ${n}}");
+        let replacement = &options
             .iter()
-            .find(|o| o.code == DiagCode::O122)
-            .expect("O122 should fire");
-        assert!(
-            opt.replacement.contains("set n ${n}"),
-            "braced variable lost its closer: {:?}",
-            opt.replacement,
-        );
+            .find(|option| option.code == DiagCode::O122)
+            .expect("exact unchanged braced variable root")
+            .replacement;
+        assert!(replacement.contains("continue") && !replacement.contains("set "));
     }
 
     #[test]
-    fn o122_fires_when_an_argument_starts_with_hash() {
-        // `#stop` is a comment only at command position. Read as part of the
-        // whole call it is an ordinary argument, so the arity gate holds.
-        let opts = run_pass(
-            "proc h {tag} {\n    if {$tag eq \"stop\"} { return $tag }\n    return [h #stop]\n}",
-        );
-        let opt = opts
-            .iter()
-            .find(|o| o.code == DiagCode::O122)
-            .expect("O122 should fire for a `#`-leading argument");
+    fn o122_hash_leading_argument_does_not_close_old_object_release() {
+        // Fixed arity and source spelling do not close an unknown incoming object's release.
+        let opts = run_pass("proc h {tag} {h #stop}");
         assert!(
-            opt.replacement.contains("set tag #stop"),
-            "expected the argument kept, got {:?}",
-            opt.replacement,
+            opts.iter()
+                .all(|option| !matches!(option.code, DiagCode::O121 | DiagCode::O122))
         );
     }
 
     #[test]
     fn o121_bare_call_keeps_its_arguments() {
-        // The bare-call rewrite prefixes the call, so every argument
-        // survives. An arity mismatch keeps O122 away and leaves O121 as
-        // the applied rewrite.
-        let opts =
-            run_pass("proc h {a b} {\n    if {$a == 0} { return $b }\n    h [expr {$a - 1}]\n}");
-        let opt = opts
-            .iter()
-            .find(|o| o.code == DiagCode::O121)
-            .expect("O121 should fire for a bare self-call");
-        assert_eq!(opt.replacement, "tailcall h [expr {$a - 1}]");
-    }
-
-    #[test]
-    fn o121_bare_call_keeps_delimiters_and_expansion() {
-        // Braces, quotes and `{*}` are part of the call as written and must
-        // reach the rewrite unaltered.
-        let opts = run_pass(
-            "proc f {a b c} {\n    if {$a == 0} { return $b }\n    f {x y} \"q r\" {*}$rest\n}",
-        );
-        let opt = opts
-            .iter()
-            .find(|o| o.code == DiagCode::O121)
-            .expect("O121 should fire");
-        assert_eq!(opt.replacement, "tailcall f {x y} \"q r\" {*}$rest");
-    }
-
-    #[test]
-    fn o122_bare_call_reassigns_words_as_written() {
-        // `[list …]` receives the words as written, so a braced or quoted
-        // argument stays one element. Rebuilding from the IR's delimiter-
-        // stripped values would make `{x y} "q r" $c` five elements and
-        // `lassign` would distribute them across the wrong parameters.
-        let opts =
-            run_pass("proc f {a b c} {\n    if {$a == 0} { return $b }\n    f {x y} \"q r\" $c\n}");
-        let opt = opts
-            .iter()
-            .find(|o| o.code == DiagCode::O122)
-            .expect("O122 should fire");
-        assert!(
-            opt.replacement
-                .contains("lassign [list {x y} \"q r\" $c] a b c"),
-            "expected three list elements, got {:?}",
-            opt.replacement,
-        );
-    }
-
-    #[test]
-    fn bare_and_return_subst_tail_calls_reassign_alike() {
-        // The two variants read the same call text, so they must produce the
-        // same loop body for the same arguments.
-        let body = "    if {$a == 0} { return $b }\n";
-        let bare = run_pass(&format!(
-            "proc f {{a b c}} {{\n{body}    f {{x y}} \"q r\" $c\n}}"
-        ));
-        let subst = run_pass(&format!(
-            "proc f {{a b c}} {{\n{body}    return [f {{x y}} \"q r\" $c]\n}}"
-        ));
-        let reassignment = |opts: &[Optimisation]| {
+        let opts = run_pass("proc h {a b} {h $a $b}");
+        assert_eq!(
             opts.iter()
-                .find(|o| o.code == DiagCode::O122)
-                .map(|o| {
-                    o.replacement
-                        .lines()
-                        .find(|l| l.contains("lassign"))
-                        .unwrap_or_default()
-                        .trim()
-                        .to_owned()
-                })
-                .expect("O122 should fire")
-        };
-        assert_eq!(reassignment(&bare), reassignment(&subst));
+                .find(|option| option.code == DiagCode::O121)
+                .expect("unchanged whole-object arguments")
+                .replacement,
+            "tailcall h $a $b"
+        );
+    }
+
+    #[test]
+    fn o121_static_argument_spelling_does_not_close_old_frame_release() {
+        let opts = run_pass(r#"proc f {a b c} {f {x y} "q r" {*}{MORE}}"#);
+        assert!(
+            opts.iter().all(|option| option.code != DiagCode::O121),
+            "quoted/static expansion values cannot classify released old formal objects: {opts:?}"
+        );
+    }
+
+    #[test]
+    fn original_frame_observation_and_release_obligations_withdraw_tail_rewrites() {
+        // Native proof: naming.optimiser.recursive-frame-level
+        // docs/design/analysis/name-resolution-proofs/recursive-frame-level.md
+        // Native proof: naming.optimiser.recursive-parent-cell
+        // docs/design/analysis/name-resolution-proofs/recursive-parent-cell.md
+        // Native proof: naming.optimiser.recursive-unset-observer-frame
+        // docs/design/analysis/name-resolution-proofs/recursive-unset-observer-frame.md
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let profile = tcl_registry::model::ingress::static_context_for(name)
+                .commands()
+                .profile()
+                .unwrap();
+            for source in [
+                "proc f {n} {if {$n <= 0} {return [info level]}; f [expr {$n - 1}]}; f 2",
+                "set n 99; proc f {n} {if {$n <= 0} {upvar 1 n parent; return $parent}; f [expr {$n - 1}]}; f 2",
+                "proc watch args {}; proc f {} {trace add variable shell unset watch; f}",
+                "proc f {} {set shell VALUE; f}",
+                "proc watch args {}; proc f {n} {f $n}; trace add execution f enter watch; f 2",
+            ] {
+                let options = run_pass_with_dialect(source, profile);
+                assert!(
+                    options
+                        .iter()
+                        .all(|option| !matches!(option.code, DiagCode::O121 | DiagCode::O122)),
+                    "{name}: frame reach, local shells and observers require independent closure: {source}: {options:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_changed_formal_objects_require_complete_release_evidence() {
+        // Native proof: naming.optimiser.recursive-argument-release-order
+        // docs/design/analysis/name-resolution-proofs/recursive-argument-release-order.md
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let profile = tcl_registry::model::ingress::static_context_for(name)
+                .commands()
+                .profile()
+                .unwrap();
+            for source in [
+                "proc f {n value} {if {$n <= 0} {return DONE}; f [expr {$n - 1}] [make]}; f 2 INITIAL",
+                "proc f {value} {f CHANGED}",
+                "proc f {n} {if {$n <= 0} {return DONE}; f [expr {$n - 1}]}",
+            ] {
+                let options = run_pass_with_dialect(source, profile);
+                assert!(
+                    options
+                        .iter()
+                        .all(|option| !matches!(option.code, DiagCode::O121 | DiagCode::O122)),
+                    "{name}: known bytes and fixed arity do not prove ordinary release of an incoming object: {source}: {options:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn unchanged_original_formal_objects_continue_without_releasing_or_rendering_them() {
+        // Implementation contract: naming.optimiser.original-tail-call-inventory
+        // docs/design/analysis/name-resolution-proofs/original-tail-call-inventory.md
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let profile = tcl_registry::model::ingress::static_context_for(name)
+                .commands()
+                .profile()
+                .unwrap();
+            for source in [
+                "proc f {} {f}",
+                "proc f {n} {f $n}",
+                "proc f {a b} {f $a $b}",
+            ] {
+                let options = run_pass_with_dialect(source, profile);
+                let replacement = &options
+                    .iter()
+                    .find(|option| option.code == DiagCode::O122)
+                    .unwrap_or_else(|| {
+                        panic!("{name}: complete unchanged-root transfer: {source}: {options:?}")
+                    })
+                    .replacement;
+                assert!(replacement.contains("continue"));
+                assert!(
+                    !replacement.contains("lassign") && !replacement.contains("set \""),
+                    "{name}: unchanged formal objects need no synthetic store: {replacement}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_unknown_expansion_cannot_preserve_the_callee() {
+        let opts = run_pass("proc f {rest} { f {*}$rest }");
+        assert!(
+            opts.iter()
+                .all(|opt| !matches!(opt.code, DiagCode::O121 | DiagCode::O122))
+        );
+    }
+
+    #[test]
+    fn original_unknown_string_conversion_cannot_preserve_the_callee() {
+        let opts = run_pass("proc h {tag} { if {$tag eq \"stop\"} { return $tag }; h #stop }");
+        assert!(
+            opts.iter()
+                .all(|opt| !matches!(opt.code, DiagCode::O121 | DiagCode::O122))
+        );
+    }
+
+    #[test]
+    fn original_rewrite_helpers_require_their_positioned_registry_implementations() {
+        for helper in ["while", "return", "continue"] {
+            let source = format!(
+                "namespace eval N {{ proc {helper} {{args}} {{ error SHADOW }}; proc f {{n}} {{ f $n }} }}"
+            );
+            let opts = run_pass(&source);
+            assert!(
+                opts.iter().all(|opt| opt.code != DiagCode::O122),
+                "shadowed {helper}: {opts:?}"
+            );
+        }
+        for helper in ["list", "lassign"] {
+            let source = format!(
+                "namespace eval N {{ proc {helper} {{args}} {{ error SHADOW }}; proc f {{a b}} {{ f $a $b }} }}"
+            );
+            let opts = run_pass(&source);
+            assert!(
+                opts.iter().any(|opt| opt.code == DiagCode::O122),
+                "unused assignment helper {helper}: {opts:?}"
+            );
+        }
+        let opts =
+            run_pass("namespace eval N { proc tailcall {args} {error SHADOW}; proc f {n} {f $n} }");
+        assert!(
+            opts.iter().all(|opt| opt.code != DiagCode::O121),
+            "shadowed tailcall: {opts:?}"
+        );
+    }
+
+    #[test]
+    fn o122_grouped_word_geometry_remains_separate_from_release() {
+        let opts = run_pass(r#"proc f {a b c} {f {x y} "q r" $c}"#);
+        assert!(opts.iter().all(|option| option.code != DiagCode::O122));
+        assert_eq!(
+            split_call_arguments(r#"f {x y} "q r" $c"#, tcl_lexer::LexerConfig::default()),
+            Some(vec!["{x y}".into(), r#""q r""#.into(), "$c".into()])
+        );
+    }
+
+    #[test]
+    fn bare_and_return_subst_changed_arguments_need_the_same_release_obligation() {
+        for source in [
+            r#"proc f {a b c} {f {x y} "q r" $c}"#,
+            r#"proc f {a b c} {return [f {x y} "q r" $c]}"#,
+        ] {
+            let opts = run_pass(source);
+            assert!(opts.iter().all(|option| option.code != DiagCode::O122));
+        }
     }
 
     #[test]
@@ -1501,8 +1357,15 @@ mod tests {
 
     #[test]
     fn run_passes_dispatches_tail_call() {
-        let cu = CompilationUnit::build_for("proc ::f {} { f }", &registry(), false);
-        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        let reg = registry();
+        let cu = CompilationUnit::build_for_dialect("proc ::f {} { f }", reg, false, "tcl8.6");
+        let mut ctx = PassContext::with_dialect(
+            &cu.source,
+            InterproceduralAnalysis::default(),
+            reg.profile(),
+        );
+        ctx.registry = Some(reg);
+        ctx.ir_module = Some(&cu.ir_module);
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::TailCall]);
         assert!(
             ctx.optimisations.iter().any(|o| o.code == DiagCode::O121),

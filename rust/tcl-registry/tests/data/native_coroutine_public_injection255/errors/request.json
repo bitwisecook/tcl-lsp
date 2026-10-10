@@ -1,0 +1,27 @@
+{
+  "question": "Does C Tcl9.0/9.1 execute an injected Error branch, and can an older pending callback still replace that distinct Error completion for both yield and yieldto?",
+  "scope": "Four exact ASCII LF original counted source controls per each of the six independently initialised providers. Actual callback logs an explicit reached-error marker then executes error ERROR_B, different bytes from success B. One terminal B-only and one older-A replacement control for each suspension kind. Final inner catch and log are exact source inputs. No whole-source catch/eval wrapper; no original object identity, native frame, cache or compilation claim. Preserve Native255 original evidence separately.",
+  "cases": [
+    {
+      "id": "yield-terminal-error",
+      "source_file": "/workspace/.proofs/native-coroutine-injection-errors255/yield-terminal-error.tcl",
+      "source_sha256": "064ab5ac1a85e194dd02ded9d1b2a83eb8e29574ada899a75ebb4c8796f0e537"
+    },
+    {
+      "id": "yield-replaced-error",
+      "source_file": "/workspace/.proofs/native-coroutine-injection-errors255/yield-replaced-error.tcl",
+      "source_sha256": "e3263b4a7ff2068bc255af1625d521880ef97f1689c298b2e84c588007f2b91d"
+    },
+    {
+      "id": "yieldto-terminal-error",
+      "source_file": "/workspace/.proofs/native-coroutine-injection-errors255/yieldto-terminal-error.tcl",
+      "source_sha256": "b3b912aad6ced7dbd3fcd994b3f4515bcc661e1920c425352e87a47f17ae336d"
+    },
+    {
+      "id": "yieldto-replaced-error",
+      "source_file": "/workspace/.proofs/native-coroutine-injection-errors255/yieldto-replaced-error.tcl",
+      "source_sha256": "5fbee7183fa886a31a38db9dd059ae11da2b322cc7d144c8babaa74354789f0e"
+    }
+  ],
+  "probe_sha256": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759"
+}

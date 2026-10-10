@@ -1,0 +1,5 @@
+version 0.84-9-g5bac7c9 alias_available alias
+rooted_replacement ::alias_slot 0 ROOT_ALIAS 0 ROOT_ALIAS 1
+multiword_replacement {::AliasProbe slot} 0 MULTIWORD_ALIAS 0 MULTIWORD_ALIAS 1
+extra_root_extent ::::colon_slot 0 COLON_ALIAS 0 COLON_ALIAS 0 COLON_ALIAS
+namespace_competition ::competition_slot 0 GLOBAL_ALIAS 0 LOCAL_PROC 0 GLOBAL_ALIAS

@@ -321,6 +321,16 @@ impl CallSiteEvidence {
 /// recursive function's own argument count down to the things that actually
 /// change per call (`caller_qname` stays fixed across one top-level
 /// statement's recursion, `command`/`args`/`depth` do not).
+/// Complete retained callback source ingress, separate from call arguments.
+#[derive(Clone, Copy)]
+pub(crate) struct CallSiteSourceContext<'a> {
+    pub registry: &'a CommandRegistry,
+    pub declared: Option<&'a tcl_registry::model::DeclaredSurface>,
+    pub dialect: &'static tcl_dialect::DialectProfile,
+    pub input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+    pub identities: &'a crate::realm::CommandBindingRealm,
+}
+
 struct CallSiteScanCtx<'a, S> {
     /// The qualified names a call may resolve to.  For the in-unit scan this
     /// is the unit's own procedures; for [`scan_source_call_sites`] it is the
@@ -328,6 +338,9 @@ struct CallSiteScanCtx<'a, S> {
     /// actually defines the callee.
     known: &'a HashSet<String, S>,
     registry: &'a CommandRegistry,
+    source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+    metadata_context: Option<&'a tcl_registry::model::ContextRegistry>,
+    identities: &'a crate::realm::CommandBindingRealm,
     /// The document's own `# tcl-lsp: stub` declarations, when it has any.
     /// Read through [`CallSiteScanCtx::surface`] so a declared argument role
     /// reaches this scan exactly as a catalogue one does.
@@ -475,8 +488,17 @@ impl ScopeVars {
 fn collect_scope_var_facts(
     cfg: &CfgFunction,
     surface: &tcl_registry::model::DocumentCommandSurface<'_>,
+    context: Option<&tcl_registry::model::ContextRegistry>,
 ) -> ScopeVars {
     let mut out = ScopeVars::default();
+    if context.is_none_or(|context| {
+        !crate::registry_invocation::InvocationMetadataContext::from(context)
+            .matches_registry(surface.commands())
+    }) {
+        out.dynamic_name_write = true;
+        out.cross_frame_write = true;
+        return out;
+    }
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
             match stmt {
@@ -500,14 +522,14 @@ fn collect_scope_var_facts(
                 Statement::AssignExpr { name, .. } | Statement::Incr { name, .. } => {
                     out.note_write_word(name);
                 }
-                Statement::Call { args, defs, .. } => {
+                Statement::Call { defs, .. } => {
                     for d in defs {
                         out.note_write_word(d);
                     }
-                    note_surface_var_writes(&mut out, surface, stmt, args);
+                    note_surface_var_writes(&mut out, surface, stmt, context);
                 }
-                Statement::Barrier { args, .. } => {
-                    note_surface_var_writes(&mut out, surface, stmt, args);
+                Statement::Barrier { .. } => {
+                    note_surface_var_writes(&mut out, surface, stmt, context);
                 }
                 // `uplevel N {…}`: the body's writes land in another
                 // frame, which this per-scope walk does not own.
@@ -524,19 +546,29 @@ fn note_surface_var_writes(
     out: &mut ScopeVars,
     surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     stmt: &Statement,
-    _args: &[String],
+    context: Option<&tcl_registry::model::ContextRegistry>,
 ) {
     let registry = surface.commands();
-    let context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
     let Some(invocation) = stmt.tokens().and_then(|tokens| {
-        crate::registry_invocation::normal_transfer_invocation(registry, context, tokens)
+        crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+            registry,
+            context.map(Into::into),
+            tokens,
+        )
     }) else {
-        if stmt
-            .tokens()
-            .is_some_and(crate::ir::CommandTokens::has_unproved_source_binding)
-        {
+        if stmt.tokens().is_some_and(|tokens| {
+            tokens.has_unproved_source_binding()
+                || crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+                    registry,
+                    context.map(Into::into),
+                    tokens,
+                )
+                .is_none_or(|assistance| {
+                    assistance.candidates.is_empty()
+                        || assistance.unknown_residual
+                        || assistance.may_be_absent
+                })
+        }) {
             out.dynamic_name_write = true;
             out.cross_frame_write = true;
         }
@@ -703,15 +735,19 @@ fn record_call_site_evidence(
         // admission, but cannot introduce an arbitrary runtime caller.
         return;
     }
-    let context = Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-        ctx.dialect,
-    ));
+    let Some(context) = ctx.metadata_context else {
+        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        return;
+    };
+    record_original_callback_callers(out, ctx, tokens);
+    let context = Some(context.into());
     if let Some(tokens) = tokens
-        && let Some(invocation) = crate::registry_invocation::normal_user_procedure_invocation(
-            ctx.registry,
-            context,
-            tokens,
-        )
+        && let Some(invocation) =
+            crate::registry_invocation::normal_user_procedure_invocation_with_metadata_context(
+                ctx.registry,
+                context,
+                tokens,
+            )
     {
         record_normal_user_procedure_call(out, ctx, tokens, &invocation);
         return;
@@ -731,7 +767,11 @@ fn record_call_site_evidence(
         return;
     }
     let Some(invocation) = tokens.and_then(|tokens| {
-        crate::registry_invocation::resolved_tokens_invocation(ctx.registry, context, tokens)
+        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            ctx.registry,
+            context,
+            tokens,
+        )
     }) else {
         return;
     };
@@ -1170,29 +1210,6 @@ fn record_indirect_callers(
     tokens: Option<&crate::ir::CommandTokens>,
 ) {
     let args = invocation.arguments.as_slice();
-    for idx in invocation
-        .facts
-        .arg_roles
-        .iter()
-        .filter_map(|&(index, role)| {
-            (role == ArgRole::CommandPrefix)
-                .then_some(invocation.facts.argument_offset + usize::from(index))
-        })
-    {
-        // A command prefix is a list whose first word is the command; the
-        // rest are leading arguments the runtime appends to. Only the head
-        // names a callee — and when the prefix was *built* by a registry-
-        // declared builder (`[list cb $x]`), the head is that builder's own
-        // first argument, not the literal text `[list`.
-        match resolved_callback_head(ctx, invocation, idx, tokens) {
-            Some(head) => {
-                record_invocation(out, ctx, caller, &head, IndirectArgs::Unknowable, tokens);
-            }
-            // Some other substitution computed the prefix: a caller exists
-            // naming a command this scan cannot identify.
-            None => out.record_unenumerable_caller(ctx.unenumerable_reach),
-        }
-    }
     // A call that *moves* a binding — `rename OLD NEW`, `interp alias {} NEW
     // {} TARGET` — makes every command name it touches one whose binding has
     // moved, in either direction.  A definition does not: `proc` binds a new
@@ -1222,40 +1239,49 @@ fn record_indirect_callers(
     }
 }
 
-/// A callback prefix is either a literal list or a proved native prefix
-/// builder. Both the list grammar and the builder identity belong to this
-/// invocation; a same-named user procedure supplies no builder contract.
-fn resolved_callback_head(
+/// A genuine source target is only an opaque caller: no fixed callback argv,
+/// successful registration, reached frame or current lookup is supplied.
+fn record_original_callback_callers(
+    out: &mut CallSiteEvidence,
     ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
-    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
-    index: usize,
-    parent: Option<&crate::ir::CommandTokens>,
-) -> Option<String> {
-    let dialect = invocation.dialect?;
-    if let Some(value) = invocation.argument_literal(index) {
-        return dialect
-            .word_values
-            .split_list(&value)
-            .ok()?
-            .first()
-            .map(ToString::to_string);
+    tokens: Option<&crate::ir::CommandTokens>,
+) {
+    let Some(tokens) = tokens else {
+        return;
+    };
+    let rows = ctx.source_input.and_then(|input| {
+        ctx.identities
+            .original_source_callback_targets_for_tokens(input, tokens)
+    });
+    if let Some(rows) = rows {
+        for row in rows {
+            if let Some(target) = row.target()
+                .and_then(|target| target.original_ir_procedure_name(ctx.procedures))
+                .filter(|target| ctx.known.contains(*target))
+            { out.record_opaque_caller(target); }
+            else if row.refusal() != Some(crate::command_binding::OriginalSourceCallbackProcedureRefusal::KnownSourceBarrier) {
+                out.record_unenumerable_caller(ctx.unenumerable_reach);
+            }
+        }
+    } else if ctx
+        .metadata_context
+        .and_then(|context| {
+            crate::registry_invocation::original_callback_invocation_with_metadata_context(
+                ctx.registry,
+                context.into(),
+                tokens,
+            )
+        })
+        .is_some_and(|invocation| {
+            invocation
+                .facts
+                .arg_roles
+                .iter()
+                .any(|(_, role)| *role == ArgRole::CommandPrefix)
+        })
+    {
+        out.record_unenumerable_caller(ctx.unenumerable_reach);
     }
-    let word = invocation.effective.words.get(index.checked_add(1)?)?;
-    let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
-    let mut lifted = crate::word_subst::lifted_calls_in_word(Some(word), config, &ctx.surface());
-    if lifted.len() != 1 || !matches!(word, crate::ir::WordExpr::CommandSubstitution { .. }) {
-        return None;
-    }
-    let mut tokens = lifted.pop()?.tokens?;
-    tokens.inherit_nested_bindings(parent?);
-    let facts =
-        crate::registry_invocation::resolved_tokens_invocation(ctx.registry, None, &tokens)?;
-    facts
-        .facts
-        .traits
-        .contains(Traits::BUILDS_COMMAND_PREFIX)
-        .then(|| facts.argument_literal(0))
-        .flatten()
 }
 
 /// Whether [`build_extra_call_site_scan_contexts`] has anything to build for
@@ -1541,13 +1567,25 @@ pub(crate) fn collect_call_site_constants(
     extra_callers: &[ExtraCallSiteScanContext],
     procedures: &HashMap<String, crate::ir::Procedure>,
     future_call_sites: &[crate::command_binding::SourceFutureCallSite],
-    registry: &CommandRegistry,
-    declared: Option<&tcl_registry::model::DeclaredSurface>,
-    dialect: &'static tcl_dialect::DialectProfile,
+    source: CallSiteSourceContext<'_>,
 ) -> CallSiteEvidence {
+    let CallSiteSourceContext {
+        registry,
+        declared,
+        dialect,
+        input,
+        identities,
+    } = source;
     let known: HashSet<String> = procedures.keys().cloned().collect();
     let surface = tcl_registry::model::DocumentCommandSurface::new(registry, declared);
-    let var_facts = collect_module_scope_var_facts(cfg_module, extra_callers, &surface);
+    let metadata_context =
+        crate::registry_invocation::retained_source_metadata_context(registry, input);
+    let var_facts = collect_module_scope_var_facts(
+        cfg_module,
+        extra_callers,
+        &surface,
+        metadata_context.as_deref(),
+    );
     // Within one unit the reach is simply its own procedures, so an
     // unenumerable dispatch withdraws every seed the unit would have taken —
     // identical to the module-wide rule it replaces, but expressed per callee
@@ -1563,6 +1601,9 @@ pub(crate) fn collect_call_site_constants(
         let ctx = CallSiteScanCtx {
             known: &known,
             registry,
+            source_input: input,
+            metadata_context: metadata_context.as_deref(),
+            identities,
             declared,
             dialect,
             var_facts: &var_facts,
@@ -1674,13 +1715,14 @@ fn collect_module_scope_var_facts(
     cfg_module: &CfgModule,
     extra_callers: &[ExtraCallSiteScanContext],
     surface: &tcl_registry::model::DocumentCommandSurface<'_>,
+    context: Option<&tcl_registry::model::ContextRegistry>,
 ) -> ModuleVarFacts {
     let mut out = ModuleVarFacts::default();
     let funcs = std::iter::once(&cfg_module.top_level)
         .chain(cfg_module.procedures.values())
         .chain(extra_callers.iter().map(|caller| &caller.cfg));
     for func in funcs {
-        let facts = collect_scope_var_facts(func, surface);
+        let facts = collect_scope_var_facts(func, surface, context);
         out.cross_frame_write |= facts.cross_frame_write;
         out.scopes.insert(func.name.clone(), facts);
     }
@@ -1975,7 +2017,10 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
         dialect,
         known,
         dispatch_reach,
-        None,
+        SourceCallSiteEntry {
+            entry: None,
+            input: None,
+        },
     )
 }
 
@@ -1999,42 +2044,71 @@ pub fn scan_source_call_sites_with_source_entry<S: std::hash::BuildHasher>(
         dialect,
         known,
         dispatch_reach,
-        Some(entry),
+        SourceCallSiteEntry {
+            entry: Some(entry),
+            input: None,
+        },
     )
 }
 
-fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
+/// Collect caller evidence with complete retained source metadata and the
+/// independent driver entry. Missing metadata in the entry-only API retracts
+/// seeds; this supplied input never grants execution or a loaded provider.
+#[must_use]
+pub fn scan_source_call_sites_with_source_input<S: std::hash::BuildHasher>(
+    source: &str,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
+    known: &HashSet<String, S>,
+    dispatch_reach: &[String],
+    input: &crate::analyser::ResolvedAnalysisInput,
+    entry: &crate::command_binding::SourceAnalysisEntry,
+) -> CallSiteEvidence {
+    let context = input.context_registry();
+    scan_source_call_sites_with_entry(
+        source,
+        context.commands(),
+        declared,
+        input.unit_profile(),
+        known,
+        dispatch_reach,
+        SourceCallSiteEntry {
+            entry: Some(entry),
+            input: Some(input),
+        },
+    )
+}
+
+#[derive(Clone, Copy)]
+struct SourceCallSiteEntry<'a> {
+    entry: Option<&'a crate::command_binding::SourceAnalysisEntry>,
+    input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+}
+
+fn lower_source_callers(
     source: &str,
     registry: &CommandRegistry,
     declared: Option<&tcl_registry::model::DeclaredSurface>,
     dialect: &'static tcl_dialect::DialectProfile,
-    known: &HashSet<String, S>,
-    dispatch_reach: &[String],
-    entry: Option<&crate::command_binding::SourceAnalysisEntry>,
-) -> CallSiteEvidence {
-    let mut out = CallSiteEvidence::default();
-    if known.is_empty() {
-        return out;
+    supplied: SourceCallSiteEntry<'_>,
+) -> (IrModule, CfgModule, Vec<ExtraCallSiteScanContext>) {
+    let config = supplied.input.map_or_else(
+        || tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+        crate::analyser::ResolvedAnalysisInput::lexer_config,
+    );
+    let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+        .with_dialect(Some(dialect))
+        .with_declared_commands(declared);
+    if let Some(input) = supplied.input {
+        lowerer = lowerer.with_context_registry(input.context_registry());
     }
-    // The explicit ingress profile owns native semantics as well as parsing.
-    // A declaration catalogue without a profile cannot prove native dispatch.
-    let projected;
-    let registry = if registry.profile().is_none() {
-        projected = registry.project_for_profile(dialect);
-        &projected
-    } else {
-        registry
-    };
-    let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);
-    let mut lowerer =
-        crate::lowering::Lowerer::with_config(registry, config).with_dialect(Some(dialect));
-    if let Some(entry) = entry {
+    if let Some(entry) = supplied.entry {
         lowerer.set_source_analysis_options(entry.options());
     }
     let mut ir_module = crate::lowering::lower_to_ir_with(lowerer, source);
     crate::specialise_factories::specialise_factories(&mut ir_module, registry);
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
     let prepared_cfg_context = crate::cfg_builder::prepare_cfg_context_bundle(&ir_module, registry);
+    let config = ir_module.lexer_config;
     let cfg_module = crate::cfg_builder::build_cfg_with_registry_and_context(
         &ir_module,
         false,
@@ -2046,16 +2120,49 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
         needs_extra_call_site_scan_contexts(&ir_module).then_some(prepared_cfg_context);
     let extra =
         build_extra_call_site_scan_contexts(&ir_module, cfg_context.as_ref(), registry, config);
+    (ir_module, cfg_module, extra)
+}
+
+fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
+    source: &str,
+    registry: &CommandRegistry,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
+    dialect: &'static tcl_dialect::DialectProfile,
+    known: &HashSet<String, S>,
+    dispatch_reach: &[String],
+    supplied: SourceCallSiteEntry<'_>,
+) -> CallSiteEvidence {
+    let mut out = CallSiteEvidence::default();
+    if known.is_empty() {
+        return out;
+    }
+    // The explicit ingress profile owns native semantics as well as parsing.
+    // A declaration catalogue without a profile cannot prove native dispatch.
+    let projected;
+    let registry = if registry.profile().is_none() && supplied.input.is_none() {
+        projected = registry.project_for_profile(dialect);
+        &projected
+    } else {
+        registry
+    };
+    let (ir_module, cfg_module, extra) =
+        lower_source_callers(source, registry, declared, dialect, supplied);
+    let config = ir_module.lexer_config;
     // The cross-file scan resolves a dispatch word exactly as the in-unit one
     // does — `scan_cfg_callers`/`record_call_site_evidence` are shared, so a
     // `set cmd helper; $cmd dev` in *another* file retracts this unit's seed
     // just as an in-unit one would.  Without the same var facts and fixpoint
     // here, an unreadable dispatch would stop retracting seeds across the
     // file boundary.
+    let metadata_context = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        ir_module.source_metadata_input.as_ref(),
+    );
     let var_facts = collect_module_scope_var_facts(
         &cfg_module,
         &extra,
         &tcl_registry::model::DocumentCommandSurface::new(registry, declared),
+        metadata_context.as_deref(),
     );
     // What this file's own unreadable dispatches can reach is a *project*
     // fact, not a file one — `source` puts two files in one interpreter in
@@ -2074,10 +2181,27 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
     // in any scanned file is visible — matching Tcl, where `::unknown` is one
     // command shared by the whole interpreter, not a per-file one.
     let unresolved_handler = unresolved_command_handler(registry, known);
+    let identities = crate::realm::document_realm_bindings_with_source_entry(
+        source,
+        config,
+        registry,
+        &ir_module.source_entry,
+    );
+    let identities = ir_module.source_metadata_input.as_ref().map_or_else(
+        || identities.clone(),
+        |input| {
+            identities
+                .clone()
+                .with_resolved_analysis_input(input.clone())
+        },
+    );
     out = run_to_fixpoint(|previous| {
         let ctx = CallSiteScanCtx {
             known,
             registry,
+            source_input: ir_module.source_metadata_input.as_ref(),
+            metadata_context: metadata_context.as_deref(),
+            identities: &identities,
             declared,
             dialect,
             var_facts: &var_facts,
@@ -2103,7 +2227,9 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
     out
 }
 
-/// Which registry-declared unit boundaries this module crosses.
+/// Possible registry-declared unit boundaries under retained source metadata.
+/// Missing or foreign input contributes no invented boundary trait; the caller
+/// collector independently retracts seeds when it cannot own the source context.
 ///
 /// A pure union of [`CommandRegistry::unit_linkage`] over every resolved
 /// `Call`/`Barrier` statement in the module — top level, every
@@ -2124,14 +2250,22 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
 pub fn scan_unit_linkage(
     ir_module: &IrModule,
     registry: &CommandRegistry,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    _dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Traits {
-    let context = dialect.map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let Some(context) = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        ir_module.source_metadata_input.as_ref(),
+    ) else {
+        return Traits::empty();
+    };
+    let context = Some(context.as_ref().into());
     let mut found = Traits::empty();
 
     let mut visit = |stmt: &crate::ir::Statement| {
         if let Some(invocation) =
-            crate::registry_invocation::resolved_statement_invocation(registry, context, stmt)
+            crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+                registry, context, stmt,
+            )
         {
             found |= invocation
                 .facts
@@ -2142,7 +2276,9 @@ pub fn scan_unit_linkage(
         // closed caller set. This union consumes metadata-only candidates;
         // it does not turn uncertain dispatch into executable handler facts.
         if let Some(assistance) = stmt.tokens().and_then(|tokens| {
-            crate::registry_invocation::registry_invocation_assistance(registry, context, tokens)
+            crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+                registry, context, tokens,
+            )
         }) {
             for candidate in assistance.candidates {
                 found |= candidate
@@ -2470,7 +2606,6 @@ pub(crate) fn params_constants_from_native_call_sites(
 mod tests {
     use super::*;
     use crate::cfg_builder::build_cfg;
-    use crate::lowering::lower_to_ir;
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
@@ -2529,6 +2664,22 @@ mod tests {
             vec![("id".to_owned(), vec!["9".to_owned()])],
             "the declaration says the word is an expression, so its `[…]` runs"
         );
+    }
+
+    fn retained_scope_fixture(source: &str, registry: &CommandRegistry) -> IrModule {
+        let profile = registry
+            .profile()
+            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl);
+        let context = std::sync::Arc::new(
+            crate::environment_ingress::context_for_profile(profile)
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(registry, tcl_lexer::LexerConfig::default())
+                .with_dialect(Some(profile))
+                .with_context_registry(context),
+            source,
+        )
     }
 
     fn surface(reg: &CommandRegistry) -> tcl_registry::model::DocumentCommandSurface<'_> {
@@ -2618,15 +2769,17 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("native profile");
         let known = HashSet::from(["::helper".to_owned()]);
-        scan_source_call_sites_with_source_entry(
-            source,
-            &registry,
-            None,
+        let context = std::sync::Arc::new(
+            crate::environment_ingress::context_for_profile(profile)
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,
-            &known,
-            &[],
-            entry,
-        )
+            profile,
+            context,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+        scan_source_call_sites_with_source_input(source, None, &known, &[], &input, entry)
     }
 
     #[test]
@@ -3035,11 +3188,7 @@ mod tests {
             ("namespace import ::lib::helper\n", Traits::empty()),
         ];
         for (src, want) in cases {
-            let module = crate::lowering::lower_to_ir_with_config(
-                src,
-                &reg,
-                tcl_lexer::LexerConfig::default(),
-            );
+            let module = retained_scope_fixture(src, &reg);
             assert_eq!(scan_unit_linkage(&module, &reg, None), want, "{src:?}");
         }
     }
@@ -3212,16 +3361,42 @@ mod tests {
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> CallSiteEvidence {
         let reg = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
-        let ir = crate::lowering::lower_to_ir(src, reg);
+        let ir = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(
+                reg,
+                tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+            )
+            .with_dialect(Some(dialect))
+            .with_context_registry(crate::environment_ingress::context_for_profile(dialect)),
+            src,
+        );
         let cfg_module = crate::cfg_builder::build_cfg(&ir, false);
+        let identities = crate::realm::document_realm_bindings_with_source_entry(
+            src,
+            ir.lexer_config,
+            reg,
+            &ir.source_entry,
+        );
+        let identities = ir.source_metadata_input.as_ref().map_or_else(
+            || identities.clone(),
+            |input| {
+                identities
+                    .clone()
+                    .with_resolved_analysis_input(input.clone())
+            },
+        );
         collect_call_site_constants(
             &cfg_module,
             &[],
             &ir.procedures,
             &ir.future_call_sites,
-            reg,
-            None,
-            dialect,
+            CallSiteSourceContext {
+                registry: reg,
+                declared: None,
+                dialect,
+                input: ir.source_metadata_input.as_ref(),
+                identities: &identities,
+            },
         )
     }
 
@@ -3526,6 +3701,9 @@ mod tests {
 
     #[test]
     fn normal_procedure_invoker_retains_operand_offsets_and_real_uncertainty() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source caller metadata; no appliance or entered-frame claim.
         let profile = tcl_dialect::DialectProfile::irules();
         let exact = evidence_for_dialect(
             "proc helper {mode} {return $mode}\nwhen RULE_INIT {call -debug helper dev}\n",
@@ -3751,34 +3929,69 @@ mod tests {
     }
 
     #[test]
-    fn command_prefix_head_reads_a_built_prefix_through_the_registry() {
+    fn command_prefix_head_treats_literal_brackets_as_list_data() {
         let reg = registry();
         assert_eq!(
             command_prefix_head(&reg, "cmp -nocase").as_deref(),
-            Some("cmp"),
+            Some("cmp")
         );
         assert_eq!(
             command_prefix_head(&reg, "[list cmp $x]").as_deref(),
-            Some("cmp"),
-            "`list` carries BUILDS_COMMAND_PREFIX, so its first argument is the head",
+            Some("[list")
         );
         assert_eq!(
-            command_prefix_head(&reg, "[pickCallback]"),
+            command_prefix_head(&reg, "[pickCallback]").as_deref(),
+            Some("[pickCallback]")
+        );
+        assert_eq!(
+            command_prefix_head(&reg, "{cmp name} tail").as_deref(),
+            Some("cmp name")
+        );
+    }
+
+    #[test]
+    fn original_callback_callers_share_source_horizons_without_parameter_seeds() {
+        // naming.source.original-callback-procedure-target
+        // docs/design/analysis/name-resolution-proofs/source-original-callback-procedure-target.md
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        for prefix in ["{cb extra}", "[list cb $x]", "[make $x]"] {
+            let source = format!(
+                "proc cb {{value args}} {{}}; interp alias {{}} make {{}} list cb; cb FIXED; lsort -command {prefix} {{3 1 2}}"
+            );
+            let result = evidence_for_dialect(&source, profile);
+            assert!(
+                result.get("::cb").is_some_and(|site| site.opaque_caller),
+                "{source}: {result:?}"
+            );
+            assert_eq!(uniform(&result, "::cb", 0), None);
+        }
+        let source = "proc cb {value args} {}; cb FIXED; proc list args {}; lsort -command [list cb $x] {3 1 2}";
+        let result = evidence_for_dialect(source, profile);
+        assert_eq!(
+            uniform(&result, "::cb", 0),
             None,
-            "some other substitution computed the prefix — the head is unknown",
+            "a computed prefix's target is unavailable"
         );
     }
 
     #[test]
     fn scope_var_facts_separate_literal_from_unknown_writes() {
         let reg = registry();
-        let ir = lower_to_ir(
+        let ir = retained_scope_fixture(
             "proc p {} {\n set a one\n set b [gets stdin]\n set c two\n set c three\n}\n",
             &reg,
         );
         let cfg_module = build_cfg(&ir, false);
         let cfg = cfg_module.procedures.get("::p").expect("p lowered");
-        let facts = collect_scope_var_facts(cfg, &surface(&reg));
+        let facts = collect_scope_var_facts(
+            cfg,
+            &surface(&reg),
+            ir.source_metadata_input
+                .as_ref()
+                .map(crate::analyser::ResolvedAnalysisInput::context_registry)
+                .as_deref(),
+        );
         assert!(!facts.dynamic_name_write);
         assert_eq!(
             facts.vars["a"].values.iter().cloned().collect::<Vec<_>>(),
@@ -3794,22 +4007,226 @@ mod tests {
     #[test]
     fn a_write_through_a_computed_variable_name_poisons_the_whole_scope() {
         let reg = registry();
-        let ir = lower_to_ir("proc p {n} {\n set a one\n set $n two\n}\n", &reg);
+        let ir = retained_scope_fixture("proc p {n} {\n set a one\n set $n two\n}\n", &reg);
         let cfg_module = build_cfg(&ir, false);
         let cfg = cfg_module.procedures.get("::p").expect("p lowered");
-        assert!(collect_scope_var_facts(cfg, &surface(&reg)).dynamic_name_write);
+        assert!(
+            collect_scope_var_facts(
+                cfg,
+                &surface(&reg),
+                ir.source_metadata_input
+                    .as_ref()
+                    .map(crate::analyser::ResolvedAnalysisInput::context_registry)
+                    .as_deref()
+            )
+            .dynamic_name_write
+        );
     }
 
     #[test]
     fn a_scope_alias_declaration_makes_the_aliased_name_unknown() {
         let reg = registry();
-        let ir = lower_to_ir("proc p {} {\n global cmd\n set other one\n}\n", &reg);
+        let ir = retained_scope_fixture("proc p {} {\n global cmd\n set other one\n}\n", &reg);
         let cfg_module = build_cfg(&ir, false);
         let cfg = cfg_module.procedures.get("::p").expect("p lowered");
-        let facts = collect_scope_var_facts(cfg, &surface(&reg));
+        let facts = collect_scope_var_facts(
+            cfg,
+            &surface(&reg),
+            ir.source_metadata_input
+                .as_ref()
+                .map(crate::analyser::ResolvedAnalysisInput::context_registry)
+                .as_deref(),
+        );
         assert!(
             facts.vars["cmd"].unknown,
             "`global cmd` binds an outer variable any other body may write",
         );
+    }
+    fn supplied_unit_fixture(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> IrModule {
+        let registry = context.commands();
+        crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(
+                registry,
+                tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            )
+            .with_dialect(registry.profile())
+            .with_context_registry(std::sync::Arc::clone(context)),
+            source,
+        )
+    }
+
+    fn supplied_unit_input(
+        current: &crate::analyser::ResolvedAnalysisInput,
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> crate::analyser::ResolvedAnalysisInput {
+        crate::analyser::ResolvedAnalysisInput::new(
+            current.analyser_profile(),
+            current.unit_profile(),
+            context,
+            current.lexer_config(),
+        )
+    }
+
+    #[test]
+    fn unit_linkage_keeps_supplied_availability_without_inventing_missing_boundaries() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional Registry trait inventory only; no actual loading or export claim.
+        let baseline = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        );
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut descriptor = registry.get("dict").unwrap().clone();
+        descriptor.traits |= Traits::LOADS_EXTERNAL_UNIT;
+        registry.insert(descriptor);
+        let context =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(registry)));
+        let mut module = supplied_unit_fixture("dict create key value", &context);
+        let registry = context.commands();
+        let input = module.source_metadata_input.clone().unwrap();
+        assert!(std::sync::Arc::ptr_eq(&input.context_registry(), &context));
+        assert_eq!(
+            scan_unit_linkage(&module, registry, None),
+            Traits::LOADS_EXTERNAL_UNIT
+        );
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        assert!(std::sync::Arc::ptr_eq(older.commands(), registry));
+        let original_script = module.top_level.clone();
+        for withheld in [
+            Some(supplied_unit_input(&input, older)),
+            Some(supplied_unit_input(
+                &input,
+                crate::environment_ingress::context_for_profile(
+                    tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+                ),
+            )),
+            None,
+        ] {
+            module.source_metadata_input = withheld;
+            assert_eq!(
+                scan_unit_linkage(&module, registry, Some(input.unit_profile())),
+                Traits::empty()
+            );
+            assert_eq!(module.top_level, original_script);
+        }
+    }
+
+    #[test]
+    fn scope_variable_facts_keep_actual_availability_and_refuse_missing_or_foreign_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original normal-write metadata only; no physical variable or frame claim.
+        let context = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        );
+        let registry = context.commands();
+        let module = supplied_unit_fixture("dict set target key value", &context);
+        let cfg = crate::cfg_builder::build_cfg(&module, false);
+        let current = collect_scope_var_facts(&cfg.top_level, &surface(registry), Some(&context));
+        assert!(!current.dynamic_name_write && !current.cross_frame_write);
+        assert!(current.vars["target"].unknown);
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(registry));
+        assert!(std::sync::Arc::ptr_eq(older.commands(), registry));
+        let foreign = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+        );
+        for withheld in [Some(&older), Some(foreign.as_ref()), None] {
+            let facts = collect_scope_var_facts(&cfg.top_level, &surface(registry), withheld);
+            assert!(facts.dynamic_name_write && facts.cross_frame_write);
+        }
+    }
+
+    fn supplied_unit_callers(
+        source: &str,
+        module: &IrModule,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> CallSiteEvidence {
+        let registry = module.resolved_registry();
+        let cfg = crate::cfg_builder::build_cfg(module, false);
+        let identities = crate::realm::document_realm_bindings_with_source_entry(
+            source,
+            module.lexer_config,
+            registry,
+            &module.source_entry,
+        );
+        let identities = input.map_or_else(
+            || identities.clone(),
+            |input| {
+                identities
+                    .clone()
+                    .with_resolved_analysis_input(input.clone())
+            },
+        );
+        collect_call_site_constants(
+            &cfg,
+            &[],
+            &module.procedures,
+            &module.future_call_sites,
+            CallSiteSourceContext {
+                registry,
+                declared: None,
+                dialect: module.dialect_profile.unwrap(),
+                input,
+                identities: &identities,
+            },
+        )
+    }
+
+    #[test]
+    fn unit_caller_seeds_require_the_retained_metadata_owner() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Actual source-owned caller operands, not a complete Native command world.
+        let context = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        );
+        let source = "proc helper {mode} {return $mode}; helper FIXED";
+        let module = supplied_unit_fixture(source, &context);
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let current = supplied_unit_callers(source, &module, Some(input));
+        assert_eq!(uniform(&current, "::helper", 0).as_deref(), Some("FIXED"));
+        let foreign = supplied_unit_input(
+            input,
+            crate::environment_ingress::context_for_profile(
+                tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+            ),
+        );
+        for withheld in [Some(&foreign), None] {
+            let evidence = supplied_unit_callers(source, &module, withheld);
+            assert!(evidence.get("::helper").unwrap().opaque_caller);
+            assert_eq!(uniform(&evidence, "::helper", 0), None);
+        }
+    }
+
+    #[test]
+    fn source_entry_caller_metadata_requires_an_independent_supplied_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Trusted source allocation remains independent of source metadata availability.
+        let source = "source library.tcl; helper dev";
+        let entry = source_loader_entry("proc helper {mode} {return $mode}");
+        let current = scan_loaded_caller(source, &entry);
+        assert_eq!(uniform(&current, "::helper", 0).as_deref(), Some("dev"));
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let missing = scan_source_call_sites_with_source_entry(
+            source,
+            &registry(),
+            None,
+            profile,
+            &known(&["::helper"]),
+            &["::helper".to_owned()],
+            &entry,
+        );
+        assert_eq!(uniform(&missing, "::helper", 0), None);
+        assert!(missing.get("::helper").unwrap().opaque_caller);
     }
 }

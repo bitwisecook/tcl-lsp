@@ -1,0 +1,30 @@
+[
+  {
+    "path": "rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/retained-fixture-hashes.json",
+    "sha256": "ccadcdbbeb1d098b29d2c87bfb6a97a01f09a1ad035730534b8f1dde601cb6f9",
+    "classification": "provider-scaffolding",
+    "proof_ids": [],
+    "reason": "Inspected retained file-to-SHA inventory and independently matched all 22 whole-file hashes against the present relative paths. This derived integrity inventory contains no new provider launch or guest result. The separately retained captures require their own question records."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/fixture-hashes.json",
+    "sha256": "68e3176f008a441b179962c673b9d1449da87b86acd699be1062c34d1a26be9b",
+    "classification": "provider-scaffolding",
+    "proof_ids": [],
+    "reason": "Inspected retained file-to-SHA inventory and independently matched all 27 whole-file hashes against the present relative paths. This derived integrity inventory contains no new provider launch or guest result. The separately retained captures require their own question records."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_list_assignment_order/cases.json",
+    "sha256": "eedb56ec5f6452a924791f6444c304a1205e31aa8e89f64658b7d5a1d181febd",
+    "classification": "input-fixture",
+    "proof_ids": [],
+    "reason": "Inspected JSON contains only fixed input scripts or original-object producer parameters, not native execution rows. Fixed inputs are retained in the census; the separate native result manifests remain independently reviewable."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.json",
+    "sha256": "a8a1495d5808748a26cf5635f2bb9ea5c73889bbcecf96ecc21890ff513be6a8",
+    "classification": "input-fixture",
+    "proof_ids": [],
+    "reason": "Inspected JSON contains only fixed input scripts or original-object producer parameters, not native execution rows. Fixed inputs are retained in the census; the separate native result manifests remain independently reviewable."
+  }
+]

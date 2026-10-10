@@ -574,13 +574,13 @@ pub fn select_native_procedure_definition(
 
 /// Source of one independently persistent static cell.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StaticVariableInitialiser {
+pub enum StaticVariableInitialiser<T = String> {
     /// A fresh private cell containing this literal value.
-    Literal(String),
+    Literal(T),
     /// A fresh private cell snapshotting the current variable's value.
-    CopyCurrent(String),
+    CopyCurrent(T),
     /// Retain the current physical variable cell, independently of name rebinding.
-    CaptureCurrentCell(String),
+    CaptureCurrentCell(T),
 }
 
 /// Original-object initializer selected from a native Jim static specifier.
@@ -654,6 +654,13 @@ pub fn static_variable_value_specifier(
     if !dialect.native_scalar_getter_protocol()?.is_jim084() {
         return None;
     }
+    jim_static_variable_value_specifier(field_count, original_name)
+}
+
+fn jim_static_variable_value_specifier(
+    field_count: usize,
+    original_name: Option<&[u8]>,
+) -> Option<Result<StaticVariableValueSpecifier, StaticVariableValueError>> {
     if !matches!(field_count, 1 | 2) {
         return Some(Err(StaticVariableValueError::Fields));
     }
@@ -759,30 +766,30 @@ fn procedure_creation_text_error(
 /// One persistent declaration. Native activation resolves this static table
 /// before installing formal values, so matching formals update its cells.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StaticVariableDeclaration {
+pub struct StaticVariableDeclaration<T = String> {
     /// Name in the procedure's static storage table.
-    pub name: String,
+    pub name: T,
     /// Value/cell captured when the command is defined.
-    pub initialiser: StaticVariableInitialiser,
+    pub initialiser: StaticVariableInitialiser<T>,
 }
 
 /// Why the native static declaration cannot be installed.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StaticVariableError {
+pub enum StaticVariableError<T = String> {
     /// A specifier has neither one nor two list fields.
-    Fields(String),
+    Fields(T),
     /// The post-reference-marker name repeats an earlier static slot.
-    Duplicate(String),
+    Duplicate(T),
     /// Single-field initialisation cannot capture an array element.
     ArrayElement {
         /// Name the initializer tried to resolve.
-        name: String,
+        name: T,
         /// Whether the operation attempted reference capture.
         reference: bool,
     },
 }
 
-impl StaticVariableError {
+impl StaticVariableError<String> {
     /// Native diagnostic text for a rejected declaration.
     #[must_use]
     pub fn message(&self) -> String {
@@ -807,33 +814,95 @@ impl StaticVariableError {
 pub fn parse_static_variables(
     source: &str,
 ) -> Result<Vec<StaticVariableDeclaration>, StaticVariableError> {
+    let fields = tcl_syntax::list::split_list_jim(source)
+        .into_iter()
+        .map(|specifier| {
+            let fields = tcl_syntax::list::split_list_jim(&specifier)
+                .into_iter()
+                .map(std::borrow::Cow::into_owned)
+                .collect();
+            (specifier.into_owned(), fields)
+        });
+    parse_static_variable_fields(fields, |name| name[1..].to_owned())
+}
+
+/// Native counted static declaration, independently of source/cell ownership.
+pub type ByteStaticVariableDeclaration = StaticVariableDeclaration<Vec<u8>>;
+/// Native counted static-specifier error with its original diagnostic operand.
+pub type ByteStaticVariableError = StaticVariableError<Vec<u8>>;
+
+/// Parse original counted Jim static-list bytes under the selected native
+/// recipe. This retains value-copy, raw-cell and literal initialisers as
+/// separate roles; it supplies no source lineage, storage or capture authority.
+///
+/// # Errors
+/// The contained result retains the selected native static-specifier failure.
+/// `None` means the actual engine or native list purpose is unavailable.
+#[must_use]
+pub fn parse_static_variables_bytes(
+    source: &[u8],
+    dialect: crate::InvocationDialect,
+) -> Option<Result<Vec<ByteStaticVariableDeclaration>, ByteStaticVariableError>> {
+    if !dialect.native_scalar_getter_protocol()?.is_jim084() {
+        return None;
+    }
+    let protocol = tcl_syntax::native_string::NativeStringProtocol::Jim084;
+    let fields = tcl_syntax::list::split_native_list_bytes(source, protocol)
+        .ok()?
+        .into_iter()
+        .map(|specifier| {
+            let fields = tcl_syntax::list::split_native_list_bytes(&specifier, protocol)
+                .ok()?
+                .into_iter()
+                .map(std::borrow::Cow::into_owned)
+                .collect();
+            Some((specifier.into_owned(), fields))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(parse_static_variable_fields(fields, |name| {
+        name[1..].to_vec()
+    }))
+}
+
+fn parse_static_variable_fields<T: Clone + Eq + std::hash::Hash + AsRef<[u8]>>(
+    fields: impl IntoIterator<Item = (T, Vec<T>)>,
+    after_marker: impl Fn(&T) -> T,
+) -> Result<Vec<StaticVariableDeclaration<T>>, StaticVariableError<T>> {
     let mut declarations = Vec::new();
     let mut names = std::collections::HashSet::new();
-    for specifier in tcl_syntax::list::split_list_jim(source) {
-        let fields = tcl_syntax::list::split_list_jim(&specifier);
-        let (name, initialiser) = match fields.as_slice() {
-            [name] => {
-                let (name, reference) = name
-                    .strip_prefix('&')
-                    .map_or((name.as_ref(), false), |name| (name, true));
-                if tcl_syntax::naming::split_element_ref(name).is_some() {
-                    return Err(StaticVariableError::ArrayElement {
-                        name: name.to_owned(),
-                        reference,
-                    });
-                }
-                let initialiser = if reference {
-                    StaticVariableInitialiser::CaptureCurrentCell(name.to_owned())
+    for (specifier, fields) in fields {
+        let selected =
+            jim_static_variable_value_specifier(fields.len(), fields.first().map(AsRef::as_ref))
+                .expect("a one/two-field static specifier retains its original name");
+        let selected = match selected {
+            Ok(selected) => selected,
+            Err(StaticVariableValueError::ArrayElement { reference }) => {
+                let original = fields.first().expect("selected original static name");
+                let name = if reference {
+                    after_marker(original)
                 } else {
-                    StaticVariableInitialiser::CopyCurrent(name.to_owned())
+                    original.clone()
                 };
-                (name.to_owned(), initialiser)
+                return Err(StaticVariableError::ArrayElement { name, reference });
             }
-            [name, value] => (
-                name.to_string(),
-                StaticVariableInitialiser::Literal(value.to_string()),
-            ),
-            _ => return Err(StaticVariableError::Fields(specifier.to_string())),
+            Err(_) => return Err(StaticVariableError::Fields(specifier)),
+        };
+        let original = fields.first().expect("validated static specifier name");
+        let name = if selected.initialiser == StaticVariableValueInitialiser::CaptureCurrentCell {
+            after_marker(original)
+        } else {
+            original.clone()
+        };
+        let initialiser = match selected.initialiser {
+            StaticVariableValueInitialiser::CopyCurrent => {
+                StaticVariableInitialiser::CopyCurrent(name.clone())
+            }
+            StaticVariableValueInitialiser::CaptureCurrentCell => {
+                StaticVariableInitialiser::CaptureCurrentCell(name.clone())
+            }
+            StaticVariableValueInitialiser::LiteralValue => {
+                StaticVariableInitialiser::Literal(fields[1].clone())
+            }
         };
         if !names.insert(name.clone()) {
             return Err(StaticVariableError::Duplicate(name));
@@ -843,12 +912,36 @@ pub fn parse_static_variables(
     Ok(declarations)
 }
 
+impl StaticVariableError<Vec<u8>> {
+    /// Native `CString` diagnostic, independent of counted static slot identity.
+    #[must_use]
+    pub fn message_bytes(&self) -> Vec<u8> {
+        let (error, name) = match self {
+            Self::Fields(name) => (StaticVariableValueError::Fields, name.as_slice()),
+            Self::Duplicate(name) => (StaticVariableValueError::Duplicate, name.as_slice()),
+            Self::ArrayElement { name, reference } => (
+                StaticVariableValueError::ArrayElement {
+                    reference: *reference,
+                },
+                name.as_slice(),
+            ),
+        };
+        error.message(name)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn procedure_creation_name_policy_matches_18_native_slots_without_header_grants() {
+        // Native proof: naming.procedure.local-colon-creation-result
+        // docs/design/analysis/name-resolution-proofs/procedure-local-colon-creation-result.md
+        // Native proof: naming.procedure.root-colon-creation-result
+        // docs/design/analysis/name-resolution-proofs/procedure-root-colon-creation-result.md
+        // Native proof: naming.procedure.ordinary-local-creation-result
+        // docs/design/analysis/name-resolution-proofs/procedure-ordinary-local-creation-result.md
         fn bytes(hex: &str) -> Vec<u8> {
             hex.as_bytes()
                 .as_chunks::<2>()
@@ -988,6 +1081,10 @@ mod tests {
 
     #[test]
     fn byte_header_selection_matches_original_native_storage() {
+        // Native proof: naming.procedure.counted-formal-header-selection
+        // docs/design/analysis/name-resolution-proofs/procedure-counted-formal-header-selection.md
+        // Native proof: naming.procedure.counted-body-header-selection
+        // docs/design/analysis/name-resolution-proofs/procedure-counted-body-header-selection.md
         use tcl_dialect::NativeProcedureHeaderCompilation as Header;
         let fixtures = [
             (
@@ -1269,6 +1366,71 @@ mod tests {
     }
 
     #[test]
+    fn original_static_list_bytes_keep_counted_names_and_capture_roles_separate() {
+        // Implementation contract: naming.procedure.original-jim-static-list-capture-inputs
+        // docs/design/analysis/name-resolution-proofs/procedure-original-jim-static-list-capture-inputs.md
+        let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap();
+        let dialect = crate::InvocationDialect::of_point(point);
+        let bytes = b"x\xed\xa0\x80 &y\xed\xa0\x81 {z\0tail VALUE} {&literal PAIR}";
+        let declarations = parse_static_variables_bytes(bytes, dialect)
+            .unwrap()
+            .unwrap();
+        assert_eq!(declarations[0].name, b"x\xed\xa0\x80");
+        assert_eq!(
+            declarations[0].initialiser,
+            StaticVariableInitialiser::CopyCurrent(b"x\xed\xa0\x80".to_vec())
+        );
+        assert_eq!(declarations[1].name, b"y\xed\xa0\x81");
+        assert_eq!(
+            declarations[1].initialiser,
+            StaticVariableInitialiser::CaptureCurrentCell(b"y\xed\xa0\x81".to_vec())
+        );
+        assert_eq!(declarations[2].name, b"z\0tail");
+        assert_eq!(
+            declarations[2].initialiser,
+            StaticVariableInitialiser::Literal(b"VALUE".to_vec())
+        );
+        assert_eq!(declarations[3].name, b"&literal");
+        assert_eq!(
+            declarations[3].initialiser,
+            StaticVariableInitialiser::Literal(b"PAIR".to_vec())
+        );
+        assert!(
+            parse_static_variables_bytes(b"x\0a x\0b", dialect)
+                .unwrap()
+                .is_ok()
+        );
+        assert!(
+            matches!(parse_static_variables_bytes(b"x &x", dialect).unwrap(),
+            Err(StaticVariableError::Duplicate(name)) if name == b"x")
+        );
+        assert!(matches!(
+            parse_static_variables_bytes(b"&a(k)", dialect).unwrap(),
+            Err(StaticVariableError::ArrayElement {
+                reference: true,
+                ..
+            })
+        ));
+        let error = parse_static_variables_bytes(b"{x\0tail first extra}", dialect)
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(
+            error.message_bytes(),
+            b"too many fields in static specifier \"x\"".to_vec()
+        );
+        for version in tcl_dialect::TclVersion::ALL {
+            assert!(
+                parse_static_variables_bytes(bytes, crate::InvocationDialect::for_version(version))
+                    .is_none()
+            );
+        }
+        let mut unknown = dialect;
+        unknown.native_family = None;
+        unknown.core_point = None;
+        assert!(parse_static_variables_bytes(bytes, unknown).is_none());
+    }
+
+    #[test]
     fn static_initializers_keep_value_and_physical_cell_capture_distinct() {
         assert_eq!(
             parse_static_variables("x &y {z VALUE}").unwrap(),
@@ -1369,6 +1531,14 @@ mod recompilation_ownership_tests {
 
     #[test]
     fn recompilation_matches_all_20_native_declaration_identity_controls() {
+        // Native proof: naming.procedure.recompile-sole-declaration
+        // docs/design/analysis/name-resolution-proofs/procedure-recompile-sole-declaration.md
+        // Native proof: naming.procedure.recompile-retained-procbody
+        // docs/design/analysis/name-resolution-proofs/procedure-recompile-retained-procbody.md
+        // Native proof: naming.procedure.recompile-active-recursive-frame
+        // docs/design/analysis/name-resolution-proofs/procedure-recompile-active-recursive-frame.md
+        // Native proof: naming.procedure.recompile-original-local-name-owner
+        // docs/design/analysis/name-resolution-proofs/procedure-recompile-original-local-name-owner.md
         let engines = [
             (TclVersion::V8_4, engine_cases!("8.4.20")),
             (TclVersion::V8_5, engine_cases!("8.5.19")),

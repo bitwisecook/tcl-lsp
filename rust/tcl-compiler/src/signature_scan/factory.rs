@@ -137,7 +137,13 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
         let root = super::scope::SignatureNamespaceScope::root(ctx.name_policy());
         let factory = [&scope, &root].into_iter().find_map(|lookup| {
             factories.iter().find(|info| match &info.source_name {
-                Some(name) => name.matches_written(lookup, &cand.head),
+                Some(name) => match &cand.original_head {
+                    Some(key) => name.matches_key(lookup, key),
+                    None if ctx.original_image.is_none() => {
+                        name.matches_written(lookup, &cand.head)
+                    }
+                    None => false,
+                },
                 None => lookup.display().is_some_and(|namespace| {
                     crate::naming::qualify(&namespace, &cand.head) == info.qname
                 }),
@@ -154,7 +160,7 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
             continue;
         };
         let Some((emitted_q, simple, body_namespace, source_name)) =
-            ctx.procedure_name_in_context(&factory_scope, &cand.name)
+            ctx.procedure_name_in_context(&factory_scope, &cand.name, cand.original_name.as_ref())
         else {
             continue;
         };
@@ -176,6 +182,9 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
             body_namespace,
             params: Vec::new(),
             params_computed: true,
+            formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                tcl_dialect::ParameterGrammar::Tcl,
+            ),
             name_range: cand.name_tok.span,
             body_range: cand.body_tok.span,
         });
@@ -247,6 +256,8 @@ mod tests {
 
     fn cand(head: &str, ns: &str) -> FactoryCandidate {
         FactoryCandidate {
+            original_head: None,
+            original_name: None,
             head: head.to_string(),
             name: "X".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 0)),
@@ -317,6 +328,8 @@ mod tests {
             "proc $name $args $body",
         ));
         ctx.candidates.push(FactoryCandidate {
+            original_head: None,
+            original_name: None,
             head: "DEFC".to_string(),
             name: "Foo".to_string(),
             name_tok: Token::with_content_offset(TokenType::Esc, Span::new(10, 13), 0),
@@ -342,6 +355,8 @@ mod tests {
         ctx.proc_bodies
             .push(proc_body("::ns::regular", "ns", "set x 1"));
         ctx.candidates.push(FactoryCandidate {
+            original_head: None,
+            original_name: None,
             head: "regular".to_string(),
             name: "X".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 0)),
@@ -375,11 +390,16 @@ mod tests {
                     default_value: None,
                 }],
                 params_computed: false,
+                formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                    tcl_dialect::ParameterGrammar::Tcl,
+                ),
                 name_range: Span::new(99, 102),
                 body_range: Span::new(110, 120),
             },
         );
         ctx.candidates.push(FactoryCandidate {
+            original_head: None,
+            original_name: None,
             head: "DEFC".to_string(),
             name: "Foo".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 3)),
@@ -403,6 +423,8 @@ mod tests {
             "proc $name $args $body",
         ));
         ctx.candidates.push(FactoryCandidate {
+            original_head: None,
+            original_name: None,
             head: "DEFC".to_string(),
             name: "::Top::Foo".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 10)),

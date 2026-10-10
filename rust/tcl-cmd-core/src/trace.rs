@@ -51,6 +51,18 @@ pub enum TraceKind {
 }
 
 impl TraceKind {
+    /// Selected native trace-type table member, as used by the index-backed
+    /// wrong-argument presenter after a successful type lookup. The original
+    /// operand's string representation need not be Unicode or canonical.
+    #[must_use]
+    pub const fn canonical_name(self) -> &'static str {
+        match self {
+            Self::Variable => "variable",
+            Self::Command => "command",
+            Self::Execution => "execution",
+        }
+    }
+
     /// The valid operation names for this kind, in C's `opStrings[]` table
     /// order (`tclTrace.c`) — the bad-operation error enumerates them in
     /// this order.
@@ -178,13 +190,20 @@ const LEGACY_LETTERS: [(u8, &str); 4] = [
 /// rendering differs, and that is [`legacy_ops_letters`].
 ///
 /// # Errors
-/// An empty string or any byte outside `rwua` produces C Tcl's legacy error.
+/// An empty counted string or a byte outside `rwua` before its `CString`
+/// terminator produces C Tcl's legacy error. A nonempty counted string with
+/// an initial zero delegates an empty operation list to the modern parser.
 pub fn parse_legacy_variable_ops(spec: &[u8]) -> Result<Vec<&'static str>, CmdError> {
-    if spec.is_empty() || spec.iter().any(|byte| !b"rwua".contains(byte)) {
-        let got = String::from_utf8_lossy(spec);
-        return Err(CmdError::new(format!(
-            "bad operations \"{got}\": should be one or more of rwua"
-        )));
+    let counted_empty = spec.is_empty();
+    let spec = tcl_core_types::c_string_extent(spec);
+    if counted_empty || spec.iter().any(|byte| !b"rwua".contains(byte)) {
+        let mut message = b"bad operations \"".to_vec();
+        message.extend_from_slice(spec);
+        message.extend_from_slice(b"\": should be one or more of rwua");
+        return Err(CmdError::new_bytes(message));
+    }
+    if spec.is_empty() {
+        return parse_ops(b"", TraceKind::Variable);
     }
     let words: Vec<&str> = LEGACY_LETTERS
         .iter()
@@ -192,6 +211,18 @@ pub fn parse_legacy_variable_ops(spec: &[u8]) -> Result<Vec<&'static str>, CmdEr
         .map(|(_, operation)| *operation)
         .collect();
     Ok(canonical_set(&words, TraceKind::Variable))
+}
+
+/// Materialise the original operation object's selected native string, then
+/// apply the legacy counted-empty test and `CString` letter scan.
+///
+/// # Errors
+/// Returns an original string-getter refusal or the legacy operation error.
+pub fn parse_legacy_variable_ops_original<O: tcl_syntax::value::ValueOps>(
+    ops: &mut O,
+    original: &O::Value,
+) -> Result<Vec<&'static str>, CmdError> {
+    parse_legacy_variable_ops(ops.native_string_bytes(original)?.as_ref())
 }
 
 /// The operation word a variable-trace callback is invoked with. A trace
@@ -333,6 +364,15 @@ pub fn resolve_type(got: &str) -> Result<TraceKind, CmdError> {
     }
 }
 
+/// Resolve already selected type bytes against the actual trace table.
+/// Native input extent, object getters/cache and registration stay independent.
+///
+/// # Errors
+/// Returns the shared unmatched or ambiguous table error with exact input bytes.
+pub fn resolve_type_bytes(selected: &[u8]) -> Result<TraceKind, CmdError> {
+    Ok(TYPE_KINDS[TYPE_OPTIONS.index_of_cmd(selected)?])
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -415,6 +455,34 @@ mod tests {
                 .message()
                 .unwrap(),
             "bad operations \"read\": should be one or more of rwua"
+        );
+    }
+
+    #[test]
+    fn legacy_operation_extent_preserves_counted_empty_and_opaque_errors() {
+        // Native proof: naming.variable.legacy-trace-operation-cstring
+        // docs/design/analysis/name-resolution-proofs/legacy-trace-operation-cstring.md
+        assert_eq!(parse_legacy_variable_ops(b"w\0bad").unwrap(), ["write"]);
+        for input in [b"w\xc0\x80bad".as_slice(), b"w\xff"] {
+            let mut expected = b"bad operations \"".to_vec();
+            expected.extend_from_slice(input);
+            expected.extend_from_slice(b"\": should be one or more of rwua");
+            assert_eq!(
+                parse_legacy_variable_ops(input)
+                    .unwrap_err()
+                    .message_bytes(),
+                expected
+            );
+        }
+        assert_eq!(
+            parse_legacy_variable_ops(b"\0")
+                .unwrap_err()
+                .message_bytes(),
+            b"bad operation list \"\": must be one or more of array, read, unset, or write"
+        );
+        assert_eq!(
+            parse_legacy_variable_ops(b"").unwrap_err().message_bytes(),
+            b"bad operations \"\": should be one or more of rwua"
         );
     }
 

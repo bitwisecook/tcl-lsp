@@ -1,0 +1,17 @@
+
+running 1 test
+test minify::original::tests::isolated_logical_formal_alpha_uses_general_bindings_and_preserves_defaults ... LOGICAL_FORMAL_COMMAND offset=46 schema_closed=true references_closed=true
+LOGICAL_FORMAL_COMMAND offset=83 schema_closed=false references_closed=true
+
+thread 'minify::original::tests::isolated_logical_formal_alpha_uses_general_bindings_and_preserves_defaults' (576442) panicked at rust/tcl-lsp-core/src/minify/original.rs:986:14:
+general formal binding map
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    minify::original::tests::isolated_logical_formal_alpha_uses_general_bindings_and_preserves_defaults
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2631 filtered out; finished in 0.91s
+

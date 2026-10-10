@@ -44,6 +44,8 @@ mod native_list_index_tests;
 #[cfg(test)]
 #[path = "exec/native_list_operations_tests.rs"]
 mod native_list_operations_tests;
+#[cfg(test)]
+mod native_namespace_string_tests;
 mod native_scalar;
 #[cfg(test)]
 #[path = "exec/native_string_trim_tests.rs"]
@@ -307,6 +309,8 @@ pub(crate) struct Frame {
     /// down the same way whether the call returned, errored, or unwound a
     /// `break`/`continue`/`return`. `None` for every other script activation.
     cleanup_proc: Option<String>,
+    /// Actual manufactured lambda publication, following relocation and deletion.
+    lambda_registration: Option<crate::interp::CommandSidecarHandle>,
     /// The parse error to raise once this activation's commands have run, for
     /// a script whose *later* commands do not parse.  C parses one command at
     /// a time, so the clean prefix runs first and this is what it raises
@@ -349,10 +353,15 @@ pub(crate) struct CatchCtx {
     fatal_tail: Option<FatalTail>,
 }
 
-/// An `eval`/`uplevel`/`apply`-style body deferred to the explicit stack.
-///
-/// Parked in `Vm.pending.eval` by the builtin and drained into a transparent
-/// script activation, whose result replaces the builtin's placeholder.
+/// Actual prepared procedure and argv, without a script/list projection.
+pub(crate) struct OriginalProcedureCallReq {
+    proc: crate::command::PreparedProcedureActivation,
+    invoked: Value,
+    arguments: Vec<Value>,
+    registration: crate::interp::CommandSidecarHandle,
+}
+
+/// A script deferred to the explicit stack through its actual compilation owner.
 pub(crate) struct EvalReq {
     pub(crate) script: crate::compiled::CompiledUnit,
     /// The `errorInfo` body-frame label (`Some("eval")`/`Some("uplevel")`), or
@@ -399,6 +408,7 @@ impl Drop for ExpressionReq {
 
 /// Scanner-driven substitution request, retaining each script on the VM stack.
 pub(crate) struct SubstReq {
+    pub(crate) compiled: Option<crate::compiled::CompiledUnit>,
     pub(crate) original: Option<crate::NativeObjectLifetimeLease>,
     pub(crate) control: crate::subst::SubstitutionControl,
     pub(crate) template: crate::subst::SubstSource,
@@ -504,6 +514,11 @@ struct EnteredNativeOperation {
 }
 
 impl Frame {
+    #[cfg(test)]
+    pub(crate) fn lambda_registration(&self) -> Option<&crate::interp::CommandSidecarHandle> {
+        self.lambda_registration.as_ref()
+    }
+
     fn close_native_script(&mut self) {
         if self.jim_script.is_some() || self.jim_script_entry.is_some() {
             self.jim_evaluation.invocation = Value::empty();
@@ -602,6 +617,7 @@ impl Frame {
             try_ctx: None,
             exec_leave: Vec::new(),
             cleanup_proc: None,
+            lambda_registration: None,
             // A unit compiled from only the clean prefix of a malformed body
             // carries the error to raise once that prefix has run.
             fatal_tail,
@@ -699,6 +715,9 @@ impl Frame {
     /// never executes bytecode) carrying the resumable scan state. `tick` runs the
     /// scanner instead of the bytecode dispatch when `subst` is set.
     pub(crate) fn new_subst(req: SubstReq, placeholder: crate::compiled::CompiledUnit) -> Self {
+        if let Some(unit) = req.compiled {
+            return Self::new_script(unit, None);
+        }
         if let Some(original) = req.original {
             let flags = u8::from(!req.variables)
                 | (u8::from(!req.commands) << 1)
@@ -832,10 +851,11 @@ enum Tick {
     Return(Completion<Value>),
     /// Call a proc — push a new activation + call-frame.
     Call {
-        proc: crate::command::PreparedProcedureActivation,
+        proc: Box<crate::command::PreparedProcedureActivation>,
         /// The command spelling before namespace resolution.
         invoked: Value,
         argv: Vec<Value>,
+        lambda_registration: Option<crate::interp::CommandSidecarHandle>,
     },
     /// Run a compiled script on the explicit stack — push a *transparent* script
     /// activation ([`Frame::new_script`]). Used by `EVAL_STK` (and the
@@ -845,7 +865,7 @@ enum Tick {
     /// command subst); `cleanup_proc` is a command name to delete once the
     /// pushed frame completes (`apply`'s temporary lambda proc).
     PushScript {
-        script: crate::compiled::CompiledUnit,
+        script: Box<crate::compiled::CompiledUnit>,
         label: Option<&'static str>,
         cleanup_proc: Option<String>,
         fatal_tail: Option<FatalTail>,
@@ -854,15 +874,15 @@ enum Tick {
     /// Run a `catch` body on the explicit stack (yieldable) via a catch
     /// activation ([`Frame::new_catch`]); its completion is absorbed by the catch
     /// epilogue. Drained from `Vm.pending.catch`, mirroring `PushScript`.
-    PushCatch(CatchReq),
+    PushCatch(Box<CatchReq>),
     /// An eval request carrying selected-frame restoration through suspension.
-    PushEval(EvalReq),
+    PushEval(Box<EvalReq>),
     /// Run a `subst` on the explicit stack (yieldable) via a subst activation
     /// ([`Frame::new_subst`]); its `[…]` bodies run as child script frames and are
     /// folded back by subst rules. Drained from `Vm.pending.subst`.
     PushSubst {
-        req: SubstReq,
-        placeholder: crate::compiled::CompiledUnit,
+        req: Box<SubstReq>,
+        placeholder: Box<crate::compiled::CompiledUnit>,
     },
     /// Run a `foreach`/`lmap` runtime-fallback loop on the explicit stack
     /// (yieldable) via an each-loop activation ([`Frame::new_each_loop`]); each
@@ -870,23 +890,23 @@ enum Tick {
     /// `each_loop`'s collect/continue/break rules. Drained from
     /// `Vm.pending.each_loop`.
     PushEachLoop {
-        req: EachLoopReq,
-        placeholder: crate::compiled::CompiledUnit,
+        req: Box<EachLoopReq>,
+        placeholder: Box<crate::compiled::CompiledUnit>,
     },
     PushExpression {
-        req: ExpressionReq,
-        placeholder: crate::compiled::CompiledUnit,
+        req: Box<ExpressionReq>,
+        placeholder: Box<crate::compiled::CompiledUnit>,
     },
     PushControl {
-        state: crate::cmd_control::ControlState,
-        placeholder: crate::compiled::CompiledUnit,
+        state: Box<crate::cmd_control::ControlState>,
+        placeholder: Box<crate::compiled::CompiledUnit>,
     },
     /// Run one phase (body/handler/`finally`) of a `try` on the explicit stack
     /// (yieldable) via a try-phase activation ([`Frame::new_try`]); its
     /// completion decides the next phase via `cmd_try::advance_try`. Drained
     /// from `Vm.pending.try_phase`.
     PushTry {
-        req: crate::cmd_try::TryReq,
+        req: Box<crate::cmd_try::TryReq>,
         initial_options: Value,
     },
     /// Schedule a procedure-owned replacement and issue ordinary `TCL_RETURN`.
@@ -1753,13 +1773,21 @@ impl Vm {
                 proc,
                 invoked,
                 argv,
+                lambda_registration,
             } => match self.enter_proc(&proc.proc, &proc.body, &invoked, &argv) {
                 Ok(()) => {
                     self.install_native_procedure_binding(proc.declaration_binding);
-                    self.push_frame(acts, Frame::new(proc.body, true));
+                    let mut frame = Frame::new(proc.body, true);
+                    frame.lambda_registration = lambda_registration;
+                    self.push_frame(acts, frame);
                     TickAction::Resume
                 }
-                Err(completion) => TickAction::Complete(self.settle_pending_exec_leave(completion)),
+                Err(completion) => {
+                    if let Some(registration) = lambda_registration {
+                        self.retire_original_lambda_registration(&registration);
+                    }
+                    TickAction::Complete(self.settle_pending_exec_leave(completion))
+                }
             },
             Tick::PushScript {
                 script,
@@ -1768,7 +1796,7 @@ impl Vm {
                 fatal_tail,
                 namespace,
             } => {
-                let mut frame = Frame::new_script(script, label);
+                let mut frame = Frame::new_script(*script, label);
                 frame.cleanup_proc = cleanup_proc;
                 frame.fatal_tail = fatal_tail.or(frame.fatal_tail);
                 if let ScriptNamespace::CommandBoundary(namespace) = namespace {
@@ -1788,34 +1816,34 @@ impl Vm {
                 TickAction::Resume
             }
             Tick::PushEval(req) => {
-                self.push_frame(acts, Frame::new_eval(req));
+                self.push_frame(acts, Frame::new_eval(*req));
                 TickAction::Resume
             }
             Tick::PushCatch(req) => {
-                self.push_frame(acts, Frame::new_catch(req));
+                self.push_frame(acts, Frame::new_catch(*req));
                 TickAction::Resume
             }
             Tick::PushSubst { req, placeholder } => {
-                self.push_frame(acts, Frame::new_subst(req, placeholder));
+                self.push_frame(acts, Frame::new_subst(*req, *placeholder));
                 TickAction::Resume
             }
             Tick::PushEachLoop { req, placeholder } => {
-                self.push_frame(acts, Frame::new_each_loop(req, placeholder));
+                self.push_frame(acts, Frame::new_each_loop(*req, *placeholder));
                 TickAction::Resume
             }
             Tick::PushExpression { req, placeholder } => {
-                self.push_frame(acts, Frame::new_expression(req, placeholder));
+                self.push_frame(acts, Frame::new_expression(*req, *placeholder));
                 TickAction::Resume
             }
             Tick::PushControl { state, placeholder } => {
-                self.push_frame(acts, Frame::new_control(state, placeholder));
+                self.push_frame(acts, Frame::new_control(*state, *placeholder));
                 TickAction::Resume
             }
             Tick::PushTry {
                 req,
                 initial_options,
             } => {
-                self.push_frame(acts, Frame::new_try(req, initial_options));
+                self.push_frame(acts, Frame::new_try(*req, initial_options));
                 TickAction::Resume
             }
             Tick::Tailcall(request) => {
@@ -1932,6 +1960,25 @@ impl Vm {
         }
     }
 
+    /// Retire temporary lambda publications after the parked locals have unwound.
+    pub(crate) fn retire_parked_lambda_registrations(&mut self, acts: &mut [Frame]) {
+        for activation in acts.iter_mut().rev() {
+            if let Some(registration) = activation.lambda_registration.take() {
+                self.retire_original_lambda_registration(&registration);
+            }
+        }
+    }
+
+    /// Retire only the actual publication, preserving a later same-name replacement.
+    fn retire_original_lambda_registration(
+        &mut self,
+        registration: &crate::interp::CommandSidecarHandle,
+    ) {
+        if let Some(key) = registration.key() {
+            self.retire_command_lifecycle_key(&key);
+        }
+    }
+
     /// Retire engine storage without catch/try/finally, completion presentation,
     /// or guest leave/unset callbacks. The returned carrier is internal only;
     /// the host boundary returns the retained typed refusal instead.
@@ -1952,6 +1999,12 @@ impl Vm {
             if let Some(name) = activation.cleanup_proc {
                 self.take_command_unchecked(&name);
             }
+            if let Some(registration) = activation.lambda_registration {
+                self.retire_original_lambda_registration(&registration);
+            }
+        }
+        if let Some(req) = self.pending.procedure_call.take() {
+            self.retire_original_lambda_registration(&req.registration);
         }
         self.pending = crate::interp::PendingControl::default();
         if let Some(context) = self.pending_exec_leave.take() {
@@ -2443,6 +2496,9 @@ impl Vm {
         // `eval_source` returns.
         if let Some(name) = act.cleanup_proc.take() {
             self.take_command_unchecked(&name);
+        }
+        if let Some(registration) = act.lambda_registration.take() {
+            self.retire_original_lambda_registration(&registration);
         }
         // A `catch` activation absorbs the body's completion of *any* code:
         // its epilogue binds the result / options variables and yields the
@@ -2961,6 +3017,36 @@ impl Vm {
         Ok(None)
     }
 
+    /// Prepare an actual manufactured lambda and retain its original argument objects.
+    pub(crate) fn defer_original_lambda_call(
+        &mut self,
+        definition: crate::command::OriginalLambdaDefinition,
+        invoked: Value,
+        arguments: &[Value],
+    ) -> Completion<Value> {
+        match self.early_procedure_activation(&definition.binding, arguments) {
+            Ok(Some(completion)) | Err(completion) => {
+                self.retire_original_lambda_registration(&definition.registration);
+                return completion;
+            }
+            Ok(None) => {}
+        }
+        let proc = match self.ensure_proc_ready_in(definition.binding, None, None) {
+            Ok(proc) => proc,
+            Err(error) => {
+                self.retire_original_lambda_registration(&definition.registration);
+                return crate::command::completion_from_tcl_error(self, error);
+            }
+        };
+        self.pending.procedure_call = Some(OriginalProcedureCallReq {
+            proc,
+            invoked,
+            arguments: arguments.to_vec(),
+            registration: definition.registration,
+        });
+        ok(Value::empty())
+    }
+
     /// Push a call-frame and bind `argv` to the prepared procedure activation.
     fn enter_proc(
         &mut self,
@@ -3134,20 +3220,21 @@ impl Vm {
                 Tick::Return(crate::command::completion_from_tcl_error(self, error))
             }
             crate::subst::SubstStep::ArrayIndex(template) => Tick::PushSubst {
-                req: SubstReq {
+                req: Box::new(SubstReq {
+                    compiled: None,
                     original: None,
                     template,
                     backslashes: true,
                     commands: true,
                     variables: true,
                     control: crate::subst::SubstitutionControl::Word,
-                },
-                placeholder: self.current_placeholder_unit(),
+                }),
+                placeholder: Box::new(self.current_placeholder_unit()),
             },
             crate::subst::SubstStep::Bracket(inner) => {
                 match self.compile_script_cached_bytes(&tcl_lexer::SourceImage::native(inner)) {
                     Ok(script) => Tick::PushScript {
-                        script,
+                        script: Box::new(script),
                         label: None,
                         cleanup_proc: None,
                         fatal_tail: None,
@@ -3325,8 +3412,11 @@ impl Vm {
         ) {
             Ok(Some(words)) => {
                 return Err(Box::new(Tick::PushControl {
-                    state: crate::cmd_control::ControlState::object_body_eval(body.clone(), words),
-                    placeholder: self.current_placeholder_unit(),
+                    state: Box::new(crate::cmd_control::ControlState::object_body_eval(
+                        body.clone(),
+                        words,
+                    )),
+                    placeholder: Box::new(self.current_placeholder_unit()),
                 }));
             }
             Err(completion) => return Err(Box::new(Tick::Return(completion))),
@@ -3338,7 +3428,7 @@ impl Vm {
         let completion = match self.prepare_script_commands_value(body) {
             Ok(prepared) if prepared.prefix.is_some() => {
                 return Err(Box::new(Tick::PushScript {
-                    script: prepared.prefix.expect("selected prefix"),
+                    script: Box::new(prepared.prefix.expect("selected prefix")),
                     label: None,
                     cleanup_proc: None,
                     fatal_tail: prepared.fatal_tail,
@@ -3497,15 +3587,16 @@ impl Vm {
             )));
         };
         Some(Tick::PushSubst {
-            req: SubstReq {
+            req: Box::new(SubstReq {
+                compiled: None,
                 original: None,
                 control: crate::subst::SubstitutionControl::Expression(policy),
                 template: template.into(),
                 backslashes: true,
                 commands: true,
                 variables: true,
-            },
-            placeholder: self.current_placeholder_unit(),
+            }),
+            placeholder: Box::new(self.current_placeholder_unit()),
         })
     }
 
@@ -3535,7 +3626,7 @@ impl Vm {
             match self.prepare_script_commands_value(&original) {
                 Ok(prepared) if prepared.prefix.is_some() => {
                     return Err(Box::new(Tick::PushScript {
-                        script: prepared.prefix.expect("prefix present"),
+                        script: Box::new(prepared.prefix.expect("prefix present")),
                         label: None,
                         cleanup_proc: None,
                         fatal_tail: prepared.fatal_tail,
@@ -3594,15 +3685,16 @@ impl Vm {
                 .expect("expression state present")
                 .awaiting_array = Some(parsed.name.to_vec());
             return Err(Box::new(Tick::PushSubst {
-                req: SubstReq {
+                req: Box::new(SubstReq {
+                    compiled: None,
                     original: None,
                     template: index.to_vec().into(),
                     backslashes: true,
                     commands: true,
                     variables: true,
                     control: crate::subst::SubstitutionControl::Word,
-                },
-                placeholder: self.current_placeholder_unit(),
+                }),
+                placeholder: Box::new(self.current_placeholder_unit()),
             }));
         }
         Ok(match self.read_variable_result_bytes(parsed.name, None) {
@@ -3714,14 +3806,14 @@ impl Vm {
                     match self.prepare_expression_value(&expression) {
                         Ok(node) => {
                             return Tick::PushExpression {
-                                req: ExpressionReq {
+                                req: Box::new(ExpressionReq {
                                     state: tcl_syntax::expr::ExprEvalState::new(node),
                                     awaiting_array: None,
                                     normalize: false,
                                     jim_objects: expression.native_jim_expression_objects(),
                                     restore_primary: expression.retain_expression_primary(),
-                                },
-                                placeholder: self.current_placeholder_unit(),
+                                }),
+                                placeholder: Box::new(self.current_placeholder_unit()),
                             };
                         }
                         Err(error) => {
@@ -3738,7 +3830,7 @@ impl Vm {
                     match self.prepare_script_commands_value(&script) {
                         Ok(prepared) if prepared.prefix.is_some() => {
                             return Tick::PushScript {
-                                script: prepared.prefix.expect("prefix present"),
+                                script: Box::new(prepared.prefix.expect("prefix present")),
                                 label: None,
                                 cleanup_proc: None,
                                 fatal_tail: prepared.fatal_tail,
@@ -3945,7 +4037,7 @@ impl Vm {
             };
             frame.pc = continuation;
             return Some(Tick::PushScript {
-                script: self.compiled_unit(child, namespace.to_owned()),
+                script: Box::new(self.compiled_unit(child, namespace.to_owned())),
                 label: None,
                 cleanup_proc: None,
                 fatal_tail: None,
@@ -4007,7 +4099,9 @@ impl Vm {
         };
         frame.pc = continuation;
         Some(Tick::PushScript {
-            script: self.compiled_unit(child, instruction.source_command_namespace.clone()),
+            script: Box::new(
+                self.compiled_unit(child, instruction.source_command_namespace.clone()),
+            ),
             label: None,
             cleanup_proc: None,
             fatal_tail: None,
@@ -4187,7 +4281,9 @@ impl Vm {
                     after
                 };
                 return Tick::PushScript {
-                    script: self.compiled_unit(child, instr.source_command_namespace.clone()),
+                    script: Box::new(
+                        self.compiled_unit(child, instr.source_command_namespace.clone()),
+                    ),
                     label: None,
                     cleanup_proc: None,
                     fatal_tail: None,
@@ -4452,8 +4548,9 @@ impl Vm {
                         // startCommand continuation, skipping stale opcodes.
                         f.pc = target;
                         return Tick::PushScript {
-                            script: self
-                                .compiled_unit(child, instr.source_command_namespace.clone()),
+                            script: Box::new(
+                                self.compiled_unit(child, instr.source_command_namespace.clone()),
+                            ),
                             label: None,
                             cleanup_proc: None,
                             fatal_tail: None,
@@ -5687,10 +5784,34 @@ impl Vm {
             // `index < 0 || index >= slength` test yields the empty string. The
             // old `resolve_index(...).and_then(...)` chain collapsed both into
             // the empty string, so a garbage index looked like a miss.
+            Op::STR_INDEX if instr.native_switch_version.is_some() => {
+                let index = pop(f);
+                let subject = pop(f);
+                let result = try_core!(tcl_cmd_core::string::compiled_index(
+                    self,
+                    &subject,
+                    &index,
+                    instr.native_switch_version.unwrap(),
+                ));
+                f.stack.push(result);
+            }
             Op::STR_INDEX => {
                 let index = pop(f);
                 let value = pop(f);
                 let result = try_core!(tcl_cmd_core::string::index(self, &value, &index));
+                f.stack.push(result);
+            }
+            Op::STR_RANGE if instr.native_switch_version.is_some() => {
+                let last = pop(f);
+                let first = pop(f);
+                let subject = pop(f);
+                let result = try_core!(tcl_cmd_core::string::compiled_range(
+                    self,
+                    &subject,
+                    &first,
+                    &last,
+                    instr.native_switch_version.unwrap()
+                ));
                 f.stack.push(result);
             }
             Op::STR_RANGE => {
@@ -5705,6 +5826,21 @@ impl Vm {
                 let first = encoded_string_index(imm0(instr));
                 let last = encoded_string_index(imm_at(instr, 1));
                 let result = try_core!(tcl_cmd_core::string::range(self, &value, &first, &last));
+                f.stack.push(result);
+            }
+            Op::STR_FIND | Op::STR_RFIND if instr.native_switch_version.is_some() => {
+                let subject = pop(f);
+                let needle = pop(f);
+                let version = instr.native_switch_version.unwrap();
+                let index = try_core!(tcl_cmd_core::string::compiled_find(
+                    self,
+                    &needle,
+                    &subject,
+                    version,
+                    instr.op == Op::STR_RFIND
+                ));
+                let result = Value::int(index);
+                try_core!(result.set_native_unshared_integer(index, version));
                 f.stack.push(result);
             }
             Op::STR_FIND => {
@@ -6317,14 +6453,14 @@ impl Vm {
                 let source = pop(f);
                 return match self.prepare_expression_value(&source) {
                     Ok(node) => Tick::PushExpression {
-                        req: ExpressionReq {
+                        req: Box::new(ExpressionReq {
                             state: tcl_syntax::expr::ExprEvalState::new(node),
                             awaiting_array: None,
                             normalize: false,
                             jim_objects: source.native_jim_expression_objects(),
                             restore_primary: source.retain_expression_primary(),
-                        },
-                        placeholder: self.current_placeholder_unit(),
+                        }),
+                        placeholder: Box::new(self.current_placeholder_unit()),
                     },
                     Err(error) => {
                         Tick::Return(crate::command::completion_from_tcl_error(self, error))
@@ -6798,7 +6934,7 @@ impl Vm {
                 match self.compile_script_cached_bytes(&source) {
                     Ok(script) => {
                         return Tick::PushScript {
-                            script,
+                            script: Box::new(script),
                             label: None,
                             cleanup_proc: None,
                             fatal_tail: None,
@@ -7583,23 +7719,31 @@ impl Vm {
         if let Some(req) = self.coro.pending.take() {
             return Ok(Some(Tick::Suspend(req)));
         }
+        if let Some(req) = self.pending.procedure_call.take() {
+            return Ok(Some(Tick::Call {
+                proc: Box::new(req.proc),
+                invoked: req.invoked,
+                argv: req.arguments,
+                lambda_registration: Some(req.registration),
+            }));
+        }
         // An `eval`/`uplevel`/`apply`-style builtin defers its body to the
         // explicit stack (yieldable): drain it into a `PushScript`, whose
         // frame result replaces this builtin's placeholder (as for yield).
         if let Some(req) = self.pending.eval.take() {
-            return Ok(Some(Tick::PushEval(req)));
+            return Ok(Some(Tick::PushEval(Box::new(req))));
         }
         // A `catch` defers its body the same way, but into a catch frame
         // whose completion the epilogue absorbs (see `Frame::catch`).
         if let Some(req) = self.pending.catch.take() {
-            return Ok(Some(Tick::PushCatch(req)));
+            return Ok(Some(Tick::PushCatch(Box::new(req))));
         }
         // A `subst` defers to a scanner-driven subst frame, whose `[…]`
         // bodies run yieldably as child frames (see `Frame::subst`).
         if let Some(req) = self.pending.subst.take() {
             return Ok(Some(Tick::PushSubst {
-                req,
-                placeholder: self.current_placeholder_unit(),
+                req: Box::new(req),
+                placeholder: Box::new(self.current_placeholder_unit()),
             }));
         }
         // A `foreach`/`lmap` runtime-fallback loop defers to a
@@ -7607,27 +7751,27 @@ impl Vm {
         // as child frames (see `Frame::each_loop`).
         if let Some(req) = self.pending.each_loop.take() {
             return Ok(Some(Tick::PushEachLoop {
-                req,
-                placeholder: self.current_placeholder_unit(),
+                req: Box::new(req),
+                placeholder: Box::new(self.current_placeholder_unit()),
             }));
         }
         if let Some(req) = self.pending.expression.take() {
             return Ok(Some(Tick::PushExpression {
-                req,
-                placeholder: self.current_placeholder_unit(),
+                req: Box::new(req),
+                placeholder: Box::new(self.current_placeholder_unit()),
             }));
         }
         if let Some(state) = self.pending.control.take() {
             return Ok(Some(Tick::PushControl {
-                state,
-                placeholder: self.current_placeholder_unit(),
+                state: Box::new(state),
+                placeholder: Box::new(self.current_placeholder_unit()),
             }));
         }
         // A `try` defers its body (and, from `advance_try`, each
         // subsequent phase) to a try-phase frame (see `Frame::try_ctx`).
         if let Some(req) = self.pending.try_phase.take() {
             return Ok(Some(Tick::PushTry {
-                req,
+                req: Box::new(req),
                 initial_options: f.last_options.clone(),
             }));
         }
@@ -7804,20 +7948,27 @@ impl Vm {
                         .map(CommandSidecarKey::visible),
                 )?;
                 Ok(Some(Tick::Call {
-                    proc: p,
+                    proc: Box::new(p),
                     invoked: words[0].clone(),
                     argv: words[1..].to_vec(),
+                    lambda_registration: None,
                 }))
             }
             Some(Command::Builtin(bf)) => {
                 self.dispatch_builtin_words(f, words, bf, dispatch.entered, dispatch.context)
             }
             Some(Command::Native(cmd)) => {
-                let res = cmd.invoke(self, &words[1..]);
-                self.settle_native_dispatch(f, res)
+                self.dispatch_native_words(f, words, cmd.as_ref(), dispatch)
             }
-            Some(Command::CallerAlias(target)) => {
-                let mut argv = (*target).clone();
+            Some(Command::CallerAlias(original_prefix)) => {
+                let target = original_prefix
+                    .native_object_list_elements(
+                        tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                    )
+                    .map_err(|error| {
+                        crate::command::completion_from_cmd_error(self, error.into())
+                    })?;
+                let mut argv = target.as_ref().clone();
                 argv.extend_from_slice(&words[1..]);
                 let usage = self.alias_usage_rewrites_value(original, target.len(), dispatch.usage);
                 self.dispatch_alias_words(
@@ -7877,6 +8028,29 @@ impl Vm {
         }
     }
 
+    fn dispatch_native_words(
+        &mut self,
+        frame: &mut Frame,
+        words: &crate::NativeListItems,
+        command: &dyn crate::command::NativeCommand,
+        dispatch: NativeWordDispatch<'_>,
+    ) -> Result<Option<Tick>, Completion<Value>> {
+        let selected = dispatch
+            .entered
+            .and_then(|entered| entered.sidecar.key())
+            .or_else(|| dispatch.sidecar_handle.and_then(CommandSidecarHandle::key))
+            .or_else(|| {
+                dispatch
+                    .selected_key
+                    .clone()
+                    .map(CommandSidecarKey::visible)
+            });
+        let previous = std::mem::replace(&mut self.native_invocation.sidecar, selected);
+        let res = command.invoke(self, &words[1..]);
+        self.native_invocation.sidecar = previous;
+        self.settle_native_dispatch(frame, res)
+    }
+
     fn dispatch_builtin_words(
         &mut self,
         frame: &mut Frame,
@@ -7893,14 +8067,19 @@ impl Vm {
             Some(entered) => entered.builtin_identity.clone(),
             None => self
                 .jim_original_builtin_identity(&words[0])
-                .or_else(|| key.and_then(|key| self.stock_native_identity(&key))),
+                .or_else(|| key.as_ref().and_then(|key| self.stock_native_identity(key))),
         };
         self.retain_invoked_builtin_identity(identity);
+        let previous_sidecar = std::mem::replace(
+            &mut self.native_invocation.sidecar,
+            key.map(CommandSidecarKey::visible),
+        );
         let previous_arguments = self
             .native_invocation
             .arguments
             .replace(words.lifetime_view());
         let result = builtin(self, &words[1..]);
+        self.native_invocation.sidecar = previous_sidecar;
         if result.code == Code::Error {
             self.observe_native_error_result(&result.result);
         }
@@ -7957,10 +8136,11 @@ impl Vm {
         message.extend_from_slice(name);
         message.push(b'"');
         if policy.recipe().is_jim084() {
-            return crate::command::completion_from_cmd_error(
+            let completion = crate::command::completion_from_cmd_error(
                 self,
                 tcl_cmd_core::CmdError::new_bytes(message),
             );
+            return self.publish_native_lookup_failure(completion);
         }
         let mut code = b"TCL LOOKUP COMMAND ".to_vec();
         tcl_syntax::list::append_list_element(&mut code, name, false);
@@ -7979,7 +8159,18 @@ impl Vm {
                 error = error.with_native_string_result(producer.strings());
             }
         }
-        crate::command::completion_from_cmd_error(self, error)
+        let completion = crate::command::completion_from_cmd_error(self, error);
+        self.publish_native_lookup_failure(completion)
+    }
+
+    /// Failed lookup has no entered-handler epilogue to publish its result.
+    /// Use the same interpreter result owner as an actual handler completion.
+    fn publish_native_lookup_failure(
+        &mut self,
+        completion: Completion<Value>,
+    ) -> Completion<Value> {
+        self.publish_native_interp_completion(completion)
+            .unwrap_or_else(|error| self.refuse_host_command(error.to_string()))
     }
 
     fn invoke_missing_command_value(
@@ -8547,6 +8738,25 @@ impl Vm {
         if let Some(refused) = self.refused_completion() {
             return refused;
         }
+        if let Some(req) = self.pending.procedure_call.take() {
+            return match self.enter_proc(
+                &req.proc.proc,
+                &req.proc.body,
+                &req.invoked,
+                &req.arguments,
+            ) {
+                Ok(()) => {
+                    self.install_native_procedure_binding(req.proc.declaration_binding);
+                    let mut frame = Frame::new(req.proc.body, true);
+                    frame.lambda_registration = Some(req.registration);
+                    self.run_activation(frame)
+                }
+                Err(completion) => {
+                    self.retire_original_lambda_registration(&req.registration);
+                    completion
+                }
+            };
+        }
         if let Some(req) = self.pending.expression.take() {
             let placeholder = self.current_placeholder_unit();
             return self.run_activation(Frame::new_expression(req, placeholder));
@@ -8688,8 +8898,16 @@ impl Vm {
                         Err(c) => c,
                     }
                 }
-                Command::CallerAlias(target) => {
-                    let mut full: Vec<Value> = (*target).clone();
+                Command::CallerAlias(original_prefix) => {
+                    let target = match original_prefix.native_object_list_elements(
+                        tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                    ) {
+                        Ok(target) => target,
+                        Err(error) => {
+                            return crate::command::completion_from_cmd_error(self, error.into());
+                        }
+                    };
+                    let mut full: Vec<Value> = target.as_ref().clone();
                     full.extend_from_slice(argv);
                     let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
                     self.invoke_alias_words_with_usage(
@@ -8772,28 +8990,46 @@ impl Vm {
         ) {
             return c;
         }
-        for (local, storage) in link_vars {
-            // Whether this body compiled a local slot for the name decides only
-            // how `info consts` enumerates the projection (#2173); the link
-            // itself is the same either way.
-            let compiled_slot = activation
-                .body
-                .asm
-                .lvt
-                .is_source_local_bytes(local.as_bytes());
-            if let Err(error) = self.add_tcloo_instance_link_bytes(
-                local.as_bytes(),
-                proc.actual_namespace_id(),
-                storage.as_bytes(),
-                compiled_slot,
-            ) {
-                self.pop_call_frame();
-                self.pop_ns();
-                return crate::command::upvar_link_error_bytes(
-                    error,
-                    storage.as_bytes(),
-                    local.as_bytes(),
-                );
+        if let Some(layout) = &activation.body.compiled_local_layout {
+            let protocol = self
+                .name_policy_protocol()
+                .expect("entered method naming protocol")
+                .recipe();
+            for (slot, primary) in layout.names.iter().enumerate() {
+                let Some(primary) = primary else { continue };
+                for (local, storage) in link_vars {
+                    let matches = tcl_syntax::naming::native_oo_variable_resolver_matches(
+                        protocol,
+                        tcl_syntax::naming::NativeOoVariableResolverPurpose::CompiledPrimary,
+                        local.as_bytes(),
+                        primary.as_bytes(),
+                    );
+                    match matches {
+                        Ok(false) => continue,
+                        Ok(true) => {}
+                        Err(error) => {
+                            self.pop_call_frame();
+                            self.pop_ns();
+                            return self.refuse_host_command(format!(
+                                "TclOO compiled variable resolver: {error:?}"
+                            ));
+                        }
+                    }
+                    if let Err(error) = self.add_tcloo_compiled_instance_link(
+                        slot,
+                        proc.actual_namespace_id(),
+                        storage.as_bytes(),
+                    ) {
+                        self.pop_call_frame();
+                        self.pop_ns();
+                        return crate::command::upvar_link_error_bytes(
+                            error,
+                            storage.as_bytes(),
+                            primary.as_bytes(),
+                        );
+                    }
+                    break;
+                }
             }
         }
         self.install_native_procedure_binding(activation.declaration_binding);
@@ -9472,3 +9708,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "exec/native_missing_command_result_tests.rs"]
+mod native_missing_command_result_tests;

@@ -75,6 +75,14 @@ pub fn esc_bytes(bytes: &[u8], limit: usize) -> String {
     }
 }
 
+fn signed_operand(value: i32) -> String {
+    if value >= 0 {
+        format!("+{value}")
+    } else {
+        format!("{value}")
+    }
+}
+
 /// Render a [`FunctionAsm`] to disassembly text.
 #[must_use]
 #[allow(
@@ -95,21 +103,13 @@ fn format_operand<S: BuildHasher>(
         Operand::Label(label) if instr.op.is_jump() => {
             let target = labels.get(label.as_str()).copied().unwrap_or(0);
             let relative = target as i32 - instr.offset;
-            let part = if relative >= 0 {
-                format!("+{relative}")
-            } else {
-                format!("{relative}")
-            };
+            let part = signed_operand(relative);
             (part, format!("\t# pc {target}"))
         }
         Operand::Label(label) if instr.op == Op::START_CMD && j == 0 => {
             let target = labels.get(label.as_str()).copied().unwrap_or(0);
             let relative = target as i32 - instr.offset;
-            let part = if relative >= 0 {
-                format!("+{relative}")
-            } else {
-                format!("{relative}")
-            };
+            let part = signed_operand(relative);
             let count = match instr.operands.get(1) {
                 Some(Operand::Imm(c)) => *c,
                 Some(_) | None => 1,
@@ -164,19 +164,11 @@ fn format_operand<S: BuildHasher>(
                     | Op::REGEXP
             ) =>
         {
-            let part = if *val >= 0 {
-                format!("+{val}")
-            } else {
-                format!("{val}")
-            };
+            let part = signed_operand(*val);
             (part, String::new())
         }
         Operand::Imm(val) if matches!(instr.op, Op::RETURN_IMM | Op::SYNTAX) && j == 0 => {
-            let part = if *val >= 0 {
-                format!("+{val}")
-            } else {
-                format!("{val}")
-            };
+            let part = signed_operand(*val);
             (part, String::new())
         }
         Operand::Imm(val) if instr.op == Op::STR_CLASS => {

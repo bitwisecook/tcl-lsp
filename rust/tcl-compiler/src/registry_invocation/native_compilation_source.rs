@@ -140,7 +140,10 @@ fn original_namespace_binding_compilation(
 /// channel. Source positions alone cannot authenticate transformed argv.
 /// Original traversal supplies a complete segmented vector; later consumers
 /// first match the binding's retained complete vector before using this adapter.
-pub(crate) fn original_native_compiler_words(
+/// This readonly lexical projection supplies executable component geometry,
+/// not native compilation, local-table layout, lookup or Normal permission.
+#[must_use]
+pub fn original_native_compiler_words(
     image: &SourceImage,
     words: &[WordExpr],
     offset: u32,
@@ -360,8 +363,113 @@ mod tests {
     }
 
     #[test]
+    fn original_list_preparations_keep_selected_target_evaluation_order() {
+        // Native proof: naming.list.assignment-literal-versus-alias-target-evaluation
+        // docs/design/analysis/name-resolution-proofs/assignment-literal-versus-alias-target-evaluation.md
+        use tcl_registry::native_compilation::{NativeBodyCompilation, NativeCompilationGrammar};
+        use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;
+        use tcl_registry::native_instruction_plan::NativeInstructionPlan;
+        use tcl_registry::native_list_operations_compilation::{
+            NativeListOperationInstruction, NativeListVariableOperand,
+        };
+        use tcl_syntax::native_variable_words::NativeVariableWordOperand;
+
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let config = LexerConfig::from_grammar(dialect.lexer_grammar);
+            for (source, grammar, operation, inline) in [
+                (
+                    "lassign {one two} first [set first]",
+                    NativeCompilationGrammar::ListAssignment,
+                    tcl_registry::IntrinsicId::ListAssign,
+                    version >= tcl_dialect::TclVersion::V8_5,
+                ),
+                (
+                    "lrange {one two} 0 end",
+                    NativeCompilationGrammar::ListRange,
+                    tcl_registry::IntrinsicId::ListRange,
+                    version >= tcl_dialect::TclVersion::V8_6,
+                ),
+            ] {
+                let spec = tcl_registry::native_compilation::NativeCompilationSpec {
+                    grammar,
+                    operation: tcl_registry::SemanticOperationId::Intrinsic(operation),
+                    body: NativeBodyCompilation::Inherit,
+                };
+                let image = SourceImage::document(source);
+                let words = source_words(&image, config, 0);
+                let invocation = OriginalNativeCompilerInvocation {
+                    image: &image,
+                    words: &words,
+                    offset: 0,
+                    config,
+                    source_protocol: dialect.native_source_string_protocol(),
+                    compiler_dialect: Some(dialect),
+                    context: NativeCompilationContext {
+                        mode: NativeCompilationMode::BytecodeObject,
+                        frame: NativeCompilationFrame::ScriptCode,
+                        ..Default::default()
+                    },
+                    operand_from: 1,
+                };
+                let (selection, preparation) = original_native_compilation(spec, invocation)
+                    .expect("implemented original list compiler preparation");
+                assert_eq!(
+                    matches!(selection, NativeCompilationSelection::Inline { .. }),
+                    inline
+                );
+                if inline {
+                    let NativeInstructionPlan::ListOperations(plan) = preparation
+                        .as_ref()
+                        .and_then(OriginalNativeCompilerPreparation::structured)
+                        .expect("selected original list recipe")
+                    else {
+                        panic!("list operation preparation")
+                    };
+                    if let NativeListOperationInstruction::Assign { list, targets } = plan {
+                        assert_eq!(list, &NativeCompilerWordOperand::Original(1));
+                        assert_eq!(targets.len(), 2);
+                        assert!(matches!(
+                            &targets[1],
+                            NativeListVariableOperand::Original {
+                                operand: NativeCompilerWordOperand::Original(3),
+                                variable: NativeVariableWordOperand::DynamicWord,
+                            }
+                        ));
+                    }
+                } else {
+                    assert_eq!(selection, NativeCompilationSelection::Generic);
+                    assert!(preparation.is_none());
+                }
+                let direct = OriginalNativeCompilerInvocation {
+                    context: NativeCompilationContext {
+                        mode: NativeCompilationMode::Direct,
+                        ..invocation.context
+                    },
+                    ..invocation
+                };
+                assert_eq!(
+                    original_native_compilation(spec, direct),
+                    Some((NativeCompilationSelection::Generic, None))
+                );
+                assert_eq!(
+                    original_native_compilation(
+                        spec,
+                        OriginalNativeCompilerInvocation {
+                            source_protocol: None,
+                            ..invocation
+                        }
+                    ),
+                    Some((NativeCompilationSelection::Unknown, None))
+                );
+            }
+        }
+    }
+
+    #[test]
     fn original_namespace_compiler_words_preserve_release_and_missing_issuer() {
-        let registry = tcl_registry::CommandRegistry::build_default();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let spec = registry
             .native_compilation_for_registration(
                 "variable",
@@ -369,7 +477,8 @@ mod tests {
             )
             .unwrap();
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
             let dialect = tcl_registry::InvocationDialect::of_profile(profile);
             let config = LexerConfig::from_grammar(profile.grammar);
             let image = SourceImage::document("variable ${ns}::v");

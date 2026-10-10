@@ -96,8 +96,13 @@ pub fn project_native_compiler_words(
         }
         if words.literal(index)
             != Some(
-                tcl_syntax::backslash::source_literal_bytes(raw, original.image().channel())
-                    .as_ref(),
+                tcl_syntax::backslash::native_source_literal_bytes(
+                    raw,
+                    original.image().channel(),
+                    words.source_protocol(),
+                )
+                .map_err(|_| NativeCompilerProjectionUnavailable::SourceChannel)?
+                .as_ref(),
             )
         {
             return Err(NativeCompilerProjectionUnavailable::SourceChannel);
@@ -116,10 +121,12 @@ pub fn project_native_compiler_words(
                         .ok()
                         .and_then(|offset| content.start().checked_add(offset))
                         .ok_or(NativeCompilerProjectionUnavailable::SourceGeometry)?;
-                    let value = tcl_syntax::backslash::source_literal_bytes(
+                    let value = tcl_syntax::backslash::native_source_literal_bytes(
                         &raw[element.value.clone()],
                         original.image().channel(),
+                        words.source_protocol(),
                     )
+                    .map_err(|_| NativeCompilerProjectionUnavailable::SourceChannel)?
                     .into_owned();
                     members.push(NativeProjectedCompilerWord {
                         operand: NativeCompilerWordOperand::LiteralExpansion {
@@ -191,6 +198,77 @@ mod tests {
             assert_eq!(value, expected);
             assert_eq!(word.literal.as_deref(), Some(expected));
             assert_eq!(word.shape, NativeCompilationWordShape::Literal);
+        }
+    }
+
+    #[test]
+    fn document_expansion_preserves_source_spans_and_native_produced_units() {
+        // Native proof: naming.source.document-native-utf-ingress
+        // docs/design/analysis/name-resolution-proofs/document-native-utf-ingress.md
+        let source = "variable {*}{A\0😀}";
+        let observations =
+            include_str!("../../tcl-syntax/tests/data/native_source_ingress/observations.tsv");
+        for version in TclVersion::ALL
+            .into_iter()
+            .filter(|version| *version >= TclVersion::V8_5)
+        {
+            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let config = LexerConfig::from_grammar(profile.grammar);
+            for channel in [
+                tcl_lexer::SourceChannel::Document,
+                tcl_lexer::SourceChannel::NativeValue,
+            ] {
+                let image = SourceImage::from_bytes(source.as_bytes(), channel);
+                let original = native_script_words_in(
+                    image,
+                    Span::new(0, u32::try_from(source.len()).unwrap()),
+                    config,
+                )
+                .unwrap()
+                .commands
+                .remove(0)
+                .words;
+                let words =
+                    NativeCompilerWords::capture(&original, NativeStringProtocol::C(version))
+                        .unwrap();
+                let projected = project_native_compiler_words(&words, version).unwrap();
+                let NativeCompilerWordOperand::LiteralExpansion {
+                    value_span, value, ..
+                } = &projected[1].operand
+                else {
+                    panic!("the exact original static list member must retain its source extent");
+                };
+                assert_eq!(
+                    &source.as_bytes()[value_span.as_range()],
+                    "A\0😀".as_bytes()
+                );
+                let expected = if channel == tcl_lexer::SourceChannel::NativeValue {
+                    "A\0😀".as_bytes().to_vec()
+                } else {
+                    let observed = observations
+                        .lines()
+                        .find_map(|row| {
+                            let fields = row.split('\t').collect::<Vec<_>>();
+                            (fields[0] == version.patchlevel()
+                                && fields[1] == "character-channel-source"
+                                && fields[2] == "plain")
+                                .then_some(fields[3])
+                        })
+                        .expect("retained native input value");
+                    let bytes = observed
+                        .as_bytes()
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|pair| {
+                            u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap()
+                        })
+                        .collect::<Vec<_>>();
+                    bytes[..bytes.iter().position(|byte| *byte == b'\n').unwrap()].to_vec()
+                };
+                assert_eq!(value, &expected, "{version:?} {channel:?}");
+                assert_eq!(projected[1].literal.as_deref(), Some(expected.as_slice()));
+            }
         }
     }
 

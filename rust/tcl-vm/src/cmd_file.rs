@@ -239,8 +239,8 @@ const FILE_NS: &[u8] = b"::tcl::file";
 /// ensemble owner: exact match wins, else a unique prefix — so `file ext`
 /// resolves to `extension` (cmdAH.test). `subs` is the emulated release's
 /// table ([`file_subcommands`]). `None` ⇒ no match or ambiguous.
-fn canonical_file_sub<'a>(subs: &[&'a str], sub: &str) -> Option<&'a str> {
-    tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.as_bytes(), true).map(|index| subs[index])
+fn canonical_file_sub<'a>(subs: &[&'a str], sub: &[u8]) -> Option<&'a str> {
+    tcl_cmd_core::ensemble::resolve_subcommand(subs, sub, true).map(|index| subs[index])
 }
 
 /// The platform-independent path-text subcommands of `file` (no filesystem
@@ -334,7 +334,10 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         );
     };
     let s = |v: &Value| v.to_str().to_string();
-    let sub_str = sub.to_str();
+    let sub_bytes = match vm.native_name_operand_bytes(sub) {
+        Ok(bytes) => bytes,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
     let subs = crate::environment::release_subcommands(
         vm.runtime_version().dialect_profile_name(),
         "file",
@@ -343,16 +346,10 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // A miss reports here rather than falling through with the raw word: the
     // arms below match on the canonical name, so a word the *pinned release*
     // does not have would otherwise still dispatch.
-    let Some(canon) = canonical_file_sub(subs, &sub_str) else {
-        return err(
-            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                sub_str.as_bytes(),
-                true,
-                FILE_NS,
-            ))
-            .into_owned(),
-        );
+    let Some(canon) = canonical_file_sub(subs, &sub_bytes) else {
+        return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+            subs, &sub_bytes, true, FILE_NS,
+        ));
     };
     // Pure path-text subcommands (no filesystem access) are handled first; the
     // rest fall through to the filesystem-backed ops below.

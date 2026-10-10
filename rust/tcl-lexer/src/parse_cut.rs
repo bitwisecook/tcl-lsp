@@ -498,24 +498,14 @@ fn drain(
                         return Ok(Some((report_at.unwrap_or(*offset), *term, message)));
                     }
                     WordJob::Content { content, fallback } => {
-                        let arena = ExecutablePartArena::decompose(
+                        let pushed = content_part_frame(
                             image.clone(),
                             *content,
-                            SubstFlags::default(),
-                            config,
-                        )
-                        .map_err(ParseCutUnavailable::SourceGeometry)?;
-                        let list = arena.root();
-                        let pushed = Frame::Parts {
-                            arena: Rc::new(arena),
-                            list,
-                            base: *base,
-                            next: 0,
+                            *base,
                             report_at,
-                            fallback: fallback.map(|(offset, term, message)| {
-                                (report_at.unwrap_or(offset), term, message)
-                            }),
-                        };
+                            *fallback,
+                            config,
+                        )?;
                         stack.push(pushed);
                     }
                 }
@@ -544,7 +534,15 @@ fn drain(
                     ExecutablePart::Text(_)
                     | ExecutablePart::Expression { .. }
                     | ExecutablePart::Variable { index: None, .. } => {}
-                    ExecutablePart::ParseError(message) => return Ok(Some((at, here, message))),
+                    ExecutablePart::ParseError(message) => {
+                        let term = component
+                            .parse_error_term()
+                            .and_then(|term| base.checked_add(term))
+                            .ok_or(ParseCutUnavailable::SourceGeometry(
+                                crate::word_parts::ExecutablePartsUnavailable::SourceGeometry,
+                            ))?;
+                        return Ok(Some((at, term, message)));
+                    }
                     ExecutablePart::Variable {
                         index: Some(index), ..
                     } => {
@@ -570,6 +568,28 @@ fn drain(
         }
     }
     Ok(None)
+}
+
+fn content_part_frame(
+    image: SourceImage,
+    content: Span,
+    base: u32,
+    report_at: Option<u32>,
+    fallback: Option<(u32, u32, &'static str)>,
+    config: LexerConfig,
+) -> Result<Frame, ParseCutUnavailable> {
+    let arena = ExecutablePartArena::decompose(image, content, SubstFlags::default(), config)
+        .map_err(ParseCutUnavailable::SourceGeometry)?;
+    let list = arena.root();
+    Ok(Frame::Parts {
+        arena: Rc::new(arena),
+        list,
+        base,
+        next: 0,
+        report_at,
+        fallback: fallback
+            .map(|(offset, term, message)| (report_at.unwrap_or(offset), term, message)),
+    })
 }
 
 fn command_part_frame(
@@ -676,6 +696,9 @@ fn offset_of(at: usize) -> u32 {
 mod tests {
     use super::{EXTRA_AFTER_CLOSE_QUOTE, ParseCut, first_parse_cut};
     use crate::LexerConfig;
+    use crate::{
+        ExecutablePartArena, SourceImage, Span, SubstFlags, first_parse_cut_image_checked,
+    };
 
     #[test]
     fn deep_index_cut_preserves_outer_anchor_and_exact_inner_term() {
@@ -1007,6 +1030,87 @@ mod tests {
                 Some(want),
                 "{script:?}"
             );
+        }
+    }
+
+    #[test]
+    fn original_nested_parse_error_terms_keep_the_failed_delimiter() {
+        // Native proof: naming.grammar.c84-parser-context-extents (docs/design/analysis/name-resolution-proofs/grammar-c84-parser-context-extents.md).
+        // The original C8.4 capture rows 6 and 9 retain terms 13 and 11.
+        for source in [
+            SourceImage::document("set x [bad x \"abc"),
+            SourceImage::native(b"set x [bad x \"abc".as_slice()),
+        ] {
+            let cut = first_parse_cut_image_checked(&source, LexerConfig::for_dialect("tcl8.4"))
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                (cut.command, cut.offset, cut.term, cut.message),
+                (0, 6, 13, crate::word_parts::MISSING_QUOTE)
+            );
+            let arena = ExecutablePartArena::decompose(
+                source.clone(),
+                Span::new(6, u32::try_from(source.len()).unwrap()),
+                SubstFlags::default(),
+                LexerConfig::for_dialect("tcl8.4"),
+            )
+            .unwrap();
+            let [component] = arena.list(arena.root()) else {
+                panic!("one rejected original component");
+            };
+            assert_eq!(component.span.start(), 6);
+            assert_eq!(component.parse_error_term(), Some(13));
+        }
+        let source = SourceImage::native(b"set x [bad {".as_slice());
+        let cut = first_parse_cut_image_checked(&source, LexerConfig::for_dialect("tcl8.4"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (cut.command, cut.offset, cut.term, cut.message),
+            (0, 6, 11, crate::word_parts::MISSING_CLOSE_BRACE)
+        );
+    }
+
+    #[test]
+    fn original_error_term_rebasing_preserves_native_bytes_and_inner_reference() {
+        // Implementation contract: naming.grammar.original-error-term-geometry (docs/design/analysis/name-resolution-proofs/original-error-term-geometry.md).
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let config = LexerConfig::for_dialect(environment);
+            for (source, offset, term, message) in [
+                (
+                    b"set x [bad \xff \"\0".as_slice(),
+                    6,
+                    13,
+                    crate::word_parts::MISSING_QUOTE,
+                ),
+                (
+                    b"set x [bad ${name".as_slice(),
+                    6,
+                    12,
+                    crate::MISSING_CLOSE_BRACE_FOR_VAR,
+                ),
+                (
+                    b"set x $a([bad \"abc".as_slice(),
+                    6,
+                    14,
+                    crate::word_parts::MISSING_QUOTE,
+                ),
+                (
+                    b"set x [[".as_slice(),
+                    6,
+                    7,
+                    crate::word_parts::MISSING_CLOSE_BRACKET,
+                ),
+            ] {
+                let cut = first_parse_cut_image_checked(&SourceImage::native(source), config)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(
+                    (cut.offset, cut.term, cut.message),
+                    (offset, term, message),
+                    "{environment} {source:?}"
+                );
+            }
         }
     }
 

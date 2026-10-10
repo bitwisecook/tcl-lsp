@@ -247,6 +247,11 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let Some(name_obj) = argv.get(index) else {
             return interp.set_error(b"array subcommand has incomplete registry metadata");
         };
+        if interp.native_c_variable_name_protocol().is_some() {
+            if let Err(code) = interp.prepare_original_c_array_name(*name_obj) {
+                return code;
+            }
+        }
         let name = obj_bytes(*name_obj);
         return interp.with_array_trace_target(&name, |interp, target| {
             array_cmd_after_trace(
@@ -270,9 +275,8 @@ fn array_cmd_after_trace(
     default_option: Option<&'static [u8]>,
     target: Option<&tcl_runtime_api::ArrayTarget>,
 ) -> Code {
-    let sub_str = String::from_utf8_lossy(sub);
     if let Some(result) =
-        tcl_cmd_core::native_array_search::dispatch(interp, &sub_str, &argv[2..], target)
+        tcl_cmd_core::native_array_search::dispatch_bytes(interp, sub, &argv[2..], target)
     {
         return match result {
             Ok(value) => {
@@ -285,7 +289,7 @@ fn array_cmd_after_trace(
     // The read-side + `unset` are the shared `tcl_cmd_core::array` core (over
     // this runtime's `VarStore`/`Frames`/`ValueOps`); a fresh-or-borrowed result
     // object is retained by `set_result`.
-    if let Some(result) = tcl_cmd_core::array::dispatch_at(interp, &sub_str, &argv[2..], target) {
+    if let Some(result) = tcl_cmd_core::array::dispatch_bytes_at(interp, sub, &argv[2..], target) {
         return match result {
             Ok(result) => {
                 if let Some(miss) = result.read_miss {
@@ -453,6 +457,15 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args_for_prefix(argv, 2, b"arrayName list");
     }
+    if interp.native_c_variable_name_protocol().is_some() {
+        return match interp.set_original_c_array(argv[2], argv[3]) {
+            Ok(()) => {
+                interp.set_result_bytes(b"");
+                Code::Ok
+            }
+            Err(code) => code,
+        };
+    }
     let name = obj_bytes(argv[2]);
     // An array-element name (`foo(bar)`) can't be the target of `array set`.
     if crate::frame::split_array_ref(&name).1.is_some() {
@@ -510,14 +523,29 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 #[cfg(test)]
+mod undefined_root;
+
+#[cfg(test)]
 mod tests {
     use crate::counters;
     use crate::interp::{new_string, Code, Interp};
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
+        leak_free_native(crate::environment::profile_for_dialect("tcl9.0"), body);
+    }
+
+    fn leak_free_native(
+        profile: &'static tcl_dialect::DialectProfile,
+        body: impl FnOnce(&mut Interp),
+    ) {
         counters::reset();
         {
-            let mut interp = Interp::new();
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .expect("selected original native interpreter constructor");
             body(&mut interp);
         }
         assert_eq!(
@@ -530,12 +558,25 @@ mod tests {
         assert_eq!(counters::double_free_count(), 0);
     }
 
+    fn leak_free_dictionary_distribution(
+        profile: &'static tcl_dialect::DialectProfile,
+        body: impl FnOnce(&mut Interp),
+    ) {
+        leak_free_native(profile, |interp| {
+            // CLI specimens include Jim's loaded stdlib; the native core does not.
+            crate::cmd_proc::install_stock_scripted_wrappers(interp);
+            body(interp);
+        });
+    }
+
     fn run(i: &mut Interp, src: &[u8]) -> Vec<u8> {
         assert_eq!(
             i.eval_str(src),
             Code::Ok,
-            "eval {:?}",
-            String::from_utf8_lossy(src)
+            "eval {:?}; result {:?}; refusal {:?}",
+            String::from_utf8_lossy(src),
+            i.result_bytes(),
+            i.native_access_refusal()
         );
         i.result_bytes()
     }
@@ -543,29 +584,31 @@ mod tests {
     #[test]
     fn search_absence_and_original_root_retirement_are_guest_observations() {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            leak_free(|interp| {
-                interp.set_dialect_profile(
-                    tcl_registry::model::resolve_environment(dialect).unit_profile(),
-                );
-                assert_eq!(
-                    run(
-                        interp,
-                        b"catch {array startsearch missing} result; set result"
-                    ),
-                    b"\"missing\" isn't an array"
-                );
-                assert_eq!(run(interp, b"array set a {k V}; set s [array startsearch a]; unset a; array set a {k V}; catch {array anymore a $s} result; set result"), b"couldn't find search \"s-1-a\"");
-            });
+            leak_free_native(
+                tcl_registry::model::resolve_environment(dialect).unit_profile(),
+                |interp| {
+                    assert_eq!(
+                        run(
+                            interp,
+                            b"catch {array startsearch missing} result; set result"
+                        ),
+                        b"\"missing\" isn't an array"
+                    );
+                    assert_eq!(run(interp, b"array set a {k V}; set s [array startsearch a]; unset a; array set a {k V}; catch {array anymore a $s} result; set result"), b"couldn't find search \"s-1-a\"");
+                },
+            );
         }
-        leak_free(|interp| {
-            interp.set_dialect_profile(
-                tcl_registry::model::resolve_environment("jim").unit_profile(),
-            );
-            assert!(
-                !crate::environment::release_subcommands("jim", "array", super::SUBCOMMANDS)
-                    .contains(&b"startsearch".as_slice())
-            );
-        });
+        leak_free_native(
+            tcl_registry::model::resolve_environment("jim").unit_profile(),
+            |_| {
+                assert!(!crate::environment::release_subcommands(
+                    "jim",
+                    "array",
+                    super::SUBCOMMANDS
+                )
+                .contains(&b"startsearch".as_slice()));
+            },
+        );
     }
 
     #[test]
@@ -612,46 +655,47 @@ mod tests {
         for (dialect, capture) in captures {
             for line in capture.lines() {
                 let fields: Vec<_> = line.split('\t').collect();
-                leak_free(|interp| {
-                    interp.set_dialect_profile(
-                        tcl_registry::model::resolve_environment(dialect).unit_profile(),
-                    );
-                    run(
-                        interp,
-                        b"array set a {k00 V k01 V k02 V}; array startsearch a",
-                    );
-                    let handle =
-                        Owned::fresh(new_string(inputs[fields[0].parse::<usize>().unwrap()]));
-                    let head = Owned::fresh(new_string(b"array"));
-                    let member = Owned::fresh(new_string(b"anymore"));
-                    let name = Owned::fresh(new_string(b"a"));
-                    let argv = [
-                        head.as_ptr(),
-                        member.as_ptr(),
-                        name.as_ptr(),
-                        handle.as_ptr(),
-                    ];
-                    let code = super::array_cmd(interp, &argv);
-                    assert_eq!(code == Code::Error, fields[1] == "1", "{dialect}: {line}");
-                    let result: String = interp
-                        .result_bytes()
-                        .iter()
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect();
-                    assert_eq!(result, fields[5], "{dialect}: {line}");
-                    let protocol = <Interp as tcl_cmd_core::native_array_search::NativeArraySearchBackend>::array_search_protocol(interp).unwrap();
-                    let cache = crate::obj::native_array_search_cache_in(handle.as_ptr(), protocol)
-                        .unwrap();
-                    assert_eq!(
-                        cache.is_some(),
-                        fields[2] == "array search",
-                        "{dialect}: {line}"
-                    );
-                    if let Some(cache) = cache {
-                        assert_eq!(cache.id, fields[3].parse::<i32>().unwrap());
-                        assert_eq!(cache.name_offset, fields[4].parse::<usize>().unwrap());
-                    }
-                });
+                leak_free_native(
+                    tcl_registry::model::resolve_environment(dialect).unit_profile(),
+                    |interp| {
+                        run(
+                            interp,
+                            b"array set a {k00 V k01 V k02 V}; array startsearch a",
+                        );
+                        let handle =
+                            Owned::fresh(new_string(inputs[fields[0].parse::<usize>().unwrap()]));
+                        let head = Owned::fresh(new_string(b"array"));
+                        let member = Owned::fresh(new_string(b"anymore"));
+                        let name = Owned::fresh(new_string(b"a"));
+                        let argv = [
+                            head.as_ptr(),
+                            member.as_ptr(),
+                            name.as_ptr(),
+                            handle.as_ptr(),
+                        ];
+                        let code = super::array_cmd(interp, &argv);
+                        assert_eq!(code == Code::Error, fields[1] == "1", "{dialect}: {line}");
+                        let result: String = interp
+                            .result_bytes()
+                            .iter()
+                            .map(|byte| format!("{byte:02x}"))
+                            .collect();
+                        assert_eq!(result, fields[5], "{dialect}: {line}");
+                        let protocol = <Interp as tcl_cmd_core::native_array_search::NativeArraySearchBackend>::array_search_protocol(interp).unwrap();
+                        let cache =
+                            crate::obj::native_array_search_cache_in(handle.as_ptr(), protocol)
+                                .unwrap();
+                        assert_eq!(
+                            cache.is_some(),
+                            fields[2] == "array search",
+                            "{dialect}: {line}"
+                        );
+                        if let Some(cache) = cache {
+                            assert_eq!(cache.id, fields[3].parse::<i32>().unwrap());
+                            assert_eq!(cache.name_offset, fields[4].parse::<usize>().unwrap());
+                        }
+                    },
+                );
                 rows += 1;
             }
         }
@@ -707,16 +751,16 @@ mod tests {
                 .map(|line| format!("{{{line}}}"))
                 .collect::<Vec<_>>()
                 .join(" ");
-            leak_free(|interp| {
-                interp.set_dialect_profile(
-                    tcl_registry::model::resolve_environment(dialect).unit_profile(),
-                );
-                assert_eq!(
-                    run(interp, source.as_bytes()),
-                    expected.as_bytes(),
-                    "{dialect}"
-                );
-            });
+            leak_free_native(
+                tcl_registry::model::resolve_environment(dialect).unit_profile(),
+                |interp| {
+                    assert_eq!(
+                        run(interp, source.as_bytes()),
+                        expected.as_bytes(),
+                        "{dialect}"
+                    );
+                },
+            );
             rows += capture.lines().count();
         }
         assert_eq!(rows, 65);
@@ -740,13 +784,13 @@ mod tests {
             };
             let source = decode(fields[2]);
             let expected = decode(fields[3]);
-            leak_free(|interp| {
-                interp.set_dialect_profile(
-                    tcl_registry::model::resolve_environment(dialect).unit_profile(),
-                );
-                assert_eq!(interp.eval_str(&source), Code::Ok, "{row}");
-                assert_eq!(interp.result_bytes(), expected, "{row}");
-            });
+            leak_free_native(
+                tcl_registry::model::resolve_environment(dialect).unit_profile(),
+                |interp| {
+                    assert_eq!(interp.eval_str(&source), Code::Ok, "{row}");
+                    assert_eq!(interp.result_bytes(), expected, "{row}");
+                },
+            );
             count += 1;
         }
         assert_eq!(count, 88);
@@ -768,31 +812,20 @@ mod tests {
                 "9.1.0" => "tcl9.1",
                 _ => unreachable!(),
             };
-            leak_free(|interp| {
-                interp.set_dialect_profile(
-                    tcl_registry::model::resolve_environment(dialect).unit_profile(),
-                );
-                assert_eq!(interp.eval_str(&decode(fields[2])), Code::Ok, "{row}");
-                assert_eq!(interp.result_bytes(), decode(fields[3]), "{row}");
-            });
+            leak_free_native(
+                tcl_registry::model::resolve_environment(dialect).unit_profile(),
+                |interp| {
+                    assert_eq!(interp.eval_str(&decode(fields[2])), Code::Ok, "{row}");
+                    assert_eq!(interp.result_bytes(), decode(fields[3]), "{row}");
+                },
+            );
             count += 1;
         }
         assert_eq!(count, 16);
     }
 
-    /// `array` is a `TclMakeEnsemble` command, so its scan and
-    /// miss sentence belong to `tcl_cmd_core::ensemble`, rather than an exact
-    /// match against a hand-joined list. Resolving first also means `array e
-    /// a` fires the variable's `array` trace under the canonical name.
-    /// `array default`'s own word is a `Tcl_GetIndexFromObj(…, "option", 0)`
-    /// table in *C table* order, not alphabetical.
-    ///
-    /// tclsh 9.0.4 (the verdicts, not this runtime's shortened list):
-    ///   array e a          -> 1        ;  array ex a -> 1
-    ///   array s a          -> unknown or ambiguous subcommand "s": must be …
-    ///   array default {} a -> ambiguous option "": must be get, set, exists, or unset
-    ///   array default x a  -> bad option "x": must be get, set, exists, or unset
-    ///   array default e a  -> 0        ;  array default ex a -> 0
+    // Native proof: naming.variable.original-eval-container-storage-columns
+    // docs/design/analysis/name-resolution-proofs/variable-original-eval-container-storage-columns.md
     #[test]
     fn variable_container_storage_matches_all_native_columns() {
         use tcl_test_support::variable_containers::{
@@ -811,23 +844,108 @@ mod tests {
                 .zip(expected.lines())
                 .enumerate()
             {
-                leak_free(|interp| {
-                    interp.set_dialect_profile(profile);
+                leak_free_dictionary_distribution(profile, |interp| {
                     assert_eq!(
                         interp.eval_str(source.as_bytes()),
                         Code::Ok,
-                        "{dialect} case {index}: {source}"
-                    );
-                    assert_eq!(
+                        "{dialect} case {index}: {source}; result={:?}; refusal={:?}",
                         interp.result_bytes(),
-                        wanted.as_bytes(),
-                        "{dialect} case {index}: {source}"
+                        interp.native_access_refusal(),
                     );
+                    let observed = interp.result_bytes();
+                    if observed != wanted.as_bytes() {
+                        let detail_code = interp.eval_str(b"set r");
+                        assert_eq!(
+                            observed,
+                            wanted.as_bytes(),
+                            "{dialect} case {index}: {source}; caught result ({detail_code:?}): {:?}",
+                            interp.result_bytes()
+                        );
+                    }
                 });
             }
         }
     }
 
+    // Native proof: naming.jim.dictionary-core-versus-stdlib-bootstrap
+    // docs/design/analysis/name-resolution-proofs/jim-dictionary-core-versus-stdlib-bootstrap.md
+    #[test]
+    fn jim_dictionary_worker_requires_explicit_distribution_initialisation() {
+        let profile = tcl_registry::model::resolve_environment("jim").unit_profile();
+        let source = b"set d {first NEW};set ok BEFORE;set entered 0;set c [catch {dict update d first ok {set entered 1}} r];list [info commands {dict update}] $c $r $ok $entered $d";
+        let observe = |interp: &mut Interp| {
+            let result = run(interp, source);
+            let fields = tcl_syntax::list::split_native_list_bytes(
+                &result,
+                tcl_syntax::native_string::NativeStringProtocol::Jim084,
+            )
+            .expect("native public observation is a Jim list");
+            assert_eq!(fields.len(), 6);
+            // The separate enumeration field does not prove worker availability.
+            fields[1..]
+                .iter()
+                .map(|field| field.to_vec())
+                .collect::<Vec<_>>()
+        };
+        leak_free_native(profile, |interp| {
+            assert_eq!(
+                observe(interp),
+                [
+                    b"1".to_vec(),
+                    b"invalid command name \"dict update\"".to_vec(),
+                    b"BEFORE".to_vec(),
+                    b"0".to_vec(),
+                    b"first NEW".to_vec(),
+                ],
+                "core public invocation and caller-value projection"
+            );
+            crate::cmd_proc::install_stock_scripted_wrappers(interp);
+            assert_eq!(
+                observe(interp),
+                [
+                    b"0".to_vec(),
+                    b"1".to_vec(),
+                    b"NEW".to_vec(),
+                    b"1".to_vec(),
+                    b"first NEW".to_vec(),
+                ],
+                "shared distribution public invocation and caller-value projection"
+            );
+        });
+    }
+
+    // Native proof: naming.variable.jim-dict-update-reference-controls
+    // docs/design/analysis/name-resolution-proofs/variable-jim-dict-update-reference-controls.md
+    #[test]
+    fn dictionary_update_first_original_mapping_reaches_caller_storage() {
+        let source = b"set d {first NEW};set ok BEFORE;set entered 0;set c [catch {dict update d first ok {set entered 1}} r];list $c $r $ok $entered $d";
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::resolve_environment(dialect).unit_profile();
+            leak_free_dictionary_distribution(profile, |interp| {
+                assert_eq!(
+                    interp.eval_str(source),
+                    Code::Ok,
+                    "{dialect}: {:?}",
+                    interp.result_bytes()
+                );
+                assert_eq!(interp.result_bytes(), b"0 1 NEW 1 {first NEW}", "{dialect}");
+            });
+        }
+    }
+
+    /// `array` is a `TclMakeEnsemble` command, so its scan and
+    /// miss sentence belong to `tcl_cmd_core::ensemble`, rather than an exact
+    /// match against a hand-joined list. Resolving first also means `array e
+    /// a` fires the variable's `array` trace under the canonical name.
+    /// `array default`'s own word is a `Tcl_GetIndexFromObj(…, "option", 0)`
+    /// table in *C table* order, not alphabetical.
+    ///
+    /// tclsh 9.0.4 (the verdicts, not this runtime's shortened list):
+    ///   array e a          -> 1        ;  array ex a -> 1
+    ///   array s a          -> unknown or ambiguous subcommand "s": must be …
+    ///   array default {} a -> ambiguous option "": must be get, set, exists, or unset
+    ///   array default x a  -> bad option "x": must be get, set, exists, or unset
+    ///   array default e a  -> 0        ;  array default ex a -> 0
     #[test]
     fn array_ensemble_and_default_option_resolve_like_tclsh() {
         const MUST: &str = "must be anymore, default, donesearch, exists, for, get, names, nextelement, set, size, startsearch, or unset";
@@ -866,6 +984,154 @@ mod tests {
             assert_eq!(run(i, b"array default ex a"), b"0");
             i.eval_str(b"unset a");
         });
+    }
+
+    fn original_array_set_probe(interp: &mut Interp, argv: &[*mut crate::obj::TclObj]) -> Code {
+        let original = argv[1];
+        let empty = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b""));
+        if let Err(code) = interp.set_original_c_array(original, empty.as_ptr()) {
+            return code;
+        }
+        assert!(
+            crate::obj::native_variable_name::with_parsed(original, |cache| cache.array.is_none())
+                .unwrap()
+        );
+        let value = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"VALUE"));
+        let key = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"k"));
+        let values =
+            crate::obj::Owned::fresh(crate::list::new_list_obj(&[key.as_ptr(), value.as_ptr()]));
+        if let Err(code) = interp.set_original_c_array(original, values.as_ptr()) {
+            return code;
+        }
+        let name = crate::obj::bytes_of(original);
+        assert_eq!(interp.var_get_elem(&name, b"k"), Some(value.as_ptr()));
+        if interp.native_c_variable_name_protocol().unwrap().version()
+            >= tcl_dialect::TclVersion::V8_5
+        {
+            let dictionary = crate::obj::Owned::fresh(
+                crate::dict::new_dict_obj_native(
+                    &[(key.as_ptr(), value.as_ptr())],
+                    None,
+                    tcl_syntax::native_string::NativeStringProtocol::C(
+                        interp.native_c_variable_name_protocol().unwrap().version(),
+                    ),
+                )
+                .unwrap(),
+            );
+            let before = crate::obj::obj_type_ptr(dictionary.as_ptr());
+            if let Err(code) = interp.set_original_c_array(original, dictionary.as_ptr()) {
+                return code;
+            }
+            assert_eq!(crate::obj::obj_type_ptr(dictionary.as_ptr()), before);
+            assert_eq!(interp.var_get_elem(&name, b"k"), Some(value.as_ptr()));
+        }
+        interp.set_result_bytes(b"");
+        Code::Ok
+    }
+
+    #[test]
+    fn original_array_set_name_and_values_keep_their_genuine_headers() {
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        // Native case23 observes the source operand's parsedVarName cache.
+        // This API control separately checks empty/nonempty stores and original
+        // value identity; it does not claim a native instruction or header birth.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            leak_free_native(crate::environment::profile_for_dialect(engine), |interp| {
+                interp.register_builtin(b"originalArraySetProbe", original_array_set_probe);
+                assert_eq!(
+                    interp.eval_str(b"originalArraySetProbe ::genuineArray"),
+                    Code::Ok,
+                    "{engine}: {:?}",
+                    interp.result_bytes()
+                );
+                assert!(!interp.host_refusal_pending());
+                assert_eq!(run(interp, b"array get ::genuineArray"), b"k VALUE");
+            });
+        }
+    }
+
+    #[test]
+    fn original_array_set_selects_root_before_parity_and_keeps_callback_results() {
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        // Source/API controls supplement the unchanged native case21/23/27
+        // completion/cache windows; no callback timing inference comes from them.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            leak_free_native(crate::environment::profile_for_dialect(engine), |interp| {
+                let name = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"::oddArray"));
+                let values = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"k"));
+                assert_eq!(
+                    interp.set_original_c_array(name.as_ptr(), values.as_ptr()),
+                    Err(Code::Error)
+                );
+                assert!(!interp.host_refusal_pending());
+                assert!(
+                    crate::obj::native_variable_name::with_parsed(name.as_ptr(), |cache| cache
+                        .array
+                        .is_none())
+                    .unwrap()
+                );
+                assert_eq!(
+                    interp.result_bytes(),
+                    b"list must have an even number of elements"
+                );
+                assert_eq!(run(interp, b"array exists ::oddArray"), b"0");
+                // naming.variable.original-traced-array-root-materialisation
+                // docs/design/analysis/name-resolution-proofs/variable-original-traced-array-root-materialisation.md
+                // Public callback result only, independent of native cache windows.
+                let script = include_bytes!(
+                    "../../../rust/tcl-registry/tests/data/native_array_traced_root345/source.tcl"
+                );
+                assert_eq!(run(interp, script), b"FIRST LAST");
+            });
+        }
+    }
+
+    #[test]
+    fn original_array_set_declines_without_a_genuine_c_variable_issuer() {
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        // Actual Jim naming supplies no C variable issuer. Refusal precedes
+        // either original header's conversion; this is a source/API control.
+        leak_free_native(crate::environment::profile_for_dialect("jim"), |interp| {
+            assert!(interp.native_c_variable_name_protocol().is_none());
+            let name = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"unowned"));
+            let values = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b""));
+            assert_eq!(
+                interp.set_original_c_array(name.as_ptr(), values.as_ptr()),
+                Err(Code::Error)
+            );
+            assert!(interp.host_refusal_pending());
+            assert!(crate::obj::obj_type_ptr(name.as_ptr()).is_null());
+            assert!(crate::obj::obj_type_ptr(values.as_ptr()).is_null());
+        });
+    }
+
+    #[test]
+    fn original_array_set_default_engine_keeps_its_actual_variable_recipe() {
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        // The default interpreter owns a known C execution release even with
+        // an unpinned assistance profile. No compiler or bootstrap grant is
+        // inferred from this independent variable-handler API control.
+        counters::reset();
+        {
+            let mut interp = Interp::new();
+            let protocol = interp.native_c_variable_name_protocol().unwrap();
+            assert_eq!(protocol.version(), interp.runtime_version());
+            let name = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"defaultArray"));
+            let values = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b""));
+            assert_eq!(
+                interp.set_original_c_array(name.as_ptr(), values.as_ptr()),
+                Ok(())
+            );
+            assert!(!interp.host_refusal_pending());
+            assert!(interp.var_is_array(b"defaultArray"));
+            assert!(crate::obj::native_variable_name::with_parsed(name.as_ptr(), |_| ()).is_some());
+        }
+        assert_eq!(counters::finalize(), 0);
+        assert_eq!(counters::double_free_count(), 0);
     }
 
     #[test]
@@ -910,9 +1176,21 @@ mod tests {
     }
 
     #[test]
+    fn jim_dictionary_array_reads_keep_static_copies_and_selected_frames() {
+        // naming.array.jim-original-dictionary-runtime-enumeration
+        // docs/design/analysis/name-resolution-proofs/array-jim-original-dictionary-runtime-enumeration.md
+        leak_free_native(crate::environment::profile_for_dialect("jim"), |interp| {
+            assert_eq!(run(interp, b"set a(k) VALUE; proc p {} {a} {array get a}; set a(k) NEW; list [p] [array get a]"), b"{k VALUE} {k NEW}");
+            assert_eq!(run(interp, b"proc q {} {set a(k) LOCAL; upvar #0 a outer; list [array get a] [array get outer]}; q"), b"{k LOCAL} {k NEW}");
+            assert!(!interp.host_refusal_pending());
+        });
+    }
+
+    #[test]
     fn jim_array_byte_keys_count_and_unset_without_unicode_projection() {
-        leak_free(|interp| {
-            interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+        // naming.array.jim-original-dictionary-runtime-enumeration
+        // docs/design/analysis/name-resolution-proofs/array-jim-original-dictionary-runtime-enumeration.md
+        leak_free_native(crate::environment::profile_for_dialect("jim"), |interp| {
             let dictionary = crate::list::new_list_obj(&[
                 crate::obj::new_string_bytes(b"\xff"),
                 crate::obj::new_string_bytes(b"ONE"),

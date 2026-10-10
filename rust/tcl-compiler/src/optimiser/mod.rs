@@ -342,6 +342,19 @@ impl<'a> PassContext<'a> {
         tcl_dialect::BracedVarStyle::of_profile(self.dialect)
     }
 
+    /// Complete metadata supplied by this exact compilation module.
+    /// Missing or foreign input remains unavailable; catalogue labels do not
+    /// establish current availability, implementation or body entry.
+    #[must_use]
+    pub fn retained_metadata_context(
+        &self,
+    ) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
+        crate::registry_invocation::retained_source_metadata_context(
+            self.registry?,
+            self.ir_module?.source_metadata_input.as_ref(),
+        )
+    }
+
     /// Execution policy for value folding and string materialisation. Exact
     /// source-entry engine knowledge takes precedence over catalogue profiles.
     #[must_use]

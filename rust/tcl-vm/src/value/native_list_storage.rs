@@ -20,7 +20,7 @@
 
 use super::{IntRep, NativeStringProtocol, Value};
 use tcl_cmd_core::native_list_storage::{
-    NativeListRangeAction, NativeListRangeStorage, range_action,
+    NativeListRangeAction, NativeListRangeSelection, NativeListRangeStorage,
 };
 use tcl_dialect::TclVersion;
 use tcl_syntax::{native_compiled_index::NativeCompiledListRange, value::ValueError};
@@ -32,12 +32,30 @@ impl Value {
         coordinates: NativeCompiledListRange,
         protocol: NativeStringProtocol,
     ) -> Result<Self, ValueError> {
+        self.native_list_selected_range(NativeListRangeSelection::Immediate(coordinates), protocol)
+    }
+
+    pub(crate) fn native_list_command_range(
+        &self,
+        first: i64,
+        last: i64,
+        protocol: NativeStringProtocol,
+    ) -> Result<Self, ValueError> {
+        self.native_list_selected_range(NativeListRangeSelection::Command { first, last }, protocol)
+    }
+
+    fn native_list_selected_range(
+        &self,
+        selection: NativeListRangeSelection,
+        protocol: NativeStringProtocol,
+    ) -> Result<Self, ValueError> {
         let version = protocol
             .tcl_version()
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "native compiled List range release",
             ))?;
-        if version >= TclVersion::V9_0
+        if selection.is_immediate()
+            && version >= TclVersion::V9_0
             && self.resident_string_storage_identity()
                 == Some(tcl_syntax::native_string::NativeStringStorageIdentity::CanonicalEmpty)
         {
@@ -46,18 +64,14 @@ impl Value {
         drop(self.native_object_list_elements(protocol)?);
         let shared = self.native_object_is_shared();
         let mut primary = self.0.intrep.borrow_mut();
-        let IntRep::List {
-            items, canonical, ..
-        } = &mut *primary
-        else {
+        let IntRep::List { items, .. } = &mut *primary else {
             unreachable!("original List getter installed its storage")
         };
         if version >= TclVersion::V9_0 && !shared {
             items.collect_unreferenced()?;
         }
-        let action = range_action(
+        let action = selection.action(
             version,
-            coordinates,
             NativeListRangeStorage {
                 length: items.len(),
                 header_shared: shared,
@@ -74,8 +88,44 @@ impl Value {
                 ),
             },
         )?;
+        self.apply_native_list_range(action, primary, shared, version, protocol)
+    }
+
+    fn apply_native_list_range(
+        &self,
+        action: NativeListRangeAction,
+        mut primary: std::cell::RefMut<'_, IntRep>,
+        shared: bool,
+        version: TclVersion,
+        protocol: NativeStringProtocol,
+    ) -> Result<Self, ValueError> {
+        let IntRep::List {
+            items, canonical, ..
+        } = &mut *primary
+        else {
+            unreachable!("original List getter installed its storage")
+        };
         match action {
             NativeListRangeAction::OriginalEmpty => Ok(self.clone()),
+            NativeListRangeAction::EmptyList => {
+                let result = crate::NativeListItems::new(Vec::new(), false);
+                if shared {
+                    Ok(Self::from_parts(
+                        None,
+                        IntRep::List {
+                            canonical: result.canonical_state(),
+                            items: result,
+                            string_protocol: std::cell::Cell::new(Some(protocol)),
+                        },
+                    ))
+                } else {
+                    *canonical = result.canonical_state();
+                    *items = result;
+                    drop(primary);
+                    self.invalidate_native_list_string();
+                    Ok(self.clone())
+                }
+            }
             NativeListRangeAction::FreshEmpty => {
                 Ok(Self::native_list_constructor(Vec::new(), protocol))
             }
@@ -158,6 +208,40 @@ impl Value {
 mod tests {
     use super::*;
     use tcl_syntax::native_compiled_index::NativeCompiledListIndex;
+
+    #[test]
+    fn command_range_empty_result_has_actual_list_store_only_from_c9() {
+        // naming.list.original-range-objects-and-instructions
+        // docs/design/analysis/name-resolution-proofs/list.original-range-objects-and-instructions.md
+        // Inspect reached result birth before string/list result materialisation.
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let original = Value::string("A B C");
+            let alias = original.clone();
+            let result = original
+                .native_list_command_range(12, 2, NativeStringProtocol::C(version))
+                .unwrap();
+            assert_eq!(
+                result.cached_list_representation().is_some(),
+                version >= TclVersion::V9_0
+            );
+            assert_eq!(
+                result.resident_string_bytes().is_some(),
+                version < TclVersion::V9_0
+            );
+            if let Some((items, _)) = result.cached_list_representation() {
+                assert_eq!(items.len(), 0);
+                assert_eq!(items.capacity(), Some(1));
+            }
+            assert_eq!(&*original.resident_string_bytes().unwrap(), b"A B C");
+            drop(alias);
+        }
+    }
 
     #[test]
     fn original_list_ranges_preserve_all_five_native_shared_header_windows() {

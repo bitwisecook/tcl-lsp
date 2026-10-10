@@ -1,0 +1,20 @@
+{
+  "question": "naming.jim.dictionary-core-versus-stdlib-bootstrap",
+  "problem": "Does current Jim core registration itself install the scripted dictionary worker, and how does explicit audited stdlib initialization affect the same public caller-mapping program?",
+  "source_sha256": "e74ee5e45b0b9f4f30bfaac4521339b2728fdb466c52fb62682be7b467760b8f",
+  "providers": [
+    "jim"
+  ],
+  "channel": "Compiled C API probe: original Jim_CreateInterp then Jim_RegisterCoreCommands, original Jim_Eval ASCII source, explicit Jim_stdlibInit, same original Jim_Eval ASCII source. Each result reports guest code and counted hex bytes; initialization return is distinct. No full jimsh/optional extension roster or private frame/header claim.",
+  "required_source_files": [
+    "jim.h",
+    "jim.c",
+    "stdlib.tcl",
+    "_stdlib.c",
+    "_load-static-exts.c",
+    "jimsh.c",
+    "Makefile",
+    "libjim.a"
+  ],
+  "other_providers": "not-tested: this question selects the actual Jim stdlib API only"
+}

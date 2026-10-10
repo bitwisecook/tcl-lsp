@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized] target(s) in 0.17s
+     Running unittests src/lib.rs (/workspace/.targets/naming-runtime/debug/deps/tcl_vm-13c4a8dc710f7193)
+
+running 2 tests
+test cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls ... ok
+test cmd_coro::native_injection_tests::original_injection_order_and_error_continuation_match_native_callbacks ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 644 filtered out; finished in 0.58s
+

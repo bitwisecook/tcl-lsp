@@ -1700,6 +1700,8 @@ mod tests {
         }
     }
 
+    // Native proof: naming.variable.dictionary-missing-receiver-and-array-default-phases
+    // docs/design/analysis/name-resolution-proofs/variable.dictionary-missing-receiver-and-array-default-phases.md
     #[test]
     fn dictionary_receiver_and_defaults_match_original_native_scripts() {
         fn unhex(hex: &str) -> Vec<u8> {

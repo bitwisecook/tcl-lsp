@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::formal_value::tests::original_receiver_formal_prefix_keeps_unrelated_aliases_and_refuses_clobbers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8209 filtered out; finished in 5.12s
+

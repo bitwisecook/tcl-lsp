@@ -51,12 +51,8 @@ impl PreservingCommandPublication {
         if name.is_empty()
             || !state.namespaces.contains(holder.as_ref())
             || state.unknown_lookup_namespaces.contains(holder.as_ref())
-            || state.bindings.get(&slot).cloned().unwrap_or_else(|| {
-                ModuleCommandBindings::unmodified_bindings(
-                    &slot,
-                    state.baseline.semantics.binding_names(),
-                )
-            }) != std::collections::BTreeSet::from([super::MayBinding::Missing])
+            || state.binding_alternatives(&slot)
+                != std::collections::BTreeSet::from([super::MayBinding::Missing])
         {
             return None;
         }

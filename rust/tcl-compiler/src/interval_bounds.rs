@@ -47,9 +47,11 @@ use crate::intervals::{
     Interval, build_guard_index, compute_intervals_with, refine_interval_for_value,
 };
 use crate::ir::Statement;
-use crate::registry_invocation::{resolved_statement_invocation, resolved_tokens_invocation};
+use crate::registry_invocation::{
+    InvocationMetadataContext, resolved_statement_invocation_with_metadata_context,
+    resolved_tokens_invocation_with_metadata_context,
+};
 use crate::ssa::{Phi, SsaFunction, SsaSourceView, Symbol, ValueKey, Version};
-use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
 
 /// `(name, version) → Phi` index over every block, for length resolution
@@ -124,11 +126,13 @@ fn lset_length_change(
     proofs: &LengthProofs<'_, '_>,
 ) -> Option<i64> {
     let stmt = definition.statement;
-    let Some(invocation) = crate::registry_invocation::normal_statement_representation(
-        proofs.semantics.registry,
-        proofs.semantics.context,
-        &stmt.statement,
-    ) else {
+    let Some(invocation) =
+        crate::registry_invocation::normal_statement_representation_with_metadata_context(
+            proofs.semantics.registry,
+            proofs.semantics.context,
+            &stmt.statement,
+        )
+    else {
         if !proofs.conditional_declaration
             || definition
                 .declaration_input
@@ -136,11 +140,12 @@ fn lset_length_change(
         {
             return None;
         }
-        let access = crate::registry_invocation::conditional_index_access_advice(
-            proofs.semantics.registry,
-            proofs.semantics.context,
-            definition.source.source_tokens()?,
-        )?;
+        let access =
+            crate::registry_invocation::conditional_index_access_advice_with_metadata_context(
+                proofs.semantics.registry,
+                proofs.semantics.context,
+                definition.source.source_tokens()?,
+            )?;
         return (access.kind == crate::registry_invocation::NormalIndexAccessKind::ListWrite
             && access.list_set_bounds == Some(tcl_dialect::ListSetBounds::ExistingElement)
             && !access.index.is_empty())
@@ -340,14 +345,22 @@ fn list_command_length(stmt: &Statement, semantics: BoundsSemantics<'_>) -> Opti
     else {
         return None;
     };
-    let outer = resolved_statement_invocation(semantics.registry, semantics.context, stmt)?;
+    let outer = resolved_statement_invocation_with_metadata_context(
+        semantics.registry,
+        semantics.context,
+        stmt,
+    )?;
     let word = outer.effective.words.get(2)?;
     let mut nested = crate::word_subst::whole_word_command_tokens(
         word,
         tcl_lexer::LexerConfig::from_grammar(semantics.grammar),
     )?;
     nested.inherit_nested_bindings(parent);
-    let invocation = resolved_tokens_invocation(semantics.registry, semantics.context, &nested)?;
+    let invocation = resolved_tokens_invocation_with_metadata_context(
+        semantics.registry,
+        semantics.context,
+        &nested,
+    )?;
     if invocation.facts.operation != SemanticOperationId::Intrinsic(IntrinsicId::ListConstruct)
         || invocation
             .effective
@@ -368,14 +381,16 @@ fn list_length_map(ssa: &SsaFunction, semantics: BoundsSemantics<'_>) -> HashMap
         for s in &sb.statements {
             let n = match &s.statement {
                 Statement::AssignConst { value, .. } => literal_list_length(value, rules),
-                Statement::AssignValue { .. } => resolved_statement_invocation(
-                    semantics.registry,
-                    semantics.context,
-                    &s.statement,
-                )
-                .and_then(|invocation| invocation.argument_literal(1))
-                .and_then(|value| literal_list_length(&value, rules))
-                .or_else(|| list_command_length(&s.statement, semantics)),
+                Statement::AssignValue { .. } => {
+                    resolved_statement_invocation_with_metadata_context(
+                        semantics.registry,
+                        semantics.context,
+                        &s.statement,
+                    )
+                    .and_then(|invocation| invocation.argument_literal(1))
+                    .and_then(|value| literal_list_length(&value, rules))
+                    .or_else(|| list_command_length(&s.statement, semantics))
+                }
                 _ => normal_stored_literal(&s.statement, semantics)
                     .and_then(|value| literal_list_length(&value, rules)),
             };
@@ -397,7 +412,7 @@ fn list_length_map(ssa: &SsaFunction, semantics: BoundsSemantics<'_>) -> HashMap
 fn normal_stored_literal(statement: &Statement, semantics: BoundsSemantics<'_>) -> Option<String> {
     let tokens = statement.tokens()?;
     let binding = tokens.source_binding.as_ref()?;
-    crate::registry_invocation::normal_transfer_invocation(
+    crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
         semantics.registry,
         semantics.context,
         tokens,
@@ -421,12 +436,14 @@ fn string_length_map(
         for s in &sb.statements {
             let value = match &s.statement {
                 Statement::AssignConst { value, .. } => Some(value.clone()),
-                Statement::AssignValue { .. } => resolved_statement_invocation(
-                    semantics.registry,
-                    semantics.context,
-                    &s.statement,
-                )
-                .and_then(|invocation| invocation.argument_literal(1)),
+                Statement::AssignValue { .. } => {
+                    resolved_statement_invocation_with_metadata_context(
+                        semantics.registry,
+                        semantics.context,
+                        &s.statement,
+                    )
+                    .and_then(|invocation| invocation.argument_literal(1))
+                }
                 _ => normal_stored_literal(&s.statement, semantics),
             };
             let Some(resolved) = value else { continue };
@@ -613,17 +630,19 @@ fn statement_candidates(
     semantics: BoundsSemantics<'_>,
 ) -> Vec<Candidate> {
     let mut out = Vec::new();
-    if let Some(invocation) = crate::registry_invocation::normal_statement_representation(
-        semantics.registry,
-        semantics.context,
-        stmt,
-    ) && let Some(candidate) = invocation_candidate(&invocation)
+    if let Some(invocation) =
+        crate::registry_invocation::normal_statement_representation_with_metadata_context(
+            semantics.registry,
+            semantics.context,
+            stmt,
+        )
+        && let Some(candidate) = invocation_candidate(&invocation)
     {
         out.push(candidate);
     }
     if out.is_empty()
         && let Some(access) = stmt.tokens().and_then(|tokens| {
-            crate::registry_invocation::conditional_index_access_advice(
+            crate::registry_invocation::conditional_index_access_advice_with_metadata_context(
                 semantics.registry,
                 semantics.context,
                 tokens,
@@ -653,11 +672,12 @@ fn statement_candidates(
         tcl_lexer::LexerConfig::from_grammar(semantics.grammar),
     ) {
         if let Some(tokens) = nested.tokens.as_ref()
-            && let Some(invocation) = crate::registry_invocation::normal_representation_invocation(
-                semantics.registry,
-                semantics.context,
-                tokens,
-            )
+            && let Some(invocation) =
+                crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                    semantics.registry,
+                    semantics.context,
+                    tokens,
+                )
             && let Some(candidate) = invocation_candidate(&invocation)
         {
             out.push(candidate);
@@ -685,11 +705,12 @@ pub(crate) fn report_interval_operand_gates(
     for (block, body) in &fu.ssa.blocks {
         for (index, statement) in body.statements.iter().enumerate() {
             let view = SsaSourceView::at_statement(&fu.ssa, *block, index);
-            let normal = crate::registry_invocation::normal_statement_representation(
-                semantics.registry,
-                semantics.context,
-                &statement.statement,
-            );
+            let normal =
+                crate::registry_invocation::normal_statement_representation_with_metadata_context(
+                    semantics.registry,
+                    semantics.context,
+                    &statement.statement,
+                );
             let candidates = statement_candidates(&statement.statement, view, semantics);
             if let Some(tokens) = statement.statement.tokens() {
                 eprintln!(
@@ -756,8 +777,10 @@ pub(crate) fn report_interval_operand_gates(
 pub struct BoundsSemantics<'a> {
     /// Actual command registry for this compilation unit.
     pub registry: &'a CommandRegistry,
-    /// Selected interpreter environment, if available.
-    pub context: Option<SemanticContext>,
+    /// Complete supplied availability generation. Actual contexts retain their
+    /// command-store identity; explicit standalone callers may supply `None`.
+    /// Metadata grants no Native lookup, cell, normal effect or compiler proof.
+    pub context: Option<InvocationMetadataContext<'a>>,
     /// Document word grammar.
     pub grammar: tcl_dialect::LexerGrammar,
 }
@@ -919,7 +942,7 @@ fn conditional_index_layout_exists(ssa: &SsaFunction, semantics: BoundsSemantics
             SsaSourceView::at_statement(ssa, block, index)
                 .source_tokens()
                 .is_some_and(|tokens| {
-                    crate::registry_invocation::conditional_index_access_advice(
+                    crate::registry_invocation::conditional_index_access_advice_with_metadata_context(
                         semantics.registry,
                         semantics.context,
                         tokens,
@@ -938,7 +961,7 @@ fn declaration_lset_input(
 ) -> Option<ValueKey> {
     let view = SsaSourceView::at_statement(ssa, block, index);
     let tokens = view.source_tokens()?;
-    let access = crate::registry_invocation::conditional_index_access_advice(
+    let access = crate::registry_invocation::conditional_index_access_advice_with_metadata_context(
         semantics.registry,
         semantics.context,
         tokens,
@@ -1200,7 +1223,7 @@ impl BoundsCtx<'_> {
             ) {
                 if let Some(tokens) = nested.tokens.as_ref()
                     && let Some(invocation) =
-                        crate::registry_invocation::normal_representation_invocation(
+                        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
                             self.semantics.registry,
                             self.semantics.context,
                             tokens,
@@ -1576,6 +1599,133 @@ fn statement_span(stmt: &Statement) -> Option<Span> {
 #[cfg(test)]
 mod tests {
     use crate::analyser::Analyser;
+
+    fn context_test_unit(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> crate::compilation_unit::CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            std::sync::Arc::clone(context),
+        )
+    }
+
+    fn context_test_candidates(
+        function: &crate::compilation_unit::FunctionUnit,
+        semantics: super::BoundsSemantics<'_>,
+    ) -> Vec<super::Candidate> {
+        function
+            .ssa
+            .blocks
+            .iter()
+            .flat_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .flat_map(move |(index, row)| {
+                        super::statement_candidates(
+                            &row.statement,
+                            crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index),
+                            semantics,
+                        )
+                    })
+            })
+            .collect()
+    }
+
+    #[test]
+    fn retained_bounds_context_keeps_availability_source_operands_and_store_identity() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // A custom gated source descriptor; no stock release-availability or Native-entry claim.
+        use super::*;
+        use std::sync::Arc;
+        let source = "proc f {i} {lset values $i NEW}";
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let mut registry = CommandRegistry::build_default();
+        let mut gated = registry.get("lset").unwrap().clone();
+        gated.surface = registry.get("dict").unwrap().surface;
+        registry.insert(gated);
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl9.0")
+                .with_command_store(Arc::new(registry)),
+        );
+        let unit = context_test_unit(source, &context);
+        let function = &unit.procedures["::f"];
+        let original = function
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements.iter().enumerate().find_map(|(index, _)| {
+                    SsaSourceView::at_statement(&function.ssa, block, index).source_tokens()
+                })
+            })
+            .unwrap();
+        assert!(
+            original
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .execution_is_unknown()
+        );
+        let selected = BoundsSemantics {
+            registry: context.commands(),
+            context: Some(context.as_ref().into()),
+            grammar: profile.grammar,
+        };
+        let positive = context_test_candidates(function, selected);
+        assert_eq!(positive.len(), 1);
+        assert!(
+            positive[0].conditional_handler,
+            "source layout cannot create a normal native handler"
+        );
+        assert_eq!(positive[0].index_arg, "$i");
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(Arc::clone(context.commands()));
+        assert!(Arc::ptr_eq(older.commands(), context.commands()));
+        let unavailable = BoundsSemantics {
+            context: Some((&older).into()),
+            ..selected
+        };
+        assert!(context_test_candidates(function, unavailable).is_empty());
+        let mut foreign = CommandRegistry::build_default();
+        foreign.insert(tcl_registry::CommandSpec {
+            name: "foreign-marker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let foreign_context = context.with_command_store(Arc::new(foreign));
+        let mismatched = BoundsSemantics {
+            context: Some((&foreign_context).into()),
+            ..selected
+        };
+        assert!(context_test_candidates(function, mismatched).is_empty());
+        let replaced = context_test_unit(
+            "proc lset {args} {}; proc f {i} {lset values $i NEW}",
+            &context,
+        );
+        assert!(context_test_candidates(&replaced.procedures["::f"], selected).is_empty());
+        let mut missing = original.clone();
+        missing.source_binding = None;
+        assert!(
+            crate::registry_invocation::conditional_index_access_advice_with_metadata_context(
+                selected.registry,
+                selected.context,
+                &missing
+            )
+            .is_none()
+        );
+    }
 
     #[test]
     fn bounds_follow_live_command_identity_and_literal_body_quoting() {

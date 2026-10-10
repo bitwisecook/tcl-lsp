@@ -50,6 +50,106 @@ impl SubstitutionKinds {
     };
 }
 
+/// Actual Subst option declaration selected independently of operand objects.
+/// Original enum/index caches and handler registration remain separate owners.
+#[derive(Debug, Clone, Copy)]
+pub struct NativeSubstitutionOptions {
+    positive: bool,
+    noun: &'static str,
+    jim: bool,
+}
+
+/// A selected Subst option sequence has no flag interpretation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubstitutionOptionError {
+    /// Positive and negative families cannot be combined.
+    MixedFamilies,
+    /// An ordinal does not belong to the selected declaration.
+    UnknownOption,
+}
+
+impl NativeSubstitutionOptions {
+    /// Select the actual supported C release or Jim option declaration.
+    /// This does not select a command implementation or materialise operands.
+    #[must_use]
+    pub fn select(dialect: crate::InvocationDialect) -> Option<Self> {
+        use tcl_dialect::{TclVersion, model::Family};
+        match dialect.family()? {
+            Family::Tcl => {
+                let version = dialect.tcl_version?;
+                Some(Self {
+                    positive: version == TclVersion::V9_1,
+                    jim: false,
+                    noun: if version <= TclVersion::V8_5 {
+                        "switch"
+                    } else {
+                        "option"
+                    },
+                })
+            }
+            Family::Jim
+                if dialect.native_string_protocol()
+                    == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084) =>
+            {
+                Some(Self {
+                    positive: false,
+                    noun: "option",
+                    jim: true,
+                })
+            }
+            _ => None,
+        }
+    }
+
+    /// Static native table order, used by the original enum/index owner.
+    #[must_use]
+    pub const fn names(self) -> &'static [&'static str] {
+        if self.positive {
+            &[
+                "-backslashes",
+                "-commands",
+                "-variables",
+                "-nobackslashes",
+                "-nocommands",
+                "-novariables",
+            ]
+        } else {
+            &["-nobackslashes", "-nocommands", "-novariables"]
+        }
+    }
+
+    /// Native diagnostic noun for a failed option selection.
+    #[must_use]
+    pub const fn noun(self) -> &'static str {
+        self.noun
+    }
+
+    /// Native wrong-argument usage for this declaration.
+    #[must_use]
+    pub const fn usage(self) -> &'static str {
+        if self.positive {
+            "subst ?-backslashes? ?-commands? ?-variables? ?-nobackslashes? ?-nocommands? ?-novariables? string"
+        } else if self.jim {
+            "subst ?options? string"
+        } else {
+            "subst ?-nobackslashes? ?-nocommands? ?-novariables? string"
+        }
+    }
+
+    /// Fold selected declaration ordinals through the one native flag-family owner.
+    ///
+    /// # Errors
+    /// Refuses foreign ordinals and mixed positive/negative families.
+    pub fn kinds(self, selected: &[usize]) -> Result<SubstitutionKinds, SubstitutionOptionError> {
+        let switches = selected
+            .iter()
+            .map(|&index| self.names().get(index).copied())
+            .collect::<Option<Vec<_>>>()
+            .ok_or(SubstitutionOptionError::UnknownOption)?;
+        subst_switches(&switches)
+    }
+}
+
 /// Resolver for a substituting command whose switches change which kinds run.
 ///
 /// Takes the call's post-name arguments, exactly as
@@ -108,7 +208,7 @@ impl TemplateParseErrors {
     #[must_use]
     pub const fn variable_syntax(self) -> tcl_lexer::word_parts::TemplateVariableSyntax {
         match self {
-            Self::Rejected => tcl_lexer::word_parts::TemplateVariableSyntax::WrittenWord,
+            Self::Rejected => tcl_lexer::word_parts::TemplateVariableSyntax::CTcl,
             Self::Jim084 => tcl_lexer::word_parts::TemplateVariableSyntax::Jim084,
         }
     }
@@ -163,13 +263,12 @@ impl crate::ResolvedInvocation<'_, '_> {
             };
             switches.push(option.name);
         }
-        let negated = switches.iter().any(|word| word.starts_with("-no"));
-        if negated && switches.iter().any(|word| !word.starts_with("-no")) {
+        let Ok(kinds) = subst_switches(&switches) else {
             return Selection::InvalidArguments;
-        }
+        };
         Selection::Template {
             template_at,
-            kinds: subst_switches(&switches),
+            kinds,
             parse_errors,
         }
     }
@@ -242,11 +341,7 @@ pub(crate) fn compiler_template_kinds(
         .ok_or(Selection::Generic)?;
         switches.push(option.name);
     }
-    let negated = switches.iter().any(|word| word.starts_with("-no"));
-    if negated && switches.iter().any(|word| !word.starts_with("-no")) {
-        return Err(Selection::Generic);
-    }
-    Ok(subst_switches(&switches))
+    subst_switches(&switches).map_err(|_| Selection::Generic)
 }
 
 /// The `subst` switch grammar, as the manpages describe it.
@@ -265,10 +360,10 @@ pub fn subst_substitutions(args: &[&str]) -> SubstitutionKinds {
     let Some((_operand, switches)) = args.split_last() else {
         return SubstitutionKinds::ALL;
     };
-    subst_switches(switches)
+    subst_switches(switches).unwrap_or(SubstitutionKinds::ALL)
 }
 
-fn subst_switches(switches: &[&str]) -> SubstitutionKinds {
+fn subst_switches(switches: &[&str]) -> Result<SubstitutionKinds, SubstitutionOptionError> {
     let mut negated = SubstitutionKinds::ALL;
     let mut positive = SubstitutionKinds::NONE;
     let mut saw_negated = false;
@@ -299,21 +394,96 @@ fn subst_switches(switches: &[&str]) -> SubstitutionKinds {
                 positive.variables = true;
                 saw_positive = true;
             }
-            _ => return SubstitutionKinds::ALL,
+            _ => return Err(SubstitutionOptionError::UnknownOption),
         }
     }
     match (saw_negated, saw_positive) {
         // The two families together are an error Tcl raises, not a shape with
         // a meaning to report.
-        (true, true) => SubstitutionKinds::ALL,
-        (false, true) => positive,
-        _ => negated,
+        (true, true) => Err(SubstitutionOptionError::MixedFamilies),
+        (false, true) => Ok(positive),
+        _ => Ok(negated),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{SubstitutionKinds, subst_substitutions};
+
+    #[test]
+    fn native_runtime_option_declaration_matches_registry_surface_and_family_fold() {
+        // Native proof: naming.substitution.original-options-and-flag-families
+        // docs/design/analysis/name-resolution-proofs/substitution-original-options-and-flag-families.md
+        use super::{
+            NativeSubstitutionOptions, SubstitutionOptionError,
+            SubstitutionTemplateSelection as Selection,
+        };
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let context = crate::model::ingress::static_context_for(engine);
+            let dialect =
+                crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+            let options = NativeSubstitutionOptions::select(dialect).unwrap();
+            assert_eq!(options.kinds(&[]), Ok(SubstitutionKinds::ALL));
+            assert_eq!(
+                options.kinds(&[options.names().len()]),
+                Err(SubstitutionOptionError::UnknownOption)
+            );
+            let words = [
+                crate::InvocationWord::Literal("-variables"),
+                crate::InvocationWord::Literal("$x"),
+            ];
+            let invocation =
+                crate::InvocationWords::structured(crate::InvocationWord::Literal("subst"), &words)
+                    .with_dialect(dialect);
+            let resolved = context
+                .commands()
+                .resolve_structured_invocation(invocation, dialect.authoring_query())
+                .resolved()
+                .unwrap();
+            let declared = resolved
+                .semantics
+                .options
+                .available()
+                .map(|option| option.name)
+                .collect::<std::collections::BTreeSet<_>>();
+            assert_eq!(
+                declared,
+                options.names().iter().copied().collect(),
+                "{engine}"
+            );
+            let selected = resolved.native_substitution_template();
+            if engine == "tcl9.1" {
+                assert_eq!(
+                    options.names()[..3],
+                    ["-backslashes", "-commands", "-variables"]
+                );
+                assert_eq!(
+                    options.kinds(&[2]),
+                    Ok(SubstitutionKinds {
+                        variables: true,
+                        ..SubstitutionKinds::NONE
+                    })
+                );
+                assert_eq!(
+                    options.kinds(&[2, 4]),
+                    Err(SubstitutionOptionError::MixedFamilies)
+                );
+                assert!(matches!(
+                    selected,
+                    Selection::Template {
+                        kinds: SubstitutionKinds {
+                            backslashes: false,
+                            commands: false,
+                            variables: true
+                        },
+                        ..
+                    }
+                ));
+            } else {
+                assert_eq!(selected, Selection::InvalidArguments, "{engine}");
+            }
+        }
+    }
 
     #[test]
     fn native_template_selection_retains_flags_availability_and_unknown_operands() {

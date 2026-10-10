@@ -1,0 +1,103 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+    Checking tcl-cshim v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cshim)
+error: unused import: `super::*`
+   --> rust/tcl-compiler/src/registry_invocation/source_publication.rs:163:9
+    |
+163 |     use super::*;
+    |         ^^^^^^^^
+    |
+    = note: `-D unused-imports` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: function `widen_token_end` is never used
+   --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:320:4
+    |
+320 | fn widen_token_end(tok: tcl_lexer::Token, source: &str) -> u32 {
+    |    ^^^^^^^^^^^^^^^
+    |
+    = note: `-D dead-code` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: redundant closure
+    --> rust/tcl-compiler/src/analyser/commands.rs:1342:26
+     |
+1342 |             .with_schema(|schema| schema.authored_source_rule_procedure_operand())
+     |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_rule_procedure_operand`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+     = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: redundant closure
+    --> rust/tcl-compiler/src/analyser/commands.rs:4936:61
+     |
+4936 |             let callback_arity = callback.as_ref().and_then(|prefix| prefix.appended_arity());
+     |                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `super::super::command_binding::original_callback_lookup::OriginalCallbackPrefix::appended_arity`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: redundant closure
+    --> rust/tcl-compiler/src/analyser/commands.rs:4939:28
+     |
+4939 |                 .map_or(0, |prefix| prefix.baked_argument_count());
+     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `super::super::command_binding::original_callback_lookup::OriginalCallbackPrefix::baked_argument_count`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: this `if` statement can be collapsed
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:315:9
+    |
+315 | /         if let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body) {
+316 | |             if self.context.retain_original_body_constructor_calls(
+317 | |                 tape,
+318 | |                 graph,
+...   |
+327 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+315 ~         if let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body)
+316 ~             && self.context.retain_original_body_constructor_calls(
+317 |                 tape,
+...
+325 |                 return Some(());
+326 ~             }
+    |
+
+error: assigning the result of `Clone::clone()` may be inefficient
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs:134:9
+    |
+134 |         declaration.procedure_body = graph.procedure_body.clone();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: use `clone_from()`: `declaration.procedure_body.clone_from(&graph.procedure_body)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#assigning_clones
+    = note: `-D clippy::assigning-clones` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assigning_clones)]`
+
+error: this argument is passed by value, but not consumed in the function body
+    --> rust/tcl-compiler/src/command_binding/source_transition_advice.rs:1498:21
+     |
+1498 |         invocation: tcl_lexer::NativeScriptCommandWords,
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value
+     = note: `-D clippy::needless-pass-by-value` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::needless_pass_by_value)]`
+help: consider taking a reference instead
+     |
+1498 |         invocation: &tcl_lexer::NativeScriptCommandWords,
+     |                     +
+
+error: could not compile `tcl-compiler` (lib) due to 7 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 8 previous errors

@@ -52,10 +52,45 @@ pub enum SourceChannel {
 ///
 /// Equality includes the channel. Grammar, interpreter identity and compilation
 /// authority remain independently supplied by the caller's retained entry.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Hashing caches the immutable byte digest. Derived line positions are shared
+/// across clones and excluded from equality, hashing and ordering. These still
+/// compare the complete original bytes and channel, including hash collisions.
+#[derive(Debug, Clone)]
 pub struct SourceImage {
     bytes: std::sync::Arc<[u8]>,
     channel: SourceChannel,
+    geometry: std::sync::Arc<SourceImageGeometry>,
+}
+
+#[derive(Debug)]
+struct SourceImageGeometry {
+    byte_hash: u64,
+    line_index: Option<LineIndex>,
+}
+
+impl PartialEq for SourceImage {
+    fn eq(&self, other: &Self) -> bool {
+        self.channel == other.channel && self.bytes == other.bytes
+    }
+}
+impl Eq for SourceImage {}
+impl PartialOrd for SourceImage {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for SourceImage {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.bytes
+            .cmp(&other.bytes)
+            .then_with(|| self.channel.cmp(&other.channel))
+    }
+}
+impl std::hash::Hash for SourceImage {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.geometry.byte_hash, state);
+        std::hash::Hash::hash(&self.channel, state);
+    }
 }
 
 impl SourceImage {
@@ -68,19 +103,27 @@ impl SourceImage {
     /// Retain original bytes with an explicitly selected input channel.
     #[must_use]
     pub fn from_bytes(bytes: impl Into<std::sync::Arc<[u8]>>, channel: SourceChannel) -> Self {
+        use std::hash::{Hash, Hasher};
+        let bytes = bytes.into();
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        bytes.hash(&mut hash);
+        let geometry = std::sync::Arc::new(SourceImageGeometry {
+            byte_hash: hash.finish(),
+            line_index: u32::try_from(bytes.len())
+                .is_ok()
+                .then(|| LineIndex::from_bytes(&bytes)),
+        });
         Self {
-            bytes: bytes.into(),
+            bytes,
             channel,
+            geometry,
         }
     }
 
     /// Retain Unicode document bytes with source-channel continuation rules.
     #[must_use]
     pub fn document(text: &str) -> Self {
-        Self {
-            bytes: text.as_bytes().into(),
-            channel: SourceChannel::Document,
-        }
+        Self::from_bytes(text.as_bytes(), SourceChannel::Document)
     }
 
     /// Borrow the exact original script bytes.
@@ -372,9 +415,19 @@ impl<'src> SourceMap<'src> {
     }
 
     /// Index an immutable source image with its original channel policy.
+    /// The exact image owns its reusable derived line geometry; no grammar,
+    /// context, source correspondence or execution authority is cached here.
     #[must_use]
     pub fn from_image(source: &'src SourceImage) -> Self {
-        Self::from_bytes_with_channel(source.bytes(), source.channel())
+        Self::from_bytes_with_line_index(
+            source.bytes(),
+            source.channel(),
+            source
+                .geometry
+                .line_index
+                .clone()
+                .unwrap_or_else(|| LineIndex::from_bytes(source.bytes())),
+        )
     }
 
     /// Resolve a byte offset to a full `SourcePosition`. O(log n).
@@ -653,5 +706,123 @@ mod native_byte_tests {
             assert_eq!(map.position_at(8).line, 8);
             assert_eq!(map.position_at(8).offset, 48);
         }
+    }
+}
+
+#[cfg(test)]
+mod source_image_hash_tests {
+    use super::*;
+    use std::hash::{Hash, Hasher};
+
+    fn hash(image: &SourceImage) -> u64 {
+        let mut state = std::collections::hash_map::DefaultHasher::new();
+        image.hash(&mut state);
+        state.finish()
+    }
+
+    #[test]
+    fn source_image_cached_hash_preserves_full_equality_order_and_channel() {
+        // Implementation contract: naming.source.cached-image-hash (docs/design/analysis/name-resolution-proofs/cached-image-hash.md).
+        let native = SourceImage::native(b"p\xff\0tail".as_slice());
+        let equal = SourceImage::from_bytes(native.shared_bytes(), SourceChannel::NativeValue);
+        assert_eq!(native, equal);
+        assert_eq!(hash(&native), hash(&equal));
+        assert_eq!(native.cmp(&equal), std::cmp::Ordering::Equal);
+        let document = SourceImage::from_bytes(native.shared_bytes(), SourceChannel::Document);
+        assert_ne!(native, document);
+        assert_ne!(hash(&native), hash(&document));
+        assert!(native < document);
+        assert!(SourceImage::native(b"a".as_slice()) < SourceImage::native(b"b".as_slice()));
+    }
+
+    #[test]
+    fn source_image_digest_collision_does_not_merge_map_or_order_identity() {
+        // Implementation contract: naming.source.cached-image-hash (docs/design/analysis/name-resolution-proofs/cached-image-hash.md).
+        let first = SourceImage::native(b"first\xff".as_slice());
+        let mut second = SourceImage::native(b"second\0".as_slice());
+        second.geometry = std::sync::Arc::new(super::SourceImageGeometry {
+            byte_hash: first.geometry.byte_hash,
+            line_index: second.geometry.line_index.clone(),
+        });
+        assert_eq!(hash(&first), hash(&second));
+        assert_ne!(first, second);
+        assert_ne!(first.cmp(&second), std::cmp::Ordering::Equal);
+        let mut values = std::collections::HashMap::new();
+        values.insert(first.clone(), 1);
+        values.insert(second.clone(), 2);
+        assert_eq!(values.len(), 2);
+        assert_eq!(values.get(&first), Some(&1));
+        assert_eq!(values.get(&second), Some(&2));
+    }
+}
+
+#[cfg(test)]
+mod immutable_image_geometry_tests {
+    use super::{SourceChannel, SourceImage, SourceMap};
+    use std::hash::{Hash, Hasher};
+
+    fn hash(image: &SourceImage) -> u64 {
+        let mut state = std::collections::hash_map::DefaultHasher::new();
+        image.hash(&mut state);
+        state.finish()
+    }
+
+    #[test]
+    fn original_image_positions_reuse_immutable_geometry_without_changing_identity() {
+        // naming.source.original-immutable-image-geometry
+        // docs/design/analysis/name-resolution-proofs/original-immutable-image-geometry.md
+        let text = "first\r\né\n😀\0last";
+        let original = SourceImage::document(text);
+        let clone = original.clone();
+        let independent = SourceImage::document(text);
+        let before = hash(&original);
+        assert!(original.geometry.line_index.is_some());
+        let direct = SourceMap::new(text);
+        for offset in 0..=u32::try_from(text.len()).unwrap() {
+            assert_eq!(
+                original.source_map().position_at(offset),
+                direct.position_at(offset)
+            );
+            assert_eq!(
+                clone.source_map().position_at(offset),
+                direct.position_at(offset)
+            );
+        }
+        assert!(std::sync::Arc::ptr_eq(&original.geometry, &clone.geometry));
+        assert!(!std::sync::Arc::ptr_eq(
+            &original.geometry,
+            &independent.geometry
+        ));
+        assert!(independent.geometry.line_index.is_some());
+        assert_eq!(original, independent);
+        assert_eq!(original.cmp(&independent), std::cmp::Ordering::Equal);
+        assert_eq!(before, hash(&original));
+        assert_eq!(before, hash(&independent));
+        let native = SourceImage::native(text.as_bytes());
+        assert_ne!(original, native);
+        assert_eq!(native.source_map().channel(), SourceChannel::NativeValue);
+        let changed = SourceImage::document("first\nlast");
+        assert_ne!(original, changed);
+        assert_ne!(
+            original.source_map().position_at(8),
+            changed.source_map().position_at(8)
+        );
+    }
+
+    #[test]
+    fn original_native_byte_positions_need_no_unicode_or_document_channel() {
+        // naming.source.original-immutable-image-geometry
+        // docs/design/analysis/name-resolution-proofs/original-immutable-image-geometry.md
+        let bytes = b"\xff\r\n\xed\xa0\x80\0\nx";
+        let original = SourceImage::native(bytes.as_slice());
+        assert!(original.try_text().is_err());
+        let direct = SourceMap::from_bytes_with_channel(bytes, SourceChannel::NativeValue);
+        for offset in 0..=u32::try_from(bytes.len()).unwrap() {
+            assert_eq!(
+                original.source_map().position_at(offset),
+                direct.position_at(offset)
+            );
+        }
+        assert_eq!(original.source_map().source_bytes(), bytes);
     }
 }

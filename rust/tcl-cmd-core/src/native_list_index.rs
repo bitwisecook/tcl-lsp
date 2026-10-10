@@ -64,6 +64,13 @@ pub trait NativeListIndexOps: ValueOps {
     /// # Errors
     /// The original native List getter rejects its input or backing.
     fn index_members(&mut self, value: &Self::Value) -> Result<Self::Members, ValueError>;
+    /// Reach ordinary `SetListFromAny`, independently of an abstract getter.
+    /// Valid flat-index coordinates require this conversion before selection;
+    /// a rejected coordinate does not enter it.
+    ///
+    /// # Errors
+    /// The actual conversion or the host materialisation limit rejects input.
+    fn index_ordinary_members(&mut self, value: &Self::Value) -> Result<Self::Members, ValueError>;
     /// Genuine `TclListObjCopy`; its whole backing shares the original children.
     ///
     /// # Errors
@@ -88,6 +95,41 @@ pub trait NativeListIndexOps: ValueOps {
     fn index_is_abstract(_value: &Self::Value) -> bool {
         false
     }
+}
+
+/// Actual ordinary List range transaction after original index conversion.
+pub trait NativeListRangeOps: NativeListIndexOps {
+    /// Slice the original physical header, sampling sharing before a result hold.
+    ///
+    /// # Errors
+    /// The original List storage, abstract slice provider or recipe is unavailable.
+    fn range_original(
+        &mut self,
+        original: &Self::Value,
+        first: i64,
+        last: i64,
+    ) -> Result<Self::Owner, ValueError>;
+}
+
+/// Reached C command range getter order and actual result ownership.
+///
+/// # Errors
+/// An original List/index getter or physical slicing capability rejects input.
+pub fn command_range<O: NativeListRangeOps>(
+    ops: &mut O,
+    original: &O::Value,
+    first: &O::Value,
+    last: &O::Value,
+) -> Result<O::Owner, CmdError> {
+    // naming.list.original-range-objects-and-instructions
+    // docs/design/analysis/name-resolution-proofs/list.original-range-objects-and-instructions.md
+    // Actual command worker reaches ListLength, then each SAME index object.
+    ops.index_version()?;
+    let length = ops.list_len(original)?;
+    let end = i64::try_from(length).expect("native List length") - 1;
+    let first = original_index(ops, first, end, true)?.expect("reported original first");
+    let last = original_index(ops, last, end, true)?.expect("reported original last");
+    Ok(ops.range_original(original, first, last)?)
 }
 
 /// Native immediate extraction converts the original header before selection.
@@ -395,7 +437,7 @@ pub fn flat<O: NativeListIndexOps>(
             drop(current);
             return Ok(ops.index_empty());
         };
-        let members = ops.index_members(O::index_original(&current))?;
+        let members = ops.index_ordinary_members(O::index_original(&current))?;
         let next = O::index_retain(&members.index_elements()?[selected]);
         drop(current);
         current = next;

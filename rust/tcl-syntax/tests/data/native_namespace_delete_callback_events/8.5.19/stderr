@@ -1,0 +1,10 @@
+{"ordinal":1,"stage":"before-eval","callbackKind":"none","B":1,"oldIncarnation":1,"newIncarnation":0,"oldKnown":1,"newKnown":0,"createReturnedNonNull":-1,"hook":0,"oldBdeleted":0,"newBdeleted":0}
+{"ordinal":2,"stage":"retire-entry","callbackKind":"command-DeleteProc","B":1,"oldIncarnation":1,"newIncarnation":0,"oldKnown":1,"newKnown":0,"createReturnedNonNull":-1,"hook":1,"oldBdeleted":0,"newBdeleted":0}
+{"ordinal":3,"stage":"retire-before-delete-B","callbackKind":"command-DeleteProc","B":1,"oldIncarnation":1,"newIncarnation":0,"oldKnown":1,"newKnown":0,"createReturnedNonNull":-1,"hook":1,"oldBdeleted":0,"newBdeleted":0}
+{"ordinal":4,"stage":"old-b-delete-proc","callbackKind":"namespace-DeleteProc","B":0,"oldIncarnation":0,"newIncarnation":0,"oldKnown":1,"newKnown":0,"createReturnedNonNull":-1,"hook":1,"oldBdeleted":1,"newBdeleted":0}
+{"ordinal":5,"stage":"retire-after-delete-B","callbackKind":"command-DeleteProc","B":0,"oldIncarnation":0,"newIncarnation":0,"oldKnown":1,"newKnown":0,"createReturnedNonNull":-1,"hook":1,"oldBdeleted":1,"newBdeleted":0}
+{"ordinal":6,"stage":"retire-before-create-B","callbackKind":"command-DeleteProc","B":0,"oldIncarnation":0,"newIncarnation":0,"oldKnown":1,"newKnown":0,"createReturnedNonNull":-1,"hook":1,"oldBdeleted":1,"newBdeleted":0}
+{"ordinal":7,"stage":"retire-after-create-B","callbackKind":"command-DeleteProc","B":1,"oldIncarnation":0,"newIncarnation":1,"oldKnown":1,"newKnown":1,"createReturnedNonNull":1,"hook":1,"oldBdeleted":1,"newBdeleted":0}
+{"ordinal":8,"stage":"new-b-delete-proc","callbackKind":"namespace-DeleteProc","B":0,"oldIncarnation":0,"newIncarnation":0,"oldKnown":1,"newKnown":1,"createReturnedNonNull":-1,"hook":1,"oldBdeleted":1,"newBdeleted":1}
+{"ordinal":9,"stage":"after-eval","callbackKind":"none","B":0,"oldIncarnation":0,"newIncarnation":0,"oldKnown":1,"newKnown":1,"createReturnedNonNull":-1,"hook":1,"oldBdeleted":1,"newBdeleted":1}
+{"ordinal":10,"stage":"after-result-publication","callbackKind":"none","B":0,"oldIncarnation":0,"newIncarnation":0,"oldKnown":1,"newKnown":1,"createReturnedNonNull":-1,"hook":1,"oldBdeleted":1,"newBdeleted":1}

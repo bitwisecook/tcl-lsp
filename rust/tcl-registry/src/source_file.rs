@@ -189,6 +189,28 @@ fn select_with_grammar(
     Invalid
 }
 
+/// Possible external source ingress from the shared filename grammar.
+/// The operand retains its value knowledge and ordinal; no file availability,
+/// successful dispatch or completed file evaluation is established.
+pub const SOURCE_TRANSITIONS: crate::StateTransitionDescriptor = crate::StateTransitionDescriptor {
+    resolver: Some(source_transitions),
+    argument_shape: crate::state_transition::StateTransitionArgumentShape::Positional,
+    commit: crate::state_transition::StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+    ..crate::StateTransitionDescriptor::EMPTY
+};
+
+fn source_transitions(arguments: InvocationArguments<'_>) -> crate::StateTransitions {
+    let mut transitions = crate::StateTransitions::default();
+    if let SourceFileSelection::Selected(operands) = path_candidate(arguments)
+        && let Some(path) = crate::TransitionSubject::from_argument(arguments, operands.path_at)
+    {
+        transitions.push(crate::StateTransition::Package(
+            crate::model::binding::PackageTransition::SourceLoad { path },
+        ));
+    }
+    transitions
+}
+
 /// Apply the actual file-evaluation return boundary without opening a frame.
 /// Raw break/continue and errors escape source unchanged. Jim's outer source
 /// handler consumes any pending return left by its file evaluator as OK.
@@ -256,6 +278,63 @@ mod tests {
             path_candidate(InvocationArguments::structured(&[InvocationWord::Expanded])),
             SourceFileSelection::Unknown
         );
+    }
+
+    #[test]
+    fn source_load_transitions_retain_only_selected_original_path_ordinals() {
+        // Implementation contract: naming.interpreter.original-source-visibility-advice
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-source-visibility-advice.md
+        for version in TclVersion::ALL {
+            let words = [InvocationWord::Dynamic];
+            let transitions = SOURCE_TRANSITIONS.resolve(
+                InvocationArguments::structured(&words)
+                    .with_dialect(InvocationDialect::for_version(version)),
+            );
+            let [fact] = transitions.facts() else {
+                panic!("{version:?}: {transitions:?}");
+            };
+            let crate::StateTransition::Package(
+                crate::model::binding::PackageTransition::SourceLoad { path },
+            ) = &fact.transition
+            else {
+                panic!("{version:?}: {transitions:?}");
+            };
+            assert_eq!(path.argument_index(), Some(0));
+            assert!(path.literal().is_none());
+            let words = [
+                InvocationWord::Literal("-encoding"),
+                InvocationWord::Dynamic,
+                InvocationWord::Dynamic,
+            ];
+            let transitions = SOURCE_TRANSITIONS.resolve(
+                InvocationArguments::structured(&words)
+                    .with_dialect(InvocationDialect::for_version(version)),
+            );
+            assert_eq!(
+                transitions.facts().len(),
+                usize::from(version != TclVersion::V8_4)
+            );
+            if let Some(fact) = transitions.facts().first() {
+                let crate::StateTransition::Package(
+                    crate::model::binding::PackageTransition::SourceLoad { path },
+                ) = &fact.transition
+                else {
+                    panic!("{version:?}: {transitions:?}");
+                };
+                assert_eq!(path.argument_index(), Some(2));
+            }
+        }
+        for words in [
+            &[InvocationWord::Expanded][..],
+            &[InvocationWord::Dynamic, InvocationWord::Dynamic][..],
+        ] {
+            assert!(
+                SOURCE_TRANSITIONS
+                    .resolve(InvocationArguments::structured(words))
+                    .facts()
+                    .is_empty()
+            );
+        }
     }
 
     #[test]

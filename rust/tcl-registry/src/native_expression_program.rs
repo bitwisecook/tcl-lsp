@@ -309,6 +309,19 @@ pub fn expression_program_emission_for_policy(
     ExpressionProgramEmission::Unavailable
 }
 
+/// Compiler name effects of retained checked expression syntax only.
+/// Runtime function lookup, evaluation and object effects remain separate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeExpressionCompilerNameEffects {
+    /// No implicit function compiler operation or unrepresented raw node.
+    CallFree,
+    /// C8.5–9.1 register qualified function-name literals while compiling.
+    /// The consumer must independently close pool getters and release effects.
+    RegistersCommandLiterals,
+    /// The selected compiler name effect has not been closed.
+    Unknown,
+}
+
 /// Original expression program or selected executable syntax failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeExpressionTree {
@@ -379,6 +392,59 @@ pub fn native_expression_boolean_word84(bytes: &[u8]) -> bool {
 }
 
 impl NativeExpressionProgram {
+    /// Select only the original compiler's name operation. Modern C function
+    /// nodes register counted qualified literals; function dispatch happens at
+    /// execution. Existing pooled-object callbacks require an independent
+    /// receipt. C8.4 fixed-table lookup and Jim calls do not use this recipe.
+    #[must_use]
+    pub fn compiler_name_effects(
+        &self,
+        dialect: InvocationDialect,
+    ) -> NativeExpressionCompilerNameEffects {
+        // naming.expression.compiler-function-name-literals
+        // docs/design/analysis/name-resolution-proofs/expression-compiler-function-name-literals.md
+        use NativeExpressionCompilerNameEffects as Effects;
+        use tcl_syntax::expr::{ExprNode, parser::NativeExprSyntax};
+        if self.context != dialect.expression_parse_context(None) {
+            return Effects::Unknown;
+        }
+        let NativeExpressionTree::Parsed(tree) = &self.tree else {
+            return Effects::Unknown;
+        };
+        if expression_tree_is_call_free(tree) {
+            return Effects::CallFree;
+        }
+        if !matches!(self.context.native_syntax,
+            NativeExprSyntax::Tcl(version) if version >= tcl_dialect::TclVersion::V8_5)
+            || crate::mathfunc::native_function_dispatch(dialect)
+                != Some(crate::mathfunc::NativeMathFunctionDispatch::CommandTable)
+        {
+            return Effects::Unknown;
+        }
+        let mut pending = vec![tree];
+        while let Some(node) = pending.pop() {
+            match node {
+                ExprNode::Raw { .. } => return Effects::Unknown,
+                ExprNode::Call { args, .. } => pending.extend(args),
+                ExprNode::Unary { operand, .. } => pending.push(operand),
+                ExprNode::Binary { left, right, .. } => {
+                    pending.extend([left.as_ref(), right.as_ref()]);
+                }
+                ExprNode::Ternary {
+                    condition,
+                    true_branch,
+                    false_branch,
+                } => pending.extend([
+                    condition.as_ref(),
+                    true_branch.as_ref(),
+                    false_branch.as_ref(),
+                ]),
+                _ => {}
+            }
+        }
+        Effects::RegistersCommandLiterals
+    }
+
     /// Native emission requires a separately retained evaluator whose grammar
     /// and numeric issuer agree with this physical preparation. A logical parser
     /// alone cannot authorize C literal pooling, function lookup or body code.
@@ -394,6 +460,16 @@ impl NativeExpressionProgram {
                 && policy.context.expr_grammar_base == self.context.expr_grammar_base
                 && policy.context.f5_word_grammar == self.context.f5_word_grammar
         })
+    }
+
+    /// Exact command-substitution spans from the retained checked tree. These
+    /// are syntax only, independent of compiler error timing and runtime reach.
+    #[must_use]
+    pub fn original_command_substitutions(&self) -> Option<Vec<Span>> {
+        let NativeExpressionTree::Parsed(tree) = &self.tree else {
+            return None;
+        };
+        original_expression_scripts(tree, &self.source, &self.context)
     }
 
     /// Visit original compiler syntax without parsing or rendering its tree.
@@ -1055,6 +1131,51 @@ mod tests {
             .unwrap()
             .program
             .unwrap()
+    }
+
+    #[test]
+    fn compiler_function_name_effects_are_selected_without_runtime_dispatch() {
+        // naming.expression.compiler-function-name-literals
+        // docs/design/analysis/name-resolution-proofs/expression-compiler-function-name-literals.md
+        use NativeExpressionCompilerNameEffects as Effects;
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(version);
+            let program = prepare("Pi(abs(1))", version);
+            assert!(!expression_tree_is_call_free(match &program.tree {
+                NativeExpressionTree::Parsed(tree) => tree,
+                _ => panic!("original checked function nodes"),
+            }));
+            assert_eq!(
+                program.compiler_name_effects(dialect),
+                if version == tcl_dialect::TclVersion::V8_4 {
+                    Effects::Unknown
+                } else {
+                    Effects::RegistersCommandLiterals
+                }
+            );
+            assert_eq!(
+                prepare("1 + 2", version).compiler_name_effects(dialect),
+                Effects::CallFree
+            );
+            let mut raw = program.clone();
+            raw.tree = NativeExpressionTree::Parsed(tcl_syntax::expr::ExprNode::Raw {
+                text: b"unsupported".as_slice().into(),
+            });
+            assert_eq!(raw.compiler_name_effects(dialect), Effects::Unknown);
+            let mut foreign = program.clone();
+            foreign.context.lexer_grammar.numbers =
+                if foreign.context.lexer_grammar.numbers == tcl_dialect::NumberSyntax::Tcl84 {
+                    tcl_dialect::NumberSyntax::Tcl90
+                } else {
+                    tcl_dialect::NumberSyntax::Tcl84
+                };
+            assert_eq!(foreign.compiler_name_effects(dialect), Effects::Unknown);
+        }
+        let profile = crate::model::resolve_environment("jim").unit_profile();
+        let dialect = InvocationDialect::of_profile(profile);
+        let mut jim = prepare("Pi()", tcl_dialect::TclVersion::V8_6);
+        jim.context = dialect.expression_parse_context(None);
+        assert_eq!(jim.compiler_name_effects(dialect), Effects::Unknown);
     }
 
     #[test]

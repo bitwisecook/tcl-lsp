@@ -95,6 +95,50 @@ impl SourceFutureBodyInventory {
 }
 
 impl SourceCommandBindings {
+    /// Conditional source schema from an independently retained future entry.
+    /// Only unchanged contiguous source and its original declaration inventory
+    /// can supply geometry. The future binding never becomes document lookup.
+    pub(crate) fn original_future_source_catalogue_candidate(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        tokens: &crate::ir::CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<super::OriginalCatalogueSourceCandidate> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let offset = tokens.words().first()?.source().span.start();
+        let mut selected = None;
+        for future in self.future_body_inventories() {
+            let super::ExecutedScriptMapping::Contiguous { base } = future.source.mapping else {
+                continue;
+            };
+            let end = base.checked_add(u32::try_from(future.source.text.len()).ok()?)?;
+            if !(base <= offset && offset < end)
+                || future.source.origin.source_image() != image
+                || !future.bindings.matches_original_source_image(image, config)
+            {
+                continue;
+            }
+            let binding = future.bindings.invocation_at_source("", offset);
+            let mut original = tokens.clone();
+            original.source_binding = Some(binding.clone());
+            let candidate = binding
+                .original_catalogue_source_candidate_from_tokens(&original, registry)?
+                .with_unknown_future_entry();
+            if candidate
+                .original_words()
+                .iter()
+                .any(|word| word.span().start() < base || word.span().end() > end)
+                || selected.as_ref().is_some_and(|prior| prior != &candidate)
+            {
+                return None;
+            }
+            selected = Some(candidate);
+        }
+        selected
+    }
+
     /// Independently analysed future entries; never reached wrapper effects.
     #[must_use]
     pub fn future_body_inventories(&self) -> &[SourceFutureBodyInventory] {
@@ -166,6 +210,7 @@ impl SourceCommandBindings {
                     state.native_root_namespace_key().unwrap_or_default(),
                 )),
                 parameters: Vec::new(),
+                original_parameters: None,
                 statics: None,
             };
             self.deferred.insert(root.implementation_id(), root);
@@ -189,6 +234,8 @@ impl SourceCommandBindings {
         state.variable_frame = frame.clone();
         state.source_variables = Arc::new(state.source_variables.in_frame(frame));
         let variables = Arc::make_mut(&mut state.source_variables);
+        variables.invalidate_original_contents();
+        variables.original_receiver_variable_candidates = None;
         variables.contents_world = crate::var_resolve::ContentsWorld::Unknown;
         variables.closed_array_roots.clear();
         variables.namespace_cells.closed_namespaces.clear();
@@ -215,6 +262,7 @@ impl SourceCommandBindings {
                 compilation,
                 compilation_snapshot: None,
                 selected_compilation: None,
+                original_variable_compilation: None,
                 namespace: &root.namespace,
                 frame,
                 config,
@@ -222,8 +270,10 @@ impl SourceCommandBindings {
                 depth: 0,
                 invocation_offset: registration.offset,
                 variable_read_owner: None,
+                original_written_projection: None,
                 written_arguments: None,
                 written_values: None,
+                written_name_values: None,
                 written_representations: None,
                 written_objects: None,
                 written_method_prefixes: None,

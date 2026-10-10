@@ -1518,7 +1518,7 @@ mod tests {
                 .unwrap();
             if let Some(resolve) = method.script_timing_resolver {
                 assert_eq!(
-                    resolve(args),
+                    resolve(crate::InvocationArguments::literals(args)),
                     vec![(expected_index, ScriptTiming::Deferred)],
                     "{widget} {method:?}"
                 );

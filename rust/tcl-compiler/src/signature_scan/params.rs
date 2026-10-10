@@ -26,7 +26,9 @@
 //! the escaped forms such as `a\ b` — which Tcl reads as name `a` default `b`).
 
 use tcl_lexer::backslash_subst;
-use tcl_syntax::formal_params::{FormalParameter, FormalParameterError, parse_formal_parameters};
+use tcl_syntax::formal_params::{
+    FormalParameter, FormalParameterError, parse_formal_parameters_in,
+};
 use tcl_syntax::list::{find_element, join_list};
 use tcl_syntax::word_rules::WordValueRules;
 
@@ -195,7 +197,8 @@ pub fn bind_proc_formals(
     Some(bound)
 }
 
-/// Parse a complete parameter list with Tcl's strict execution semantics.
+/// Authored C Tcl compatibility form of [`parse_param_list_strict_in`].
+/// Production consumers with a selected engine use the explicit grammar API.
 ///
 /// Unlike [`parse_param_list`], this rejects malformed lists, invalid formal
 /// names, and parameter specifiers with other than one or two fields.  The
@@ -211,8 +214,19 @@ pub fn parse_param_list_strict(
     param_str: &str,
     rules: WordValueRules,
 ) -> Result<Vec<FormalParameter>, FormalParameterError> {
+    parse_param_list_strict_in(param_str, rules, tcl_dialect::ParameterGrammar::Tcl)
+}
+
+/// Parse original formal text under independently selected word and parameter
+/// grammars. Word-value rules cannot select the engine's name, rest, default or
+/// caller-link grammar. This validates syntax; it issues no entered activation.
+pub fn parse_param_list_strict_in(
+    param_str: &str,
+    rules: WordValueRules,
+    grammar: tcl_dialect::ParameterGrammar,
+) -> Result<Vec<FormalParameter>, FormalParameterError> {
     let collapsed = rules.collapse_braced_word(param_str);
-    parse_formal_parameters(&collapsed)
+    parse_formal_parameters_in(&collapsed, grammar)
 }
 
 /// Turn one parameter *spec* (a list element value, delimiters already

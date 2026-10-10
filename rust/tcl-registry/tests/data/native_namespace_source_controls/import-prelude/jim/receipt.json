@@ -1,0 +1,19 @@
+{
+  "provider": "jim",
+  "channel": "ASCII source-file shell ingress; decimal string-index scan-%c result units; no counted API/physical cache grant.",
+  "input_sha256": "36ca69186f9ac05b396ffa557d3e64b66d347c989fda63ef2105a6bc5b39f136",
+  "runner_sha256": "360f7f77864328f22a7b35c6c0be045269908466818dae87ed444a054c655338",
+  "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/current-namespace-import-prelude-controls91/cases.tcl"
+  ],
+  "reported_version": "0.84-9-g5bac7c9",
+  "version_exit": 0,
+  "exit": 0,
+  "stdout_sha256": "5fce106c095529b59ce0dee9316a2661e405d7855cc87029478189929f4a4ba9",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": 1,
+  "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+}

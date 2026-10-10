@@ -161,6 +161,11 @@ fn method_dispatch_facts<'a>(
     comp_of: &HashMap<String, usize>,
     proc_facts: &HashMap<&str, DispatchFacts>,
 ) -> HashMap<&'a str, DispatchFacts> {
+    let actual = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        ir.source_metadata_input.as_ref(),
+    );
+
     let mut method_facts: HashMap<&str, DispatchFacts> = HashMap::new();
     for (qname, m) in &ir.methods {
         let own_comp = comp_of.get(m.class_name.as_str()).copied();
@@ -174,6 +179,7 @@ fn method_dispatch_facts<'a>(
                 &body_def.body,
                 &body_def.execution_namespace,
                 &ScanEnv {
+                    metadata: actual.as_deref().map(Into::into),
                     registry,
                     comp_of,
                     proc_facts,
@@ -292,6 +298,11 @@ fn proc_dispatch_facts<'a>(
     registry: &CommandRegistry,
     comp_of: &HashMap<String, usize>,
 ) -> HashMap<&'a str, DispatchFacts> {
+    let actual = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        ir.source_metadata_input.as_ref(),
+    );
+
     // Direct facts + direct proc callees per proc.
     let mut facts: HashMap<&str, DispatchFacts> = HashMap::new();
     let mut callees: HashMap<&str, HashSet<String>> = HashMap::new();
@@ -303,6 +314,7 @@ fn proc_dispatch_facts<'a>(
             &proc.body,
             &ExecutionNamespace::exact(namespace),
             &ScanEnv {
+                metadata: actual.as_deref().map(Into::into),
                 registry,
                 comp_of,
                 proc_facts: &HashMap::new(),
@@ -342,6 +354,7 @@ fn proc_dispatch_facts<'a>(
 
 /// Everything [`collect_dispatches`] needs to classify one call head.
 struct ScanEnv<'a> {
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
     registry: &'a CommandRegistry,
     comp_of: &'a HashMap<String, usize>,
     proc_facts: &'a HashMap<&'a str, DispatchFacts>,
@@ -446,11 +459,13 @@ fn classify_tokens(
                 record_procedure(target, env, facts, callees);
             }
             _ if target.registry_backed => {
-                let Some(invocation) = crate::registry_invocation::resolved_tokens_invocation(
-                    env.registry,
-                    None,
-                    tokens,
-                ) else {
+                let Some(invocation) =
+                    crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                        env.registry,
+                        env.metadata,
+                        tokens,
+                    )
+                else {
                     facts.anywhere = true;
                     continue;
                 };
@@ -458,9 +473,9 @@ fn classify_tokens(
                     facts.anywhere = true;
                     continue;
                 }
-                if let Some(call) = crate::registry_invocation::normal_user_procedure_invocation(
+                if let Some(call) = crate::registry_invocation::normal_user_procedure_invocation_with_metadata_context(
                     env.registry,
-                    None,
+                    env.metadata,
                     tokens,
                 ) {
                     let selected = binding.lookup_command_word(&call.target);
@@ -591,5 +606,40 @@ mod tests {
             registry,
         );
         assert!(compute(&module, registry).allows_locals("::C::safe"));
+    }
+    #[test]
+    fn dispatch_metadata_requires_actual_module_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = current.commands();
+        let mut module = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "proc helper {} {dict create key value}",
+            registry,
+            false,
+            "tcl8.6",
+        )
+        .ir_module;
+        let components = std::collections::HashMap::new();
+        assert!(!super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
+        let input = module.source_metadata_input.as_ref().unwrap().clone();
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(registry));
+        for context in [
+            std::sync::Arc::new(older),
+            std::sync::Arc::new(tcl_registry::model::ingress::static_context_for("tcl9.1").clone()),
+        ] {
+            module.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                context,
+                input.lexer_config(),
+            ));
+            assert!(
+                super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere
+            );
+        }
+        module.source_metadata_input = None;
+        assert!(super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
     }
 }

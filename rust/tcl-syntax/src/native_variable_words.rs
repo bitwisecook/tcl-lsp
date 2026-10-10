@@ -2,7 +2,7 @@
 //! Original C compiler variable-word layouts, separate from static values.
 
 use crate::backslash::{
-    NativeSourceUnavailable, native_source_escape_channel_in, source_literal_bytes,
+    NativeSourceUnavailable, native_source_escape_channel_in, native_source_literal_bytes,
 };
 use crate::native_string::NativeStringProtocol;
 use tcl_dialect::TclVersion;
@@ -84,7 +84,7 @@ pub fn native_variable_word(
     if let [component] = components.as_slice()
         && component.text
     {
-        return literal_operand(word, component.span);
+        return literal_operand(word, component.span, protocol);
     }
     let Some(first) = components.first().filter(|component| component.text) else {
         return Ok(NativeVariableWordOperand::DynamicWord);
@@ -120,7 +120,13 @@ pub fn native_variable_word(
         .map_err(NativeVariableWordUnavailable::Arena)?
     };
     Ok(NativeVariableWordOperand::CompoundArray {
-        name: source_literal_bytes(original(word, name_span)?, word.image().channel()).into_owned(),
+        name: native_source_literal_bytes(
+            original(word, name_span)?,
+            word.image().channel(),
+            protocol,
+        )
+        .map_err(NativeVariableWordUnavailable::Source)?
+        .into_owned(),
         name_span,
         index,
     })
@@ -141,6 +147,7 @@ fn original(word: &NativeWord, span: Span) -> Result<&[u8], NativeVariableWordUn
 fn literal_operand(
     word: &NativeWord,
     span: Span,
+    protocol: NativeStringProtocol,
 ) -> Result<NativeVariableWordOperand, NativeVariableWordUnavailable> {
     let bytes = original(word, span)?;
     let (name, index) = crate::naming::split_element_ref_bytes(bytes)
@@ -153,9 +160,17 @@ fn literal_operand(
     );
     let channel = word.image().channel();
     Ok(NativeVariableWordOperand::Literal {
-        name: source_literal_bytes(name, channel).into_owned(),
+        name: native_source_literal_bytes(name, channel, protocol)
+            .map_err(NativeVariableWordUnavailable::Source)?
+            .into_owned(),
         name_span,
-        index: index.map(|index| source_literal_bytes(index, channel).into_owned()),
+        index: index
+            .map(|index| {
+                native_source_literal_bytes(index, channel, protocol)
+                    .map(std::borrow::Cow::into_owned)
+            })
+            .transpose()
+            .map_err(NativeVariableWordUnavailable::Source)?,
     })
 }
 

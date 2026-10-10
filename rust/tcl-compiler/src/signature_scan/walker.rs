@@ -49,7 +49,6 @@ use tcl_registry::Traits;
 use tcl_registry::definer::DefinerFamily;
 use tcl_registry::hooks::{AnalyserHookId, LoweringHookId};
 
-use super::command_prefix::command_prefix_invocations;
 use super::ctx::ScanCtx;
 use super::handlers;
 use super::types::SignatureCommandInvocation;
@@ -76,9 +75,7 @@ pub(super) fn scan_in_context(
     known_commands: &HashSet<&str>,
     ctx: &mut ScanCtx,
 ) {
-    let Some(label) = namespace.display() else {
-        return;
-    };
+    let label = namespace.display().unwrap_or_default();
     let previous = ctx.namespace_scope.replace(namespace.clone());
     scan(source, body_token, &label, conditional, known_commands, ctx);
     ctx.namespace_scope = previous;
@@ -107,6 +104,8 @@ pub(super) fn scan(
         if head.is_empty() {
             continue;
         }
+        let original_words = ctx.original_command_words(&cmd).unwrap_or_default();
+        let previous_words = std::mem::replace(&mut ctx.original_words, original_words);
         // Argument count for cross-file arity (Task 6): words after the head, or
         // `None` when any argument is `{*}`-expanded (runtime count unknown).
         let arg_count = if cmd
@@ -124,16 +123,17 @@ pub(super) fn scan(
         };
         ctx.result
             .command_invocations
-            .push(SignatureCommandInvocation::written(
-                head.to_owned(),
-                cmd.argv[0].span,
-                arg_count,
-            ));
+            .push(SignatureCommandInvocation {
+                original_name_input: ctx
+                    .original_name_key(cmd.argv[0].span)
+                    .map(super::scope::SignatureSourceNameInput::OriginalWord),
+                ..SignatureCommandInvocation::written(head.to_owned(), cmd.argv[0].span, arg_count)
+            });
         // Record command-prefix callback heads (`lsort -command cb`, `trace
         // add … cb`, …) as their own invocations so background-scanned files
         // feed find-references / call-hierarchy / usage counts / callback
         // arity through the same substrate as ordinary calls.
-        record_command_prefix_invocations(&cmd, head, ctx);
+        record_command_prefix_invocations(&cmd, ctx);
         let texts = &cmd.texts;
         let argv = &cmd.argv;
         let handled = record_selected_alias(&cmd, ns_prefix, ctx)
@@ -177,6 +177,7 @@ pub(super) fn scan(
             }
             handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
         }
+        ctx.original_words = previous_words;
     }
 }
 
@@ -213,10 +214,10 @@ fn record_selected_alias(cmd: &SegmentedCommand, namespace: &str, ctx: &mut Scan
             }
         })
         .collect();
-    let transitions = registry.command_binding_transitions(InvocationWords::structured(
-        InvocationWord::Literal(cmd.name()),
-        &words,
-    ));
+    let transitions = crate::alias::command_table_transitions_for_words(
+        registry,
+        InvocationWords::structured(InvocationWord::Literal(cmd.name()), &words),
+    );
     let Some(CommandBindingTransition::Alias {
         source_interpreter,
         alias,
@@ -233,6 +234,10 @@ fn record_selected_alias(cmd: &SegmentedCommand, namespace: &str, ctx: &mut Scan
     {
         return true;
     }
+    let alias_span = alias
+        .argument_index()
+        .and_then(|ordinal| cmd.argv.get(ordinal + 1))
+        .map(|token| token.span);
     let (Some(alias), Some(target), Some(scope)) = (
         alias.literal(),
         target.literal(),
@@ -244,6 +249,10 @@ fn record_selected_alias(cmd: &SegmentedCommand, namespace: &str, ctx: &mut Scan
         &scope,
         alias,
         tcl_syntax::naming::NativeNamePurpose::AliasPublication,
+        match alias_span {
+            Some(span) => span,
+            None => return true,
+        },
     ) else {
         return true;
     };
@@ -352,13 +361,15 @@ fn dispatch_signature_handler(
             dispatch.subcommand,
             &mut ctx.result,
         ),
-        Some(AnalyserHookId::PackageRequire) => handlers::handle_package_require(
-            texts,
-            argv,
-            conditional,
-            dispatch.subcommand,
-            &mut ctx.result,
-        ),
+        Some(AnalyserHookId::PackageRequire) => {
+            record_package_require(texts, argv, conditional, dispatch.subcommand, ctx);
+        }
+        Some(AnalyserHookId::PackageProvide) if texts.len() >= 3 => {
+            record_package_provide(texts, argv, conditional, ctx);
+        }
+        Some(AnalyserHookId::PackageIfneeded) if texts.len() >= 5 => {
+            record_package_ifneeded(texts, argv, ctx);
+        }
         Some(AnalyserHookId::Source) => {
             let dialect = ctx
                 .registry
@@ -376,24 +387,7 @@ fn dispatch_signature_handler(
             handlers::handle_interp_alias(texts, ctx.name_policy(), &mut ctx.result);
         }
         Some(AnalyserHookId::Rename) => {
-            if let (Some(old), Some(new), Some(scope)) = (
-                texts.get(1),
-                texts.get(2).filter(|new| !new.is_empty()),
-                ctx.current_namespace(ns_prefix),
-            ) && let Some((qualified_name, source_name)) = ctx.publication_name(
-                &scope,
-                new,
-                tcl_syntax::naming::NativeNamePurpose::RenameDestination,
-            ) {
-                ctx.result.renames.insert(
-                    qualified_name.clone(),
-                    super::types::SignatureRename {
-                        source_name,
-                        qualified_name,
-                        target: old.clone(),
-                    },
-                );
-            }
+            record_command_rename(texts, argv, ns_prefix, ctx);
         }
         Some(AnalyserHookId::Catch) => {
             handle_catch(texts, argv, ns_prefix, known_commands, ctx);
@@ -410,6 +404,93 @@ fn dispatch_signature_handler(
         _ => return false,
     }
     true
+}
+
+fn record_command_rename(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx<'_>) {
+    if let (Some(old), Some(new), Some(scope)) = (
+        texts.get(1),
+        texts.get(2).filter(|new| !new.is_empty()),
+        ctx.current_namespace(ns_prefix),
+    ) && let Some((qualified_name, source_name)) = ctx.publication_name(
+        &scope,
+        new,
+        tcl_syntax::naming::NativeNamePurpose::RenameDestination,
+        argv[2].span,
+    ) {
+        ctx.result.renames.insert(
+            qualified_name.clone(),
+            super::types::SignatureRename {
+                source_name,
+                qualified_name,
+                target: old.clone(),
+            },
+        );
+    }
+}
+
+fn record_package_require(
+    texts: &[String],
+    argv: &[Token],
+    conditional: bool,
+    subcommand: Option<&SubCommand>,
+    ctx: &mut ScanCtx<'_>,
+) {
+    let before = ctx.result.package_requires.len();
+    handlers::handle_package_require(texts, argv, conditional, subcommand, &mut ctx.result);
+    if let Some(record) = ctx.result.package_requires.get(before) {
+        let original = ctx
+            .original_name_key(record.range)
+            .map(super::scope::SignatureSourceNameInput::OriginalWord)
+            .map(super::original_name::SourcePackageName::from_input);
+        let name_ordinal = argv.iter().position(|token| token.span == record.range);
+        let requirements = name_ordinal.map_or_else(Vec::new, |name| {
+            argv[name + 1..]
+                .iter()
+                .map(|token| {
+                    ctx.original_name_key(token.span)
+                        .map(super::scope::SignatureSourceNameInput::OriginalWord)
+                })
+                .collect()
+        });
+        ctx.result.package_requires[before].original_name = original;
+        ctx.result.package_requires[before].original_requirements = requirements;
+    }
+}
+
+fn record_package_provide(
+    texts: &[String],
+    argv: &[Token],
+    conditional: bool,
+    ctx: &mut ScanCtx<'_>,
+) {
+    let original_name = ctx
+        .original_name_key(argv[2].span)
+        .map(super::scope::SignatureSourceNameInput::OriginalWord)
+        .map(super::original_name::SourcePackageName::from_input);
+    ctx.result
+        .package_provides
+        .push(crate::analyser::types::PackageProvide {
+            original_name,
+            name: texts[2].clone(),
+            version: texts.get(3).cloned(),
+            range: argv[0].span,
+            conditional,
+        });
+}
+
+fn record_package_ifneeded(texts: &[String], argv: &[Token], ctx: &mut ScanCtx<'_>) {
+    let original_name = ctx
+        .original_name_key(argv[2].span)
+        .map(super::scope::SignatureSourceNameInput::OriginalWord)
+        .map(super::original_name::SourcePackageName::from_input);
+    ctx.result
+        .package_ifneededs
+        .push(crate::analyser::types::PackageIfneeded {
+            original_name,
+            name: texts[2].clone(),
+            version: texts[3].clone(),
+            range: argv[0].span,
+        });
 }
 
 /// Dispatch `head` to a definer handler when its registry spec marks it as a
@@ -495,7 +576,12 @@ fn dispatch_definer(
                 let Some((qualified, source_name)) = ctx.publication_name(
                     &scope,
                     &texts[index],
-                    tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+                    if grammar.family == DefinerFamily::TclOo {
+                        tcl_syntax::naming::NativeNamePurpose::OoObjectPublication
+                    } else {
+                        tcl_syntax::naming::NativeNamePurpose::CommandPublication
+                    },
+                    argv[index].span,
                 ) else {
                     continue;
                 };
@@ -547,49 +633,43 @@ fn dispatch_definer(
 ///
 /// No-op when the context carries no registry (focused unit tests) or the call
 /// has no arguments.
-fn record_command_prefix_invocations(cmd: &SegmentedCommand, head: &str, ctx: &mut ScanCtx<'_>) {
-    let Some(registry) = ctx.registry else {
-        return;
-    };
-    if cmd.texts.len() < 2 || cmd.argv.len() < 2 || cmd.single_token_word.len() < 2 {
-        return;
-    }
-    let invs = command_prefix_invocations(
-        registry,
-        head,
-        super::command_prefix::CommandPrefixWords {
-            texts: &cmd.texts[1..],
-            tokens: &cmd.argv[1..],
-            single_token: &cmd.single_token_word[1..],
-            expanded: cmd
-                .expand_word
-                .as_deref()
-                .and_then(|expanded| expanded.get(1..))
-                .unwrap_or(&[]),
-            source_map: None,
-        },
-    );
-    for inv in invs {
+fn record_command_prefix_invocations(cmd: &SegmentedCommand, ctx: &mut ScanCtx<'_>) {
+    // naming.callback.lookup-scope-owner
+    // docs/design/analysis/name-resolution-proofs/callback-lookup-scope-owner.md
+    for written in 1..cmd.argv.len() {
+        let Some(original) = ctx.original_callback_prefix(cmd, written) else {
+            continue;
+        };
+        let Some(appended) = original.appended_arity() else {
+            continue;
+        };
+        let Some((name, range)) = original.reported_source_head() else {
+            continue;
+        };
+        let name = name.to_owned();
+        let lookup = original.lookup().cloned();
+        let name_input = original.name_input().clone();
+        let baked = original.baked_argument_count();
         ctx.result
             .command_invocations
             .push(SignatureCommandInvocation {
+                original_callback_signature_lookup: None,
+                original_callback_prefix: Some(std::sync::Arc::new(original)),
+                original_lookup: lookup,
+                original_name_input: Some(name_input),
                 lookup: crate::signature_scan::types::SignatureCommandLookup::DeferredReference,
-                name: inv.head,
-                range: inv.span,
-                // Signature scan skips scope resolution (walker contract).
+                name,
+                range,
                 resolved_qualified_name: None,
                 resolved_user_definition: false,
                 resolved_definition: None,
                 resolved_command_reference: None,
                 resolution_candidates: Vec::new(),
-                // The direct-call arity path always skips a callback
-                // head (`None`); the callback-arity check reads
-                // `callback_baked_args` + `callback_arity`.
                 argc: None,
-                callback_arity: Some(inv.appended),
-                callback_baked_args: inv.baked,
+                callback_arity: Some(appended),
+                callback_baked_args: baked,
                 indirect: false,
-                rename_safe: true,
+                rename_safe: false,
                 existence_probe: false,
                 is_mathfunc_call: false,
                 ensemble_dispatch: None,
@@ -745,9 +825,7 @@ pub(super) fn scan_factory_candidates_in_context(
     namespace: &super::scope::SignatureNamespaceScope,
     ctx: &mut ScanCtx,
 ) {
-    let Some(label) = namespace.display() else {
-        return;
-    };
+    let label = namespace.display().unwrap_or_default();
     let previous = ctx.namespace_scope.replace(namespace.clone());
     scan_factory_candidates(body_text, body_tok, &label, ctx);
     ctx.namespace_scope = previous;
@@ -769,6 +847,8 @@ pub(super) fn scan_factory_candidates(
         if head.is_empty() {
             continue;
         }
+        let original_words = ctx.original_command_words(&cmd).unwrap_or_default();
+        let previous_words = std::mem::replace(&mut ctx.original_words, original_words);
         let texts = &cmd.texts;
         let argv = &cmd.argv;
         let structural = resolve_scan_dispatch(ctx.registry, head, texts).is_some_and(|dispatch| {
@@ -782,6 +862,7 @@ pub(super) fn scan_factory_candidates(
         if !structural {
             handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
         }
+        ctx.original_words = previous_words;
     }
 }
 
@@ -801,7 +882,7 @@ fn scan_factory_structural(
 ) -> bool {
     if dispatch.analyser == Some(AnalyserHookId::NamespaceEval) && texts.len() >= 4 {
         let raw_ns = &texts[2];
-        let Some(scope) = ctx.namespace_context(ns_prefix, raw_ns) else {
+        let Some(scope) = ctx.namespace_context(ns_prefix, raw_ns, argv[2].span) else {
             return true;
         };
         if argv[3].kind == TokenType::Str {

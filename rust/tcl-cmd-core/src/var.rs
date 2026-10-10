@@ -44,7 +44,7 @@ where
     };
     let mut grew = 0;
     for val in values {
-        if ops.try_list_append_in_place(&mut v, val) {
+        if ops.try_list_append_in_place(&mut v, val)? {
             grew += 1;
         } else {
             break;
@@ -57,4 +57,18 @@ where
     let mut items = ops.list_elements(&v)?;
     items.extend(values[grew..].iter().cloned());
     Ok(ops.new_list(items))
+}
+
+/// Publish a selected Jim link failure with its actual String producer and
+/// default error-code update. No C UPVAR classification is borrowed.
+#[must_use]
+pub fn native_jim_alias_error(
+    protocol: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
+    failure: tcl_syntax::native_jim_lookup::NativeJimAliasFailure,
+    original: &[u8],
+) -> CmdError {
+    // naming.variable.original-upvar-error-publication
+    // docs/design/analysis/name-resolution-proofs/variable-original-upvar-error-publication.md
+    CmdError::new_bytes(protocol.alias_failure_message(failure, original))
+        .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084)
 }

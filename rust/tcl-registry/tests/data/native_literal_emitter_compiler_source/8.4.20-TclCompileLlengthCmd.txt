@@ -1,0 +1,37 @@
+TclCompileLlengthCmd(interp, parsePtr, envPtr)
+    Tcl_Interp *interp;		/* Used for error reporting. */
+    Tcl_Parse *parsePtr;	/* Points to a parse structure for the
+				 * command created by Tcl_ParseCommand. */
+    CompileEnv *envPtr;		/* Holds resulting instructions. */
+{
+    Tcl_Token *varTokenPtr;
+    int code;
+
+    DefineLineInformation;
+
+    if (parsePtr->numWords != 2) {
+	Tcl_SetResult(interp, "wrong # args: should be \"llength list\"",
+		TCL_STATIC);
+	return TCL_ERROR;
+    }
+    varTokenPtr = parsePtr->tokenPtr
+	+ (parsePtr->tokenPtr->numComponents + 1);
+
+    if (varTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+	/*
+	 * We could simply count the number of elements here and push
+	 * that value, but that is too rare a case to waste the code space.
+	 */
+	TclEmitPush(TclRegisterNewLiteral(envPtr, varTokenPtr[1].start,
+		varTokenPtr[1].size), envPtr);
+    } else {
+	SetLineInformation (1);
+	code = TclCompileTokens(interp, varTokenPtr+1,
+		varTokenPtr->numComponents, envPtr);
+	if (code != TCL_OK) {
+	    return code;
+	}
+    }
+    TclEmitOpcode(INST_LIST_LENGTH, envPtr);
+    return TCL_OK;
+}

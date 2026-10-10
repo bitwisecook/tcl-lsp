@@ -669,6 +669,8 @@ pub struct NativeListElement<'a> {
     pub value: Cow<'a, [u8]>,
     /// Jim parser line delta from the caller's signed source baseline.
     pub line_delta: u32,
+    /// Exact interior extent and literal/delimiter form in the supplied bytes.
+    pub source: Element,
 }
 
 /// Split an actual native object's string, independently of source lexer overrides.
@@ -706,15 +708,20 @@ pub fn split_native_list_elements(
         let Some((element, line_delta)) = selected else {
             break;
         };
-        let raw = &bytes[element.value];
+        let raw = &bytes[element.value.clone()];
         let value = if element.literal {
             Cow::Borrowed(raw)
         } else {
             crate::backslash::native_source_string_bytes_in(raw, protocol.escape_syntax(), protocol)
                 .expect("the native recipe supplies its own compatible escape grammar")
         };
-        elements.push(NativeListElement { value, line_delta });
-        offset = element.next;
+        let next = element.next;
+        elements.push(NativeListElement {
+            value,
+            line_delta,
+            source: element,
+        });
+        offset = next;
     }
     Ok(elements)
 }

@@ -1,0 +1,23 @@
+
+running 8 tests
+test command_binding::source_declared_command::tests::original_declared_body_scope_keeps_global_fallback_without_root_stamping ... ok
+test command_binding::source_declared_command::tests::original_declared_body_scope_refuses_unowned_names_and_known_replacements ... ok
+test command_binding::source_declared_command::tests::original_declared_words_keep_roles_provenance_and_direct_ordinals ... ok
+test command_binding::source_declared_command::tests::original_declared_words_refuse_replacements_and_builtin_trait_donation ... 
+thread 'command_binding::source_declared_command::tests::original_declared_words_refuse_replacements_and_builtin_trait_donation' (635150) panicked at rust/tcl-compiler/src/command_binding/source_declared_command.rs:346:13:
+assertion failed: crate::registry_invocation::source_structure::source_registry_words(source,
+        &analysis, &command).is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::source_declared_command::tests::original_declared_words_require_the_authentic_stub_block ... ok
+test command_binding::source_declared_command::tests::original_declared_words_retain_qualified_and_nested_procedure_scope ... ok
+test command_binding::source_declared_command::tests::original_declared_words_retain_static_namespace_source_ancestry ... ok
+test command_binding::source_declared_command::tests::original_declared_words_use_current_contracts_in_every_document_ingress ... ok
+
+failures:
+
+failures:
+    command_binding::source_declared_command::tests::original_declared_words_refuse_replacements_and_builtin_trait_donation
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 8226 filtered out; finished in 10.11s
+

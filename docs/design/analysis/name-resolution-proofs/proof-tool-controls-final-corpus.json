@@ -1,0 +1,56 @@
+{
+  "question": "Do the proof gate negative controls and retained array/deletion event associations pass their explicit offline checks?",
+  "scope": "Python implementation/retained-evidence verification only. No native provider launch or Rust suite runs are performed.",
+  "captured_utc": "2026-10-08T19:57:22.559494+00:00",
+  "python_version": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "python_executable": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+  "python_executable_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "source_sha256": {
+    "scripts/dev/check-name-resolution-proofs.py": "85ad39c694e1268b4396a0da6edcd9edd300fda926c3cf5d3870e85e89cb6409",
+    "scripts/dev/update-name-resolution-proof-index.py": "3e04c6dc9fe8fa712582f5c4807ed9b1f08ca0197d5dd4e2406398ee319cdf12",
+    "scripts/dev/test_name_resolution_proofs.py": "73d3a6ecfdd4369f0496f51937626fca35bdd7ae1f3bec16bd73b576f19a73f1",
+    "scripts/dev/replay-array-oo-source-controls.py": "d099fa238a83daa1159f0655af4f4c893d3a377204d378aa817f286049eb1888",
+    "scripts/dev/replay-namespace-delete-callback-events.py": "d5233c9c2fe4940af2dcbe76dfd6962b6972b83dcc2c617964c09b84a39dc12f"
+  },
+  "runs": [
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "scripts/dev/test_name_resolution_proofs.py"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "............\n----------------------------------------------------------------------\nRan 12 tests in 0.022s\n\nOK\n",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "aa20a2cbd4b495b721d271e618f4947b6f3d248ae4d791571f591ce4cc5a7919"
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/dev/replay-array-oo-source-controls.py",
+        "--verify-only"
+      ],
+      "exit_code": 0,
+      "stdout": "Six retained input/receipt/stream associations verified; no native execution.\n",
+      "stderr": "",
+      "stdout_sha256": "ccf6aae405cde937e5bcc472cc39029bc7e9e18b0c5b63d5f6bec8e97d5282d7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/dev/replay-namespace-delete-callback-events.py",
+        "--verify-only"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"verified_original_provider_associations\": 5, \"native_launches\": 0}\n",
+      "stderr": "",
+      "stdout_sha256": "f8abdc162c6e4751d5da61c44e0e31c46583df5c4f920577685a285fd029b25d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "native_launches": 0,
+  "rust_suite_runs": 0
+}

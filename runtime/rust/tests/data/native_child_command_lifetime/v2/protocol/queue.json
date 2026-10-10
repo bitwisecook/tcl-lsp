@@ -1,0 +1,14 @@
+{
+  "command": [
+    "python3",
+    "/workspace/.proofs/native-child-command-lifetime078-v2/capture.py"
+  ],
+  "output": "/workspace/.proofs/captured-native-child-command-lifetime078-v2",
+  "pins": {
+    "probe.c": "5463f0f9a49c2ab6bca0629260fb25fb5cc98942c970d2033d1709037217b04b",
+    "capture.py": "71ceccaf95c94b9c5d8e3d41f8c42f7a5274a5ddacfae3b5f6f3816dae4d9a3c",
+    "cases.h": "5aded0675a2b98fd13f29f4f7336fdf4615336850408e1b34318dc3185ebb36a",
+    "inputs.json": "6dc151218728f50a00252ea2dab4274e40119f4c030d00d037b55231428d3af8"
+  },
+  "limits": "Root sole native launcher. Fresh independent interpreter per source case. Placement is recorded before the expected exact-current-namespace lookup error; relative and qualified command creation are separate controls. Original C active allocation API is retained unchanged; Jim controls are actual availability attempts."
+}

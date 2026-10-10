@@ -18,6 +18,7 @@
 
 //! Original procedure-body layouts independent of command installation.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use super::declaration_layout::{
@@ -41,10 +42,173 @@ pub(super) struct DeclaredProcedureBody {
     pub(super) source: ExecutedScriptSource,
     pub(super) namespace: super::SourceNamespaceKey,
     pub(super) parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    pub(super) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
     pub(super) frame: crate::var_resolve::VariableExecutionFrame,
 }
 
+/// One lexical body under its complete immutable parent lookup worlds.
+/// The registry is fixed for this collector. Parent command words are replaced
+/// by genuine child words before any semantic query, so they are not a body
+/// traversal input. Entry ownership, issuer, realm, state, namespace and lexer
+/// config remain in structural equality; hashes alone never select a visit.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct NestedDeclarationLayoutKey {
+    source: ExecutedScriptSource,
+    parents: Vec<DeclarationLayoutObservation>,
+}
+
+impl NestedDeclarationLayoutKey {
+    fn new(source: &ExecutedScriptSource, parents: &[DeclarationLayoutObservation]) -> Self {
+        let parents = parents
+            .iter()
+            .map(|parent| DeclarationLayoutObservation {
+                words: Arc::from([]),
+                ..parent.clone()
+            })
+            .collect();
+        Self {
+            source: source.clone(),
+            parents,
+        }
+    }
+}
+
+/// One original command layout in its complete immutable lookup world.
+/// Children and continuation share this derivation; it grants no body entry.
+struct OriginalDeclarationLayout {
+    advice: super::OriginalCompilationLookupAdvice,
+    flow: crate::registry_invocation::DeclarationInvocationFlow,
+}
+
+impl OriginalDeclarationLayout {
+    fn select(
+        site: &CommandAllocationSite,
+        tokens: &crate::ir::CommandTokens,
+        snapshot: &Arc<SourceLookupSnapshot>,
+        namespace: &super::SourceNamespaceKey,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Self> {
+        let advice =
+            super::original_site_operand_layout_advice(site, tokens, snapshot, namespace, config)?;
+        let flow =
+            crate::registry_invocation::declaration_invocation_flow(registry, tokens, &advice)?;
+        Some(Self { advice, flow })
+    }
+
+    fn retains_successor(&self) -> bool {
+        self.flow.effects.lookup_stable
+            && !self.flow.effects.unknown_writes
+            && matches!(
+                self.flow.flow,
+                tcl_registry::script_body_flow::ScriptBodyFlow::None
+            )
+            && self.flow.effective.words.iter().all(|word| {
+                effective_invocation_word(
+                    word,
+                    self.advice.dialect().lexer_grammar.escapes,
+                    self.advice.dialect().word_values,
+                )
+                .literal_bytes()
+                .is_some()
+            })
+    }
+}
+
+struct ParentDeclarationLayout<'a> {
+    parent: &'a DeclarationLayoutObservation,
+    original: Option<OriginalDeclarationLayout>,
+}
+
+fn parent_declaration_layouts<'a>(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    parents: &'a [DeclarationLayoutObservation],
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<ParentDeclarationLayout<'a>> {
+    parents
+        .iter()
+        .map(|parent| ParentDeclarationLayout {
+            parent,
+            original: OriginalDeclarationLayout::select(
+                site,
+                tokens,
+                &parent.snapshot,
+                &parent.namespace,
+                parent.config,
+                registry,
+            ),
+        })
+        .collect()
+}
+
+#[cfg(any(test, debug_assertions))]
+struct NestedLayoutTrace {
+    started: Option<std::time::Instant>,
+}
+
+#[cfg(any(test, debug_assertions))]
+impl NestedLayoutTrace {
+    fn new() -> Self {
+        Self {
+            started: std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+                .is_some()
+                .then(std::time::Instant::now),
+        }
+    }
+
+    fn phase(&self, stage: &str, visits: usize, pending: usize, layouts: usize) {
+        if let Some(started) = self.started {
+            eprintln!(
+                "SOURCE_LAYOUT_PHASE stage={stage} ms={} visits={visits} pending={pending} layouts={layouts}",
+                started.elapsed().as_millis()
+            );
+        }
+    }
+}
+
 impl SourceCommandBindings {
+    /// Unanimous conditional procedure body at its genuine declaration.
+    /// The lexical recipe is independent of installation and entered calls.
+    pub(super) fn original_declared_procedure_at(
+        &self,
+        site: &CommandAllocationSite,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<DeclaredProcedureBody> {
+        let observations = original_declaration_layouts(self.declaration_layouts.get(site)?)?;
+        let mut agreed = None;
+        for observation in observations {
+            let tokens = declaration_tokens(site, observation)?;
+            let body = declared_body(site, &tokens, observation, registry)?;
+            if agreed.as_ref().is_some_and(|previous| previous != &body) {
+                return None;
+            }
+            agreed = Some(body);
+        }
+        agreed
+    }
+
+    /// Unanimous original procedure `ParamList` syntax at its actual declaration
+    /// site. This does not select an installation or an entered body.
+    pub(crate) fn original_procedure_formals_at(
+        &self,
+        site: &CommandAllocationSite,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::signature_scan::formal_parameters::SignatureSourceFormalParameters> {
+        let observations = original_declaration_layouts(self.declaration_layouts.get(site)?)?;
+        let mut agreed = None;
+        for observation in observations {
+            let tokens = declaration_tokens(site, observation)?;
+            let body = declared_body(site, &tokens, observation, registry)?;
+            let topology = body.original_parameters?;
+            if agreed.as_ref().is_some_and(|old| old != &topology) {
+                return None;
+            }
+            agreed = Some(topology);
+        }
+        Some(crate::signature_scan::formal_parameters::SignatureSourceFormalParameters::from_original_topology(&agreed?))
+    }
+
     /// Preserve only original lexical layouts when the declaration's runtime
     /// installation is unknown. No dispatch, body entry or effect inventory is
     /// populated by this separate collector.
@@ -52,6 +216,8 @@ impl SourceCommandBindings {
         &mut self,
         registry: &tcl_registry::CommandRegistry,
     ) {
+        #[cfg(any(test, debug_assertions))]
+        let trace = NestedLayoutTrace::new();
         let roots: Vec<_> = self
             .declaration_layouts
             .iter()
@@ -60,15 +226,37 @@ impl SourceCommandBindings {
                 matches!(
                     observation.entry.as_ref(),
                     OriginalDiagnosticFrameEntry::RootScript { .. }
+                        | OriginalDiagnosticFrameEntry::ScriptActivation { .. }
                 )
                 .then(|| (site.clone(), observation.clone()))
             })
             .collect();
+        #[cfg(any(test, debug_assertions))]
+        trace.phase(
+            "uninstalled-roots",
+            0,
+            roots.len(),
+            self.declaration_layouts.len(),
+        );
         for (site, observation) in roots {
             let Some(tokens) = declaration_tokens(&site, &observation) else {
+                #[cfg(debug_assertions)]
+                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+                    eprintln!(
+                        "ORIGINAL_DECLARATION offset={} stage=tokens-unavailable",
+                        site.offset
+                    );
+                }
                 continue;
             };
             let Some(body) = declared_body(&site, &tokens, &observation, registry) else {
+                #[cfg(debug_assertions)]
+                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+                    eprintln!(
+                        "ORIGINAL_DECLARATION offset={} stage=body-unavailable",
+                        site.offset
+                    );
+                }
                 continue;
             };
             // An independently retained installed declaration has its own
@@ -81,10 +269,30 @@ impl SourceCommandBindings {
             }
             self.retain_declared_body_layouts(body, &observation, registry);
         }
+        #[cfg(any(test, debug_assertions))]
+        trace.phase("uninstalled-complete", 0, 0, self.declaration_layouts.len());
         self.retain_nested_declared_layouts(registry);
+        #[cfg(any(test, debug_assertions))]
+        trace.phase("nested-complete", 0, 0, self.declaration_layouts.len());
     }
 
-    fn retain_nested_declared_layouts(&mut self, registry: &tcl_registry::CommandRegistry) {
+    fn retain_nested_declared_layouts(
+        &mut self,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> usize {
+        let mut visited = HashSet::new();
+        self.retain_nested_declared_layouts_with(registry, |source, parents| {
+            visited.insert(NestedDeclarationLayoutKey::new(source, parents))
+        })
+    }
+
+    fn retain_nested_declared_layouts_with(
+        &mut self,
+        registry: &tcl_registry::CommandRegistry,
+        mut visit: impl FnMut(&ExecutedScriptSource, &[DeclarationLayoutObservation]) -> bool,
+    ) -> usize {
+        #[cfg(any(test, debug_assertions))]
+        let trace = NestedLayoutTrace::new();
         let roots: Vec<_> = self
             .declaration_layouts
             .iter()
@@ -93,6 +301,13 @@ impl SourceCommandBindings {
                 Some((site.clone(), originals.cloned().collect::<Vec<_>>()))
             })
             .collect();
+        #[cfg(any(test, debug_assertions))]
+        trace.phase(
+            "nested-roots",
+            0,
+            roots.len(),
+            self.declaration_layouts.len(),
+        );
         let mut pending = Vec::new();
         for (site, observations) in roots {
             let Some(tokens) = declaration_tokens(&site, &observations[0]) else {
@@ -105,7 +320,28 @@ impl SourceCommandBindings {
                 registry,
             ));
         }
+        #[cfg(any(test, debug_assertions))]
+        trace.phase(
+            "nested-seeds",
+            0,
+            pending.len(),
+            self.declaration_layouts.len(),
+        );
+        let mut visits: usize = 0;
         while let Some((source, parents)) = pending.pop() {
+            if !visit(&source, &parents) {
+                continue;
+            }
+            visits += 1;
+            #[cfg(any(test, debug_assertions))]
+            if visits.is_multiple_of(64) {
+                trace.phase(
+                    "nested-visits",
+                    visits,
+                    pending.len(),
+                    self.declaration_layouts.len(),
+                );
+            }
             let config = parents[0].config;
             let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
                 &source.text,
@@ -118,48 +354,64 @@ impl SourceCommandBindings {
                 if segment.is_partial {
                     break;
                 }
-                let tokens = super::source_command_tokens_boxed(
-                    &source.text,
-                    source.base(),
-                    config,
+                if !self.retain_nested_layout_segment(
+                    &source,
+                    &parents,
                     &segment,
-                );
-                let site = CommandAllocationSite {
-                    source: Arc::clone(&source.origin),
-                    offset: segment.span.start(),
-                };
-                let observations: Vec<_> = parents
-                    .iter()
-                    .map(|parent| DeclarationLayoutObservation {
-                        words: Arc::from(tokens.words()),
-                        ..parent.clone()
-                    })
-                    .collect();
-                let retained = self.declaration_layouts.entry(site.clone()).or_default();
-                for observation in &observations {
-                    if !retained.contains(observation) {
-                        retained.push(observation.clone());
-                    }
-                }
-                pending.extend(unanimous_nested_layouts(
-                    &site,
-                    &tokens,
-                    &observations,
                     registry,
-                ));
-                if parents.iter().any(|parent| {
-                    !retains_successor_layout(
-                        &site,
-                        &tokens,
-                        &parent.snapshot,
-                        &parent.namespace,
-                        registry,
-                    )
-                }) {
+                    &mut pending,
+                ) {
                     break;
                 }
             }
         }
+        #[cfg(any(test, debug_assertions))]
+        trace.phase(
+            "nested-drained",
+            visits,
+            pending.len(),
+            self.declaration_layouts.len(),
+        );
+        visits
+    }
+
+    fn retain_nested_layout_segment(
+        &mut self,
+        source: &ExecutedScriptSource,
+        parents: &[DeclarationLayoutObservation],
+        segment: &crate::segmenter::SegmentedCommand,
+        registry: &tcl_registry::CommandRegistry,
+        pending: &mut Vec<(ExecutedScriptSource, Vec<DeclarationLayoutObservation>)>,
+    ) -> bool {
+        let config = parents[0].config;
+        let tokens =
+            super::source_command_tokens_boxed(&source.text, source.base(), config, segment);
+        let site = CommandAllocationSite {
+            source: Arc::clone(&source.origin),
+            offset: segment.span.start(),
+        };
+        let observations: Vec<_> = parents
+            .iter()
+            .map(|parent| DeclarationLayoutObservation {
+                words: Arc::from(tokens.words()),
+                ..parent.clone()
+            })
+            .collect();
+        let retained = self.declaration_layouts.entry(site.clone()).or_default();
+        for observation in &observations {
+            if !retained.contains(observation) {
+                retained.push(observation.clone());
+            }
+        }
+        let originals = parent_declaration_layouts(&site, &tokens, &observations, registry);
+        pending.extend(unanimous_nested_layouts_from_parents(
+            &site, &originals, registry,
+        ));
+        originals.iter().all(|row| {
+            row.original
+                .as_ref()
+                .is_some_and(OriginalDeclarationLayout::retains_successor)
+        })
     }
 
     fn retain_declared_body_layouts(
@@ -183,9 +435,13 @@ impl SourceCommandBindings {
                 .in_frame(&body.frame)
                 .with_namespace_identity(body.namespace.clone()),
         );
-        for parameter in &body.parameters {
-            Arc::make_mut(&mut state.source_variables)
-                .bind_unknown_incoming(&parameter.name, registry);
+        if let Some(topology) = &body.original_parameters {
+            topology.seed_unknown(Arc::make_mut(&mut state.source_variables), registry);
+        } else {
+            for parameter in &body.parameters {
+                Arc::make_mut(&mut state.source_variables)
+                    .bind_unknown_incoming(&parameter.name, registry);
+            }
         }
         state.current_source_origin = Some(Arc::clone(&body.source.origin));
         let namespace = body.namespace.clone();
@@ -222,7 +478,14 @@ impl SourceCommandBindings {
             if !observations.contains(&observation) {
                 observations.push(observation);
             }
-            if !retains_successor_layout(&site, &tokens, &snapshot, &namespace, registry) {
+            if !retains_successor_layout(
+                &site,
+                &tokens,
+                &snapshot,
+                &namespace,
+                declaration.config,
+                registry,
+            ) {
                 break;
             }
         }
@@ -235,43 +498,41 @@ fn unanimous_nested_layouts(
     parents: &[DeclarationLayoutObservation],
     registry: &tcl_registry::CommandRegistry,
 ) -> Vec<(ExecutedScriptSource, Vec<DeclarationLayoutObservation>)> {
+    let originals = parent_declaration_layouts(site, tokens, parents, registry);
+    unanimous_nested_layouts_from_parents(site, &originals, registry)
+}
+
+fn unanimous_nested_layouts_from_parents(
+    site: &CommandAllocationSite,
+    originals: &[ParentDeclarationLayout<'_>],
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<(ExecutedScriptSource, Vec<DeclarationLayoutObservation>)> {
     let mut agreed: Option<Vec<ExecutedScriptSource>> = None;
-    for parent in parents {
-        let sources = nested_conditional_layouts(site, tokens, parent, registry)
-            .into_iter()
-            .map(|(source, _)| source)
-            .collect::<Vec<_>>();
+    for row in originals {
+        let sources = row.original.as_ref().map_or_else(Vec::new, |original| {
+            nested_conditional_layouts(site, row.parent, original, registry)
+        });
         if agreed.as_ref().is_some_and(|previous| previous != &sources) {
             return Vec::new();
         }
         agreed = Some(sources);
     }
+    let parents: Vec<_> = originals.iter().map(|row| row.parent.clone()).collect();
     agreed
         .unwrap_or_default()
         .into_iter()
-        .map(|source| (source, parents.to_vec()))
+        .map(|source| (source, parents.clone()))
         .collect()
 }
 
 fn nested_conditional_layouts(
     site: &CommandAllocationSite,
-    tokens: &crate::ir::CommandTokens,
     parent: &DeclarationLayoutObservation,
+    original: &OriginalDeclarationLayout,
     registry: &tcl_registry::CommandRegistry,
-) -> Vec<(ExecutedScriptSource, DeclarationLayoutObservation)> {
-    let Some(advice) = super::original_site_operand_layout_advice(
-        site,
-        tokens,
-        &parent.snapshot,
-        &parent.namespace,
-    ) else {
-        return Vec::new();
-    };
-    let Some(selected) =
-        crate::registry_invocation::declaration_invocation_flow(registry, tokens, &advice)
-    else {
-        return Vec::new();
-    };
+) -> Vec<ExecutedScriptSource> {
+    let advice = &original.advice;
+    let selected = &original.flow;
     let tcl_registry::script_body_flow::ScriptBodyFlow::Conditional(branches) = &selected.flow
     else {
         return Vec::new();
@@ -292,15 +553,15 @@ fn nested_conditional_layouts(
                 argument,
                 &selected.effective,
                 parent,
-                &advice,
+                advice,
                 registry,
             )
         }) {
             break;
         }
-        if let Some(source) = original_nested_body(site, body, &selected.effective, parent, &advice)
+        if let Some(source) = original_nested_body(site, body, &selected.effective, parent, advice)
         {
-            children.push((source, parent.clone()));
+            children.push(source);
         }
     }
     children
@@ -402,7 +663,7 @@ fn condition_retains_original_lookup(
     true
 }
 
-fn declaration_tokens(
+pub(super) fn declaration_tokens(
     site: &CommandAllocationSite,
     observation: &DeclarationLayoutObservation,
 ) -> Option<crate::ir::CommandTokens> {
@@ -441,7 +702,17 @@ fn declared_body(
         tokens,
         &observation.snapshot,
         &observation.namespace,
-    )?;
+        observation.config,
+    );
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+        eprintln!(
+            "ORIGINAL_DECLARATION offset={} stage=body-advice available={}",
+            site.offset,
+            advice.is_some()
+        );
+    }
+    let advice = advice?;
     let dialect = advice.dialect();
     let mut agreed = None;
     for target in advice.targets() {
@@ -474,7 +745,18 @@ fn declared_body(
                 values: &values,
                 dialect,
             },
-        )?;
+        );
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+            eprintln!(
+                "ORIGINAL_DECLARATION offset={} stage=procedure-recipe available={} arity={:?} roles={}",
+                site.offset,
+                recipe.is_some(),
+                facts.arity_accepts_frozen_arguments(),
+                facts.arg_roles_complete
+            );
+        }
+        let recipe = recipe?;
         if agreed.as_ref().is_some_and(|old| old != &recipe) {
             return None;
         }
@@ -487,6 +769,62 @@ struct ProcedureOperands<'a> {
     effective: &'a crate::registry_invocation::EffectiveCommandWords,
     values: &'a [EffectiveInvocationWord],
     dialect: tcl_registry::InvocationDialect,
+}
+
+/// A readonly source operand follows its actual effective ordinal. It does
+/// not acquire installation, entered-frame or Normal authority here.
+fn original_declaration_operand_input(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    observation: &DeclarationLayoutObservation,
+    candidate: &super::SourceCommandTarget,
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    index: usize,
+) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+    use crate::registry_invocation::InvocationWordOrigin;
+    use crate::signature_scan::scope::{
+        SignatureSourceNameInput, SignatureSourceNameKey, SignatureSourceNameValue,
+    };
+    let variables = &observation.snapshot.state.source_variables;
+    let policy = variables.execution_name_policy?.native_recipe()?;
+    let origin = effective.origins.get(index)?;
+    if let InvocationWordOrigin::BindingPrefix(prefix) = origin {
+        let input = candidate.original_prepended_name_inputs()?.get(*prefix)?;
+        return (input.policy() == policy && input.is_current(variables)).then(|| input.clone());
+    }
+    let native = crate::registry_invocation::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        observation.config,
+    )?;
+    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&observation.config);
+    match origin {
+        InvocationWordOrigin::Written(written) => {
+            SignatureSourceNameKey::from_original_native_word(native.get(*written)?, rules, policy)
+                .map(SignatureSourceNameInput::OriginalWord)
+        }
+        InvocationWordOrigin::ExpandedElement { written, element } => {
+            let parent = SignatureSourceNameInput::OriginalValue(
+                SignatureSourceNameValue::from_original_static_word(
+                    native.get(*written)?,
+                    rules,
+                    policy,
+                )?,
+            );
+            let children = parent.original_list_elements()?;
+            let projected = effective.origins.iter().filter_map(|origin| match origin {
+                InvocationWordOrigin::ExpandedElement {
+                    written: parent,
+                    element,
+                } if parent == written => Some(*element),
+                _ => None,
+            });
+            projected.eq(0..children.len()).then_some(())?;
+            children.get(*element).cloned()
+        }
+        InvocationWordOrigin::ResolvedHead | InvocationWordOrigin::BindingPrefix(_) => None,
+    }
 }
 
 fn procedure_body_recipe(
@@ -506,7 +844,7 @@ fn procedure_body_recipe(
     if !facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true) {
         return None;
     }
-    let name = facts
+    let name_argument = facts
         .state_transitions
         .declared()?
         .command_bindings()
@@ -516,16 +854,32 @@ fn procedure_body_recipe(
                 kind: CommandBindingDefinitionKind::Procedure,
             } = transition
             {
-                name.literal()
+                name.argument_index()
             } else {
                 None
             }
         })?;
-    let key = observation.snapshot.state.publication_key_at(
-        &observation.namespace,
-        name,
-        super::namespace_slots::PublicationPurpose::Procedure,
+    let name = original_declaration_operand_input(
+        site,
+        tokens,
+        observation,
+        candidate,
+        effective,
+        name_argument.checked_add(1)?,
     )?;
+    if !observation.entry.owns_source(&site.source, site.offset)
+        || !observation
+            .entry
+            .owns_original_context(&observation.snapshot.state.source_variables)
+        || observation.snapshot.state.variable_frame != *observation.entry.frame()
+        || observation.snapshot.state.current_source_origin.as_ref() != Some(&site.source)
+    {
+        return None;
+    }
+    let key = observation
+        .snapshot
+        .state
+        .original_conditional_procedure_key(&observation.namespace, &name)?;
     let namespace = key.holder().into_owned();
     let words: Vec<_> = values
         .iter()
@@ -533,7 +887,12 @@ fn procedure_body_recipe(
         .collect();
     let arguments =
         tcl_registry::InvocationArguments::structured(words.get(1..)?).with_dialect(dialect);
-    let parameters = super::native_procedure_parameters(facts, arguments)?;
+    let original_parameters =
+        original_procedure_parameter_topology(site, tokens, observation, facts, effective, dialect);
+    let parameters = original_parameters
+        .as_ref()
+        .map(super::formal_topology::OriginalFormalTopology::advisory_parameters)
+        .or_else(|| super::native_procedure_parameters(facts, arguments))?;
     let body_index = facts.arg_roles.iter().find_map(|(index, role)| {
         (*role == tcl_registry::ArgRole::Body)
             .then_some(facts.argument_offset + usize::from(*index) + 1)
@@ -556,15 +915,7 @@ fn procedure_body_recipe(
     if source.origin != site.source {
         return None;
     }
-    let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
-        namespace: namespace.display().unwrap_or_default(),
-        identity: super::source_activation_name(
-            Some(&site.source),
-            "declared-procedure-layout",
-            site.offset,
-        ),
-    }
-    .with_namespace_identity(namespace.clone());
+    let frame = declared_procedure_frame(site, &namespace);
     Some(DeclaredProcedureBody {
         declaration: site.clone(),
         candidate: candidate.clone(),
@@ -572,8 +923,58 @@ fn procedure_body_recipe(
         source,
         namespace,
         parameters,
+        original_parameters,
         frame,
     })
+}
+
+fn declared_procedure_frame(
+    site: &CommandAllocationSite,
+    namespace: &super::SourceNamespaceKey,
+) -> crate::var_resolve::VariableExecutionFrame {
+    crate::var_resolve::VariableExecutionFrame::Procedure {
+        namespace: namespace.display().unwrap_or_default(),
+        identity: super::source_activation_name(
+            Some(&site.source),
+            "declared-procedure-layout",
+            site.offset,
+        ),
+    }
+    .with_namespace_identity(namespace.clone())
+}
+
+fn original_procedure_parameter_topology(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    observation: &DeclarationLayoutObservation,
+    facts: &tcl_registry::InvocationFacts,
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    dialect: tcl_registry::InvocationDialect,
+) -> Option<super::formal_topology::OriginalFormalTopology> {
+    facts
+        .arg_roles
+        .iter()
+        .find_map(|(index, role)| {
+            (*role == tcl_registry::ArgRole::ParamList)
+                .then_some(facts.argument_offset + usize::from(*index))
+        })
+        .and_then(|argument| effective.written_argument(argument))
+        .and_then(|written| {
+            super::formal_topology::capture(
+                site.source.source_image(),
+                tokens.words(),
+                site.offset,
+                written + 1,
+                observation.config,
+                dialect,
+                observation
+                    .snapshot
+                    .state
+                    .source_variables
+                    .execution_name_policy?
+                    .native_recipe()?,
+            )
+        })
 }
 
 fn retains_successor_layout(
@@ -581,33 +982,12 @@ fn retains_successor_layout(
     tokens: &crate::ir::CommandTokens,
     snapshot: &Arc<SourceLookupSnapshot>,
     namespace: &super::SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
-    let Some(advice) =
-        super::original_site_operand_layout_advice(site, tokens, snapshot, namespace)
-    else {
-        return false;
-    };
-    let Some(selected) =
-        crate::registry_invocation::declaration_invocation_flow(registry, tokens, &advice)
-    else {
-        return false;
-    };
-    selected.effects.lookup_stable
-        && !selected.effects.unknown_writes
-        && matches!(
-            selected.flow,
-            tcl_registry::script_body_flow::ScriptBodyFlow::None
-        )
-        && selected.effective.words.iter().all(|word| {
-            effective_invocation_word(
-                word,
-                advice.dialect().lexer_grammar.escapes,
-                advice.dialect().word_values,
-            )
-            .literal_bytes()
-            .is_some()
-        })
+    OriginalDeclarationLayout::select(site, tokens, snapshot, namespace, config, registry)
+        .as_ref()
+        .is_some_and(OriginalDeclarationLayout::retains_successor)
 }
 
 #[cfg(test)]
@@ -650,6 +1030,440 @@ mod tests {
         );
         bindings.stamp_original_tokens(&mut tokens);
         (bindings, tokens)
+    }
+
+    #[test]
+    fn original_registry_advice_uses_uncalled_body_layout_without_normal_receipt() {
+        // Implementation contract: naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (source, command, expected) in [
+            (
+                "proc p {arg} {set evenWhenWritingCode}",
+                "set evenWhenWritingCode",
+                "set",
+            ),
+            ("proc p {} \"puts hi\"", "puts hi", "puts"),
+        ] {
+            let (_, tokens) = inventory(source, command);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(
+                binding.original_normal_result(&tokens).is_none(),
+                "{source}"
+            );
+            assert!(
+                !binding.original_invocation_completes_normally(&tokens),
+                "{source}"
+            );
+            let transfer_available =
+                crate::registry_invocation::normal_transfer_invocation(registry, None, &tokens)
+                    .is_some();
+            let advice = crate::registry_invocation::original_registry_invocation_assistance(
+                registry, None, &tokens,
+            )
+            .expect("the original body layout supplies conditional metadata");
+            assert_eq!(
+                advice.unanimous_command_words().unwrap().command(),
+                expected
+            );
+            assert_eq!(
+                crate::registry_invocation::normal_transfer_invocation(registry, None, &tokens,)
+                    .is_some(),
+                transfer_available,
+                "{source}"
+            );
+            assert!(
+                binding.original_normal_result(&tokens).is_none(),
+                "{source}"
+            );
+            assert!(
+                !binding.original_invocation_completes_normally(&tokens),
+                "{source}"
+            );
+            let mut synthetic = tokens.clone();
+            synthetic.source_binding = None;
+            assert!(
+                crate::registry_invocation::original_registry_invocation_assistance(
+                    registry, None, &synthetic,
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_registry_advice_retains_body_shadowing_and_original_word_currency() {
+        // Implementation contract: naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let (_, tokens) = inventory(
+            "proc set args {return CUSTOM}; proc p {} {set value}",
+            "set value",
+        );
+        assert!(
+            crate::registry_invocation::original_registry_invocation_assistance(
+                registry, None, &tokens,
+            )
+            .is_none_or(|advice| advice.unanimous_command_words().is_none())
+        );
+        let (_, mut changed) = inventory("proc p {} {puts hi}", "puts hi");
+        changed.argv_texts[0] = "reporting-counterfactual".to_owned();
+        let readonly = crate::registry_invocation::original_registry_invocation_assistance(
+            registry, None, &changed,
+        )
+        .unwrap();
+        assert_eq!(
+            readonly.unanimous_command_words().unwrap().command(),
+            "puts"
+        );
+        let crate::ir::WordExpr::Literal { text, .. } = &mut changed.word_exprs[0] else {
+            panic!("a bare literal original head");
+        };
+        *text = "set".to_owned();
+        assert!(
+            crate::registry_invocation::original_registry_invocation_assistance(
+                registry, None, &changed,
+            )
+            .is_none_or(|advice| advice.unanimous_command_words().is_none())
+        );
+    }
+
+    #[test]
+    fn original_declaration_procedure_name_keeps_native_operand_identity() {
+        // Implementation contract: naming.source.original-declaration-name-publication (docs/design/analysis/name-resolution-proofs/original-declaration-name-publication.md).
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let owner = tcl_registry::model::ingress::static_context_for(engine);
+            let registry = owner.commands();
+            let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
+            let source = r"proc p\uD800 {value} {set local $value}";
+            let bindings = SourceCommandBindings::analyse(source, config, registry);
+            let site = CommandAllocationSite {
+                source: Arc::clone(bindings.source_origin().unwrap()),
+                offset: 0,
+            };
+            let observations =
+                original_declaration_layouts(bindings.declaration_layouts.get(&site).unwrap())
+                    .unwrap();
+            let observation = observations.clone().next().unwrap();
+            let tokens = declaration_tokens(&site, observation).unwrap();
+            let recipe = declared_body(&site, &tokens, observation, registry)
+                .expect("original native name is not a reporting string");
+            let native = crate::registry_invocation::original_native_compiler_words(
+                site.source.source_image(),
+                tokens.words(),
+                site.offset,
+                config,
+            )
+            .unwrap();
+            let key =
+                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                    &native[1],
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    observation
+                        .snapshot
+                        .state
+                        .source_variables
+                        .execution_name_policy
+                        .unwrap()
+                        .native_recipe()
+                        .unwrap(),
+                )
+                .unwrap();
+            let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key);
+            assert_eq!(
+                recipe.slot,
+                observation
+                    .snapshot
+                    .state
+                    .original_publication_key(
+                        &observation.namespace,
+                        &input,
+                        super::super::namespace_slots::PublicationPurpose::Procedure
+                    )
+                    .unwrap()
+            );
+            assert_eq!(recipe.source.origin, site.source);
+            assert!(recipe.original_parameters.is_some());
+            let dynamic = r"proc $unknown {value} {set local $value}";
+            let bindings = SourceCommandBindings::analyse(dynamic, config, registry);
+            let site = CommandAllocationSite {
+                source: Arc::clone(bindings.source_origin().unwrap()),
+                offset: 0,
+            };
+            if let Some(observation) = bindings
+                .declaration_layouts
+                .get(&site)
+                .and_then(|rows| original_declaration_layouts(rows))
+                .and_then(|mut rows| rows.next())
+            {
+                let tokens = declaration_tokens(&site, observation).unwrap();
+                assert!(declared_body(&site, &tokens, observation, registry).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn conditional_declaration_geometry_survives_unknown_table_without_installation() {
+        // Implementation contract: naming.source.original-declaration-name-publication
+        // docs/design/analysis/name-resolution-proofs/original-declaration-name-publication.md
+        let source = "rename $old decl\nproc wrap {arg} {upvar 1 other local; return $local}";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let (bindings, tokens) = inventory_in_world(
+            source,
+            "proc wrap {arg} {upvar 1 other local; return $local}",
+            true,
+        );
+        let site = tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .invocation_site()
+            .unwrap();
+        let observation =
+            original_declaration_layouts(bindings.declaration_layouts.get(site).unwrap())
+                .unwrap()
+                .next()
+                .unwrap();
+        assert!(observation.snapshot.state.has_opaque_domain());
+        let recipe = declared_body(site, &tokens, observation, registry)
+            .expect("genuine declaration geometry is independent of current table existence");
+        assert_eq!(recipe.namespace.display().as_deref(), Some("::"));
+        assert_eq!(
+            recipe
+                .original_parameters
+                .as_ref()
+                .unwrap()
+                .advisory_parameters()[0]
+                .name,
+            "arg"
+        );
+        assert!(
+            observation
+                .snapshot
+                .state
+                .installed_procedure_targets(&recipe.slot, site.offset)
+                .is_empty()
+        );
+        assert!(!bindings.has_actual_procedure_entry(&recipe.source));
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .proved_execution_target()
+                .is_none()
+        );
+        let mut foreign = observation.clone();
+        foreign.snapshot = Arc::new(SourceLookupSnapshot::new(
+            super::super::ModuleCommandBindings::initial(registry),
+        ));
+        assert!(declared_body(site, &tokens, &foreign, registry).is_none());
+    }
+
+    #[test]
+    fn nested_layout_visits_process_each_exact_source_world_once() {
+        // Implementation contract: naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // Compare seven genuine nested conditionals with the uncached
+        // worklist. Counts describe lexical segmentation, not body execution
+        // or elapsed time; all retained semantic observations must agree.
+        let source = "if {1} {if {1} {if {1} {if {1} {if {1} {if {1} {if {1} {puts done}}}}}}}";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let (mut cached, _) = inventory(source, "puts done");
+        let mut uncached = cached.clone();
+        let cached_visits = cached.retain_nested_declared_layouts(registry);
+        let uncached_visits = uncached.retain_nested_declared_layouts_with(registry, |_, _| true);
+        assert_eq!(cached_visits, 7);
+        assert_eq!(uncached_visits, 28);
+        assert_eq!(cached, uncached);
+    }
+
+    #[test]
+    fn exact_parent_layout_reuse_keeps_guarded_children_and_successor_decisions() {
+        // Implementation contract: naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // Genuine original observations compare one shared projection with
+        // independently rederived children and continuation. No elapsed-time,
+        // execution, installed implementation or Native frame claim follows.
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (source, command, child_count, successor) in [
+            ("if {1} {puts done}", "if {1} {puts done}", 1, false),
+            ("list done; list later", "list done", 0, true),
+            (
+                "set local $incoming; puts later",
+                "set local $incoming",
+                0,
+                false,
+            ),
+            (
+                "rename puts saved; puts later",
+                "rename puts saved",
+                0,
+                false,
+            ),
+            (
+                "if {[rename puts saved; expr 1]} {puts done}",
+                "if {[rename puts saved; expr 1]} {puts done}",
+                0,
+                false,
+            ),
+            (
+                "proc wrap {condition} {if {$condition} {puts done}}",
+                "if {$condition} {puts done}",
+                1,
+                false,
+            ),
+        ] {
+            let (bindings, tokens) = inventory(source, command);
+            let site = tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .invocation_site()
+                .unwrap();
+            let parents: Vec<_> =
+                original_declaration_layouts(bindings.declaration_layouts.get(site).unwrap())
+                    .unwrap()
+                    .cloned()
+                    .collect();
+            assert!(!parents.is_empty(), "{source}");
+            let originals = parent_declaration_layouts(site, &tokens, &parents, registry);
+            let children = unanimous_nested_layouts_from_parents(site, &originals, registry);
+            assert_eq!(
+                children,
+                unanimous_nested_layouts(site, &tokens, &parents, registry),
+                "{source}"
+            );
+            assert_eq!(children.len(), child_count, "{source}");
+            let shared = originals.iter().all(|row| {
+                row.original
+                    .as_ref()
+                    .is_some_and(OriginalDeclarationLayout::retains_successor)
+            });
+            let repeated = parents.iter().all(|parent| {
+                retains_successor_layout(
+                    site,
+                    &tokens,
+                    &parent.snapshot,
+                    &parent.namespace,
+                    parent.config,
+                    registry,
+                )
+            });
+            assert_eq!(shared, repeated, "{source}");
+            assert_eq!(shared, successor, "{source}");
+        }
+    }
+
+    #[test]
+    fn exact_parent_layout_reuse_refuses_lost_original_source_or_frame() {
+        // Implementation contract: naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // These changed-premise API controls cannot manufacture a provider
+        // execution result from an original layout's reporting fields.
+        let source = "if {1} {puts done}";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let (bindings, tokens) = inventory(source, source);
+        let site = tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .invocation_site()
+            .unwrap();
+        let parents: Vec<_> =
+            original_declaration_layouts(bindings.declaration_layouts.get(site).unwrap())
+                .unwrap()
+                .cloned()
+                .collect();
+        let original = &parents[0].snapshot.state;
+        let mut lost_source = original.clone();
+        lost_source.current_source_origin = None;
+        let mut lost_frame = original.clone();
+        lost_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+        let mut lost_dialect = original.clone();
+        Arc::make_mut(&mut lost_dialect.source_variables).invocation_dialect = None;
+        for state in [lost_source, lost_frame, lost_dialect] {
+            let mut changed = parents.clone();
+            changed[0].snapshot = Arc::new(SourceLookupSnapshot::in_realm(
+                state,
+                changed[0].snapshot.realm,
+            ));
+            let rows = parent_declaration_layouts(site, &tokens, &changed, registry);
+            assert!(rows[0].original.is_none());
+            assert!(unanimous_nested_layouts_from_parents(site, &rows, registry).is_empty());
+            assert!(!rows.iter().all(|row| {
+                row.original
+                    .as_ref()
+                    .is_some_and(OriginalDeclarationLayout::retains_successor)
+            }));
+        }
+    }
+
+    fn nested_layout_key_fixture() -> (ExecutedScriptSource, Vec<DeclarationLayoutObservation>) {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let (bindings, _) = inventory("if {1} {puts done}", "puts done");
+        let (site, rows) = bindings.declaration_layouts.iter().next().unwrap();
+        let parents: Vec<_> = original_declaration_layouts(rows)
+            .unwrap()
+            .cloned()
+            .collect();
+        let tokens = declaration_tokens(site, &parents[0]).unwrap();
+        unanimous_nested_layouts(site, &tokens, &parents, registry).remove(0)
+    }
+
+    #[test]
+    fn nested_layout_visit_key_keeps_complete_lookup_and_owner_facets() {
+        // Implementation contract: naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // Changing a semantic facet is a distinct source-contract question;
+        // these key controls do not manufacture an entered Native frame.
+        let (source, parents) = nested_layout_key_fixture();
+        let mut visited = HashSet::new();
+        assert!(visited.insert(NestedDeclarationLayoutKey::new(&source, &parents)));
+        let mut changed = parents.clone();
+        changed[0].words = Arc::from([]);
+        assert!(!visited.insert(NestedDeclarationLayoutKey::new(&source, &changed)));
+        let mut changed = parents.clone();
+        changed[0].issuer = DeclarationLayoutIssuer::EnteredActivation;
+        assert!(visited.insert(NestedDeclarationLayoutKey::new(&source, &changed)));
+        let mut changed = parents.clone();
+        changed[0].namespace = super::super::SourceNamespaceKey::authored("::other");
+        assert!(visited.insert(NestedDeclarationLayoutKey::new(&source, &changed)));
+        let mut changed = parents.clone();
+        changed[0].config.expand_syntax = !changed[0].config.expand_syntax;
+        assert!(visited.insert(NestedDeclarationLayoutKey::new(&source, &changed)));
+        let mut changed = parents.clone();
+        changed[0].snapshot = Arc::new(SourceLookupSnapshot::in_realm(
+            changed[0].snapshot.state.clone(),
+            tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+        ));
+        assert!(visited.insert(NestedDeclarationLayoutKey::new(&source, &changed)));
+        let mut changed = parents.clone();
+        let mut state = changed[0].snapshot.state.clone();
+        state.mark_opaque_binding_mutation();
+        changed[0].snapshot = Arc::new(SourceLookupSnapshot::in_realm(
+            state,
+            changed[0].snapshot.realm,
+        ));
+        assert!(visited.insert(NestedDeclarationLayoutKey::new(&source, &changed)));
+        let mut changed = parents.clone();
+        changed[0].entry = Arc::new(OriginalDiagnosticFrameEntry::ScriptActivation {
+            source: changed[0].entry.source().clone(),
+            frame: changed[0].entry.frame().clone(),
+            namespace: changed[0].namespace.clone(),
+            config: changed[0].config,
+        });
+        assert!(visited.insert(NestedDeclarationLayoutKey::new(&source, &changed)));
+        let materialised = ExecutedScriptSource::materialised(
+            CommandAllocationSite {
+                source: Arc::clone(&source.origin),
+                offset: source.base(),
+            },
+            vec![0],
+            source.try_text().unwrap(),
+        );
+        assert!(visited.insert(NestedDeclarationLayoutKey::new(&materialised, &parents)));
+        assert_eq!(visited.len(), 8);
     }
 
     #[test]

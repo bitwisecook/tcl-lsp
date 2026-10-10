@@ -1,0 +1,5 @@
+version 9.1.0
+child_alias ::A::a 0 ::A::a 0 VALUE
+child_alias A::relative 0 A::relative 0 VALUE
+child_alias plain 0 plain 0 VALUE
+child_alias ::::extra 0 ::::extra 0 VALUE

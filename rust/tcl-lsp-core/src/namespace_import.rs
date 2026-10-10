@@ -218,14 +218,33 @@ pub trait NamespaceExportOracle {
     /// the `source`-graph run order — an export the graph proves runs *after*
     /// this import is not retroactive, exactly as within one document.
     fn exported_at(&self, source_ns: &str, name: &str, import_site: RunPoint<'_>) -> ExportVerdict;
+
+    /// Exact original slot query. The default is an explicitly authored oracle
+    /// adapter for names with an exact UTF-8 rendering, without issuing a native
+    /// producer. Opaque values remain unknown.
+    fn exported_at_original(
+        &self,
+        slot: &tcl_core_types::ByteCommandSlot,
+        _policy: tcl_syntax::naming::NamePolicyProtocol,
+        import_site: RunPoint<'_>,
+    ) -> ExportVerdict {
+        let Ok(name) = slot.simple.try_utf8() else {
+            return ExportVerdict::Unknown;
+        };
+        let Ok(components) = tcl_syntax::naming::checked_namespace_path_utf8(&slot.namespace)
+        else {
+            return ExportVerdict::Unknown;
+        };
+        self.exported_at(&format!("::{}", components.join("::")), name, import_site)
+    }
 }
 
 /// One `namespace export` event as either tier sees it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ExportEvent<'a> {
+pub struct ExportEvent<'a, P = &'a str> {
     /// The exported glob pattern exactly as written, relative to the
     /// exporting namespace. Empty (and ignored) when [`Self::clears`].
-    pub pattern: &'a str,
+    pub pattern: P,
     /// `true` for a `namespace export -clear` tombstone.
     pub clears: bool,
     /// Where the event sits in the workspace's execution timeline. Ordering it
@@ -332,8 +351,19 @@ pub fn exports_in_effect<'e>(
     order: &RunOrder,
     import_site: RunPoint<'_>,
 ) -> Vec<&'e str> {
-    let mut patterns: Vec<(&'e str, RunPoint<'e>)> = Vec::new();
-    let mut clears: Vec<RunPoint<'e>> = Vec::new();
+    export_patterns_in_effect(events, order, import_site)
+}
+
+/// The same temporal fold over retained typed pattern payloads. Name purpose
+/// and producer correspondence remain the responsibility of the payload owner.
+#[must_use]
+pub fn export_patterns_in_effect<'e, P>(
+    events: impl Iterator<Item = ExportEvent<'e, P>>,
+    order: &RunOrder,
+    import_site: RunPoint<'_>,
+) -> Vec<P> {
+    let mut patterns = Vec::new();
+    let mut clears = Vec::new();
     for ev in events {
         if !in_effect_at(order, ev.at, Some(import_site)) {
             continue;
@@ -346,9 +376,55 @@ pub fn exports_in_effect<'e>(
     }
     patterns
         .into_iter()
-        .filter(|&(_, p)| !clears.iter().any(|&c| ran_after(order, c, p)))
+        .filter(|(_, p)| !clears.iter().any(|&c| ran_after(order, c, *p)))
         .map(|(pattern, _)| pattern)
         .collect()
+}
+
+/// The source advice verdict for an authentic counted command slot and original
+/// export events. Unknown policy, namespace or native glob semantics decline.
+#[must_use]
+pub fn exported_original_at_import_site<'e>(
+    events: impl Iterator<
+        Item = (
+            &'e tcl_compiler::signature_scan::original_name::SourceNamespaceExport,
+            RunPoint<'e>,
+        ),
+    >,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    order: &RunOrder,
+    import_site: RunPoint<'_>,
+) -> ExportVerdict {
+    use tcl_compiler::signature_scan::scope::SignatureNamespaceScope;
+    let matching = events.filter(|(event, _)| event.policy() == policy
+        && matches!(event.context(), SignatureNamespaceScope::C(path) if *path == slot.namespace))
+        .collect::<Vec<_>>();
+    if matching.is_empty() {
+        return ExportVerdict::Unknown;
+    }
+    let surviving = export_patterns_in_effect(
+        matching.into_iter().map(|(event, at)| ExportEvent {
+            pattern: event,
+            clears: event.clears(),
+            at,
+        }),
+        order,
+        import_site,
+    );
+    let mut unknown = false;
+    for event in surviving {
+        match event.matches_command(slot, policy) {
+            Some(true) => return ExportVerdict::Exported,
+            Some(false) => {}
+            None => unknown = true,
+        }
+    }
+    if unknown {
+        ExportVerdict::Unknown
+    } else {
+        ExportVerdict::NotExported
+    }
 }
 
 /// The **load-order** position of a statement in its own document: `false`
@@ -1254,5 +1330,97 @@ mod tests {
         // FP guard: nothing written after the import site is visible.
         let mut evs = [ev("a", 200)].into_iter();
         assert!(exports_in_effect(&mut evs, &order, at(DOC, 100)).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_export_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_export_fold_preserves_counted_identity_and_clear_at_import_time() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+        // docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md
+        let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; namespace export p\uD800; namespace export -clear p\uD801";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let declarations = analysis
+            .original_procedure_declarations()
+            .collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 2);
+        let events = analysis.original_namespace_exports().collect::<Vec<_>>();
+        assert_eq!(events.len(), 3);
+        let ask =
+            |at, declaration: &tcl_compiler::signature_scan::scope::SignatureSourceCommand| {
+                exported_original_at_import_site(
+                    events.iter().map(|event| {
+                        (
+                            *event,
+                            RunPoint {
+                                uri: "doc",
+                                at: event.span().start(),
+                                enclosing_body: None,
+                            },
+                        )
+                    }),
+                    declaration.slot(),
+                    declaration.policy(),
+                    &RunOrder::default(),
+                    RunPoint {
+                        uri: "doc",
+                        at,
+                        enclosing_body: None,
+                    },
+                )
+            };
+        let first = declarations
+            .iter()
+            .find(|record| record.name().slot().simple.as_bytes() == b"p\xed\xa0\x80")
+            .unwrap()
+            .name();
+        let second = declarations
+            .iter()
+            .find(|record| record.name().slot().simple.as_bytes() == b"p\xed\xa0\x81")
+            .unwrap()
+            .name();
+        let clear_at = events
+            .iter()
+            .find(|event| event.clears())
+            .unwrap()
+            .span()
+            .start();
+        assert_eq!(ask(clear_at - 1, first), ExportVerdict::Exported);
+        assert_eq!(ask(clear_at - 1, second), ExportVerdict::NotExported);
+        assert_eq!(
+            ask(u32::try_from(source.len()).unwrap(), first),
+            ExportVerdict::NotExported
+        );
+        assert_eq!(
+            ask(u32::try_from(source.len()).unwrap(), second),
+            ExportVerdict::Exported
+        );
+        let foreign =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V9_0);
+        assert_eq!(
+            exported_original_at_import_site(
+                events.iter().map(|event| (
+                    *event,
+                    RunPoint {
+                        uri: "doc",
+                        at: event.span().start(),
+                        enclosing_body: None,
+                    }
+                )),
+                first.slot(),
+                foreign,
+                &RunOrder::default(),
+                RunPoint {
+                    uri: "doc",
+                    at: u32::MAX,
+                    enclosing_body: None
+                }
+            ),
+            ExportVerdict::Unknown
+        );
     }
 }

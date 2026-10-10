@@ -140,11 +140,36 @@ fn alias_flag(
 /// own flow-insensitive whole-body scan — the recognition logic for
 /// `global` / `variable` / `upvar` / `trace` lives here once.
 pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
-    let context = registry
+    let context = standalone_observability_context(registry);
+    stmt_gen_with_metadata_context(stmt, state, registry, context);
+}
+
+fn standalone_observability_context(
+    registry: &CommandRegistry,
+) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
+    registry
         .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+        .map(Into::into)
+}
+
+/// Apply original alias/trace hazards under supplied availability, not labels.
+/// Missing or foreign metadata grants no declaration or physical-store closure.
+pub(crate) fn stmt_gen_with_metadata_context(
+    stmt: &Statement,
+    state: &mut State,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) {
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return;
+    };
     if let Some(normal) = stmt.tokens().and_then(|tokens| {
-        crate::registry_invocation::normal_transfer_invocation(registry, context, tokens)
+        crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+            registry,
+            Some(context),
+            tokens,
+        )
     }) {
         for alias in normal.variable_alias_transitions() {
             if let Some(local) = alias.local.literal() {
@@ -153,7 +178,11 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRe
         }
     }
     if let Some(possible) = stmt.tokens().and_then(|tokens| {
-        crate::registry_invocation::possible_variable_trace_transitions(registry, context, tokens)
+        crate::registry_invocation::possible_variable_trace_transitions_with_metadata_context(
+            registry,
+            Some(context),
+            tokens,
+        )
     }) {
         for trace in possible.transitions() {
             match trace {
@@ -209,6 +238,7 @@ pub struct VarObservability<'a> {
     ordered_blocks: Vec<BlockId>,
     cfg: &'a CfgFunction,
     registry: &'a CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
 }
 
 impl VarObservability<'_> {
@@ -216,7 +246,7 @@ impl VarObservability<'_> {
         let mut state = self.block_entry.get(&block).cloned().unwrap_or_default();
         if let Some(blk) = self.cfg.blocks.get(&block) {
             for stmt in blk.statements.iter().take(stmt_idx) {
-                stmt_gen(stmt, &mut state, self.registry);
+                stmt_gen_with_metadata_context(stmt, &mut state, self.registry, self.context);
             }
         }
         state
@@ -268,7 +298,7 @@ impl VarObservability<'_> {
             collect_escaping(&state, &mut names);
             if let Some(blk) = self.cfg.blocks.get(block) {
                 for stmt in &blk.statements {
-                    stmt_gen(stmt, &mut state, self.registry);
+                    stmt_gen_with_metadata_context(stmt, &mut state, self.registry, self.context);
                     collect_escaping(&state, &mut names);
                 }
             }
@@ -291,7 +321,7 @@ impl VarObservability<'_> {
             collect_traced(&state, &mut names);
             if let Some(blk) = self.cfg.blocks.get(block) {
                 for stmt in &blk.statements {
-                    stmt_gen(stmt, &mut state, self.registry);
+                    stmt_gen_with_metadata_context(stmt, &mut state, self.registry, self.context);
                     collect_traced(&state, &mut names);
                 }
             }
@@ -357,18 +387,20 @@ pub fn scan_module_global_names(
 ) -> std::collections::HashSet<String> {
     use crate::ir::{Script, Statement, for_each_statement};
     let mut names = std::collections::HashSet::new();
+    let Some(context) = crate::registry_invocation::retained_source_metadata_context(
+        registry,
+        ir_module.source_metadata_input.as_ref(),
+    ) else {
+        return names;
+    };
     let mut visit = |script: &Script| {
         for_each_statement(script, &mut |stmt| {
             let (Statement::Call { .. } | Statement::Barrier { .. }) = stmt else {
                 return;
             };
             let Some(possible) = stmt.tokens().and_then(|tokens| {
-                crate::registry_invocation::possible_variable_alias_transitions(
-                    registry,
-                    registry
-                        .profile()
-                        .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-                    tokens,
+                crate::registry_invocation::possible_variable_alias_transitions_in_context(
+                    &context, tokens,
                 )
             }) else {
                 return;
@@ -410,6 +442,22 @@ pub fn analyse_var_observability<'a>(
     cfg: &'a CfgFunction,
     registry: &'a CommandRegistry,
 ) -> VarObservability<'a> {
+    analyse_var_observability_with_metadata_context(
+        cfg,
+        registry,
+        standalone_observability_context(registry),
+    )
+}
+
+/// Alias and trace hazards under one retained metadata generation.
+/// The same context is retained for point queries and whole-function replay.
+/// Missing or foreign metadata supplies no unobserved-cell or execution proof.
+#[must_use]
+pub fn analyse_var_observability_with_metadata_context<'a>(
+    cfg: &'a CfgFunction,
+    registry: &'a CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+) -> VarObservability<'a> {
     let mut preds: HashMap<BlockId, Vec<BlockId>> =
         cfg.blocks.keys().map(|id| (*id, Vec::new())).collect();
     for &id in cfg.blocks.keys() {
@@ -444,7 +492,7 @@ pub fn analyse_var_observability<'a>(
             let mut exit_state = entry;
             if let Some(blk) = cfg.blocks.get(&id) {
                 for stmt in &blk.statements {
-                    stmt_gen(stmt, &mut exit_state, registry);
+                    stmt_gen_with_metadata_context(stmt, &mut exit_state, registry, context);
                 }
             }
             if exit_state != block_exit[&id] {
@@ -459,6 +507,7 @@ pub fn analyse_var_observability<'a>(
         ordered_blocks: order,
         cfg,
         registry,
+        context,
     }
 }
 
@@ -476,6 +525,74 @@ mod tests {
 
     fn cu(src: &str) -> CompilationUnit {
         CompilationUnit::build_for(src, &registry(), false)
+    }
+
+    #[test]
+    fn retained_availability_survives_observability_point_replay() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // One original Logical body and command store, two availability inputs.
+        // These source hazards certify no Native link, frame or trace table.
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "gated-global",
+            surface: registry.get("dict").unwrap().surface,
+            ..registry.get("global").unwrap().clone()
+        });
+        let registry = std::sync::Arc::new(registry);
+        let compilation = CompilationUnit::build_for(
+            "proc p {} {gated-global {$g}; set {$g} VALUE}",
+            &registry,
+            false,
+        );
+        let function = compilation.function("::p").unwrap();
+        for (environment, available) in [("tcl8.4", false), ("tcl9.0", true)] {
+            let context = tcl_registry::model::ingress::static_context_for(environment)
+                .with_command_store(std::sync::Arc::clone(&registry));
+            let observations = analyse_var_observability_with_metadata_context(
+                &function.cfg,
+                &registry,
+                Some((&context).into()),
+            );
+            assert_eq!(
+                observations.escaping_var_names().contains("$g"),
+                available,
+                "{environment}"
+            );
+            assert_eq!(
+                observations
+                    .flag_at(function.cfg.entry, usize::MAX, "$g")
+                    .contains(EscapeFlag::GLOBAL),
+                available,
+                "{environment}"
+            );
+            assert!(!observations.escaping_var_names().contains("g"));
+            let mut flags = State::new();
+            for statement in function
+                .cfg
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+            {
+                stmt_gen_with_metadata_context(
+                    statement,
+                    &mut flags,
+                    &registry,
+                    Some((&context).into()),
+                );
+            }
+            assert_eq!(flags.get("$g").is_some(), available, "{environment}");
+        }
+        let unavailable =
+            analyse_var_observability_with_metadata_context(&function.cfg, &registry, None);
+        assert!(unavailable.escaping_var_names().is_empty());
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        let observations = analyse_var_observability_with_metadata_context(
+            &function.cfg,
+            &registry,
+            Some(foreign.into()),
+        );
+        assert!(observations.escaping_var_names().is_empty());
     }
 
     #[test]

@@ -3,6 +3,51 @@
 use tcl_core_types::{NativeArraySearchAbi, NativeArraySearchCache, NativeHashWordWidth};
 use tcl_dialect::TclVersion;
 
+/// Pure base-ten C unsigned-long conversion with an independently supplied width.
+/// Returns the saturated magnitude and consumed extent, including whitespace/sign.
+/// The caller selects its `CString`, delimiter and native int narrowing purpose.
+#[must_use]
+pub fn native_c_decimal_unsigned(bytes: &[u8], width: NativeHashWordWidth) -> Option<(u64, usize)> {
+    let mut position = 0;
+    while bytes
+        .get(position)
+        .is_some_and(|byte| matches!(byte, b' ' | b'\t' | b'\n' | b'\r' | b'\x0b' | b'\x0c'))
+    {
+        position += 1;
+    }
+    let negative = bytes.get(position) == Some(&b'-');
+    if matches!(bytes.get(position), Some(b'+' | b'-')) {
+        position += 1;
+    }
+    let first = position;
+    let maximum = match width {
+        NativeHashWordWidth::Bits32 => u64::from(u32::MAX),
+        NativeHashWordWidth::Bits64 => u64::MAX,
+    };
+    let mut magnitude = 0_u64;
+    let mut overflow = false;
+    while let Some(byte @ b'0'..=b'9') = bytes.get(position) {
+        match magnitude
+            .checked_mul(10)
+            .and_then(|value| value.checked_add(u64::from(byte - b'0')))
+        {
+            Some(value) if value <= maximum && !overflow => magnitude = value,
+            _ => {
+                magnitude = maximum;
+                overflow = true;
+            }
+        }
+        position += 1;
+    }
+    if position == first {
+        return None;
+    }
+    if negative && !overflow {
+        magnitude = magnitude.wrapping_neg() & maximum;
+    }
+    Some((magnitude, position))
+}
+
 /// Original lookup failure, before Eval applies its own propagation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeArraySearchFailure {
@@ -58,42 +103,11 @@ impl NativeArraySearchProtocol {
         if !bytes.starts_with(b"s-") {
             return Err(NativeArraySearchFailure::IllegalIdentifier);
         }
-        let mut position = 2;
-        while bytes
-            .get(position)
-            .is_some_and(|byte| matches!(byte, b' ' | b'\t' | b'\n' | b'\r' | b'\x0b' | b'\x0c'))
-        {
-            position += 1;
-        }
-        let negative = bytes.get(position) == Some(&b'-');
-        if matches!(bytes.get(position), Some(b'+' | b'-')) {
-            position += 1;
-        }
-        let first = position;
-        let maximum = match self.abi.unsigned_long {
-            NativeHashWordWidth::Bits32 => u64::from(u32::MAX),
-            NativeHashWordWidth::Bits64 => u64::MAX,
-        };
-        let mut magnitude = 0_u64;
-        let mut overflow = false;
-        while let Some(byte @ b'0'..=b'9') = bytes.get(position) {
-            match magnitude
-                .checked_mul(10)
-                .and_then(|value| value.checked_add(u64::from(byte - b'0')))
-            {
-                Some(value) if value <= maximum && !overflow => magnitude = value,
-                _ => {
-                    magnitude = maximum;
-                    overflow = true;
-                }
-            }
-            position += 1;
-        }
-        if position == first || bytes.get(position) != Some(&b'-') {
+        let (magnitude, extent) = native_c_decimal_unsigned(&bytes[2..], self.abi.unsigned_long)
+            .ok_or(NativeArraySearchFailure::IllegalIdentifier)?;
+        let position = 2 + extent;
+        if bytes.get(position) != Some(&b'-') {
             return Err(NativeArraySearchFailure::IllegalIdentifier);
-        }
-        if negative && !overflow {
-            magnitude = magnitude.wrapping_neg() & maximum;
         }
         let low = u32::try_from(magnitude & u64::from(u32::MAX)).expect("masked native int");
         Ok(NativeArraySearchCache {

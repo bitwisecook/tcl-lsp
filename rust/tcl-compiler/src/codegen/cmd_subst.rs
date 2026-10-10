@@ -3058,14 +3058,17 @@ mod tests {
         ] {
             let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
             let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+            let (_native_owner, entry) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
             let module = service
-                .compile_procedure_for_profile(
+                .compile_procedure_with_entry(
                     tcl_runtime_api::ProcedureCompileTarget {
                         source,
                         namespace: "::",
                         parameters: &[],
                     },
                     profile,
+                    &entry,
                     tcl_runtime_api::ProcedureDispatch::Optimised,
                 )
                 .unwrap();

@@ -80,6 +80,36 @@ impl ExecutedScriptSource {
         Self::materialised(parent, vec![argument], value)
     }
 
+    /// Retain the actual counted script value. Original static-word decoding
+    /// can establish a source extent, but only byte equality grants a
+    /// contiguous map. Channel/unit conversion remains a materialised source.
+    pub(super) fn from_original_word_value(
+        parent: CommandAllocationSite,
+        argument: usize,
+        word: &tcl_lexer::NativeWord,
+        value: &[u8],
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Self {
+        // Implementation contract: naming.source.original-native-script-body-value
+        // docs/design/analysis/name-resolution-proofs/original-native-script-body-value.md
+        let text = tcl_lexer::SourceImage::native(value);
+        if word.image() == parent.source.source_image()
+            && word.span().start() >= parent.offset
+            && let Ok(captured) = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+                std::slice::from_ref(word),
+                protocol,
+            )
+            && captured.literal(0) == Some(value)
+            && let Some(span) = captured.original_literal_extent(0, 0..value.len())
+            && span.as_range().len() == value.len()
+            && let Some(script) =
+                Self::contiguous_image(Arc::clone(&parent.source), text.clone(), span.start())
+        {
+            return script;
+        }
+        Self::materialised_image(parent, vec![argument], text)
+    }
+
     /// Prove the contiguous source coordinate of an evaluated literal script.
     /// The lexer owns token extent; decoded or substituted values receive no
     /// authored coordinate. This is also the inline compiler's mapping seam.
@@ -162,7 +192,7 @@ impl ExecutedScriptSource {
         let values = rules.split_list(text).ok()?;
         let value = values.get(element)?.as_ref();
         if let ExecutedScriptMapping::Contiguous { base } = self.mapping
-            && let Some(offset) = literal_list_element_offset(text, element, value)
+            && let Some(offset) = literal_list_element_offset(text, element, value, rules.list)
             && let Some(base) = base.checked_add(offset)
         {
             return Some(Self {
@@ -208,10 +238,17 @@ fn literal_body_base(source: &str, word: &WordExpr, value: &str) -> Option<u32> 
         .flatten()
 }
 
-fn literal_list_element_offset(text: &str, element: usize, value: &str) -> Option<u32> {
+fn literal_list_element_offset(
+    text: &str,
+    element: usize,
+    value: &str,
+    syntax: tcl_dialect::ListParse,
+) -> Option<u32> {
     let mut next = 0;
     for index in 0..=element {
-        let item = tcl_syntax::list::find_element(text, next).ok().flatten()?;
+        let item = tcl_syntax::list::find_element_with_syntax(text, next, syntax)
+            .ok()
+            .flatten()?;
         next = item.next;
         if index == element && text.get(item.value.clone()) == Some(value) {
             return u32::try_from(item.value.start).ok();
@@ -241,6 +278,159 @@ mod tests {
             },
             tokens.words()[1].clone(),
         )
+    }
+
+    #[test]
+    fn original_counted_body_operand_keeps_native_image_without_document_coordinates() {
+        // Implementation contract: naming.variable.scalar-formal-body-alpha-equivalence
+        // docs/design/analysis/name-resolution-proofs/scalar-formal-body-alpha-equivalence.md
+        let source = "proc p {longé😀} {return ${longé😀}}";
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let config = LexerConfig::from_grammar(dialect.lexer_grammar);
+        let image = tcl_lexer::SourceImage::document(source);
+        let parsed = tcl_lexer::native_script_words_in(
+            image.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let body = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            &parsed.commands[0].words[3],
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            dialect.authored_name_policy().unwrap(),
+        )
+        .unwrap();
+        assert!(std::str::from_utf8(body.bytes()).is_err());
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut state = super::super::ModuleCommandBindings::initial_with_options(
+            &registry,
+            super::super::SourceAnalysisOptions {
+                invocation_dialect: Some(dialect),
+                ..Default::default()
+            },
+            Some(config),
+        );
+        let origin = Arc::new(SourceOriginId::authored(&Arc::from(source)));
+        state.current_source_origin = Some(Arc::clone(&origin));
+        let target = super::super::source_binding(&state, "proc", "::")
+            .proved_target()
+            .unwrap()
+            .clone();
+        let words = [tcl_registry::InvocationWord::KnownBytes(body.bytes())];
+        let arguments = tcl_registry::InvocationArguments::structured(&words).with_dialect(dialect);
+        let selection = tcl_registry::native_compilation::NativeCompilationSelection::Generic;
+        let operands = super::super::SourceScriptOperands {
+            compilation_spec: None,
+            compilation_selection: &selection,
+            words: &[],
+            written_arguments: None,
+            target: &target,
+            arguments: &arguments,
+        };
+        let retained =
+            super::super::retained_script_operand(0, operands, &state, 0, config).unwrap();
+        assert_eq!(retained.text.bytes(), body.bytes());
+        assert_eq!(
+            retained.text.channel(),
+            tcl_lexer::SourceChannel::NativeValue
+        );
+        assert_eq!(retained.mapping, ExecutedScriptMapping::Materialised);
+        assert_eq!(retained.base(), 0);
+        assert_ne!(retained.origin, origin);
+        assert!(retained.try_text().is_err());
+        assert_eq!(origin.source_image(), &image);
+    }
+
+    #[test]
+    fn original_body_value_mapping_keeps_native_units_and_original_channels_separate() {
+        // Implementation contract: naming.source.original-native-script-body-value
+        // docs/design/analysis/name-resolution-proofs/original-native-script-body-value.md
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let config = LexerConfig::from_grammar(dialect.lexer_grammar);
+            let protocol = dialect.native_source_string_protocol().unwrap();
+            for image in [
+                tcl_lexer::SourceImage::document("catch {return 😀}"),
+                tcl_lexer::SourceImage::native(b"catch {return \xff}".as_slice()),
+            ] {
+                let origin = Arc::new(SourceOriginId::authored_image(image.clone()));
+                let parsed = tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                    config,
+                )
+                .unwrap();
+                let word = &parsed.commands[0].words[1];
+                let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+                    std::slice::from_ref(word),
+                    protocol,
+                )
+                .unwrap();
+                let value = captured.literal(0).unwrap();
+                let parent = CommandAllocationSite {
+                    source: Arc::clone(&origin),
+                    offset: 0,
+                };
+                let body = ExecutedScriptSource::from_original_word_value(
+                    parent.clone(),
+                    0,
+                    word,
+                    value,
+                    protocol,
+                );
+                assert_eq!(body.text.bytes(), value);
+                assert_eq!(body.text.channel(), tcl_lexer::SourceChannel::NativeValue);
+                if image.channel() == tcl_lexer::SourceChannel::NativeValue
+                    || version >= tcl_dialect::TclVersion::V9_0
+                {
+                    assert_eq!(body.mapping, ExecutedScriptMapping::Contiguous { base: 7 });
+                    assert_eq!(body.origin, origin);
+                } else {
+                    assert_eq!(body.mapping, ExecutedScriptMapping::Materialised);
+                    assert_ne!(body.origin, origin);
+                }
+                if image.channel() == tcl_lexer::SourceChannel::Document
+                    && version < tcl_dialect::TclVersion::V9_0
+                {
+                    let wrong_protocol = tcl_syntax::native_string::NativeStringProtocol::C(
+                        tcl_dialect::TclVersion::V9_1,
+                    );
+                    assert_eq!(
+                        ExecutedScriptSource::from_original_word_value(
+                            parent.clone(),
+                            0,
+                            word,
+                            value,
+                            wrong_protocol,
+                        )
+                        .mapping,
+                        ExecutedScriptMapping::Materialised
+                    );
+                }
+                let changed = ExecutedScriptSource::from_original_word_value(
+                    parent,
+                    0,
+                    word,
+                    b"return DIFFERENT",
+                    protocol,
+                );
+                assert_eq!(changed.mapping, ExecutedScriptMapping::Materialised);
+                assert_eq!(changed.text.bytes(), b"return DIFFERENT");
+                let foreign = CommandAllocationSite {
+                    source: Arc::new(SourceOriginId::authored_image(
+                        tcl_lexer::SourceImage::document("catch {return OTHER}"),
+                    )),
+                    offset: 0,
+                };
+                assert_eq!(
+                    ExecutedScriptSource::from_original_word_value(
+                        foreign, 0, word, value, protocol,
+                    )
+                    .mapping,
+                    ExecutedScriptMapping::Materialised
+                );
+            }
+        }
     }
 
     #[test]
@@ -301,6 +491,36 @@ mod tests {
         let escaped = list.list_element(parent, 0, 3, rules).unwrap();
         assert_eq!(escaped.text.bytes(), b"puts A");
         assert_eq!(escaped.mapping, ExecutedScriptMapping::Materialised);
+    }
+
+    #[test]
+    fn original_script_list_geometry_uses_the_same_selected_grammar_as_values() {
+        // Implementation contract: naming.source.original-native-script-body-value
+        // docs/design/analysis/name-resolution-proofs/original-native-script-body-value.md
+        let profile = tcl_registry::model::ingress::static_context_for("jim");
+        let config = LexerConfig::for_profile(profile.commands().profile());
+        for (source, value) in [
+            ("switch {x {puts x}tail}", "x {puts x}tail"),
+            ("switch {x \"puts x}", "x \"puts x"),
+        ] {
+            let (parent, word) = operand(source, config);
+            let list = ExecutedScriptSource::from_word(parent.clone(), 0, &word, value, config);
+            let body = list
+                .list_element(parent.clone(), 0, 1, WordValueRules::JIM)
+                .unwrap();
+            assert_eq!(body.text.bytes(), b"puts x");
+            assert_eq!(body.origin, parent.source);
+            assert_eq!(
+                body.mapping,
+                ExecutedScriptMapping::Contiguous {
+                    base: u32::try_from(source.find("puts x").unwrap()).unwrap(),
+                }
+            );
+            assert!(
+                list.list_element(parent, 0, 1, WordValueRules::TCL)
+                    .is_none()
+            );
+        }
     }
 
     #[test]

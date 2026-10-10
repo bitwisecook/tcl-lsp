@@ -37,13 +37,24 @@ impl Vm {
                 == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
                 && matches!(producer, Producer::Current | Producer::CodeContext)
             {
+                let recipe = dialect.native_jim_lookup_protocol().ok_or(
+                    ValueError::CommandProtocolUnavailable("Jim original namespace result recipe"),
+                )?;
+                if namespace != self.current_ns_id() {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "Jim original namespace result frame",
+                    ));
+                }
+                let original = self.with_jim_current_namespace(|original| Ok(original.clone()))?;
+                let bytes = tcl_syntax::value::ValueOps::native_string_bytes(self, &original)?;
+                let name = recipe.namespace_current_result(&bytes);
                 let value = Value::from_native_string_cache(
                     tcl_syntax::native_object::NativeObjectCacheSnapshot::JimString {
                         num_chars: None,
                     },
                     dialect,
                     Some((
-                        Namespaces::name_bytes(self, namespace).into(),
+                        name.into(),
                         tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
                     )),
                 )?;
@@ -135,10 +146,7 @@ impl Vm {
             u64::from(namespace.0),
             fullname.into(),
             world
-                .ns_parents
-                .get(namespace.0 as usize)
-                .copied()
-                .flatten()
+                .physical_namespace_parent(namespace)
                 .map(|parent| u64::from(parent.0)),
         );
         if world.dying_namespaces.contains(&namespace) {
@@ -548,6 +556,10 @@ mod tests {
 
     #[test]
     fn opaque_children_match_20_native_query_and_primary_windows() {
+        // Native proof: naming.namespace-native.opaque-child-enumeration
+        // docs/design/analysis/name-resolution-proofs/namespace-native-opaque-child-enumeration.md
+        // Native proof: naming.namespace-native.opaque-child-pattern-selection
+        // docs/design/analysis/name-resolution-proofs/namespace-native-opaque-child-pattern-selection.md
         use tcl_syntax::native_object::NativeObjectCacheSnapshot as Snapshot;
         let observations = include_str!(
             "../../../tcl-syntax/tests/data/native_namespace_name/opaque_children.txt"
@@ -619,6 +631,10 @@ mod tests {
 
     #[test]
     fn native_deletion_validates_all_names_then_relooks_dependent_targets() {
+        // Native proof: naming.namespace-native.delete-validates-later
+        // docs/design/analysis/name-resolution-proofs/namespace-native-delete-validates-later.md
+        // Native proof: naming.namespace-native.delete-dependent-child-duplicate
+        // docs/design/analysis/name-resolution-proofs/namespace-native-delete-dependent-child-duplicate.md
         for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut vm = actual_vm(release);
             let parent = declare(&mut vm, &[b"P"]);
@@ -661,6 +677,8 @@ mod tests {
 
     #[test]
     fn deletion_second_pass_observes_callback_deleted_and_recreated_incarnations() {
+        // Native proof: naming.namespace-native.delete-command-callback-removes-later
+        // docs/design/analysis/name-resolution-proofs/namespace-native-delete-command-callback-removes-later.md
         use crate::command::NativeCommand;
         use std::{cell::Cell, rc::Rc};
         use tcl_cmd_core::namespace::NamespaceDeleteBackend;

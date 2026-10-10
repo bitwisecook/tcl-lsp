@@ -472,6 +472,8 @@ pub enum BodyExecutionSpec {
     SubstitutionTemplate,
     /// Store selected script operands for a later global-frame invocation.
     DeferredGlobalScript,
+    /// Future global entry whose authored frame contract names one family.
+    DeferredGlobalScriptForFamily(tcl_dialect::model::Family),
     /// Dictionary mapping plus a completion-sensitive caller-frame epilogue.
     DictionaryScope(crate::dictionary_scope::DictionaryScopeSpec),
     /// Three caller-frame phases; setup failure omits body, cleanup captures all
@@ -792,7 +794,12 @@ impl BodyExecutionSpec {
         dialect: crate::InvocationDialect,
     ) -> Option<DeferredBodyFrame> {
         use tcl_dialect::model::{Family, Release};
-        if self != Self::DeferredGlobalScript {
+        let family = match self {
+            Self::DeferredGlobalScript => None,
+            Self::DeferredGlobalScriptForFamily(family) => Some(family),
+            _ => return None,
+        };
+        if family.is_some_and(|family| dialect.family() != Some(family)) {
             return None;
         }
         let native = match dialect.family() {
@@ -815,7 +822,8 @@ impl BodyExecutionSpec {
             | Self::DictionaryScope(_)
             | Self::SourceFile
             | Self::SubstitutionTemplate
-            | Self::DeferredGlobalScript => BodyExecutionSelection::UnknownArguments,
+            | Self::DeferredGlobalScript
+            | Self::DeferredGlobalScriptForFamily(_) => BodyExecutionSelection::UnknownArguments,
         }
     }
 }
@@ -824,6 +832,35 @@ impl BodyExecutionSpec {
 mod tests {
     use super::*;
     use crate::{CommandRegistry, InvocationWord};
+
+    #[test]
+    fn deferred_global_entry_keeps_the_authored_native_family() {
+        // Native question: naming.package.ifneeded-native-entry-frame
+        // docs/design/analysis/name-resolution-proofs/package-ifneeded-native-entry-frame.md
+        // These assertions constrain authored family data, not guest execution.
+        // naming.package.original-file-candidate-provenance
+        // docs/design/analysis/name-resolution-proofs/original-package-file-candidate-provenance.md
+        let descriptor =
+            BodyExecutionSpec::DeferredGlobalScriptForFamily(tcl_dialect::model::Family::Tcl);
+        for version in tcl_dialect::TclVersion::ALL {
+            assert_eq!(
+                descriptor.deferred_entry_frame(crate::InvocationDialect::for_version(version)),
+                Some(DeferredBodyFrame::Global)
+            );
+        }
+        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        assert_eq!(descriptor.deferred_entry_frame(jim), None);
+        for dialect in ["f5-irules", "f5-tmsh", "f5-iapps"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            assert_eq!(
+                descriptor.deferred_entry_frame(crate::InvocationDialect::of_profile(profile)),
+                None,
+                "{dialect}"
+            );
+        }
+    }
 
     #[test]
     fn deferred_global_entry_requires_actual_native_scheduling_policy() {

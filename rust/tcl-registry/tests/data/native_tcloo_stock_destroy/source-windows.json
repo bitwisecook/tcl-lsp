@@ -1,0 +1,44 @@
+[
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "exact pinned source associated with original receipt; linked binary version queried separately",
+    "original_path": "generic/tclOO.c",
+    "function": "objMethods",
+    "lines": [
+      106,
+      122
+    ],
+    "source_sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+    "snippet": "#define DCM(name,visibility,proc) \\\n    {name,visibility,\\\n\t{TCL_OO_METHOD_VERSION_CURRENT,\"core method: \"#name,proc,NULL,NULL}}\n\nstatic const DeclaredClassMethod objMethods[] = {\n    DCM(\"destroy\", 1,\tTclOO_Object_Destroy),\n    DCM(\"eval\", 0,\tTclOO_Object_Eval),\n    DCM(\"unknown\", 0,\tTclOO_Object_Unknown),\n    DCM(\"variable\", 0,\tTclOO_Object_LinkVar),\n    DCM(\"varname\", 0,\tTclOO_Object_VarName),\n    {NULL, 0, {0, NULL, NULL, NULL, NULL}}\n}, clsMethods[] = {\n    DCM(\"create\", 1,\tTclOO_Class_Create),\n    DCM(\"new\", 1,\tTclOO_Class_New),\n    DCM(\"createWithNamespace\", 0, TclOO_Class_CreateNs),\n    {NULL, 0, {0, NULL, NULL, NULL, NULL}}\n};\n",
+    "snippet_sha256": "bd7780841ca69a40a4b0e18d7bec1e2774291857ec4956c0f92baedb9ebf0b0d"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "exact pinned source associated with original receipt; linked binary version queried separately",
+    "original_path": "generic/tclOO.c",
+    "function": "objMethods",
+    "lines": [
+      131,
+      159
+    ],
+    "source_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+    "snippet": "#define DCM(name,visibility,proc) \\\n    {name,visibility,\\\n\t{TCL_OO_METHOD_VERSION_CURRENT,\"core method: \"#name,proc,NULL,NULL}}\n\nstatic const DeclaredClassMethod objMethods[] = {\n    DCM(\"<cloned>\", 0,\tTclOO_Object_Cloned),\n    DCM(\"destroy\", 1,\tTclOO_Object_Destroy),\n    DCM(\"eval\", 0,\tTclOO_Object_Eval),\n    DCM(\"unknown\", 0,\tTclOO_Object_Unknown),\n    DCM(\"variable\", 0,\tTclOO_Object_LinkVar),\n    DCM(\"varname\", 0,\tTclOO_Object_VarName),\n    {NULL, 0, {0, NULL, NULL, NULL, NULL}}\n}, clsMethods[] = {\n    DCM(\"<cloned>\", 0,\tTclOO_Class_Cloned),\n    DCM(\"create\", 1,\tTclOO_Class_Create),\n    DCM(\"new\", 1,\tTclOO_Class_New),\n    DCM(\"createWithNamespace\", 0, TclOO_Class_CreateNs),\n    {NULL, 0, {0, NULL, NULL, NULL, NULL}}\n}, cfgMethods[] = {\n    DCM(\"configure\", 1, TclOO_Configurable_Configure),\n    {NULL, 0, {0, NULL, NULL, NULL, NULL}}\n}, singletonMethods[] = {\n    DCM(\"new\", 1,\tTclOO_Singleton_New),\n    {NULL, 0, {0, NULL, NULL, NULL, NULL}}\n}, singletonInstanceMethods[] = {\n    DCM(\"<cloned>\", 0,\tTclOO_SingletonInstance_Cloned),\n    DCM(\"destroy\", 1,\tTclOO_SingletonInstance_Destroy),\n    {NULL, 0, {0, NULL, NULL, NULL, NULL}}\n};\n",
+    "snippet_sha256": "e5bc66d9c081231b8aa32aba90cfbf1a8405d210bd6ca45b7429cbfeaf1de7a4"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "exact pinned source associated with original receipt; linked binary version queried separately",
+    "original_path": "generic/tclOO.c",
+    "function": "objMethods",
+    "lines": [
+      132,
+      160
+    ],
+    "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+    "snippet": "#define DCM(name,visibility,proc) \\\n    {name,visibility,\\\n\t{TCL_OO_METHOD_VERSION_2,\"core method: \"#name,proc,NULL,NULL}}\n\nstatic const DeclaredClassMethod objMethods[] = {\n    DCM(\"<cloned>\", false,\tTclOO_Object_Cloned),\n    DCM(\"destroy\", true,\tTclOO_Object_Destroy),\n    DCM(\"eval\", false,\t\tTclOO_Object_Eval),\n    DCM(\"unknown\", false,\tTclOO_Object_Unknown),\n    DCM(\"variable\", false,\tTclOO_Object_LinkVar),\n    DCM(\"varname\", false,\tTclOO_Object_VarName),\n    {NULL, false, {0, NULL, NULL, NULL, NULL}}\n}, clsMethods[] = {\n    DCM(\"<cloned>\", false,\tTclOO_Class_Cloned),\n    DCM(\"create\", true,\t\tTclOO_Class_Create),\n    DCM(\"new\", true,\t\tTclOO_Class_New),\n    DCM(\"createWithNamespace\", false, TclOO_Class_CreateNs),\n    {NULL, false, {0, NULL, NULL, NULL, NULL}}\n}, cfgMethods[] = {\n    DCM(\"configure\", true,\tTclOO_Configurable_Configure),\n    {NULL, false, {0, NULL, NULL, NULL, NULL}}\n}, singletonMethods[] = {\n    DCM(\"new\", true,\t\tTclOO_Singleton_New),\n    {NULL, false, {0, NULL, NULL, NULL, NULL}}\n}, singletonInstanceMethods[] = {\n    DCM(\"<cloned>\", false,\tTclOO_SingletonInstance_Cloned),\n    DCM(\"destroy\", true,\tTclOO_SingletonInstance_Destroy),\n    {NULL, false, {0, NULL, NULL, NULL, NULL}}\n};\n",
+    "snippet_sha256": "a59f7d98a7e68ba17412d19252c9a3a9eb629219c87e6b30517bdd22c7654b59"
+  }
+]

@@ -43,6 +43,9 @@
 //! Answering one per dialect and the other per hardcoded default is precisely
 //! the bug this replaces.
 
+mod source_list;
+pub use source_list::{OriginalSourceListElement, original_static_word_list_elements};
+
 use crate::list::ListError;
 use std::borrow::Cow;
 use tcl_dialect::{BraceBackslashNewline, LexerGrammar, ListParse};
@@ -371,5 +374,386 @@ mod tests {
         assert_eq!(whole_braced_word("{{a}"), None);
         assert_eq!(whole_braced_word(""), None);
         assert_eq!(whole_braced_word("{"), None);
+    }
+}
+
+/// Static ASCII metadata presentation from one authentic Document word.
+/// This carries lexical facts only: no native name policy, value object, cell,
+/// compiler eligibility or successful execution follows from these bytes.
+#[must_use]
+pub fn original_static_word_ascii_presentation(word: &tcl_lexer::NativeWord) -> Option<Vec<u8>> {
+    let value = original_static_word_source_bytes(word)?;
+    value.is_ascii().then_some(value)
+}
+
+fn original_static_word_source_bytes(word: &tcl_lexer::NativeWord) -> Option<Vec<u8>> {
+    use tcl_lexer::{ExecutablePart, ExecutableText, SourceChannel, WordKind};
+    if word.image().channel() != SourceChannel::Document || word.group().expand {
+        return None;
+    }
+    word.image().try_text().ok()?;
+    let mut value = Vec::new();
+    if word.group().kind == WordKind::Braced {
+        let span = word.content_span().ok()?;
+        let original = word.image().bytes().get(span.as_range())?;
+        value.extend_from_slice(&crate::backslash::source_braced_word_bytes(
+            original,
+            SourceChannel::Document,
+            word.config().brace_backslash_newline,
+        ));
+    } else {
+        let arena = word.executable_parts();
+        for component in arena.list(arena.root()) {
+            match &component.part {
+                ExecutablePart::Text(ExecutableText::Original) => {
+                    value.extend_from_slice(&crate::backslash::source_literal_bytes(
+                        arena.bytes(component.span)?,
+                        SourceChannel::Document,
+                    ));
+                }
+                ExecutablePart::Text(ExecutableText::Decoded(bytes)) => {
+                    value.extend_from_slice(bytes);
+                }
+                _ => return None,
+            }
+        }
+    }
+    Some(value)
+}
+
+/// Exact original Document coordinate of a static ASCII presentation boundary.
+/// Parsed literal and escape components retain their own source extents. A
+/// boundary inside a scanner-selected escape result or across ambiguous source
+/// extents is unavailable. Transformed braced content supplies no invented coordinate.
+/// This selects no Native value, naming purpose, lookup or edit authority.
+#[must_use]
+pub fn original_static_word_ascii_source_offset(
+    word: &tcl_lexer::NativeWord,
+    offset: usize,
+) -> Option<u32> {
+    use tcl_lexer::{ExecutablePart, ExecutableText, SourceChannel, WordKind};
+    // naming.core.original-inlay-retained-context
+    // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+    let value = original_static_word_ascii_presentation(word)?;
+    if offset > value.len() {
+        return None;
+    }
+    if word.group().kind == WordKind::Braced || value.is_empty() {
+        let content = word.content_span().ok()?;
+        let raw = word.image().bytes().get(content.as_range())?;
+        if raw != value {
+            return None;
+        }
+        return content.start().checked_add(u32::try_from(offset).ok()?);
+    }
+    let arena = word.executable_parts();
+    let mut produced = 0_usize;
+    let mut selected = None;
+    for component in arena.list(arena.root()) {
+        let (length, literal) = match &component.part {
+            ExecutablePart::Text(ExecutableText::Original) => {
+                let raw = arena.bytes(component.span)?;
+                if crate::backslash::source_literal_bytes(raw, SourceChannel::Document).as_ref()
+                    != raw
+                {
+                    return None;
+                }
+                (raw.len(), true)
+            }
+            ExecutablePart::Text(ExecutableText::Decoded(bytes)) => (bytes.len(), false),
+            _ => return None,
+        };
+        let end = produced.checked_add(length)?;
+        if (produced..=end).contains(&offset) {
+            let local = offset - produced;
+            let source = if literal {
+                component
+                    .span
+                    .start()
+                    .checked_add(u32::try_from(local).ok()?)?
+            } else {
+                let decoded = arena.text(component)?;
+                let raw = arena.bytes(component.span)?;
+                let original = decoded_ascii_source_offset(raw, decoded, word.config(), local)?;
+                component
+                    .span
+                    .start()
+                    .checked_add(u32::try_from(original).ok()?)?
+            };
+            if selected.is_some_and(|previous| previous != source) {
+                return None;
+            }
+            selected = Some(source);
+        }
+        produced = end;
+    }
+    (produced == value.len()).then_some(())?;
+    selected
+}
+
+// Recheck the complete retained decoded component using the shared lexical
+// fragment owner. Each ASCII result has one whole original input extent; this
+// supplies source geometry without selecting a native string or name protocol.
+fn decoded_ascii_source_offset(
+    raw: &[u8],
+    decoded: &[u8],
+    config: tcl_lexer::LexerConfig,
+    offset: usize,
+) -> Option<usize> {
+    use tcl_lexer::{BackslashFragmentValue, EscapedInputUnit, EscapedInputValue, SourceChannel};
+    if !raw.is_ascii() || !decoded.is_ascii() || offset > decoded.len() {
+        return None;
+    }
+    let mut value = Vec::with_capacity(decoded.len());
+    let mut position = 0;
+    let mut selected = (offset == 0).then_some(0);
+    while position < raw.len() {
+        let (end, byte) = if raw[position] == b'\\' {
+            let fragment = tcl_lexer::source_backslash_fragment_in(
+                raw,
+                position,
+                SourceChannel::Document,
+                config.escapes,
+                |_| EscapedInputUnit {
+                    width: 1,
+                    value: EscapedInputValue::CopyOriginal,
+                },
+            )?;
+            let byte = match fragment.value {
+                BackslashFragmentValue::Byte(byte) => byte,
+                BackslashFragmentValue::Codepoint(value) => u8::try_from(value).ok()?,
+                BackslashFragmentValue::Literal(range) => {
+                    let [byte] = raw.get(range)? else {
+                        return None;
+                    };
+                    *byte
+                }
+            };
+            (fragment.end, byte)
+        } else if raw[position] == b'\r' {
+            (
+                position + 1 + usize::from(raw.get(position + 1) == Some(&b'\n')),
+                b'\n',
+            )
+        } else {
+            (position + 1, raw[position])
+        };
+        if end <= position || end > raw.len() || !byte.is_ascii() {
+            return None;
+        }
+        value.push(byte);
+        if value.len() == offset {
+            selected = Some(end);
+        }
+        position = end;
+    }
+    (value == decoded).then_some(selected).flatten()
+}
+
+/// Render explicitly lexical ASCII declaration advice under the complete
+/// supplied grammar. No native name policy or callable publication is inferred.
+#[must_use]
+pub fn lexical_ascii_source_word(value: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    if !value.is_ascii() {
+        return None;
+    }
+    let spelling = crate::list::list_element(value);
+    let image = tcl_lexer::SourceImage::document(&spelling);
+    let plan = tcl_lexer::native_script_words_in(
+        image,
+        tcl_lexer::Span::new(0, u32::try_from(spelling.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    (original_static_word_ascii_presentation(word)?.as_slice() == value.as_bytes())
+        .then_some(spelling)
+}
+
+#[cfg(test)]
+mod original_metadata_tests {
+    use super::*;
+    use tcl_lexer::{LexerConfig, SourceImage, Span};
+
+    fn presentation(source: &str, config: LexerConfig) -> Option<Vec<u8>> {
+        let image = SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        original_static_word_ascii_presentation(&plan.commands[0].words[0])
+    }
+
+    fn word(image: SourceImage, config: LexerConfig) -> tcl_lexer::NativeWord {
+        let length = u32::try_from(image.len()).unwrap();
+        let plan = tcl_lexer::native_script_words_in(image, Span::new(0, length), config).unwrap();
+        plan.commands[0].words[0].clone()
+    }
+
+    #[test]
+    fn static_ascii_boundaries_keep_original_literal_and_escape_components() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let config = LexerConfig::default();
+        for (source, expected) in [
+            ("%d", [0, 1, 2]),
+            (r"\x25d", [0, 4, 5]),
+            (r#""\x25d""#, [1, 5, 6]),
+            ("{%d}", [1, 2, 3]),
+        ] {
+            let original = word(SourceImage::document(source), config);
+            assert_eq!(
+                original_static_word_ascii_presentation(&original).as_deref(),
+                Some(b"%d".as_slice())
+            );
+            for (offset, expected) in expected.into_iter().enumerate() {
+                assert_eq!(
+                    original_static_word_ascii_source_offset(&original, offset),
+                    Some(expected),
+                    "{source}"
+                );
+            }
+            assert!(original_static_word_ascii_source_offset(&original, 3).is_none());
+        }
+    }
+
+    #[test]
+    fn static_ascii_boundaries_keep_selected_grammar_and_refuse_other_value_domains() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        for (profile, expected) in [("tcl8.5", 6), ("tcl8.6", 4)] {
+            let config = LexerConfig::for_profile(tcl_dialect::DialectProfile::find(profile));
+            let original = word(SourceImage::document(r"\x4142"), config);
+            assert_eq!(
+                original_static_word_ascii_source_offset(&original, 1),
+                Some(expected),
+                "{profile}"
+            );
+        }
+        let config = LexerConfig::default();
+        for image in [
+            SourceImage::native(b"%d".as_slice()),
+            SourceImage::document("$format"),
+            SourceImage::document("[format]"),
+            SourceImage::document("{*}{%d}"),
+            SourceImage::document("%😀"),
+            SourceImage::document("{a\\\n%d}"),
+        ] {
+            let original = word(image, config);
+            assert!(original_static_word_ascii_source_offset(&original, 1).is_none());
+        }
+    }
+
+    #[test]
+    fn static_ascii_boundaries_keep_aggregated_escapes_and_original_literal_tails() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        for profile in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+        ] {
+            let config = LexerConfig::for_profile(tcl_dialect::DialectProfile::find(profile));
+            for (source, base) in [(r"\u003a\u003aformat", 0), (r#""\u003a\u003aformat""#, 1)] {
+                let original = word(SourceImage::document(source), config);
+                assert_eq!(
+                    original_static_word_ascii_presentation(&original).as_deref(),
+                    Some(b"::format".as_slice())
+                );
+                for (offset, expected) in [
+                    (0, base),
+                    (1, base + 6),
+                    (2, base + 12),
+                    (5, base + 15),
+                    (8, base + 18),
+                ] {
+                    assert_eq!(
+                        original_static_word_ascii_source_offset(&original, offset),
+                        Some(expected),
+                        "{profile}: {source}"
+                    );
+                }
+            }
+        }
+        let original = word(
+            SourceImage::document(r"{\u003a\u003aformat}"),
+            LexerConfig::default(),
+        );
+        assert_eq!(
+            original_static_word_ascii_presentation(&original).as_deref(),
+            Some(br"\u003a\u003aformat".as_slice())
+        );
+        assert_eq!(
+            original_static_word_ascii_source_offset(&original, 2),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn decoded_ascii_boundaries_refuse_channel_mismatch_and_non_ascii_units() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let config = LexerConfig::default();
+        assert_eq!(
+            decoded_ascii_source_offset(br"\x25d", b"%d", config, 1),
+            Some(4)
+        );
+        assert_eq!(
+            decoded_ascii_source_offset(br"\x25d", b"%x", config, 1),
+            None
+        );
+        assert_eq!(
+            decoded_ascii_source_offset(b"a\\\r\n b", b"a\r\n b", config, 1),
+            None
+        );
+        assert_eq!(
+            decoded_ascii_source_offset(br"\u00e9", b"e", config, 0),
+            None
+        );
+        assert_eq!(
+            decoded_ascii_source_offset(br"\x25d", b"%d", config, 3),
+            None
+        );
+    }
+
+    #[test]
+    fn lexical_metadata_word_uses_full_document_grammar_without_native_policy() {
+        // Implementation contract: naming.grammar.static-ascii-metadata (docs/design/analysis/name-resolution-proofs/static-ascii-metadata.md).
+        let config = LexerConfig::default();
+        for source in ["trim", "{trim}", "\"trim\"", r"tr\x69m"] {
+            assert_eq!(
+                presentation(source, config).as_deref(),
+                Some(b"trim".as_slice())
+            );
+        }
+        assert_eq!(
+            presentation("{a\\\n b}", config).as_deref(),
+            Some(b"a b".as_slice())
+        );
+        let literal = LexerConfig {
+            brace_backslash_newline: tcl_dialect::BraceBackslashNewline::Literal,
+            ..config
+        };
+        assert_eq!(
+            presentation("{a\\\n b}", literal).as_deref(),
+            Some(b"a\\\n b".as_slice())
+        );
+        for source in ["$selector", "[selector]", "{*}{trim}", "tr😀m"] {
+            assert!(presentation(source, config).is_none());
+        }
+        let image = SourceImage::native(b"trim".as_slice());
+        let plan = tcl_lexer::native_script_words_in(image, Span::new(0, 4), config).unwrap();
+        assert!(original_static_word_ascii_presentation(&plan.commands[0].words[0]).is_none());
     }
 }

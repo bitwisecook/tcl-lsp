@@ -210,7 +210,7 @@ impl FloorMap {
 /// A resolved context: the environment a document works against plus the
 /// per-axis floors derived from it (§5.2 step 1; steps 2–3 — workspace and
 /// document facts — join through [`ResolvedContext::require_package`]).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedContext {
     /// The environment definition.
     pub environment: Arc<EnvironmentDefinition>,

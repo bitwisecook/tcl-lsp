@@ -26,6 +26,8 @@ pub enum NativeInstructionPlan {
     Scalar(crate::native_scalar_compilation::NativeScalarInstruction),
     /// Original namespace/frame operands and actual selected native operation.
     Introspection(crate::native_introspection_compilation::NativeIntrospectionInstruction),
+    /// Original counted namespace string operand and selected compiler program.
+    NamespaceString(crate::native_namespace_string_compilation::NativeNamespaceStringInstruction),
     /// Original Array target, RHS and private foreach compiler geometry.
     Array(crate::native_array_compilation::NativeArrayCompilation),
     /// Original List/index operands and the native immediate-index protocol.
@@ -98,11 +100,15 @@ pub enum NativeInstructionPlan {
     StringTrim(crate::native_string_trim_compilation::NativeStringTrimInstruction),
     /// Read the selected original variable operand.
     Load {
+        /// Exact index of the target in the complete original word vector.
+        target_word: usize,
         /// Original compiler variable-word geometry.
         target: NativeVariableWordOperand,
     },
     /// Store the value of an original word in the selected variable operand.
     Store {
+        /// Exact index of the target in the complete original word vector.
+        target_word: usize,
         /// Original compiler variable-word geometry.
         target: NativeVariableWordOperand,
         /// Index in the complete original vector, including its command head.
@@ -110,6 +116,8 @@ pub enum NativeInstructionPlan {
     },
     /// Increment the original selected variable operand.
     Increment {
+        /// Exact index of the target in the complete original word vector.
+        target_word: usize,
         /// Original compiler variable-word geometry.
         target: NativeVariableWordOperand,
         /// Index of an explicit original amount, absent for native default one.
@@ -119,6 +127,8 @@ pub enum NativeInstructionPlan {
     },
     /// Append evaluated original operands to a selected physical variable.
     Append {
+        /// Exact index of the target in the complete original word vector.
+        target_word: usize,
         /// Original receiver geometry, before any operand evaluation.
         target: NativeVariableWordOperand,
         /// Selected compiler's value construction and publication recipe.
@@ -650,6 +660,22 @@ impl CompilerOperandPurpose {
     }
 }
 
+fn original_operand_count(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+) -> Result<usize, NativeInstructionPlanUnavailable> {
+    use NativeInstructionPlanUnavailable as Unavailable;
+    let count = words
+        .original_words()
+        .len()
+        .checked_sub(operand_from)
+        .ok_or(Unavailable::OperandGeometry)?;
+    if operand_from == 0 {
+        return Err(Unavailable::OperandGeometry);
+    }
+    Ok(count)
+}
+
 fn native_instruction_plan_for_purpose(
     spec: NativeCompilationSpec,
     selection: NativeCompilationSelection,
@@ -739,14 +765,7 @@ fn native_instruction_plan_for_purpose(
             .map(NativeInstructionPlan::Unset)
             .ok_or(Unavailable::Selection);
     }
-    let count = words
-        .original_words()
-        .len()
-        .checked_sub(operand_from)
-        .ok_or(Unavailable::OperandGeometry)?;
-    if operand_from == 0 {
-        return Err(Unavailable::OperandGeometry);
-    }
+    let count = original_operand_count(words, operand_from)?;
     if let Some(plan) =
         selected_nonvariable_instruction_plan(spec, words, operand_from, dialect, context)
     {
@@ -883,6 +902,18 @@ fn selected_projected_instruction_plan(
                 context,
             )
             .map(NativeInstructionPlan::Array)
+            .ok_or(Unavailable::OperandGeometry),
+        );
+    }
+    if let NativeCompilationGrammar::NamespaceString(operation) = spec.grammar {
+        return Some(
+            crate::native_namespace_string_compilation::compile_native_namespace_string(
+                words,
+                operand_from,
+                operation,
+                version,
+            )
+            .map(NativeInstructionPlan::NamespaceString)
             .ok_or(Unavailable::OperandGeometry),
         );
     }
@@ -1219,7 +1250,10 @@ fn selected_variable_instruction_plan(
             NativeCompilationGrammar::VariableAppend(NativeAppendKind::String)
             | NativeCompilationGrammar::VariableLoadStore,
             1,
-        ) => Ok(NativeInstructionPlan::Load { target }),
+        ) => Ok(NativeInstructionPlan::Load {
+            target_word: operand_from,
+            target,
+        }),
         (NativeCompilationGrammar::VariableAppend(kind), 1..) => {
             let values = operand_from + 1..words.original_words().len();
             let operands = if kind == NativeAppendKind::String {
@@ -1237,6 +1271,7 @@ fn selected_variable_instruction_plan(
                 }
             };
             Ok(NativeInstructionPlan::Append {
+                target_word: operand_from,
                 target,
                 recipe: NativeAppendInstruction {
                     kind,
@@ -1246,12 +1281,14 @@ fn selected_variable_instruction_plan(
             })
         }
         (NativeCompilationGrammar::VariableLoadStore, 2) => Ok(NativeInstructionPlan::Store {
+            target_word: operand_from,
             target,
             value_word: operand_from + 1,
         }),
         (NativeCompilationGrammar::Increment, 1 | 2) => {
             let amount_word = (count == 2).then_some(operand_from + 1);
             Ok(NativeInstructionPlan::Increment {
+                target_word: operand_from,
                 target,
                 amount_word,
                 immediate: amount_word
@@ -1473,6 +1510,8 @@ mod tests {
         }
     }
 
+    // Native proof: naming.variable.uplevel-original-compilation-opcode-and-concat-frontier
+    // docs/design/analysis/name-resolution-proofs/variable.uplevel-original-compilation-opcode-and-concat-frontier.md
     #[test]
     fn original_uplevel_instruction_keeps_level_and_script_stack_geometry() {
         for row in include_str!("../tests/data/native_uplevel_compilation/instructions.tsv")
@@ -1721,7 +1760,7 @@ mod tests {
             )
             .unwrap();
             assert!(matches!(plan, NativeInstructionPlan::Store {
-                target: NativeVariableWordOperand::Literal { ref name, index: None, .. }, value_word: 2
+                target_word: 1, target: NativeVariableWordOperand::Literal { ref name, index: None, .. }, value_word: 2
             } if name == b"x\xff\0tail"));
             let braced = project(
                 b"set {a(k)} VALUE",
@@ -1782,6 +1821,7 @@ mod tests {
             let grammar = NativeCompilationGrammar::VariableAppend(NativeAppendKind::List);
             let one = project(b"lappend x\xff\0tail $value", grammar, version).unwrap();
             assert!(matches!(one, NativeInstructionPlan::Append {
+                target_word: 1,
                 target: NativeVariableWordOperand::Literal { ref name, index: None, .. },
                 recipe: NativeAppendInstruction { ref values, operands: NativeAppendOperands::ListElement, .. }
             } if name == b"x\xff\0tail" && values == &(2..3)));
@@ -2003,6 +2043,7 @@ mod registered_worker_tests;
 
 /// Actual original dictionary preparation preceding the selected operation or fallback.
 /// This supplies no selected compiler registration or command authority.
+#[must_use]
 pub fn original_dictionary_preparations(
     spec: NativeCompilationSpec,
     words: &NativeCompilerWords<'_>,

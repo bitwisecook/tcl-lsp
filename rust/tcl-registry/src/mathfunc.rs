@@ -73,10 +73,163 @@ use crate::spec::CommandSpec;
 /// The absolute namespace every `expr` math function dispatches through.
 pub const MATHFUNC_NAMESPACE: &str = "::tcl::mathfunc";
 
+/// Selected native `info functions` implementation, independent of a reporting
+/// namespace or a caller's desired expression grammar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeInfoFunctionsRecipe {
+    /// Tcl 8.4 scans its interpreter's fixed math function table.
+    FixedTable84,
+    /// Later C releases evaluate a native-created script in the caller context.
+    NamespaceScript(TclVersion),
+}
+
+impl NativeInfoFunctionsRecipe {
+    /// Select the reached C implementation. Hosted and Jim surfaces cannot
+    /// borrow this recipe from a Tcl-shaped profile.
+    #[must_use]
+    pub fn select(dialect: crate::InvocationDialect) -> Option<Self> {
+        if dialect.family() != Some(tcl_dialect::model::Family::Tcl) {
+            return None;
+        }
+        match dialect.native_name_protocol()? {
+            tcl_syntax::naming::NativeNameProtocol::C(TclVersion::V8_4) => Some(Self::FixedTable84),
+            tcl_syntax::naming::NativeNameProtocol::C(version) => {
+                Some(Self::NamespaceScript(version))
+            }
+            tcl_syntax::naming::NativeNameProtocol::Jim084 => None,
+        }
+    }
+
+    /// Assemble only the selected native script and its original optional
+    /// pattern. This grants no evaluation, namespace, helper or Normal result.
+    #[must_use]
+    pub fn script(self, pattern: Option<&[u8]>) -> Option<Vec<u8>> {
+        let Self::NamespaceScript(version) = self else {
+            return None;
+        };
+        let mut script = INFO_FUNCTIONS_SCRIPT.to_vec();
+        if let Some(pattern) = pattern {
+            script.extend(
+                tcl_syntax::list_result::NativeListResultSerialization::for_string_protocol(
+                    tcl_syntax::native_string::NativeStringProtocol::for_tcl_version(version),
+                )
+                .render(&[pattern]),
+            );
+        }
+        Some(script)
+    }
+}
+
+// Native InfoFunctionsCmd creates this script, then Tcl_EvalObjEx(flags=0).
+// Both global and caller-local command inventories and every named helper are
+// live execution inputs. Direct table enumeration cannot replace this body.
+const INFO_FUNCTIONS_SCRIPT: &[u8] = b"\t    ::apply [::list {{pattern *}} {\n\t\t::set cmds {}\n\t\t::foreach cmd [::info commands ::tcl::mathfunc::$pattern] {\n\t\t    ::lappend cmds [::namespace tail $cmd]\n\t\t}\n\t\t::foreach cmd [::info commands tcl::mathfunc::$pattern] {\n\t\t    ::set cmd [::namespace tail $cmd]\n\t\t    ::if {$cmd ni $cmds} {\n\t\t\t::lappend cmds $cmd\n\t\t    }\n\t\t}\n\t\t::return $cmds\n\t    } [::namespace current]] ";
+
 /// The relative spelling of [`MATHFUNC_NAMESPACE`] — what a namespace-local
 /// override is written as (`namespace eval tcl::mathfunc { proc f … }`) and
 /// the suffix a caller-relative candidate carries.
 pub const MATHFUNC_NAMESPACE_RELATIVE: &str = "tcl::mathfunc";
+
+/// A command-name value constructed from one checked original expression
+/// identifier under the selected modern C function lookup purpose. This is
+/// neither a written command word nor a function registration or dispatch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeExpressionFunctionCommandName {
+    source: String,
+    context: tcl_syntax::expr::parser::ExprParseContext,
+    ordinal: usize,
+    offset: u32,
+    function: String,
+    bytes: Vec<u8>,
+    protocol: tcl_syntax::naming::NativeNameProtocol,
+}
+
+impl NativeExpressionFunctionCommandName {
+    pub(crate) fn from_original_expression(
+        expression: &crate::conditional_expression::ConditionalExpressionEvaluation,
+        source: &str,
+        ordinal: usize,
+        dialect: crate::InvocationDialect,
+    ) -> Option<Self> {
+        // Proof: naming.expression.original-function-navigation
+        // docs/design/analysis/name-resolution-proofs/original-function-navigation.md
+        if native_function_dispatch(dialect) != Some(NativeMathFunctionDispatch::CommandTable)
+            || expression.context() != &dialect.expression_parse_context(None)
+            || crate::conditional_expression::ConditionalExpressionEvaluation::prepare(
+                source,
+                expression.context(),
+            )
+            .as_ref()
+                != Some(expression)
+        {
+            return None;
+        }
+        let (function, offset, _) = expression
+            .tree()
+            .function_calls()
+            .into_iter()
+            .nth(ordinal)?;
+        let begin = usize::try_from(offset).ok()?;
+        let end = begin.checked_add(function.len())?;
+        if !function.is_ascii() || source.as_bytes().get(begin..end) != Some(function.as_bytes()) {
+            return None;
+        }
+        let mut bytes = MATHFUNC_NAMESPACE_RELATIVE.as_bytes().to_vec();
+        bytes.extend_from_slice(b"::");
+        bytes.extend_from_slice(function.as_bytes());
+        Some(Self {
+            source: source.to_owned(),
+            context: *expression.context(),
+            ordinal,
+            offset,
+            function: function.to_owned(),
+            bytes,
+            protocol: dialect.native_name_protocol()?,
+        })
+    }
+
+    /// Exact original identifier bytes; no reporting string is reparsed.
+    #[must_use]
+    pub fn function_bytes(&self) -> &[u8] {
+        self.function.as_bytes()
+    }
+
+    /// Original expression bytes retaining the checked identifier.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    /// Complete checked expression grammar retained by this name producer.
+    #[must_use]
+    pub const fn context(&self) -> &tcl_syntax::expr::parser::ExprParseContext {
+        &self.context
+    }
+
+    /// Original tree ordinal, independent of command argv ordinals.
+    #[must_use]
+    pub const fn ordinal(&self) -> usize {
+        self.ordinal
+    }
+
+    /// Identifier byte offset within the complete original expression.
+    #[must_use]
+    pub const fn offset(&self) -> u32 {
+        self.offset
+    }
+
+    /// Relative command-name bytes constructed by the function lookup recipe.
+    #[must_use]
+    pub fn command_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Selected command naming purpose; no authority is promoted by equality.
+    #[must_use]
+    pub const fn protocol(&self) -> tcl_syntax::naming::NativeNameProtocol {
+        self.protocol
+    }
+}
 
 /// The absolute command name a bare `expr` function word `bare` dispatches to
 /// when it resolves globally.
@@ -416,6 +569,27 @@ impl CommandRegistry {
         self.get(&qualified_name(bare))
     }
 
+    /// Metadata for an independently selected expression-function identity.
+    /// Fixed registrations use the function metadata namespace without
+    /// requiring a command wrapper; command-table identities use their actual
+    /// selected command. This query creates no lookup or registration receipt.
+    #[must_use]
+    pub fn selected_math_function_spec(
+        &self,
+        identity: &str,
+        dispatch: NativeMathFunctionDispatch,
+    ) -> Option<&CommandSpec> {
+        match dispatch {
+            NativeMathFunctionDispatch::CommandTable => self.get(identity),
+            NativeMathFunctionDispatch::FixedTable => {
+                let bare = global_command_bare_name(identity).or_else(|| {
+                    (!identity.is_empty() && !identity.contains("::")).then_some(identity)
+                })?;
+                crate::registry::fixed_math_function_metadata(bare)
+            }
+        }
+    }
+
     /// Every built-in `expr` math function available under `profile`, by bare
     /// name, sourced from the registry's own `::tcl::mathfunc::*` entries
     /// (so a name with no registry data never surfaces) and gated on the
@@ -435,6 +609,44 @@ impl CommandRegistry {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn selected_fixed_math_metadata_survives_command_surface_projection() {
+        // Implementation contract: naming.expression.original-function-navigation
+        // docs/design/analysis/name-resolution-proofs/original-function-navigation.md
+        for name in ["tcl8.4", "jim"] {
+            let profile = crate::model::ingress::resolve_environment(name).analyser_profile();
+            let registry = crate::CommandRegistry::build_default().project_for_profile(profile);
+            assert!(registry.get("::tcl::mathfunc::abs").is_none(), "{name}");
+            assert!(
+                registry
+                    .selected_math_function_spec(
+                        "abs",
+                        super::NativeMathFunctionDispatch::FixedTable,
+                    )
+                    .is_some(),
+                "{name}"
+            );
+            assert!(
+                registry
+                    .selected_math_function_spec(
+                        "::tcl::mathfunc::abs",
+                        super::NativeMathFunctionDispatch::CommandTable,
+                    )
+                    .is_none(),
+                "{name}"
+            );
+            assert!(
+                registry
+                    .selected_math_function_spec(
+                        "unknown_fixed_function",
+                        super::NativeMathFunctionDispatch::FixedTable,
+                    )
+                    .is_none(),
+                "{name}"
+            );
+        }
+    }
+
     #[test]
     fn double_scalar_protocol_requires_selected_c_implementation_and_exact_operand() {
         let registry = crate::CommandRegistry::build_default();
@@ -573,6 +785,78 @@ mod tests {
 
     fn profile(name: &str) -> &'static DialectProfile {
         crate::model::ingress::resolve_environment(name).analyser_profile()
+    }
+
+    #[test]
+    fn original_function_command_names_keep_checked_expression_lineage() {
+        // naming.expression.original-function-navigation
+        // docs/design/analysis/name-resolution-proofs/original-function-navigation.md
+        for version in [
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let context = dialect.expression_parse_context(None);
+            let expression =
+                crate::conditional_expression::ConditionalExpressionEvaluation::prepare(
+                    "max(abs(1), Pi())",
+                    &context,
+                )
+                .unwrap();
+            let name = expression
+                .original_function_command_name("max(abs(1), Pi())", 2, dialect)
+                .unwrap();
+            assert_eq!(name.function_bytes(), b"Pi");
+            assert_eq!(name.command_bytes(), b"tcl::mathfunc::Pi");
+            assert_eq!(name.ordinal(), 2);
+            assert_eq!(name.offset(), 12);
+            assert_eq!(name.source(), "max(abs(1), Pi())");
+            assert_eq!(name.context(), &context);
+            assert!(
+                expression
+                    .original_function_command_name("max(abs(2), Pi())", 2, dialect)
+                    .is_none()
+            );
+            assert!(
+                expression
+                    .original_function_command_name("max(abs(1), Pi())", 3, dialect)
+                    .is_none()
+            );
+            let mut foreign = dialect;
+            foreign.numbers = tcl_dialect::NumberSyntax::Tcl84;
+            foreign.lexer_grammar.numbers = tcl_dialect::NumberSyntax::Tcl84;
+            assert!(
+                expression
+                    .original_function_command_name("max(abs(1), Pi())", 2, foreign)
+                    .is_none()
+            );
+        }
+        let dialect = crate::InvocationDialect::for_version(TclVersion::V8_4);
+        let expression = crate::conditional_expression::ConditionalExpressionEvaluation::prepare(
+            "Pi()",
+            &dialect.expression_parse_context(None),
+        )
+        .unwrap();
+        assert!(
+            expression
+                .original_function_command_name("Pi()", 0, dialect)
+                .is_none()
+        );
+        let dialect = crate::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
+        );
+        let expression = crate::conditional_expression::ConditionalExpressionEvaluation::prepare(
+            "Pi()",
+            &dialect.expression_parse_context(None),
+        )
+        .unwrap();
+        assert!(
+            expression
+                .original_function_command_name("Pi()", 0, dialect)
+                .is_none()
+        );
     }
 
     #[test]

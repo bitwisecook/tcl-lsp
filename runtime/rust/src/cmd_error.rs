@@ -67,18 +67,13 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let _ = error;
         }
     }
-    let argument_bytes: Vec<_> = argv[1..].iter().map(|&word| obj_bytes(word)).collect();
-    let argument_strings: Vec<_> = argument_bytes
-        .iter()
-        .map(|bytes| String::from_utf8_lossy(bytes))
-        .collect();
-    let arguments: Vec<_> = argument_strings.iter().map(|word| word.as_ref()).collect();
-    let tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) =
-        tcl_registry::catch_invocation::select_catch_invocation(
-            tcl_registry::InvocationArguments::literals(&arguments),
-            dialect,
-        )
-    else {
+    let selected = tcl_registry::catch_invocation::select_original_catch_invocation(
+        argv.len() - 1,
+        dialect,
+        |index| Ok::<_, std::convert::Infallible>(obj_bytes(argv[index + 1])),
+    )
+    .unwrap_or_else(|error| match error {});
+    let tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) = selected else {
         let synopsis: &[u8] = if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
             b"catch ?-?no?code ... --? script ?resultVarName? ?optionVarName?".as_slice()
         } else if dialect.completion_options_policy()
@@ -122,32 +117,43 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // catch return value (read the value before clearing the result). `var_set`
     // retains it into the result var, so it survives the later `set_result`.
     let result = crate::obj::Owned::retain(interp.get_obj_result());
-    let options_variable = selected.options_var_at.filter(|index| {
-        dialect.family() != Some(tcl_dialect::model::Family::Jim)
-            || !argument_bytes[*index].is_empty()
-    });
-    let options =
-        options_variable.map(|_| crate::obj::Owned::fresh(completion_options(interp, code)));
-    interp.clear_return_options();
+    let jim = dialect.family() == Some(tcl_dialect::model::Family::Jim);
+    let options = (!jim)
+        .then(|| {
+            selected
+                .options_var_at
+                .map(|_| crate::obj::Owned::fresh(completion_options(interp, code)))
+        })
+        .flatten();
+    if !jim {
+        interp.clear_return_options();
+    }
     let selection = interp.active_native_compilation_selection();
     let Some(order) = selected.output_order(dialect, selection).indices(selected) else {
         return interp.error(b"native catch output protocol is not selected");
     };
     for index in order.into_iter().flatten() {
-        if dialect.family() == Some(tcl_dialect::model::Family::Jim)
-            && argument_bytes[index].is_empty()
-        {
+        let name = obj_bytes(argv[index + 1]);
+        if jim && name.is_empty() {
             continue;
         }
+        let jim_options = (jim && Some(index) == selected.options_var_at)
+            .then(|| crate::obj::Owned::fresh(completion_options(interp, code)));
         let value = if Some(index) == selected.options_var_at {
-            options.as_ref().expect("options requested above").as_ptr()
+            jim_options
+                .as_ref()
+                .or(options.as_ref())
+                .expect("options requested above")
+                .as_ptr()
         } else {
             result.as_ptr()
         };
-        let name = obj_bytes(argv[index + 1]);
         if let Err(error) = set_var_or_elem(interp, &name, value) {
             return crate::builtins::var_error(interp, &name, error);
         }
+    }
+    if jim {
+        interp.clear_return_options();
     }
     // The error is now caught: publish the accumulated trace to the
     // `::errorInfo`/`::errorCode` globals (so a later `set ::errorInfo` reads it)
@@ -946,15 +952,15 @@ mod tests {
     #[test]
     fn error_info_stack_traces() {
         leak_free(|i| {
+            // naming.runtime.original-command-source-extent
+            // docs/design/analysis/name-resolution-proofs/runtime-original-command-source-extent.md
             // The worked example: proc body error → proc frame → call frame.
+            // The public Read invokes the native hidden error-global observer.
             run(i, b"proc p {} { error foo }");
             assert_eq!(i.eval_str(b"p"), Code::Error);
             assert_eq!(
-                i.var_get(b"::errorInfo").map(crate::interp::obj_bytes),
-                Some(
-                    b"foo\n    while executing\n\"error foo \"\n    (procedure \"p\" line 1)\n    invoked from within\n\"p\""
-                        .to_vec()
-                )
+                run(i, b"set ::errorInfo"),
+                b"foo\n    while executing\n\"error foo \"\n    (procedure \"p\" line 1)\n    invoked from within\n\"p\""
             );
             // Multi-line body: the proc frame cites the body-relative line (3).
             run(i, b"proc q {} {\n    set x 1\n    error boom\n}");
@@ -1137,6 +1143,8 @@ mod tests {
 
     #[test]
     fn automatic_jim_error_stacks_match_the_actual_native_interpreter() {
+        // naming.source.jim-original-source-entry
+        // docs/design/analysis/name-resolution-proofs/jim-original-source-entry.md
         let Some(reference) = tcl_test_support::locate_jimsh().expect("Jim oracle discovery")
         else {
             return;
@@ -1148,8 +1156,14 @@ mod tests {
                 .expect("native Jim")
                 .strict_text()
                 .expect("native observation");
-            leak_free(|interp| {
-                interp.set_dialect_profile(profile);
+            counters::reset();
+            {
+                let mut interp = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    profile,
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .expect("selected original Jim constructor");
                 assert_eq!(
                     interp.eval_sourced(script.as_bytes(), b"stdin"),
                     Code::Ok,
@@ -1157,7 +1171,13 @@ mod tests {
                     String::from_utf8_lossy(&interp.result_bytes())
                 );
                 assert_eq!(interp.result_bytes(), expected.as_bytes(), "{name}");
-            });
+            }
+            assert_eq!(
+                counters::finalize(),
+                0,
+                "{name}: original source owner leaks"
+            );
+            assert_eq!(counters::double_free_count(), 0);
         }
     }
 

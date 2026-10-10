@@ -76,17 +76,37 @@ pub enum SourceCommandReferenceBinding {
 /// normal-completion, native-compilation, or object-class proof.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceCommandReference {
-    slot: String,
+    slot: Option<String>,
+    original_slot: Option<(
+        tcl_core_types::ByteCommandSlot,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )>,
     binding: SourceCommandReferenceBinding,
     definition: Option<SourceCommandDefinition>,
     linked_definition: Option<SourceCommandDefinition>,
+    called_implementation_allocation: Option<CommandAllocation>,
+    invocation_site: Option<super::CommandAllocationSite>,
 }
 
 impl SourceCommandReference {
-    /// Called slot, before interpreter-alias target traversal.
+    /// Optional reporting spelling, before interpreter-alias target traversal.
+    /// Opaque native names retain their typed receipt without a Unicode label.
     #[must_use]
-    pub fn slot(&self) -> &str {
-        &self.slot
+    pub fn slot(&self) -> Option<&str> {
+        self.slot.as_deref()
+    }
+
+    /// Exact original called slot from independently retained source or native
+    /// namespace geometry. Reporting labels cannot manufacture this projection.
+    #[must_use]
+    pub fn original_slot(&self) -> Option<&tcl_core_types::ByteCommandSlot> {
+        self.original_slot.as_ref().map(|(slot, _)| slot)
+    }
+
+    /// Actual name policy accompanying the original called-slot projection.
+    #[must_use]
+    pub fn original_name_policy(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
+        self.original_slot.as_ref().map(|(_, policy)| *policy)
     }
 
     /// Direct versus imported binding retained by this lookup.
@@ -111,6 +131,24 @@ impl SourceCommandReference {
     #[must_use]
     pub fn linked_definition(&self) -> Option<&SourceCommandDefinition> {
         self.linked_definition.as_ref()
+    }
+
+    /// Allocation of the implementation occupying the called slot after argv,
+    /// independently of a token retained across implementation replacement.
+    #[must_use]
+    pub fn called_implementation_allocation(&self) -> Option<&CommandAllocation> {
+        self.called_implementation_allocation.as_ref()
+    }
+
+    /// Whether this readonly reference was issued at this exact original
+    /// consuming lookup. Source coordinates and equal display cannot reissue it.
+    #[must_use]
+    pub fn matches_original_invocation_site(&self, site: &super::CommandAllocationSite) -> bool {
+        self.issued_at(site)
+    }
+
+    pub(super) fn issued_at(&self, site: &super::CommandAllocationSite) -> bool {
+        self.invocation_site.as_ref() == Some(site)
     }
 
     /// Whether this slot navigates to a source-owned command rather than a builtin.
@@ -210,12 +248,74 @@ impl SourceInvocationBinding {
         let [slot] = keys.as_slice() else {
             return None;
         };
-        let bindings = state.bindings.get(slot).cloned().unwrap_or_else(|| {
-            ModuleCommandBindings::unmodified_bindings(
-                slot,
-                state.baseline.semantics.binding_names(),
+        let bindings = state.binding_alternatives(slot);
+        state.reference_for_command_key(
+            slot,
+            &bindings,
+            self.invocation_site().cloned(),
+            self.linked_definition(word),
+        )
+    }
+
+    /// Current original head reference from the complete retained vector and
+    /// actual post-argv table. A reporting head or final module world cannot
+    /// select this called slot, alias allocation or imported token.
+    #[must_use]
+    pub fn original_evaluated_command_reference(&self) -> Option<SourceCommandReference> {
+        let input = self.original_recorded_head_name_input()?;
+        let state = &self.lookup_state.as_ref()?.state;
+        if state.has_opaque_domain()
+            || state.source_step_observed()
+            || !input.is_current(&self.variable_context)
+        {
+            return None;
+        }
+        let mut occupied = Vec::new();
+        for key in state.original_command_keys_for_input(&self.lookup_namespace_key, &input)? {
+            let bindings = state.original_bindings_for_key(&key)?;
+            if bindings == std::collections::BTreeSet::from([MayBinding::Missing]) {
+                continue;
+            }
+            occupied.push((key, bindings));
+        }
+        let [(key, bindings)] = occupied.as_slice() else {
+            return None;
+        };
+        let linked = state
+            .original_targets_for_input(
+                &input,
+                &self.lookup_namespace_key,
+                super::CommandTargetLookup::NamedSlots,
             )
-        });
+            .and_then(|selection| {
+                if selection.unknown || selection.may_be_absent || selection.targets.len() != 1 {
+                    return None;
+                }
+                state.source_definition_for_implementation(selection.targets.first()?)
+            });
+        state.reference_for_command_key(key, bindings, self.invocation_site().cloned(), linked)
+    }
+
+    /// Require the caller's genuine complete vector before selecting the same
+    /// original evaluated-head reference. No synthetic tokens are accepted.
+    #[must_use]
+    pub fn original_command_reference(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<SourceCommandReference> {
+        self.original_head_name_input(tokens)?;
+        self.original_evaluated_command_reference()
+    }
+}
+
+impl ModuleCommandBindings {
+    pub(super) fn reference_for_command_key(
+        &self,
+        slot: &super::SourceCommandKey,
+        bindings: &std::collections::BTreeSet<MayBinding>,
+        invocation_site: Option<super::CommandAllocationSite>,
+        linked_definition: Option<SourceCommandDefinition>,
+    ) -> Option<SourceCommandReference> {
         if bindings.len() != 1 {
             return None;
         }
@@ -228,7 +328,7 @@ impl SourceInvocationBinding {
                 target,
             ),
             MayBinding::Imported(origin) => {
-                let implementations = state.objects.get(&origin.origin)?;
+                let implementations = self.objects.get(&origin.origin)?;
                 let mut kinds = implementations
                     .iter()
                     .map(|implementation| match implementation {
@@ -255,18 +355,30 @@ impl SourceInvocationBinding {
             }
             MayBinding::Missing | MayBinding::Unknown => return None,
         };
-        let definition = state.source_definition_for_implementation(implementation);
-        let linked_definition = self.linked_definition(word);
+        let definition = self.source_definition_for_implementation(implementation);
+        let original_slot = self.original_called_slot(slot);
         Some(SourceCommandReference {
-            slot: state.callable_spelling_for_key(slot)?,
+            slot: self.callable_spelling_for_key(slot),
+            original_slot,
             binding,
             definition,
             linked_definition,
+            called_implementation_allocation: implementation.implementation_allocation.clone(),
+            invocation_site,
         })
     }
-}
 
-impl ModuleCommandBindings {
+    fn original_called_slot(
+        &self,
+        key: &super::SourceCommandKey,
+    ) -> Option<(
+        tcl_core_types::ByteCommandSlot,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )> {
+        let policy = self.baseline.execution_name_policy?.native_recipe()?;
+        Some((self.original_slot_for_command_key(key, policy)?, policy))
+    }
+
     /// Project a retained current implementation into declaration navigation.
     /// Binding categories and surviving tokens alone grant no class definition.
     pub(super) fn source_definition_for_implementation(
@@ -318,11 +430,98 @@ mod tests {
         )
     }
 
+    fn original_at(
+        source: &str,
+        offset: usize,
+        version: tcl_dialect::TclVersion,
+    ) -> SourceInvocationBinding {
+        let registry =
+            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let bindings = super::super::SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            registry,
+            super::super::SourceAnalysisOptions {
+                invocation_dialect: Some(dialect),
+                ..Default::default()
+            },
+        );
+        bindings.invocation_at_source("", u32::try_from(offset).unwrap())
+    }
+
+    #[test]
+    fn original_opaque_call_reference_retains_current_allocation_and_bytes() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; p\uD800";
+            let point = original_at(source, source.rfind(r"p\uD800").unwrap(), version);
+            let reference = point
+                .original_evaluated_command_reference()
+                .expect("genuine opaque called slot");
+            assert_eq!(
+                reference.original_slot().unwrap().simple.as_bytes(),
+                b"p\xed\xa0\x80"
+            );
+            assert_eq!(
+                reference.original_name_policy(),
+                Some(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(
+                    version
+                ))
+            );
+            assert_eq!(reference.definition().unwrap().allocation().site.offset, 0);
+            assert!(reference.slot().is_none());
+        }
+    }
+
+    #[test]
+    fn original_alias_reference_owns_post_argument_target_and_captured_prefix() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let source = "proc first args {}; proc second args {}; interp alias {} alias {} first PREFIX; alias; alias [interp alias {} alias {} second]";
+            let before_offset = source.find("; alias;").unwrap() + 2;
+            let after_offset = source.find("alias [").unwrap();
+            let before = original_at(source, before_offset, version);
+            let before_reference = before
+                .original_evaluated_command_reference()
+                .expect("original alias before replacement");
+            let prefix = before
+                .original_alias_target_for_reference(&before_reference)
+                .expect("same-point alias recipe");
+            assert_eq!(prefix.name_input().bytes(), b"first");
+            assert_eq!(
+                prefix
+                    .arguments()
+                    .iter()
+                    .map(crate::signature_scan::name_value::SignatureSourceNameInput::bytes)
+                    .collect::<Vec<_>>(),
+                vec![b"PREFIX".as_slice()]
+            );
+            let after = original_at(source, after_offset, version);
+            let after_reference = after
+                .original_evaluated_command_reference()
+                .expect("post-argv replacement alias");
+            let replacement = after
+                .original_alias_target_for_reference(&after_reference)
+                .expect("current alias recipe");
+            assert_eq!(replacement.name_input().bytes(), b"second");
+            assert!(replacement.arguments().is_empty());
+            assert_ne!(
+                before_reference.called_implementation_allocation(),
+                after_reference.called_implementation_allocation()
+            );
+            assert!(
+                after
+                    .original_alias_target_for_reference(&before_reference)
+                    .is_none()
+            );
+        }
+    }
+
     #[test]
     fn navigation_retains_called_alias_even_when_terminal_is_absent() {
         let point = at("interp alias {} short {} missing; set checkpoint READY");
         let reference = point.command_reference("short").unwrap();
-        assert_eq!(reference.slot(), "::short");
+        assert_eq!(reference.slot(), Some("::short"));
+        assert!(reference.original_slot().is_none());
         assert!(reference.is_user_command());
         assert!(!reference.is_direct_definition());
         assert!(matches!(
@@ -338,7 +537,7 @@ mod tests {
             execution
                 .proved_target()
                 .map(|target| target.command.as_str()),
-            Some(reference.slot()),
+            reference.slot(),
             "missing-target fallback cannot replace the called alias's navigation identity",
         );
     }
@@ -349,14 +548,14 @@ mod tests {
             "namespace eval n {proc target {} {}; namespace export target}; namespace import ::n::target; rename ::n::target ::n::moved; set checkpoint READY",
         );
         let reference = point.command_reference("target").unwrap();
-        assert_eq!(reference.slot(), "::target");
+        assert_eq!(reference.slot(), Some("::target"));
         assert!(
             matches!(reference.binding(), SourceCommandReferenceBinding::Imported { origin, kind: BindingKind::Proc } if origin.origin == "::n::target")
         );
         assert!(point.command_reference("::n::target").is_none());
         assert_eq!(
             point.command_reference("::n::moved").unwrap().slot(),
-            "::n::moved"
+            Some("::n::moved")
         );
         let deleted = at(
             "namespace eval n {proc target {} {}; namespace export target}; namespace import ::n::target; rename ::n::target {}; set checkpoint READY",
@@ -409,7 +608,7 @@ mod tests {
             ("has space", "::has space"),
             ("", "::"),
         ] {
-            assert_eq!(point.command_reference(word).unwrap().slot(), slot);
+            assert_eq!(point.command_reference(word).unwrap().slot(), Some(slot));
         }
     }
 
@@ -430,7 +629,7 @@ mod tests {
                 .command_reference("::unrelated::target")
                 .unwrap()
                 .slot(),
-            "::unrelated::target"
+            Some("::unrelated::target")
         );
     }
 

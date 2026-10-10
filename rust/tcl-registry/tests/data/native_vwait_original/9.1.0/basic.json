@@ -1,0 +1,17 @@
+{
+  "case": "basic",
+  "command": [
+    "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+    "basic"
+  ],
+  "external_timeout": false,
+  "timeout_seconds": 3,
+  "process_exit": 0,
+  "seconds": 0.005170629010535777,
+  "stdout_sha256": "f15220d9f6f9a3990221f4f71b8e80b35842e7a51c664a52b43bc2ef29c12a0b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "V|actual-provider|0|5|392e312e30",
+    "R|basic|0|3|4e4557"
+  ]
+}

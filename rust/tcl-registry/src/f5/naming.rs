@@ -9,7 +9,7 @@ use tcl_syntax::naming::{MeasuredBigIpNameScope, ObservedBigIpNamePolicy};
 /// Actual event retained independently of the feature's interpreter context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BigIpNameEvent {
-    /// The reached HTTP_REQUEST event, independent of source dialect labels.
+    /// The reached `HTTP_REQUEST` event, independent of source dialect labels.
     HttpRequest,
     /// Other or unavailable event evidence cannot inherit HTTP name observations.
     Unmeasured,

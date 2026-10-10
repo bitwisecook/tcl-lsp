@@ -1,0 +1,9 @@
+version 9.1.0
+observation create status 0 result s errorCode {}
+observation parent-command status 0 result s errorCode {}
+observation handle-return status 0 result ok errorCode {}
+observation path-return status 0 result ok errorCode {}
+observation handle-value status 0 result ok errorCode {}
+observation path-value status 0 result ok errorCode {}
+observation delete status 0 result {} errorCode {}
+observation parent-command-after-delete status 0 result {} errorCode {}

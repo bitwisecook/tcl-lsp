@@ -1,0 +1,20 @@
+{
+  "id": "naming.dictionary.c85-original-update-write-error-object-lifetime",
+  "request_sha256": "19e5819807e7b83a606b54a3908e119bc11859416ff71c2e5fc00c8290948569",
+  "launcher_sha256": "0fef1acbe3a745e88c00646e86720c9cf3eb167a04b8ed8fd96d3c94af8e1bab",
+  "process_count": 9,
+  "exits": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "source_question": "For the exact original case9 input and C API driver, evaluated by the separately pinned current C8.5.19 archive/source build, does the duplicated dictionary published to the defined scalar variable have its final object free hook reached by INST_DICT_UPDATE_END error cleanup while the same variable still holds its pointer?",
+  "scope": "Private lifetime counters and public stdout are separate observations. This experiment measures the separately pinned current C85 archive/source build, not the immutable older archive99e capture. Instrumented-build output is not assumed byte-equivalent to either baseline or older capture. No original fixture replacement, allocation-reuse emulation, other provider, generic dict-update, or dict-with lifetime claim. Older provider metadata and completed public rows remain independently preserved; no old-build source or lifetime equivalence is granted.",
+  "source_builds_separate": true
+}

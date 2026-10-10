@@ -58,8 +58,8 @@
 pub mod corpus;
 pub mod evidence;
 pub mod execution_context;
-pub mod naming;
 pub mod iapp_metadata;
+pub mod naming;
 pub mod rule_identity;
 pub mod storage;
 pub mod tmsh_syntax;
@@ -88,5 +88,6 @@ pub use tmsh_syntax::{
 };
 
 pub use storage::{
-    VariableStorageDomain, WorkerExecution, namespace_storage_domain, runtime_namespaces,
+    VariableStorageDomain, WorkerExecution, namespace_storage_domain,
+    namespace_storage_domain_in_path, runtime_namespaces,
 };

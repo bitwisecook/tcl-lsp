@@ -1,0 +1,44 @@
+[
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "Exact pinned source associated by immutable native coroutine publication receipts",
+    "original_path": "generic/tclBasic.c",
+    "function": "TclNRInterpCoroutine",
+    "lines": [
+      9086,
+      9137
+    ],
+    "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "snippet": "int\nTclNRInterpCoroutine(\n    ClientData clientData,\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    CoroutineData *corPtr = (CoroutineData *)clientData;\n\n    if (!COR_IS_SUSPENDED(corPtr)) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"coroutine \\\"%s\\\" is already running\",\n\t\tTclGetString(objv[0])));\n\tTcl_SetErrorCode(interp, \"TCL\", \"COROUTINE\", \"BUSY\", (char *)NULL);\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Parse all the arguments to work out what to feed as the result of the\n     * [yield]. TRICKY POINT: objc==0 happens here! It occurs when a coroutine\n     * is deleted!\n     */\n\n    switch (corPtr->nargs) {\n    case COROUTINE_ARGUMENTS_SINGLE_OPTIONAL:\n\tif (objc == 2) {\n\t    Tcl_SetObjResult(interp, objv[1]);\n\t} else if (objc > 2) {\n\t    Tcl_WrongNumArgs(interp, 1, objv, \"?arg?\");\n\t    return TCL_ERROR;\n\t}\n\tbreak;\n    default:\n\tif (corPtr->nargs + 1 != objc) {\n\t    Tcl_SetObjResult(interp,\n\t\t    Tcl_NewStringObj(\"wrong coro nargs; how did we get here? \"\n\t\t    \"not implemented!\", -1));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"WRONGARGS\", (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n\t/* fallthrough */\n    case COROUTINE_ARGUMENTS_ARBITRARY:\n\tif (objc > 1) {\n\t    Tcl_SetObjResult(interp, Tcl_NewListObj(objc - 1, objv + 1));\n\t}\n\tbreak;\n    }\n\n    TclNRAddCallback(interp, TclNRCoroutineActivateCallback, corPtr,\n\t    NULL, NULL, NULL);\n    return TCL_OK;\n}\n",
+    "snippet_sha256": "44663de876ec14be103e402f2da54157700b11cf244c895fec5ade7b4fcf7fb6"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "Exact pinned source associated by immutable native coroutine publication receipts",
+    "original_path": "generic/tclBasic.c",
+    "function": "TclNRInterpCoroutine",
+    "lines": [
+      9673,
+      9724
+    ],
+    "source_sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+    "snippet": "int\nTclNRInterpCoroutine(\n    void *clientData,\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    CoroutineData *corPtr = (CoroutineData *)clientData;\n\n    if (!COR_IS_SUSPENDED(corPtr)) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"coroutine \\\"%s\\\" is already running\",\n\t\tTclGetString(objv[0])));\n\tTcl_SetErrorCode(interp, \"TCL\", \"COROUTINE\", \"BUSY\", (char *)NULL);\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Parse all the arguments to work out what to feed as the result of the\n     * [yield]. TRICKY POINT: objc==0 happens here! It occurs when a coroutine\n     * is deleted!\n     */\n\n    switch (corPtr->nargs) {\n    case COROUTINE_ARGUMENTS_SINGLE_OPTIONAL:\n\tif (objc == 2) {\n\t    Tcl_SetObjResult(interp, objv[1]);\n\t} else if (objc > 2) {\n\t    Tcl_WrongNumArgs(interp, 1, objv, \"?arg?\");\n\t    return TCL_ERROR;\n\t}\n\tbreak;\n    default:\n\tif (corPtr->nargs + 1 != objc) {\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t    \"wrong coro nargs; how did we get here? \"\n\t\t    \"not implemented!\", TCL_INDEX_NONE));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"WRONGARGS\", (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n\tTCL_FALLTHROUGH();\n    case COROUTINE_ARGUMENTS_ARBITRARY:\n\tif (objc > 1) {\n\t    Tcl_SetObjResult(interp, Tcl_NewListObj(objc - 1, objv + 1));\n\t}\n\tbreak;\n    }\n\n    TclNRAddCallback(interp, TclNRCoroutineActivateCallback, corPtr,\n\t    NULL, NULL, NULL);\n    return TCL_OK;\n}\n",
+    "snippet_sha256": "d806e272f1a1c1c5d13f2a5045df324dcb587893a74197b04351f001d600fe0a"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "Exact pinned source associated by immutable native coroutine publication receipts",
+    "original_path": "generic/tclBasic.c",
+    "function": "TclNRInterpCoroutine",
+    "lines": [
+      9983,
+      10034
+    ],
+    "source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "snippet": "int\nTclNRInterpCoroutine(\n    void *clientData,\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    Tcl_Size objc,\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Argument objects. */\n{\n    CoroutineData *corPtr = (CoroutineData *)clientData;\n\n    if (!COR_IS_SUSPENDED(corPtr)) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"coroutine \\\"%s\\\" is already running\",\n\t\tTclGetString(objv[0])));\n\tTcl_SetErrorCode(interp, \"TCL\", \"COROUTINE\", \"BUSY\", (char *)NULL);\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Parse all the arguments to work out what to feed as the result of the\n     * [yield]. TRICKY POINT: objc==0 happens here! It occurs when a coroutine\n     * is deleted!\n     */\n\n    switch (corPtr->nargs) {\n    case COROUTINE_ARGUMENTS_SINGLE_OPTIONAL:\n\tif (objc == 2) {\n\t    Tcl_SetObjResult(interp, objv[1]);\n\t} else if (objc > 2) {\n\t    Tcl_WrongNumArgs(interp, 1, objv, \"?arg?\");\n\t    return TCL_ERROR;\n\t}\n\tbreak;\n    default:\n\tif (corPtr->nargs + 1 != objc) {\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t    \"wrong coro nargs; how did we get here? \"\n\t\t    \"not implemented!\", TCL_INDEX_NONE));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"WRONGARGS\", (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n\tTCL_FALLTHROUGH();\n    case COROUTINE_ARGUMENTS_ARBITRARY:\n\tif (objc > 1) {\n\t    Tcl_SetObjResult(interp, Tcl_NewListObj(objc - 1, objv + 1));\n\t}\n\tbreak;\n    }\n\n    TclNRAddCallback(interp, TclNRCoroutineActivateCallback, corPtr,\n\t    NULL, NULL, NULL);\n    return TCL_OK;\n}\n",
+    "snippet_sha256": "7c0939272a7d1c1cdcb18b7bc4fa671751c6ce5ea31f13fdc0549ebcb2903c90"
+  }
+]

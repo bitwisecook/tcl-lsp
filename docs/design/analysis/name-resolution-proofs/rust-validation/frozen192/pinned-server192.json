@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-server192.elf",
+  "sha256": "549d61d56fe95ffea8a3795e2e215750584e41d20aada680f66347d3d26b4f0b",
+  "build_receipt": "/workspace/.proofs/recovery-compiler-build192.json",
+  "build_receipt_sha256": "02d4d15d824d288f66077291260123bb597bfe4f6eaf438f80d1d3262099e3cd",
+  "source_snapshot_sha256": "064496a1841a529416f6de626e5909bc6570a31e19cec4bcc087840d035c8567"
+}

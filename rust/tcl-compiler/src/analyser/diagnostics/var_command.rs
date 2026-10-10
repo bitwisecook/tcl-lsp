@@ -150,7 +150,16 @@ impl Analyser {
         let Some(method) = site.method_name.as_ref() else {
             return self.e001_for_bare_object_dispatch(site, &HashSet::from([class.clone()]));
         };
-        if instance.instance_method_names()?.contains(method)
+        let input = self
+            .head_identities
+            .source_bindings_ref()
+            .original_written_name_input_at_span(site.method_span?, self.lexer_config())?;
+        input
+            .policy()
+            .recipe()
+            .oo_method_input(input.bytes())
+            .ok()?;
+        if instance.instance_method_names()?.contains(input.bytes())
             || !Self::method_word_is_literal(method)
             || self.disabled_diagnostics.contains("W308")
         {
@@ -268,9 +277,10 @@ impl Analyser {
             return None;
         }
         let all_tcloo = class_names.iter().all(|cls| {
-            self.result.all_classes.get(cls).is_some_and(|cd| {
-                super::validity::is_tcloo_metaclass(self.registry.as_deref(), &cd.metaclass)
-            })
+            self.result
+                .all_classes
+                .get(cls)
+                .is_some_and(|cd| super::validity::is_tcloo_source_class(self, cd))
         });
         if !all_tcloo {
             return None;
@@ -306,9 +316,11 @@ impl Analyser {
             return None;
         }
         let class_qn = self.canonicalise_class_name(class_name?)?;
-        let is_tcloo = self.result.all_classes.get(&class_qn).is_some_and(|cd| {
-            super::validity::is_tcloo_metaclass(self.registry.as_deref(), &cd.metaclass)
-        });
+        let is_tcloo = self
+            .result
+            .all_classes
+            .get(&class_qn)
+            .is_some_and(|cd| super::validity::is_tcloo_source_class(self, cd));
         if !is_tcloo {
             return None;
         }
@@ -544,15 +556,9 @@ impl Analyser {
         tokens: &crate::ir::CommandTokens,
         registry: &tcl_registry::CommandRegistry,
     ) -> (bool, Option<String>) {
-        use crate::registry_invocation::registry_invocation_assistance;
-        let context = tcl_dialect::DialectProfile::find(self.dialect())
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-            .or_else(|| {
-                registry
-                    .profile()
-                    .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-            });
-        let object_metadata = registry_invocation_assistance(registry, context, tokens)
+        use crate::registry_invocation::registry_invocation_assistance_in_context;
+        let context = self.analysis_context();
+        let object_metadata = registry_invocation_assistance_in_context(&context, tokens)
             .is_some_and(|assistance| {
                 assistance
                     .candidates
@@ -593,6 +599,27 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) -> FactoryObjectAdvice {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Possible result advice uses the same source and actual availability
+        // generation as the supplied unit, without a completed result grant.
+        let Some(input) = self.result.resolved_input.as_ref() else {
+            return FactoryObjectAdvice::default();
+        };
+        let Some(context) =
+            crate::registry_invocation::retained_source_metadata_context(registry, Some(input))
+        else {
+            return FactoryObjectAdvice::default();
+        };
+        if cu.ir_module.source_metadata_input.as_ref() != Some(input)
+            || cu.source != self.source
+            || !self.result.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&self.source),
+                input.lexer_config(),
+            )
+        {
+            return FactoryObjectAdvice::default();
+        }
         // Original procedure and method units contribute possible result advice.
         let units: Vec<(&str, &crate::compilation_unit::FunctionUnit)> =
             std::iter::once(("::top", &cu.top_level))
@@ -607,7 +634,7 @@ impl Analyser {
             seed_factory_maps(
                 qname,
                 fu,
-                registry,
+                &context,
                 &|word, parent| self.nominal_object_result(word, parent, registry),
                 &mut maps,
                 self.lexer_config(),
@@ -699,7 +726,7 @@ impl Analyser {
 
         // Aggregate constant-string knowledge (var name → flat CONST/CONSTSET
         // value set) across every function in the CompilationUnit.
-        let all_constsets = aggregate_constsets(cu, self.word_rules(), &self.profile_registry());
+        let all_constsets = aggregate_constsets(cu, self.word_rules(), &self.analysis_context());
 
         // Per-SSA-version refinement: map each
         // function to its source range + FunctionUnit so the W307
@@ -927,6 +954,7 @@ impl Analyser {
         }
         // The walk below takes `&mut self`, so this analysis's own registry
         // is held as a handle rather than re-borrowed from `self` per site.
+        let context = self.analysis_context();
         let attached = self.registry.clone();
         let attached = attached.as_deref();
         for site in &cmd_sites {
@@ -962,7 +990,7 @@ impl Analyser {
                 .map(String::as_str)
                 .collect::<Vec<_>>();
             let invocation =
-                crate::registry_invocation::resolved_tokens_invocation(registry, None, tokens);
+                crate::registry_invocation::resolved_tokens_invocation_in_context(&context, tokens);
 
             // OO self-dispatch (`my <method>` / `self <method>`): by default
             // the return is treated as an object handle (suppress).  But when
@@ -1313,12 +1341,15 @@ impl Analyser {
                 return result.clone();
             }
         }
-        crate::registry_invocation::normal_representation_invocation(registry, None, tokens)
-            .and_then(|invocation| invocation.result_representation_type())
-            .map_or_else(
-                crate::types::TypeLattice::overdefined,
-                crate::types::TypeLattice::of,
-            )
+        crate::registry_invocation::normal_representation_invocation_in_context(
+            &self.analysis_context(),
+            tokens,
+        )
+        .and_then(|invocation| invocation.result_representation_type())
+        .map_or_else(
+            crate::types::TypeLattice::overdefined,
+            crate::types::TypeLattice::of,
+        )
     }
 
     /// W250 — instantiating an `oo::abstract` class.
@@ -1427,17 +1458,20 @@ impl Analyser {
         if std::env::var_os("TCL_TABLE_PROOF_DEBUG").is_some() {
             eprintln!("table consumption sites={consumed:?}");
         }
+        let Some(input) = self.result.resolved_input.as_ref() else {
+            return;
+        };
         let harvested = harvest_table_command_value_spans(
             cu,
             &self.source,
-            &self.profile_registry(),
+            &input.context_registry(),
+            input.lexer_config(),
             &consumed,
         );
         for (value, span, reference) in harvested {
             if !reference.is_user_command()
                 || self.result.command_invocations.iter().any(|existing| {
                     existing.range == span
-                        && existing.resolved_qualified_name.as_deref() == Some(reference.slot())
                         && existing.resolved_command_reference.as_ref() == Some(&reference)
                         && existing.resolved_user_definition == reference.is_direct_definition()
                 })
@@ -1609,29 +1643,6 @@ impl Analyser {
                 .chain(&cd.mixins)
                 .any(|s| !self.result.all_classes.contains_key(s) && !OO_BASE.contains(&s.as_str()))
     }
-
-    /// Suppress an interpolated W123 only when the source owner proves its
-    /// actual executed lookup. A value from another scope cannot settle it.
-    pub(super) fn resolve_interpolated_w123_diagnostics(&mut self) {
-        let diagnostics = std::mem::take(&mut self.result.diagnostics);
-        self.result.diagnostics = diagnostics
-            .into_iter()
-            .filter(|diagnostic| {
-                if diagnostic.code != DiagCode::W123 {
-                    return true;
-                }
-                let Some(command) = extract_quoted_word(&diagnostic.message) else {
-                    return true;
-                };
-                !command.contains('$')
-                    || self
-                        .head_identities
-                        .invocation_at_source("", diagnostic.span.start())
-                        .proved_target()
-                        .is_none()
-            })
-            .collect();
-    }
 }
 
 /// Parse a namespaced-ensemble dispatch head `${prefix}::tail` from the source
@@ -1689,10 +1700,10 @@ fn parse_namespaced_ensemble(
 /// (FP-OBJ-10); the caller still fires W307 when SCCP proves the slot holds a
 /// concrete non-command value.
 fn is_callback_array_slot(var_name: &str) -> bool {
-    let Some((_base, rest)) = var_name.split_once('(') else {
-        return false;
-    };
-    let Some(key) = rest.strip_suffix(')') else {
+    // This is a resolved name, so a leading dollar is literal.
+    // naming.diagnostics.original-variable-name-anchor
+    // docs/design/analysis/name-resolution-proofs/diagnostic-original-variable-name-anchor.md
+    let Some((_base, key)) = crate::naming::split_element_ref(var_name) else {
         return false;
     };
     if key.starts_with('-') {
@@ -1710,7 +1721,8 @@ fn is_callback_array_slot(var_name: &str) -> bool {
 fn harvest_table_command_value_spans(
     cu: &crate::compilation_unit::CompilationUnit,
     source: &str,
-    registry: &tcl_registry::CommandRegistry,
+    context: &tcl_registry::model::ContextRegistry,
+    config: tcl_lexer::LexerConfig,
     consumed: &HashSet<u32>,
 ) -> Vec<(
     String,
@@ -1750,7 +1762,7 @@ fn harvest_table_command_value_spans(
                 let Some(binding) = &tokens.source_binding else {
                     continue;
                 };
-                let read = dispatch_table_values(cu, unit, tokens, head, source, registry);
+                let read = dispatch_table_values(cu, unit, tokens, head, source, context, config);
                 for value in read.into_iter().flatten() {
                     let Some(value) = dispatch_table_head(value, expanded, binding) else {
                         continue;
@@ -1782,8 +1794,13 @@ fn dispatch_table_values(
     tokens: &crate::ir::CommandTokens,
     head: &crate::ir::WordExpr,
     source: &str,
-    registry: &tcl_registry::CommandRegistry,
+    context: &tcl_registry::model::ContextRegistry,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<crate::table_value_provenance::TableValueContributor>> {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // Availability and lexer overrides remain separate from reached cell contents.
+    let registry = context.commands();
     if head.sole_variable_substitution().is_some() {
         return crate::table_value_provenance::table_values(
             compilation,
@@ -1795,18 +1812,16 @@ fn dispatch_table_values(
             registry,
         );
     }
-    let dialect = tokens
+    tokens
         .source_binding
         .as_ref()?
         .variable_context
         .invocation_dialect?;
-    let mut nested = crate::word_subst::whole_word_command_tokens(
-        head,
-        tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-    )?;
+    let mut nested =
+        crate::word_subst::whole_word_command_tokens(head, tokens.native_lexer_config(config))?;
     nested.inherit_nested_bindings(tokens);
     let (input, keys) =
-        crate::registry_invocation::normal_representation_invocation(registry, None, &nested)?
+        crate::registry_invocation::normal_representation_invocation_in_context(context, &nested)?
             .dictionary_lookup()?;
     if keys.is_empty() {
         return None;
@@ -1904,18 +1919,17 @@ fn harvest_array_set_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
     rules: tcl_syntax::word_rules::WordValueRules,
-    registry: &tcl_registry::CommandRegistry,
+    context: &tcl_registry::model::ContextRegistry,
 ) {
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
     for fu in units {
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
-                let context = registry
-                    .profile()
-                    .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-                let Some(invocation) = crate::registry_invocation::resolved_statement_invocation(
-                    registry, context, stmt,
-                ) else {
+                let Some(invocation) =
+                    crate::registry_invocation::resolved_statement_invocation_in_context(
+                        context, stmt,
+                    )
+                else {
                     continue;
                 };
                 let Some(tcl_registry::VarElementsEffect::SetsArrayElementsFromList { values_at }) =
@@ -1923,27 +1937,19 @@ fn harvest_array_set_constants(
                 else {
                     continue;
                 };
-                let escapes = registry
-                    .profile()
-                    .map_or(tcl_dialect::EscapeSyntax::Tcl86, |profile| {
-                        profile.grammar.escapes
-                    });
                 let target = invocation
                     .facts
                     .arg_roles
                     .iter()
                     .find(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
                     .map(|(index, _)| invocation.facts.argument_offset + usize::from(*index));
-                let Some(arr_name) = target
-                    .and_then(|index| invocation.effective.argument_literal(index, escapes, rules))
+                let Some(arr_name) = target.and_then(|index| invocation.argument_literal(index))
                 else {
                     continue;
                 };
-                let Some(list) = invocation.effective.argument_literal(
-                    invocation.facts.argument_offset + usize::from(values_at),
-                    escapes,
-                    rules,
-                ) else {
+                let Some(list) = invocation
+                    .argument_literal(invocation.facts.argument_offset + usize::from(values_at))
+                else {
                     continue;
                 };
                 let items = crate::tcl_expr_eval::split_tcl_list(&list, rules);
@@ -1968,18 +1974,17 @@ fn harvest_dict_with_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
     rules: tcl_syntax::word_rules::WordValueRules,
-    registry: &tcl_registry::CommandRegistry,
+    context: &tcl_registry::model::ContextRegistry,
 ) {
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
     for fu in units {
         for (&block_id, block) in &fu.cfg.blocks {
             for (statement_index, stmt) in block.statements.iter().enumerate() {
-                let context = registry
-                    .profile()
-                    .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-                let Some(invocation) = crate::registry_invocation::resolved_statement_invocation(
-                    registry, context, stmt,
-                ) else {
+                let Some(invocation) =
+                    crate::registry_invocation::resolved_statement_invocation_in_context(
+                        context, stmt,
+                    )
+                else {
                     continue;
                 };
                 let args = &invocation.arguments;
@@ -1991,7 +1996,7 @@ fn harvest_dict_with_constants(
                 let Some(dict_var) = args.get(1).and_then(Option::as_deref) else {
                     continue;
                 };
-                let dvar = crate::naming::normalise_var_name(dict_var);
+                let dvar = crate::naming::split_array_name_braced(dict_var, true).0;
                 // The call-site-propagated literal lands at the param entry (v0).
                 let Some(crate::analyses::LatticeValue::Const(
                     crate::analyses::ConstValue::String(dict_text),
@@ -2084,7 +2089,7 @@ fn build_tainted_by_scope(
 fn aggregate_constsets(
     cu: &crate::compilation_unit::CompilationUnit,
     rules: tcl_syntax::word_rules::WordValueRules,
-    registry: &tcl_registry::CommandRegistry,
+    context: &tcl_registry::model::ContextRegistry,
 ) -> std::collections::HashMap<String, HashSet<String>> {
     let mut all_constsets: std::collections::HashMap<String, HashSet<String>> =
         std::collections::HashMap::new();
@@ -2112,9 +2117,9 @@ fn aggregate_constsets(
         collect_from(fu, &mut all_constsets);
     }
 
-    harvest_array_set_constants(cu, &mut all_constsets, rules, registry);
+    harvest_array_set_constants(cu, &mut all_constsets, rules, context);
     harvest_array_element_set_constants(cu, &mut all_constsets);
-    harvest_dict_with_constants(cu, &mut all_constsets, rules, registry);
+    harvest_dict_with_constants(cu, &mut all_constsets, rules, context);
     all_constsets
 }
 
@@ -2122,6 +2127,7 @@ fn aggregate_constsets(
 /// [`Analyser::compute_factory_object_ranges`]: factory-local vars, the
 /// `{var -> rhs command head}` assignment map, the last returned var, and the
 /// set of procedures with a possible object result.
+#[derive(Default)]
 struct FactoryObjectAdvice {
     ranges: Vec<(u32, u32, HashSet<String>)>,
     object_returning: FxHashSet<String>,
@@ -2144,7 +2150,7 @@ struct FactoryMaps {
 fn seed_factory_maps(
     qname: &str,
     fu: &crate::compilation_unit::FunctionUnit,
-    registry: &tcl_registry::CommandRegistry,
+    context: &tcl_registry::model::ContextRegistry,
     nominal_result: &impl Fn(
         &crate::ir::WordExpr,
         Option<&crate::ir::CommandTokens>,
@@ -2179,12 +2185,14 @@ fn seed_factory_maps(
                 _ => stmt
                     .tokens()
                     .map(|tokens| {
-                        crate::registry_invocation::advisory_value_assignments(registry, tokens)
+                        crate::registry_invocation::advisory_value_assignments_in_context(
+                            context, tokens,
+                        )
                     })
                     .unwrap_or_default(),
             };
             for word in stmt.tokens().into_iter().flat_map(|tokens| {
-                crate::registry_invocation::advisory_return_values(registry, tokens)
+                crate::registry_invocation::advisory_return_values_in_context(context, tokens)
             }) {
                 returned_variables.push(match &word {
                     crate::ir::WordExpr::Variable { spelling, .. } => extract_dollar_var(spelling),
@@ -2351,19 +2359,6 @@ fn last_return_var_of(cfg: &crate::cfg::Function) -> Option<String> {
 /// superclasses / mixins for W308 / W308-related gates.
 const OO_BASE: [&str; 2] = ["oo::object", "oo::class"];
 
-/// Extract the first single-quoted word from a diagnostic
-/// message string, or `None` if the message has no quoted run.
-///
-/// Used by [`Analyser::resolve_interpolated_w123_diagnostics`]
-/// to recover the command name from a "Unknown command 'NAME'"
-/// W123 message.
-fn extract_quoted_word(message: &str) -> Option<String> {
-    let start = message.find('\'')?;
-    let rest = &message[start + 1..];
-    let end = rest.find('\'')?;
-    Some(rest[..end].to_string())
-}
-
 /// Expand a CONST / CONSTSET lattice value into the flat set of its
 /// string values, or `None` for any non-string-constant lattice state.
 fn lattice_command_values(lv: &crate::analyses::LatticeValue) -> Option<Vec<String>> {
@@ -2505,4 +2500,199 @@ fn declaration_head_value_version(
     }
     let (selected, version) = read.diagnostic_version(&fu.ssa, block, index, registry)?;
     (selected == symbol).then_some(version)
+}
+
+#[cfg(test)]
+mod retained_constant_context_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn array_constant_harvest_uses_retained_operand_grammar_over_catalogue_profile() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original source-value advice; no executed store or Native argv claim.
+        let source = r#"array set state "callback \U0001F600""#;
+        let catalogue = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        for (environment, expected) in [("tcl8.4", "U0001F600"), ("tcl9.0", "\u{1F600}")] {
+            let profile = tcl_dialect::DialectProfile::find(environment).unwrap();
+            let context = Arc::new(
+                tcl_registry::model::ingress::static_context_for(environment)
+                    .with_command_store(Arc::clone(catalogue.commands())),
+            );
+            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+            // The source-authoring entry supplies its explicit dialect below.
+            // A Driver entry would require independent Native operand/handler
+            // premises and would test a different admission boundary.
+            let cu = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config: tcl_lexer::LexerConfig::for_profile(Some(profile)),
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                Arc::clone(&context),
+            );
+            let selected: Vec<_> = cu
+                .top_level
+                .cfg
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .filter_map(|statement| {
+                    crate::registry_invocation::resolved_statement_invocation_in_context(
+                        &context, statement,
+                    )
+                })
+                .collect();
+            assert_eq!(
+                selected.len(),
+                1,
+                "positive original metadata: {environment}"
+            );
+            assert_eq!(selected[0].dialect, Some(dialect));
+            assert!(matches!(
+                selected[0].facts.var_elements_effect,
+                Some(tcl_registry::VarElementsEffect::SetsArrayElementsFromList { .. })
+            ));
+            let mut values = HashMap::new();
+            harvest_array_set_constants(&cu, &mut values, dialect.word_values, &context);
+            assert_eq!(
+                values.get("state(callback)"),
+                Some(&HashSet::from([expected.to_owned()])),
+                "retained source grammar: {environment}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_callback_slot_name_tests {
+    use super::*;
+
+    #[test]
+    fn callback_slot_hints_use_shared_resolved_element_name_boundaries() {
+        // naming.diagnostics.original-variable-name-anchor
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-variable-name-anchor.md
+        // Callback-shaped names are suppression hints only; these controls
+        // assert neither current callback occupancy nor native variable reads.
+        for name in [
+            "state(-command)",
+            "$state(-command)",
+            "é(doneCallback)",
+            "(-command)",
+            "state(a)(-command)",
+        ] {
+            assert!(is_callback_array_slot(name), "{name}");
+        }
+        for name in [
+            "state(-command",
+            "state(doneCallback",
+            "state()",
+            "doneCallback",
+            "state(-command)tail",
+            "state(a)(data)",
+        ] {
+            assert!(!is_callback_array_slot(name), "{name}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod factory_metadata_context_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn factory_may_advice_uses_actual_availability_and_exact_supplied_source() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // These Registry declarations supply possible source result shapes,
+        // never an actual factory implementation, allocation or return value.
+        let source = "gated-store handle [possible-object]";
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "gated-store",
+            surface: registry.get("dict").unwrap().surface,
+            ..registry.get("set").unwrap().clone()
+        });
+        registry.insert(tcl_registry::CommandSpec {
+            name: "possible-object",
+            return_type: Some(tcl_registry::TclType::Object),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let store = Arc::new(registry);
+        for (environment, expected) in [("tcl8.4", false), ("tcl9.0", true)] {
+            let profile = tcl_dialect::DialectProfile::find(environment).unwrap();
+            let context = Arc::new(
+                tcl_registry::model::ingress::static_context_for(environment)
+                    .with_command_store(Arc::clone(&store)),
+            );
+            let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&context),
+                config,
+            );
+            let mut analyser = Analyser::new().with_resolved_input(input);
+            let analysis = analyser.analyse(source, environment);
+            let mut cu = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                Arc::clone(&context),
+            );
+            let advice = analyser.compute_factory_object_ranges(&cu, context.commands());
+            assert_eq!(
+                advice
+                    .ranges
+                    .iter()
+                    .any(|(_, _, names)| names.contains("handle")),
+                expected,
+                "{environment}"
+            );
+            let foreign = tcl_registry::CommandRegistry::build_default();
+            assert!(
+                analyser
+                    .compute_factory_object_ranges(&cu, &foreign)
+                    .ranges
+                    .is_empty()
+            );
+            analyser.result.resolved_input = None;
+            assert!(
+                analyser
+                    .compute_factory_object_ranges(&cu, context.commands())
+                    .ranges
+                    .is_empty()
+            );
+            analyser.result = analysis.clone();
+            cu.ir_module.source_metadata_input = None;
+            assert!(
+                analyser
+                    .compute_factory_object_ranges(&cu, context.commands())
+                    .ranges
+                    .is_empty()
+            );
+            cu.ir_module.source_metadata_input = analysis.resolved_input.clone();
+            cu.source.push(' ');
+            assert!(
+                analyser
+                    .compute_factory_object_ranges(&cu, context.commands())
+                    .ranges
+                    .is_empty()
+            );
+        }
+    }
 }

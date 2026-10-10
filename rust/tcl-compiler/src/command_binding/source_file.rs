@@ -72,6 +72,7 @@ impl SourceCommandBindings {
                 compilation,
                 compilation_snapshot: None,
                 selected_compilation: None,
+                original_variable_compilation: None,
                 depth: context.depth + 1,
                 ..context
             },

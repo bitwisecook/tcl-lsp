@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::per_item::tests::original_lexical_member_body_keeps_the_whole_source_owner ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8151 filtered out; finished in 0.52s
+

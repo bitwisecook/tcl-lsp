@@ -338,16 +338,9 @@ impl ModuleCommandBindings {
                 BTreeSet::from([namespace
                     .exports
                     .iter()
-                    .filter_map(|word| word.try_utf8().ok().map(str::to_owned))
+                    .map(|word| tcl_core_types::NameBytes::from(word.as_bytes()))
                     .collect()]),
             );
-            if namespace
-                .exports
-                .iter()
-                .any(|word| word.try_utf8().is_err())
-            {
-                Arc::make_mut(&mut self.unknown_export_namespaces).insert(name.clone());
-            }
             if namespace
                 .unknown_handler
                 .as_ref()
@@ -420,6 +413,9 @@ impl ModuleCommandBindings {
                 row.token == entry.current_namespace
                     && native_namespace_key(entry, row.token).is_some()
             });
+        self.original_command_world = Arc::new(
+            super::source_command_world::OriginalSourceCommandWorld::for_runtime_entry(self, entry),
+        );
     }
 }
 
@@ -661,6 +657,7 @@ mod tests {
             ),
             compiled_variable_protocol: None,
             compiled_local_layout: None,
+            oo_classes: None,
             ensemble_target_objects: None,
             source_string_protocol: None,
             lexer_grammar: None,
@@ -669,6 +666,7 @@ mod tests {
             namespace_variable_tables: None,
             empty_literal_world: None,
             compiler_pass_environment: None,
+            command_resolvers: None,
             variable_observers:
                 tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
             math_functions: None,
@@ -787,6 +785,163 @@ mod tests {
                 ..SourceAnalysisOptions::default()
             },
         )
+    }
+
+    #[test]
+    fn original_native_world_selects_policy_before_any_branch_and_never_reseeds_withdrawal() {
+        // Implementation contract: naming.command.original-native-entry-world-bootstrap
+        // docs/design/analysis/name-resolution-proofs/command-original-native-entry-world-bootstrap.md
+        let registry = tcl_registry::CommandRegistry::build_default();
+        for version in tcl_dialect::TclVersion::ALL {
+            let mut snapshot = entry(NativeCommandImplementation::Opaque);
+            select_fixture_native_point(&mut snapshot, version);
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let mut state = super::super::ModuleCommandBindings::initial_with_options(
+                &registry,
+                SourceAnalysisOptions {
+                    native_entry: Some(&snapshot),
+                    invocation_dialect: Some(dialect),
+                    ..Default::default()
+                },
+                None,
+            );
+            let policy = snapshot.command_name_policy().unwrap();
+            let root = state.source_root_namespace_key().unwrap();
+            let before = (*state.original_command_world).clone();
+            let mut selected_branch = before.clone();
+            assert_eq!(selected_branch.select_policy(&state), Some(policy));
+            assert_eq!(selected_branch, before);
+            let mut joined = before.clone();
+            assert!(!joined.join(&selected_branch));
+            assert!(joined.scope(&root, policy).is_some());
+            assert!(
+                state
+                    .original_publication_at(
+                        &tcl_core_types::ByteCommandSlot {
+                            namespace: tcl_core_types::ByteNamespacePath::root(),
+                            simple: "proc".into(),
+                        },
+                        policy
+                    )
+                    .is_none()
+            );
+            // A missing actual native row remains missing despite Registry
+            // knowledge. No namespace geometry supplies that implementation.
+            let key = super::super::SourceCommandKey::slot(root.clone(), "proc".into());
+            assert_eq!(
+                state.original_bindings_for_key(&key),
+                Some(std::collections::BTreeSet::from([
+                    super::super::MayBinding::Missing
+                ]))
+            );
+            std::sync::Arc::make_mut(&mut state.original_command_world).withdraw();
+            state.install_runtime_entry(&snapshot);
+            assert!(state.original_namespace_geometry(&root, policy).is_none());
+        }
+        let mut incomplete = entry(NativeCommandImplementation::Opaque);
+        incomplete.closed = false;
+        let state = super::super::ModuleCommandBindings::initial_with_options(
+            &registry,
+            SourceAnalysisOptions {
+                native_entry: Some(&incomplete),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                    tcl_dialect::TclVersion::V9_0,
+                )),
+                ..Default::default()
+            },
+            None,
+        );
+        assert!(
+            state
+                .original_namespace_geometry(
+                    &state.source_root_namespace_key().unwrap(),
+                    incomplete.command_name_policy().unwrap()
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_jim_native_world_keeps_root_lookup_without_unrelated_holder_geometry() {
+        // Implementation contract: naming.command.original-native-entry-world-bootstrap
+        // docs/design/analysis/name-resolution-proofs/command-original-native-entry-world-bootstrap.md
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some("jimtcl")).unwrap();
+        let dialect = tcl_registry::InvocationDialect::of_point(point);
+        let mut snapshot = entry(NativeCommandImplementation::Registry {
+            identity: "set".to_owned(),
+            compiler_hook: false,
+        });
+        snapshot.execution_point = Some(point);
+        snapshot.name_protocol = tcl_syntax::naming::NamePolicyProtocol::for_native_point(point);
+        snapshot.source_string_protocol =
+            Some(tcl_syntax::native_string::NativeStringProtocol::Jim084);
+        snapshot.lexer_grammar = Some(dialect.lexer_grammar);
+        snapshot.namespaces[0].jim_namespace_object = Some(tcl_core_types::NameBytes::default());
+        snapshot.command_resolvers = Some(
+            tcl_runtime_api::native_compilation::NativeCommandResolverInventory::captured(
+                snapshot.interpreter,
+                snapshot.epoch,
+                tcl_runtime_api::native_compilation::NativeCommandResolverPresence::Absent,
+            ),
+        );
+        let mut unrelated = snapshot.namespaces[0].clone();
+        unrelated.token = 55;
+        unrelated.path = tcl_core_types::ByteNamespacePath::from_segments(["unrelated"]);
+        unrelated.jim_namespace_object = None;
+        snapshot.namespaces.push(unrelated);
+        let make_state = |snapshot: &NativeCompilationEntry| {
+            super::super::ModuleCommandBindings::initial_with_options(
+                &registry,
+                SourceAnalysisOptions {
+                    native_entry: Some(snapshot),
+                    invocation_dialect: Some(dialect),
+                    ..Default::default()
+                },
+                None,
+            )
+        };
+        let mut state = make_state(&snapshot);
+        let policy = snapshot.command_name_policy().unwrap();
+        let root = state.source_root_namespace_key().unwrap();
+        assert_eq!(
+            state.original_namespace_geometry(&root, policy),
+            Some(crate::signature_scan::scope::SignatureNamespaceScope::Jim(
+                tcl_core_types::NameBytes::default()
+            ))
+        );
+        let absent_geometry = native_namespace_key(&snapshot, 55).unwrap();
+        assert!(
+            state
+                .original_namespace_geometry(&absent_geometry, policy)
+                .is_none()
+        );
+        let key = super::super::SourceCommandKey::slot(root.clone(), "set".into());
+        let bindings = state.original_bindings_for_key(&key).unwrap();
+        assert!(
+            matches!(bindings.iter().next(), Some(super::super::MayBinding::Target(target))
+            if target.token.as_ref().and_then(|token| token.runtime).is_some_and(|runtime|
+                runtime.interpreter == snapshot.interpreter && runtime.token == 4))
+        );
+        assert_eq!(bindings.len(), 1);
+        std::sync::Arc::make_mut(&mut state.original_command_world).withdraw();
+        state.install_runtime_entry(&snapshot);
+        assert!(state.original_namespace_geometry(&root, policy).is_none());
+
+        let mut current_without_object = snapshot.clone();
+        current_without_object.current_namespace = 55;
+        assert!(
+            make_state(&current_without_object)
+                .original_namespace_geometry(&root, policy)
+                .is_none()
+        );
+        let mut root_without_object = snapshot;
+        root_without_object.namespaces[0].jim_namespace_object = None;
+        assert!(
+            make_state(&root_without_object)
+                .original_namespace_geometry(&root, policy)
+                .is_none()
+        );
     }
 
     #[test]
@@ -1177,6 +1332,8 @@ mod tests {
         snapshot
     }
 
+    // Native proof: naming.namespace.unknown-compile-dispatch
+    // docs/design/analysis/name-resolution-proofs/namespace-unknown-compile-dispatch.md
     #[test]
     fn native_namespace_unknown_lookup_fixture_separates_compile_and_dispatch() {
         let expected = "existing KNOWN 0\ncompiler OK 0\nfallback FALLBACK 1\nrootedExisting KNOWN 1\nrootedFallback FALLBACK 2\n";

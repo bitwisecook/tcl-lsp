@@ -1,0 +1,15 @@
+
+running 1 test
+test code_actions::diagnostic_context::tests::original_bootstrap_actions_use_current_selected_handler_and_payload_metadata ... 
+thread 'code_actions::diagnostic_context::tests::original_bootstrap_actions_use_current_selected_handler_and_payload_metadata' (705345) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:607:13:
+IRULE1005
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    code_actions::diagnostic_context::tests::original_bootstrap_actions_use_current_selected_handler_and_payload_metadata
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2705 filtered out; finished in 1.92s
+

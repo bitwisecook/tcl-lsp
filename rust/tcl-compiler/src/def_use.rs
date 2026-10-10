@@ -577,7 +577,7 @@ mod tests {
                 token,
                 path: tcl_core_types::ByteNamespacePath::from_segments(["same"]),
             }),
-            simple: "x".to_owned(),
+            simple: "x".into(),
         };
         let original = key(1);
         let replacement = key(2);

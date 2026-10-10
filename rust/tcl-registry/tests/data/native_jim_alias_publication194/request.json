@@ -1,0 +1,24 @@
+{
+  "question": "naming.jim.rooted-alias-publication-and-lookup",
+  "problem": "Does current Jim alias publication replace an existing procedure when the original name has a root marker, retain the returned original spelling, and use the same flat lookup key for bare/rooted/multiword/extra-colon names while keeping namespace-local competition separate?",
+  "channel": "One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims.",
+  "source_sha256": "33a72864039133a7533827ee06b268337e9e378f7533f023ef963cf3caeb70b1",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "jim_expected_version": "0.84-9-g5bac7c9",
+  "c_scope": "The same original source checks whether standalone alias exists. Native C Tcl without that command reports not_applicable; it does not substitute interp alias semantics.",
+  "controls": [
+    "rooted_replacement",
+    "multiword_replacement",
+    "extra_root_extent",
+    "namespace_competition"
+  ],
+  "bigip": "not-tested",
+  "authority_boundary": "Public caller projection can back Runtime/VM alias-key regressions. It grants no source-carrier command identity, actual native table introspection, full Jim OO, or unstated command support."
+}

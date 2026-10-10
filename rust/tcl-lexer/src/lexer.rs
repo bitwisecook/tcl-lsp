@@ -510,6 +510,8 @@ pub struct Lexer<'src> {
     /// Non-fatal warnings collected during lexing (unterminated
     /// braces, extra chars after close-quote, etc.).
     warnings: Vec<LexWarning>,
+    /// Maximum balanced-brace level observed by the actual braced-word scanner.
+    max_brace_word_nesting: u32,
     /// Kind of the most recently emitted token. Used to decide whether
     /// EOF needs a trailing ghost EOL and to compute
     /// [`Lexer::is_newword`].
@@ -585,6 +587,7 @@ impl<'src> Lexer<'src> {
             jim_token_start: None,
             jim_preceding_token: JimPrecedingToken::Other,
             warnings: Vec::new(),
+            max_brace_word_nesting: 0,
             // Start in "last kind was EOL" so an empty source produces
             // zero tokens rather than a lone ghost trailing EOL.
             last_kind: TokenType::Eol,
@@ -853,6 +856,34 @@ impl<'src> Lexer<'src> {
     /// (`parse_var`, `parse_command`, `parse_brace`, `parse_quoted`).
     pub fn tokenise_all(self) -> Result<Vec<Token>, LexError> {
         self.collect()
+    }
+
+    /// Consume the remaining token stream while checking the maximum nesting
+    /// observed by this lexer's braced-word scanner against a caller's budget.
+    /// Escaped braces, comments, quoted text and braces within bare words retain
+    /// their actual lexical treatment under the supplied complete configuration.
+    /// This bounds source preparation; it identifies no script body, command,
+    /// name, frame or evaluation. Other recursive consumers retain their own caps.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`LexError`] encountered before the budget is exceeded.
+    pub fn braced_word_nesting_within(
+        mut self,
+        limit: tcl_core_types::RecursionLimit,
+    ) -> Result<bool, LexError> {
+        // Implementation contract: naming.editor.original-source-formatting-budget
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+        if limit.exceeded(self.max_brace_word_nesting) {
+            return Ok(false);
+        }
+        while let Some(token) = self.next() {
+            token?;
+            if limit.exceeded(self.max_brace_word_nesting) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     /// Collect every token alongside the non-fatal warnings
@@ -1582,6 +1613,7 @@ impl<'src> Lexer<'src> {
         let content_start = self.pos;
 
         let mut level: u32 = 1;
+        self.max_brace_word_nesting = self.max_brace_word_nesting.max(level);
         let mut span_end: u32 = self.pos;
 
         while let Some(ch) = self.current_char() {
@@ -1593,6 +1625,7 @@ impl<'src> Lexer<'src> {
                 }
                 '{' => {
                     level += 1;
+                    self.max_brace_word_nesting = self.max_brace_word_nesting.max(level);
                     self.pos += 1;
                 }
                 '}' => {
@@ -2309,6 +2342,74 @@ mod tests {
         let lexed = Lexed::run("foo\n");
         assert_eq!(lexed.kinds(), vec![TokenType::Esc, TokenType::Eol]);
         assert_eq!(lexed.source_map.text(lexed.tokens[1].span), "\n");
+    }
+
+    #[test]
+    fn brace_word_budget_uses_lexical_context_and_escape_boundaries() {
+        // Implementation contract: naming.editor.original-source-formatting-budget
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+        let one = tcl_core_types::RecursionLimit(1);
+        assert_eq!(
+            Lexer::new("set value {a {b}}").braced_word_nesting_within(one),
+            Ok(false)
+        );
+        assert_eq!(
+            Lexer::new(r"set value {\{ \{ \} \}}").braced_word_nesting_within(one),
+            Ok(true)
+        );
+        let zero = tcl_core_types::RecursionLimit(0);
+        for source in [
+            "# {{{{\nset value plain",
+            "set value \"{{{{\"",
+            "set value data{{{{",
+        ] {
+            assert_eq!(
+                Lexer::new(source).braced_word_nesting_within(zero),
+                Ok(true),
+                "{source}"
+            );
+        }
+        assert_eq!(
+            Lexer::new("{a {b}}")
+                .as_quoted_body()
+                .braced_word_nesting_within(zero),
+            Ok(true)
+        );
+    }
+
+    #[test]
+    fn brace_word_budget_retains_full_config_and_strict_errors() {
+        // Implementation contract: naming.editor.original-source-formatting-budget
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+        let zero = tcl_core_types::RecursionLimit(0);
+        let core = LexerConfig::for_file_grammar(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap().grammar,
+        );
+        let jim = LexerConfig::for_file_grammar(tcl_dialect::grammar_of_dialect_name(Some("jim")));
+        let source = "set value\u{000b}{{nested}}";
+        assert_eq!(
+            Lexer::with_config(source, core).braced_word_nesting_within(zero),
+            Ok(false)
+        );
+        assert_eq!(
+            Lexer::with_config(source, jim).braced_word_nesting_within(zero),
+            Ok(true)
+        );
+        let malformed = "set value {ok}tail";
+        assert_eq!(
+            Lexer::with_config(malformed, core)
+                .braced_word_nesting_within(tcl_core_types::RecursionLimit(1)),
+            Ok(true)
+        );
+        let strict = LexerConfig {
+            strict_quoting: true,
+            ..core
+        };
+        assert!(
+            Lexer::with_config(malformed, strict)
+                .braced_word_nesting_within(tcl_core_types::RecursionLimit(1))
+                .is_err()
+        );
     }
 
     #[test]

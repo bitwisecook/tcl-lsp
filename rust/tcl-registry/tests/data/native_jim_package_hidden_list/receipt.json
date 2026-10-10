@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/captured-package-future-frame122/probe.tcl"
+  ],
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "fbd0e3c6b630c0bf4dd82a79a7e9b1328f1cd7549d7980106f7975ea3ab76592",
+  "exit": 0,
+  "stdout_sha256": "5c1ae80c92266addbd9e63038a5138dc613fa2b403f5f19d95129b4262abf4ce",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0.84-9-g5bac7c9",
+    "RESULT list 0 {file glob clock eventloop signal tclcompat array tree tclprefix history ensemble binary initjimsh jsonencode zlib syslog aio nshelper stdlib json posix namespace oo interp regexp readdir exec pack}",
+    "RESULT names 0 {file glob clock eventloop signal tclcompat array tree tclprefix history ensemble binary initjimsh jsonencode zlib syslog aio nshelper stdlib json posix namespace oo interp regexp readdir exec pack}",
+    "RESULT __r2286_absent__ 1 {package, unknown command \"__r2286_absent__\": should be forget, names, provide, require}"
+  ],
+  "boundary": "Jim hidden package list alias and visible names via exact fixed ASCII source-file entry; miss diagnostic inventory is not the complete supported operation inventory."
+}

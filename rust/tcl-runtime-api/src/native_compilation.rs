@@ -388,6 +388,55 @@ impl NativeVariableObserverPresence {
     }
 }
 
+/// Independently observed interpreter and namespace command-resolver surface.
+/// Command-table completeness does not establish this separate callback axis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeCommandResolverPresence {
+    /// Neither interpreter nor namespace command lookup can enter a resolver.
+    Absent,
+    /// At least one command lookup resolver is installed.
+    Present,
+    /// The provider cannot inspect the complete resolver surface.
+    Unknown,
+}
+
+/// Same-entry resolver observation supplied by the concrete lookup owner.
+/// It grants no command target, object getter, execution-observer or compiler
+/// admission authority. Namespace unknown handlers execute after failed lookup
+/// and are not resolver callbacks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NativeCommandResolverInventory {
+    interpreter: NativeInterpreterIdentity,
+    epoch: u64,
+    presence: NativeCommandResolverPresence,
+}
+
+impl NativeCommandResolverInventory {
+    /// Retain an independently inspected resolver surface at this actual entry.
+    /// Providers must not derive absence from visible table rows or a catalogue.
+    #[must_use]
+    pub const fn captured(
+        interpreter: NativeInterpreterIdentity,
+        epoch: u64,
+        presence: NativeCommandResolverPresence,
+    ) -> Self {
+        Self {
+            interpreter,
+            epoch,
+            presence,
+        }
+    }
+
+    /// Whether this exact entry's independently observed lookup has no resolver.
+    #[must_use]
+    pub fn permits_no_callbacks(self, entry: &NativeCompilationEntry) -> bool {
+        self.interpreter == entry.interpreter
+            && self.epoch == entry.epoch
+            && entry.command_resolvers == Some(self)
+            && self.presence == NativeCommandResolverPresence::Absent
+    }
+}
+
 /// Observed original target primary at an actual ensemble compiler boundary.
 /// These records retain no object, callable or command-node ownership.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -479,8 +528,14 @@ pub struct NativeCompilationEntry {
     /// bytes and of configuration/compiled-prerequisite equality. Missing rows
     /// or inventory do not imply a fresh String primary.
     pub ensemble_target_objects: Option<Vec<NativeEnsembleTargetObservation>>,
+    /// Independently captured current `TclOO` class/object state. Missing
+    /// inventory does not acquire a role from command names or Registry rows.
+    pub oo_classes: Option<crate::native_oo::NativeOoClassInventory>,
     /// Actual namespace lookup state.
     pub namespaces: Vec<NativeCompilationNamespace>,
+    /// Independent same-entry command-resolver inventory. Missing evidence
+    /// remains unknown even when every command and namespace row is retained.
+    pub command_resolvers: Option<NativeCommandResolverInventory>,
     /// Stable active namespace token, including a retained deleted token.
     pub current_namespace: u64,
     /// Actual variable observer surface. Closure is independent of command
@@ -649,7 +704,9 @@ impl NativeCompilationEntry {
             && self.math_functions == other.math_functions
             && self.closed == other.closed
             && self.commands == other.commands
+            && self.oo_classes == other.oo_classes
             && self.namespaces == other.namespaces
+            && self.command_resolvers == other.command_resolvers
             && self.current_namespace == other.current_namespace
             && self.variable_observers == other.variable_observers
             && self.namespace_variable_tables == other.namespace_variable_tables

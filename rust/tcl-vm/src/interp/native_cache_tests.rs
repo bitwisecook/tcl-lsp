@@ -264,6 +264,11 @@ fn imported_source_ensemble(
 
 #[test]
 fn imported_compiler_attachments_match_all_57_original_native_snapshots() {
+    // Native proof: naming.import.compiler-hook-copy
+    // docs/design/analysis/name-resolution-proofs/import-compiler-hook-copy.md
+    // Native proof: naming.import.compiler-hook-mutation-epoch
+    // docs/design/analysis/name-resolution-proofs/import-compiler-hook-mutation-epoch.md
+
     let engines = IMPORTED_COMPILER_FIXTURES;
     let mut completed = 0;
     for (engine, reports) in engines {
@@ -928,7 +933,7 @@ fn compiler_pass_capture_uses_actual_parent_limits_and_state_lifetime() {
     );
     vm.set_time_limit_deadline(None);
     let name = vm.create_child(Some("child".into()), false);
-    let id = vm.children[&name];
+    let id = vm.children[name.as_bytes()];
     let child_entry = vm.in_interp(id, |vm| {
         vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false)
     });

@@ -70,33 +70,51 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-/// `unset ?-nocomplain? ?--? ?name name name ...?` — every trailing word is a
-/// variable name, not just the first.  Resolve `VarWrite` dynamically (skipping
-/// the leading options) so all names highlight as variables rather than only
-/// the first.
-///
-/// Mirrors `Tcl_UnsetObjCmd` (generic/tclCmdMZ.c) — *not* the broader,
-/// currently-incorrect leading-option loop in `tcl-compiler`'s `lower_unset`
-/// (`lowering_hooks.rs`), which still treats `-nocomplain` as skippable and
-/// repeatable at every position. Real Tcl recognises at most one leading
-/// `-nocomplain` (argument 0), and only then an optional `--` immediately
-/// after it (argument 1); a bare `--` with no preceding `-nocomplain` is also
-/// recognised, but only at argument 0. Neither word is recognised anywhere
-/// else, and neither repeats — confirmed empirically against tclsh 8.6.14: a
-/// second `-nocomplain`, or a `--` in any other position, is a real variable
-/// name (e.g. one literally called `-nocomplain`) and keeps its `VarWrite`
-/// role like any other. Any other leading word — including one that begins
-/// with `-`, such as `unset -foo bar` — is a real variable name too, never an
-/// option.
-fn unset_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let i = match args {
-        ["-nocomplain", "--", ..] => 2,
-        ["-nocomplain" | "--", ..] => 1,
-        _ => 0,
+/// Selected option grammar determines the first variable ordinal. Only the
+/// reached prefix requires values; later names need exact argv cardinality.
+fn unset_layout_roles(
+    arguments: crate::InvocationArguments<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = arguments.exact_argv_len()?;
+    if count > usize::from(u8::MAX) + 1 {
+        return None;
+    }
+    let names_from = if let Some(dialect) = arguments.dialect() {
+        dialect
+            .unset_option_protocol()?
+            .parse(count, |index| {
+                arguments
+                    .native_bytes_at(index)
+                    .or_else(|| arguments.literal_at(index).map(str::as_bytes))
+                    .ok_or(())
+            })
+            .ok()?
+            .names_from
+    } else {
+        // The bare authored Tcl descriptor retains its counted source grammar.
+        // It supplies no selected native option or variable lookup authority.
+        let literals = arguments.literal_values()?;
+        crate::native_unset_options::UnsetOptionProtocol::C
+            .parse_known_source(count, |index| {
+                literals
+                    .get(index)
+                    .map(|literal| literal.as_bytes())
+                    .ok_or(())
+            })
+            .ok()?
+            .names_from
     };
-    (i..args.len())
-        .filter_map(|j| u8::try_from(j).ok().map(|j| (j, ArgRole::VarWrite)))
-        .collect()
+    Some(
+        (names_from..count)
+            .map(|index| {
+                (
+                    u8::try_from(index).expect("bounded role ordinal"),
+                    ArgRole::VarWrite,
+                )
+            })
+            .collect(),
+    )
 }
 
 /// Command spec for `unset`.
@@ -141,7 +159,7 @@ pub fn spec() -> CommandSpec {
         // never been version-gated for this command. The "consumed all args,
         // unset nothing" footgun is surfaced by W217, not an arity error.
         arity: Arity::at_least(0),
-        arg_role_resolver: Some(unset_arg_roles),
+        arg_role_layout_resolver: Some(unset_layout_roles),
         arg_role_resolver_roles: &[ArgRole::VarWrite],
         // NOTE: `unset` does NOT set `assigns_variable_at`. That field means
         // "arg N is assigned a value" (the `set`/`incr` shape); `unset`
@@ -191,5 +209,81 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Unset),
         forms: FORMS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unset_roles_keep_counted_names_and_selected_option_prefixes() {
+        // Implementation contract: naming.variable.unset-original-role-layout
+        // docs/design/analysis/name-resolution-proofs/unset-original-role-layout.md
+        let registry = crate::CommandRegistry::build_default();
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let dialect = crate::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
+            );
+            let names = [
+                crate::InvocationWord::KnownBytes(b"x\0tail"),
+                crate::InvocationWord::Dynamic,
+            ];
+            let arguments = crate::InvocationArguments::structured(&names).with_dialect(dialect);
+            let facts = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::from_arguments(
+                        crate::InvocationWord::Literal("unset"),
+                        arguments,
+                    ),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .unwrap()
+                .facts();
+            assert!(facts.arg_roles_complete, "{profile}");
+            assert_eq!(
+                facts.arg_roles,
+                [(0, ArgRole::VarWrite), (1, ArgRole::VarWrite)],
+                "{profile}"
+            );
+            let prefixed = [
+                crate::InvocationWord::KnownBytes(b"-nocomplain\0suffix"),
+                crate::InvocationWord::Literal("--"),
+                crate::InvocationWord::Dynamic,
+            ];
+            let arguments = crate::InvocationArguments::structured(&prefixed).with_dialect(dialect);
+            let facts = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::from_arguments(
+                        crate::InvocationWord::Literal("unset"),
+                        arguments,
+                    ),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .unwrap()
+                .facts();
+            assert!(facts.arg_roles_complete, "{profile}");
+            assert_eq!(facts.arg_roles, [(2, ArgRole::VarWrite)], "{profile}");
+            let unknown_prefix = [
+                crate::InvocationWord::Dynamic,
+                crate::InvocationWord::KnownBytes(b"x\0tail"),
+            ];
+            let arguments =
+                crate::InvocationArguments::structured(&unknown_prefix).with_dialect(dialect);
+            let facts = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::from_arguments(
+                        crate::InvocationWord::Literal("unset"),
+                        arguments,
+                    ),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .unwrap()
+                .facts();
+            assert!(!facts.arg_roles_complete, "{profile}");
+        }
     }
 }

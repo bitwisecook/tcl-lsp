@@ -1,0 +1,26 @@
+
+running 4 tests
+test analyser::interp_visibility::tests::original_child_lambda_visibility_uses_its_own_literal_namespace ... 
+thread 'analyser::interp_visibility::tests::original_child_lambda_visibility_uses_its_own_literal_namespace' (607260) panicked at rust/tcl-compiler/src/analyser/interp_visibility.rs:1585:13:
+assertion `left == right` failed: tcl8.5: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::interp_visibility::tests::original_child_visibility_is_scoped_conditional_and_retains_possible_source_edges ... ok
+test analyser::interp_visibility::tests::original_child_visibility_preserves_literal_colon_and_independent_allocations ... 
+thread 'analyser::interp_visibility::tests::original_child_visibility_preserves_literal_colon_and_independent_allocations' (607278) panicked at rust/tcl-compiler/src/analyser/interp_visibility.rs:1557:13:
+assertion `left == right` failed: tcl8.4: [Diagnostic { subject: None, code: W113, span: Span { start: 42, end: 49 }, message: "Procedure ':source' shadows built-in command (tcl8.4)", severity: Warning, fixes: [] }, Diagnostic { subject: None, code: E003, span: Span { start: 153, end: 158 }, message: "Too many arguments for 'source': expected at most 0, got 1", severity: Error, fixes: [CodeFix { span: Span { start: 152, end: 158 }, new_text: "", description: "Remove surplus argument(s)", safety: RequiresReview }] }, Diagnostic { subject: None, code: E003, span: Span { start: 230, end: 235 }, message: "Too many arguments for 'source': expected at most 0, got 1", severity: Error, fixes: [CodeFix { span: Span { start: 229, end: 235 }, new_text: "", description: "Remove surplus argument(s)", safety: RequiresReview }] }]
+  left: 0
+ right: 2
+FAILED
+test analyser::interp_visibility::tests::original_child_visibility_rejects_foreign_source_configuration_and_generation ... ok
+
+failures:
+
+failures:
+    analyser::interp_visibility::tests::original_child_lambda_visibility_uses_its_own_literal_namespace
+    analyser::interp_visibility::tests::original_child_visibility_preserves_literal_colon_and_independent_allocations
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 8195 filtered out; finished in 9.56s
+

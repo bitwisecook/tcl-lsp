@@ -1,0 +1,65 @@
+TclCompileStringMatchCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    int exactMatch = 0, nocase = 0;
+    Tcl_Size i, numWords = parsePtr->numWords;
+
+    if (numWords < 3 || numWords > 4) {
+	return TCL_ERROR;
+    }
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+
+    /*
+     * Check if we have a -nocase flag.
+     */
+
+    if (numWords == 4) {
+	if (!IS_TOKEN_PREFIX(tokenPtr, 2, "-nocase")) {
+	    /*
+	     * Fail at run time, not in compilation.
+	     */
+
+	    return TclCompileBasic3ArgCmd(interp, parsePtr, cmdPtr, envPtr);
+	}
+	nocase = 1;
+	tokenPtr = TokenAfter(tokenPtr);
+    }
+
+    /*
+     * Push the strings to match against each other.
+     */
+
+    for (i = 0; i < 2; i++) {
+	if (tokenPtr->type == TCL_TOKEN_SIMPLE_WORD && !nocase && (i == 0)) {
+	    /*
+	     * Trivial matches can be done by 'string equal'. If -nocase was
+	     * specified, we can't do this because INST_STR_EQ has no support
+	     * for nocase.
+	     */
+
+	    Tcl_Obj *copy = TokenToObj(tokenPtr);
+	    exactMatch = TclMatchIsTrivial(TclGetString(copy));
+	    Tcl_BounceRefCount(copy);
+	}
+	PUSH_TOKEN(		tokenPtr, i + 1 + nocase);
+	tokenPtr = TokenAfter(tokenPtr);
+    }
+
+    /*
+     * Push the matcher.
+     */
+
+    if (exactMatch) {
+	OP(			STR_EQ);
+    } else {
+	OP1(			STR_MATCH, nocase);
+    }
+    return TCL_OK;
+}

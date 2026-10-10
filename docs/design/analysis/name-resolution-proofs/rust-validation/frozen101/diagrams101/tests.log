@@ -1,0 +1,29 @@
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-irules)
+   Compiling tcl-diagram v0.1.0 (/workspace/.checkpoints/naming101/rust/tcl-diagram)
+    Finished `test` profile [unoptimized] target(s) in 1m 22s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_diagram-548395db19fe64b1)
+
+running 8 tests
+test attach::tests::original_attachment_reports_keep_dynamic_values_unconstrained ... ok
+test attach::tests::original_attachment_reports_require_actual_kind_ordinal_and_current_source ... 
+thread 'attach::tests::original_attachment_reports_require_actual_kind_ordinal_and_current_source' (419716) panicked at rust/tcl-diagram/src/attach.rs:425:13:
+rename pool moved; when HTTP_REQUEST {pool $target}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test attach::tests::original_rule_references_require_guarded_metadata_and_current_owners ... ok
+test data::original_source_tests::original_diagram_actions_keep_source_schema_separate_from_display_labels ... ok
+test data::original_source_tests::original_diagram_calls_use_retained_allocations_and_decline_missing_lookup ... ok
+test data::original_source_tests::original_diagram_events_require_actual_event_descriptors_instead_of_when_labels ... ok
+test data::original_source_tests::original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_clear ... ok
+test graph::original_completion_tests::original_diagram_renderer_does_not_infer_completion_from_action_labels ... ok
+
+failures:
+
+failures:
+    attach::tests::original_attachment_reports_require_actual_kind_ordinal_and_current_source
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 25 filtered out; finished in 5.69s
+
+error: test failed, to rerun pass `-p tcl-diagram --lib`

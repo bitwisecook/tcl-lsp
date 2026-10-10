@@ -103,35 +103,9 @@ impl NativeTclUtf {
     /// an unaudited wider unit is unavailable rather than truncated.
     #[must_use]
     pub fn encode_units(self, units: &[u32]) -> Option<Vec<u8>> {
-        let maximum = if self.version >= TclVersion::V9_0 {
-            0x0010_ffff
-        } else {
-            0xffff
-        };
         let mut bytes = Vec::new();
         for &unit in units {
-            if unit > maximum {
-                return None;
-            }
-            match unit {
-                0 => bytes.extend_from_slice(&[0xc0, 0x80]),
-                1..=0x7f => bytes.push(u8::try_from(unit).ok()?),
-                0x80..=0x7ff => bytes.extend_from_slice(&[
-                    u8::try_from(0xc0 | (unit >> 6)).ok()?,
-                    u8::try_from(0x80 | (unit & 0x3f)).ok()?,
-                ]),
-                0x800..=0xffff => bytes.extend_from_slice(&[
-                    u8::try_from(0xe0 | (unit >> 12)).ok()?,
-                    u8::try_from(0x80 | ((unit >> 6) & 0x3f)).ok()?,
-                    u8::try_from(0x80 | (unit & 0x3f)).ok()?,
-                ]),
-                _ => bytes.extend_from_slice(&[
-                    u8::try_from(0xf0 | (unit >> 18)).ok()?,
-                    u8::try_from(0x80 | ((unit >> 12) & 0x3f)).ok()?,
-                    u8::try_from(0x80 | ((unit >> 6) & 0x3f)).ok()?,
-                    u8::try_from(0x80 | (unit & 0x3f)).ok()?,
-                ]),
-            }
+            self.encode_unit(unit, &mut bytes)?;
         }
         Some(bytes)
     }
@@ -403,6 +377,8 @@ const CP1252: [u32; 32] = [
 mod tests {
     #[test]
     fn encoding_matches_every_selected_native_unit_control() {
+        // Native proof: naming.native-utf.unit-encoding
+        // docs/design/analysis/name-resolution-proofs/native-utf-unit-encoding.md
         use super::*;
         let fixtures = [
             include_str!("../tests/data/native_tcl_utf/unicode_encoder/8.4.20.tsv"),
@@ -604,6 +580,13 @@ mod tests {
 
     #[test]
     fn canonical_native_units_encoding_and_previous_boundaries_match_five_releases() {
+        // Native proof: naming.utf.native-unit-decode
+        // docs/design/analysis/name-resolution-proofs/utf-native-unit-decode.md
+        // Native proof: naming.utf.native-isolated-unit-encode
+        // docs/design/analysis/name-resolution-proofs/utf-native-isolated-unit-encode.md
+        // Native proof: naming.utf.native-previous-boundary
+        // docs/design/analysis/name-resolution-proofs/utf-native-previous-boundary.md
+
         let mut count = 0;
         for (version, fixture) in FIXTURES {
             let policy = NativeTclUtf::for_version(version);

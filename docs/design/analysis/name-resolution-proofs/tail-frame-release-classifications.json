@@ -1,0 +1,170 @@
+[
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v1/receipt.json",
+    "sha256": "0928b43ca4e35e7fbc16891576aafd088effbf93a842f420e511902489871b44",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v1/8.4.20/receipt.json",
+    "sha256": "7b114dec98d6d42cbf8b1794bcae1da7a7d7082a3dd6ddfaff8764569d9377c8",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v1/8.5.19/receipt.json",
+    "sha256": "299ec80600d6e63fe1d195052de1801e7f6f10dc94f1d7c5f428c2f0ba5beca3",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v1/8.6.18/receipt.json",
+    "sha256": "a66569ca96d8c9d6164b401eca457364a7dbfc6d1b9f4240cccc0b1548c9d38b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v1/9.0.4/receipt.json",
+    "sha256": "abb7cf03c668ccf5a047a85b748171488ca88ebe5f646ba798a2c62badecce12",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v1/9.1.0/receipt.json",
+    "sha256": "daa1083fa75aa52af2b0eee9a3a17e03f2cd8a850fc1d2adaac862f5e56dc1bf",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v1/jim/receipt.json",
+    "sha256": "c9aad9a514ae07f5344afc84f5aba7bd6ef9f9652faecc37adfd28a702359b38",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v2/receipt.json",
+    "sha256": "f752e39be03907ea1ba8c1da23c4918a4585ea1d7cc38fcbd6f26ff31fc48964",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v2/8.4.20/receipt.json",
+    "sha256": "4fad4aa4d040f2c018f5649d77f8de31755976e74e0ffa9627bf43fe41fdab66",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v2/8.5.19/receipt.json",
+    "sha256": "4a1cedaabd5cecd56f66399a2d957f1fda2c355e8c070b6123ad77f78e2c6c45",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v2/8.6.18/receipt.json",
+    "sha256": "9b7a8d9b4f98ba4347aeb54b0fb5c1f272a2ca18464114725e896c739138f7e4",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v2/9.0.4/receipt.json",
+    "sha256": "819687e66dbdd6c0d24286805fb5fd09b766edaf435acb033c2ec1ac51d9c1a3",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v2/9.1.0/receipt.json",
+    "sha256": "8f911e7584d7c911ae6e509a5f74c03d37955c8d3932622151d2c35924c7381a",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_tail_frame_release/v2/jim/receipt.json",
+    "sha256": "6054404b3517020c1349976e1baff9a4079c6348e62fe8be7dc9058c23dd2cc9",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.optimiser.recursive-frame-level",
+      "naming.optimiser.recursive-parent-cell",
+      "naming.optimiser.recursive-unset-observer-frame",
+      "naming.optimiser.recursive-argument-release-order"
+    ],
+    "reason": "Inspected complete exact compile/process/native guest rows and raw-stream equality. Four case IDs map to independently scoped frame level, caller cell, unset observer and custom release questions. Process0 does not erase supported guest failures."
+  }
+]

@@ -71,7 +71,9 @@ use tcl_compiler::optimiser::optimise_unit;
 use tcl_core_types::DiagCode;
 use tcl_lexer::LineIndex;
 use tcl_lsp_core::source_decode::{DecodeReport, decode_source};
-use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, style_diagnostics};
+use tcl_lsp_core::source_style::{
+    DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, style_diagnostics_from_analysis,
+};
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
 
 /// Directory names skipped by the corpus walk. Keep this aligned with the
@@ -471,7 +473,7 @@ fn shape_key(message: &str) -> String {
 ///    build. `tcl diag` only runs (1); an FP sweep needs the O-series
 ///    firings it deliberately drops, so this reproduces the fuller build
 ///    rather than diag.rs's simplified (non-interprocedural) one.
-/// 3. [`style_diagnostics`] — the pure-text W111/W112/W115/W118 checks,
+/// 3. [`style_diagnostics_from_analysis`] — the pure-text W111/W112/W115/W118 checks,
 ///    which read raw source and are not part of either compiler pass.
 fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing>) {
     // The override is a dialect *name*, so it resolves through the one
@@ -570,14 +572,14 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
     let no_disabled: std::collections::HashSet<String> = std::collections::HashSet::new();
     let no_suppressed: std::collections::HashMap<i32, std::collections::HashSet<String>> =
         std::collections::HashMap::new();
-    for d in style_diagnostics(
+    for d in style_diagnostics_from_analysis(
         &doc.input.source,
         DEFAULT_LINE_LENGTH,
         DEFAULT_LINE_ENDING,
         &no_disabled,
         &no_suppressed,
         Some(&doc.input.decode),
-        tcl_lsp_core::profile_for_dialect(dialect),
+        &result,
     ) {
         let Ok(code) = DiagCode::from_str(d.code) else {
             continue;

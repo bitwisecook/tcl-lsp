@@ -56,6 +56,15 @@ pub struct SpannedExecutablePart {
     /// Raw source extent, including substitution delimiters and undecoded text.
     pub span: Span,
     source_span: Span,
+    error_term: Option<u32>,
+}
+
+impl SpannedExecutablePart {
+    /// Actual failed delimiter retained by the shared scanner, independently of the component span.
+    #[must_use]
+    pub const fn parse_error_term(&self) -> Option<u32> {
+        self.error_term
+    }
 }
 
 /// A source geometry or ownership failure in executable decomposition.
@@ -78,6 +87,8 @@ pub enum ExecutablePartsUnavailable {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExecutablePartArena {
     image: SourceImage,
+    config: LexerConfig,
+    variables: TemplateVariableSyntax,
     lists: Vec<Vec<SpannedExecutablePart>>,
 }
 
@@ -147,6 +158,18 @@ impl ExecutablePartArena {
         &self.image
     }
 
+    /// Exact lexical configuration used by the shared component scanner.
+    #[must_use]
+    pub const fn config(&self) -> LexerConfig {
+        self.config
+    }
+
+    /// The independently selected runtime-template variable grammar.
+    #[must_use]
+    pub const fn variable_syntax(&self) -> TemplateVariableSyntax {
+        self.variables
+    }
+
     /// The component list for the original template or grouped word.
     #[must_use]
     pub const fn root(&self) -> PartListId {
@@ -162,6 +185,33 @@ impl ExecutablePartArena {
     /// Every retained component, including index children, without recursion.
     pub fn all_parts(&self) -> impl Iterator<Item = &SpannedExecutablePart> {
         self.lists.iter().flatten()
+    }
+
+    /// Smallest original variable component containing an image offset.
+    /// Index-child references take precedence over their enclosing array
+    /// reference. Conflicting equal extents decline; no text is reparsed and
+    /// this lexical component supplies no variable cell or read admission.
+    #[must_use]
+    pub fn variable_part_at(&self, offset: u32) -> Option<&SpannedExecutablePart> {
+        let mut selected: Option<&SpannedExecutablePart> = None;
+        let mut conflicting = false;
+        for part in self.all_parts().filter(|part| {
+            matches!(part.part, ExecutablePart::Variable { .. })
+                && part.span.start() <= offset
+                && offset < part.span.end()
+        }) {
+            match selected {
+                Some(previous) if previous.span.len() < part.span.len() => {}
+                Some(previous) if previous.span.len() == part.span.len() => {
+                    conflicting |= previous != part;
+                }
+                _ => {
+                    selected = Some(part);
+                    conflicting = false;
+                }
+            }
+        }
+        (!conflicting).then_some(selected).flatten()
     }
 
     /// Exact original bytes for an image-coordinate extent.
@@ -191,9 +241,11 @@ impl ExecutablePartArena {
         }
     }
 
-    pub(crate) fn empty(image: SourceImage) -> Self {
+    pub(crate) fn empty(image: SourceImage, config: LexerConfig) -> Self {
         Self {
             image,
+            config,
+            variables: TemplateVariableSyntax::WrittenWord,
             lists: vec![vec![]],
         }
     }
@@ -218,7 +270,8 @@ impl ExecutablePartArena {
         config: LexerConfig,
         variables: TemplateVariableSyntax,
     ) -> Result<Self, ExecutablePartsUnavailable> {
-        let mut arena = Self::empty(image);
+        let mut arena = Self::empty(image, config);
+        arena.variables = variables;
         let mut pending = Vec::new();
         let mut root = Vec::new();
         for input in inputs {
@@ -231,6 +284,7 @@ impl ExecutablePartArena {
                         part: ExecutablePart::Text(ExecutableText::Original),
                         span,
                         source_span: span,
+                        error_term: None,
                     });
                 }
                 ExecutableInput::Substitute { span, flags } => {
@@ -253,7 +307,14 @@ impl ExecutablePartArena {
                 span,
                 flags,
                 config,
-                variables,
+                if variables == TemplateVariableSyntax::CTcl {
+                    // A C template's variable index uses full word-token
+                    // evaluation. Its text/BS tokens are joined by the native
+                    // index compiler, independently of root template tokens.
+                    TemplateVariableSyntax::WrittenWord
+                } else {
+                    variables
+                },
                 &mut arena.lists,
                 &mut pending,
             )?;
@@ -282,15 +343,7 @@ fn scan_list(
             let source_span = component
                 .template_source_span(bytes, span.start(), variables)
                 .ok_or(ExecutablePartsUnavailable::SourceGeometry)?;
-            retain_component(
-                image,
-                span.start(),
-                component,
-                source_span,
-                flags,
-                lists,
-                pending,
-            )
+            retain_component(image, span.start(), component, source_span, lists, pending)
         })
         .collect()
 }
@@ -300,7 +353,6 @@ fn retain_component(
     base: u32,
     component: SpannedPart<'_>,
     source_span: Span,
-    flags: SubstFlags,
     lists: &mut Vec<Vec<SpannedExecutablePart>>,
     pending: &mut Vec<(PartListId, Span, SubstFlags)>,
 ) -> Result<SpannedExecutablePart, ExecutablePartsUnavailable> {
@@ -319,6 +371,16 @@ fn retain_component(
         .bytes()
         .get(span.as_range())
         .ok_or(ExecutablePartsUnavailable::SourceBounds)?;
+    let error_term = match component.error_term {
+        Some(term) => Some(
+            base.checked_add(
+                u32::try_from(term).map_err(|_| ExecutablePartsUnavailable::SourceBounds)?,
+            )
+            .filter(|term| image.bytes().get(*term as usize).is_some())
+            .ok_or(ExecutablePartsUnavailable::SourceBounds)?,
+        ),
+        None => None,
+    };
     let part = match component.part {
         WordPart::Text(Cow::Borrowed(bytes)) => {
             if borrowed_span(image, bytes)? != span {
@@ -341,7 +403,9 @@ fn retain_component(
                     let index_span = borrowed_span(image, bytes)?;
                     let id = PartListId(lists.len());
                     lists.push(vec![]);
-                    pending.push((id, index_span, flags));
+                    // Tcl_ParseVarName uses TCL_SUBST_ALL for its index;
+                    // JimExpandDictSugar selects Jim_SubstObj(...JIM_NONE).
+                    pending.push((id, index_span, SubstFlags::default()));
                     Some(id)
                 }
             };
@@ -359,6 +423,7 @@ fn retain_component(
         part,
         span,
         source_span,
+        error_term,
     })
 }
 
@@ -380,6 +445,34 @@ fn borrowed_span(image: &SourceImage, bytes: &[u8]) -> Result<Span, ExecutablePa
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_variable_component_cursor_keeps_index_children_and_literal_dollars() {
+        // Implementation contract: naming.core.selected-variable-cursor-syntax
+        // docs/design/analysis/name-resolution-proofs/selected-variable-cursor-syntax.md
+        let source = "$arr($idx) ${cash$name}";
+        let arena = ExecutablePartArena::decompose(
+            SourceImage::document(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            SubstFlags::default(),
+            LexerConfig::default(),
+        )
+        .unwrap();
+        let outer = arena.variable_part_at(2).unwrap();
+        assert_eq!(arena.bytes(outer.span), Some(b"$arr($idx)".as_slice()));
+        let child = arena.variable_part_at(7).unwrap();
+        assert_eq!(arena.bytes(child.span), Some(b"$idx".as_slice()));
+        let literal = arena
+            .variable_part_at(u32::try_from(source.find("$name").unwrap()).unwrap())
+            .unwrap();
+        assert_eq!(arena.bytes(literal.span), Some(b"${cash$name}".as_slice()));
+        assert!(arena.variable_part_at(10).is_none());
+        assert!(
+            arena
+                .variable_part_at(u32::try_from(source.len()).unwrap())
+                .is_none()
+        );
+    }
 
     #[test]
     fn full_depth_index_edges_keep_original_bytes_and_drop_without_recursion() {
@@ -511,6 +604,56 @@ mod tests {
             written.list(written.root())[0].part,
             ExecutablePart::ParseError(_)
         ));
+    }
+
+    #[test]
+    fn template_masks_leave_array_index_substitutions_enabled() {
+        // Source proof: naming.substitution.template-token-and-index-source
+        // docs/design/analysis/name-resolution-proofs/substitution-template-token-and-index-source.md
+        // Native proof: naming.substitution.counted-template-completions
+        // docs/design/analysis/name-resolution-proofs/substitution-counted-template-completions.md
+        // C v6 template2/flags6 evaluates [set k k] in the index. Jim's
+        // independent JimExpandDictSugar source selects JIM_NONE there.
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            let variables = if dialect == "jim" {
+                TemplateVariableSyntax::Jim084
+            } else {
+                TemplateVariableSyntax::CTcl
+            };
+            let source = br"$a($k\x21[side])-L";
+            let arena = ExecutablePartArena::decompose_template(
+                SourceImage::native(source.as_slice()),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                SubstFlags {
+                    cmds: false,
+                    backslashes: false,
+                    ..SubstFlags::default()
+                },
+                config,
+                variables,
+            )
+            .unwrap();
+            let [reference, trailing] = arena.list(arena.root()) else {
+                panic!("one original variable and trailing literal");
+            };
+            assert_eq!(arena.text(trailing), Some(b"-L".as_slice()));
+            let ExecutablePart::Variable {
+                index: Some(index), ..
+            } = reference.part
+            else {
+                panic!("retained array index");
+            };
+            let [variable, decoded, command] = arena.list(index) else {
+                panic!("all index substitutions enabled for {dialect}");
+            };
+            assert!(matches!(variable.part, ExecutablePart::Variable { .. }));
+            assert_eq!(arena.text(decoded), Some(b"!".as_slice()));
+            let ExecutablePart::Command { body } = command.part else {
+                panic!("independently enabled index command");
+            };
+            assert_eq!(arena.bytes(body), Some(b"side".as_slice()));
+        }
     }
 
     #[test]

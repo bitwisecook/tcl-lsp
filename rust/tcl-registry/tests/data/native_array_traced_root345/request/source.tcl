@@ -1,0 +1,1 @@
+proc mutate {n e op} {if {$e eq {k}} {set ::heldArray(j) CALLBACK}}; trace add variable ::heldArray write mutate; set name ::heldArray; array set $name {k FIRST j LAST}; list $::heldArray(k) $::heldArray(j)

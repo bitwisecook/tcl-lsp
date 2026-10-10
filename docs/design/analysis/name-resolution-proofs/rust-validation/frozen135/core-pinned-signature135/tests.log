@@ -1,0 +1,9 @@
+
+running 4 tests
+test signature_help::original_schema_tests::original_signature_jim_selector_uses_its_own_source_schema ... ok
+test signature_help::original_schema_tests::original_signature_keeps_conditional_source_schema_and_alias_prefixes ... ok
+test signature_help::original_schema_tests::original_signature_keeps_explicit_logical_advice_separate ... ok
+test signature_help::original_schema_tests::original_signature_schema_rejects_foreign_context_source_and_known_shadow ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 2624 filtered out; finished in 5.81s
+

@@ -1,0 +1,33 @@
+TclCompileDictGetCmd(
+    Tcl_Interp *interp,		/* Used for looking up stuff. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    Tcl_Size i, numWords = parsePtr->numWords;
+
+    /*
+     * There must be at least two arguments after the command (the single-arg
+     * case is legal, but too special and magic for us to deal with here).
+     */
+
+    /* TODO: Consider support for compiling expanded args. */
+    if (numWords < 3 || OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+
+    /*
+     * Only compile this because we need INST_DICT_GET anyway.
+     */
+
+    for (i=1 ; i<numWords ; i++) {
+	PUSH_TOKEN(		tokenPtr, i);
+	tokenPtr = TokenAfter(tokenPtr);
+    }
+    OP4(			DICT_GET, numWords - 2);
+    return TCL_OK;
+}

@@ -286,11 +286,12 @@ fn capture_store(
     {
         return None;
     }
-    let writes = crate::variable_bindings::source_variable_write_places(
+    let writes = crate::variable_bindings::source_variable_write_places_with_original_operands(
         facts,
         native.invocation.arguments(),
         &state.source_variables,
         context.registry,
+        native.original_variable_operands,
     );
     let [setter_place] = writes.as_slice() else {
         return None;

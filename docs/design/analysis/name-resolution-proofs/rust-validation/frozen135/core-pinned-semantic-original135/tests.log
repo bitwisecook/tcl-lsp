@@ -1,0 +1,12 @@
+
+running 7 tests
+test semantic_tokens::original::original_source_schema_tests::original_expression_colours_require_actual_source_roles_and_lambda_parent_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::original_format_colours_keep_selected_availability_and_generation ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_method_roles_keep_canonical_worker_words ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_roles_decline_custom_and_deleted_command_cells ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_source_grammar_and_hosted_object_roles_remain_independent ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_source_roles_survive_reporting_map_erasure ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 2621 filtered out; finished in 8.27s
+

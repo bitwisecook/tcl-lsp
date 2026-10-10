@@ -1208,7 +1208,7 @@ impl CfgBuilder<'_> {
         let stmt = mutable.statements.last()?;
         let resolve = self.embedded_head_resolver();
         let tcl_registry::registry::ExactInvocationCompletion::Tcl(code) =
-            super::exact_statement_completion(stmt, self.registry, &resolve)?
+            self.command_classes.exact_completion(stmt, &resolve)?
         else {
             return None;
         };
@@ -1396,7 +1396,7 @@ impl CfgBuilder<'_> {
                 // error does run the clause. So may a handler's binding of its
                 // result or options variable: a write trace, or an `upvar` to
                 // an array, rejects it before the body runs (found in review).
-                // See `always_exits_process`.
+                // The shared source context owns exact process completion.
                 Some(
                     crate::cfg::Terminator::Return { .. } | crate::cfg::Terminator::Complete { .. },
                 ) => {
@@ -1404,7 +1404,7 @@ impl CfgBuilder<'_> {
                         && !self.caught_by_handler(name, body_block, handlers, handler_blocks)
                         && !((name == body_block || handler_blocks.contains(name))
                             && matches!(block.statements.as_slice(), [only]
-                                if super::always_exits_process(only, self.registry, &resolve_head)))
+                                if self.command_classes.exits_process(only, &resolve_head)))
                     {
                         sources.push(name.clone());
                     }

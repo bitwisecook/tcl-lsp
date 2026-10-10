@@ -339,6 +339,10 @@ mod tests {
 
     #[test]
     fn native_c_array_order_retains_original_keys_growth_and_reinsertion() {
+        // Native proof naming.variable-table.original-array-growth-and-reinsertion:
+        // docs/design/analysis/name-resolution-proofs/variable-table-original-array-growth-and-reinsertion.md
+        // Native proof naming.variable-table.original-opaque-key-extents:
+        // docs/design/analysis/name-resolution-proofs/variable-table-original-opaque-key-extents.md
         let mut controls = 0;
         for line in include_str!("../tests/data/native_variable_tables/array-order.tsv").lines() {
             let row: Vec<_> = line.split('\t').collect();

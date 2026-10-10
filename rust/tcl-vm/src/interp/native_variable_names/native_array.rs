@@ -18,7 +18,7 @@
 
 //! Quiet Array opcodes consume actual original name caches and retain their receiver.
 
-use super::*;
+use super::{Completion, NativeVariableNameLookupPurpose, Value, Vm};
 
 impl Vm {
     pub(crate) fn array_exists_original_opcode(

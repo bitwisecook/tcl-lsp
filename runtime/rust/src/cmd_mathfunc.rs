@@ -32,10 +32,10 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
-use tcl_syntax::expr::mathfunc::{integer_conversion, IntegerConversion, NativeMathProtocol};
+use tcl_syntax::expr::mathfunc::{IntegerConversion, NativeMathProtocol, integer_conversion};
 use tcl_syntax::naming::qualifier_segments;
 
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, obj_bytes};
 use crate::obj::{self, TclObj};
 
 /// Every math function name — registered as `::tcl::mathfunc::<name>`. Most
@@ -313,10 +313,10 @@ mod tests {
                 i.result_bytes(),
                 b"invalid bareword \"lt\"\nin expression \"{a} lt {b}\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ..."
             );
-            assert_eq!(
-                i.var_get(b"::errorCode").map(crate::interp::obj_bytes),
-                Some(b"TCL PARSE EXPR BAREWORD".to_vec())
-            );
+            // A public read reaches the native error-global Read observer;
+            // the private cell accessor does not materialise that receiver.
+            assert_eq!(i.eval_str(b"set ::errorCode"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"TCL PARSE EXPR BAREWORD");
 
             // FN: the 9.0 builtin is no longer supplied by the 8.6 surface.
             assert_eq!(i.eval_str(b"expr {isfinite(1.0)}"), Code::Error);
@@ -324,11 +324,12 @@ mod tests {
                 i.result_bytes(),
                 b"invalid command name \"tcl::mathfunc::isfinite\""
             );
-            // The outermost eval publishes the error state to the Tcl global
-            // before resetting its transient accumulator.
+            // A public Read observer materialises this error episode, including
+            // replacement of the prior receiver's cached error code.
+            assert_eq!(i.eval_str(b"set ::errorCode"), Code::Ok);
             assert_eq!(
-                i.var_get(b"::errorCode").map(crate::interp::obj_bytes),
-                Some(b"TCL LOOKUP COMMAND tcl::mathfunc::isfinite".to_vec())
+                i.result_bytes(),
+                b"TCL LOOKUP COMMAND tcl::mathfunc::isfinite"
             );
 
             // TP: older builtins retain their registry-backed handler.

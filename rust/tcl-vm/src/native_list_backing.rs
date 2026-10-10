@@ -474,7 +474,7 @@ impl Deref for NativeListItems {
 }
 impl AsRef<Vec<Value>> for NativeListItems {
     fn as_ref(&self) -> &Vec<Value> {
-        &**self
+        self
     }
 }
 impl std::fmt::Debug for NativeListItems {

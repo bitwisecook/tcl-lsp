@@ -34,7 +34,7 @@ use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_lexer::LineIndex;
 use tcl_lsp_core::source_style::{
-    DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleSeverity, style_diagnostics,
+    DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleSeverity, style_diagnostics_from_analysis,
 };
 
 use crate::cli::{DiagArgs, InputArgs};
@@ -47,6 +47,8 @@ struct DiagItem {
     severity: &'static str,
     code: String,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
 }
 
 /// Per-file diagnostic report entry.
@@ -65,6 +67,8 @@ struct ValidateError {
     severity: &'static str,
     code: String,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
 }
 
 /// `validate --json` payload.
@@ -146,6 +150,7 @@ struct Row {
     severity: Severity,
     code: String,
     message: String,
+    data: Option<serde_json::Value>,
 }
 
 /// Cross-file call-site evidence across every input document, plus the
@@ -236,6 +241,7 @@ fn push_sslictcl_rows(
             severity: d.severity,
             code: d.code.to_string(),
             message: d.message,
+            data: None,
         });
     }
 }
@@ -347,6 +353,7 @@ fn collect_rows(
             severity: d.severity,
             code: d.code.to_string(),
             message: d.message.clone(),
+            data: tcl_lsp_core::diagnostic_subject::diagnostic_subject_data(d),
         });
     }
 
@@ -375,6 +382,7 @@ fn collect_rows(
             severity: d.severity,
             code: d.code.to_string(),
             message: d.message,
+            data: None,
         });
     }
 
@@ -390,7 +398,7 @@ fn collect_rows(
 
     rows.extend(style_rows(
         document,
-        dialect,
+        &result,
         disabled,
         &result.suppressed_lines,
     ));
@@ -432,18 +440,18 @@ fn abstained_rows(document: &InputDocument, disabled: &HashSet<String>) -> Vec<R
 /// server's defaults: the CLI has no per-document style settings to resolve.
 fn style_rows(
     document: &InputDocument,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
     disabled: &HashSet<String>,
     suppressed: &std::collections::HashMap<i32, HashSet<String>>,
 ) -> Vec<Row> {
-    style_diagnostics(
+    style_diagnostics_from_analysis(
         &document.source,
         DEFAULT_LINE_LENGTH,
         DEFAULT_LINE_ENDING,
         disabled,
         suppressed,
         Some(&document.decode),
-        dialect,
+        analysis,
     )
     .into_iter()
     .map(style_row)
@@ -462,6 +470,7 @@ fn style_row(d: tcl_lsp_core::source_style::StyleDiagnostic) -> Row {
         },
         code: d.code.to_owned(),
         message: d.message,
+        data: None,
     }
 }
 
@@ -495,6 +504,7 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
                 severity: severity_label(r.severity),
                 code: r.code,
                 message: r.message,
+                data: r.data,
             });
         }
         report.push(FileReport {
@@ -554,6 +564,7 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
                     severity: severity_label(r.severity),
                     code: r.code,
                     message: r.message,
+                    data: r.data,
                 });
             }
         }

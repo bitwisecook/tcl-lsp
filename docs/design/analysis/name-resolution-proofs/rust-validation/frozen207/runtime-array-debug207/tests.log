@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results ... 
+thread 'cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results' (779744) panicked at src/cmd_array.rs:570:9:
+assertion `left == right` failed: eval "proc mutate {n e op} {if {$e eq {k}} {set ::heldArray(j) CALLBACK}}; trace variable ::heldArray w mutate; set name ::heldArray; array set $name {k FIRST j LAST}; list $::heldArray(k) $::heldArray(j)"; result [99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 58, 58, 104, 101, 108, 100, 65, 114, 114, 97, 121, 40, 107, 41, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 110, 39, 116, 32, 97, 114, 114, 97, 121]; refusal None
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1273 filtered out; finished in 2.51s
+

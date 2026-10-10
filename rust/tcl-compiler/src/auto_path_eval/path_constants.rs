@@ -907,6 +907,10 @@ mod tests {
 
     #[test]
     fn original_native_scope_names_keep_six_engine_colon_and_home_rules() {
+        // Native proof naming.namespace.scope-repeated-colon-home:
+        // docs/design/analysis/name-resolution-proofs/namespace-scope-repeated-colon-home.md
+        // Native proof naming.variable.scope-repeated-colon-written-key:
+        // docs/design/analysis/name-resolution-proofs/variable-scope-repeated-colon-written-key.md
         let source = include_str!("../../tests/data/native_path_constant_scopes/colon-home.tcl");
         let raw =
             include_str!("../../tests/data/native_path_constant_scopes/raw-qualified-key.tcl");
@@ -940,6 +944,8 @@ mod tests {
 
     #[test]
     fn original_native_jim_qualified_variable_at_root_writes_only_local_tail() {
+        // Native proof naming.variable.scope-root-qualified-declaration:
+        // docs/design/analysis/name-resolution-proofs/variable-scope-root-qualified-declaration.md
         let source = include_str!(
             "../../tests/data/native_path_constant_scopes/root-qualified-variable.tcl"
         );
@@ -961,6 +967,8 @@ mod tests {
 
     #[test]
     fn original_native_root_namespace_activation_does_not_export_jim_locals() {
+        // Native proof naming.variable.scope-root-namespace-activation:
+        // docs/design/analysis/name-resolution-proofs/variable-scope-root-namespace-activation.md
         let source =
             include_str!("../../tests/data/native_path_constant_scopes/root-activation.tcl");
         let inside = u32::try_from(source.find("puts \"in:").unwrap()).unwrap();
@@ -987,6 +995,8 @@ mod tests {
 
     #[test]
     fn namespace_read_sites_retain_c8_c9_and_jim_receiver_channels() {
+        // Native proof naming.variable.scope-namespace-local-and-linked-publication:
+        // docs/design/analysis/name-resolution-proofs/variable-scope-namespace-local-and-linked-publication.md
         let source =
             include_str!("../../tests/data/native_path_constant_scopes/local-and-linked.tcl");
         let inside = u32::try_from(source.find("puts \"local:").unwrap()).unwrap();

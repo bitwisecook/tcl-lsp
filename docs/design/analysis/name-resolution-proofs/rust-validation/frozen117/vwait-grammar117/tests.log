@@ -1,0 +1,10 @@
+    Finished `test` profile [unoptimized] target(s) in 0.13s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_registry-830a06eae9987c16)
+
+running 3 tests
+test native_vwait::tests::original_vwait_forms_keep_legacy_names_and_extended_refusal_separate ... ok
+test native_vwait::tests::original_vwait_owned_registry_roles_do_not_retag_option_values ... ok
+test native_vwait::tests::original_vwait_roles_select_only_actual_variable_and_script_ordinals ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1433 filtered out; finished in 0.23s
+

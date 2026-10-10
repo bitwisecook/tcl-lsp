@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original C name ingress; physical caches precede receiver observers.
 
-#[path = "native_variable_names/native_exists.rs"]
-mod native_exists;
 #[path = "native_variable_names/native_array.rs"]
 mod native_array;
+#[path = "native_variable_names/native_exists.rs"]
+mod native_exists;
+#[path = "native_variable_names/native_tcloo.rs"]
+mod native_tcloo;
 #[path = "native_variable_names/native_upvar.rs"]
 mod native_upvar;
 use super::{Code, Interp};
@@ -35,6 +37,30 @@ pub(super) struct OriginalCVariableCapture {
     pub home: crate::vars::TraceHome,
     pub root: Vec<u8>,
     pub element: Option<Vec<u8>>,
+}
+
+/// Reporting-only operand bytes; these never select a physical receiver.
+pub(super) enum OriginalCVariableReportingInput {
+    Combined(Vec<u8>),
+    Separate {
+        root: Vec<u8>,
+        element: Option<Vec<u8>>,
+    },
+}
+impl OriginalCVariableReportingInput {
+    pub(super) fn input(&self) -> tcl_syntax::naming::NativeVariableInputForm<'_> {
+        match self {
+            Self::Combined(original) => {
+                tcl_syntax::naming::NativeVariableInputForm::Combined(original)
+            }
+            Self::Separate { root, element } => {
+                tcl_syntax::naming::NativeVariableInputForm::Separate {
+                    root,
+                    element: element.as_deref(),
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -261,6 +287,9 @@ impl Interp {
         let protocol = dialect
             .native_variable_name_protocol()
             .expect("C variable issuer");
+        if !protocol.uses_original_name_cache(purpose) {
+            return self.prepare_original_c_byte_name_parts(original, namespace, explicit_element);
+        }
         if !protocol.cache_precedes_string_getter() {
             self.native_string_bytes(&original)
                 .map_err(|error| self.report_cmd_error(error.into()))?;
@@ -443,6 +472,62 @@ impl Interp {
     }
 
     /// Original VARIABLE/NSUPVAR object lookup and exact indexed alias binding.
+    /// Legacy C84 existence obtains only bytes from the original name. Its
+    /// selected cell and read observers remain the same receiver owners; no
+    /// parsed or local primary is inspected, discarded or installed here.
+    fn prepare_original_c_byte_name_parts(
+        &mut self,
+        original: *mut TclObj,
+        namespace: Option<crate::namespace::NsId>,
+        explicit_element: Option<&[u8]>,
+    ) -> Result<Option<OriginalCNameSelection>, Code> {
+        let bytes = self
+            .native_string_bytes(&original)
+            .map_err(|error| self.report_cmd_error(error.into()))?
+            .to_vec();
+        let protocol = self.native_c_variable_name_protocol().ok_or_else(|| {
+            self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("original C byte variable lookup").into(),
+            )
+        })?;
+        let input = tcl_syntax::naming::NativeNameProtocol::C(protocol.version())
+            .combined_variable_input(tcl_core_types::c_string_extent(&bytes));
+        if input.element().is_some() && explicit_element.is_some() {
+            return Ok(None);
+        }
+        let root = input.root().selected().to_vec();
+        let element = input
+            .element()
+            .map(|part| part.selected().to_vec())
+            .or_else(|| {
+                explicit_element.map(|part| tcl_core_types::c_string_extent(part).to_vec())
+            });
+        let selected = crate::vars::prepare_original_c_variable_cell(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            crate::vars::NativeOriginalNameScope {
+                current: self.current_ns.get(),
+                namespace,
+            },
+            &root,
+            original,
+            false,
+            protocol.version(),
+        );
+        match selected {
+            Ok(Some(selected)) => Ok(Some(OriginalCNameSelection {
+                root,
+                element,
+                compiled: selected.compiled,
+                namespace,
+            })),
+            Err(crate::frame::VarError::NameProtocolUnavailable) => Err(self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("actual original byte variable cell").into(),
+            )),
+            Ok(None) | Err(_) => Ok(None),
+        }
+    }
+
     pub(crate) fn link_original_compiled_namespace_variable(
         &mut self,
         original: *mut TclObj,
@@ -457,7 +542,7 @@ impl Interp {
                 return self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("original namespace binding lookup")
                         .into(),
-                )
+                );
             }
             Err(code) => return code,
         };
@@ -488,7 +573,7 @@ impl Interp {
                             "namespace variable declaration target",
                         )
                         .into(),
-                    )
+                    );
                 }
             }
         }
@@ -499,11 +584,27 @@ impl Interp {
         let protocol = self
             .native_c_variable_name_protocol()
             .expect("actual C alias diagnostic");
+        let code = if protocol.alias_rejection_sets_error_code() {
+            tcl_cmd_core::CmdErrorCodeUpdate::Set(code.to_vec())
+        } else {
+            tcl_cmd_core::CmdErrorCodeUpdate::Default
+        };
+        self.original_c_alias_diagnostic(message, code)
+    }
+
+    fn original_c_alias_diagnostic(
+        &mut self,
+        message: &[u8],
+        code: tcl_cmd_core::CmdErrorCodeUpdate,
+    ) -> Code {
+        let protocol = self
+            .native_c_variable_name_protocol()
+            .expect("actual C alias diagnostic");
         self.report_cmd_error(tcl_cmd_core::CmdError::from_byte_details(
             tcl_cmd_core::CmdErrorDetails {
                 message: message.to_vec(),
                 string_result: protocol.diagnostic_string_protocol(),
-                error_code: tcl_cmd_core::CmdErrorCodeUpdate::Set(code.to_vec()),
+                error_code: code,
                 error_info: None,
                 error_line: None,
                 primitive_getter: None,
@@ -648,7 +749,7 @@ impl Interp {
                 return self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("original namespace declaration cell")
                         .into(),
-                )
+                );
             }
             Err(code) => return code,
         };
@@ -674,7 +775,7 @@ impl Interp {
                     original,
                     NativeVariableNameLookupPurpose::Define,
                     error,
-                )
+                );
             }
         };
         match link.home {
@@ -686,7 +787,7 @@ impl Interp {
             crate::frame::VarHome::Frame(_) => {
                 return self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("namespace declaration target").into(),
-                )
+                );
             }
         }
         drop(link);
@@ -733,7 +834,7 @@ impl Interp {
                 return self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("original namespace upvar target")
                         .into(),
-                )
+                );
             }
             Err(code) => return code,
         };
@@ -751,7 +852,7 @@ impl Interp {
                     original,
                     NativeVariableNameLookupPurpose::Link,
                     error,
-                )
+                );
             }
         };
         if let Err(error) = self.prepare_upvar_target(&mut target) {
@@ -778,7 +879,7 @@ impl Interp {
                 return self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("original namespace alias target")
                         .into(),
-                )
+                );
             }
             Err(code) => return code,
         };
@@ -824,9 +925,8 @@ impl Interp {
         if self.upvar_would_invert(&target, &bytes) {
             let mut message = b"bad variable name \"".to_vec();
             message.extend_from_slice(tcl_core_types::c_string_extent(&bytes));
-            message.extend_from_slice(
-                b"\": can't create namespace variable that refers to procedure variable",
-            );
+            message.extend_from_slice(b"\": ");
+            message.extend_from_slice(protocol.alias_namespace_inversion_reason());
             return self.original_c_alias_error(&message, b"TCL UPVAR INVERTED");
         }
         if protocol.alias_local_is_element(&bytes) {
@@ -853,14 +953,17 @@ impl Interp {
                 message.extend_from_slice(name);
                 message.extend_from_slice(b"\": parent namespace doesn't exist");
                 let code = super::error_code_list(&[b"TCL", b"LOOKUP", b"VARNAME", name]);
-                return self.original_c_alias_error(&message, &code);
+                return self.original_c_alias_diagnostic(
+                    &message,
+                    tcl_cmd_core::CmdErrorCodeUpdate::Set(code),
+                );
             }
             Err(error) => {
                 return self.original_c_lookup_var_error(
                     original,
                     NativeVariableNameLookupPurpose::Link,
                     error,
-                )
+                );
             }
         };
         self.settle_original_c_alias_at(selected.home, selected.compiled, &selected.name, target)
@@ -877,7 +980,7 @@ impl Interp {
             Ok(None) => {
                 return self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("original upvar target cell").into(),
-                )
+                );
             }
             Err(code) => return code,
         };
@@ -937,6 +1040,60 @@ impl Interp {
         result
     }
 
+    pub(super) fn original_c_variable_reporting_input(
+        &mut self,
+        fallback: (&[u8], Option<&[u8]>),
+        originals: (Option<*mut TclObj>, Option<*mut TclObj>, bool),
+    ) -> Result<OriginalCVariableReportingInput, Code> {
+        if self.native_c_variable_name_protocol().is_none() {
+            return Err(self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original C variable reporting input",
+                ),
+            ));
+        }
+        let (original_root, original_element, combined) = originals;
+        if combined {
+            let original = original_root.ok_or_else(|| {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "combined original variable reporting operand",
+                    ),
+                )
+            })?;
+            if original_element.is_some() {
+                return Err(self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "combined variable reporting geometry",
+                    ),
+                ));
+            }
+            return self
+                .native_string_bytes(&original)
+                .map(|bytes| OriginalCVariableReportingInput::Combined(bytes.to_vec()))
+                .map_err(|error| self.report_cmd_error(error.into()));
+        }
+        let root = original_root
+            .map_or_else(
+                || Ok(fallback.0.to_vec()),
+                |original| {
+                    self.native_string_bytes(&original)
+                        .map(|bytes| bytes.to_vec())
+                },
+            )
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let element = original_element
+            .map_or_else(
+                || Ok(fallback.1.map(<[u8]>::to_vec)),
+                |original| {
+                    self.native_string_bytes(&original)
+                        .map(|bytes| Some(bytes.to_vec()))
+                },
+            )
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        Ok(OriginalCVariableReportingInput::Separate { root, element })
+    }
+
     fn original_c_variable_failure_for_object(
         &mut self,
         original: *mut TclObj,
@@ -969,7 +1126,7 @@ impl Interp {
         )
     }
 
-    fn original_c_variable_failure_input(
+    pub(super) fn original_c_variable_failure_input(
         &mut self,
         input: tcl_syntax::naming::NativeVariableInputForm<'_>,
         purpose: NativeVariableNameLookupPurpose,
@@ -983,12 +1140,15 @@ impl Interp {
             report_native_variable_diagnostic_at, NativeVariableDiagnosticOperation as Operation,
         };
         let operation = match purpose {
-            NativeVariableNameLookupPurpose::Read | NativeVariableNameLookupPurpose::Exists | NativeVariableNameLookupPurpose::Array => Operation::Read,
+            NativeVariableNameLookupPurpose::Read
+            | NativeVariableNameLookupPurpose::Exists
+            | NativeVariableNameLookupPurpose::Array => Operation::Read,
             NativeVariableNameLookupPurpose::Unset
             | NativeVariableNameLookupPurpose::QuietUnset => Operation::Unset,
             NativeVariableNameLookupPurpose::Write
             | NativeVariableNameLookupPurpose::QuietWrite
             | NativeVariableNameLookupPurpose::Link
+            | NativeVariableNameLookupPurpose::Refer
             | NativeVariableNameLookupPurpose::ArrayMake => Operation::Write,
             NativeVariableNameLookupPurpose::Define => Operation::Define,
         };
@@ -1014,6 +1174,9 @@ impl Interp {
         message.extend_from_slice(&diagnostic.name);
         message.extend_from_slice(b"\": ");
         message.extend_from_slice(diagnostic.reason.message().as_bytes());
+        if protocol.diagnostic_resets_interpreter_result() {
+            self.reset_native_global_error_episode();
+        }
         self.report_cmd_error(tcl_cmd_core::CmdError::from_byte_details(
             tcl_cmd_core::CmdErrorDetails {
                 message,
@@ -1069,7 +1232,8 @@ impl Interp {
             })
             .transpose()
             .map_err(|error| self.report_cmd_error(error.into()))?;
-        let captured = self.capture_original_c_selection(root, &selected, purpose)?;
+        let captured =
+            self.capture_original_c_parts_selection(root, element, &selected, purpose)?;
         if purpose.creates_entries()
             && self
                 .native_c_variable_name_protocol()
@@ -1108,6 +1272,47 @@ impl Interp {
         selected: &OriginalCNameSelection,
         purpose: NativeVariableNameLookupPurpose,
     ) -> Result<Option<(crate::frame::VariableReceiver, crate::vars::TraceHome)>, Code> {
+        self.capture_original_c_selection_receiver(original, selected, purpose)
+            .map_err(|error| self.original_c_lookup_var_error(original, purpose, error))
+    }
+
+    fn capture_original_c_parts_selection(
+        &mut self,
+        original: *mut TclObj,
+        element: Option<*mut TclObj>,
+        selected: &OriginalCNameSelection,
+        purpose: NativeVariableNameLookupPurpose,
+    ) -> Result<Option<(crate::frame::VariableReceiver, crate::vars::TraceHome)>, Code> {
+        let captured = self.capture_original_c_selection_receiver(original, selected, purpose);
+        captured.map_err(|error| {
+            if !purpose.leaves_error_message() || element.is_none() {
+                return self.original_c_lookup_var_error(original, purpose, error);
+            }
+            let input = match self.original_c_variable_reporting_input(
+                (&selected.root, selected.element.as_deref()),
+                (Some(original), element, false),
+            ) {
+                Ok(input) => input,
+                Err(code) => return code,
+            };
+            self.original_c_variable_receiver_error(
+                input.input(),
+                purpose,
+                error,
+                Some(tcl_syntax::naming::NativeVariableFailureSite::NameLookup),
+            )
+        })
+    }
+
+    fn capture_original_c_selection_receiver(
+        &mut self,
+        original: *mut TclObj,
+        selected: &OriginalCNameSelection,
+        purpose: NativeVariableNameLookupPurpose,
+    ) -> Result<
+        Option<(crate::frame::VariableReceiver, crate::vars::TraceHome)>,
+        crate::frame::VarError,
+    > {
         let captured = if let Some(namespace) = selected.namespace {
             crate::vars::capture_original_namespace_receiver(
                 &mut self.frames.borrow_mut(),
@@ -1156,8 +1361,14 @@ impl Interp {
                 })
             })
         };
-        let captured =
-            captured.map_err(|error| self.original_c_lookup_var_error(original, purpose, error))?;
+        let captured = captured?
+            .map(|(receiver, home)| {
+                let home = home
+                    .for_selected_receiver(&receiver)
+                    .ok_or(crate::frame::VarError::NameProtocolUnavailable)?;
+                Ok((receiver, home))
+            })
+            .transpose()?;
         if purpose.creates_entries()
             && self
                 .native_c_variable_name_protocol()
@@ -1171,19 +1382,102 @@ impl Interp {
         Ok(captured)
     }
 
+    fn original_c_variable_error_without_operand(
+        &mut self,
+        purpose: NativeVariableNameLookupPurpose,
+        error: crate::frame::VarError,
+    ) -> Option<Code> {
+        if !purpose.leaves_error_message()
+            && error != crate::frame::VarError::NameProtocolUnavailable
+        {
+            self.traces.borrow_mut().pending_err.take();
+            return Some(Code::Error);
+        }
+        (error == crate::frame::VarError::NameProtocolUnavailable).then(|| {
+            self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("actual indexed variable receiver").into(),
+            )
+        })
+    }
+
     fn original_c_lookup_var_error(
         &mut self,
         original: *mut TclObj,
         purpose: NativeVariableNameLookupPurpose,
         error: crate::frame::VarError,
     ) -> Code {
+        if let Some(code) = self.original_c_variable_error_without_operand(purpose, error) {
+            return code;
+        }
+        // Retire the reached callback failure before materialising its name,
+        // just as the original-object access did before it selected a presenter.
+        let trace_reason = (error == crate::frame::VarError::TraceError).then(|| {
+            self.traces
+                .borrow_mut()
+                .pending_err
+                .take()
+                .unwrap_or_default()
+        });
+        let bytes = match self.native_string_bytes(&original) {
+            Ok(bytes) => bytes.to_vec(),
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let input = tcl_syntax::naming::NativeVariableInputForm::Combined(&bytes);
+        if let Some(reason) = trace_reason {
+            return self.original_c_variable_trace_error(input, purpose, &reason);
+        }
+        self.original_c_variable_receiver_error(input, purpose, error, None)
+    }
+
+    fn original_c_variable_trace_error(
+        &mut self,
+        input: tcl_syntax::naming::NativeVariableInputForm<'_>,
+        purpose: NativeVariableNameLookupPurpose,
+        reason: &[u8],
+    ) -> Code {
+        let Some(protocol) = self.native_c_variable_name_protocol() else {
+            return self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original C variable trace report",
+                ),
+            );
+        };
+        let name =
+            match tcl_syntax::naming::report_native_c_variable_value_name(
+                tcl_syntax::naming::NativeNameProtocol::C(protocol.version()),
+                input,
+            ) {
+                Ok(name) => name,
+                Err(_) => return self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original C variable trace report name",
+                    ),
+                ),
+            };
+        self.var_trace_error(
+            &name,
+            if purpose == NativeVariableNameLookupPurpose::Read {
+                b"read"
+            } else {
+                b"write"
+            },
+            reason,
+        )
+    }
+
+    pub(super) fn original_c_variable_receiver_error(
+        &mut self,
+        input: tcl_syntax::naming::NativeVariableInputForm<'_>,
+        purpose: NativeVariableNameLookupPurpose,
+        error: crate::frame::VarError,
+        reached_site: Option<tcl_syntax::naming::NativeVariableFailureSite>,
+    ) -> Code {
         use crate::frame::VarError;
         use tcl_syntax::naming::{
             NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
         };
-        if !purpose.leaves_error_message() && !matches!(error, VarError::NameProtocolUnavailable) {
-            self.traces.borrow_mut().pending_err.take();
-            return Code::Error;
+        if let Some(code) = self.original_c_variable_error_without_operand(purpose, error) {
+            return code;
         }
         let reason = match error {
             VarError::IsScalar => Reason::NotArray,
@@ -1193,10 +1487,7 @@ impl Interp {
             VarError::DeletedNamespace => Reason::RetiredNamespace,
             VarError::IsConstant => Reason::Constant,
             VarError::NameProtocolUnavailable => {
-                return self.report_cmd_error(
-                    ValueError::CommandProtocolUnavailable("actual indexed variable receiver")
-                        .into(),
-                );
+                unreachable!("operand-free refusal returned above")
             }
             VarError::TraceError => {
                 let reason = self
@@ -1205,26 +1496,10 @@ impl Interp {
                     .pending_err
                     .take()
                     .unwrap_or_default();
-                let bytes = match self.native_string_bytes(&original) {
-                    Ok(bytes) => bytes.to_vec(),
-                    Err(error) => return self.report_cmd_error(error.into()),
-                };
-                return self.var_trace_error(
-                    &bytes,
-                    if purpose == NativeVariableNameLookupPurpose::Read {
-                        b"read"
-                    } else {
-                        b"write"
-                    },
-                    &reason,
-                );
+                return self.original_c_variable_trace_error(input, purpose, &reason);
             }
         };
-        let bytes = match self.native_string_bytes(&original) {
-            Ok(bytes) => bytes.to_vec(),
-            Err(error) => return self.report_cmd_error(error.into()),
-        };
-        let site = match purpose {
+        let site = reached_site.unwrap_or_else(|| match purpose {
             NativeVariableNameLookupPurpose::Read if reason == Reason::IsArray => Site::ValueRead,
             NativeVariableNameLookupPurpose::Write
             | NativeVariableNameLookupPurpose::QuietWrite
@@ -1245,8 +1520,8 @@ impl Interp {
                 Site::ValueUnset
             }
             _ => Site::NameLookup,
-        };
-        self.original_c_variable_failure(&bytes, purpose, reason, site)
+        });
+        self.original_c_variable_failure_input(input, purpose, reason, site)
     }
 
     pub(super) fn original_variable_trace_requires_name(
@@ -1258,46 +1533,28 @@ impl Interp {
         // Geometry comes from the selected receiver; the placeholder spelling
         // is not read or exposed by this trace-selection query.
         let access = self.trace_access(&home.base, &home.base, element, home, false);
-        let cell = crate::cmd_trace::VarTraceScope::cell(
-            &home.base,
-            access.match_elem.as_deref(),
-            home.ns,
-            home.level,
-            home.binding_id,
-        );
+        let cell = self.variable_trace_scope(home, access.match_elem.as_deref());
         let active = self.active_var_trace_scopes.borrow();
-        if active.contains(&cell) {
+        // Unset callbacks run on the destroyed cell even when its read or
+        // write callback is active. The containing array keeps its own guard.
+        let destroyed = tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation::from_bytes(operation)
+            .is_some_and(tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation::uses_destroyed_cell_callbacks);
+        if !destroyed && active.contains(&cell) {
             return false;
         }
         let array_active = access.match_elem.is_some() && active.contains(&cell.array());
         let traces = self.traces.borrow();
         let registered = traces.traces.iter().any(|trace| {
             (trace.elem.is_some() || (access.whole_array && !array_active))
-                && crate::cmd_trace::matches(
-                    trace,
-                    &home.base,
-                    access.match_elem.as_deref(),
-                    operation,
-                    home.ns,
-                    home.level,
-                    home.binding_id,
-                )
+                && cell.matches(trace, operation)
         });
         let intrinsic = access.whole_array
             && !array_active
             && ((access.match_elem.is_none()
                 && matches!(operation, b"read" | b"unset")
                 && self.native_error_variable_at(home).is_some())
-                || (home.ns == Some(super::GLOBAL)
-                    && home.level.is_none()
-                    && self
-                        .native_invocation_dialect()
-                        .double_string_policy()
-                        .and_then(|policy| policy.precision_variable())
-                        .is_some_and(|name| {
-                            home.base == name.trim_start_matches("::").as_bytes()
-                        })
-                    && matches!(operation, b"read" | b"write")));
+                || (self.native_precision_trace_at(home)
+                    && matches!(operation, b"read" | b"write" | b"unset")));
         registered || intrinsic
     }
 
@@ -1569,6 +1826,62 @@ impl Interp {
 mod tests {
     use super::*;
 
+    fn exists_cache_purpose_probe(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+        let version = interp.native_c_variable_name_protocol().unwrap().version();
+        for name in [b"x".as_slice(), b"a(k)", b"x\0tail"] {
+            let original = Owned::fresh(obj::new_string_bytes(name));
+            let before = obj::obj_type_ptr(original.as_ptr());
+            assert!(interp
+                .exists_original_c_parts(original.as_ptr(), None)
+                .unwrap());
+            if version == tcl_dialect::TclVersion::V8_4 {
+                assert_eq!(obj::obj_type_ptr(original.as_ptr()), before);
+            } else {
+                assert_ne!(obj::obj_type_ptr(original.as_ptr()), before);
+            }
+        }
+        let member = Owned::fresh(obj::new_string_bytes(b"x"));
+        let original = Owned::fresh(crate::list::new_list_obj(&[member.as_ptr()]));
+        let before = obj::obj_type_ptr(original.as_ptr());
+        assert!(interp
+            .exists_original_c_parts(original.as_ptr(), None)
+            .unwrap());
+        if version == tcl_dialect::TclVersion::V8_4 {
+            assert_eq!(obj::obj_type_ptr(original.as_ptr()), before);
+            assert!(interp.read_original_c_variable(original.as_ptr()).is_ok());
+            assert_ne!(
+                obj::obj_type_ptr(original.as_ptr()),
+                before,
+                "actual object read still selects its original name cache"
+            );
+        } else {
+            assert_ne!(obj::obj_type_ptr(original.as_ptr()), before);
+        }
+        interp.set_result_bytes(b"");
+        Code::Ok
+    }
+
+    #[test]
+    fn legacy_existence_preserves_original_name_caches_and_object_reads_still_adopt_them() {
+        // naming.variable.original-upvar-and-exists-completion-and-name-windows
+        // docs/design/analysis/name-resolution-proofs/variable.original-upvar-and-exists-completion-and-name-windows.md
+        // Native case16 binds the fresh scalar primary. The list-cache,
+        // combined name and NUL controls separately test this source/API owner.
+        for engine in ["tcl8.4", "tcl8.5"] {
+            let mut interp = Interp::with_native_core(
+                super::super::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            interp.register_builtin(b"existsCachePurpose", exists_cache_purpose_probe);
+            let code = interp
+                .eval_str(b"proc run {} {set x LOCAL; set a(k) VALUE; existsCachePurpose}; run");
+            assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
+            assert!(!interp.host_refusal_pending());
+        }
+    }
+
     thread_local! {
         static ALIAS_SIMPLE_ROWS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
     }
@@ -1640,6 +1953,8 @@ mod tests {
     }
     #[test]
     fn dynamic_global_uses_original_compiler_token_tail_and_name_cache() {
+        // Native proof: naming.variable.original-global-cache-token
+        // docs/design/analysis/name-resolution-proofs/variable-original-global-cache-token.md
         for (engine, expected) in [
             (
                 "tcl8.4",
@@ -1695,6 +2010,8 @@ mod tests {
 
     #[test]
     fn alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners() {
+        // Native proof: naming.alias.original-local-name-object
+        // docs/design/analysis/name-resolution-proofs/alias-original-local-name-object.md
         for (engine, expected) in [
             (
                 "tcl8.4",
@@ -1785,6 +2102,176 @@ mod tests {
         }
     }
 
+    fn trace_source_observation(engine: &str, source: &[u8], expected: &[u8]) {
+        crate::counters::reset();
+        {
+            let host = Rc::new(NamespaceOutputHost {
+                inner: super::super::default_host(),
+                output: std::cell::RefCell::new(Vec::new()),
+            });
+            let mut interp = Interp::with_native_core(
+                host.clone(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let code = interp.eval_str(source);
+            assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
+            assert!(!interp.host_refusal_pending(), "{engine}");
+            let actual = host.output.borrow();
+            // The version identifies the native capture, while this control
+            // compares trace setup and callback observations after that line.
+            let after_version = |bytes: &[u8]| {
+                let end = bytes.iter().position(|byte| *byte == b'\n').unwrap();
+                bytes[end + 1..].to_vec()
+            };
+            assert_eq!(after_version(&actual), after_version(expected), "{engine}");
+        }
+        assert_eq!(crate::counters::finalize(), 0, "{engine}");
+        assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
+    }
+
+    fn jim_trace_setup_observation(source: &[u8], expected: &[u8]) {
+        // Retain the original probe, but stop at its recorded SETUP frontier
+        // before the unrelated binary reporter, which this backend lacks.
+        let source = std::str::from_utf8(source).unwrap();
+        let (prefix, _) = source
+            .split_once("binary scan $probeSetupResult H* probeSetupHex\n")
+            .unwrap();
+        let captured = std::str::from_utf8(expected).unwrap();
+        let setup = captured
+            .lines()
+            .find(|line| line.starts_with("SETUP "))
+            .unwrap();
+        let hex = setup.strip_prefix("SETUP 1 ").unwrap();
+        let expected_message: Vec<_> = hex
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect();
+        assert!(!captured
+            .lines()
+            .any(|line| line.starts_with("OBSERVATION ")));
+        crate::counters::reset();
+        {
+            let mut interp = Interp::with_native_core(
+                super::super::default_host(),
+                crate::environment::profile_for_dialect("jim"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert_eq!(interp.eval_str(prefix.as_bytes()), Code::Ok);
+            assert!(!interp.host_refusal_pending());
+            for (name, expected) in [
+                (b"probeSetupCode".as_slice(), b"1".as_slice()),
+                (b"probeSetupResult".as_slice(), expected_message.as_slice()),
+            ] {
+                let value = interp.var_get(name).unwrap();
+                assert_eq!(
+                    interp.native_string_bytes(&value).unwrap().as_ref(),
+                    expected
+                );
+            }
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+        assert_eq!(crate::counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn active_read_unset_retires_old_registrations_matches_five_native_source_controls() {
+        // Native proof: naming.variable.unset-active-read-callback-retirement
+        // docs/design/analysis/name-resolution-proofs/variable-unset-active-read-callback-retirement.md
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!("../../tests/data/native_active_read_unset/8.4.20.txt").as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!("../../tests/data/native_active_read_unset/8.5.19.txt").as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!("../../tests/data/native_active_read_unset/8.6.18.txt").as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!("../../tests/data/native_active_read_unset/9.0.4.txt").as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!("../../tests/data/native_active_read_unset/9.1.0.txt").as_slice(),
+            ),
+        ] {
+            trace_source_observation(
+                engine,
+                include_bytes!("../../tests/data/native_active_read_unset/source.tcl"),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn active_read_unset_probe_preserves_actual_jim_unsupported_setup() {
+        // Native proof: naming.variable.unset-active-read-callback-retirement
+        // docs/design/analysis/name-resolution-proofs/variable-unset-active-read-callback-retirement.md
+        // Jim's recorded setup failure supplies no read/unset callback answer.
+        jim_trace_setup_observation(
+            include_bytes!("../../tests/data/native_active_read_unset/source.tcl"),
+            include_bytes!("../../tests/data/native_active_read_unset/jim.txt"),
+        );
+    }
+
+    #[test]
+    fn recreated_element_read_trace_matches_five_original_source_controls() {
+        // Native proof: naming.variable.recreated-element-independent-read-trace
+        // docs/design/analysis/name-resolution-proofs/variable-recreated-element-independent-read-trace.md
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!("../../tests/data/native_recreated_element_trace/8.4.20.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!("../../tests/data/native_recreated_element_trace/8.5.19.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!("../../tests/data/native_recreated_element_trace/8.6.18.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!("../../tests/data/native_recreated_element_trace/9.0.4.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!("../../tests/data/native_recreated_element_trace/9.1.0.txt")
+                    .as_slice(),
+            ),
+        ] {
+            trace_source_observation(
+                engine,
+                include_bytes!("../../tests/data/native_recreated_element_trace/source.tcl"),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn recreated_element_trace_probe_preserves_actual_jim_unsupported_setup() {
+        // Native proof: naming.variable.recreated-element-independent-read-trace
+        // docs/design/analysis/name-resolution-proofs/variable-recreated-element-independent-read-trace.md
+        // The captured Jim setup failure supplies no independent callback answer.
+        jim_trace_setup_observation(
+            include_bytes!("../../tests/data/native_recreated_element_trace/source.tcl"),
+            include_bytes!("../../tests/data/native_recreated_element_trace/jim.txt"),
+        );
+    }
+
     #[test]
     fn generic_namespace_declarations_match_all_25_native_execution_results() {
         let source = include_bytes!(
@@ -1849,6 +2336,8 @@ mod tests {
         }
     }
 
+    // Native proof: naming.variable.namespace-alias-settlement-after-store
+    // docs/design/analysis/name-resolution-proofs/variable.namespace-alias-settlement-after-store.md
     #[test]
     fn namespace_alias_settlement_matches_all_15_native_callback_and_error_results() {
         let source =
@@ -2180,6 +2669,10 @@ mod tests {
 
     #[test]
     fn original_local_cache_getter_order_matches_all_25_native_paths() {
+        // Native proof: naming.variable.original-local-cache-before-getter
+        // docs/design/analysis/name-resolution-proofs/variable-original-local-cache-before-getter.md
+        // Native proof: naming.variable.original-local-cache-unavailable-updater
+        // docs/design/analysis/name-resolution-proofs/variable-original-local-cache-unavailable-updater.md
         use super::*;
         let expected = include_str!(
             "../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt"
@@ -2256,6 +2749,8 @@ mod tests {
 
     #[test]
     fn element_table_and_var_roles_match_all_25_actual_callback_windows() {
+        // Native proof: naming.variable.original-element-unset-callback-roles
+        // docs/design/analysis/name-resolution-proofs/variable-original-element-unset-callback-roles.md
         use super::*;
         use crate::frame::NativeElementEntryObserver;
         use crate::namespace::GLOBAL;
@@ -2394,6 +2889,10 @@ mod tests {
 
     #[test]
     fn element_entry_lifecycle_matches_all_70_actual_c_windows() {
+        // Native proof: naming.variable.original-element-alias-recreation
+        // docs/design/analysis/name-resolution-proofs/variable-original-element-alias-recreation.md
+        // Native proof: naming.variable.original-element-alias-header-roles
+        // docs/design/analysis/name-resolution-proofs/variable-original-element-alias-header-roles.md
         use super::*;
         use crate::namespace::GLOBAL;
         let mut rows = Vec::new();
@@ -2494,6 +2993,8 @@ mod tests {
 
     #[test]
     fn search_free_slots_match_all_20_actual_c_windows() {
+        // Native proof: naming.variable.array-search-free-slot-retirement
+        // docs/design/analysis/name-resolution-proofs/variable-array-search-free-slot-retirement.md
         use super::*;
         use tcl_cmd_core::native_array_search::NativeArraySearchBackend;
         let mut rows = Vec::new();
@@ -2578,6 +3079,10 @@ mod tests {
 
     #[test]
     fn scalar_alias_entries_and_array_parts_match_all_95_native_windows() {
+        // Native proof: naming.variable.original-scalar-alias-entry-lifetime
+        // docs/design/analysis/name-resolution-proofs/variable-original-scalar-alias-entry-lifetime.md
+        // Native proof: naming.variable.original-parsed-array-child-references
+        // docs/design/analysis/name-resolution-proofs/variable-original-parsed-array-child-references.md
         use crate::namespace::GLOBAL;
         let mut rows = Vec::new();
         for (environment, version) in [
@@ -2726,6 +3231,10 @@ mod tests {
 
     #[test]
     fn original_parsed_headers_match_all_150_actual_c_windows() {
+        // Native proof: naming.variable.original-scalar-parsed-header
+        // docs/design/analysis/name-resolution-proofs/variable-original-scalar-parsed-header.md
+        // Native proof: naming.variable.original-counted-array-parsed-header
+        // docs/design/analysis/name-resolution-proofs/variable-original-counted-array-parsed-header.md
         let mut rows = Vec::new();
         for (environment, version) in [
             ("tcl8.4", "8.4.20"),
@@ -2800,5 +3309,151 @@ mod tests {
         .collect::<Vec<_>>();
         assert_eq!(rows.len(), 150);
         assert_eq!(rows, expected);
+    }
+    #[test]
+    fn list_assignment_arity_matches_five_original_source_controls() {
+        // Native proof: naming.list.original-lassign-target-arity
+        // docs/design/analysis/name-resolution-proofs/list-original-lassign-target-arity.md
+        // Literal, dynamic and proc source entry are observations, not admission proofs.
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!("../../tests/data/native_list_assignment_arity/8.4.20.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!("../../tests/data/native_list_assignment_arity/8.5.19.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!("../../tests/data/native_list_assignment_arity/8.6.18.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!("../../tests/data/native_list_assignment_arity/9.0.4.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!("../../tests/data/native_list_assignment_arity/9.1.0.txt")
+                    .as_slice(),
+            ),
+        ] {
+            trace_source_observation(
+                engine,
+                include_bytes!("../../tests/data/native_list_assignment_arity/source.tcl"),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn list_assignment_arity_matches_current_jim_original_source_controls() {
+        // Native proof: naming.list.original-lassign-target-arity
+        // docs/design/analysis/name-resolution-proofs/list-original-lassign-target-arity.md
+        trace_source_observation(
+            "jim",
+            include_bytes!("../../tests/data/native_list_assignment_arity/source.tcl"),
+            include_bytes!("../../tests/data/native_list_assignment_arity/jim.txt"),
+        );
+    }
+    #[test]
+    fn variable_read_diagnostics_match_five_original_source_controls() {
+        // Native proof: naming.variable.original-read-diagnostic-input
+        // docs/design/analysis/name-resolution-proofs/variable-original-read-diagnostic-input.md
+        // These source-entry outcomes grant no private layout or compiler admission.
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!("../../tests/data/native_variable_read_input/8.4.20.txt").as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!("../../tests/data/native_variable_read_input/8.5.19.txt").as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!("../../tests/data/native_variable_read_input/8.6.18.txt").as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!("../../tests/data/native_variable_read_input/9.0.4.txt").as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!("../../tests/data/native_variable_read_input/9.1.0.txt").as_slice(),
+            ),
+        ] {
+            trace_source_observation(
+                engine,
+                include_bytes!("../../tests/data/native_variable_read_input/source.tcl"),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn variable_read_input_preserves_current_jim_dictionary_results() {
+        // Native proof: naming.variable.original-read-diagnostic-input
+        // docs/design/analysis/name-resolution-proofs/variable-original-read-diagnostic-input.md
+        // Jim's array-valued root reads succeed; its scalar element reads fail.
+        trace_source_observation(
+            "jim",
+            include_bytes!("../../tests/data/native_variable_read_input/source.tcl"),
+            include_bytes!("../../tests/data/native_variable_read_input/jim.txt"),
+        );
+    }
+
+    #[test]
+    fn array_root_write_diagnostics_match_five_original_source_controls() {
+        // Native proof: naming.variable.original-array-root-write-diagnostic
+        // docs/design/analysis/name-resolution-proofs/variable-original-array-root-write-diagnostic.md
+        // Full source output is compared; no private receiver or compiler admission is inferred.
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!("../../tests/data/native_variable_array_write/8.4.20.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!("../../tests/data/native_variable_array_write/8.5.19.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!("../../tests/data/native_variable_array_write/8.6.18.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!("../../tests/data/native_variable_array_write/9.0.4.txt").as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!("../../tests/data/native_variable_array_write/9.1.0.txt").as_slice(),
+            ),
+        ] {
+            trace_source_observation(
+                engine,
+                include_bytes!("../../tests/data/native_variable_array_write/source.tcl"),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn array_root_write_preserves_current_jim_dictionary_replacement() {
+        // Native proof: naming.variable.original-array-root-write-diagnostic
+        // docs/design/analysis/name-resolution-proofs/variable-original-array-root-write-diagnostic.md
+        // Jim replaces its dictionary-valued root with the scalar result.
+        trace_source_observation(
+            "jim",
+            include_bytes!("../../tests/data/native_variable_array_write/source.tcl"),
+            include_bytes!("../../tests/data/native_variable_array_write/jim.txt"),
+        );
     }
 }

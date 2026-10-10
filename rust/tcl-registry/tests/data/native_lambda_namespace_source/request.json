@@ -1,0 +1,15 @@
+{
+  "question_id": "naming.lambda.original-namespace-object-prefix",
+  "source_sha256": "f2cf19f936f7bb9c252c50a79f40899011b3644d5ac88bc62cfe368f97bfc4cb",
+  "input_channel": "ASCII LF source-file CLI; counted NUL comes only from binary format; Unicode U+00E9 comes from explicit Tcl \\u00e9 escape",
+  "scope": "Original direct Apply namespace results for literal relative/absolute colon, plain, omitted/empty, binary-produced NUL relative/absolute/leading, and Unicode colon prefixes. Namespace setup and each call are separate catches.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "limits": "CLI results show namespace current strings and caught completion/errors for each fixed input; no physical namespace/object/token/header storage or executed Rust correspondence. Jim direct Apply answers are independent of C prefix recipe."
+}

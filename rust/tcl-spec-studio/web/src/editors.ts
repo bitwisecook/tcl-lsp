@@ -50,6 +50,7 @@ export const STRUCTURAL_KINDS = new Set([
   "textList",
   "indexList",
   "optIndexList",
+  "variableReceivers",
   "flagSet",
   "enumList",
   "bodyInterpreter",
@@ -726,6 +727,36 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       return wrap;
     },
 
+    variableReceivers: (_kind, value, set) => {
+      const declared = value !== null;
+      const wrap = el("div", {});
+      wrap.appendChild(checkbox(declared, (on) => set(on ? [] : null), "declared"));
+      if (declared) wrap.appendChild(rowList<Json>(
+        asArray(value),
+        () => 0,
+        (item, update, remove) => {
+          const row = asRecord(item);
+          const index = typeof item === "number" ? item : asNumber(row.index) ?? 0;
+          const form = row.form === "TraceSubject" ? "TraceSubject" : "Combined";
+          const patch = (nextIndex: number, nextForm: string) => update(
+            nextForm === "Combined" ? nextIndex : { index: nextIndex, form: nextForm },
+          );
+          const select = el("select", {}, [
+            el("option", { value: "Combined", text: "Combined root/index" }),
+            el("option", { value: "TraceSubject", text: "Trace subject ingress" }),
+          ]);
+          select.value = form;
+          select.addEventListener("change", () => patch(index, select.value));
+          return el("div", { class: "row" }, [
+            labelled("index", numberInput(index, (n) => patch(n ?? 0, form))),
+            labelled("purpose", select),
+            removeButton(remove),
+          ]);
+        }, set, "receiver",
+      ));
+      return wrap;
+    },
+
     enum: (kind, value, set) =>
       catalogueSelect(kind, typeof value === "string" ? value : null, set),
 
@@ -1170,6 +1201,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
           arity: { min: 0, max: null, step: 0, also_exact: null, count: "arguments" },
           selector: null,
           arg_roles: [],
+          variable_receivers: null,
           options: [],
           option_relations: null,
           surface: null,
@@ -1208,6 +1240,11 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
             labelled("min", bound("min")),
             labelled("max", bound("max", "∞")),
             labelled("mutator", mutator),
+            labelled("variable receivers", editors.variableReceivers(
+              { tag: "variableReceivers" },
+              row.variable_receivers ?? null,
+              (positions) => patch({ variable_receivers: positions }),
+            )),
             removeButton(remove),
           ]);
         },

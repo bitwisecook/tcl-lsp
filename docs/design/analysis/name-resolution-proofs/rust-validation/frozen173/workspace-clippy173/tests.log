@@ -1,0 +1,60 @@
+    Checking tcl-lexer v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-lexer)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bytecode)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+error: unused import: `AdviceNamingPolicy`
+ --> rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs:8:73
+  |
+8 |     AdviceCell, AdviceGraph, AdviceInvocation, AdviceInvocationContext, AdviceNamingPolicy,
+  |                                                                         ^^^^^^^^^^^^^^^^^^
+  |
+  = note: `-D unused-imports` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error[E0609]: no field `full_span` on type `&mut analyser::types::PendingNextArity`
+    --> rust/tcl-compiler/src/analyser/per_item.rs:2229:14
+     |
+2229 |         cand.full_span = shift(cand.full_span, d);
+     |              ^^^^^^^^^ unknown field
+     |
+     = note: available fields are: `original`, `display_name`
+
+error[E0609]: no field `full_span` on type `&mut analyser::types::PendingNextArity`
+    --> rust/tcl-compiler/src/analyser/per_item.rs:2229:37
+     |
+2229 |         cand.full_span = shift(cand.full_span, d);
+     |                                     ^^^^^^^^^ unknown field
+     |
+     = note: available fields are: `original`, `display_name`
+
+    Checking tcl-cshim v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cshim)
+error[E0425]: cannot find function `segment_commands_with_config` in module `crate::segmenter`
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:3068:42
+     |
+3068 |         let segments = crate::segmenter::segment_commands_with_config(source, config);
+     |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+    ::: rust/tcl-compiler/src/segmenter.rs:374:1
+     |
+ 374 | pub fn segment_commands_with_offset(source: &str, base_offset: u32) -> Vec<SegmentedCommand> {
+     | -------------------------------------------------------------------------------------------- similarly named function `segment_commands_with_offset` defined here
+     |
+help: a function with a similar name exists
+     |
+3068 -         let segments = crate::segmenter::segment_commands_with_config(source, config);
+3068 +         let segments = crate::segmenter::segment_commands_with_offset(source, config);
+     |
+
+For more information about this error, try `rustc --explain E0609`.
+error: could not compile `tcl-compiler` (lib) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...
+Some errors have detailed explanations: E0425, E0609.
+For more information about an error, try `rustc --explain E0425`.
+error: could not compile `tcl-compiler` (lib test) due to 4 previous errors

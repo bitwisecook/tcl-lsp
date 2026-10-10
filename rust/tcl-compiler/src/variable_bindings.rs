@@ -25,6 +25,149 @@ use crate::var_resolve::{
     trace_key,
 };
 
+/// Exact effective post-head operands retained by the original invocation
+/// producer. A missing source facet never falls back to its logical display.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct OriginalVariableInvocation {
+    compiled_operands: Vec<
+        Option<
+            crate::command_binding::original_variable_compilation::OriginalCompiledVariableOperand,
+        >,
+    >,
+    inputs: Vec<Option<crate::signature_scan::scope::SignatureSourceNameInput>>,
+    compiled_locals: Vec<
+        Option<
+            crate::command_binding::original_variable_compilation::OriginalCompiledNamespaceLocal,
+        >,
+    >,
+}
+
+impl OriginalVariableInvocation {
+    pub(crate) fn argument_count(&self) -> usize {
+        self.inputs.len()
+    }
+
+    pub(crate) fn from_original_inputs(
+        inputs: Vec<Option<crate::signature_scan::scope::SignatureSourceNameInput>>,
+        compiled_locals: Vec<Option<crate::command_binding::original_variable_compilation::OriginalCompiledNamespaceLocal>>,
+    ) -> Self {
+        Self {
+            inputs,
+            compiled_locals,
+            compiled_operands: Vec::new(),
+        }
+    }
+
+    pub(crate) fn with_compiled_operands(
+        mut self,
+        operands: Vec<Option<crate::command_binding::original_variable_compilation::OriginalCompiledVariableOperand>>,
+    ) -> Self {
+        self.compiled_operands = operands;
+        self
+    }
+
+    pub(crate) fn access(
+        &self,
+        argument_index: usize,
+        context: &ResolveContext,
+        registry: &CommandRegistry,
+        operation: tcl_registry::TraceOperation,
+        whole_array: bool,
+    ) -> Place {
+        if let Some(Some(operand)) = self.compiled_operands.get(argument_index) {
+            return operand.resolve(context, registry, whole_array, operation);
+        }
+        self.input(argument_index, context)
+            .map_or_else(place::unknown_top, |input| {
+                crate::var_resolve::resolve_original_name_input(
+                    input,
+                    context,
+                    registry,
+                    whole_array,
+                    operation,
+                )
+            })
+    }
+
+    pub(crate) fn input(
+        &self,
+        argument_index: usize,
+        context: &ResolveContext,
+    ) -> Option<&crate::signature_scan::scope::SignatureSourceNameInput> {
+        self.inputs
+            .get(argument_index)?
+            .as_ref()
+            .filter(|input| input.is_current(context))
+    }
+
+    pub(crate) fn trace_subject_access(
+        &self,
+        argument_index: usize,
+        context: &ResolveContext,
+        registry: &CommandRegistry,
+    ) -> Place {
+        let Some(input) = self.input(argument_index, context) else {
+            return place::unknown_top();
+        };
+        let Ok(subject) = input
+            .policy()
+            .recipe()
+            .trace_registration_input(input.bytes())
+        else {
+            return place::unknown_top();
+        };
+        crate::var_resolve::resolve_evaluated_variable_input(
+            tcl_syntax::naming::NativeVariableInputForm::Combined(subject.selected()),
+            context,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Read,
+        )
+    }
+
+    /// Jim unset addresses the actual local table independently of its
+    /// retained static fallback. Other engines cannot borrow this purpose.
+    pub(crate) fn raw_unset_slot(
+        &self,
+        argument_index: usize,
+        context: &ResolveContext,
+        registry: &CommandRegistry,
+    ) -> Option<Place> {
+        let input = self.input(argument_index, context)?;
+        if context
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            != Some(input.policy())
+        {
+            return None;
+        }
+        input.policy().recipe().is_jim084().then(|| {
+            crate::var_resolve::resolve_original_alias_destination_bytes(
+                input.bytes(),
+                context,
+                registry,
+            )
+        })
+    }
+
+    pub(crate) fn compiled_local(
+        &self,
+        argument_index: usize,
+    ) -> Option<
+        &crate::command_binding::original_variable_compilation::OriginalCompiledNamespaceLocal,
+    > {
+        self.compiled_locals.get(argument_index)?.as_ref()
+    }
+
+    fn subject_input(
+        &self,
+        subject: &tcl_registry::TransitionSubject,
+        context: &ResolveContext,
+    ) -> Option<&crate::signature_scan::scope::SignatureSourceNameInput> {
+        self.input(subject.argument_index()?, context)
+    }
+}
+
 /// Reaching binding environment before every operation and terminator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PointResolveContexts {
@@ -351,17 +494,19 @@ fn refresh_source_context(state: &mut ResolveContext, statement: &Statement, cfg
 
 fn replace_source_context(state: &mut ResolveContext, source: &ResolveContext) {
     let mut context = source.clone();
-    context
-        .instance_vars
-        .extend(state.instance_vars.iter().cloned());
-    if context.instance_owner.is_empty() {
-        context.instance_owner.clone_from(&state.instance_owner);
-    }
-    if context.execution.is_none() {
-        context.execution = state.execution;
-    }
-    if context.interpreter.is_none() {
-        context.interpreter.clone_from(&state.interpreter);
+    if context.execution_name_policy.is_none() {
+        context
+            .instance_vars
+            .extend(state.instance_vars.iter().cloned());
+        if context.instance_owner.is_empty() {
+            context.instance_owner.clone_from(&state.instance_owner);
+        }
+        if context.execution.is_none() {
+            context.execution = state.execution;
+        }
+        if context.interpreter.is_none() {
+            context.interpreter.clone_from(&state.interpreter);
+        }
     }
     *state = context;
 }
@@ -417,6 +562,10 @@ pub fn transfer_statement(
         | Statement::Incr {
             name, name_braced, ..
         } => {
+            if state.execution_name_policy.is_some() {
+                transfer_invocation(state, statement, statement.tokens(), registry);
+                return;
+            }
             let target = crate::var_resolve::resolve_target_access(
                 name,
                 *name_braced,
@@ -489,6 +638,15 @@ fn transfer_invocation(
         state.widen();
         return;
     };
+    // The selected invocation supplies the original source instance. A
+    // represented offset or a reporting spelling cannot attest this store.
+    state.set_contents_write_source(
+        tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.invocation_site())
+            .map(|site| std::sync::Arc::clone(&site.source)),
+    );
     invocation.transfer_variables(state, statement, tokens, registry);
 }
 
@@ -622,14 +780,27 @@ pub(crate) fn transfer_resolved_invocation(
     facts: &tcl_registry::InvocationFacts,
     arguments: tcl_registry::InvocationArguments<'_>,
     registry: &CommandRegistry,
-    output_order: Option<&[usize]>,
+    output: (Option<&[usize]>, Option<&OriginalVariableInvocation>),
 ) {
-    let mut writes = source_variable_write_places_with_output_order(
+    let (output_order, original) = output;
+    let operands = if state.execution_name_policy.is_some() {
+        let Some(operands) =
+            original.filter(|operands| operands.argument_count() == arguments.len())
+        else {
+            state.widen();
+            return;
+        };
+        Some(operands)
+    } else {
+        None
+    };
+    let mut writes = source_variable_write_places_with_output_order_and_original_operands_impl(
         facts,
         arguments,
         state,
         registry,
         output_order,
+        operands,
     );
     detach_retained_destructions(
         state,
@@ -638,9 +809,75 @@ pub(crate) fn transfer_resolved_invocation(
         &mut writes,
         statement.span().start(),
         registry,
+        operands,
     );
     invalidate_literal_writes(state, &writes);
-    for place in &writes {
+    record_resolved_contents_writes(
+        state,
+        facts,
+        arguments,
+        registry,
+        &writes,
+        statement.span().start(),
+        operands,
+    );
+    let operation = invocation_write_trace_operation(facts);
+    let trace_callback = crate::place_bridge::def_places(statement, state, registry)
+        .into_iter()
+        .any(|place| project_access(place, state, operation).observed)
+        || source_variable_read_places_with_original_operands_impl(
+            facts, arguments, state, registry, operands,
+        )
+        .iter()
+        .any(|place| place.observed);
+    transfer_resolved_state_transitions(
+        state,
+        facts,
+        registry,
+        tokens.evaluated_body().is_some(),
+        statement.span().start(),
+        operands,
+    );
+    if facts.traits.contains(Traits::DESTROYS_VARIABLE) {
+        if operands.is_some() {
+            for place in &writes {
+                destroy_captured_cell(state, place, statement.span().start(), registry);
+            }
+        } else {
+            destroy_invocation_roots(state, facts, arguments, statement.span().start(), registry);
+        }
+    }
+    if let Some(operands) = operands {
+        establish_resolved_written_lifetimes(
+            state,
+            facts,
+            arguments,
+            registry,
+            output_order,
+            operands,
+            statement.span().start(),
+        );
+    }
+    let precise = precise_cell_effects(facts);
+    apply_effects(
+        state,
+        &facts.effects,
+        tokens.evaluated_body().is_some(),
+        precise,
+        trace_callback,
+    );
+}
+
+fn record_resolved_contents_writes(
+    state: &mut ResolveContext,
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    registry: &CommandRegistry,
+    writes: &[Place],
+    source_offset: u32,
+    operands: Option<&OriginalVariableInvocation>,
+) {
+    for place in writes {
         if facts.traits.contains(Traits::DESTROYS_VARIABLE)
             && place
                 .index
@@ -653,58 +890,94 @@ pub(crate) fn transfer_resolved_invocation(
         if !facts.traits.contains(Traits::DESTROYS_VARIABLE) || place.kind == PlaceKind::Unknown {
             state.record_contents_write(
                 place,
-                statement.span().start(),
+                source_offset,
                 conditional_contents_write(facts, place, state)
-                    && !normal_output_is_written(facts, arguments, place, state, registry),
+                    && !normal_output_is_written_impl(
+                        facts, arguments, place, state, registry, operands,
+                    ),
             );
         }
     }
-    let operation = if facts.traits.contains(Traits::DESTROYS_VARIABLE)
-        || facts
-            .state_transitions
-            .declared()
-            .is_some_and(|transitions| {
-                transitions.facts().iter().any(|fact| {
-                    matches!(
-                        fact.transition,
-                        StateTransition::Namespace(NamespaceTransition::Delete { .. })
-                    )
-                })
-            }) {
-        tcl_registry::TraceOperation::Unset
-    } else {
-        tcl_registry::TraceOperation::Write
-    };
-    let trace_callback = crate::place_bridge::def_places(statement, state, registry)
-        .into_iter()
-        .any(|place| project_access(place, state, operation).observed)
-        || source_variable_read_places(facts, arguments, state, registry)
-            .iter()
-            .any(|place| place.observed);
+}
+
+fn transfer_resolved_state_transitions(
+    state: &mut ResolveContext,
+    facts: &tcl_registry::InvocationFacts,
+    registry: &CommandRegistry,
+    script_interpreted: bool,
+    source_offset: u32,
+    operands: Option<&OriginalVariableInvocation>,
+) {
     match &facts.state_transitions {
         StateTransitionKnowledge::UnknownInvocation => {}
         StateTransitionKnowledge::Declared(transitions) => {
             for fact in transitions.facts() {
-                if tokens.evaluated_body().is_some()
-                    && matches!(fact.transition, StateTransition::Widen(_))
-                {
+                if script_interpreted && matches!(fact.transition, StateTransition::Widen(_)) {
                     continue;
                 }
-                apply_transition(state, &fact.transition, registry, statement.span().start());
+                match (&fact.transition, operands) {
+                    (StateTransition::VariableCellAlias(alias), Some(operands)) => {
+                        let local = alias
+                            .local
+                            .argument_index()
+                            .and_then(|index| operands.compiled_local(index));
+                        bind_alias_with_compiled_local(
+                            state,
+                            alias,
+                            registry,
+                            local,
+                            Some(operands),
+                        );
+                    }
+                    (StateTransition::Trace(trace), Some(operands)) => {
+                        apply_trace_with_original(state, trace, registry, Some(operands));
+                    }
+                    _ => apply_transition(state, &fact.transition, registry, source_offset),
+                }
             }
         }
     }
-    if facts.traits.contains(Traits::DESTROYS_VARIABLE) {
-        destroy_invocation_roots(state, facts, arguments, statement.span().start(), registry);
-    }
-    let precise = precise_cell_effects(facts);
-    apply_effects(
+}
+
+fn establish_resolved_written_lifetimes(
+    state: &mut ResolveContext,
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    registry: &CommandRegistry,
+    output_order: Option<&[usize]>,
+    operands: &OriginalVariableInvocation,
+    source_offset: u32,
+) {
+    let definitions = source_variable_definitions_with_original_operands(
+        facts,
+        arguments,
         state,
-        &facts.effects,
-        tokens.evaluated_body().is_some(),
-        precise,
-        trace_callback,
+        registry,
+        output_order,
+        operands,
     );
+    for (_, target) in definitions {
+        if conditional_contents_write(facts, &target, state)
+            && !normal_output_is_written_impl(
+                facts,
+                arguments,
+                &target,
+                state,
+                registry,
+                Some(operands),
+            )
+        {
+            continue;
+        }
+        if target.observed || target.kind == PlaceKind::Unknown {
+            state.widen();
+        } else {
+            establish_written_lifetime(state, &target, source_offset);
+            if target.is_global() && !target.dynamic {
+                state.namespace_cells.present.insert(cell_key(&target));
+            }
+        }
+    }
 }
 
 fn destroy_invocation_roots(
@@ -991,10 +1264,29 @@ pub(crate) fn alias_registration_is_closed(
 /// A selected variable-trace registration never invokes its stored prefix.
 /// Valid removal is a no-op for missing or incompatible variable names; adding
 /// still requires a live physical destination with a valid namespace/root kind.
-pub(crate) fn variable_trace_registration_is_closed(
+#[cfg(test)]
+fn variable_trace_registration_is_closed(
     state: &ResolveContext,
     facts: &tcl_registry::InvocationFacts,
     registry: &CommandRegistry,
+) -> bool {
+    variable_trace_registration_is_closed_impl(state, facts, registry, None)
+}
+
+pub(crate) fn variable_trace_registration_is_closed_with_original_operands(
+    state: &ResolveContext,
+    facts: &tcl_registry::InvocationFacts,
+    registry: &CommandRegistry,
+    operands: &OriginalVariableInvocation,
+) -> bool {
+    variable_trace_registration_is_closed_impl(state, facts, registry, Some(operands))
+}
+
+fn variable_trace_registration_is_closed_impl(
+    state: &ResolveContext,
+    facts: &tcl_registry::InvocationFacts,
+    registry: &CommandRegistry,
+    operands: Option<&OriginalVariableInvocation>,
 ) -> bool {
     if state.invocation_dialect.is_none_or(|dialect| {
         dialect.tcl_version.is_none()
@@ -1031,10 +1323,20 @@ pub(crate) fn variable_trace_registration_is_closed(
     if !added {
         return true;
     }
-    let Some(variable) = variable.literal() else {
-        return false;
-    };
-    let mut target = resolve_literal_place(variable, state, false, registry);
+    let mut target = operands.map_or_else(
+        || {
+            variable.literal().map_or_else(place::unknown_top, |name| {
+                resolve_literal_place(name, state, false, registry)
+            })
+        },
+        |operands| {
+            variable
+                .argument_index()
+                .map_or_else(place::unknown_top, |index| {
+                    operands.trace_subject_access(index, state, registry)
+                })
+        },
+    );
     target.observed = false;
     // Registering a trace on an array root does not perform a scalar store.
     // An indexed target still requires an actual array receiver.
@@ -1054,7 +1356,15 @@ pub(crate) fn variable_trace_registration_is_closed(
     target.cell.as_ref().is_some_and(|cell| {
         cell.generation != CellGeneration::Unknown
             && !matches!(cell.owner, CellOwner::SelectedFrame(_))
-            && (!target.is_global() || state.known_namespaces.contains(&target.ns))
+            && (!target.is_global()
+                || operands.map_or_else(
+                    || state.known_namespaces.contains(&target.ns),
+                    |_| {
+                        state.namespace_footprint(&target).is_some_and(|namespace| {
+                            state.namespace_addressable_identities.contains(&namespace)
+                        })
+                    },
+                ))
     })
 }
 
@@ -1187,6 +1497,18 @@ fn bind_alias(
     alias: &VariableCellAliasTransition,
     registry: &CommandRegistry,
 ) {
+    bind_alias_with_compiled_local(state, alias, registry, None, None);
+}
+
+fn bind_alias_with_compiled_local(
+    state: &mut ResolveContext,
+    alias: &VariableCellAliasTransition,
+    registry: &CommandRegistry,
+    compiled_local: Option<
+        &crate::command_binding::original_variable_compilation::OriginalCompiledNamespaceLocal,
+    >,
+    operands: Option<&OriginalVariableInvocation>,
+) {
     let dialect = state.invocation_dialect.or_else(|| {
         registry
             .profile()
@@ -1199,23 +1521,139 @@ fn bind_alias(
     if active == Some(false) {
         return;
     }
-    let Some(local) = alias.local.literal() else {
+    let original_slot = if let Some(local) = compiled_local {
+        if let Some(slot) = local.binding_slot(state) {
+            Some(slot)
+        } else {
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+                eprintln!(
+                    "ORIGINAL_VARIABLE_ALIAS_BIND invalid_compiled_local frame={frame:?} policy={:?} dynamic={}",
+                    state.execution_name_policy, state.dynamic_bindings
+                );
+            }
+            state.widen();
+            return;
+        }
+    } else {
+        operands.map(|operands| original_alias_destination(state, alias, operands, registry))
+    };
+    if original_slot
+        .as_ref()
+        .is_some_and(|slot| slot.kind == PlaceKind::Unknown)
+    {
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+            eprintln!(
+                "ORIGINAL_VARIABLE_ALIAS_BIND unknown_destination frame={frame:?} local_ordinal={:?} original_input={} dynamic={}",
+                alias.local.argument_index(),
+                operands
+                    .and_then(|operands| operands.subject_input(&alias.local, state))
+                    .is_some(),
+                state.dynamic_bindings
+            );
+        }
         state.widen();
         return;
+    }
+    let local = alias.local.literal();
+    let key = match (&original_slot, local) {
+        (Some(slot), _) => cell_key(slot),
+        (None, Some(local)) => crate::var_resolve::VariableCellKey::Authored(local.to_owned()),
+        (None, None) => {
+            state.widen();
+            return;
+        }
     };
     if active.is_none() {
-        state.unknown_bindings.insert(local.to_owned());
-        state.alias_bindings.remove(local);
+        state.unknown_bindings.insert(key.clone());
+        state.alias_bindings.remove(&key);
         return;
     }
+    let target = operands.map_or_else(
+        || alias_target(state, &alias.target, registry),
+        |operands| original_alias_target(state, &alias.target, operands, registry, false),
+    );
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+        eprintln!(
+            "ORIGINAL_VARIABLE_ALIAS_BIND frame={frame:?} target_kind={:?} target_cell={} local_kind={:?} dynamic={}",
+            target.kind,
+            target.cell.is_some(),
+            original_slot.as_ref().map(|slot| slot.kind),
+            state.dynamic_bindings
+        );
+    }
+    let validity = selected_alias_binding_validity(
+        state,
+        alias,
+        registry,
+        original_slot.as_ref(),
+        &key,
+        &target,
+    );
     if matches!(
-        alias_binding_validity(state, alias, registry),
+        validity,
         AliasBindingValidity::NamespaceToLocal | AliasBindingValidity::DefinedDestination
     ) {
-        state.unknown_bindings.insert(local.to_owned());
-        state.alias_bindings.remove(local);
+        state.unknown_bindings.insert(key.clone());
+        state.alias_bindings.remove(&key);
         return;
     }
+    install_alias_binding(
+        state,
+        alias,
+        registry,
+        original_slot.as_ref(),
+        key,
+        target,
+        operands,
+    );
+}
+
+fn selected_alias_binding_validity(
+    state: &ResolveContext,
+    alias: &VariableCellAliasTransition,
+    registry: &CommandRegistry,
+    original_slot: Option<&Place>,
+    key: &crate::var_resolve::VariableCellKey,
+    target: &Place,
+) -> AliasBindingValidity {
+    original_slot.map_or_else(
+        || alias_binding_validity(state, alias, registry),
+        |slot| {
+            let direct = !state.alias_bindings.contains_key(key)
+                && !state.name_alias_bindings.contains_key(key)
+                && !state.raw_bindings.bindings.contains_key(key);
+            if direct
+                && state.contents_presence(slot) == crate::var_resolve::ContentsPresence::Defined
+            {
+                AliasBindingValidity::DefinedDestination
+            } else if slot.is_global()
+                && !target.is_global()
+                && state
+                    .invocation_dialect
+                    .and_then(|dialect| dialect.variable_lookup_policy)
+                    == Some(tcl_dialect::VariableLookupPolicy::Tcl)
+            {
+                AliasBindingValidity::NamespaceToLocal
+            } else {
+                AliasBindingValidity::Valid
+            }
+        },
+    )
+}
+
+fn install_alias_binding(
+    state: &mut ResolveContext,
+    alias: &VariableCellAliasTransition,
+    registry: &CommandRegistry,
+    original_slot: Option<&Place>,
+    key: crate::var_resolve::VariableCellKey,
+    target: Place,
+    operands: Option<&OriginalVariableInvocation>,
+) {
+    let local = alias.local.literal();
     let name_link = state
         .invocation_dialect
         .and_then(|dialect| dialect.variable_link_binding)
@@ -1225,17 +1663,25 @@ fn bind_alias(
                 .and_then(tcl_dialect::DialectProfile::variable_link_binding)
         })
         == Some(tcl_dialect::VariableLinkBinding::SelectedFrameName);
-    let named_target = name_link.then(|| alias_name_target(state, &alias.target, registry));
+    let named_target = name_link.then(|| {
+        operands.map_or_else(
+            || alias_name_target(state, &alias.target, registry),
+            |operands| original_alias_target(state, &alias.target, operands, registry, true),
+        )
+    });
     if let Some(target) = &named_target {
         state
             .name_alias_bindings
-            .insert(local.to_owned(), target.clone());
+            .insert(key.clone(), target.clone());
     } else {
-        state.name_alias_bindings.remove(local);
+        state.name_alias_bindings.remove(&key);
     }
-    let target = alias_target(state, &alias.target, registry);
     if let Some(named) = &named_target {
-        state.retarget_raw_binding(local, named, registry);
+        if let Some(slot) = original_slot {
+            state.retarget_raw_binding_at_slot(slot, named);
+        } else if let Some(local) = local {
+            state.retarget_raw_binding(local, named, registry);
+        }
     }
     if target.kind == PlaceKind::Unknown {
         // Importing an unknown name can allocate an undefined cell, but it
@@ -1248,9 +1694,17 @@ fn bind_alias(
     }
     if state.global_frame()
         || state.namespace_scope()
-        || tcl_syntax::naming::is_qualified(local.as_bytes())
+        || original_slot.is_some_and(Place::is_global)
+        || (operands.is_none()
+            && local.is_some_and(|local| tcl_syntax::naming::is_qualified(local.as_bytes())))
     {
-        let slot = crate::var_resolve::resolve_alias_destination_slot(local, state, registry);
+        let slot = original_slot.cloned().unwrap_or_else(|| {
+            crate::var_resolve::resolve_alias_destination_slot(
+                local.expect("authored alias local"),
+                state,
+                registry,
+            )
+        });
         if slot.is_global() && !slot.dynamic {
             state
                 .namespace_alias_bindings
@@ -1265,8 +1719,129 @@ fn bind_alias(
             state.namespace_cells.present.insert(cell_key(&slot));
         }
     }
-    state.unknown_bindings.remove(local);
-    state.alias_bindings.insert(local.to_owned(), target);
+    state.unknown_bindings.remove(&key);
+    state.alias_bindings.insert(key, target);
+}
+
+fn original_alias_destination(
+    state: &ResolveContext,
+    alias: &VariableCellAliasTransition,
+    operands: &OriginalVariableInvocation,
+    registry: &CommandRegistry,
+) -> Place {
+    let Some(input) = operands.subject_input(&alias.local, state) else {
+        return place::unknown_top();
+    };
+    let bytes = match alias.target {
+        VariableAliasTarget::Global { .. } => {
+            tcl_syntax::naming::global_local_name_bytes(input.policy().recipe(), input.bytes())
+        }
+        VariableAliasTarget::CurrentNamespace { .. } => Some(
+            tcl_syntax::naming::variable_local_name_bytes(input.policy().recipe(), input.bytes()),
+        ),
+        _ => Some(input.bytes().to_vec()),
+    };
+    let Some(bytes) = bytes else {
+        return place::unknown_top();
+    };
+    crate::var_resolve::resolve_original_alias_destination_bytes(&bytes, state, registry)
+}
+
+fn original_alias_target(
+    state: &ResolveContext,
+    target: &VariableAliasTarget,
+    operands: &OriginalVariableInvocation,
+    registry: &CommandRegistry,
+    destination: bool,
+) -> Place {
+    let variable = match target {
+        VariableAliasTarget::Global { variable }
+        | VariableAliasTarget::CurrentNamespace { variable }
+        | VariableAliasTarget::CallerSelectedFrame { variable, .. }
+        | VariableAliasTarget::Namespace { variable, .. } => variable,
+    };
+    let Some(input) = operands.subject_input(variable, state) else {
+        return place::unknown_top();
+    };
+    let mut result = if let VariableAliasTarget::CallerSelectedFrame { frame, .. } = target {
+        let level = match frame {
+            CallerFrameSelection::DefaultCaller => Some(FrameLevel::DEFAULT),
+            CallerFrameSelection::Explicit(subject) => {
+                operands.subject_input(subject, state).and_then(|input| {
+                    FrameLevel::parse_native_bytes(input.bytes(), state.invocation_dialect?)
+                        .flatten()
+                })
+            }
+        };
+        let Some(level) = level else {
+            return place::unknown_top();
+        };
+        if level.is_global_frame() {
+            let Some(root) = state
+                .root_namespace_identity()
+                .filter(|root| state.namespace_identities.contains(root))
+            else {
+                return place::unknown_top();
+            };
+            // Absolute zero selects the retained interpreter root table.
+            // This is alias target geometry, not an invented caller frame.
+            crate::var_resolve::resolve_original_namespace_variable_bytes(
+                input.bytes(),
+                &root,
+                state,
+                registry,
+                destination,
+            )
+        } else {
+            let Some(selected) = state.selected_frame_context(level) else {
+                return place::unknown_top();
+            };
+            if destination {
+                crate::var_resolve::resolve_original_alias_destination_bytes(
+                    input.bytes(),
+                    &selected,
+                    registry,
+                )
+            } else {
+                crate::var_resolve::resolve_evaluated_variable_input(
+                    tcl_syntax::naming::NativeVariableInputForm::Combined(input.bytes()),
+                    &selected,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Read,
+                )
+            }
+        }
+    } else {
+        let namespace = match target {
+            VariableAliasTarget::Global { .. } => state.root_namespace_identity(),
+            VariableAliasTarget::CurrentNamespace { .. } => state
+                .namespace_identity
+                .clone()
+                .filter(|_| state.namespace_known),
+            VariableAliasTarget::Namespace { namespace, .. } => operands
+                .subject_input(namespace, state)
+                .and_then(|input| state.namespace_identity_for_original_input(input)),
+            VariableAliasTarget::CallerSelectedFrame { .. } => unreachable!(),
+        };
+        let Some(namespace) = namespace else {
+            return place::unknown_top();
+        };
+        crate::var_resolve::resolve_original_namespace_variable_bytes(
+            input.bytes(),
+            &namespace,
+            state,
+            registry,
+            destination,
+        )
+    };
+    if destination {
+        result.observed = false;
+        if let Some(cell) = &mut result.cell {
+            cell.generation = CellGeneration::Incoming;
+        }
+    }
+    result
 }
 
 fn selected_alias_frame(
@@ -1475,7 +2050,7 @@ fn selected_frame_target(
     let mut target = place::upvar_alias(name, format!("{level:?}:{variable}"), false);
     target.cell = Some(CellIdentity {
         owner: CellOwner::SelectedFrame(level),
-        name: name.to_owned(),
+        name: name.into(),
         generation: CellGeneration::Incoming,
         interpreter: state.interpreter.clone(),
         storage_domain: None,
@@ -1488,6 +2063,15 @@ fn selected_frame_target(
 }
 
 fn apply_trace(state: &mut ResolveContext, trace: &TraceTransition, registry: &CommandRegistry) {
+    apply_trace_with_original(state, trace, registry, None);
+}
+
+fn apply_trace_with_original(
+    state: &mut ResolveContext,
+    trace: &TraceTransition,
+    registry: &CommandRegistry,
+    operands: Option<&OriginalVariableInvocation>,
+) {
     let (target, operations, prefix, added) = match trace {
         TraceTransition::Add {
             target,
@@ -1503,38 +2087,48 @@ fn apply_trace(state: &mut ResolveContext, trace: &TraceTransition, registry: &C
     let TraceTarget::Variable(variable) = target else {
         return;
     };
-    let Some(variable) = variable.literal() else {
-        register_possible_variable_trace(state, place::unknown_top(), operations, prefix, added);
-        return;
+    let target = operands.map_or_else(
+        || {
+            variable.literal().map_or_else(place::unknown_top, |name| {
+                resolve_literal_place(name, state, false, registry)
+            })
+        },
+        |operands| {
+            variable
+                .argument_index()
+                .map_or_else(place::unknown_top, |index| {
+                    operands.trace_subject_access(index, state, registry)
+                })
+        },
+    );
+    let prefix = operands.map_or_else(
+        || {
+            prefix
+                .literal()
+                .map(|value| crate::var_resolve::VariableTracePrefix::Authored(value.to_owned()))
+        },
+        |operands| {
+            crate::var_resolve::VariableTracePrefix::copied_original(
+                operands.subject_input(prefix, state)?,
+                state,
+            )
+        },
+    );
+    let registration = match (operations, prefix) {
+        (tcl_registry::TraceOperationSet::Known(operations), Some(prefix)) => {
+            Some((operations.clone(), prefix))
+        }
+        _ => None,
     };
-    let target = resolve_literal_place(variable, state, false, registry);
     if target.kind == PlaceKind::Unknown {
-        register_possible_variable_trace(state, target, operations, prefix, added);
+        retain_possible_trace_registration(state, target, registration, added);
         return;
     }
     let key = trace_key(&target);
     if added && target.is_global() && !target.dynamic {
         state.namespace_cells.present.insert(cell_key(&target));
     }
-    let known = match (operations, prefix.literal()) {
-        (tcl_registry::TraceOperationSet::Known(operations), Some(prefix)) => {
-            Some((operations.clone(), prefix.to_owned()))
-        }
-        _ => None,
-    };
-    if let Some(registration) = known {
-        if state.traced.contains(&key) && !state.trace_registrations.contains_key(&key) {
-            state.untracked_traces.insert(key.clone());
-        }
-        let registrations = state.trace_registrations.entry(key.clone()).or_default();
-        if added {
-            registrations.push(registration);
-        } else if let Some(index) = registrations.iter().rposition(|item| item == &registration) {
-            registrations.remove(index);
-        }
-    } else {
-        state.untracked_traces.insert(key.clone());
-    }
+    update_trace_registration(state, &key, registration, added);
     let observed = state.untracked_traces.contains(&key)
         || state
             .trace_registrations
@@ -1552,13 +2146,12 @@ fn apply_trace(state: &mut ResolveContext, trace: &TraceTransition, registry: &C
     let aliases = state
         .alias_bindings
         .iter()
-        .filter_map(|(key, alias)| {
-            place::overlap(alias, &target).then(|| {
-                (
-                    key.clone(),
-                    observed || state.unenumerated_observers_may_run(alias),
-                )
-            })
+        .filter(|(_, alias)| place::overlap(alias, &target))
+        .map(|(key, alias)| {
+            (
+                key.clone(),
+                observed || state.unenumerated_observers_may_run(alias),
+            )
         })
         .collect::<Vec<_>>();
     for (key, observed) in aliases {
@@ -1570,29 +2163,68 @@ fn apply_trace(state: &mut ResolveContext, trace: &TraceTransition, registry: &C
     }
 }
 
-fn register_possible_variable_trace(
+fn retain_possible_trace_registration(
     state: &mut ResolveContext,
     target: Place,
-    operations: &tcl_registry::TraceOperationSet,
-    prefix: &tcl_registry::TransitionSubject,
+    registration: Option<(
+        Vec<tcl_registry::TraceOperation>,
+        crate::var_resolve::VariableTracePrefix,
+    )>,
     added: bool,
 ) {
-    // An unresolved removal can only remove registrations. Keeping existing
-    // May registrations is sound; it cannot invent an unknown callback.
-    if !added {
-        return;
-    }
-    match (operations, prefix.literal()) {
-        (tcl_registry::TraceOperationSet::Known(operations), Some(prefix)) => {
+    if added {
+        if let Some((operations, prefix)) = registration {
             state.possible_trace_registrations.push(
                 crate::var_resolve::PossibleVariableTraceRegistration {
                     target,
-                    operations: operations.clone(),
-                    prefix: prefix.to_owned(),
+                    operations,
+                    prefix,
                 },
             );
+        } else {
+            state.mark_unenumerated_variable_observers();
         }
-        _ => state.mark_unenumerated_variable_observers(),
+    }
+}
+
+fn update_trace_registration(
+    state: &mut ResolveContext,
+    key: &crate::var_resolve::VariableCellKey,
+    registration: Option<(
+        Vec<tcl_registry::TraceOperation>,
+        crate::var_resolve::VariableTracePrefix,
+    )>,
+    added: bool,
+) {
+    if let Some(registration) = registration {
+        if state.traced.contains(key) && !state.trace_registrations.contains_key(key) {
+            state.untracked_traces.insert(key.clone());
+        }
+        if added {
+            state
+                .trace_registrations
+                .entry(key.clone())
+                .or_default()
+                .push(registration);
+        } else {
+            let selected = state
+                .trace_registrations
+                .get(key)
+                .and_then(|registrations| {
+                    registrations.iter().rposition(|item| {
+                        item.0 == registration.0 && item.1.removal_matches(&registration.1, state)
+                    })
+                });
+            if let Some(index) = selected {
+                state
+                    .trace_registrations
+                    .get_mut(key)
+                    .expect("selected trace inventory")
+                    .remove(index);
+            }
+        }
+    } else if added {
+        state.untracked_traces.insert(key.clone());
     }
 }
 
@@ -1682,6 +2314,52 @@ pub(crate) fn contents_write_operand(
     !binding_only
 }
 
+fn contents_write_operand_impl(
+    facts: &tcl_registry::InvocationFacts,
+    literal: Option<&str>,
+    index: usize,
+    operands: Option<&OriginalVariableInvocation>,
+) -> bool {
+    if facts.variable_receiver_operand_form(index)
+        == Some(tcl_registry::resolved_invocation::VariableReceiverOperandForm::TraceSubject)
+    {
+        return false;
+    }
+    if operands.is_none() {
+        return contents_write_operand(facts, literal);
+    }
+    let mut binding_only = false;
+    for fact in facts
+        .state_transitions
+        .declared()
+        .into_iter()
+        .flat_map(tcl_registry::StateTransitions::facts)
+    {
+        match &fact.transition {
+            StateTransition::Trace(
+                TraceTransition::Add {
+                    target: TraceTarget::Variable(variable),
+                    ..
+                }
+                | TraceTransition::Remove {
+                    target: TraceTarget::Variable(variable),
+                    ..
+                },
+            ) if variable.argument_index() == Some(index) => binding_only = true,
+            StateTransition::VariableCellAlias(alias)
+                if alias.local.argument_index() == Some(index) =>
+            {
+                if alias.writes_value {
+                    return true;
+                }
+                binding_only = true;
+            }
+            _ => {}
+        }
+    }
+    !binding_only
+}
+
 /// Named cells read by a proved getter or the read side of a cell update.
 /// Literal argument values are already frozen by the caller's invocation owner.
 #[must_use]
@@ -1690,6 +2368,32 @@ pub fn source_variable_read_places(
     arguments: tcl_registry::InvocationArguments<'_>,
     state: &ResolveContext,
     registry: &CommandRegistry,
+) -> Vec<Place> {
+    source_variable_read_places_with_original_operands_impl(facts, arguments, state, registry, None)
+}
+
+pub(crate) fn source_variable_read_places_with_original_operands(
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    operands: &OriginalVariableInvocation,
+) -> Vec<Place> {
+    source_variable_read_places_with_original_operands_impl(
+        facts,
+        arguments,
+        state,
+        registry,
+        Some(operands),
+    )
+}
+
+fn source_variable_read_places_with_original_operands_impl(
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    operands: Option<&OriginalVariableInvocation>,
 ) -> Vec<Place> {
     if facts
         .state_transitions
@@ -1710,13 +2414,22 @@ pub fn source_variable_read_places(
             {
                 return None;
             }
-            Some(variable_operand_access(
+            let index = facts.argument_offset + usize::from(index);
+            if facts.variable_receiver_operand_form(index)
+                == Some(
+                    tcl_registry::resolved_invocation::VariableReceiverOperandForm::TraceSubject,
+                )
+            {
+                return None;
+            }
+            Some(variable_operand_access_impl(
                 arguments,
-                facts.argument_offset + usize::from(index),
+                index,
                 state,
                 registry,
                 tcl_registry::TraceOperation::Read,
                 facts.traits.contains(Traits::WHOLE_ARRAY_ARG),
+                operands,
             ))
         })
         .collect()
@@ -1728,6 +2441,92 @@ pub(crate) fn variable_output_operand_access(
     index: usize,
     state: &ResolveContext,
     registry: &CommandRegistry,
+) -> Place {
+    variable_output_operand_access_with_original_operands_impl(
+        facts, arguments, index, state, registry, None,
+    )
+}
+
+pub(crate) fn variable_output_operand_access_with_original_operands(
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    index: usize,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    operands: &OriginalVariableInvocation,
+) -> Place {
+    variable_output_operand_access_with_original_operands_impl(
+        facts,
+        arguments,
+        index,
+        state,
+        registry,
+        Some(operands),
+    )
+}
+
+/// Actual normal value-definition receivers at their effective operand
+/// ordinals. Trace registrations, binding-only declarations and destruction
+/// remain independent from value definitions.
+pub(crate) fn source_variable_definitions_with_original_operands(
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    order: Option<&[usize]>,
+    operands: &OriginalVariableInvocation,
+) -> Vec<(usize, Place)> {
+    if facts.traits.contains(Traits::DESTROYS_VARIABLE) {
+        return Vec::new();
+    }
+    let uncertain = uncertain_variable_output_addresses_with_original_operands_impl(
+        facts,
+        arguments,
+        state,
+        registry,
+        order,
+        Some(operands),
+    );
+    facts
+        .arg_roles
+        .iter()
+        .filter_map(|&(index, role)| {
+            let index = facts.argument_offset + usize::from(index);
+            if role != tcl_registry::ArgRole::VarWrite
+                || !contents_write_operand_impl(
+                    facts,
+                    arguments.literal_at(index),
+                    index,
+                    Some(operands),
+                )
+            {
+                return None;
+            }
+            Some((
+                index,
+                if uncertain.contains(&index) {
+                    project_access(
+                        place::unknown_top(),
+                        state,
+                        tcl_registry::TraceOperation::Write,
+                    )
+                } else {
+                    variable_output_operand_access_with_original_operands(
+                        facts, arguments, index, state, registry, operands,
+                    )
+                },
+            ))
+        })
+        .collect()
+}
+
+fn variable_output_operand_access_with_original_operands_impl(
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    index: usize,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    operands: Option<&OriginalVariableInvocation>,
 ) -> Place {
     let operation = if facts.traits.contains(Traits::DESTROYS_VARIABLE) {
         tcl_registry::TraceOperation::Unset
@@ -1743,8 +2542,10 @@ pub(crate) fn variable_output_operand_access(
         .find_map(|fact| {
             if let StateTransition::VariableCellAlias(alias) = &fact.transition
                 && alias.writes_value
-                && name.is_some()
-                && alias.local.literal() == name
+                && operands.map_or_else(
+                    || name.is_some() && alias.local.literal() == name,
+                    |_| alias.local.argument_index() == Some(index),
+                )
             {
                 Some(alias)
             } else {
@@ -1753,18 +2554,24 @@ pub(crate) fn variable_output_operand_access(
         });
     alias.map_or_else(
         || {
-            variable_operand_access(
+            variable_operand_access_impl(
                 arguments,
                 index,
                 state,
                 registry,
                 operation,
                 facts.traits.contains(Traits::WHOLE_ARRAY_ARG),
+                operands,
             )
         },
         |alias| {
             project_access(
-                alias_target(state, &alias.target, registry),
+                operands.map_or_else(
+                    || alias_target(state, &alias.target, registry),
+                    |operands| {
+                        original_alias_target(state, &alias.target, operands, registry, false)
+                    },
+                ),
                 state,
                 operation,
             )
@@ -1783,6 +2590,19 @@ pub fn uncertain_variable_output_addresses(
     registry: &CommandRegistry,
     order: Option<&[usize]>,
 ) -> std::collections::BTreeSet<usize> {
+    uncertain_variable_output_addresses_with_original_operands_impl(
+        facts, arguments, state, registry, order, None,
+    )
+}
+
+fn uncertain_variable_output_addresses_with_original_operands_impl(
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    order: Option<&[usize]>,
+    operands: Option<&OriginalVariableInvocation>,
+) -> std::collections::BTreeSet<usize> {
     let outputs: Vec<_> = facts
         .arg_roles
         .iter()
@@ -1791,11 +2611,13 @@ pub fn uncertain_variable_output_addresses(
             (role == tcl_registry::ArgRole::VarWrite
                 && output_commitment(facts, arguments, index)
                     != Some(tcl_registry::variable_output::VariableOutputCommitment::Unchanged)
-                && contents_write_operand(facts, arguments.literal_at(index)))
+                && contents_write_operand_impl(facts, arguments.literal_at(index), index, operands))
             .then(|| {
                 (
                     index,
-                    variable_output_operand_access(facts, arguments, index, state, registry),
+                    variable_output_operand_access_with_original_operands_impl(
+                        facts, arguments, index, state, registry, operands,
+                    ),
                 )
             })
         })
@@ -1857,12 +2679,49 @@ pub fn source_variable_write_places_with_output_order(
     registry: &CommandRegistry,
     order: Option<&[usize]>,
 ) -> Vec<Place> {
-    let uncertain = uncertain_variable_output_addresses(facts, arguments, state, registry, order);
+    source_variable_write_places_with_output_order_and_original_operands_impl(
+        facts, arguments, state, registry, order, None,
+    )
+}
+
+pub(crate) fn source_variable_write_places_with_output_order_and_original_operands(
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    order: Option<&[usize]>,
+    operands: &OriginalVariableInvocation,
+) -> Vec<Place> {
+    source_variable_write_places_with_output_order_and_original_operands_impl(
+        facts,
+        arguments,
+        state,
+        registry,
+        order,
+        Some(operands),
+    )
+}
+
+fn source_variable_write_places_with_output_order_and_original_operands_impl(
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    order: Option<&[usize]>,
+    operands: Option<&OriginalVariableInvocation>,
+) -> Vec<Place> {
+    let uncertain = uncertain_variable_output_addresses_with_original_operands_impl(
+        facts, arguments, state, registry, order, operands,
+    );
     let unknown_targets: Vec<_> = uncertain
         .into_iter()
-        .map(|index| variable_output_operand_access(facts, arguments, index, state, registry))
+        .map(|index| {
+            variable_output_operand_access_with_original_operands_impl(
+                facts, arguments, index, state, registry, operands,
+            )
+        })
         .collect();
-    unordered_source_variable_write_places(facts, arguments, state, registry)
+    unordered_source_variable_write_places(facts, arguments, state, registry, operands)
         .into_iter()
         .map(|place| {
             if unknown_targets.contains(&place) {
@@ -1897,17 +2756,60 @@ pub fn source_variable_write_places(
     )
 }
 
+pub(crate) fn source_variable_write_places_with_original_operands(
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    operands: &OriginalVariableInvocation,
+) -> Vec<Place> {
+    let order = default_variable_output_order(facts);
+    source_variable_write_places_with_output_order_and_original_operands(
+        facts,
+        arguments,
+        state,
+        registry,
+        order.as_deref(),
+        operands,
+    )
+}
+
+fn raw_static_unset_operand_error(
+    arguments: tcl_registry::InvocationArguments<'_>,
+    index: usize,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    operands: Option<&OriginalVariableInvocation>,
+) -> bool {
+    operands.map_or_else(
+        || {
+            arguments
+                .literal_at(index)
+                .is_some_and(|name| state.raw_static_unset_error(name, registry))
+        },
+        |operands| {
+            operands
+                .raw_unset_slot(index, state, registry)
+                .is_some_and(|slot| state.raw_static_unset_error_at_slot(&slot))
+        },
+    )
+}
+
 fn unordered_source_variable_write_places(
     facts: &tcl_registry::InvocationFacts,
     arguments: tcl_registry::InvocationArguments<'_>,
     state: &ResolveContext,
     registry: &CommandRegistry,
+    operands: Option<&OriginalVariableInvocation>,
 ) -> Vec<Place> {
     let mut writes = namespace_destruction_from_facts(facts, state);
     let aliases = invocation_variable_aliases(facts);
     for alias in &aliases {
         if alias.writes_value {
-            writes.push(alias_target(state, &alias.target, registry));
+            writes.push(operands.map_or_else(
+                || alias_target(state, &alias.target, registry),
+                |operands| original_alias_target(state, &alias.target, operands, registry, false),
+            ));
         }
     }
     for &(index, role) in &facts.arg_roles {
@@ -1919,50 +2821,30 @@ fn unordered_source_variable_write_places(
         {
             continue;
         }
-        let literal = arguments.literal_at(facts.argument_offset + usize::from(index));
+        let index = facts.argument_offset + usize::from(index);
+        let literal = arguments.literal_at(index);
         if facts.traits.contains(Traits::DESTROYS_VARIABLE)
-            && literal.is_some_and(|name| state.raw_static_unset_error(name, registry))
+            && raw_static_unset_operand_error(arguments, index, state, registry, operands)
         {
             // A direct Jim static fallback is not an own local table entry.
             // Unset reports missing (or succeeds under -nocomplain) without
             // destroying the retained VarVal.
             continue;
         }
-        if !contents_write_operand(facts, literal) {
+        if !contents_write_operand_impl(facts, literal, index, operands) {
             continue;
         }
-        if aliases
-            .iter()
-            .any(|alias| !alias.writes_value && alias.local.literal() == literal)
-        {
-            continue;
-        }
-        let target = literal.map_or_else(
-            || {
-                variable_operand_access(
-                    arguments,
-                    facts.argument_offset + usize::from(index),
-                    state,
-                    registry,
-                    tcl_registry::TraceOperation::Write,
-                    facts.traits.contains(Traits::WHOLE_ARRAY_ARG),
+        if aliases.iter().any(|alias| {
+            !alias.writes_value
+                && operands.map_or_else(
+                    || alias.local.literal() == literal,
+                    |_| alias.local.argument_index() == Some(index),
                 )
-            },
-            |name| {
-                if let Some(alias) = aliases
-                    .iter()
-                    .find(|alias| alias.local.literal() == Some(name))
-                {
-                    alias_target(state, &alias.target, registry)
-                } else {
-                    resolve_literal_place(
-                        name,
-                        state,
-                        facts.traits.contains(Traits::WHOLE_ARRAY_ARG),
-                        registry,
-                    )
-                }
-            },
+        }) {
+            continue;
+        }
+        let target = source_write_operand_target(
+            facts, arguments, index, state, registry, operands, &aliases,
         );
         let target = project_access(
             target,
@@ -1994,6 +2876,56 @@ fn unordered_source_variable_write_places(
         .into_iter()
         .map(|place| project_access(place, state, operation))
         .collect()
+}
+
+fn source_write_operand_target(
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    index: usize,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    operands: Option<&OriginalVariableInvocation>,
+    aliases: &[&VariableCellAliasTransition],
+) -> Place {
+    let literal = arguments.literal_at(index);
+    if let Some(operands) = operands {
+        variable_output_operand_access_with_original_operands_impl(
+            facts,
+            arguments,
+            index,
+            state,
+            registry,
+            Some(operands),
+        )
+    } else {
+        literal.map_or_else(
+            || {
+                variable_operand_access(
+                    arguments,
+                    index,
+                    state,
+                    registry,
+                    tcl_registry::TraceOperation::Write,
+                    facts.traits.contains(Traits::WHOLE_ARRAY_ARG),
+                )
+            },
+            |name| {
+                if let Some(alias) = aliases
+                    .iter()
+                    .find(|alias| alias.local.literal() == Some(name))
+                {
+                    alias_target(state, &alias.target, registry)
+                } else {
+                    resolve_literal_place(
+                        name,
+                        state,
+                        facts.traits.contains(Traits::WHOLE_ARRAY_ARG),
+                        registry,
+                    )
+                }
+            },
+        )
+    }
 }
 
 fn invocation_write_trace_operation(
@@ -2064,6 +2996,21 @@ pub fn variable_operand_access(
     } else {
         project_access(place::unknown_top(), context, operation)
     }
+}
+
+fn variable_operand_access_impl(
+    arguments: tcl_registry::InvocationArguments<'_>,
+    index: usize,
+    context: &ResolveContext,
+    registry: &CommandRegistry,
+    operation: tcl_registry::TraceOperation,
+    whole_array: bool,
+    operands: Option<&OriginalVariableInvocation>,
+) -> Place {
+    operands.map_or_else(
+        || variable_operand_access(arguments, index, context, registry, operation, whole_array),
+        |operands| operands.access(index, context, registry, operation, whole_array),
+    )
 }
 
 fn scoped_world_write_places(
@@ -2534,6 +3481,7 @@ fn detach_retained_destructions(
     writes: &mut Vec<Place>,
     source: u32,
     registry: &CommandRegistry,
+    operands: Option<&OriginalVariableInvocation>,
 ) {
     if !facts.traits.contains(Traits::DESTROYS_VARIABLE) {
         return;
@@ -2542,12 +3490,26 @@ fn detach_retained_destructions(
         if role != tcl_registry::ArgRole::VarWrite {
             continue;
         }
-        let Some(name) = arguments.literal_at(facts.argument_offset + usize::from(index)) else {
-            continue;
-        };
-        let before = resolve_literal_place(name, state, false, registry);
-        if !before.observed && state.detach_retained_binding(name, source, registry) {
-            writes.retain(|target| target != &before);
+        let index = facts.argument_offset + usize::from(index);
+        if let Some(operands) = operands {
+            let Some(slot) = operands.raw_unset_slot(index, state, registry) else {
+                continue;
+            };
+            let before = operands.access(
+                index,
+                state,
+                registry,
+                tcl_registry::TraceOperation::Unset,
+                false,
+            );
+            if !before.observed && state.detach_retained_binding_at_slot(&slot, source) {
+                writes.retain(|target| target != &before);
+            }
+        } else if let Some(name) = arguments.literal_at(index) {
+            let before = resolve_literal_place(name, state, false, registry);
+            if !before.observed && state.detach_retained_binding(name, source, registry) {
+                writes.retain(|target| target != &before);
+            }
         }
     }
 }
@@ -2558,47 +3520,45 @@ fn invalidate_literal_writes(state: &mut ResolveContext, writes: &[Place]) {
     }
 }
 
-pub(crate) fn source_literal_store(
+fn source_literal_store(
     facts: &tcl_registry::InvocationFacts,
     arguments: tcl_registry::InvocationArguments<'_>,
     state: &ResolveContext,
     registry: &CommandRegistry,
-) -> Option<(String, String)> {
+    operands: Option<&OriginalVariableInvocation>,
+) -> Option<(Place, String)> {
     use tcl_registry::SemanticOperationId::StructuredLowering;
     use tcl_registry::hooks::LoweringHookId;
     let offset = facts.argument_offset;
     let count = arguments.exact_argv_len()?.checked_sub(offset)?;
-    let name = arguments.literal_at(offset)?;
+    let target = variable_operand_access_impl(
+        arguments,
+        offset,
+        state,
+        registry,
+        tcl_registry::TraceOperation::Write,
+        false,
+        operands,
+    );
+    if target.kind == PlaceKind::Unknown || target.observed {
+        return None;
+    }
     if facts.successful_handler
         == Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::InitialiseEmptyVariable)
     {
-        let target = resolve_literal_access(
-            name,
-            state,
-            false,
-            registry,
-            tcl_registry::TraceOperation::Read,
-        );
-        return (!target.observed
-            && state.contents_presence(&target)
-                == crate::var_resolve::ContentsPresence::Undefined)
-            .then(|| (name.to_owned(), String::new()));
+        let read = project_access(target.clone(), state, tcl_registry::TraceOperation::Read);
+        return (!read.observed
+            && state.contents_presence(&read) == crate::var_resolve::ContentsPresence::Undefined)
+            .then_some((target, String::new()));
     }
-    match facts.operation {
-        StructuredLowering(LoweringHookId::Set) if count == 2 => Some((
-            name.to_owned(),
-            arguments.literal_at(offset + 1)?.to_owned(),
-        )),
+    let value = match facts.operation {
+        StructuredLowering(LoweringHookId::Set) if count == 2 => {
+            arguments.literal_at(offset + 1)?.to_owned()
+        }
         StructuredLowering(LoweringHookId::Incr) if count == 1 || count == 2 => {
-            let target = resolve_literal_access(
-                name,
-                state,
-                false,
-                registry,
-                tcl_registry::TraceOperation::Read,
-            );
+            let read = project_access(target.clone(), state, tcl_registry::TraceOperation::Read);
             let dialect = state.invocation_dialect.or_else(|| arguments.dialect());
-            let initial = if state.contents_presence(&target)
+            let initial = if state.contents_presence(&read)
                 == crate::var_resolve::ContentsPresence::Undefined
                 && dialect.and_then(|dialect| {
                     dialect.native_rmw_read_policy(
@@ -2608,13 +3568,13 @@ pub(crate) fn source_literal_store(
             {
                 "0"
             } else {
-                state.literal_value(name, registry)?
+                state.literal_contents_at(&read, registry)?
             };
-            let value = source_increment_contents(initial, arguments, offset, state, registry)?;
-            Some((name.to_owned(), value))
+            source_increment_contents(initial, arguments, offset, state, registry)?
         }
-        _ => None,
-    }
+        _ => return None,
+    };
+    Some((target, value))
 }
 
 /// Compute increment bytes from an already captured value, without resolving its name again.
@@ -2670,12 +3630,13 @@ fn output_commitment(
         .find_map(|(argument, commitment)| (argument == index).then_some(commitment))
 }
 
-fn normal_output_is_written(
+fn normal_output_is_written_impl(
     facts: &tcl_registry::InvocationFacts,
     arguments: tcl_registry::InvocationArguments<'_>,
     target: &Place,
     state: &ResolveContext,
     registry: &CommandRegistry,
+    operands: Option<&OriginalVariableInvocation>,
 ) -> bool {
     if target.observed || target.dynamic || target.cell.is_none() {
         return false;
@@ -2685,8 +3646,9 @@ fn normal_output_is_written(
         .is_some_and(|commitments| {
             commitments.into_iter().any(|(index, commitment)| {
                 commitment == tcl_registry::variable_output::VariableOutputCommitment::Written
-                    && variable_output_operand_access(facts, arguments, index, state, registry)
-                        == *target
+                    && variable_output_operand_access_with_original_operands_impl(
+                        facts, arguments, index, state, registry, operands,
+                    ) == *target
             })
         })
 }
@@ -2725,15 +3687,93 @@ pub fn transfer_source_namespace_cells_with_output_order(
     source_offset: u32,
     output_order: Option<&[usize]>,
 ) {
+    transfer_source_namespace_cells_with_input(
+        state,
+        facts,
+        arguments,
+        registry,
+        SourceNamespaceTransfer::new(script_interpreted, source_offset, output_order),
+    );
+}
+
+/// Original source-variable transfer facets retained independently of display names.
+#[derive(Clone, Copy)]
+pub(crate) struct SourceNamespaceTransfer<'a> {
+    script_interpreted: bool,
+    source_offset: u32,
+    output_order: Option<&'a [usize]>,
+    original_locals: &'a [Option<
+        crate::command_binding::original_variable_compilation::OriginalCompiledNamespaceLocal,
+    >],
+    operands: Option<&'a OriginalVariableInvocation>,
+    namespace_operations:
+        crate::command_binding::original_namespace_ensure::OriginalNamespaceCellOperations<'a>,
+}
+
+impl<'a> SourceNamespaceTransfer<'a> {
+    pub(crate) fn new(
+        script_interpreted: bool,
+        source_offset: u32,
+        output_order: Option<&'a [usize]>,
+    ) -> Self {
+        Self {
+            script_interpreted,
+            source_offset,
+            output_order,
+            original_locals: &[],
+            operands: None,
+            namespace_operations: crate::command_binding::original_namespace_ensure::OriginalNamespaceCellOperations::default(),
+        }
+    }
+
+    pub(crate) fn with_original_operands(
+        mut self,
+        operands: &'a OriginalVariableInvocation,
+    ) -> Self {
+        self.original_locals = &operands.compiled_locals;
+        self.operands = Some(operands);
+        self
+    }
+
+    pub(crate) fn with_namespace_operations(
+        mut self,
+        operations: crate::command_binding::original_namespace_ensure::OriginalNamespaceCellOperations<'a>,
+    ) -> Self {
+        self.namespace_operations = operations;
+        self
+    }
+}
+
+pub(crate) fn transfer_source_namespace_cells_with_input(
+    state: &mut ResolveContext,
+    facts: &tcl_registry::InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+    registry: &CommandRegistry,
+    input: SourceNamespaceTransfer<'_>,
+) {
     use tcl_registry::world_effect::{CallbackKinds, EffectAccessMode, WorldStateDomain};
-    let uncertain =
-        uncertain_variable_output_addresses(facts, arguments, state, registry, output_order);
-    let mut writes = source_variable_write_places_with_output_order(
+    let SourceNamespaceTransfer {
+        script_interpreted,
+        source_offset,
+        output_order,
+        operands,
+        ..
+    } = input;
+    let uncertain = uncertain_variable_output_addresses_with_original_operands_impl(
         facts,
         arguments,
         state,
         registry,
         output_order,
+        operands,
+    );
+    let mut writes = source_variable_write_places_with_output_order_and_original_operands_impl(
+        facts,
+        arguments,
+        state,
+        registry,
+        output_order,
+        operands,
     );
     detach_retained_destructions(
         state,
@@ -2742,51 +3782,42 @@ pub fn transfer_source_namespace_cells_with_output_order(
         &mut writes,
         source_offset,
         registry,
+        operands,
     );
     let trace_callback = writes.iter().any(|target| target.observed)
-        || source_variable_read_places(facts, arguments, state, registry)
-            .iter()
-            .any(|target| target.observed);
-    let literal_store = source_literal_store(facts, arguments, state, registry);
+        || source_variable_read_places_with_original_operands_impl(
+            facts, arguments, state, registry, operands,
+        )
+        .iter()
+        .any(|target| target.observed);
+    let literal_store = source_literal_store(facts, arguments, state, registry, operands);
     invalidate_literal_writes(state, &writes);
-    for target in &writes {
-        if facts.traits.contains(Traits::DESTROYS_VARIABLE)
-            && target
-                .index
-                .as_ref()
-                .is_some_and(|index| index.kind != place::IndexKind::Literal)
-        {
-            state.record_unknown_element_destruction(target);
-        } else if !facts.traits.contains(Traits::DESTROYS_VARIABLE)
-            || target.kind == PlaceKind::Unknown
-        {
-            state.record_contents_write(
-                target,
-                source_offset,
-                conditional_contents_write(facts, target, state),
-            );
-        }
-    }
-    if let StateTransitionKnowledge::Declared(transitions) = &facts.state_transitions {
-        for fact in transitions.facts() {
-            if script_interpreted && matches!(fact.transition, StateTransition::Widen(_)) {
-                continue;
-            }
-            if let StateTransition::VariableCellAlias(alias) = &fact.transition {
-                let target = alias_target(state, &alias.target, registry);
-                if target.is_global() && !target.dynamic {
-                    state.namespace_cells.present.insert(cell_key(&target));
-                }
-            }
-            apply_transition(state, &fact.transition, registry, source_offset);
-        }
-    }
-    update_written_namespace_cells(state, facts, arguments, registry, source_offset, &uncertain);
+    record_source_contents_writes(state, facts, &writes, source_offset);
+    transfer_source_state_transitions(state, facts, registry, input);
+    update_written_namespace_cells(
+        state,
+        facts,
+        arguments,
+        registry,
+        source_offset,
+        &uncertain,
+        operands,
+    );
     if trace_callback {
         state.widen();
     }
-    if !trace_callback && let Some((name, value)) = literal_store {
-        state.define_literal(&name, &value, registry);
+    if !trace_callback && let Some((mut receiver, value)) = literal_store {
+        let generation = state
+            .generations
+            .get(&cell_key(&receiver))
+            .copied()
+            .unwrap_or_default();
+        if let Some(cell) = &mut receiver.cell {
+            cell.generation = generation;
+        }
+        if generation != CellGeneration::Unknown && !state.store_would_error(&receiver) {
+            state.publish_captured_store(&receiver, Some(&value), source_offset);
+        }
     }
     let trace_only = facts.effects.callback().kinds == CallbackKinds::TRACE;
     if facts.effects.requires_world_barrier()
@@ -2806,6 +3837,101 @@ pub fn transfer_source_namespace_cells_with_output_order(
     }
 }
 
+fn record_source_contents_writes(
+    state: &mut ResolveContext,
+    facts: &tcl_registry::InvocationFacts,
+    writes: &[Place],
+    source_offset: u32,
+) {
+    for target in writes {
+        if facts.traits.contains(Traits::DESTROYS_VARIABLE)
+            && target
+                .index
+                .as_ref()
+                .is_some_and(|index| index.kind != place::IndexKind::Literal)
+        {
+            state.record_unknown_element_destruction(target);
+        } else if !facts.traits.contains(Traits::DESTROYS_VARIABLE)
+            || target.kind == PlaceKind::Unknown
+        {
+            state.record_contents_write(
+                target,
+                source_offset,
+                conditional_contents_write(facts, target, state),
+            );
+        }
+    }
+}
+
+fn transfer_source_state_transitions(
+    state: &mut ResolveContext,
+    facts: &tcl_registry::InvocationFacts,
+    registry: &CommandRegistry,
+    input: SourceNamespaceTransfer<'_>,
+) {
+    let SourceNamespaceTransfer {
+        script_interpreted,
+        source_offset,
+        original_locals,
+        operands,
+        namespace_operations,
+        ..
+    } = input;
+    if let StateTransitionKnowledge::Declared(transitions) = &facts.state_transitions {
+        for fact in transitions.facts() {
+            if script_interpreted && matches!(fact.transition, StateTransition::Widen(_)) {
+                continue;
+            }
+            if let StateTransition::VariableCellAlias(alias) = &fact.transition {
+                let target = operands.map_or_else(
+                    || alias_target(state, &alias.target, registry),
+                    |operands| {
+                        original_alias_target(state, &alias.target, operands, registry, false)
+                    },
+                );
+                if target.is_global() && !target.dynamic {
+                    state.namespace_cells.present.insert(cell_key(&target));
+                }
+            }
+            if let StateTransition::VariableCellAlias(alias) = &fact.transition {
+                let local = alias.local.argument_index().and_then(|index| {
+                    operands.map_or_else(
+                        || original_locals.get(index).and_then(Option::as_ref),
+                        |operands| operands.compiled_local(index),
+                    )
+                });
+                bind_alias_with_compiled_local(state, alias, registry, local, operands);
+            } else if let StateTransition::Trace(trace) = &fact.transition {
+                apply_trace_with_original(state, trace, registry, operands);
+            } else if let StateTransition::Namespace(NamespaceTransition::Ensure {
+                namespace: NamespaceTransitionTarget::Named(subject),
+            }) = &fact.transition
+                && let Some(namespace) = namespace_operations.ensures.and_then(|ensured| {
+                    ensured
+                        .namespace(subject, operands, state, source_offset)
+                        .cloned()
+                })
+            {
+                // naming.namespace.original-counted-namespace-allocation
+                // docs/design/analysis/name-resolution-proofs/namespace-original-counted-allocation.md
+                state.namespace_identities.insert(namespace.clone());
+                state.namespace_addressable_identities.insert(namespace);
+            } else if let StateTransition::Namespace(NamespaceTransition::Delete {
+                namespace: NamespaceTransitionTarget::Named(subject),
+            }) = &fact.transition
+                && namespace_operations
+                    .deletions
+                    .is_some_and(|retired| retired.matches(subject, operands, state, source_offset))
+            {
+                // The canonical command transfer has already retired this exact
+                // namespace incarnation. Do not resolve its old name again.
+            } else {
+                apply_transition(state, &fact.transition, registry, source_offset);
+            }
+        }
+    }
+}
+
 fn update_written_namespace_cells(
     state: &mut ResolveContext,
     facts: &tcl_registry::InvocationFacts,
@@ -2813,6 +3939,7 @@ fn update_written_namespace_cells(
     registry: &CommandRegistry,
     source_offset: u32,
     uncertain_outputs: &std::collections::BTreeSet<usize>,
+    operands: Option<&OriginalVariableInvocation>,
 ) {
     let destroying = facts.traits.contains(Traits::DESTROYS_VARIABLE);
     let conditional = facts.traits.contains(Traits::CONDITIONAL_VARIABLE_WRITE);
@@ -2830,11 +3957,22 @@ fn update_written_namespace_cells(
                 state.namespace_cells.widen();
                 continue;
             }
-            let literal = arguments.literal_at(facts.argument_offset + usize::from(index));
-            if !contents_write_operand(facts, literal) {
+            let argument = facts.argument_offset + usize::from(index);
+            if destroying
+                && raw_static_unset_operand_error(arguments, argument, state, registry, operands)
+            {
                 continue;
             }
-            let target = variable_operand_access(
+            let literal = arguments.literal_at(argument);
+            if !contents_write_operand_impl(
+                facts,
+                literal,
+                facts.argument_offset + usize::from(index),
+                operands,
+            ) {
+                continue;
+            }
+            let target = variable_operand_access_impl(
                 arguments,
                 facts.argument_offset + usize::from(index),
                 state,
@@ -2845,6 +3983,7 @@ fn update_written_namespace_cells(
                     tcl_registry::TraceOperation::Write
                 },
                 facts.traits.contains(Traits::WHOLE_ARRAY_ARG),
+                operands,
             );
             if target.kind == PlaceKind::Unknown {
                 // The writer can select either current or global candidate.
@@ -2852,7 +3991,9 @@ fn update_written_namespace_cells(
                 continue;
             }
             if destroying {
-                if let Some(name) = literal {
+                if operands.is_some() {
+                    destroy_captured_cell(state, &target, source_offset, registry);
+                } else if let Some(name) = literal {
                     destroy_root(state, name, source_offset, registry);
                 } else {
                     state.record_unknown_element_destruction(&target);
@@ -2904,17 +4045,383 @@ pub fn fresh_namespace_cells(
 #[cfg(test)]
 mod tests {
 
+    fn original_trace_inputs(
+        profile: &str,
+        prefix: &[u8],
+        label: &[u8],
+    ) -> (ResolveContext, OriginalVariableInvocation) {
+        original_trace_subject_inputs(profile, b"v", prefix, label)
+    }
+
+    fn original_trace_subject_inputs(
+        profile: &str,
+        subject: &[u8],
+        prefix: &[u8],
+        label: &[u8],
+    ) -> (ResolveContext, OriginalVariableInvocation) {
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+        let dialect = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
+        );
+        let policy = dialect.authored_name_policy().unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+        let mut source = label.to_vec();
+        source.extend_from_slice(b"\ntrace add variable {");
+        source.extend_from_slice(subject);
+        source.extend_from_slice(b"} read {");
+        source.extend_from_slice(prefix);
+        source.push(b'}');
+        let image = tcl_lexer::SourceImage::native(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let inputs = plan
+            .commands
+            .last()
+            .unwrap()
+            .words
+            .iter()
+            .skip(1)
+            .map(|word| {
+                Some(SignatureSourceNameInput::OriginalWord(
+                    SignatureSourceNameKey::from_original_native_word(
+                        word,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                        policy,
+                    )
+                    .unwrap(),
+                ))
+            })
+            .collect();
+        let mut state = ResolveContext::for_function("::p");
+        state.invocation_dialect = Some(dialect);
+        state.execution_name_policy = Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
+            policy,
+        ));
+        let root = crate::command_binding::SourceNamespaceKey::authored("::");
+        state.retain_namespace_world(root.clone(), [root], Some(policy.recipe()));
+        (
+            state,
+            OriginalVariableInvocation::from_original_inputs(inputs, Vec::new()),
+        )
+    }
+
+    fn selected_variable_trace(profile: &str, remove: bool) -> TraceTransition {
+        let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+        let dialect = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
+        );
+        let facts = registry
+            .resolve_invocation(
+                "trace",
+                &[
+                    if remove { "remove" } else { "add" },
+                    "variable",
+                    "MISLEADING_TARGET",
+                    "read",
+                    "MISLEADING_PREFIX",
+                ],
+                dialect.authoring_query(),
+            )
+            .unwrap()
+            .facts();
+        let StateTransition::Trace(trace) =
+            &facts.state_transitions.declared().unwrap().facts()[0].transition
+        else {
+            panic!("selected variable trace");
+        };
+        trace.clone()
+    }
+
+    // Native proof: naming.variable.copied-prefix-storage-removal-report-evaluation
+    // docs/design/analysis/name-resolution-proofs/copied-prefix-storage-removal-report-evaluation.md
+    #[test]
+    fn original_variable_trace_copies_producers_and_removes_by_selected_native_purpose() {
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameValue};
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+            let (mut state, mut operands) =
+                original_trace_inputs(profile, b"watch\0tail extra", b"# first");
+            let producer = crate::command_binding::original_name_value::OriginalProducedNameValue::from_source_input(
+                operands.input(4, &state).unwrap(), &state,
+            ).unwrap();
+            operands.inputs[4] = Some(SignatureSourceNameInput::OriginalValue(
+                SignatureSourceNameValue::from_original_produced_value(&producer),
+            ));
+            apply_trace_with_original(
+                &mut state,
+                &selected_variable_trace(profile, false),
+                registry,
+                Some(&operands),
+            );
+            let receiver = operands.access(
+                2,
+                &state,
+                registry,
+                tcl_registry::TraceOperation::Read,
+                false,
+            );
+            let key = trace_key(&receiver);
+            let registration = &state.trace_registrations.get(&key).unwrap()[0];
+            let crate::var_resolve::VariableTracePrefix::Original(prefix) = &registration.1 else {
+                panic!("original copied data");
+            };
+            assert_eq!(prefix.input().bytes(), b"watch\0tail extra");
+            assert!(prefix.input().original_word_key().is_none());
+            let stored = prefix.clone();
+            state.invalidate_original_contents();
+            assert!(!producer.is_current(&state));
+            assert!(stored.input().is_current(&state));
+            assert!(operands.input(4, &state).is_none());
+            let (_, short) = original_trace_inputs(profile, b"watch", b"# removal short");
+            apply_trace_with_original(
+                &mut state,
+                &selected_variable_trace(profile, true),
+                registry,
+                Some(&short),
+            );
+            assert_eq!(state.trace_registrations.get(&key).unwrap().len(), 1);
+            let (_, other_tail) =
+                original_trace_inputs(profile, b"watch\0fail extra", b"# removal equal count");
+            apply_trace_with_original(
+                &mut state,
+                &selected_variable_trace(profile, true),
+                registry,
+                Some(&other_tail),
+            );
+            assert!(state.trace_registrations.get(&key).unwrap().is_empty());
+            assert!(!state.traced.contains(&key));
+            assert!(stored.input().is_current(&state));
+            let mut missing = state.clone();
+            missing.execution_name_policy = None;
+            assert!(!stored.input().is_current(&missing));
+        }
+    }
+
+    #[test]
+    // Native proof: naming.variable.trace-subject-counted-zero-address
+    // docs/design/analysis/name-resolution-proofs/trace-subject-counted-zero-address.md
+    fn original_trace_subject_keeps_cstring_purpose_separate_from_counted_runtime_lookup() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+            let (mut state, operands) = original_trace_subject_inputs(
+                profile,
+                b"v\0tail(k)",
+                b"watch\0tail extra",
+                b"# subject purpose",
+            );
+            let subject = operands.trace_subject_access(2, &state, registry);
+            let ordinary = operands.access(
+                2,
+                &state,
+                registry,
+                tcl_registry::TraceOperation::Read,
+                false,
+            );
+            assert_eq!(subject.cell.as_ref().unwrap().name.as_bytes(), b"v");
+            assert!(subject.index.is_none());
+            if matches!(profile, "tcl9.0" | "tcl9.1") {
+                // The combined object parser cannot see a suffix beyond the
+                // raw zero; its retained root remains the whole object.
+                assert_eq!(
+                    ordinary.cell.as_ref().unwrap().name.as_bytes(),
+                    b"v\0tail(k)"
+                );
+                assert!(ordinary.index.is_none());
+                assert_ne!(trace_key(&ordinary), trace_key(&subject));
+            }
+            apply_trace_with_original(
+                &mut state,
+                &selected_variable_trace(profile, false),
+                registry,
+                Some(&operands),
+            );
+            let key = trace_key(&subject);
+            let registrations = state.trace_registrations.get(&key).unwrap();
+            assert_eq!(registrations.len(), 1);
+            let crate::var_resolve::VariableTracePrefix::Original(prefix) = &registrations[0].1
+            else {
+                panic!("original copied prefix");
+            };
+            assert_eq!(prefix.input().bytes(), b"watch\0tail extra");
+            assert_eq!(operands.input(2, &state).unwrap().bytes(), b"v\0tail(k)");
+        }
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let (state, operands) =
+            original_trace_subject_inputs("jim", b"v", b"watch", b"# unavailable");
+        assert_eq!(
+            operands.trace_subject_access(2, &state, registry).kind,
+            PlaceKind::Unknown
+        );
+    }
+
+    #[test]
+    fn original_trace_subject_roles_do_not_read_or_overwrite_value_contents() {
+        // Implementation contract: naming.variable.trace-source-receiver-purpose (docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md).
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+            let (mut state, _) = original_trace_inputs(profile, b"watch", b"# value effects");
+            let dialect = state.invocation_dialect.unwrap();
+            let policy = dialect.authored_name_policy().unwrap();
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            let value = resolve_literal_access(
+                "v",
+                &state,
+                false,
+                registry,
+                tcl_registry::TraceOperation::Read,
+            );
+            state.traced.insert(trace_key(&value));
+            assert!(project_access(value, &state, tcl_registry::TraceOperation::Read).observed);
+            let mut cases: Vec<(&str, &[&str], bool)> = vec![
+                ("trace", &["info", "variable", "v"], false),
+                ("trace", &["add", "variable", "v", "read", "watch"], false),
+                (
+                    "trace",
+                    &["remove", "variable", "v", "read", "watch"],
+                    false,
+                ),
+                (
+                    "trace",
+                    &["add", "variable", "v", "INVALID", "watch"],
+                    false,
+                ),
+                ("set", &["v"], true),
+            ];
+            if matches!(profile, "tcl8.4" | "tcl8.5" | "tcl8.6") {
+                cases.extend([
+                    ("trace", &["vinfo", "v"][..], false),
+                    ("trace", &["variable", "v", "r", "watch"][..], false),
+                    ("trace", &["vdelete", "v", "r", "watch"][..], false),
+                ]);
+            }
+            for (command, words, reads_value) in cases {
+                let selected = registry
+                    .resolve_invocation(command, words, dialect.authoring_query())
+                    .unwrap();
+                let facts = selected.facts();
+                let arguments =
+                    tcl_registry::InvocationArguments::literals(words).with_dialect(dialect);
+                let source = format!("{command} {}", words.join(" "));
+                let image = tcl_lexer::SourceImage::document(&source);
+                let plan = tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                    config,
+                )
+                .unwrap();
+                let inputs = plan.commands[0]
+                    .words
+                    .iter()
+                    .skip(1)
+                    .map(|word| {
+                        Some(SignatureSourceNameInput::OriginalWord(
+                            SignatureSourceNameKey::from_original_native_word(
+                                word,
+                                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                                policy,
+                            )
+                            .unwrap(),
+                        ))
+                    })
+                    .collect();
+                let operands = OriginalVariableInvocation::from_original_inputs(inputs, Vec::new());
+                for inputs in [None, Some(&operands)] {
+                    let reads = source_variable_read_places_with_original_operands_impl(
+                        &facts, arguments, &state, registry, inputs,
+                    );
+                    assert_eq!(reads.len(), usize::from(reads_value), "{profile}/{words:?}");
+                    assert!(reads.iter().all(|place| place.observed));
+                    let writes =
+                        source_variable_write_places_with_output_order_and_original_operands_impl(
+                            &facts, arguments, &state, registry, None, inputs,
+                        );
+                    assert!(writes.is_empty(), "{profile}/{words:?}");
+                }
+                if !reads_value {
+                    assert!(facts.arg_roles.iter().any(|&(_, role)| matches!(
+                        role,
+                        tcl_registry::ArgRole::VarRead | tcl_registry::ArgRole::VarWrite
+                    )));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn original_variable_trace_join_preserves_all_same_valued_producers() {
+        let profile = "tcl8.6";
+        let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+        let (mut left, left_inputs) = original_trace_inputs(profile, b"watch\0tail", b"# left");
+        let (mut right, right_inputs) = original_trace_inputs(profile, b"watch\0tail", b"# right");
+        apply_trace_with_original(
+            &mut left,
+            &selected_variable_trace(profile, false),
+            registry,
+            Some(&left_inputs),
+        );
+        apply_trace_with_original(
+            &mut right,
+            &selected_variable_trace(profile, false),
+            registry,
+            Some(&right_inputs),
+        );
+        let key = trace_key(&left_inputs.access(
+            2,
+            &left,
+            registry,
+            tcl_registry::TraceOperation::Read,
+            false,
+        ));
+        let first = left.trace_registrations.get(&key).unwrap()[0].1.clone();
+        let second = right.trace_registrations.get(&key).unwrap()[0].1.clone();
+        assert!(first.same_data(&second));
+        assert_ne!(first, second);
+        left.join(&right);
+        let reaching = left.trace_registrations.get(&key).unwrap();
+        assert_eq!(reaching.len(), 1);
+        let joined = &reaching[0].1;
+        assert_ne!(*joined, first);
+        assert_ne!(*joined, second);
+        assert_eq!(first.joined(&second).as_ref(), Some(joined));
+        assert!(!left.untracked_traces.contains(&key));
+    }
+
+    #[test]
+    fn original_variable_trace_copy_cannot_reset_the_complete_lineage_bound() {
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameValue};
+        let (context, operands) = original_trace_inputs("tcl8.6", b"watch", b"# original");
+        let mut input = operands.input(4, &context).unwrap().clone();
+        let mut copied = 0;
+        while let Some(value) =
+            SignatureSourceNameValue::copied_variable_trace_prefix(&input, &context)
+        {
+            input = SignatureSourceNameInput::OriginalValue(value);
+            copied += 1;
+            assert!(input.original_word_key().is_none());
+            assert!(copied < crate::command_binding::original_name_value::MAX_ORIGINS);
+        }
+        assert_eq!(
+            copied + 1,
+            crate::command_binding::original_name_value::MAX_ORIGINS
+        );
+        assert!(input.is_current(&context));
+    }
+
     #[test]
     fn valid_trace_registration_closes_only_the_selected_native_address_protocol() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
-        let mut state = ResolveContext {
-            frame_kind: crate::var_resolve::VariableFrameKind::Global,
-            binding_identity: crate::var_resolve::BindingIdentity::Bound,
-            invocation_dialect: Some(dialect),
-            namespace_cells: fresh_namespace_cells(registry),
-            ..Default::default()
-        };
+        let mut state = ResolveContext::for_frame(
+            crate::var_resolve::VariableFrameKind::Global,
+            crate::var_resolve::BindingIdentity::Bound,
+            Some(dialect),
+        );
+        state.namespace_cells = fresh_namespace_cells(registry);
         state.define_literal("scalar", "VALUE", registry);
         state.define_literal("array(k)", "MEMBER", registry);
         for (words, expected) in [
@@ -2966,16 +4473,228 @@ mod tests {
     }
 
     #[test]
+    // Implementation contract: naming.variable.byte-cell-correspondence
+    // docs/design/analysis/name-resolution-proofs/variable.byte-cell-correspondence.md
+    fn original_alias_operands_ignore_display_and_preserve_runtime_units() {
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+        use tcl_lexer::{LexerConfig, SourceImage, Span};
+        use tcl_syntax::naming::{ExecutionNamePolicy, NamePolicyProtocol};
+        use tcl_syntax::word_rules::WordValueRules;
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+            let dialect = tcl_registry::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
+            );
+            let policy: NamePolicyProtocol = dialect.authored_name_policy().unwrap();
+            let config = LexerConfig::from_grammar(dialect.lexer_grammar);
+            for source in [b"v\0tail".as_slice(), br"v\u0000tail", br"v\uD800"] {
+                let image = SourceImage::native(source);
+                let plan = tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    Span::new(0, u32::try_from(image.len()).unwrap()),
+                    config,
+                )
+                .unwrap();
+                let input = SignatureSourceNameInput::OriginalWord(
+                    SignatureSourceNameKey::from_original_native_word(
+                        &plan.commands[0].words[0],
+                        WordValueRules::from_config(&config),
+                        policy,
+                    )
+                    .unwrap(),
+                );
+                let mut state = ResolveContext::for_function("::p");
+                state.invocation_dialect = Some(dialect);
+                state.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(policy));
+                let root = crate::command_binding::SourceNamespaceKey::authored("::");
+                state.retain_namespace_world(root.clone(), [root.clone()], Some(policy.recipe()));
+                // The logical transition facet cannot select either cell.
+                let subject = tcl_registry::TransitionSubject::LocatedLiteral {
+                    value: "DIFFERENT_DISPLAY".into(),
+                    argument_index: 0,
+                };
+                let alias = VariableCellAliasTransition {
+                    destination: tcl_registry::VariableAliasDestination::ProcedureLocal,
+                    local: subject.clone(),
+                    target: VariableAliasTarget::Global { variable: subject },
+                    writes_value: false,
+                };
+                let operands = OriginalVariableInvocation::from_original_inputs(
+                    vec![Some(input.clone())],
+                    vec![],
+                );
+                let expected = crate::var_resolve::resolve_original_namespace_variable_bytes(
+                    input.bytes(),
+                    &root,
+                    &state,
+                    registry,
+                    false,
+                );
+                assert_ne!(expected.kind, PlaceKind::Unknown, "{profile}/{source:?}");
+                bind_alias_with_compiled_local(&mut state, &alias, registry, None, Some(&operands));
+                let local =
+                    tcl_syntax::naming::global_local_name_bytes(policy.recipe(), input.bytes())
+                        .unwrap();
+                let read = crate::var_resolve::resolve_evaluated_variable_input(
+                    tcl_syntax::naming::NativeVariableInputForm::Combined(&local),
+                    &state,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Read,
+                );
+                assert_eq!(cell_key(&read), cell_key(&expected), "{profile}/{source:?}");
+                assert_eq!(
+                    read.cell.as_ref().unwrap().name,
+                    expected.cell.as_ref().unwrap().name
+                );
+            }
+            let mut state = ResolveContext::for_function("::p");
+            state.invocation_dialect = Some(dialect);
+            state.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(policy));
+            let subject = tcl_registry::TransitionSubject::LocatedLiteral {
+                value: "v".into(),
+                argument_index: 0,
+            };
+            let alias = VariableCellAliasTransition {
+                destination: tcl_registry::VariableAliasDestination::ProcedureLocal,
+                local: subject.clone(),
+                target: VariableAliasTarget::Global { variable: subject },
+                writes_value: false,
+            };
+            let missing = OriginalVariableInvocation::from_original_inputs(vec![None], vec![]);
+            bind_alias_with_compiled_local(&mut state, &alias, registry, None, Some(&missing));
+            assert!(
+                state.dynamic_bindings,
+                "{profile}: missing owner must not use displayed v"
+            );
+        }
+    }
+
+    fn original_absolute_alias_operands(
+        source: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> OriginalVariableInvocation {
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+        use tcl_lexer::Span;
+        use tcl_syntax::word_rules::WordValueRules;
+        let parsed = tcl_lexer::native_script_words_in(
+            source.clone(),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let inputs = parsed.commands[0].words[1..]
+            .iter()
+            .map(|word| {
+                Some(SignatureSourceNameInput::OriginalWord(
+                    SignatureSourceNameKey::from_original_native_word(
+                        word,
+                        WordValueRules::from_config(&config),
+                        policy,
+                    )
+                    .unwrap(),
+                ))
+            })
+            .collect();
+        OriginalVariableInvocation::from_original_inputs(inputs, vec![])
+    }
+
+    #[test]
+    fn original_absolute_zero_alias_uses_retained_root_without_a_caller_frame() {
+        use tcl_lexer::{LexerConfig, SourceImage};
+        use tcl_syntax::naming::ExecutionNamePolicy;
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+            let dialect = tcl_registry::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
+            );
+            let policy = dialect.authored_name_policy().unwrap();
+            let config = LexerConfig::from_grammar(dialect.lexer_grammar);
+            let source = SourceImage::native(br"upvar #0 root\uD800 local".as_slice());
+            let operands = original_absolute_alias_operands(&source, config, policy);
+            let facts = registry
+                .resolve_invocation(
+                    "upvar",
+                    &["#0", "REPORT_ONLY", "local"],
+                    dialect.authoring_query(),
+                )
+                .unwrap()
+                .facts();
+            let alias = facts
+                .state_transitions
+                .declared()
+                .unwrap()
+                .facts()
+                .iter()
+                .find_map(|fact| {
+                    if let StateTransition::VariableCellAlias(alias) = &fact.transition {
+                        Some(alias)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            let mut state = ResolveContext::for_function("::p");
+            state.invocation_dialect = Some(dialect);
+            state.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(policy));
+            let root = crate::command_binding::SourceNamespaceKey::authored("::");
+            state.retain_namespace_world(root.clone(), [root.clone()], Some(policy.recipe()));
+            assert!(state.caller.is_none());
+            assert!(
+                state
+                    .selected_frame_context(FrameLevel::Absolute(0))
+                    .is_none()
+            );
+            let expected = crate::var_resolve::resolve_original_namespace_variable_bytes(
+                b"root\xed\xa0\x80",
+                &root,
+                &state,
+                registry,
+                false,
+            );
+            let selected = original_alias_target(&state, &alias.target, &operands, registry, false);
+            assert_ne!(selected.kind, PlaceKind::Unknown, "{profile}");
+            assert_eq!(cell_key(&selected), cell_key(&expected), "{profile}");
+            bind_alias_with_compiled_local(&mut state, alias, registry, None, Some(&operands));
+            let read = crate::var_resolve::resolve_evaluated_variable_input(
+                tcl_syntax::naming::NativeVariableInputForm::Combined(b"local"),
+                &state,
+                false,
+                registry,
+                tcl_registry::TraceOperation::Read,
+            );
+            assert_eq!(cell_key(&read), cell_key(&expected), "{profile}");
+            let mut missing = state.clone();
+            missing.namespace_identities.remove(&root);
+            assert_eq!(
+                original_alias_target(&missing, &alias.target, &operands, registry, false).kind,
+                PlaceKind::Unknown
+            );
+            let relative = VariableAliasTarget::CallerSelectedFrame {
+                frame: CallerFrameSelection::DefaultCaller,
+                variable: tcl_registry::TransitionSubject::LocatedLiteral {
+                    value: "REPORT_ONLY".into(),
+                    argument_index: 1,
+                },
+            };
+            assert_eq!(
+                original_alias_target(&state, &relative, &operands, registry, false).kind,
+                PlaceKind::Unknown
+            );
+        }
+    }
+
+    #[test]
     fn normal_alias_completion_requires_the_actual_destination_and_selected_frame() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
-        let mut state = ResolveContext {
-            frame_kind: crate::var_resolve::VariableFrameKind::Global,
-            binding_identity: crate::var_resolve::BindingIdentity::Bound,
-            invocation_dialect: Some(dialect),
-            namespace_cells: fresh_namespace_cells(registry),
-            ..Default::default()
-        };
+        let mut state = ResolveContext::for_frame(
+            crate::var_resolve::VariableFrameKind::Global,
+            crate::var_resolve::BindingIdentity::Bound,
+            Some(dialect),
+        );
+        state.namespace_cells = fresh_namespace_cells(registry);
         state.define_literal("b", "100", registry);
         let words = ["0", "b", "link"];
         let arguments = tcl_registry::InvocationArguments::literals(&words).with_dialect(dialect);

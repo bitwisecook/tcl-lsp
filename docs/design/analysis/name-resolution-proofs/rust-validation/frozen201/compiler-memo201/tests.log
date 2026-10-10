@@ -1,0 +1,28 @@
+
+running 9 tests
+test codegen::statements::native_switch::tests::native_switch_emission_matches_56_original_compiler_frontiers ... ok
+test command_binding::compiled_invocation::tests::string_equal_public_replacement_follows_its_original_compiler_shape ... FAILED
+test command_binding::frozen_arguments::tests::expansion_dispatch_does_not_change_original_compiler_shape ... ok
+test command_binding::original_compiler_effects::tests::function_argument_compilation_keeps_original_nested_script_visits ... ok
+test command_binding::original_compiler_effects::tests::function_name_registration_requires_original_pool_and_quiet_lookup ... ok
+test command_binding::original_compiler_effects::tests::original_compiler_descendant_proofs_parse_each_region_once_per_lookup_point ... ok
+test command_binding::original_compiler_effects::tests::original_compiler_proof_memo_cannot_cross_a_changed_literal_or_lookup_world ... ok
+test command_binding::original_compiler_effects::tests::original_compiler_proof_memo_retains_refusals_and_exact_source_context ... ok
+test registry_invocation::native_compilation_source::tests::original_compiler_geometry_preserves_delimiters_channels_and_provenance ... ok
+
+failures:
+
+---- command_binding::compiled_invocation::tests::string_equal_public_replacement_follows_its_original_compiler_shape stdout ----
+
+thread 'command_binding::compiled_invocation::tests::string_equal_public_replacement_follows_its_original_compiler_shape' (745646) panicked at rust/tcl-compiler/src/command_binding/compiled_invocation.rs:3206:17:
+assertion `left == right` failed: V8_4: equal
+  left: true
+ right: false
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    command_binding::compiled_invocation::tests::string_equal_public_replacement_follows_its_original_compiler_shape
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 8411 filtered out; finished in 11.23s
+

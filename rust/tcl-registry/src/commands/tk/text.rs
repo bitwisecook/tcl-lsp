@@ -26,24 +26,25 @@ const USER_EVENT_INPUTS: &[CallbackTaintInput] = &[CallbackTaintInput::TK_EVENT_
 /// binds a deferred event-handler script (run from the Tk event loop) as its
 /// trailing word. Args here are those AFTER the `tag` subcommand word:
 /// `bind`(0) tagName(1) sequence(2) script(3).
-fn text_tag_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args
-        .first()
-        .is_some_and(|name| !name.is_empty() && "bind".starts_with(name))
-        && args.len() == 4
-    {
-        vec![(3, ArgRole::Body)]
-    } else {
-        Vec::new()
-    }
+fn text_tag_body(args: crate::InvocationArguments<'_>) -> bool {
+    args.exact_argv_len() == Some(4)
+        && args
+            .literal_at(0)
+            .is_some_and(|name| !name.is_empty() && "bind".starts_with(name))
 }
 
-fn text_tag_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    if text_tag_arg_roles(args).is_empty() {
-        Vec::new()
-    } else {
-        vec![(3, ScriptTiming::Deferred)]
-    }
+fn text_tag_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    text_tag_body(crate::InvocationArguments::literals(args))
+        .then_some((3, ArgRole::Body))
+        .into_iter()
+        .collect()
+}
+
+fn text_tag_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    text_tag_body(args)
+        .then_some((3, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
 }
 
 const DUMP_OPTIONS: &[OptionSpec] = &[

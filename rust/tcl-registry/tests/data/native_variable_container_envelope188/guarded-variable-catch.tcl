@@ -1,0 +1,3 @@
+set original {if {[llength [info commands dict]] == 0} {list UNAVAILABLE} else {array set blocked {k OLD};set d {first NEW second OTHER};set ok BEFORE;set entered 0;set c [catch {dict update d first ok second blocked {set entered 1}} r];list $c $ok $entered [catch {set blocked} v] $v}}
+set outerCode [catch $original outerResult]
+puts [list $outerCode $outerResult]

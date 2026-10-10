@@ -1,0 +1,22 @@
+{
+  "question": "naming.proof-records.exact-evidence-and-coverage",
+  "kind": "implementation-controls",
+  "timestamp_utc": "2026-10-08T15:47:05.164307+00:00",
+  "command": [
+    "python3",
+    "scripts/dev/test_name_resolution_proofs.py"
+  ],
+  "cwd": "repository root",
+  "python_version": "3.12.14",
+  "python_executable": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+  "python_executable_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "source_sha256": {
+    "scripts/dev/check-name-resolution-proofs.py": "160a4cc2952ffd2d484b6f72229e1986310b526e357bde0be533a2001a27afbe",
+    "scripts/dev/test_name_resolution_proofs.py": "42edf482c8c429e03673d2ffdf762f9c8bcce228f8aac5ad6fab12769f0dcbe3",
+    "scripts/dev/update-name-resolution-proof-index.py": "3e04c6dc9fe8fa712582f5c4807ed9b1f08ca0197d5dd4e2406398ee319cdf12"
+  },
+  "status": 0,
+  "stdout_hex": "",
+  "stderr_hex": "2e2e2e2e2e2e2e2e2e2e0a2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d0a52616e20313020746573747320696e20302e303136730a0a4f4b0a",
+  "scope": "Actual execution of ten fixed synthetic Python proof-consumer controls, including both Native-proof and plain Proof annotation forms. No C Tcl, Jim, BIG-IP or Rust test execution is claimed."
+}

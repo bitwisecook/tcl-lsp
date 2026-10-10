@@ -1,0 +1,70 @@
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+warning: function `lookup_var_error_code` is never used
+    --> rust/tcl-vm/src/command.rs:3070:4
+     |
+3070 | fn lookup_var_error_code(name: &str) -> String {
+     |    ^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `bad_link_name` is never used
+    --> rust/tcl-vm/src/command.rs:3078:4
+     |
+3078 | fn bad_link_name(name: &str) -> Completion<Value> {
+     |    ^^^^^^^^^^^^^
+
+warning: function `upvar_link_error` is never used
+    --> rust/tcl-vm/src/command.rs:3088:15
+     |
+3088 | pub(crate) fn upvar_link_error(
+     |               ^^^^^^^^^^^^^^^^
+
+warning: `tcl-vm` (lib) generated 3 warnings
+warning: field `source` is never read
+  --> rust/tcl-lsp-core/src/original_invocation.rs:26:16
+   |
+19 | pub(crate) struct OriginalRegistryWords {
+   |                   --------------------- field in this struct
+...
+26 |     pub(crate) source: OriginalRegistrySource,
+   |                ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-lsp-core` (lib) generated 2 warnings
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-version)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-lsp-server)
+    Finished `test` profile [unoptimized] target(s) in 34.31s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_server-dba187aee0dd33ec)
+
+running 1 test
+test tests::original_workspace_procedure_rename_requires_expression_edit_coverage ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 648 filtered out; finished in 5.58s
+

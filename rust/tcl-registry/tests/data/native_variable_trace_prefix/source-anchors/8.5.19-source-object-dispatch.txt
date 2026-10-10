@@ -1,0 +1,18 @@
+		    parsePtr->commandStart + parsePtr->commandSize - 1) {
+		eeFramePtr->cmd.str.len--;
+	    }
+
+	    eeFramePtr->nline = objectsUsed;
+	    eeFramePtr->line = lines;
+
+	    TclArgumentEnter (interp, objv, objectsUsed, eeFramePtr);
+	    iPtr->cmdFramePtr = eeFramePtr;
+	    iPtr->numLevels++;
+	    code = TclEvalObjvInternal(interp, objectsUsed, objv,
+		    parsePtr->commandStart, parsePtr->commandSize, 0);
+	    iPtr->numLevels--;
+	    iPtr->cmdFramePtr = iPtr->cmdFramePtr->nextPtr;
+	    TclArgumentRelease (interp, objv, objectsUsed);
+
+	    eeFramePtr->line = NULL;
+	    eeFramePtr->nline = 0;

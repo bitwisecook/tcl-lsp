@@ -117,6 +117,13 @@ pub(super) fn definition_worker(
 }
 
 impl Interp {
+    pub(super) fn oo_outer_namespace_name(&self, name: &[u8]) -> Option<Vec<u8>> {
+        let namespace = self.oo_outer_namespace();
+        let namespaces = self.namespaces();
+        let selected = namespaces.find_namespace(namespace, name)?;
+        Some(namespaces.qualified_name(selected))
+    }
+
     pub(super) fn oo_outer_namespace(&self) -> NsId {
         let mut activation = self.frames.borrow().current_activation();
         let mut namespace = self.current_ns();

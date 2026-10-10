@@ -1,0 +1,9 @@
+dollar 1 0 1 {invalid command name "VALUE_dollar"}
+quote 1 0 1 {invalid command name "VALUE_quote"}
+brackets 1 0 1 {invalid command name "VALUE_brackets"}
+backslash 1 0 1 {invalid command name "VALUE_backslash"}
+unicode 1 0 1 {invalid command name "VALUE_unicode"}
+quoted_index 1 0 1 {invalid command name "VALUE_quoted_index"}
+nested_command 1 0 1 {invalid command name "VALUE_nested_command"}
+split_root 1 0 1 {invalid command name "VALUE_split_root"}
+replaced_set 1 {invalid command name "CHANGED"}

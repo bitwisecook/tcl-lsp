@@ -1,0 +1,42 @@
+[
+  {
+    "path": "rust/tcl-registry/tests/data/native_list_index_compilation/manifest.json",
+    "sha256": "738762535b986de6ed54572485f4ca223a8bbf8c3e137987ee53b568eee365b1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list-index.literal-native-instruction-coordinates",
+      "naming.list-index.multi-path-and-empty-validation",
+      "naming.list-index.expansion-and-abrupt-child-boundaries"
+    ],
+    "reason": "Exact original probe/cases19 literal equality plus five whole stdout hashes and compile/run0 checked. Literal/native coordinates, multi-path/empty validation and expansion/abrupt-child outcomes independently scoped. Compiled-body listing is not an executed instruction trace; source width uncertainty and absent Jim/BIGIP capture remain limits."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json",
+    "sha256": "acdb4d5976579b520100bad38a4daa23645deaed87474d3fa2e8006c7c808c7f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list-index.original-integer-and-end-offset-headers",
+      "naming.list-index.original-list-path-and-invalid-conversion"
+    ],
+    "reason": "Exact original source/nine inputs/five whole stdout hashes and process0 verified. Runtime integer/end-offset and list/error header questions separate; no compile-exit or updater/source explanation invented from the manifest."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_formal_storage/manifest.json",
+    "sha256": "56dfde3d1e423a32a9593e05078deaf85a22ae40011e3dd8e57510273490ac15",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.formal.original-string-zero-storage-and-lookup",
+      "naming.formal.original-bytearray-materialized-name-storage"
+    ],
+    "reason": "Current retained observer-safe source SHA and all six full132 JSONL outputs/header/lib/exe/statuses checked. Raw String versus pure C Bytearray paths are separate actual producers; full/short/dynamic values and errors mapped without borrowing absent older source, introspection or private formal identity."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json",
+    "sha256": "0566e2425c2e0ddc84ec084331164dcc8e6d5cd56990bd2ffc524329c967e61b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.formal.original-default-double-object-identity"
+    ],
+    "reason": "Exact source SHA and six retained one-row JSONL observations equal the minimal manifest objects. Double pointer/cache question separate from formal-name storage; absent original checksums/status/build inputs remain explicit rather than reconstructed from another capture."
+  }
+]

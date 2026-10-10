@@ -1,0 +1,27 @@
+{
+  "provider": "jim",
+  "reported_version": "0.84-9-g5bac7c9",
+  "source": "/workspace/.proofs/native-lassign-argv065/cases.tcl",
+  "source_sha256": "92211b594dbcc25c5aef18af27b8f0df27fadbd10176513d0fe7e01dc42ec030",
+  "input_channel": "Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.",
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/native-lassign-argv065/cases.tcl"
+  ],
+  "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+  "library_sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+  "makefile_sha256": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+  "source_owner": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+  "source_owner_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "startup_exit": 0,
+  "startup_input_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+  "startup_stdout_sha256": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+  "startup_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 1,
+  "stdout_sha256": "79e3518cf6e3b780f757301630cddd54454ea89983b9a54f91a82f171a5e4270",
+  "stderr_sha256": "6a4edd09965de8e44738b3e0459fa1c99647dd6c6bdafefbda3813d9ffbf27fc",
+  "started": 1791507283.769581,
+  "finished": 1791507283.7878337
+}

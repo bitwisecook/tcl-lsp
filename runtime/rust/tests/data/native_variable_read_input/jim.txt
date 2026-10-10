@@ -1,0 +1,7 @@
+PATCHLEVEL 0.84-9-g5bac7c9
+RESULT literal_array_read 0 {k OLD}
+RESULT dynamic_array_read 0 {k OLD}
+RESULT procedure_array_read 0 {k OLD}
+RESULT literal_scalar_element 1 {can't read "b(k)": variable isn't array}
+RESULT dynamic_scalar_element 1 {can't read "b(k)": variable isn't array}
+RESULT procedure_scalar_element 1 {can't read "b(k)": variable isn't array}

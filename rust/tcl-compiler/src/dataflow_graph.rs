@@ -580,6 +580,7 @@ mod tests {
             None,
             FoldPolicy::default(),
             crate::sccp::TraceInputs {
+                source_metadata_input: None,
                 registry: &registry,
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,

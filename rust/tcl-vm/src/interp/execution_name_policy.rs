@@ -132,8 +132,8 @@ impl Vm {
                 selected.event,
             ) == Some(selected.policy)
                 && std::ptr::eq(selected.profile, self.dialect_profile)
-                && selected.engine.map(|p| p as *const _)
-                    == self.actual_engine_profile.map(|p| p as *const _))
+                && selected.engine.map(std::ptr::from_ref)
+                    == self.actual_engine_profile.map(std::ptr::from_ref))
             .then_some(ExecutionNamePolicy::ObservedBigIp(selected.policy));
         }
         self.name_policy_protocol()

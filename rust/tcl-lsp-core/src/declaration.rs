@@ -34,9 +34,8 @@
 //! empty set means the whole file is visible (cursor at global scope).
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
+use tcl_lexer::{LexerConfig, LineIndex, Span};
 use tcl_registry::CommandRegistry;
 
 /// Recursion depth guard for nested body walks — a defensive stack-overflow
@@ -52,7 +51,6 @@ use tcl_registry::CommandRegistry;
 const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 use crate::definition::{LspRange, byte_offset_at, definition, scope_body_spans_at, span_to_range};
-use crate::hover::find_var_at_position;
 
 /// Compute "go-to-declaration" locations for the symbol at the cursor.
 #[must_use]
@@ -64,15 +62,35 @@ pub fn declaration(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
 ) -> Vec<LspRange> {
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::variable_symbol::select(source, analysis, line, character)
+    {
+        let Some(selected) = selected else {
+            return vec![];
+        };
+        if let Some(span) = selected.original_alias_declaration_span() {
+            return vec![span_to_range(source, &LineIndex::new(source), span)];
+        }
+        return definition(source, line, character, analysis);
+    }
+    // Original navigation consumes the sealed variable/caller templates in
+    // definition. Missing original roots cannot select a fresh lexical scan.
+    if !analysis.allows_lexical_declaration_advice() {
+        return definition(source, line, character, analysis);
+    }
     // Only a `$var` reference has a distinct declaration site; every
     // other symbol resolves through plain go-to-definition.
-    let Some(var_name) = find_var_at_position(source, line, character) else {
-        return definition(source, line, character, analysis);
-    };
-    let target = bare_name(&var_name);
-
     let line_index = LineIndex::new(source);
     let cursor = byte_offset_at(&line_index, source, line, character);
+    let Some(var_name) =
+        crate::definition::substituting_var_at_position(source, analysis, line, character, cursor)
+    else {
+        return definition(source, line, character, analysis);
+    };
+    // The selected source root is already undecorated. Dollar bytes inside
+    // a braced scalar name are literal and must never be stripped again.
+    let target = var_name.strip_prefix("::").unwrap_or(&var_name);
+
     let visible = scope_body_spans_at(&analysis.global_scope, cursor);
 
     // Regions to scan: each visible scope body, or the whole file when
@@ -87,14 +105,29 @@ pub fn declaration(
     // recognised by the command a head *is* rather than the one it is spelled
     // as.  Empty — and lookup-free — unless the document binds
     // something.
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    let Some(identities) = analysis.retained_command_realm() else {
+        return Vec::new();
+    };
+    let Some(actual_registry) = analysis.resolved_registry() else {
+        return Vec::new();
+    };
+    if registry.snapshot().semantic_key() != actual_registry.snapshot().semantic_key()
+        || analysis
+            .resolved_profile()
+            .is_none_or(|actual| !std::ptr::eq(actual, dialect))
+    {
+        return Vec::new();
+    }
     let scan = DeclScan {
         source,
-        dialect,
+        config,
         target,
         visible: &visible,
-        registry,
-        identities: &identities,
+        registry: actual_registry,
+        identities,
         cursor,
     };
     let mut found = DeclSpans::default();
@@ -134,7 +167,7 @@ impl DeclSpans {
 /// body-recursion so the per-call signature stays small.
 struct DeclScan<'a> {
     source: &'a str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    config: LexerConfig,
     target: &'a str,
     visible: &'a [Span],
     registry: &'a CommandRegistry,
@@ -168,9 +201,9 @@ fn collect_declarations_in_region(
     if MAX_BODY_DEPTH.exceeded(depth) {
         return;
     }
-    let (source, dialect, target, visible, registry) = (
+    let (source, config, target, visible, registry) = (
         scan.source,
-        scan.dialect,
+        scan.config,
         scan.target,
         scan.visible,
         scan.registry,
@@ -198,7 +231,7 @@ fn collect_declarations_in_region(
     let commands = segment_commands_with_offset_and_config(
         &source[start..end],
         u32::try_from(start).unwrap_or(0),
-        LexerConfig::from_grammar(dialect.grammar),
+        config,
     );
     for cmd in &commands {
         if cmd.argv.is_empty() {
@@ -208,7 +241,7 @@ fn collect_declarations_in_region(
         // and maps effective alias arguments to their written source tokens.
         let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
-            LexerConfig::from_grammar(dialect.grammar),
+            config,
             cmd,
         );
         identities.stamp_original_tokens(&mut tokens);
@@ -253,14 +286,7 @@ fn collect_declarations_in_region(
         // `scan.visible` to reflect, so the direct span/offset containment
         // check stands in for "the cursor's scope chain includes this frame".
         for lambda_idx in assistance.lambda_arguments {
-            let Some(&lambda_tok) = arg_tokens.get(lambda_idx) else {
-                continue;
-            };
-            if lambda_tok.kind != TokenType::Str {
-                continue;
-            }
-            if let Some(elems) = split_lambda_literal(source, lambda_tok)
-                && let Some(body_span) = elems.body
+            if let Some(body_span) = original_lambda_body_at(source, cmd, lambda_idx, config)
                 && body_span.start() <= scan.cursor
                 && scan.cursor <= body_span.end()
             {
@@ -268,6 +294,25 @@ fn collect_declarations_in_region(
             }
         }
     }
+}
+
+fn original_lambda_body_at(
+    source: &str,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    argument: usize,
+    config: LexerConfig,
+) -> Option<Span> {
+    let plan = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(source),
+        command.execution_span(source),
+        config,
+    )
+    .ok()?;
+    if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+        return None;
+    }
+    let word = plan.commands.first()?.words.get(argument.checked_add(1)?)?;
+    tcl_compiler::lambda_literal::split_original_lambda_literal(word)?.braced_body()
 }
 
 /// Record the visible declaration-name token spans for a single
@@ -305,8 +350,9 @@ fn is_visible(span: Span, visible: &[Span]) -> bool {
             .any(|v| v.start() <= span.start() && span.end() <= v.end())
 }
 
-/// Reduce a declaration name to its bare form: strip a `$` / `${…}`
-/// decoration and any leading `::` namespace qualifier.
+/// Explicit standalone decoration compatibility controls. Actual cursor roots
+/// are already selected labels and do not pass through this utility.
+#[cfg(test)]
 fn bare_name(raw: &str) -> &str {
     let s = raw.trim();
     let s = if s.starts_with('$') {
@@ -345,6 +391,70 @@ mod tests {
         let line = u32::try_from(prefix.matches('\n').count()).unwrap();
         let col = u32::try_from(idx - prefix.rfind('\n').map_or(0, |n| n + 1)).unwrap();
         (line, col)
+    }
+
+    #[test]
+    fn original_declaration_navigation_declines_unowned_analysis_without_recapture() {
+        // Implementation contract: naming.core.original-declaration-navigation
+        // docs/design/analysis/name-resolution-proofs/core-original-declaration-navigation.md
+        let source = "set x 1; proc p {} {global x; puts $x}";
+        let analysis = analyse(source);
+        let (line, character) = pos_of(source, "$x", 1);
+        let profile = analysis.resolved_profile().unwrap();
+        let registry = analysis.resolved_registry().unwrap();
+        let selected = declaration(source, line, character + 1, profile, &analysis, registry);
+        assert_eq!(selected.len(), 1);
+        let alias = source.find("global x").unwrap() + "global ".len();
+        assert_eq!(selected[0].start_character, u32::try_from(alias).unwrap());
+        let mut unowned = AnalysisResult::default();
+        unowned.body_lexer_config = analysis.body_lexer_config;
+        unowned.resolved_input = analysis.resolved_input.clone();
+        unowned.global_scope = analysis.global_scope.clone();
+        assert!(!unowned.allows_lexical_declaration_advice());
+        assert!(unowned.retained_command_realm().is_none());
+        assert!(declaration(source, line, character + 1, profile, &unowned, registry).is_empty());
+        assert!(
+            declaration(
+                &format!("#{source}"),
+                line,
+                character + 1,
+                profile,
+                &analysis,
+                registry
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn logical_declaration_navigation_keeps_its_explicit_compatibility_scan() {
+        // Implementation contract: naming.core.original-declaration-navigation
+        // docs/design/analysis/name-resolution-proofs/core-original-declaration-navigation.md
+        let source = "proc p {} {global x; puts $x}";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            config,
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(analysis.allows_lexical_declaration_advice());
+        let (line, character) = pos_of(source, "$x", 1);
+        let selected = declaration(
+            source,
+            line,
+            character + 1,
+            profile,
+            &analysis,
+            analysis.resolved_registry().unwrap(),
+        );
+        assert_eq!(selected.len(), 1);
+        let alias = source.find("global x").unwrap() + "global ".len();
+        assert_eq!(selected[0].start_character, u32::try_from(alias).unwrap());
     }
 
     #[test]
@@ -496,10 +606,7 @@ mod tests {
     }
 
     #[test]
-    fn variable_inside_namespace_eval_seen_at_global_scope() {
-        // At global scope (empty visible set) a `variable` declared inside
-        // a `namespace eval { … }` body is reached by recursing into the
-        // namespace-eval body argument.
+    fn namespace_variable_declaration_does_not_supply_a_global_bare_read() {
         let src = "namespace eval ns {\n\
                    variable cfg 1\n\
                    }\n\
@@ -515,9 +622,49 @@ mod tests {
             &reg(),
         );
         assert!(
-            locs.iter().any(|r| r.start_line == 1),
-            "expected the `variable cfg` decl on line 1; got {locs:?}"
+            locs.is_empty(),
+            "the namespace cfg declaration cannot supply global cfg: {locs:?}"
         );
+    }
+
+    #[test]
+    fn original_alias_declaration_navigation_keeps_the_independent_local_operand() {
+        let src = r"set ::v\uD800 VALUE
+proc p {} {upvar #0 ::v\uD800 local; puts $local}";
+        for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
+            let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(src, profile);
+            analysis.global_scope.variables.clear();
+            for scope in &mut analysis.global_scope.children {
+                scope.variables.clear();
+            }
+            let dialect = tcl_registry::model::ingress::resolve_known_environment(profile)
+                .unwrap()
+                .unit_profile();
+            let (line, character) = pos_of(src, "$local", 1);
+            let actual = declaration(src, line, character + 1, dialect, &analysis, &reg());
+            let start = u32::try_from(src.find("local;").unwrap()).unwrap();
+            assert_eq!(
+                actual,
+                vec![span_to_range(
+                    src,
+                    &LineIndex::new(src),
+                    Span::new(start, start + 5)
+                )],
+                "{profile}"
+            );
+            assert!(
+                declaration(
+                    &src.replace("VALUE", "OTHER"),
+                    line,
+                    character + 1,
+                    dialect,
+                    &analysis,
+                    &reg(),
+                )
+                .is_empty(),
+                "stale consumer source cannot borrow the alias declaration"
+            );
+        }
     }
 
     #[test]

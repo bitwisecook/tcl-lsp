@@ -1,0 +1,28 @@
+
+running 23 tests
+test registry_invocation::source_structure::original_procedure_argument_tests::original_procedure_arguments_keep_actual_formals_prefixes_and_child_anchors ... ok
+test registry_invocation::source_structure::original_procedure_argument_tests::original_procedure_arguments_keep_missing_original_correspondence_terminal ... ok
+test registry_invocation::source_structure::procedure::tests::original_procedure_descriptor_keeps_invalid_count_and_unknown_lookup_separate ... ok
+test registry_invocation::source_structure::procedure::tests::original_procedure_descriptor_precedes_selected_dialect_argument_binding ... ok
+test registry_invocation::source_structure::retained_image_geometry_tests::source_schema_geometry_reuses_the_whole_retained_image_and_keeps_currency ... ok
+test registry_invocation::source_structure::source_lookup_boundary_tests::original_source_lookup_facet_is_independent_of_advisory_body_roles ... ok
+test registry_invocation::source_structure::source_word_dialect_tests::original_package_insertion_uses_root_commands_split_lines_and_full_input ... ok
+test registry_invocation::source_structure::source_word_dialect_tests::original_package_source_point_keeps_whole_image_context_and_alias_grammar ... ok
+test registry_invocation::source_structure::source_word_dialect_tests::original_source_schema_uses_retained_word_dialect_for_file_grammar ... ok
+test registry_invocation::source_structure::tests::original_conditional_operand_keeps_its_static_word_and_list_lineage ... ok
+test registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct ... ok
+test registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_shadow_and_produced_script_boundaries ... ok
+test registry_invocation::source_structure::tests::original_hosted_source_schema_keeps_controls_and_unknown_single_slots ... ok
+test registry_invocation::source_structure::tests::original_logical_source_schema_selects_its_positive_input_before_native_advice ... ok
+test registry_invocation::source_structure::tests::original_scoped_words_keep_body_issuer_and_selected_subcommand_schema ... ok
+test registry_invocation::source_structure::tests::original_source_static_values_keep_escapes_separate_from_frozen_runtime_values ... ok
+test registry_invocation::source_structure::tests::original_source_structure_is_shared_and_owner_checked ... ok
+test registry_invocation::source_structure::tests::original_standalone_selected_alias_roles_keep_source_purpose ... ok
+test registry_invocation::source_structure::tests::original_standalone_source_context_keeps_conditional_bodies_and_alias_order ... ok
+test registry_invocation::source_structure::tests::original_standalone_source_context_keeps_nested_unknown_selector_source_only ... ok
+test registry_invocation::source_structure::tests::original_vendor_source_schema_keeps_comment_trivia_out_of_word_identity ... ok
+test registry_invocation::source_structure::tests::selected_captured_values_keep_the_original_declaration_producer ... ok
+test registry_invocation::source_structure::tests::selected_source_roles_retain_procedure_grammar_under_the_actual_context ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 8276 filtered out; finished in 56.24s
+

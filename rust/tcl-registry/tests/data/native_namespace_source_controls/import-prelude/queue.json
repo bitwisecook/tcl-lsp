@@ -1,0 +1,21 @@
+{
+  "purpose": "Discriminate actual global import-prelude invocation before missing-namespace validation.",
+  "channel": "ASCII source-file shell ingress; decimal string-index scan-%c result units; no counted API/physical cache grant.",
+  "source": "cases.tcl",
+  "source_sha256": "36ca69186f9ac05b396ffa557d3e64b66d347c989fda63ef2105a6bc5b39f136",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "case_ids": [
+    "import-prelude-before-missing-namespace"
+  ],
+  "expectation_criteria": {
+    "C": "code 1 result PRELOAD91 rather than missing-namespace error",
+    "Jim": "Observe separately; no C callback assumption."
+  }
+}

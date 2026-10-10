@@ -1479,6 +1479,42 @@ fn normal_result_taint(
     normal.is_sanitiser().then(TaintLattice::clean)
 }
 
+fn hosted_substitution_is_taint_source(
+    metadata: &crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    args: &[String],
+    registry: &CommandRegistry,
+) -> bool {
+    // Conditional source getters cannot issue sanitiser or shape safety.
+    // May-taint remains independent of Native dispatch and effects.
+    let args: Vec<_> = effective.argument_presentations(args).unwrap_or_default();
+    let known: Option<Vec<_>> = args.iter().map(|value| value.as_deref()).collect();
+    metadata.shape().possible_traits().intersects(
+        tcl_registry::Traits::TAINT_SOURCE
+            | tcl_registry::Traits::UNNORMALISED_HTTP_GETTER
+            | tcl_registry::Traits::TAINT_SOURCE_ZERO_ARGS,
+    ) || known.as_deref().is_some_and(|args| {
+        tcl_registry::taint::is_taint_source(registry, metadata.shape().command(), args, None)
+    })
+}
+
+fn substitution_transform_colour(
+    normal: Option<&crate::registry_invocation::NormalTaintInvocation>,
+    ctx: TaintCtx<'_>,
+    cmd: &str,
+    arg_refs: &[&str],
+) -> Option<TaintColour> {
+    normal
+        .and_then(crate::registry_invocation::NormalTaintInvocation::transform_colour)
+        .map(reg_colour)
+        .or_else(|| {
+            ctx.source_tokens
+                .is_none()
+                .then(|| transform_colour(ctx.registry, cmd, arg_refs))
+                .flatten()
+        })
+}
+
 fn substitution_word_taint<S: std::hash::BuildHasher>(
     word: &str,
     invocation: (&str, &[String]),
@@ -1504,6 +1540,9 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
             nested,
         )
     });
+    let hosted = nested.as_ref().and_then(|tokens| {
+        crate::registry_invocation::hosted_source_taint_invocation(ctx.registry, tokens)
+    });
     let effective = nested
         .as_ref()
         .and_then(crate::registry_invocation::effective_command_words);
@@ -1515,6 +1554,11 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
         .and_then(|nested| nested.source_binding.as_ref())
         .and_then(crate::command_binding::SourceInvocationBinding::proved_target);
     let registry_allowed = ctx.source_tokens.is_none() || resolved.is_some();
+    if hosted.as_ref().is_some_and(|hosted| {
+        hosted_substitution_is_taint_source(&hosted.metadata, &hosted.effective, args, ctx.registry)
+    }) {
+        return TaintLattice::tainted();
+    }
     if ctx.source_tokens.is_some() && point_target.is_none() && normal.is_none() {
         // Missing word provenance or an explicit unknown target cannot
         // inherit a sanitiser/source/transform from the written name.
@@ -1598,16 +1642,7 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
     // requires `is_tainted()` first, and a clean lattice is `join`'s
     // identity, so a clean colour never dilutes a tainted operand's
     // must-have mitigations.
-    let transform = normal
-        .as_ref()
-        .and_then(crate::registry_invocation::NormalTaintInvocation::transform_colour)
-        .map(reg_colour)
-        .or_else(|| {
-            ctx.source_tokens
-                .is_none()
-                .then(|| transform_colour(ctx.registry, cmd, &arg_refs))
-                .flatten()
-        });
+    let transform = substitution_transform_colour(normal.as_ref(), ctx, cmd, &arg_refs);
     if let Some(colour) = transform {
         t = t.with(colour);
     }
@@ -4234,6 +4269,16 @@ fn find_taint_warnings_impl<
     let mut warnings: Vec<TaintWarning> = Vec::new();
 
     for bn in cfg_order(cfg) {
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
+            eprintln!(
+                "HOSTED_TAINT_BLOCK block={bn:?} executable={} statements={}",
+                executable_blocks.contains(&bn),
+                ssa.blocks
+                    .get(&bn)
+                    .map_or(0, |block| block.statements.len())
+            );
+        }
         if !executable_blocks.contains(&bn) {
             continue;
         }
@@ -4373,7 +4418,7 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     if let Some(tokens) = tokens
         && tokens.source_binding.is_some()
     {
-        emit_retained_invocation_warnings(tokens, ssa_stmt, taints, warnings, ssa, context);
+        emit_retained_invocation_warnings(tokens, ssa_stmt, taints, warnings, source, context);
         return;
     }
 
@@ -4426,6 +4471,7 @@ fn emit_sink_candidates<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
                     tokens: (!head.affects_args()).then_some(sink_tokens).flatten(),
                     registry,
                     effective: None,
+                    source_read: None,
                     argument_offset: 0,
                     braced_var: tcl_dialect::BracedVarStyle::of_profile(dialect),
                 },
@@ -4456,6 +4502,7 @@ fn emit_sink_candidates<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
                 tokens: (!head.affects_args()).then_some(sink_tokens).flatten(),
                 registry,
                 effective: None,
+                source_read: None,
                 argument_offset: 0,
                 braced_var: tcl_dialect::BracedVarStyle::of_profile(dialect),
             },
@@ -4483,9 +4530,10 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
     statement: &SsaStatement,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     warnings: &mut Vec<TaintWarning>,
-    ssa: &SsaFunction,
+    source: crate::ssa::SsaSourceView<'_>,
     context: &SinkWarningContext<'_, H>,
 ) {
+    let ssa = source.function();
     let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = &statement.statement
     else {
         return;
@@ -4498,7 +4546,11 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
     if let Some(invocation) =
         crate::registry_invocation::resolved_tokens_invocation(context.registry, semantic, tokens)
     {
-        candidates.push((invocation.facts.canonical_command, invocation.effective));
+        candidates.push((
+            invocation.facts.canonical_command,
+            invocation.effective,
+            None,
+        ));
     } else if let Some(assistance) = crate::registry_invocation::registry_invocation_assistance(
         context.registry,
         semantic,
@@ -4508,10 +4560,30 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
             assistance
                 .candidates
                 .into_iter()
-                .map(|shape| (shape.command, shape.effective)),
+                .map(|shape| (shape.command, shape.effective, None)),
         );
     }
-    for (command, effective) in candidates {
+    if let Some(hosted) =
+        crate::registry_invocation::hosted_source_taint_invocation(context.registry, tokens)
+    {
+        candidates.push((
+            hosted.metadata.shape().command().to_owned(),
+            hosted.effective,
+            Some(hosted.metadata),
+        ));
+    }
+    for (command, effective, hosted) in candidates {
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
+            eprintln!(
+                "HOSTED_TAINT_CANDIDATE site={} hosted={} spellings={} origins={} uses={}",
+                statement.statement.span().start(),
+                hosted.is_some(),
+                effective.argument_spellings(args).is_some(),
+                effective.origins.len(),
+                statement.uses.len()
+            );
+        }
         let Some(args) = effective.argument_spellings(args) else {
             continue;
         };
@@ -4523,6 +4595,10 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
                 tokens: Some(tokens),
                 registry: context.registry,
                 effective: Some(&effective),
+                source_read: hosted.as_ref().map(|metadata| HostedSourceRead {
+                    metadata,
+                    point: source,
+                }),
                 argument_offset: 0,
                 braced_var: tcl_dialect::BracedVarStyle::of_profile(context.dialect),
             },
@@ -5371,6 +5447,7 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
         ssa,
         braced_var,
         quoted_uses: Some(&ssa_stmt.quoted_uses),
+        source_read: sink_call.source_read,
     };
 
     // T103: tainted data in a regexp/regsub pattern position.
@@ -5406,6 +5483,16 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     );
 
     // Primary sink classification (T100 code-exec / T101 + iRules output / log).
+    #[cfg(debug_assertions)]
+    if sink_call.source_read.is_some() && std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
+        let code = classify_sink(registry, command, call_args, dialect).map(|(code, _)| code);
+        eprintln!(
+            "HOSTED_TAINT_SINK site={} code={code:?} args={} uses={}",
+            span.start(),
+            call_args.len(),
+            uses.len()
+        );
+    }
     if let Some((code, sink_label)) = classify_sink(registry, command, call_args, dialect) {
         emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
     }
@@ -5437,6 +5524,9 @@ fn operand_read_taint<S: std::hash::BuildHasher>(
     name: &str,
     original: Option<&WordExpr>,
 ) -> Option<TaintLattice> {
+    if let Some(hosted) = env.source_read {
+        return hosted.taint(name, original?, env.taints);
+    }
     if let Some(symbol) = env.ssa.var_symbol(name)
         && let Some(&version) = env.uses.get(&symbol)
     {
@@ -5463,6 +5553,53 @@ fn original_sink_argument<'a>(call: &SinkCall<'a>, index: usize) -> Option<&'a W
     }
 }
 
+/// Exact conditional hosted source read at the current SSA operation. A source
+/// role cannot select a compatibility name's cell or contents version.
+#[derive(Clone, Copy)]
+struct HostedSourceRead<'a> {
+    metadata: &'a crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+    point: crate::ssa::SsaSourceView<'a>,
+}
+impl HostedSourceRead<'_> {
+    fn taint<S: std::hash::BuildHasher>(
+        self,
+        name: &str,
+        original: &WordExpr,
+        taints: &HashMap<ValueKey, TaintLattice, S>,
+    ) -> Option<TaintLattice> {
+        let (reference, site) = original.sole_variable_substitution()?;
+        if normalise_var_name(reference) != name
+            || !self
+                .metadata
+                .shape()
+                .original_words()
+                .iter()
+                .any(|word| word.span() == original.source().span)
+        {
+            return None;
+        }
+        // Only the exact positioned read receipt can select represented
+        // contents. Missing cells or versions retain an unknown MAY value;
+        // no SSA symbol, presence, effect or Normal receipt is created here.
+        let read = self.point.read_reference(site, reference);
+        let value = read
+            .and_then(|read| read.version.map(|version| (read.symbol, version)))
+            .and_then(|key| taints.get(&key).copied());
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
+            eprintln!(
+                "HOSTED_TAINT_READ site={} read={} version={} lattice={} tainted={}",
+                original.source().span.start(),
+                read.is_some(),
+                read.is_some_and(|read| read.version.is_some()),
+                value.is_some(),
+                value.is_none_or(TaintLattice::is_tainted)
+            );
+        }
+        Some(value.unwrap_or_else(TaintLattice::tainted))
+    }
+}
+
 /// Per-statement read context for the taint-warning emitters: the SSA
 /// versions reaching the statement (`uses`), the taint lattice, and the SSA
 /// function they resolve against. Bundled so the emitters stay within the
@@ -5477,6 +5614,8 @@ struct TaintScan<'a, S> {
     braced_var: tcl_dialect::BracedVarStyle,
     /// Uses mentioned only in brace-quoted words at this statement.
     quoted_uses: Option<&'a HashSet<Symbol>>,
+    /// Current hosted metadata cannot turn an unrepresented read into clean SSA.
+    source_read: Option<HostedSourceRead<'a>>,
 }
 
 /// Emit `T103` (regex injection / `ReDoS`) for a tainted variable sitting in
@@ -6122,6 +6261,7 @@ fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
             ssa: ctx.ssa,
             braced_var,
             quoted_uses: None,
+            source_read: None,
         };
         let sink_call = SinkCall {
             command: &command,
@@ -6129,6 +6269,7 @@ fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
             registry: ctx.registry,
             tokens: None,
             effective: None,
+            source_read: None,
             argument_offset: 0,
             braced_var,
         };
@@ -6166,6 +6307,8 @@ struct SinkCall<'a> {
     tokens: Option<&'a CommandTokens>,
     /// Candidate-specific lexical origins, including aliases; no effect/result proof.
     effective: Option<&'a crate::registry_invocation::EffectiveCommandWords>,
+    /// Sealed conditional hosted read advice, independently of SSA cell authority.
+    source_read: Option<HostedSourceRead<'a>>,
     /// First argument in the retained effective invocation for a sliced sink region.
     argument_offset: usize,
     /// The document's `${…}` close rule, for the shared owner
@@ -7285,6 +7428,7 @@ mod tests {
                 ssa: &unit.top_level.ssa,
                 braced_var: tcl_dialect::BracedVarStyle::of_profile(registry.profile()),
                 quoted_uses: None,
+                source_read: None,
             };
             assert_eq!(
                 operand_read_taint(&env, "missing", tokens.words().get(1))
@@ -7560,6 +7704,7 @@ mod tests {
             registry: &registry,
             tokens: Some(tokens),
             effective: None,
+            source_read: None,
             argument_offset: 0,
             braced_var: tcl_dialect::BracedVarStyle::default(),
         };
@@ -11231,5 +11376,90 @@ mod tests {
                 "no trace in scope — map must be unchanged"
             );
         }
+    }
+    #[test]
+    fn hosted_taint_diagnostics_use_current_source_metadata_without_native_handler_claims() {
+        // Implementation contract: naming.consumer.hosted-source-taint-descriptor
+        // docs/design/analysis/name-resolution-proofs/hosted-source-taint-descriptor.md
+        let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .default_context_registry();
+        let registry = context.commands();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let source = "when HTTP_REQUEST {set x [HTTP::query]; HTTP::respond 200 content $x}";
+        let options = crate::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(tcl_dialect::DialectProfile::irules()),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let cu = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            options,
+            None,
+            std::sync::Arc::clone(&context),
+        )
+        .with_interprocedural(registry, Some(tcl_dialect::DialectProfile::irules()));
+        let diagnostics = crate::compiler_checks::run_all_checks(
+            &cu,
+            registry,
+            Some(tcl_dialect::DialectProfile::irules()),
+        );
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::Irule3001)
+            .expect("genuine conditional hosted sink");
+        assert_eq!(
+            diagnostic.taint_subject.as_ref().unwrap().sink_command(),
+            "HTTP::respond"
+        );
+        assert_eq!(
+            diagnostic.source_context.as_ref().unwrap().image().bytes(),
+            source.as_bytes()
+        );
+        for negative in [
+            "when HTTP_REQUEST {HTTP::respond 200 content literal}",
+            "when HTTP_REQUEST {HTTP::respond 200 content {$x}}",
+            "when HTTP_REQUEST {HTTP::respond 200 content \"$x$tail\"}",
+            "proc HTTP::respond {args} {}; when HTTP_REQUEST {HTTP::respond 200 content $x}",
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                negative,
+                options,
+                None,
+                std::sync::Arc::clone(&context),
+            );
+            let warnings = find_taint_warnings_for_cu(
+                &unit,
+                registry,
+                Some(tcl_dialect::DialectProfile::irules()),
+            );
+            assert!(
+                warnings
+                    .iter()
+                    .all(|warning| warning.code != DiagCode::Irule3001),
+                "{negative}: {warnings:?}"
+            );
+        }
+        // An unavailable TMM transition does not prove that a later event's
+        // command is deleted. Its conditional hosted descriptor remains advice.
+        let uncertain = "rename HTTP::respond {}; when HTTP_REQUEST {HTTP::respond 200 content $x}";
+        let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            uncertain,
+            options,
+            None,
+            std::sync::Arc::clone(&context),
+        );
+        let warnings = find_taint_warnings_for_cu(
+            &unit,
+            registry,
+            Some(tcl_dialect::DialectProfile::irules()),
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule3001)
+        );
     }
 }

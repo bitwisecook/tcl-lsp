@@ -91,9 +91,11 @@ impl Vm {
                 match self.prepare_script_commands_value(original.value()) {
                     Ok(prepared) => {
                         return Err(Box::new(Tick::PushScript {
-                            script: prepared
-                                .prefix
-                                .expect("native Script always owns an activation"),
+                            script: Box::new(
+                                prepared
+                                    .prefix
+                                    .expect("native Script always owns an activation"),
+                            ),
                             label: None,
                             cleanup_proc: None,
                             fatal_tail: None,
@@ -107,14 +109,14 @@ impl Vm {
                 match self.prepare_expression_value(original.value()) {
                     Ok(node) => {
                         return Err(Box::new(Tick::PushExpression {
-                            req: ExpressionReq {
+                            req: Box::new(ExpressionReq {
                                 state: tcl_syntax::expr::ExprEvalState::new(node),
                                 awaiting_array: None,
                                 normalize: false,
                                 jim_objects: original.value().native_jim_expression_objects(),
                                 restore_primary: original.value().retain_expression_primary(),
-                            },
-                            placeholder: self.current_placeholder_unit(),
+                            }),
+                            placeholder: Box::new(self.current_placeholder_unit()),
                         }));
                     }
                     Err(error) => completion_from_tcl_error(self, error),
@@ -163,15 +165,16 @@ impl Vm {
             .expect("native Script state")
             .begin_dictionary(name);
         Tick::PushSubst {
-            req: SubstReq {
+            req: Box::new(SubstReq {
+                compiled: None,
                 original: Some(key),
                 template: Vec::<u8>::new().into(),
                 backslashes: true,
                 commands: true,
                 variables: true,
                 control: crate::subst::SubstitutionControl::Word,
-            },
-            placeholder: self.current_placeholder_unit(),
+            }),
+            placeholder: Box::new(self.current_placeholder_unit()),
         }
     }
 }
@@ -259,6 +262,7 @@ impl Vm {
             return self.refuse_host_command("original Jim substitution issuer".into());
         }
         let req = SubstReq {
+            compiled: None,
             original: Some(original.native_lifetime_lease()),
             template: Vec::<u8>::new().into(),
             backslashes: flags & 4 == 0,

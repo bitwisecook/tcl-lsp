@@ -1,0 +1,3 @@
+version 9.0.4 initial_class {} alias_command {}
+oo_package 1 {can't find package oo} class_command {}
+jim_class_controls not_applicable no_class_command

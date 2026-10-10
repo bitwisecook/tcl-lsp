@@ -1,0 +1,339 @@
+[
+  {
+    "id": "naming.variable.conditional-write-name-advice",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/conditional-write-name-advice.md",
+    "problem_statement": "An unavailable executed command world can prevent a variable cell from being selected even though the original source still contains a genuine Registry-selected write-name operand. Using a reporting VarDef would collapse opaque sibling names; promoting a source card to a live cell would invent stronger authority.",
+    "question": "Can original write-name cards preserve opaque source inputs and the actual procedure frame independently of executed variable-cell selection?",
+    "conclusion": "The conditional inventory retains a unanimous Registry write receiver form, genuine written operand, original input and optional independently owned frame and namespace. The fixed test distinguishes escaped D800/D801 cards, keeps a procedure-local write in its actual frame, excludes reads, unset operands and alias declarations, and checks Combined receiver geometry. This source metadata supplies no executed store, selected cell, normal completion, alias lifetime, reference set or rename coverage.",
+    "scope": "Compiler source-analysis metadata for explicit Tcl 8.6, Tcl 9.0 and Jim authoring profiles. Static source cards and exact original image/configuration are retained separately from selected byte-cell symbols. Missing frame remains unavailable; no namespace or local frame is inferred from a reporting name or body offset.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/analyser/scope.rs",
+        "selector": "analyser::scope::tests::original_write_name_advice_keeps_source_cards_and_authentic_local_frames",
+        "assertion": "Distinguishes original opaque inputs, requires the authentic procedure frame and excludes non-write and alias cards.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/variable_write_advice.rs",
+        "symbol": "original_variable_write_advice",
+        "purpose": "Selects unanimous conditional Registry write-role/receiver metadata without closing unknown execution."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/scope.rs",
+        "symbol": "record_original_variable_write_advice",
+        "purpose": "Retains the genuine original written input and independently selected frame/home."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/variable_symbol.rs",
+        "symbol": "OriginalVariableWriteAdvice",
+        "purpose": "Keeps source-card geometry distinct from selected variable-symbol identity."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The named fixed Rust tests bind this implementation contract. Root must execute the corresponding crate selectors against one frozen source snapshot. This record supplies no Rust execution receipt, native test result, physical object, normal-completion certificate or cache proof."
+    }
+  },
+  {
+    "id": "naming.source.native-string-original-extents",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/native-string-original-extents.md",
+    "problem_statement": "One retained native text component can contain both literal source units and multiple escaped units. Treating it as an indivisible component loses an editable tail; taking native byte offsets as source offsets can split an escape or a multi-byte source unit and corrupt the authored name.",
+    "question": "Does original native-string extent projection preserve complete escaped units and original source-channel boundaries across a decoded text run?",
+    "conclusion": "The shared mapper uses the selected native string protocol, full escape syntax and source channel to project only exact native unit boundaries into original spans. Complete escape-produced units map to their entire original escape, interior byte boundaries decline, and out-of-range extents decline. The Registry word adapter composes those spans with original grouping and word ownership. This correspondence grants no selected name identity, editable rename, compiler preparation, runtime value, normal completion or physical cache state.",
+    "scope": "Pure Syntax/Registry original-source geometry for the five C Tcl native string recipes and the Jim recipe. Fixed tests cover escaped surrogate units, Document versus NativeValue zero ingress, braces/quotes and invalid extents. A selected protocol is required; general computed word or list-child editability is a separate owner.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/backslash.rs",
+        "selector": "backslash::executable_text_tests::escaped_text_extents_keep_complete_escapes_and_channel_unit_boundaries",
+        "assertion": "Checks complete surrogate escape extents, rejects interior and out-of-bounds native ranges, and preserves channel-specific zero-unit boundaries.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-registry/src/native_compiler_words.rs",
+        "selector": "native_compiler_words::tests::original_literal_extents_preserve_grouping_escapes_and_channel_units",
+        "assertion": "Checks captured word grouping and escaped native ranges against the exact original source image.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/backslash.rs",
+        "symbol": "native_source_string_extent",
+        "purpose": "Projects decoded text through the existing native escape decoder and literal channel boundary owner."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_compiler_words.rs",
+        "symbol": "original_literal_extent",
+        "purpose": "Attaches shared literal/escaped unit extents to the original retained whole word."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The named fixed Rust tests bind this implementation contract. Root must execute the corresponding crate selectors against one frozen source snapshot. This record supplies no Rust execution receipt, native test result, physical object, normal-completion certificate or cache proof."
+    }
+  },
+  {
+    "id": "naming.variable.original-destruction-operand-keys",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-destruction-operand-keys.md",
+    "problem_statement": "A conditional unset diagnostic can retain the correct written operand yet lose its alias target if SSA reconstructs a key from the reporting name against a different context. The spelling linked can designate the original local cell at the source point while a later table or logical reparse denotes another activation slot.",
+    "question": "Does conditional SSA destruction advice resolve exact original operand ordinals through each retained source-point alias context?",
+    "conclusion": "The declaration flow retains the actual written argument ordinal. The key projection authenticates each original declaration layout, selected naming recipe and exact whole-word input, then resolves its original alias context; all retained alternatives must agree. SSA keeps the existing conditional-advice flag and independent closed-lookup/frame checks. The fixed test follows linked to the original activation key and rejects a missing operand. This is conditional diagnostic key correspondence, not a Must destruction, normal unset, physical cell or caller-current alias grant.",
+    "scope": "Compiler original declaration advice and SSA destruction metadata under all six stock authoring profiles. Byte/compiler-primary ambiguity, absent original operands, missing policy and disagreeing source alternatives withdraw the projection. Authored-only logical diagnostic paths and executed statement destruction remain independent.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+        "selector": "command_binding::declaration_layout::tests::original_destruction_operand_keys_follow_the_retained_alias_point",
+        "assertion": "Requires the original activation key after upvar and rejects an out-of-bounds operand ordinal.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs",
+        "symbol": "DeclarationInvocationFlow",
+        "purpose": "Retains exact removal operand positions independently of diagnostic names."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+        "symbol": "declaration_variable_argument_keys",
+        "purpose": "Authenticates original declaration snapshots and unanimously projects byte keys through their alias context."
+      },
+      {
+        "path": "rust/tcl-compiler/src/place_bridge.rs",
+        "symbol": "ssa_destruction_keys",
+        "purpose": "Uses typed original keys while preserving the conditional-advice distinction and frame/lookup guards."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The named fixed Rust tests bind this implementation contract. Root must execute the corresponding crate selectors against one frozen source snapshot. This record supplies no Rust execution receipt, native test result, physical object, normal-completion certificate or cache proof."
+    }
+  }
+]

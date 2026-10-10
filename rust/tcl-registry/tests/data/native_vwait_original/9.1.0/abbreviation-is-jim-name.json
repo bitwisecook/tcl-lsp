@@ -1,0 +1,17 @@
+{
+  "case": "abbreviation-is-jim-name",
+  "command": [
+    "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+    "abbreviation-is-jim-name"
+  ],
+  "external_timeout": false,
+  "timeout_seconds": 3,
+  "process_exit": 0,
+  "seconds": 0.003450684991548769,
+  "stdout_sha256": "30db6aaff8e1b4fce92c9cb257dd526dfefe101c2c5dd1f220798f5e365cc676",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "V|actual-provider|0|5|392e312e30",
+    "R|abbreviation-is-jim-name|1|155|626164206f7074696f6e20222d736967223a206d757374206265202d616c6c2c202d657874656e6465642c202d6e6f66696c656576656e74732c202d6e6f69646c656576656e74732c202d6e6f74696d65726576656e74732c202d6e6f77696e646f776576656e74732c202d7265616461626c652c202d74696d656f75742c202d7661726961626c652c202d7772697461626c652c206f72202d2d"
+  ]
+}

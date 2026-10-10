@@ -1,0 +1,44 @@
+[
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "Pinned Tcl9.1.0 source tree; source inspection only",
+    "original_path": "generic/tclBasic.c",
+    "function": "GetCoroutineFromObj",
+    "lines": [
+      9738,
+      9756
+    ],
+    "source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "snippet": "    Tcl_Interp *interp,\n    Tcl_Obj *objPtr,\n    const char *errMsg)\n{\n    /*\n     * How to get a coroutine from its handle.\n     */\n\n    Command *cmdPtr = (Command *) Tcl_GetCommandFromObj(interp, objPtr);\n\n    if ((!cmdPtr) || (cmdPtr->nreProc2 != TclNRInterpCoroutine)) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(errMsg, TCL_INDEX_NONE));\n\tTcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"COROUTINE\",\n\t\tTclGetString(objPtr), (char *)NULL);\n\treturn NULL;\n    }\n    return (CoroutineData *)cmdPtr->objClientData2;\n}\n\n",
+    "snippet_sha256": "d1e3373fbbc2fc0644719ffe331fab3bb477b540d930eda7ac47ace162e6ff8e"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "Pinned Tcl9.1.0 source tree; source inspection only",
+    "original_path": "generic/tclBasic.c",
+    "function": "TclNRCoroInjectObjCmd and TclNRCoroProbeObjCmd",
+    "lines": [
+      9758,
+      9880
+    ],
+    "source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "snippet": "TclNRCoroInjectObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    CoroutineData *corPtr;\n\n    /*\n     * Usage more or less like tailcall:\n     *   coroinject coroName cmd ?arg1 arg2 ...?\n     */\n\n    if (objc < 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"coroName cmd ?arg1 arg2 ...?\");\n\treturn TCL_ERROR;\n    }\n\n    corPtr = GetCoroutineFromObj(interp, objv[1],\n\t    \"can only inject a command into a coroutine\");\n    if (!corPtr) {\n\treturn TCL_ERROR;\n    }\n    if (!COR_IS_SUSPENDED(corPtr)) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"can only inject a command into a suspended coroutine\", TCL_INDEX_NONE));\n\tTcl_SetErrorCode(interp, \"TCL\", \"COROUTINE\", \"ACTIVE\", (char *)NULL);\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Add the callback to the coro's execEnv, so that it is the first thing\n     * to happen when the coro is resumed.\n     */\n\n    ExecEnv *savedEEPtr = iPtr->execEnvPtr;\n    iPtr->execEnvPtr = corPtr->eePtr;\n    TclNRAddCallback(interp, InjectHandler, corPtr,\n\t    Tcl_NewListObj(objc - 2, objv + 2), INT2PTR(corPtr->nargs), NULL);\n    iPtr->execEnvPtr = savedEEPtr;\n\n    return TCL_OK;\n}\n\nstatic int\nTclNRCoroProbeObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    CoroutineData *corPtr;\n\n    /*\n     * Usage more or less like tailcall:\n     *   coroprobe coroName cmd ?arg1 arg2 ...?\n     */\n\n    if (objc < 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"coroName cmd ?arg1 arg2 ...?\");\n\treturn TCL_ERROR;\n    }\n\n    corPtr = GetCoroutineFromObj(interp, objv[1],\n\t    \"can only inject a probe command into a coroutine\");\n    if (!corPtr) {\n\treturn TCL_ERROR;\n    }\n    if (!COR_IS_SUSPENDED(corPtr)) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"can only inject a probe command into a suspended coroutine\",\n\t\tTCL_INDEX_NONE));\n\tTcl_SetErrorCode(interp, \"TCL\", \"COROUTINE\", \"ACTIVE\", (char *)NULL);\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Add the callback to the coro's execEnv, so that it is the first thing\n     * to happen when the coro is resumed.\n     */\n\n    ExecEnv *savedEEPtr = iPtr->execEnvPtr;\n    iPtr->execEnvPtr = corPtr->eePtr;\n    TclNRAddCallback(interp, InjectHandler, corPtr,\n\t    Tcl_NewListObj(objc - 2, objv + 2), INT2PTR(corPtr->nargs), corPtr);\n    iPtr->execEnvPtr = savedEEPtr;\n\n    /*\n     * Now we immediately transfer control to the coroutine to run our probe.\n     * TRICKY STUFF copied from the [yield] implementation.\n     *\n     * Push the callback to restore the caller's context on yield back.\n     */\n\n    TclNRAddCallback(interp, NRCoroutineCallerCallback, corPtr,\n\t    NULL, NULL, NULL);\n\n    /*\n     * Record the stackLevel at which the resume is happening, then swap\n     * the interp's environment to make it suitable to run this coroutine.\n     */\n\n    corPtr->stackLevel = &corPtr;\n    Tcl_Size numLevels = corPtr->auxNumLevels;\n    corPtr->auxNumLevels = iPtr->numLevels;\n\n    /*\n     * Do the actual stack swap.\n     */\n\n    SAVE_CONTEXT(corPtr->caller);\n    corPtr->callerEEPtr = iPtr->execEnvPtr;\n    RESTORE_CONTEXT(corPtr->running);\n    iPtr->execEnvPtr = corPtr->eePtr;\n    iPtr->numLevels += numLevels;\n    return TCL_OK;\n}\n\f\n/*\n *----------------------------------------------------------------------\n *\n * InjectHandler, InjectHandlerPostProc --\n *\n",
+    "snippet_sha256": "2271149923c5df711c613bc240789c3740925ca7798d7cdfbab1ac47ea94acce"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "Pinned Tcl9.1.0 source tree; source inspection only",
+    "original_path": "generic/tclBasic.c",
+    "function": "InjectHandler",
+    "lines": [
+      9898,
+      9941
+    ],
+    "source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "snippet": "InjectHandler(\n    void *data[],\n    Tcl_Interp *interp,\n    TCL_UNUSED(int) /*result*/)\n{\n    CoroutineData *corPtr = (CoroutineData *)data[0];\n    Tcl_Obj *listPtr = (Tcl_Obj *)data[1];\n    Tcl_Size nargs = PTR2INT(data[2]);\n    void *isProbe = data[3];\n    Tcl_Size objc;\n    Tcl_Obj **objv;\n\n    if (!isProbe) {\n\t/*\n\t * If this is [coroinject], add the extra arguments now.\n\t */\n\n\tif (nargs == COROUTINE_ARGUMENTS_SINGLE_OPTIONAL) {\n\t    Tcl_ListObjAppendElement(NULL, listPtr,\n\t\t    Tcl_NewStringObj(\"yield\", TCL_INDEX_NONE));\n\t} else if (nargs == COROUTINE_ARGUMENTS_ARBITRARY) {\n\t    Tcl_ListObjAppendElement(NULL, listPtr,\n\t\t    Tcl_NewStringObj(\"yieldto\", TCL_INDEX_NONE));\n\t} else {\n\t    /*\n\t     * I don't think this is reachable...\n\t     */\n\t    Tcl_Obj *nargsObj;\n\t    TclNewIndexObj(nargsObj, nargs);\n\t    Tcl_ListObjAppendElement(NULL, listPtr, nargsObj);\n\t}\n\tTcl_ListObjAppendElement(NULL, listPtr, Tcl_GetObjResult(interp));\n    }\n\n    /*\n     * Call the user's script; we're in the right place.\n     */\n\n    Tcl_IncrRefCount(listPtr);\n    TclMarkTailcall(interp);\n    TclNRAddCallback(interp, InjectHandlerPostCall, corPtr, listPtr,\n\t    INT2PTR(nargs), isProbe);\n    TclListObjGetElements(NULL, listPtr, &objc, &objv);\n    return TclNREvalObjv(interp, objc, objv, 0, NULL);\n",
+    "snippet_sha256": "443d02746fe61d51c12fd3b0f98e920d3d0096c048b93d9fc7d8be7bdb53ec35"
+  }
+]

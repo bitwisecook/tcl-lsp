@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.22s
+     Running unittests src/lib.rs (/workspace/.targets/naming-runtime/debug/deps/tcl_vm-13c4a8dc710f7193)
+
+running 1 test
+test cmd_event::native_original_tests::original_event_scripts_global_waits_and_timer_turns_match_native_controls ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 653 filtered out; finished in 47.37s
+

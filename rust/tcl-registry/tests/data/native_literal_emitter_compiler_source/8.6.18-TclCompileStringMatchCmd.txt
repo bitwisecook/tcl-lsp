@@ -1,0 +1,79 @@
+TclCompileStringMatchCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    int i, length, exactMatch = 0, nocase = 0;
+    const char *str;
+
+    if (parsePtr->numWords < 3 || parsePtr->numWords > 4) {
+	return TCL_ERROR;
+    }
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+
+    /*
+     * Check if we have a -nocase flag.
+     */
+
+    if (parsePtr->numWords == 4) {
+	if (tokenPtr->type != TCL_TOKEN_SIMPLE_WORD) {
+	    return TclCompileBasic3ArgCmd(interp, parsePtr, cmdPtr, envPtr);
+	}
+	str = tokenPtr[1].start;
+	length = tokenPtr[1].size;
+	if ((length <= 1) || strncmp(str, "-nocase", length)) {
+	    /*
+	     * Fail at run time, not in compilation.
+	     */
+
+	    return TclCompileBasic3ArgCmd(interp, parsePtr, cmdPtr, envPtr);
+	}
+	nocase = 1;
+	tokenPtr = TokenAfter(tokenPtr);
+    }
+
+    /*
+     * Push the strings to match against each other.
+     */
+
+    for (i = 0; i < 2; i++) {
+	if (tokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+	    str = tokenPtr[1].start;
+	    length = tokenPtr[1].size;
+	    if (!nocase && (i == 0)) {
+		/*
+		 * Trivial matches can be done by 'string equal'. If -nocase
+		 * was specified, we can't do this because INST_STR_EQ has no
+		 * support for nocase.
+		 */
+
+		Tcl_Obj *copy = Tcl_NewStringObj(str, length);
+
+		Tcl_IncrRefCount(copy);
+		exactMatch = TclMatchIsTrivial(TclGetString(copy));
+		TclDecrRefCount(copy);
+	    }
+	    PushLiteral(envPtr, str, length);
+	} else {
+	    SetLineInformation(i+1+nocase);
+	    CompileTokens(envPtr, tokenPtr, interp);
+	}
+	tokenPtr = TokenAfter(tokenPtr);
+    }
+
+    /*
+     * Push the matcher.
+     */
+
+    if (exactMatch) {
+	TclEmitOpcode(INST_STR_EQ, envPtr);
+    } else {
+	TclEmitInstInt1(INST_STR_MATCH, nocase, envPtr);
+    }
+    return TCL_OK;
+}

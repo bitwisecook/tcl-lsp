@@ -102,6 +102,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "variable_receivers",
+        Example {
+            code: "array set a(b) {key value}\ntrace info variable a(b)",
+            focuses: &[
+                focus(
+                    0,
+                    "a(b)",
+                    "a combined receiver denotes an element; naming metadata does not promise that a whole-array operation succeeds",
+                ),
+                focus(
+                    1,
+                    "a(b)",
+                    "a trace subject uses its selected name ingress before root/index parsing; the descriptor grants no trace installation",
+                ),
+            ],
+        },
+    ),
+    (
         "successful_handler",
         Example {
             code: "append ::counter x",
@@ -1104,6 +1122,17 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                 ),
                 focus(1, "IP::remote_addr", "what the quick fix offers instead"),
             ],
+        },
+    ),
+    (
+        "source_deprecation_advice",
+        Example {
+            code: "when HTTP_REQUEST {\n    matchclass [HTTP::uri] starts_with paths\n}",
+            focuses: &[focus(
+                1,
+                "matchclass",
+                "typed Registry source advice proposes class match for review",
+            )],
         },
     ),
     (

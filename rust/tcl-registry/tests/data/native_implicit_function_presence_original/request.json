@@ -1,0 +1,7 @@
+{
+  "question_id": "naming.expression.original-implicit-function-slot-presence",
+  "problem": "Implicit expression calls do not own written command-head words. Determine whether a missing Pi function is a command-slot lookup and whether a published ::tcl::mathfunc::Pi procedure affects dispatch under each measured provider.",
+  "input_channel": "ASCII LF source file CLI, sequential fresh process per provider",
+  "source_sha256": "52606ff182cbccd8125c7be37bea2397fe93285047cc37a8cb6adfbe7c190332",
+  "limit": "Observed outcomes do not prove generic callback-free lookup, authored snapshot completeness, compiler admission or physical object identity."
+}

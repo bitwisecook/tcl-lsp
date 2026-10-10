@@ -1,0 +1,28 @@
+{
+  "purpose": "Discriminate actual InfoFunctions fixed table vs live native script/global-local/helper semantics, and InfoLoaded original interpreter-list paths.",
+  "channel": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.",
+  "source": "cases.tcl",
+  "source_sha256": "c5ce25bcb86f2cf8a803faac0816c985c3fd265873f1da05a59d707a6b5aef8f",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "case_ids": [
+    "fixed-or-script-sin",
+    "caller-local-function",
+    "global-local-merge",
+    "opaque-function-pattern",
+    "raw-zero-function-pattern",
+    "encoded-zero-function-pattern",
+    "loaded-root",
+    "loaded-nested-child",
+    "loaded-original-raw-zero-child",
+    "loaded-invalid-list",
+    "loaded-missing-child",
+    "functions-observe-apply-helper"
+  ]
+}

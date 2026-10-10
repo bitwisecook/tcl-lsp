@@ -1,0 +1,136 @@
+[
+  {
+    "id": "naming.variable.original-ssa-definition-operand",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-ssa-definition-operand.md",
+    "problem_statement": "Opaque source name siblings can share reporting text. A normal-transfer capsule that reconstructs output addresses from those labels can attach an SSA definition or inferred type to another cell, even if the initial source producer retained the correct native units.",
+    "question": "How does a selected SSA definition retain its exact original effective receiver operand and byte-cell identity?",
+    "conclusion": "The source owner retains one full effective OriginalVariableInvocation at the actual handler boundary and withdraws conflicting observations. Normal definition and transfer consumers use its independent compiler/runtime operands and exact output ordinals. SsaSourceView matches an actual SSA definition cell and variable binding phase to the genuine written input; missing ownership never falls back to display text. The mapping supplies no value, future lifetime, Normal completion, representation, rename coverage or edit permission.",
+    "scope": "Rust Compiler definition mapping and Core type hints under retained source image/configuration. Exact output origin, binding phase, current operand graph and cell identity are independent. Conditional source cards cannot fill a missing executed definition. Native provider behaviour is documented in separate empirical questions.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_variable_inventory.rs",
+        "selector": "command_binding::original_variable_inventory::tests::original_operand_inventory_keeps_runtime_bytes_and_withdraws_missing_or_conflicting_owners",
+        "assertion": "Retains two distinct opaque runtime operands and permanently withdraws missing or conflicting owners.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/ssa.rs",
+        "selector": "ssa::original_definition_name_tests::original_ssa_definition_names_preserve_exact_operands_and_distinct_cells",
+        "assertion": "Requires genuine point tokens for the first tokenless AssignConst and exact decoded original receiver inputs/distinct SSA byte cells for opaque siblings and an indexed target.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+        "selector": "inlay_hints::original_variable_type_tests::original_type_hints_match_exact_ssa_cells_without_reporting_variable_maps",
+        "assertion": "Inferred type hints require the authentic SSA definition input and source declaration rather than reporting maps.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_variable_inventory.rs",
+        "symbol": "OriginalVariableInvocations",
+        "purpose": "Retains once-issued effective operands at full original invocation sites with conflict withdrawal."
+      },
+      {
+        "path": "rust/tcl-compiler/src/variable_bindings.rs",
+        "symbol": "OriginalVariableInvocation",
+        "purpose": "Keeps runtime input and independently selected compiler receiver purposes at exact effective ordinals."
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation.rs",
+        "symbol": "NormalTransferInvocation",
+        "purpose": "Projects normal handler definitions and variable effects through retained original operands."
+      },
+      {
+        "path": "rust/tcl-compiler/src/ssa.rs",
+        "symbol": "original_definition_name",
+        "purpose": "Matches an actual SSA cell/phase to the genuine original written input."
+      },
+      {
+        "path": "rust/tcl-compiler/src/place_bridge.rs",
+        "symbol": "def_places_at",
+        "purpose": "Selects original definition cells from genuine CFG point tokens even when specialised IR has no statement token vector; missing original ownership withdraws."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result."
+    }
+  }
+]

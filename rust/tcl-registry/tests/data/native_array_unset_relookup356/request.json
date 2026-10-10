@@ -1,0 +1,26 @@
+{
+  "question_id": "naming.variable.original-array-unset-name-relookup",
+  "question": "After the selected array operation callback retargets the original source alias to a different array, does whole-root array unset perform a fresh lookup while patterned member unset retains the located physical root?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Two independent exact ASCII originals, fresh fullInit counted CAPI process per case using unchanged original driver; no fallback or source rewriting.",
+  "observation": "Whole original completion/result containing public existence of both original/different root and member. Preserve any unavailable API as actual guest error. Pinned C86 source ArrayUnsetCmd at tclVar.c3980 uses TclObjUnsetVar2 for whole-root while3994 uses TclPtrUnsetVarIdx for member; observations test public distinction across all providers, no private pointers/header claim.",
+  "cases": [
+    {
+      "id": "whole-root-relookup",
+      "source_file": "whole-root-relookup.tcl",
+      "source_sha256": "0a5c0a3a59f5592feba32bf769036ba3ae13173950e59d6913eaff302d52ee1a"
+    },
+    {
+      "id": "member-held-root",
+      "source_file": "member-held-root.tcl",
+      "source_sha256": "0776d363423e550029d378e35ad6e21ac3891f92f4977dcda1e6626b80d6648b"
+    }
+  ]
+}

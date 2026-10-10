@@ -1,0 +1,74 @@
+{
+  "provider": "jim",
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-eventloop.c": "b9536f7021919026f8ee2cfcdb35a59305db07a23e60daa50d5da966d52a1a12"
+  },
+  "probe_sha256": "c0b99dcec4d0610a262c1d589f9eba13ab04469ff88ca3c8d858c2b52e99f4ac",
+  "inputs_sha256": "7320e8b67f9aa9a4e9f71a2c1378ddc9a4639eaa858d9d89c88980be4ba70c70",
+  "runner_sha256": "c48def08a8e2a7a4b67bfa5f1bf64c1ea5ce7343c0fd0a45061260880b8b6765",
+  "queue_sha256": "23645c331af7af4dca8b69299db9d90ec89a7facdab537e4e65ee5d7e9a791b4",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-DJIM_PROBE=1",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/native-event-original110/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/captured-native-event-original110/jim/probe"
+  ],
+  "environment": {},
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "cases": [
+    {
+      "id": "SAME_NESTED",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original110/jim/probe",
+        "0"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "5c9474fce3f69857b31b75c8b4e07546daea6512e65a1f565a55d1c174f9131d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|302e38342d392d6735626163376339",
+        "SAME_NESTED_INPUT|0|73657420782053414d453b20736574206c6f67207b7d3b2061667465722030207b73657420782053414d453b206c617070656e64206c6f672053414d453b2061667465722030207b7365742078204e4558543b206c617070656e64206c6f67204e4558547d7d3b20767761697420783b20736574206c6f67",
+        "SAME_NESTED|0|53414d45204e455854",
+        "SAME_NESTED_OPTIONS_NOT_TESTED|0|no-C-return-options-api"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "ARRAY_NESTED",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original110/jim/probe",
+        "1"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "c405c8f13e4dfa69a6dde8d90c53a3f0ead61351c79cfbdd56f79db2bae6a9c9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|302e38342d392d6735626163376339",
+        "ARRAY_NESTED_INPUT|0|6172726179207365742061207b6b204f4c447d3b2061667465722030207b7365742061286b29204f4c443b2061667465722030207b7365742061286b29204e45577d7d3b2076776169742061286b293b207365742061286b29",
+        "ARRAY_NESTED|0|4e4557",
+        "ARRAY_NESTED_OPTIONS_NOT_TESTED|0|no-C-return-options-api"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    }
+  ],
+  "executable_sha256": "0effba498f88245317d13fe262c4f5e38413f7ae38393769a80a659bf4830d5f"
+}

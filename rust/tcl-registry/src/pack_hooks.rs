@@ -55,7 +55,7 @@ use std::sync::{LazyLock, Mutex, OnceLock};
 use tcl_dialect::TclVersion;
 
 use crate::arg_role::{AppendedArity, ArgRole};
-use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
+use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError, ClauseShapeIssue};
 use crate::hooks::{ConstFoldFn, VersionedConstFoldFn};
 use crate::hover::{OptionValueHook, OptionValueOutcome, ScriptTiming};
 use crate::invocation_words::{
@@ -443,6 +443,7 @@ impl CacheMode {
 pub fn kind_word(kind: InvocationWordKind) -> &'static str {
     match kind {
         InvocationWordKind::Literal => "literal",
+        InvocationWordKind::KnownBytes => "known-bytes",
         InvocationWordKind::Dynamic => "dynamic",
         InvocationWordKind::Expanded => "expanded",
         InvocationWordKind::Opaque => "opaque",
@@ -892,6 +893,9 @@ fn shape_key(slot: HookSlot, call: &HookCall<'_>, mode: CacheMode) -> Option<Sha
     let mut kinds: u128 = 0;
     for (position, word) in call.words.iter().enumerate() {
         let bits: u128 = match word.kind {
+            // The legacy two-bit cache vocabulary has no native byte value.
+            // Decline caching instead of colliding with a logical literal.
+            InvocationWordKind::KnownBytes => return None,
             InvocationWordKind::Literal => 0,
             InvocationWordKind::Dynamic => 1,
             InvocationWordKind::Expanded => 2,
@@ -998,8 +1002,8 @@ fn intern(message: &str) -> &'static str {
 /// means.
 ///
 /// **Fidelity, stated plainly.** Only the families whose shipped Rust
-/// signature carries [`InvocationArguments`] — the literal-argument validator
-/// and the command-prefix resolver — can report a word as `dynamic`,
+/// signature carries [`InvocationArguments`] — the literal-argument validator,
+/// command-prefix resolver and script-timing resolver — can report a word as `dynamic`,
 /// `expanded`, or `opaque`; the families whose signature is a bare `&[&str]`
 /// have no such information to pass on, so their `kinds` reads `literal`
 /// throughout. That is exactly as sound as the shipped Rust hooks are, since
@@ -1068,8 +1072,8 @@ fn command_prefix_thunk<const N: u16>(
     }
 }
 
-fn script_timing_thunk<const N: u16>(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    let words = literal_words(args);
+fn script_timing_thunk<const N: u16>(args: InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let words = structured_words(args);
     match dispatch(
         HookSlot {
             family: HookFamily::ScriptTimingResolver,
@@ -1129,8 +1133,12 @@ fn taint_sink_thunk<const N: u16>(args: &[&str]) -> bool {
     )
 }
 
-fn context_gate_thunk<const N: u16>(args: &[&str], in_event_body: bool) -> Option<&'static str> {
-    let words = literal_words(args);
+fn context_gate_thunk<const N: u16>(
+    args: InvocationArguments<'_>,
+    in_event_body: bool,
+) -> Option<&'static str> {
+    args.exact_argv_len()?;
+    let words = structured_words(args);
     let call = HookCall {
         words: &words,
         version: None,
@@ -1167,8 +1175,9 @@ fn literal_validator_thunk<const N: u16>(
     }
 }
 
-fn clause_shape_thunk<const N: u16>(args: &[&str]) -> Option<ClauseShapeError> {
-    let words = literal_words(args);
+fn clause_shape_thunk<const N: u16>(args: InvocationArguments<'_>) -> Option<ClauseShapeIssue> {
+    args.exact_argv_len()?;
+    let words = structured_words(args);
     match dispatch(
         HookSlot {
             family: HookFamily::ClauseShapeCheck,
@@ -1176,7 +1185,7 @@ fn clause_shape_thunk<const N: u16>(args: &[&str]) -> Option<ClauseShapeError> {
         },
         &call_of(&words, None),
     ) {
-        HookAnswer::ClauseShape(error) => Some(error),
+        HookAnswer::ClauseShape(error) => Some(ClauseShapeIssue::diagnostic(error)),
         _ => None,
     }
 }
@@ -1447,6 +1456,47 @@ mod tests {
         install_host(Rc::new(FixedHost(HookAnswer::SinkSuppressed)));
         assert!(!gate(&["x"]));
         clear_host();
+    }
+
+    #[test]
+    fn native_byte_hook_kind_cannot_reuse_a_logical_literal_cache_entry() {
+        // Implementation contract: naming.invocation.known-native-byte-values
+        // docs/design/analysis/name-resolution-proofs/known-native-byte-values.md
+        let words = [HookWord {
+            value: "",
+            kind: InvocationWordKind::KnownBytes,
+        }];
+        let call = HookCall {
+            words: &words,
+            version: None,
+            in_event_body: false,
+            option: None,
+            constraints: None,
+            dialect: None,
+        };
+        assert_eq!(kind_word(words[0].kind), "known-bytes");
+        assert!(!call.all_literal());
+        let slot = HookSlot {
+            family: HookFamily::ArgRoleResolver,
+            index: 0,
+        };
+        assert!(shape_key(slot, &call, CacheMode::Shape).is_none());
+        assert!(shape_key(slot, &call, CacheMode::Content).is_none());
+        let literal = [HookWord {
+            value: "",
+            kind: InvocationWordKind::Literal,
+        }];
+        assert!(
+            shape_key(
+                slot,
+                &HookCall {
+                    words: &literal,
+                    ..call
+                },
+                CacheMode::Shape
+            )
+            .is_some()
+        );
     }
 
     #[test]

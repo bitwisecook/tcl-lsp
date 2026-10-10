@@ -665,6 +665,63 @@ pub fn is_pure_command_with_traces(
     is_pure_command(registry, command, args, dialect)
 }
 
+/// Purity of this original selected invocation and its exact argument inventory.
+/// Complete availability and closed original argument evaluation are separate
+/// premises. Missing metadata or child receipts cannot establish pure effects.
+pub(crate) fn is_pure_tokens_with_metadata_context(
+    registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    tokens: &crate::ir::CommandTokens,
+    traced_commands: &std::collections::BTreeSet<String>,
+    has_dynamic_trace: bool,
+) -> bool {
+    let Some(metadata) = metadata.filter(|context| context.matches_registry(registry)) else {
+        return false;
+    };
+    let Some(invocation) =
+        crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+            registry,
+            Some(metadata),
+            tokens,
+        )
+    else {
+        return false;
+    };
+    let facts = &invocation.facts;
+    if has_dynamic_trace
+        || traced_commands.contains(&facts.canonical_command)
+        || traced_commands.contains(facts.canonical_command.trim_start_matches("::"))
+        || !facts.traits.contains(Traits::PURE)
+        || !facts.effects.accesses().is_empty()
+        || facts.effects.requires_world_barrier()
+        || facts.effects.legacy().command_table_mutation
+        || !facts.effects.legacy().frame_effects.is_empty()
+        || !facts.effects.legacy().side_effects.is_empty()
+        || !matches!(&facts.state_transitions, StateTransitionKnowledge::Declared(transitions) if transitions.facts().is_empty())
+    {
+        return false;
+    }
+    let Some(calls) = crate::word_subst::checked_lifted_calls(
+        tokens,
+        tokens.native_lexer_config(tcl_lexer::LexerConfig::for_profile(registry.profile())),
+    ) else {
+        return false;
+    };
+    // This shared gate requires every original variable read and nested result
+    // to have closed evaluation. It does not promote a nominal PURE label.
+    crate::const_subst::ConstSubstCtx {
+        registry,
+        resolution_namespace: "::",
+        namespace_context: None,
+        version: None,
+        defining_class: None,
+        trusts: &|_| false,
+        lookup_var: &|_| None,
+    }
+    .retained_token_arguments_with_metadata_context(tokens, &calls, metadata)
+    .is_some()
+}
+
 /// Return `true` if a redundant use of `command` is worth
 /// flagging. Built-ins marked `CSE_CANDIDATE` qualify; user-proc
 /// redundancy (interprocedural) is not flagged.
@@ -4729,5 +4786,61 @@ mod tests {
             1,
             "control: without the oo statements the same pair reuses"
         );
+    }
+    #[test]
+    fn original_token_purity_requires_actual_availability_and_complete_children() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = current.commands();
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "dict create key value",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        let tokens = cu
+            .ir_module
+            .top_level
+            .statements
+            .iter()
+            .find_map(Statement::tokens)
+            .unwrap();
+        let traced = std::collections::BTreeSet::new();
+        assert!(super::is_pure_tokens_with_metadata_context(
+            registry,
+            Some(current.into()),
+            tokens,
+            &traced,
+            false
+        ));
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(registry));
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        for metadata in [Some((&older).into()), Some(foreign.into()), None] {
+            assert!(!super::is_pure_tokens_with_metadata_context(
+                registry, metadata, tokens, &traced, false
+            ));
+        }
+        let replaced = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "proc dict args {return MUTATED}; list [dict create key value]",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        let tokens = replaced
+            .ir_module
+            .top_level
+            .statements
+            .last()
+            .and_then(Statement::tokens)
+            .unwrap();
+        assert!(!super::is_pure_tokens_with_metadata_context(
+            registry,
+            Some(current.into()),
+            tokens,
+            &traced,
+            false
+        ));
     }
 }

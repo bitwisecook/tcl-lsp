@@ -1,0 +1,68 @@
+{
+  "question_id": "naming.variable.original-eval-container-storage-columns",
+  "purpose": "Replay all ten retained public variable-container specimens in the exact original ASCII LF isolated script-file envelope used by tcl-test-support::variable_containers_conformance::check. One process per case/provider. Preserve old capture columns independently; these fresh six-provider results define their own corrected original-envelope expectations, with exact source/exe/library/build provenance. No private bytecode/frame/header authority follows from public results.",
+  "source_owner": "rust/tcl-test-support/src/variable_containers.rs::variable_container_scripts",
+  "source_owner_sha256": "519d2933877299f1220f39b349941935b464b70e2edb2f8a038ec11b22a911b3",
+  "cases": [
+    {
+      "label": "case-00",
+      "case_index": 0,
+      "path": "/workspace/.proofs/native-variable-container-columns189/case-00.tcl",
+      "source_sha256": "ea3ca1f734f5fe10fcb89dda842c820e2f043417728b153af777e4ddb19058ac"
+    },
+    {
+      "label": "case-01",
+      "case_index": 1,
+      "path": "/workspace/.proofs/native-variable-container-columns189/case-01.tcl",
+      "source_sha256": "1e93a4253b14a27154b08fabf461b9afe387684135a1924d8eecf5b1f58d18c5"
+    },
+    {
+      "label": "case-02",
+      "case_index": 2,
+      "path": "/workspace/.proofs/native-variable-container-columns189/case-02.tcl",
+      "source_sha256": "8570796cf38727c22d9b3fe7ff90f88fba86089e8507721185e4f9bf6ab4b3cc"
+    },
+    {
+      "label": "case-03",
+      "case_index": 3,
+      "path": "/workspace/.proofs/native-variable-container-columns189/case-03.tcl",
+      "source_sha256": "fadf406093390661c142c2124a76b08510a07e6d864c559573dc8ef73397e7f9"
+    },
+    {
+      "label": "case-04",
+      "case_index": 4,
+      "path": "/workspace/.proofs/native-variable-container-columns189/case-04.tcl",
+      "source_sha256": "c8d1db13e69d62d2c6c82e28d4733aa7dddeece7b5bf043f909693330bc5aa57"
+    },
+    {
+      "label": "case-05",
+      "case_index": 5,
+      "path": "/workspace/.proofs/native-variable-container-columns189/case-05.tcl",
+      "source_sha256": "93d1fae4ac3207be093ccad333ea06f829eae0006d84ae503fc6ccbf1fb5613c"
+    },
+    {
+      "label": "case-06",
+      "case_index": 6,
+      "path": "/workspace/.proofs/native-variable-container-columns189/case-06.tcl",
+      "source_sha256": "ad1d3b4d2e2cad5efb1d62d0a0ce8d3fe934b6442746693d5161a16c21699b19"
+    },
+    {
+      "label": "case-07",
+      "case_index": 7,
+      "path": "/workspace/.proofs/native-variable-container-columns189/case-07.tcl",
+      "source_sha256": "82a3713a72b7e9aae7ed3f1baa7c9059af844cfe0b6b46a3b3614c456edb0859"
+    },
+    {
+      "label": "case-08",
+      "case_index": 8,
+      "path": "/workspace/.proofs/native-variable-container-columns189/case-08.tcl",
+      "source_sha256": "65a493b1ee29448cc138b910da5a17b98fa4e200babbe24dbd906f156d0430b9"
+    },
+    {
+      "label": "case-09",
+      "case_index": 9,
+      "path": "/workspace/.proofs/native-variable-container-columns189/case-09.tcl",
+      "source_sha256": "4952960412f90face6528342c4f9e06709381e61765a6799c28d8b6939ec8aca"
+    }
+  ]
+}

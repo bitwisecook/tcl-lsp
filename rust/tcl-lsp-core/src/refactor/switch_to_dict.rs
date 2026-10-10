@@ -18,11 +18,12 @@
 
 //! Convert a constant-mapping `switch` to a `dict` lookup.
 
+use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
-use tcl_registry::CommandRegistry;
 
-use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
+use super::source_rewrite::{RewriteObligation, select};
+use super::{RefactorEdit, Refactoring, token_end_offset};
 use crate::code_actions::ActionKind;
 
 /// A parsed single-command arm body.
@@ -60,17 +61,27 @@ fn parse_branch_assignment(body_text: &str, config: LexerConfig) -> Option<Branc
 /// Convert a `switch` where every arm sets the same variable / returns a
 /// constant into a `dict` lookup at byte offset `cursor`.
 ///
-/// `config` is the document's [`LexerConfig`], threaded into every
-/// re-segmentation this transform performs.
+/// Source and Registry axes come from the complete current analysis. An
+/// original handler receipt does not grant inserted stores or evaluation
+/// movement; unavailable permissions return a disabled action without edits.
 #[must_use]
 pub fn switch_to_dict(
     source: &str,
     cursor: u32,
-    registry: &CommandRegistry,
+    analysis: &AnalysisResult,
     line_index: &LineIndex,
-    config: LexerConfig,
 ) -> Option<Refactoring> {
-    let cmd = find_command_at(source, cursor, Some("switch"), registry, config)?;
+    let config = analysis.body_lexer_config?;
+    let (cmd, obligation) = select(
+        source,
+        cursor,
+        analysis,
+        tcl_registry::hooks::LoweringHookId::Switch,
+        RewriteObligation::FreshStoreAndInsertion,
+    )?;
+    if let Some(obligation) = obligation {
+        return Some(obligation.refusal("Convert to dict lookup"));
+    }
     let texts = &cmd.texts;
     if texts.len() < 3 {
         return None;
@@ -228,11 +239,13 @@ fn build_dict_replacement(arms: &ParsedArms, subject: &str, indent: &str) -> Str
 mod tests {
     use super::*;
     use tcl_dialect::model::{Family, SurfaceLayer};
+    use tcl_registry::CommandRegistry;
 
     fn run(source: &str, cursor: u32) -> Option<Refactoring> {
         let reg = super::super::test_registry();
+        let analysis = super::super::source_rewrite::lexical_analysis(source, &reg);
         let li = LineIndex::new(source);
-        switch_to_dict(source, cursor, &reg, &li, LexerConfig::default())
+        switch_to_dict(source, cursor, &analysis, &li)
     }
 
     #[test]
@@ -302,8 +315,8 @@ mod tests {
         reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let li = LineIndex::new(source);
         let cursor = u32::try_from(source.find("switch").unwrap()).unwrap();
-        let r = switch_to_dict(source, cursor, &reg, &li, LexerConfig::default())
-            .expect("nested result");
+        let analysis = super::super::source_rewrite::lexical_analysis(source, &reg);
+        let r = switch_to_dict(source, cursor, &analysis, &li).expect("nested result");
         assert!(r.title.to_lowercase().contains("dict"));
     }
 }

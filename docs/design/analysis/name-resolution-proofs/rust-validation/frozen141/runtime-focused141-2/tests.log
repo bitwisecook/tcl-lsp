@@ -1,0 +1,21 @@
+
+running 1 test
+test interp::native_variable_names::tests::recreated_element_read_trace_matches_five_original_source_controls ... ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7da055e240
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7da00f4bf0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7da0505380
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7da056bdd0
+
+thread 'interp::native_variable_names::tests::recreated_element_read_trace_matches_five_original_source_controls' (560592) panicked at src/interp/native_variable_names.rs:1818:13:
+assertion `left == right` failed: tcl8.4
+  left: [83, 69, 84, 85, 80, 32, 48, 32, 10, 79, 66, 83, 69, 82, 86, 65, 84, 73, 79, 78, 32, 51, 49, 50, 48, 55, 98, 54, 51, 54, 49, 54, 101, 50, 55, 55, 52, 50, 48, 55, 50, 54, 53, 54, 49, 54, 52, 50, 48, 50, 50, 51, 97, 51, 97, 54, 49, 50, 50, 51, 97, 50, 48, 54, 101, 54, 102, 50, 48, 55, 51, 55, 53, 54, 51, 54, 56, 50, 48, 54, 53, 54, 99, 54, 53, 54, 100, 54, 53, 54, 101, 55, 52, 50, 48, 54, 57, 54, 101, 50, 48, 54, 49, 55, 50, 55, 50, 54, 49, 55, 57, 55, 100, 50, 48, 51, 49, 51, 48, 51, 48, 50, 48, 53, 50, 52, 53, 52, 49, 52, 52, 50, 48, 51, 49, 51, 48, 51, 48, 10]
+ right: [83, 69, 84, 85, 80, 32, 48, 32, 10, 79, 66, 83, 69, 82, 86, 65, 84, 73, 79, 78, 32, 51, 49, 50, 48, 55, 98, 54, 51, 54, 49, 54, 101, 50, 55, 55, 52, 50, 48, 55, 50, 54, 53, 54, 49, 54, 52, 50, 48, 50, 50, 51, 97, 51, 97, 54, 49, 50, 56, 54, 98, 50, 57, 50, 50, 51, 97, 50, 48, 54, 101, 54, 102, 50, 48, 55, 51, 55, 53, 54, 51, 54, 56, 50, 48, 54, 53, 54, 99, 54, 53, 54, 100, 54, 53, 54, 101, 55, 52, 50, 48, 54, 57, 54, 101, 50, 48, 54, 49, 55, 50, 55, 50, 54, 49, 55, 57, 55, 100, 50, 48, 51, 49, 51, 48, 51, 48, 50, 48, 53, 50, 52, 53, 52, 49, 52, 52, 50, 48, 51, 49, 51, 48, 51, 48, 10]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_variable_names::tests::recreated_element_read_trace_matches_five_original_source_controls
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1218 filtered out; finished in 1.11s
+

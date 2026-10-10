@@ -1,0 +1,61 @@
+{
+  "question": "naming.class.jim-source-member-chronology-control",
+  "problem": "What public Jim class-package results follow sequential external method declarations, two-word procedures before/after a class factory, and BASES references to current, moved, command-aliased, deleted or nonclass command names?",
+  "questions": [
+    {
+      "control": "sequential_members",
+      "question": "Do both sequential external method definitions remain callable on a newly constructed object?"
+    },
+    {
+      "control": "two_word_before_after",
+      "question": "Are genuine two-word procedures written before and after the class factory both publicly reachable on a new object?"
+    },
+    {
+      "control": "moved_earlier_two_word",
+      "question": "Does moving an earlier two-word procedure away withdraw that original class-member route?"
+    },
+    {
+      "control": "bases_current",
+      "question": "Does a current BASES name import the original method and class-variable defaults?"
+    },
+    {
+      "control": "bases_moved_factory",
+      "question": "Does moving only the class dispatcher preserve inherited two-word targets at the moved name?"
+    },
+    {
+      "control": "bases_command_alias",
+      "question": "Does an ordinary command alias used as a BASES name supply inherited two-word routes?"
+    },
+    {
+      "control": "bases_known_deleted",
+      "question": "Can a known deleted base dispatcher supply a new class factory?"
+    },
+    {
+      "control": "bases_known_nonclass",
+      "question": "Does replacement by a nonclass procedure permit base-list factory execution, and what public result follows?"
+    }
+  ],
+  "channel": "Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability.",
+  "source_sha256": "3206121d2eab608a21401a66bee0f13c6a27da8f827f0565aa34e3ca2357a506",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "jim_expected_version": "0.84-9-g5bac7c9",
+  "jim_required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77"
+  },
+  "bigip": "not-tested",
+  "authority_boundary": "Observed public class-package behaviour is independent of conditional Compiler class-reference and metadata carriers; even a successful alias BASES outcome would not license Native class-object identity in those carriers."
+}

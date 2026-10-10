@@ -16,91 +16,41 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Shared native-stack depth caps for this crate's two unbounded
-//! recursive-descent categories.
+//! Shared native-stack depth limits for expression nodes, nested command
+//! substitutions and braced script bodies.
 //!
-//! Both walkers below recurse *independently* of the crate's existing
-//! `Script`/`Statement`-tree caps (`analyser::commands::MAX_BODY_DEPTH`,
-//! `lowering::MAX_LOWER_NEST_DEPTH`, `optimiser::MAX_OPTIMISER_WALK_DEPTH`,
-//! `codegen::structured::MAX_STRUCTURED_DEPTH` — all 256): they descend
-//! into structure *within a single word or expression*, which none of those
-//! statement-tree caps bound. Each was genuinely unbounded before this fix,
-//! so a single `expr {((((…))))}` word or a `[a [b [c …]]]`-nested argument
-//! could drive native-stack depth arbitrarily deep and abort the process
-//! with an uncatchable `SIGABRT`, rather than returning a normal result.
-//!
-//! Centralised here as one source of truth per category so the ~30 walkers
-//! that share each cap cannot drift apart. The "what happens when the cap
-//! trips" behaviour stays domain-specific at each call site (a safe
-//! conservative fallback matching that function's own return contract — see
-//! the per-site comments), exactly as `tcl_core_types::RecursionLimit`'s
-//! module docs prescribe.
-//!
-//! [`MAX_SOURCE_NEST_DEPTH`] joins them for the third category — the
-//! *braced-body* descent, including source binding interpretation — and,
-//! unlike the two above, is not a convention
-//! number at all: it is arithmetic over a stated stack budget and a measured
-//! per-level cost. See its docs for why 256 does not fit.
+//! These are independent structural axes. Every consumer of an axis uses its
+//! shared limit; exceeding it retains that consumer's explicit unknown or
+//! unrepresented-result contract. [`MAX_SOURCE_NEST_DEPTH`] derives the script
+//! body limit from a stack budget, reserve and measured per-level envelope.
 
-/// Depth cap for every walk over an `[expr]` operator-tree AST
-/// ([`tcl_syntax::expr::ast::ExprNode`], re-exported as
-/// [`crate::ExprNode`]).
+/// Depth cap for walks over the expression operator AST
+/// ([`tcl_syntax::expr::ast::ExprNode`], re-exported as [`crate::ExprNode`]).
 ///
-/// `ExprNode` nests via its `Binary`/`Unary`/`Ternary`/`Call` variants:
-/// `expr {((((…))))}` or a long `1+1+1+…` chain places one operator node
-/// per source level, and each of the ~26 independent functions that walk
-/// these trees recurses once per level with no statement-tree cap in the
-/// way (an expression's operator nesting is orthogonal to how deeply the
-/// enclosing `Script`/`Statement` tree nests). 256 mirrors this crate's
-/// established full-tree recursion convention (`MAX_BODY_DEPTH`,
-/// `MAX_LOWER_NEST_DEPTH`, `MAX_OPTIMISER_WALK_DEPTH`,
-/// `MAX_STRUCTURED_DEPTH`): comfortably beyond any realistic hand-written
-/// expression, while far below the empirical native-stack crash threshold
-/// on a 2 MiB thread (`cargo test`'s per-test default), where these walkers
-/// overflow only in the low thousands of levels.
+/// Binary, unary, ternary and function-call nodes can nest independently of
+/// the enclosing script's braced-body depth. The 256-node cap bounds these
+/// recursive walks separately from [`MAX_SOURCE_NEST_DEPTH`].
 pub(crate) const MAX_EXPR_NODE_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
-/// Depth cap for every walk over nested `[cmd …]` command-substitution
-/// *raw text within a single word*.
+/// Depth cap for recursive descent into command substitutions inside a word.
 ///
-/// These walkers re-scan the text inside each `[…]` substitution (or each
-/// `ArgRole::Body`/`apply`-lambda body word) and recurse into any nested
-/// `[…]` they find: `[a [b [c …]]]` nested N deep, or
-/// `catch {catch {catch {…}}}` / `apply {{} {apply {{} {…}}}}` nested N
-/// deep, drives native-stack depth N levels down. This nesting lives
-/// *inside one argument word's text*, so the crate's `MAX_LOWER_NEST_DEPTH`
-/// cap (which bounds recursion over *braced bodies* in the lowered IR, not
-/// brackets embedded in one word) never sees it — genuinely unbounded
-/// before this fix. 256 matches [`MAX_EXPR_NODE_DEPTH`] and the crate-wide
-/// full-tree convention, for the same reasons.
+/// Nested `[a [b [c ...]]]` substitutions occupy one argument word, so a
+/// braced-body limit cannot bound this axis. Consumers share the 256-level
+/// bracket-text limit and retain their own explicit refusal at its boundary.
 pub(crate) const MAX_BRACKET_TEXT_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
-/// The smallest native stack the braced-body walks below must run to
-/// completion on — the platform default thread stack, 2 MiB on Linux.
+/// Native-stack budget for the shared braced-body recursion limit: 2 MiB.
 ///
-/// It is what `std::thread::spawn`, a Tokio worker, and `cargo test`'s
-/// per-test thread all hand a caller who asks for nothing in particular.
-/// The `tcl` CLI, `tcl-lsp-server` and `tcl-mcp` deliberately ask for 64 MiB
-/// (`WORKER_STACK_SIZE`), so their own entry points have 32×
-/// this — but a cap is a property of the walk, not of one caller, and a
-/// crate this one is embedded in owes us no such courtesy. Sizing to the
-/// floor keeps "the analyser aborts the process" off the table for every
-/// caller instead of only the ones we ship.
+/// The limit applies to all callers, including ordinary worker and test
+/// threads. Executable entry points with larger stacks use the same limit.
 pub(crate) const MIN_SOURCE_WALK_STACK: u32 = 2 * 1024 * 1024;
 
-/// The part of [`MIN_SOURCE_WALK_STACK`] the recursive descent may **not**
-/// spend: everything above it (the caller's own frames, the LSP request
-/// handler, the test harness) plus the deepest non-recursive work below it
-/// (segmenting one command, building its tokens).
+/// Stack reserved for caller frames and nonrecursive leaf work, including
+/// request handlers, command segmentation and token construction.
 ///
-/// A quarter is far more than the measurement needs — a 2 MiB thread was
-/// observed to reach 112 lowering levels before aborting, i.e. 2,112,768
-/// bytes of descent against a 2,097,152-byte stack, which puts the
-/// non-descent overhead in the tens of kilobytes — but the reserve also
-/// absorbs the difference between the deepest leaf this measurement
-/// happened to reach and the deepest one some other input reaches.
+/// One quarter of [`MIN_SOURCE_WALK_STACK`] is excluded from recursive descent.
 const SOURCE_WALK_STACK_RESERVE: u32 = MIN_SOURCE_WALK_STACK / 4;
 
 /// Worst per-level native-stack cost across the braced-body walk family,
@@ -117,46 +67,30 @@ const SOURCE_WALK_STACK_RESERVE: u32 = MIN_SOURCE_WALK_STACK / 4;
 /// | `analyser::commands::Analyser::analyse_body` | 3,840 |
 /// | `command_binding::SourceCommandBindings` source/command/native/conditional/body chain | 17,952 conditional / 19,440 loop |
 ///
-/// Both structured lowering and source binding retain several frames per
-/// braced-body level. Full registry invocation materialisation and selected-frame construction must happen
-/// in a nonrecursive projection helper, so only the selected contract remains
-/// live during descent. Chunk preflight, dispatch carriers and continuation
-/// snapshots follow the same rule: moving only their return values to boxes
-/// leaves their construction frames live unless construction is a leaf call.
-/// The source frame fell from 4,832 to 1,600 bytes after that extraction.
-/// A 20 KiB envelope fails the constrained-stack test;
-/// 24 KiB accommodates the measured recursive chains and is checked against
-/// both fully proved typed bodies and over-cap inputs.
+/// Structured lowering and source binding retain several frames per body
+/// level. Full registry invocation materialisation, selected-frame construction,
+/// chunk preflight, dispatch carriers and continuation snapshots belong in
+/// nonrecursive leaf helpers. Only their heap-produced selected contracts
+/// remain live during descent; boxing a result alone does not remove its
+/// constructor's recursive stack frame.
+///
+/// The 24 KiB envelope covers the measured recursive chains. Stack-budget
+/// controls exercise both proved typed bodies and over-limit input.
 pub(crate) const SOURCE_WALK_BYTES_PER_LEVEL: u32 = 24 * 1024;
 
-/// Depth cap for the braced-body descent shared by source binding analysis,
-/// lowering, CFG-builder and analyser walks.
+/// Depth cap for braced-body descent shared by source binding, lowering,
+/// CFG construction and analyser walks.
 ///
-/// These walks recurse over `{ … }` nesting in the same document,
-/// and all three carried a hand-picked 256 that matched this crate's
-/// full-tree convention. That number was never checked against a stack: at
-/// the lowering walk's measured 18,864 bytes a level, 256 levels want about
-/// 4.6 MiB, so ~400 nested `foreach` bodies abort the process on any
-/// default-stack thread: a cap of 256 trips long after the stack has run out
-/// at ~112, providing no containment at all.
+/// The cap is the available [`MIN_SOURCE_WALK_STACK`] after
+/// [`SOURCE_WALK_STACK_RESERVE`], divided by [`SOURCE_WALK_BYTES_PER_LEVEL`].
+/// `the_source_walk_cap_fits_its_stack_budget` runs a cap-deep document on a
+/// thread with this budget, checking the shared recursion envelope.
 ///
-/// So it is derived rather than chosen: the levels
-/// [`MIN_SOURCE_WALK_STACK`] pays for at
-/// [`SOURCE_WALK_BYTES_PER_LEVEL`] each, after
-/// [`SOURCE_WALK_STACK_RESERVE`] is set aside. Every input is one of
-/// those three numbers, each of which says what it is and can be
-/// re-measured; the answer falls out. `the_source_walk_cap_fits_its_stack_budget`
-/// re-checks the claim by running a cap-deep document on a thread sized to
-/// the budget, so frame growth in any of the three walks fails a test
-/// instead of resurfacing as an abort. Source interpretation runs both before
-/// lowering and at isolated-script ingress. Its large descriptor snapshots
-/// must be resolved in nonrecursive heap-producing helpers: retaining those
-/// materialization frames through descent spends the same budget twice.
-///
-/// The result is far below 256 and still far above anything a human writes;
-/// past it each walk degrades the way it already did — the lowering emits a
-/// `Statement::Barrier` for the unread region, the analyser reports E207 and
-/// stops descending.
+/// Source interpretation operates at whole-document and isolated-script
+/// ingress. Its descriptor and continuation snapshots are constructed by
+/// nonrecursive leaf helpers so their constructor frames do not accumulate.
+/// Beyond the cap, lowering retains an unrepresented `Statement::Barrier`
+/// and the analyser reports E207 without descending into the unread region.
 pub(crate) const MAX_SOURCE_NEST_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(
         (MIN_SOURCE_WALK_STACK - SOURCE_WALK_STACK_RESERVE) / SOURCE_WALK_BYTES_PER_LEVEL,

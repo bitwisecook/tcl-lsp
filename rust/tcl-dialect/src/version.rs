@@ -1946,10 +1946,9 @@ mod tests {
         assert_eq!(files[0].kind, DirectPackageFileKind::Native);
         assert_eq!(files[1].path, b"p\xff.tcl");
         assert_eq!(files[1].kind, DirectPackageFileKind::Script);
-        assert!(
-            PackageProtocol::Tcl
-                .direct_files_bytes(b".", b"p", true)
-                .is_empty()
+        assert_eq!(
+            PackageProtocol::Tcl.direct_files_bytes(b".", b"p", true),
+            [] as [super::DirectPackageFileBytes; 0]
         );
         assert_eq!(
             PackageProtocol::Tcl

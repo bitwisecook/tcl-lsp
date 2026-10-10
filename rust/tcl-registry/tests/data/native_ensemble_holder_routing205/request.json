@@ -1,0 +1,60 @@
+{
+  "request_id": "naming.ensemble.original-command-holder-routing",
+  "problem": "Ensemble command publication has an implementation namespace, a default actual-parent holder and explicit -command naming. Shared command byte paths cannot recover retained parent/current tokens after namespace deletion and recreation; generic proc, C API and ensemble purposes must remain distinct.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim-current"
+  ],
+  "execution_requirements": [
+    "Use the exact existing native202 external C API driver: fresh actual full Tcl_Init / Jim core plus static extensions per control; counted original source with flags0 and no catch/eval/puts wrapper.",
+    "Evaluate the unchanged independent prelude first, then original body, then only an explicitly supplied independent query in the same interpreter. Record source bytes and SHA, public completion codes and counted hex results for each phase, stdout/stderr, exit and provider/build pins.",
+    "Preserve C8.4 unavailable namespace ensemble and Jim distinct ensemble API failures as actually observed, without substituting helpers or inferring parity.",
+    "Public name/dispatch observations do not grant private namespace/command token, incarnation or reference-count evidence. Retain provider-specific rows independently."
+  ],
+  "cases": [
+    {
+      "id": "default-live",
+      "question": "Does default ensemble publication use the actual parent of its implementation namespace and report the expected public command name?",
+      "source_file": "/workspace/.proofs/native-ensemble-holder-routing205-request/default-live.tcl",
+      "source_sha256": "facb270493741890049dbae42006410561827ed541157967791f68a0bc6a008c",
+      "source_encoding": "ASCII LF",
+      "independent_prelude_file": "/workspace/.proofs/native-ensemble-holder-routing205-request/holder-prelude.tcl",
+      "independent_prelude_sha256": "91076201c8ff10be3ed7c20bbb9206f6a91e6a70ec83261c4fb0c6142c74976b"
+    },
+    {
+      "id": "relative-qualified-live",
+      "question": "Does explicit relative qualified ensemble publication use the actual current implementation holder, without C API unqualified global or generic procedure final reparse drift?",
+      "source_file": "/workspace/.proofs/native-ensemble-holder-routing205-request/relative-qualified-live.tcl",
+      "source_sha256": "1ce5e88c9b75e07f254d07195cd0c9d4db85b9c63941738b94c8a3ad3326f5b5",
+      "source_encoding": "ASCII LF",
+      "independent_prelude_file": "/workspace/.proofs/native-ensemble-holder-routing205-request/holder-prelude.tcl",
+      "independent_prelude_sha256": "91076201c8ff10be3ed7c20bbb9206f6a91e6a70ec83261c4fb0c6142c74976b"
+    },
+    {
+      "id": "default-retained-parent",
+      "question": "After deletion of the active namespace ancestor and same-spelling recreation, does default ensemble publication choose the retained old physical parent or the visible rooted replacement?",
+      "source_file": "/workspace/.proofs/native-ensemble-holder-routing205-request/default-retained-parent.tcl",
+      "source_sha256": "18b407491a2615326ceb42f8ccd6458f445e39720ec2f01e58a5eb4a3f66b0ac",
+      "source_encoding": "ASCII LF",
+      "independent_prelude_file": "/workspace/.proofs/native-ensemble-holder-routing205-request/holder-prelude.tcl",
+      "independent_prelude_sha256": "91076201c8ff10be3ed7c20bbb9206f6a91e6a70ec83261c4fb0c6142c74976b",
+      "independent_completion_query_file": "/workspace/.proofs/native-ensemble-holder-routing205-request/retained-query.tcl",
+      "independent_completion_query_sha256": "e07363aec89b50366186fa575fd9c9d2aa874acb50eb82d5de2f4cb3333aa422"
+    },
+    {
+      "id": "relative-retained-parent",
+      "question": "After deletion/recreation, does explicit unqualified ensemble publication retain current namespace identity or apply the C8.4/8.5 procedure final registration reparse?",
+      "source_file": "/workspace/.proofs/native-ensemble-holder-routing205-request/relative-retained-parent.tcl",
+      "source_sha256": "db5a9892ac7694565b0ad26fc1e2cb74724450fa0294f63f46f294ef8e96cd3a",
+      "source_encoding": "ASCII LF",
+      "independent_prelude_file": "/workspace/.proofs/native-ensemble-holder-routing205-request/holder-prelude.tcl",
+      "independent_prelude_sha256": "91076201c8ff10be3ed7c20bbb9206f6a91e6a70ec83261c4fb0c6142c74976b",
+      "independent_completion_query_file": "/workspace/.proofs/native-ensemble-holder-routing205-request/retained-query.tcl",
+      "independent_completion_query_sha256": "e07363aec89b50366186fa575fd9c9d2aa874acb50eb82d5de2f4cb3333aa422"
+    }
+  ]
+}

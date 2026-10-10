@@ -50,6 +50,44 @@ pub enum NativeCompilationGuard {
     BeforeArguments,
 }
 
+impl NativeCompilationGuard {
+    /// Actual native C command-entry ordering. A profile-only or foreign engine
+    /// supplies no guard, and the guard itself authenticates no captured opcode.
+    #[must_use]
+    pub fn for_native_dialect(dialect: crate::InvocationDialect) -> Option<Self> {
+        let tcl_syntax::naming::NativeNameProtocol::C(version) = dialect.native_name_protocol()?
+        else {
+            return None;
+        };
+        Some(Self::for_c_version(version))
+    }
+
+    /// Original C release's compiler currency boundary, separate from command
+    /// identity, metadata selection and any argument execution.
+    #[must_use]
+    pub const fn for_c_version(version: TclVersion) -> Self {
+        match version {
+            TclVersion::V8_4 => Self::ChunkEntry,
+            _ => Self::BeforeArguments,
+        }
+    }
+
+    /// Whether this command boundary consumes current compiler/resolver epochs.
+    /// Chunk-entry selection remains captured while its operands run; it needs
+    /// no newly available epoch from mutations reached during those operands.
+    #[must_use]
+    pub const fn requires_current_epochs(self) -> bool {
+        matches!(self, Self::BeforeArguments)
+    }
+
+    /// A retained command must reacquire current source dispatch before its
+    /// operands when the actual compiler or namespace resolver epoch changed.
+    #[must_use]
+    pub const fn revalidate_source(self, captured: (u64, u64), current: (u64, u64)) -> bool {
+        self.requires_current_epochs() && (captured.0 != current.0 || captured.1 != current.1)
+    }
+}
+
 /// Source shape retained before any argument was substituted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NativeCompilationWordShape {
@@ -197,6 +235,25 @@ pub enum NativeCompiledBodyContext {
     ExceptionRange,
 }
 
+impl NativeCompiledBodyContext {
+    /// Retain the selected compiler environment while entering one body.
+    /// Loop-depth overflow and unknown catch depth cannot invent nesting.
+    #[must_use]
+    pub fn entered_context(
+        self,
+        enclosing: NativeCompilationContext,
+    ) -> Option<NativeCompilationContext> {
+        Some(match self {
+            Self::Inherit => enclosing,
+            Self::ExceptionRange => enclosing.with_inline_exception_range(),
+            Self::Loop => NativeCompilationContext {
+                loop_depth: enclosing.loop_depth.checked_add(1)?,
+                ..enclosing
+            },
+        })
+    }
+}
+
 /// Authored context appended after a rejected inline child script.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeCompiledBodyErrorContext {
@@ -264,14 +321,7 @@ impl NativeCompiledBodyOperand {
         self,
         enclosing: NativeCompilationContext,
     ) -> Option<NativeCompilationContext> {
-        Some(match self.context {
-            NativeCompiledBodyContext::Inherit => enclosing,
-            NativeCompiledBodyContext::ExceptionRange => enclosing.with_inline_exception_range(),
-            NativeCompiledBodyContext::Loop => NativeCompilationContext {
-                loop_depth: enclosing.loop_depth.checked_add(1)?,
-                ..enclosing
-            },
-        })
+        self.context.entered_context(enclosing)
     }
 }
 
@@ -672,6 +722,10 @@ pub enum NativeCompilationGrammar {
         lookups: &'static [NativeCompilerImplementationLookup],
         /// First native release installing this exact path.
         implementation_from: TclVersion,
+        /// Earlier C releases use the same explicitly authored absent-hook
+        /// member in their monolithic handler. This cannot license an earlier
+        /// private worker, opcode, or a non-NULL terminal compiler.
+        monolithic_no_hook_before: bool,
     },
     /// Original independently registered mathematical operator compiler.
     MathOperator(crate::native_mathop_compilation::NativeMathOperator),
@@ -742,6 +796,8 @@ pub enum NativeCompilationGrammar {
     /// C8.6+ literal namespace-prefix builder, with a genuine private-worker
     /// fallback for dynamic operands or an already-scoped prefix.
     NamespaceCode,
+    /// C8.6+ namespace string arithmetic over one original evaluated operand.
+    NamespaceString(crate::native_namespace_string_compilation::NativeNamespaceStringOperation),
     /// Native string equality; unsupported options use a private invocation from 8.6.
     StringEqual(crate::native_scalar_compilation::NativeScalarScope),
     /// C8.4+ string length accepts one evaluated operand; refused modern
@@ -1550,7 +1606,327 @@ pub struct SuccessfulHandlerEffects {
     pub operation: SemanticOperationId,
 }
 
+/// Effects of a selected original compiler before its arguments execute.
+/// This supplies no opcode admission, native cache or normal handler result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeOriginalCompilerNameEffects {
+    /// The selected compiler prepares data without tracked name mutations.
+    Preserved,
+    /// A fresh command-name literal requires an independent quiet exact lookup.
+    FixedLookup(&'static NativeCompilerImplementationLookup),
+    /// Ordered preparation visits whose nested compiler effects remain separate.
+    Visits(Vec<crate::native_control_compilation::NativeControlPreparationStep>),
+    /// Compiler callbacks or nested source effects remain unresolved.
+    Unknown,
+}
+
 impl NativeCompilationSpec {
+    /// Name effects with an explicit unresolved command-literal lookup. Source
+    /// consumers may close that lookup only in their independently retained
+    /// resolver/table world; a closed native table alone supplies no resolver.
+    #[must_use]
+    pub fn original_argument_name_effects(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        dialect: Option<InvocationDialect>,
+    ) -> NativeOriginalCompilerNameEffects {
+        use NativeOriginalCompilerNameEffects::{FixedLookup, Preserved, Unknown};
+        let Some(dialect) = dialect else {
+            return Unknown;
+        };
+        let Some(version) = dialect.tcl_version else {
+            return Unknown;
+        };
+        if dialect.family() != Some(Family::Tcl)
+            || words.source_protocol()
+                != tcl_syntax::native_string::NativeStringProtocol::C(version)
+            || operand_from == 0
+            || operand_from > words.original_words().len()
+            || !self.operation_matches_grammar()
+        {
+            return Unknown;
+        }
+        if self.compiler_hook_presence(dialect) == Some(false) {
+            return Preserved;
+        }
+        if self.preserves_names_before_original_arguments(words, operand_from, Some(dialect)) {
+            return Preserved;
+        }
+        if words.shapes()[0].compiler_head(Some(dialect)) != Some(true)
+            || !(0..words.original_words().len()).all(|index| words.literal(index).is_some())
+        {
+            return Unknown;
+        }
+        match self.grammar {
+            NativeCompilationGrammar::WithImplementationPath { compiler, .. } => {
+                compiler.original_argument_name_effects(words, operand_from, Some(dialect))
+            }
+            NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup,
+                implementation_from,
+                hook_from,
+                arity,
+            } if version >= implementation_from && version >= hook_from => {
+                let count = words.original_words().len() - operand_from;
+                if u16::try_from(count).is_ok_and(|count| arity.accepts(count)) {
+                    FixedLookup(lookup)
+                } else {
+                    // The BasicNArg wrapper declines before command literal preparation.
+                    Preserved
+                }
+            }
+            _ => Unknown,
+        }
+    }
+
+    /// Project preparation effects without changing the selected execution mode
+    /// or issuing an inline instruction. Generic word compilation and nested
+    /// body visits retain their independent source and lookup obligations.
+    #[must_use]
+    pub fn original_argument_name_effects_in_context(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        dialect: Option<InvocationDialect>,
+        context: NativeCompilationContext,
+    ) -> NativeOriginalCompilerNameEffects {
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand;
+        use crate::native_control_compilation::{
+            NativeControlOutcome, NativeControlPreparationStep as Visit,
+        };
+        use NativeOriginalCompilerNameEffects::{Preserved, Unknown, Visits};
+        let effects = self.original_argument_name_effects(words, operand_from, dialect);
+        let Some(dialect) = dialect else {
+            return Unknown;
+        };
+        let Some(version) = dialect.tcl_version else {
+            return Unknown;
+        };
+        if dialect.family() != Some(Family::Tcl)
+            || words.source_protocol()
+                != tcl_syntax::native_string::NativeStringProtocol::C(version)
+            || operand_from == 0
+            || operand_from > words.original_words().len()
+            || !self.operation_matches_grammar()
+        {
+            return Unknown;
+        }
+        let generic_words = || {
+            (0..words.original_words().len())
+                .map(|index| Visit::Word(NativeCompilerWordOperand::Original(index)))
+                .collect::<Vec<_>>()
+        };
+        if effects != Unknown {
+            // A null command compileProc still leaves the enclosing generic
+            // script compiler responsible for bracketed word substitutions.
+            return if effects == Preserved
+                && self.compiler_hook_presence(dialect) == Some(false)
+                && (0..words.original_words().len()).any(|index| words.literal(index).is_none())
+            {
+                Visits(generic_words())
+            } else {
+                effects
+            };
+        }
+        if words.shapes()[0].compiler_head(Some(dialect)) != Some(true)
+            || self.compiler_hook_presence(dialect) != Some(true)
+        {
+            return Unknown;
+        }
+        if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = self.grammar {
+            return compiler.original_argument_name_effects_in_context(
+                words,
+                operand_from,
+                Some(dialect),
+                context,
+            );
+        }
+        // These selected leaf emitters prepare source tokens, not variable
+        // values. Substitution compiler visits remain explicitly unresolved.
+        if self.preserves_names_for_literal_vector(words, operand_from) {
+            return Visits(generic_words());
+        }
+        if self.grammar == NativeCompilationGrammar::Expression {
+            let operand = NativeCompilerWordOperand::Original(operand_from);
+            return if words.original_words().len() == operand_from + 1
+                && crate::native_expression_program::prepare_native_expression_program(
+                    words, &operand, dialect,
+                )
+                .is_ok()
+            {
+                Visits(vec![Visit::Expression(operand)])
+            } else {
+                Unknown
+            };
+        }
+        let control = match self.grammar {
+            NativeCompilationGrammar::Conditional
+            | NativeCompilationGrammar::WhileLoop
+            | NativeCompilationGrammar::ForLoop
+            | NativeCompilationGrammar::Catch => {
+                crate::native_control_instructions::native_control_instruction(
+                    self.grammar,
+                    words,
+                    operand_from,
+                    dialect,
+                    context,
+                )
+                .map(|control| {
+                    (
+                        control.preparations,
+                        matches!(control.outcome, NativeControlOutcome::Generic),
+                    )
+                })
+            }
+            _ => return Unknown,
+        };
+        let Ok((mut visits, generic)) = control else {
+            return Unknown;
+        };
+        if generic {
+            visits.extend(generic_words());
+        }
+        Visits(visits)
+    }
+
+    /// Whether the selected compiler can preserve tracked command and
+    /// namespace bindings before this original vector's argv evaluation.
+    /// This is independent of opcode admission, variable storage, literal
+    /// caches and handler completion. Unrepresented nested compilation or
+    /// implementation paths return `false`.
+    #[must_use]
+    pub fn preserves_names_before_original_arguments(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        dialect: Option<InvocationDialect>,
+    ) -> bool {
+        let Some(dialect) = dialect else {
+            return false;
+        };
+        let Some(version) = dialect.tcl_version else {
+            return false;
+        };
+        if dialect.family() != Some(Family::Tcl)
+            || words.source_protocol()
+                != tcl_syntax::native_string::NativeStringProtocol::C(version)
+            || operand_from == 0
+            || operand_from > words.original_words().len()
+            || !self.operation_matches_grammar()
+        {
+            return false;
+        }
+        if self.grammar == NativeCompilationGrammar::NoHook {
+            return true;
+        }
+        if words.shapes()[0].compiler_head(Some(dialect)) != Some(true)
+            || !(0..words.original_words().len()).all(|index| words.literal(index).is_some())
+        {
+            return false;
+        }
+        self.preserves_names_for_literal_vector(words, operand_from)
+    }
+
+    fn preserves_names_for_literal_vector(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+    ) -> bool {
+        let count = words.original_words().len() - operand_from;
+        match self.grammar {
+            NativeCompilationGrammar::WithImplementationPath { compiler, .. } => {
+                compiler.operation_matches_grammar()
+                    && compiler.preserves_names_for_literal_vector(words, operand_from)
+            }
+            NativeCompilationGrammar::VariableLoadStore => {
+                self.operation
+                    == SemanticOperationId::StructuredLowering(crate::hooks::LoweringHookId::Set)
+                    && matches!(count, 1 | 2)
+            }
+            NativeCompilationGrammar::StringEqual(_) => count == 2,
+            NativeCompilationGrammar::StringLength(_)
+            | NativeCompilationGrammar::ListLength
+            | NativeCompilationGrammar::NamespaceOrigin
+            | NativeCompilationGrammar::NamespaceString(_) => count == 1,
+            NativeCompilationGrammar::StringMatch(_) => {
+                count == 2 || (count == 3 && words.literal(operand_from) == Some(b"-nocase"))
+            }
+            NativeCompilationGrammar::StringTrim { .. } => matches!(count, 1 | 2),
+            NativeCompilationGrammar::NamespaceCurrent => count == 0,
+            NativeCompilationGrammar::NamespaceCode => {
+                count == 1
+                    && literal_shape(words.shapes()[operand_from])
+                    && !words
+                        .literal(operand_from)
+                        .is_some_and(|value| value.starts_with(b"::namespace inscope "))
+            }
+            NativeCompilationGrammar::InfoCommands => {
+                count == 1
+                    && words.literal(operand_from).is_some_and(|value| {
+                        value.starts_with(b"::")
+                            && value.iter().all(|&byte| {
+                                byte.is_ascii() && !matches!(byte, 0 | b'*' | b'?' | b'[' | b'\\')
+                            })
+                    })
+            }
+            NativeCompilationGrammar::ArityFrom { .. } => {
+                self.operation == SemanticOperationId::Intrinsic(crate::IntrinsicId::ListSet)
+            }
+            NativeCompilationGrammar::Dictionary { command, .. } => {
+                dictionary_preserves_names(command)
+            }
+            NativeCompilationGrammar::NoHook
+            | NativeCompilationGrammar::VariableAppend(_)
+            | NativeCompilationGrammar::MathOperator(_)
+            | NativeCompilationGrammar::TclOoHelper(_)
+            | NativeCompilationGrammar::Tailcall
+            | NativeCompilationGrammar::NamespaceLegacy
+            | NativeCompilationGrammar::NamespaceUpvarBindings
+            | NativeCompilationGrammar::GlobalBindings
+            | NativeCompilationGrammar::NamespaceVariableBindings
+            | NativeCompilationGrammar::Upvar
+            | NativeCompilationGrammar::Uplevel
+            | NativeCompilationGrammar::LiteralUnset
+            | NativeCompilationGrammar::InfoExists
+            | NativeCompilationGrammar::InfoLevel
+            | NativeCompilationGrammar::ListIndex
+            | NativeCompilationGrammar::ListRange
+            | NativeCompilationGrammar::ListAssignment
+            | NativeCompilationGrammar::ListInsertion
+            | NativeCompilationGrammar::Error
+            | NativeCompilationGrammar::Return
+            | NativeCompilationGrammar::ArgumentList
+            | NativeCompilationGrammar::ArgumentListFrom(_)
+            | NativeCompilationGrammar::ArgumentConcatFrom(_)
+            | NativeCompilationGrammar::CoroutineRelay
+            | NativeCompilationGrammar::CoroutineYield
+            | NativeCompilationGrammar::Regexp
+            | NativeCompilationGrammar::Increment
+            | NativeCompilationGrammar::LoopControl
+            | NativeCompilationGrammar::Break
+            | NativeCompilationGrammar::Continue => true,
+            // These paths can perform nested compilation, resolver-mediated
+            // command literal preparation, or an unauthored compiler hook.
+            NativeCompilationGrammar::Unresolved
+            | NativeCompilationGrammar::HookFrom(_)
+            | NativeCompilationGrammar::ProcedureHookFrom(_)
+            | NativeCompilationGrammar::NamedEnsembleInvocation { .. }
+            | NativeCompilationGrammar::Array { .. }
+            | NativeCompilationGrammar::CheckedArity { .. }
+            | NativeCompilationGrammar::Conditional
+            | NativeCompilationGrammar::Switch
+            | NativeCompilationGrammar::Expression
+            | NativeCompilationGrammar::SubstitutionTemplate
+            | NativeCompilationGrammar::ForLoop
+            | NativeCompilationGrammar::WhileLoop
+            | NativeCompilationGrammar::Foreach
+            | NativeCompilationGrammar::Catch
+            | NativeCompilationGrammar::Try
+            | NativeCompilationGrammar::LiteralOperands { .. } => false,
+        }
+    }
+
     /// Whether compilation prepares original source operands through a shared
     /// instruction recipe. This capability supplies neither a selected hook
     /// nor permission to execute a generic handler after compilation fails.
@@ -1577,14 +1953,13 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::MathOperator(_)
             | NativeCompilationGrammar::VariableLoadStore
             | NativeCompilationGrammar::ListIndex
+            | NativeCompilationGrammar::ListRange
+            | NativeCompilationGrammar::ListAssignment
             | NativeCompilationGrammar::LiteralUnset
             | NativeCompilationGrammar::Upvar
             | NativeCompilationGrammar::InfoExists
             | NativeCompilationGrammar::Array { .. }
             | NativeCompilationGrammar::InfoLevel
-            | NativeCompilationGrammar::NamespaceCurrent
-            | NativeCompilationGrammar::NamespaceOrigin
-            | NativeCompilationGrammar::NamespaceCode
             | NativeCompilationGrammar::ArgumentConcatFrom(_)
             | NativeCompilationGrammar::Uplevel
             | NativeCompilationGrammar::GlobalBindings
@@ -1600,6 +1975,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::Try
             | NativeCompilationGrammar::Expression
             | NativeCompilationGrammar::Return
+            | NativeCompilationGrammar::NamespaceString(_)
             | NativeCompilationGrammar::StringTrim { .. }
             | NativeCompilationGrammar::StringMatch(_)
             | NativeCompilationGrammar::StringEqual(_)
@@ -1677,26 +2053,25 @@ impl NativeCompilationSpec {
         self,
         dialect: InvocationDialect,
     ) -> Option<Vec<NativeCompilerImplementationLookup>> {
+        // naming.namespace.original-counted-namespace-allocation
+        // docs/design/analysis/name-resolution-proofs/namespace-original-counted-allocation.md
         if let NativeCompilationGrammar::WithImplementationPath {
             compiler,
             lookups,
             implementation_from,
-            ..
+            monolithic_no_hook_before,
         } = self.grammar
         {
-            return (dialect.family() == Some(Family::Tcl)
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= implementation_from)
-                && !lookups.is_empty()
-                && compiler.operation == self.operation
-                && self.body == compiler.body
+            if dialect.family() != Some(Family::Tcl)
+                || lookups.is_empty()
+                || compiler.operation != self.operation
+                || self.body != compiler.body
                 // A NULL compileProc does not select a compiled body. Its
                 // runtime implementation can still enter a script object or
                 // direct evaluation; both descriptors retain that same policy.
-                && (compiler.body == NativeBodyCompilation::Inherit
+                || !(compiler.body == NativeBodyCompilation::Inherit
                     || compiler.grammar == NativeCompilationGrammar::NoHook)
-                && matches!(
+                || !matches!(
                     compiler.grammar,
                     NativeCompilationGrammar::NoHook
                         | NativeCompilationGrammar::HookFrom(_)
@@ -1705,13 +2080,20 @@ impl NativeCompilationSpec {
                         | NativeCompilationGrammar::StringMatch(_)
                         | NativeCompilationGrammar::NamedEnsembleInvocation { .. }
                 )
-                && lookups
-                    .windows(2)
-                    .all(|edges| edges[0].slot == edges[1].ensemble)
-                && compiler
+                || !lookups.windows(2).all(|edges| edges[0].slot == edges[1].ensemble)
+                || compiler
                     .implementation_lookup(dialect)
-                    .is_none_or(|terminal| lookups.last() == Some(&terminal)))
-            .then(|| lookups.to_vec());
+                    .is_some_and(|terminal| lookups.last() != Some(&terminal))
+            {
+                return None;
+            }
+            let version = dialect.tcl_version?;
+            if version < implementation_from {
+                return (monolithic_no_hook_before
+                    && compiler.grammar == NativeCompilationGrammar::NoHook)
+                    .then(Vec::new);
+            }
+            return Some(lookups.to_vec());
         }
         (self.grammar != NativeCompilationGrammar::Unresolved)
             .then(|| self.implementation_lookup(dialect).into_iter().collect())
@@ -1834,7 +2216,6 @@ impl NativeCompilationSpec {
         Some(match self.grammar {
             NativeCompilationGrammar::NoHook => false,
             NativeCompilationGrammar::MathOperator(operator) => version >= operator.first_version(),
-            NativeCompilationGrammar::NamespaceUpvarBindings => version >= TclVersion::V8_6,
             NativeCompilationGrammar::Dictionary { command, .. } => version >= command.hook_from(),
             NativeCompilationGrammar::HookFrom(first)
             | NativeCompilationGrammar::ProcedureHookFrom(first)
@@ -1849,8 +2230,10 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::Upvar
             | NativeCompilationGrammar::InfoExists
             | NativeCompilationGrammar::ListAssignment
-            | NativeCompilationGrammar::NamespaceLegacy => version >= TclVersion::V8_5,
-            NativeCompilationGrammar::StringTrim { .. }
+            | NativeCompilationGrammar::NamespaceLegacy
+            | NativeCompilationGrammar::Switch => version >= TclVersion::V8_5,
+            NativeCompilationGrammar::NamespaceUpvarBindings
+            | NativeCompilationGrammar::StringTrim { .. }
             | NativeCompilationGrammar::Array { .. }
             | NativeCompilationGrammar::Error
             | NativeCompilationGrammar::TclOoHelper(_)
@@ -1859,13 +2242,14 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::LiteralUnset
             | NativeCompilationGrammar::InfoCommands
             | NativeCompilationGrammar::InfoLevel
-            | NativeCompilationGrammar::NamespaceCurrent
-            | NativeCompilationGrammar::NamespaceOrigin
-            | NativeCompilationGrammar::NamespaceCode
             | NativeCompilationGrammar::Tailcall
             | NativeCompilationGrammar::ListRange
             | NativeCompilationGrammar::ListInsertion
-            | NativeCompilationGrammar::SubstitutionTemplate => version >= TclVersion::V8_6,
+            | NativeCompilationGrammar::SubstitutionTemplate
+            | NativeCompilationGrammar::NamespaceCurrent
+            | NativeCompilationGrammar::NamespaceOrigin
+            | NativeCompilationGrammar::NamespaceCode
+            | NativeCompilationGrammar::NamespaceString(_) => version >= TclVersion::V8_6,
             NativeCompilationGrammar::Uplevel => version >= TclVersion::V9_1,
             _ => true,
         })
@@ -1883,25 +2267,23 @@ impl NativeCompilationSpec {
             self.implementation_prerequisites(dialect)?;
             return compiler.implementation_lookup(dialect);
         }
+        if let NativeCompilationGrammar::NamespaceString(operation) = self.grammar {
+            return implementation_version_matches(dialect, TclVersion::V8_6)
+                .then_some(operation.implementation());
+        }
         if let NativeCompilationGrammar::Array { lookup, .. } = self.grammar {
-            return (dialect.family() == Some(Family::Tcl)
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= TclVersion::V8_6))
-            .then_some(*lookup);
+            return implementation_version_matches(dialect, TclVersion::V8_6).then_some(*lookup);
         }
         if self.grammar == NativeCompilationGrammar::NamespaceUpvarBindings {
-            return (dialect.family() == Some(Family::Tcl)
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= TclVersion::V8_6))
-            .then_some(NativeCompilerImplementationLookup {
-                ensemble: "::namespace",
-                member: "upvar",
-                slot: "::tcl::namespace::upvar",
-                command: "namespace",
-                prepended: &["upvar"],
-            });
+            return implementation_version_matches(dialect, TclVersion::V8_6).then_some(
+                NativeCompilerImplementationLookup {
+                    ensemble: "::namespace",
+                    member: "upvar",
+                    slot: "::tcl::namespace::upvar",
+                    command: "namespace",
+                    prepended: &["upvar"],
+                },
+            );
         }
         if matches!(
             self.grammar,
@@ -1909,11 +2291,9 @@ impl NativeCompilationSpec {
                 | NativeCompilationGrammar::NamespaceOrigin
                 | NativeCompilationGrammar::NamespaceCode
         ) {
-            return (dialect.family() == Some(Family::Tcl)
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= TclVersion::V8_6))
-            .then_some(match self.grammar {
+            return implementation_version_matches(dialect, TclVersion::V8_6).then_some(match self
+                .grammar
+            {
                 NativeCompilationGrammar::NamespaceOrigin => NAMESPACE_ORIGIN_IMPLEMENTATION,
                 NativeCompilationGrammar::NamespaceCode => NAMESPACE_CODE_IMPLEMENTATION,
                 _ => NAMESPACE_CURRENT_IMPLEMENTATION,
@@ -1922,16 +2302,68 @@ impl NativeCompilationSpec {
         if matches!(
             self.grammar,
             NativeCompilationGrammar::StringEqual(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ) | NativeCompilationGrammar::StringLength(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ) | NativeCompilationGrammar::StringTrim {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                ..
+            } | NativeCompilationGrammar::StringMatch(
+                crate::native_string_compilation::NativeStringMatchScope::PublicMember,
+            )
+        ) {
+            return self.public_string_implementation_lookup(dialect);
+        }
+        if self.grammar == NativeCompilationGrammar::InfoCommands {
+            return implementation_version_matches(dialect, TclVersion::V8_5).then_some(
+                NativeCompilerImplementationLookup {
+                    ensemble: "::info",
+                    member: "commands",
+                    slot: "::tcl::info::commands",
+                    command: "info",
+                    prepended: &["commands"],
+                },
+            );
+        }
+        if let NativeCompilationGrammar::NamedEnsembleInvocation {
+            lookup,
+            implementation_from,
+            ..
+        } = self.grammar
+        {
+            return implementation_version_matches(dialect, implementation_from).then_some(*lookup);
+        }
+        if let NativeCompilationGrammar::Dictionary {
+            command,
+            ensemble: true,
+        } = self.grammar
+        {
+            return implementation_version_matches(dialect, TclVersion::V8_5)
+                .then(|| command.lookup());
+        }
+        if !implementation_version_matches(dialect, TclVersion::V8_5) {
+            return None;
+        }
+        match self.grammar {
+            NativeCompilationGrammar::InfoExists => Some(INFO_EXISTS_IMPLEMENTATION),
+            NativeCompilationGrammar::InfoLevel => Some(INFO_LEVEL_IMPLEMENTATION),
+            _ => None,
+        }
+    }
+
+    fn public_string_implementation_lookup(
+        self,
+        dialect: InvocationDialect,
+    ) -> Option<NativeCompilerImplementationLookup> {
+        if matches!(
+            self.grammar,
+            NativeCompilationGrammar::StringEqual(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
             ) | NativeCompilationGrammar::StringLength(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
             )
         ) {
-            return (dialect.family() == Some(Family::Tcl)
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= TclVersion::V8_5))
-            .then_some(
+            return implementation_version_matches(dialect, TclVersion::V8_5).then_some(
                 if matches!(self.grammar, NativeCompilationGrammar::StringLength(_)) {
                     STRING_LENGTH_IMPLEMENTATION
                 } else {
@@ -1944,71 +2376,18 @@ impl NativeCompilationSpec {
             operation,
         } = self.grammar
         {
-            return (dialect.family() == Some(Family::Tcl)
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= TclVersion::V8_5))
-            .then_some(operation.lookup());
+            return implementation_version_matches(dialect, TclVersion::V8_5)
+                .then_some(operation.lookup());
         }
         if self.grammar
             == NativeCompilationGrammar::StringMatch(
                 crate::native_string_compilation::NativeStringMatchScope::PublicMember,
             )
         {
-            return (dialect.family() == Some(Family::Tcl)
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= TclVersion::V8_5))
-            .then_some(crate::native_string_compilation::STRING_MATCH_IMPLEMENTATION);
+            return implementation_version_matches(dialect, TclVersion::V8_5)
+                .then_some(crate::native_string_compilation::STRING_MATCH_IMPLEMENTATION);
         }
-        if self.grammar == NativeCompilationGrammar::InfoCommands {
-            return (dialect.family() == Some(Family::Tcl)
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= TclVersion::V8_5))
-            .then_some(NativeCompilerImplementationLookup {
-                ensemble: "::info",
-                member: "commands",
-                slot: "::tcl::info::commands",
-                command: "info",
-                prepended: &["commands"],
-            });
-        }
-        if let NativeCompilationGrammar::NamedEnsembleInvocation {
-            lookup,
-            implementation_from,
-            ..
-        } = self.grammar
-        {
-            return (dialect.family() == Some(Family::Tcl)
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= implementation_from))
-            .then_some(*lookup);
-        }
-        if let NativeCompilationGrammar::Dictionary {
-            command,
-            ensemble: true,
-        } = self.grammar
-        {
-            return (dialect.family() == Some(Family::Tcl)
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= TclVersion::V8_5))
-            .then(|| command.lookup());
-        }
-        if dialect.family() != Some(Family::Tcl)
-            || dialect
-                .tcl_version
-                .is_none_or(|version| version < TclVersion::V8_5)
-        {
-            return None;
-        }
-        match self.grammar {
-            NativeCompilationGrammar::InfoExists => Some(INFO_EXISTS_IMPLEMENTATION),
-            NativeCompilationGrammar::InfoLevel => Some(INFO_LEVEL_IMPLEMENTATION),
-            _ => None,
-        }
+        None
     }
 
     /// Prove only successful handler effects when every possible compiler
@@ -2050,6 +2429,20 @@ impl NativeCompilationSpec {
         })
     }
 
+    /// A list-construction intrinsic cannot authorise another compiler's stack.
+    /// Generic Invoke descriptors retain their separately selected grammar.
+    fn operation_matches_grammar(self) -> bool {
+        if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = self.grammar {
+            return compiler.operation_matches_grammar() && self.operation == compiler.operation;
+        }
+        self.operation != SemanticOperationId::Intrinsic(crate::IntrinsicId::ListConstruct)
+            || matches!(
+                self.grammar,
+                NativeCompilationGrammar::ArgumentList
+                    | NativeCompilationGrammar::ArgumentListFrom(_)
+            )
+    }
+
     /// Resolve native compilation using source shape, never computed argv text.
     #[must_use]
     pub fn select(
@@ -2060,6 +2453,9 @@ impl NativeCompilationSpec {
         context: NativeCompilationContext,
     ) -> NativeCompilationSelection {
         use NativeCompilationSelection as Selection;
+        if !self.operation_matches_grammar() {
+            return Selection::Unknown;
+        }
         if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = self.grammar {
             if dialect.is_none_or(|dialect| self.implementation_prerequisites(dialect).is_none()) {
                 return Selection::Unknown;
@@ -2082,12 +2478,16 @@ impl NativeCompilationSpec {
         let Some(version) = dialect.tcl_version else {
             return Selection::Unknown;
         };
+        // The selected registration has no compiler to execute in either
+        // evaluation mode. This preserves ordinary argv evaluation without
+        // certifying the handler, its body, or a successful invocation.
+        if self.compiler_hook_presence(dialect) == Some(false) {
+            return Selection::Generic;
+        }
         if context.mode != NativeCompilationMode::BytecodeObject {
             return Selection::Unknown;
         }
-        if words.head().literal().is_none()
-            || matches!(self.grammar, NativeCompilationGrammar::NoHook)
-        {
+        if words.head().literal().is_none() {
             return Selection::Generic;
         }
         // Tcl 9.1 registers CMD_COMPILES_EXPANDED on this compiler. Its
@@ -2154,6 +2554,9 @@ impl NativeCompilationSpec {
         context: NativeCompilationContext,
     ) -> NativeCompilationSelection {
         use NativeCompilationSelection as Selection;
+        if !self.operation_matches_grammar() {
+            return Selection::Unknown;
+        }
         if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = self.grammar {
             if dialect.is_none_or(|dialect| self.implementation_prerequisites(dialect).is_none()) {
                 return Selection::Unknown;
@@ -2176,7 +2579,7 @@ impl NativeCompilationSpec {
         let Some(version) = dialect.tcl_version else {
             return Selection::Unknown;
         };
-        if context.mode != NativeCompilationMode::BytecodeObject || operand_from == 0 {
+        if operand_from == 0 {
             return Selection::Unknown;
         }
         let Some(shapes) = words.shapes().get(operand_from..) else {
@@ -2190,113 +2593,43 @@ impl NativeCompilationSpec {
             None => return Selection::Unknown,
             Some(true) => {}
         }
-        if self.grammar == NativeCompilationGrammar::NoHook {
+        // A selected NULL compileProc supplies no pre-argv compiler effects.
+        // The original vector and head checks above remain independent of
+        // runtime argc and successful handler entry.
+        if self.compiler_hook_presence(dialect) == Some(false) {
             return Selection::Generic;
         }
-        if let NativeCompilationGrammar::MathOperator(operator) = self.grammar {
-            return match crate::native_mathop_compilation::compile_native_mathop(
-                words,
-                operand_from,
-                operator,
-                version,
-                context,
-            ) {
-                Ok(Some(_)) => self.selected_grammar_result(true, version),
-                Ok(None) => Selection::Generic,
-                Err(_) => Selection::Unknown,
-            };
+        if context.mode != NativeCompilationMode::BytecodeObject {
+            return Selection::Unknown;
         }
-        if let NativeCompilationGrammar::StringTrim { scope, .. } = self.grammar {
-            return crate::native_string_trim_compilation::select_original(
-                words,
-                operand_from,
-                scope,
-                version,
-                self.operation,
-            );
-        }
-        if let NativeCompilationGrammar::StringMatch(scope) = self.grammar {
-            return crate::native_string_compilation::select_original(
-                words,
-                operand_from,
-                scope,
-                version,
-                self.operation,
-            );
-        }
+        self.select_original_registered_words(
+            words,
+            operand_from,
+            shapes,
+            dialect,
+            context,
+            version,
+        )
+    }
 
-        if let Some(kind) = self.introspection_compilation()
-            && crate::native_introspection_compilation::compile_native_introspection(
-                words,
-                operand_from,
-                kind,
-                version,
-            )
-            .is_some()
+    fn select_original_registered_words(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        shapes: &[NativeCompilationWordShape],
+        dialect: InvocationDialect,
+        context: NativeCompilationContext,
+        version: TclVersion,
+    ) -> NativeCompilationSelection {
+        if let Some(selection) =
+            self.select_original_value_words(words, operand_from, version, context)
         {
-            return Selection::Inline {
-                operation: self.operation,
-                guard: NativeCompilationGuard::BeforeArguments,
-            };
+            return selection;
         }
-        if let Some((operation, scope)) = self.scalar_compilation() {
-            return crate::native_scalar_compilation::select_original(
-                words,
-                operand_from,
-                operation,
-                scope,
-                version,
-                self.operation,
-            );
-        }
-
-        if self.grammar == NativeCompilationGrammar::ListIndex {
-            return crate::native_list_index_compilation::select_original(
-                words,
-                operand_from,
-                version,
-                self,
-            );
-        }
-
-        if self.grammar == NativeCompilationGrammar::Upvar {
-            if version == TclVersion::V8_4 || context.frame == NativeCompilationFrame::ScriptCode {
-                return Selection::Generic;
-            }
-            return match crate::native_upvar_compilation::compile_native_upvar(
-                words,
-                operand_from,
-                version,
-                context,
-            ) {
-                Ok(_) => self.selected_grammar_result(true, version),
-                Err(crate::native_upvar_compilation::NativeUpvarUnavailable::Geometry) => {
-                    Selection::Generic
-                }
-                Err(_) => Selection::Unknown,
-            };
-        }
-        if self.grammar == NativeCompilationGrammar::NamespaceUpvarBindings {
-            return match crate::native_namespace_upvar_compilation::compile_native_namespace_upvar_worker(
-                words, operand_from, version, context,
-            ) {
-                Ok(recipe) => self.namespace_binding_selection(recipe.outcome),
-                Err(_) => Selection::Unknown,
-            };
-        }
-        if self.grammar == NativeCompilationGrammar::NamespaceLegacy {
-            return self.select_original_namespace_legacy(words, operand_from, version, context);
-        }
-        if self.grammar == NativeCompilationGrammar::LiteralUnset {
-            return match crate::native_unset_compilation::compile_native_unset(
-                words,
-                operand_from,
-                version,
-            ) {
-                Ok(Some(_)) => self.selected_grammar_result(true, version),
-                Ok(None) => Selection::Generic,
-                Err(_) => Selection::Unknown,
-            };
+        if let Some(selection) =
+            self.select_original_binding_words(words, operand_from, version, context)
+        {
+            return selection;
         }
         if matches!(
             self.grammar,
@@ -2335,6 +2668,177 @@ impl NativeCompilationSpec {
             );
         }
         self.select_original_operand_words(words, operand_from, shapes, dialect, context, version)
+    }
+
+    fn select_original_value_words(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        version: TclVersion,
+        context: NativeCompilationContext,
+    ) -> Option<NativeCompilationSelection> {
+        use NativeCompilationSelection as Selection;
+        if let NativeCompilationGrammar::MathOperator(operator) = self.grammar {
+            return Some(
+                match crate::native_mathop_compilation::compile_native_mathop(
+                    words,
+                    operand_from,
+                    operator,
+                    version,
+                    context,
+                ) {
+                    Ok(Some(_)) => self.selected_grammar_result(true, version),
+                    Ok(None) => Selection::Generic,
+                    Err(_) => Selection::Unknown,
+                },
+            );
+        }
+        if let NativeCompilationGrammar::NamespaceString(operation) = self.grammar {
+            return Some(
+                if crate::native_namespace_string_compilation::compile_native_namespace_string(
+                    words,
+                    operand_from,
+                    operation,
+                    version,
+                )
+                .is_some()
+                {
+                    self.selected_grammar_result(true, version)
+                } else {
+                    Selection::Generic
+                },
+            );
+        }
+        if let NativeCompilationGrammar::StringTrim { scope, .. } = self.grammar {
+            return Some(crate::native_string_trim_compilation::select_original(
+                words,
+                operand_from,
+                scope,
+                version,
+                self.operation,
+            ));
+        }
+        if let NativeCompilationGrammar::StringMatch(scope) = self.grammar {
+            return Some(crate::native_string_compilation::select_original(
+                words,
+                operand_from,
+                scope,
+                version,
+                self.operation,
+            ));
+        }
+
+        if let Some(kind) = self.introspection_compilation()
+            && crate::native_introspection_compilation::compile_native_introspection(
+                words,
+                operand_from,
+                kind,
+                version,
+            )
+            .is_some()
+        {
+            return Some(Selection::Inline {
+                operation: self.operation,
+                guard: NativeCompilationGuard::BeforeArguments,
+            });
+        }
+        if let Some((operation, scope)) = self.scalar_compilation() {
+            return Some(crate::native_scalar_compilation::select_original(
+                words,
+                operand_from,
+                operation,
+                scope,
+                version,
+                self.operation,
+            ));
+        }
+
+        None
+    }
+
+    fn select_original_binding_words(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        version: TclVersion,
+        context: NativeCompilationContext,
+    ) -> Option<NativeCompilationSelection> {
+        use NativeCompilationSelection as Selection;
+        if self.grammar == NativeCompilationGrammar::InfoExists {
+            if version < TclVersion::V8_5 {
+                return Some(Selection::Generic);
+            }
+            return Some(match crate::native_info_exists_compilation::compile_native_info_exists(
+                words,
+                operand_from,
+                version,
+            ) {
+                Ok(_) => self.selected_grammar_result(true, version),
+                Err(
+                    crate::native_info_exists_compilation::NativeInfoExistsUnavailable::Geometry
+                    | crate::native_info_exists_compilation::NativeInfoExistsUnavailable::Version,
+                ) => Selection::Generic,
+            });
+        }
+
+        if self.grammar == NativeCompilationGrammar::ListIndex {
+            return Some(crate::native_list_index_compilation::select_original(
+                words,
+                operand_from,
+                version,
+                self,
+            ));
+        }
+
+        if self.grammar == NativeCompilationGrammar::Upvar {
+            if version == TclVersion::V8_4 || context.frame == NativeCompilationFrame::ScriptCode {
+                return Some(Selection::Generic);
+            }
+            return Some(
+                match crate::native_upvar_compilation::compile_native_upvar(
+                    words,
+                    operand_from,
+                    version,
+                    context,
+                ) {
+                    Ok(_) => self.selected_grammar_result(true, version),
+                    Err(crate::native_upvar_compilation::NativeUpvarUnavailable::Geometry) => {
+                        Selection::Generic
+                    }
+                    Err(_) => Selection::Unknown,
+                },
+            );
+        }
+        if self.grammar == NativeCompilationGrammar::NamespaceUpvarBindings {
+            return Some(match crate::native_namespace_upvar_compilation::compile_native_namespace_upvar_worker(
+                words, operand_from, version, context,
+            ) {
+                Ok(recipe) => self.namespace_binding_selection(recipe.outcome),
+                Err(_) => Selection::Unknown,
+            });
+        }
+        if self.grammar == NativeCompilationGrammar::NamespaceLegacy {
+            return Some(self.select_original_namespace_legacy(
+                words,
+                operand_from,
+                version,
+                context,
+            ));
+        }
+        if self.grammar == NativeCompilationGrammar::LiteralUnset {
+            return Some(
+                match crate::native_unset_compilation::compile_native_unset(
+                    words,
+                    operand_from,
+                    version,
+                ) {
+                    Ok(Some(_)) => self.selected_grammar_result(true, version),
+                    Ok(None) => Selection::Generic,
+                    Err(_) => Selection::Unknown,
+                },
+            );
+        }
+        None
     }
 
     fn select_original_control_outcome<T>(
@@ -2608,6 +3112,15 @@ impl NativeCompilationSpec {
         dialect: Option<InvocationDialect>,
         context: NativeCompilationContext,
     ) -> NativeCompilationSelection {
+        if self.grammar == NativeCompilationGrammar::InfoCommands {
+            // TclAttemptCompileProc shifts the parse head to the last selected
+            // member; this compiler's source grammar includes that original
+            // selector before its zero or one actual pattern operand.
+            let Some(selector) = operand_from.checked_sub(1) else {
+                return NativeCompilationSelection::Unknown;
+            };
+            return self.select_native_words(words, selector, dialect, context);
+        }
         if let NativeCompilationGrammar::Array { command, lookup } = self.grammar {
             let Some(dialect) = dialect.filter(|dialect| dialect.family() == Some(Family::Tcl))
             else {
@@ -2656,6 +3169,36 @@ impl NativeCompilationSpec {
         }
     }
 
+    /// First compiler operand in a complete original vector, including its head.
+    ///
+    /// Runtime member roles begin after their selector. A public String
+    /// compiler retains that original selector, while a private worker starts
+    /// at its own first operand. This layout supplies no registration, live
+    /// lookup, argument execution or successful completion evidence.
+    #[must_use]
+    pub fn original_operand_from_for_facts(self, facts: &crate::InvocationFacts) -> Option<usize> {
+        if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = self.grammar {
+            return compiler.original_operand_from_for_facts(facts);
+        }
+        let retains_member = matches!(
+            self.grammar,
+            NativeCompilationGrammar::StringEqual(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            ) | NativeCompilationGrammar::StringLength(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            ) | NativeCompilationGrammar::StringTrim {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                ..
+            } | NativeCompilationGrammar::StringMatch(
+                crate::native_string_compilation::NativeStringMatchScope::PublicMember
+            )
+        );
+        facts
+            .argument_offset
+            .checked_sub(usize::from(retains_member))?
+            .checked_add(1)
+    }
+
     /// Select using the resolved member's operand view while retaining every
     /// original compiler token shape. Primitive descriptors consume their own
     /// operands; ensemble-wide grammars retain the public member word.
@@ -2675,6 +3218,7 @@ impl NativeCompilationSpec {
                 | NativeCompilationGrammar::NamespaceCurrent
                 | NativeCompilationGrammar::NamespaceOrigin
                 | NativeCompilationGrammar::NamespaceCode
+                | NativeCompilationGrammar::NamespaceString(_)
         ) {
             let private = dialect.and_then(|dialect| self.implementation_lookup(dialect));
             if private.is_some_and(|lookup| {
@@ -3079,7 +3623,20 @@ impl NativeCompilationSpec {
                     None => Selection::Unknown,
                 });
             }
+            NativeCompilationGrammar::NamespaceString(_) => {
+                if version < TclVersion::V8_6 {
+                    return Some(Selection::Generic);
+                }
+                shapes.len() == 1 && !shapes.contains(&NativeCompilationWordShape::Expanded)
+            }
             NativeCompilationGrammar::ListLength => shapes.len() == 1,
+            NativeCompilationGrammar::ListAssignment => {
+                // Native proof: naming.list.assignment-literal-versus-alias-target-evaluation
+                // docs/design/analysis/name-resolution-proofs/assignment-literal-versus-alias-target-evaluation.md
+                // This compiler inspects token count and shape; opaque static
+                // target bytes do not need a Unicode argument projection.
+                return Some(list_assignment_grammar(shapes, version, self.operation));
+            }
             NativeCompilationGrammar::VariableLoadStore | NativeCompilationGrammar::Increment => {
                 matches!(shapes.len(), 1 | 2)
             }
@@ -3377,9 +3934,6 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::ListRange => {
                 list_range_grammar(words, shapes, version, self.operation)
             }
-            NativeCompilationGrammar::ListAssignment => {
-                list_assignment_grammar(shapes, version, self.operation)
-            }
             NativeCompilationGrammar::ListInsertion => {
                 list_insertion_grammar(words, shapes, version, self.operation)
             }
@@ -3428,11 +3982,7 @@ impl NativeCompilationSpec {
         }
         Selection::Inline {
             operation: self.operation,
-            guard: if version == TclVersion::V8_4 {
-                NativeCompilationGuard::ChunkEntry
-            } else {
-                NativeCompilationGuard::BeforeArguments
-            },
+            guard: NativeCompilationGuard::for_c_version(version),
         }
     }
 
@@ -3480,11 +4030,7 @@ impl NativeCompilationSpec {
         }
         Selection::Inline {
             operation: self.operation,
-            guard: if version == TclVersion::V8_4 {
-                NativeCompilationGuard::ChunkEntry
-            } else {
-                NativeCompilationGuard::BeforeArguments
-            },
+            guard: NativeCompilationGuard::for_c_version(version),
         }
     }
 
@@ -4058,12 +4604,33 @@ fn variable_append_grammar_bytes(
     }
     Selection::Inline {
         operation,
-        guard: if version == TclVersion::V8_4 {
-            NativeCompilationGuard::ChunkEntry
-        } else {
-            NativeCompilationGuard::BeforeArguments
-        },
+        guard: NativeCompilationGuard::for_c_version(version),
     }
+}
+
+fn implementation_version_matches(dialect: InvocationDialect, first: TclVersion) -> bool {
+    dialect.family() == Some(Family::Tcl)
+        && dialect.tcl_version.is_some_and(|version| version >= first)
+}
+
+fn dictionary_preserves_names(command: crate::native_dictionary::NativeDictionaryCommand) -> bool {
+    use crate::native_dictionary::NativeDictionaryCommand as Dictionary;
+    matches!(
+        command,
+        Dictionary::Append
+            | Dictionary::Create
+            | Dictionary::Exists
+            | Dictionary::Get
+            | Dictionary::GetDefault
+            | Dictionary::GetWithDefault
+            | Dictionary::Incr
+            | Dictionary::Lappend
+            | Dictionary::Merge
+            | Dictionary::Remove
+            | Dictionary::Replace
+            | Dictionary::Set
+            | Dictionary::Unset
+    )
 }
 
 #[cfg(test)]
@@ -4114,11 +4681,7 @@ mod append_compilation_tests {
                 operation: SemanticOperationId::StructuredLowering(
                     crate::hooks::LoweringHookId::AppendOrLappend,
                 ),
-                guard: if version == TclVersion::V8_4 {
-                    NativeCompilationGuard::ChunkEntry
-                } else {
-                    NativeCompilationGuard::BeforeArguments
-                },
+                guard: NativeCompilationGuard::for_c_version(version),
             };
             for kind in [NativeAppendKind::String, NativeAppendKind::List] {
                 assert_eq!(
@@ -4365,11 +4928,7 @@ fn string_member_arity_grammar(
     if shapes.len().checked_sub(from) == Some(arity) {
         return Selection::Inline {
             operation,
-            guard: if version == TclVersion::V8_4 {
-                NativeCompilationGuard::ChunkEntry
-            } else {
-                NativeCompilationGuard::BeforeArguments
-            },
+            guard: NativeCompilationGuard::for_c_version(version),
         };
     }
     if !private && version >= TclVersion::V8_6 {
@@ -4598,11 +5157,7 @@ fn gated_arity_grammar(
     }
     Selection::Inline {
         operation,
-        guard: if version == TclVersion::V8_4 {
-            NativeCompilationGuard::ChunkEntry
-        } else {
-            NativeCompilationGuard::BeforeArguments
-        },
+        guard: NativeCompilationGuard::for_c_version(version),
     }
 }
 
@@ -4767,6 +5322,381 @@ mod tests {
     use crate::hooks::LoweringHookId;
 
     #[test]
+    fn selected_no_hook_registration_keeps_generic_argv_under_unknown_mode() {
+        // Implementation contract: naming.compiler.no-hook-unknown-mode (docs/design/analysis/name-resolution-proofs/no-hook-unknown-mode.md).
+        // Source proof: naming.compiler.stock-procedure-null-compile-hook (docs/design/analysis/name-resolution-proofs/stock-procedure-null-compile-hook.md).
+        let registry = crate::CommandRegistry::build_default();
+        for version in TclVersion::ALL {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let dialect = InvocationDialect::of_profile(profile);
+            let spec = registry
+                .native_compilation_for_registration("::proc", dialect)
+                .unwrap();
+            assert_eq!(spec.compiler_hook_presence(dialect), Some(false));
+            assert_eq!(spec.grammar, NativeCompilationGrammar::NoHook);
+            assert!(
+                registry
+                    .native_compilation_for_registration("::renamedProc", dialect)
+                    .is_none()
+            );
+            let source = tcl_lexer::SourceImage::native(b"::proc p\xff {} {}".as_slice());
+            let parsed = tcl_lexer::native_script_words_in(
+                source.clone(),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            )
+            .unwrap();
+            assert!(parsed.fatal_tail.is_none());
+            assert_eq!(parsed.commands.len(), 1);
+            let original = &parsed.commands[0].words;
+            let captured = crate::native_compiler_words::NativeCompilerWords::capture(
+                original,
+                tcl_syntax::native_string::NativeStringProtocol::C(version),
+            )
+            .unwrap();
+            assert_eq!(captured.literal(1), Some(b"p\xff".as_slice()));
+            let arguments = [
+                crate::InvocationWord::Literal("p"),
+                crate::InvocationWord::Literal(""),
+                crate::InvocationWord::Literal(""),
+            ];
+            let invocation =
+                InvocationWords::structured(crate::InvocationWord::Literal("::proc"), &arguments)
+                    .with_dialect(dialect);
+            for mode in [
+                NativeCompilationMode::Direct,
+                NativeCompilationMode::BytecodeObject,
+                NativeCompilationMode::Unknown,
+            ] {
+                let context = NativeCompilationContext {
+                    mode,
+                    ..Default::default()
+                };
+                assert_eq!(
+                    spec.select(invocation, &captured.shapes()[1..], Some(dialect), context),
+                    NativeCompilationSelection::Generic
+                );
+                assert_eq!(
+                    spec.select_native_words(&captured, 1, Some(dialect), context),
+                    NativeCompilationSelection::Generic
+                );
+            }
+            assert_eq!(
+                spec.select_native_words(
+                    &captured,
+                    0,
+                    Some(dialect),
+                    NativeCompilationContext::default()
+                ),
+                NativeCompilationSelection::Unknown
+            );
+            assert_eq!(
+                spec.select_native_words(&captured, 1, None, NativeCompilationContext::default()),
+                NativeCompilationSelection::Unknown
+            );
+            let hooked = registry
+                .native_compilation_for_registration("::return", dialect)
+                .unwrap();
+            assert_eq!(hooked.compiler_hook_presence(dialect), Some(true));
+            assert_eq!(
+                hooked.select_native_words(
+                    &captured,
+                    1,
+                    Some(dialect),
+                    NativeCompilationContext::default()
+                ),
+                NativeCompilationSelection::Unknown
+            );
+        }
+    }
+
+    #[test]
+    fn original_literal_set_compiler_effects_do_not_grant_opcode_admission() {
+        // Implementation contract: naming.compiler.original-name-effect-separation (docs/design/analysis/name-resolution-proofs/original-compiler-name-effect-separation.md).
+        // Source proof: naming.compiler.literal-set-name-effects-source (docs/design/analysis/name-resolution-proofs/literal-set-name-effects-source.md).
+        let registry = crate::CommandRegistry::build_default();
+        for version in TclVersion::ALL {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let dialect = InvocationDialect::of_profile(profile);
+            let spec = registry
+                .native_compilation_for_registration("::set", dialect)
+                .unwrap();
+            for (source, closed) in [
+                (b"set checkpoint READY".as_slice(), true),
+                (b"set {a([unevaluated])} {opaque\xff}".as_slice(), true),
+                (b"set x".as_slice(), true),
+                (b"set x [proc q {} {}]".as_slice(), false),
+                (b"set $name 7".as_slice(), false),
+                (b"set x $value".as_slice(), false),
+                (b"set x 7 extra".as_slice(), false),
+            ] {
+                let image = tcl_lexer::SourceImage::native(source);
+                let parsed = tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                assert!(parsed.fatal_tail.is_none());
+                let captured = crate::native_compiler_words::NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    tcl_syntax::native_string::NativeStringProtocol::C(version),
+                )
+                .unwrap();
+                assert_eq!(
+                    spec.preserves_names_before_original_arguments(&captured, 1, Some(dialect)),
+                    closed,
+                    "{version:?}: {source:?}"
+                );
+                assert_eq!(
+                    spec.select_native_words(
+                        &captured,
+                        1,
+                        Some(dialect),
+                        NativeCompilationContext::default()
+                    ),
+                    NativeCompilationSelection::Unknown
+                );
+                assert!(!spec.preserves_names_before_original_arguments(
+                    &captured,
+                    0,
+                    Some(dialect)
+                ));
+                assert!(!spec.preserves_names_before_original_arguments(&captured, 1, None));
+                let unavailable = NativeCompilationSpec {
+                    grammar: NativeCompilationGrammar::Unresolved,
+                    ..spec
+                };
+                assert!(!unavailable.preserves_names_before_original_arguments(
+                    &captured,
+                    1,
+                    Some(dialect)
+                ));
+                let mismatched = NativeCompilationSpec {
+                    operation: SemanticOperationId::Invoke,
+                    ..spec
+                };
+                assert!(!mismatched.preserves_names_before_original_arguments(
+                    &captured,
+                    1,
+                    Some(dialect)
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn original_literal_emitter_families_preserve_names_without_native_admission() {
+        // Implementation contract: naming.compiler.literal-emitter-name-effects (docs/design/analysis/name-resolution-proofs/literal-emitter-name-effects.md).
+        // Source proof: naming.compiler.literal-emitter-name-effects-source (docs/design/analysis/name-resolution-proofs/literal-emitter-name-effects-source.md).
+        let registry = crate::CommandRegistry::build_default();
+        for version in TclVersion::ALL {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let dialect = InvocationDialect::of_profile(profile);
+            for (registration, source) in [
+                ("::return", b"return VALUE".as_slice()),
+                ("::list", b"list a b".as_slice()),
+                ("::incr", b"incr counter 1".as_slice()),
+                ("::append", b"append text SUFFIX".as_slice()),
+                ("::llength", b"llength {a b}".as_slice()),
+                ("::lindex", b"lindex {a b} 1".as_slice()),
+                ("::lassign", b"lassign {a b} first second".as_slice()),
+                ("::global", b"global ::a ::b".as_slice()),
+                ("::upvar", b"upvar 1 source local".as_slice()),
+                ("::variable", b"variable v VALUE".as_slice()),
+            ] {
+                if registration == "::lassign" && version == TclVersion::V8_4 {
+                    // Tcl 8.4's stock command table has no lassign registration.
+                    assert!(
+                        registry
+                            .native_compilation_for_registration(registration, dialect)
+                            .is_none()
+                    );
+                    continue;
+                }
+                let spec = registry
+                    .native_compilation_for_registration(registration, dialect)
+                    .unwrap_or_else(|| panic!("{version:?}: missing stock {registration}"));
+                let image = tcl_lexer::SourceImage::native(source);
+                let plan = tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let original = &plan.commands[0].words;
+                let words = crate::native_compiler_words::NativeCompilerWords::capture(
+                    original,
+                    tcl_syntax::native_string::NativeStringProtocol::C(version),
+                )
+                .unwrap();
+                assert!(
+                    spec.preserves_names_before_original_arguments(&words, 1, Some(dialect)),
+                    "{version:?} {registration}"
+                );
+                let admission = spec.select_native_words(
+                    &words,
+                    1,
+                    Some(dialect),
+                    NativeCompilationContext::default(),
+                );
+                assert_eq!(
+                    admission,
+                    if spec.compiler_hook_presence(dialect) == Some(false) {
+                        NativeCompilationSelection::Generic
+                    } else {
+                        NativeCompilationSelection::Unknown
+                    },
+                    "{version:?} {registration}"
+                );
+                assert!(!spec.preserves_names_before_original_arguments(&words, 0, Some(dialect)));
+                assert!(!spec.preserves_names_before_original_arguments(&words, 1, None));
+            }
+            for registration in ["::expr", "::if", "::while", "::catch"] {
+                let spec = registry
+                    .native_compilation_for_registration(registration, dialect)
+                    .unwrap();
+                let image = tcl_lexer::SourceImage::native(b"command {[rename p q]}".as_slice());
+                let plan = tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let words = crate::native_compiler_words::NativeCompilerWords::capture(
+                    &plan.commands[0].words,
+                    tcl_syntax::native_string::NativeStringProtocol::C(version),
+                )
+                .unwrap();
+                assert!(
+                    !spec.preserves_names_before_original_arguments(&words, 1, Some(dialect)),
+                    "{version:?} {registration}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_compiler_effect_visits_preserve_native_control_pruning() {
+        // Implementation contract: naming.compiler.original-preparation-name-effects (docs/design/analysis/name-resolution-proofs/original-preparation-name-effects.md).
+        let registry = crate::CommandRegistry::build_default();
+        for version in TclVersion::ALL {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let dialect = InvocationDialect::of_profile(profile);
+            let spec = registry
+                .native_compilation_for_registration("::if", dialect)
+                .unwrap();
+            for (source, bodies) in [
+                ("if {1} {package ifneeded p 1.0 {source p.tcl}}", 1),
+                ("if {0} {custom_compiler}", 0),
+                ("if {$condition} {set x 1} else {set x 2}", 2),
+            ] {
+                let image = tcl_lexer::SourceImage::document(source);
+                let parsed = tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let words = crate::native_compiler_words::NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    tcl_syntax::native_string::NativeStringProtocol::C(version),
+                )
+                .unwrap();
+                let context = NativeCompilationContext::default();
+                let NativeOriginalCompilerNameEffects::Visits(visits) = spec
+                    .original_argument_name_effects_in_context(&words, 1, Some(dialect), context)
+                else {
+                    panic!("{version:?}: original preparation visits");
+                };
+                assert_eq!(
+                    visits
+                        .iter()
+                        .filter(|visit| matches!(visit,
+                    crate::native_control_compilation::NativeControlPreparationStep::Script { .. }))
+                        .count(),
+                    bodies
+                );
+                assert_eq!(
+                    spec.select_native_words(&words, 1, Some(dialect), context),
+                    NativeCompilationSelection::Unknown
+                );
+                assert_eq!(
+                    spec.original_argument_name_effects_in_context(
+                        &words,
+                        0,
+                        Some(dialect),
+                        context
+                    ),
+                    NativeOriginalCompilerNameEffects::Unknown
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_named_compiler_effects_require_separate_fixed_lookup() {
+        // Implementation contract: naming.compiler.fixed-helper-name-effects (docs/design/analysis/name-resolution-proofs/fixed-helper-name-effects.md).
+        let registry = crate::CommandRegistry::build_default();
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let dialect = InvocationDialect::of_profile(profile);
+            let spec = registry
+                .native_compilation_for_registration("::tcl::namespace::exists", dialect)
+                .unwrap();
+            let source = tcl_lexer::SourceImage::native(b"namespace exists ::A".as_slice());
+            let plan = tcl_lexer::native_script_words_in(
+                source.clone(),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            )
+            .unwrap();
+            let words = crate::native_compiler_words::NativeCompilerWords::capture(
+                &plan.commands[0].words,
+                tcl_syntax::native_string::NativeStringProtocol::C(version),
+            )
+            .unwrap();
+            let NativeOriginalCompilerNameEffects::FixedLookup(lookup) =
+                spec.original_argument_name_effects(&words, 2, Some(dialect))
+            else {
+                panic!("{version:?}: unresolved original helper lookup");
+            };
+            assert_eq!(lookup.slot, "::tcl::namespace::exists");
+            assert!(!spec.preserves_names_before_original_arguments(&words, 2, Some(dialect)));
+            assert_eq!(
+                spec.select_native_words(
+                    &words,
+                    2,
+                    Some(dialect),
+                    NativeCompilationContext::default()
+                ),
+                NativeCompilationSelection::Unknown
+            );
+            assert_eq!(
+                spec.original_argument_name_effects(&words, 0, Some(dialect)),
+                NativeOriginalCompilerNameEffects::Unknown
+            );
+            assert_eq!(
+                spec.original_argument_name_effects(&words, 2, None),
+                NativeOriginalCompilerNameEffects::Unknown
+            );
+            let spec = registry
+                .native_compilation_for_registration("::tcl::namespace::eval", dialect)
+                .unwrap();
+            assert_eq!(spec.compiler_hook_presence(dialect), Some(false));
+            assert_eq!(
+                spec.original_argument_name_effects(&words, 2, Some(dialect)),
+                NativeOriginalCompilerNameEffects::Preserved
+            );
+        }
+    }
+
+    #[test]
     fn namespace_no_hook_registration_keeps_public_and_terminal_body_policy() {
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             let dialect = InvocationDialect::for_version(version);
@@ -4804,7 +5734,89 @@ mod tests {
     }
 
     #[test]
+    fn original_namespace_no_hook_members_select_monolithic_and_private_registration_epochs() {
+        // naming.namespace.original-counted-namespace-allocation
+        // docs/design/analysis/name-resolution-proofs/namespace-original-counted-allocation.md
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: NativeCompilationFrame::ScriptCode,
+            ..NativeCompilationContext::default()
+        };
+        for version in TclVersion::ALL {
+            let owner = crate::model::ingress::static_context_for(version.dialect_name());
+            let dialect = InvocationDialect::for_version(version);
+            let registry = owner.commands();
+            let namespace = registry.get("namespace").unwrap();
+            for member in ["eval", "inscope", "ensemble"] {
+                let Some(member) =
+                    namespace.resolve_subcommand_for_dialect(member, registry.own_surface_query())
+                else {
+                    continue;
+                };
+                let spec = member.native_compilation.unwrap();
+                let source = tcl_lexer::SourceImage::document(&format!(
+                    "namespace {} child {{}}",
+                    member.name
+                ));
+                let plan = tcl_lexer::native_script_words_in(
+                    source.clone(),
+                    tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+                )
+                .unwrap();
+                let words = crate::native_compiler_words::NativeCompilerWords::capture(
+                    &plan.commands[0].words,
+                    tcl_syntax::native_string::NativeStringProtocol::C(version),
+                )
+                .unwrap();
+                let path = spec.implementation_prerequisites(dialect).unwrap();
+                assert_eq!(path.len(), usize::from(version >= TclVersion::V8_6));
+                assert_eq!(spec.compiler_hook_presence(dialect), Some(false));
+                assert_eq!(
+                    spec.select_native_words(&words, 2, Some(dialect), context),
+                    NativeCompilationSelection::Generic
+                );
+                assert_eq!(
+                    spec.original_argument_name_effects(&words, 2, Some(dialect)),
+                    NativeOriginalCompilerNameEffects::Preserved
+                );
+                if let Some(private) = path.first() {
+                    assert_eq!(private.member, member.name);
+                    assert!(
+                        registry
+                            .native_compilation_for_registration(private.slot, dialect)
+                            .is_some()
+                    );
+                } else {
+                    assert!(
+                        registry
+                            .native_compilation_for_registration(
+                                &format!("::tcl::namespace::{}", member.name),
+                                dialect,
+                            )
+                            .is_none()
+                    );
+                }
+                assert!(
+                    spec.implementation_prerequisites(InvocationDialect::of_point(
+                        tcl_dialect::model::DialectPoint::canonical(
+                            tcl_dialect::model::Release::JIM_0_84
+                        ),
+                    ))
+                    .is_none()
+                );
+                assert_eq!(
+                    spec.select_native_words(&words, 2, None, context),
+                    NativeCompilationSelection::Unknown
+                );
+            }
+        }
+    }
+
+    #[test]
     fn no_hook_implementation_paths_keep_direct_body_and_reject_inconsistent_descriptors() {
+        // naming.namespace.original-counted-namespace-allocation
+        // docs/design/analysis/name-resolution-proofs/namespace-original-counted-allocation.md
         const LOOKUPS: &[NativeCompilerImplementationLookup] =
             &[NativeCompilerImplementationLookup {
                 ensemble: "::namespace",
@@ -4827,6 +5839,7 @@ mod tests {
                 compiler: &DIRECT,
                 lookups: LOOKUPS,
                 implementation_from: TclVersion::V8_6,
+                monolithic_no_hook_before: false,
             },
             operation: DIRECT.operation,
             body: DIRECT.body,
@@ -4852,6 +5865,7 @@ mod tests {
                     compiler: &HOOK,
                     lookups: LOOKUPS,
                     implementation_from: TclVersion::V8_6,
+                    monolithic_no_hook_before: false,
                 },
                 ..direct
             }
@@ -4862,6 +5876,19 @@ mod tests {
             direct
                 .implementation_prerequisites(InvocationDialect::for_version(TclVersion::V8_5))
                 .is_none()
+        );
+        assert!(
+            NativeCompilationSpec {
+                grammar: NativeCompilationGrammar::WithImplementationPath {
+                    compiler: &HOOK,
+                    lookups: LOOKUPS,
+                    implementation_from: TclVersion::V8_6,
+                    monolithic_no_hook_before: true,
+                },
+                ..direct
+            }
+            .implementation_prerequisites(InvocationDialect::for_version(TclVersion::V8_5))
+            .is_none()
         );
         let jim = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
             tcl_dialect::model::Release::JIM_0_84,
@@ -5358,6 +6385,79 @@ mod tests {
     }
 
     #[test]
+    fn original_assignment_selection_keeps_opaque_target_bytes_and_modes_separate() {
+        // Native proof: naming.list.assignment-literal-versus-alias-target-evaluation
+        // docs/design/analysis/name-resolution-proofs/assignment-literal-versus-alias-target-evaluation.md
+        let spec = NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::ListAssignment,
+            operation: SemanticOperationId::Intrinsic(crate::IntrinsicId::ListAssign),
+            body: NativeBodyCompilation::Inherit,
+        };
+        for version in TclVersion::ALL {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let dialect = InvocationDialect::of_profile(profile);
+            for image in [
+                tcl_lexer::SourceImage::document(r"lassign {one two} n\uD800 a(k)"),
+                tcl_lexer::SourceImage::native(b"lassign {one two} n\xff a(k)".as_slice()),
+            ] {
+                let parsed = tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                assert!(parsed.fatal_tail.is_none());
+                let captured = crate::native_compiler_words::NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    tcl_syntax::native_string::NativeStringProtocol::C(version),
+                )
+                .unwrap();
+                assert!(captured.literal(2).is_some());
+                let entered = context(NativeCompilationFrame::ScriptCode);
+                let selected = spec.select_native_words(&captured, 1, Some(dialect), entered);
+                assert_eq!(
+                    matches!(selected, NativeCompilationSelection::Inline { .. }),
+                    version >= TclVersion::V8_5,
+                    "{version:?}/{image:?}",
+                );
+                assert_eq!(
+                    spec.select_native_words(
+                        &captured,
+                        1,
+                        Some(dialect),
+                        NativeCompilationContext {
+                            mode: NativeCompilationMode::Direct,
+                            ..entered
+                        },
+                    ),
+                    NativeCompilationSelection::Generic
+                );
+                assert_eq!(
+                    spec.select_native_words(
+                        &captured,
+                        1,
+                        Some(dialect),
+                        NativeCompilationContext {
+                            mode: NativeCompilationMode::Unknown,
+                            ..entered
+                        },
+                    ),
+                    if version >= TclVersion::V8_5 {
+                        NativeCompilationSelection::Unknown
+                    } else {
+                        NativeCompilationSelection::Generic
+                    }
+                );
+                assert_eq!(
+                    spec.select_native_words(&captured, 1, None, entered),
+                    NativeCompilationSelection::Unknown
+                );
+            }
+        }
+    }
+
+    #[test]
     fn native_list_operands_keep_compilation_and_store_timing_separate() {
         let range = NativeCompilationSpec {
             grammar: NativeCompilationGrammar::ListRange,
@@ -5418,7 +6518,12 @@ mod tests {
             assert_eq!(
                 dynamic_name,
                 if version >= TclVersion::V8_5 {
-                    NativeCompilationSelection::Unknown
+                    // TclCompileLassignCmd uses PushVarNameWord for each
+                    // dynamic target (native_list_operations case 13).
+                    NativeCompilationSelection::Inline {
+                        operation: assign.operation,
+                        guard: NativeCompilationGuard::BeforeArguments,
+                    }
                 } else {
                     NativeCompilationSelection::Generic
                 }
@@ -5451,11 +6556,7 @@ mod tests {
                         selection,
                         NativeCompilationSelection::Inline {
                             operation: spec.operation,
-                            guard: if version == TclVersion::V8_4 {
-                                NativeCompilationGuard::ChunkEntry
-                            } else {
-                                NativeCompilationGuard::BeforeArguments
-                            },
+                            guard: NativeCompilationGuard::for_c_version(version),
                         },
                     );
                 }
@@ -6390,6 +7491,13 @@ mod tests {
                     selection,
                     if version < TclVersion::V8_5 || frame == NativeCompilationFrame::ScriptCode {
                         NativeCompilationSelection::Generic
+                    } else if frame == NativeCompilationFrame::ProcedureCode {
+                        // Original known local tail/value matches the
+                        // TclCompileVariableCmd IndexTailVarIfKnown path.
+                        NativeCompilationSelection::Inline {
+                            operation: spec.operation,
+                            guard: NativeCompilationGuard::BeforeArguments,
+                        }
                     } else {
                         NativeCompilationSelection::Unknown
                     }
@@ -6543,7 +7651,11 @@ mod tests {
                     Some(dialect),
                     context
                 ),
-                NativeCompilationSelection::Unknown
+                if modern {
+                    NativeCompilationSelection::Unknown
+                } else {
+                    NativeCompilationSelection::Generic
+                }
             );
         }
         let jim = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
@@ -6683,6 +7795,63 @@ mod tests {
                 spec.implementation_lookup(dialect).is_some(),
                 version >= TclVersion::V8_5
             );
+        }
+    }
+
+    #[test]
+    fn installed_info_commands_worker_keeps_original_selector_arity() {
+        // naming.info.original-command-inventory-option-and-scope
+        // docs/design/analysis/name-resolution-proofs/info-original-command-inventory-option-and-scope.md
+        // Original public rows retain error usage; these independently authored
+        // source-policy controls assert no observed opcode or private binding.
+        let registry = crate::CommandRegistry::build_default();
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let dialect = InvocationDialect::for_version(version);
+            let profile =
+                tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string()))
+                    .unwrap();
+            let spec = registry
+                .native_compilation_for_registration("::tcl::info::commands", dialect)
+                .unwrap();
+            for (source, expected) in [
+                (b"info commands".as_slice(), 0),
+                (b"info com $pattern".as_slice(), 0),
+                (b"info commands ::literal".as_slice(), 1),
+                (b"info commands -all r2286*".as_slice(), 2),
+                (b"info commands a b".as_slice(), 2),
+            ] {
+                let image = tcl_lexer::SourceImage::native(source);
+                let parsed = tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let words = crate::native_compiler_words::NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    tcl_syntax::native_string::NativeStringProtocol::C(version),
+                )
+                .unwrap();
+                let selected = spec.select_registered_worker_native_words(
+                    &words,
+                    2,
+                    Some(dialect),
+                    NativeCompilationContext {
+                        mode: NativeCompilationMode::BytecodeObject,
+                        frame: NativeCompilationFrame::ScriptCode,
+                        catch_depth: Some(0),
+                        loop_depth: 0,
+                    },
+                );
+                assert!(
+                    match expected {
+                        0 => matches!(selected, NativeCompilationSelection::NamedInvocation { .. }),
+                        1 => matches!(selected, NativeCompilationSelection::Inline { .. }),
+                        _ => selected == NativeCompilationSelection::Generic,
+                    },
+                    "{version:?}/{source:?}: {selected:?}"
+                );
+            }
         }
     }
 
@@ -6874,11 +8043,7 @@ mod tests {
                 ),
                 NativeCompilationSelection::Inline {
                     operation: spec.operation,
-                    guard: if version == TclVersion::V8_4 {
-                        NativeCompilationGuard::ChunkEntry
-                    } else {
-                        NativeCompilationGuard::BeforeArguments
-                    },
+                    guard: NativeCompilationGuard::for_c_version(version),
                 }
             );
         }
@@ -7287,6 +8452,35 @@ mod tailcall_tests {
                     TclVersion::V8_6
                 ),
                 NativeCompilationSelection::Generic
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod native_command_currency_tests {
+    use super::*;
+    #[test]
+    fn original_command_currency_uses_actual_engine_and_independent_epochs() {
+        // naming.command.native-command-entry-currency
+        // docs/design/analysis/name-resolution-proofs/command-native-command-entry-currency.md
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let dialect = crate::InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::find(profile).unwrap(),
+            );
+            let guard = NativeCompilationGuard::for_native_dialect(dialect).unwrap();
+            assert!(!guard.revalidate_source((4, 7), (4, 7)));
+            let command_boundary = profile != "tcl8.4";
+            assert_eq!(guard.requires_current_epochs(), command_boundary);
+            assert_eq!(guard.revalidate_source((4, 7), (5, 7)), command_boundary);
+            assert_eq!(guard.revalidate_source((4, 7), (4, 8)), command_boundary);
+        }
+        for environment in ["tcl", "jim", "f5-irules", "f5-bigip"] {
+            let profile = crate::model::resolve_environment(environment).unit_profile();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            assert!(
+                NativeCompilationGuard::for_native_dialect(dialect).is_none(),
+                "{environment}"
             );
         }
     }

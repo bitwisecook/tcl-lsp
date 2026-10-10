@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-variable-container-columns189/case-03.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.0057995690003735945,
+  "version_pin_receipt": "/workspace/.proofs/native-variable-container-runtime187/9.1.0/receipt.json",
+  "reported_version_row": "PATCHLEVEL 9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "fadf406093390661c142c2124a76b08510a07e6d864c559573dc8ef73397e7f9",
+  "stdout_sha256": "63d2a3b291ffcd58316b1a55ebda960cf468dbb8dc1b427b2c7fadf703ca7c4e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684"
+  },
+  "rows": [
+    "1 {can't read \"a\": variable is array} 0"
+  ],
+  "input_channel": "Replay all ten retained public variable-container specimens in the exact original ASCII LF isolated script-file envelope used by tcl-test-support::variable_containers_conformance::check. One process per case/provider. Preserve old capture columns independently; these fresh six-provider results define their own corrected original-envelope expectations, with exact source/exe/library/build provenance. No private bytecode/frame/header authority follows from public results.",
+  "control": "case-03"
+}

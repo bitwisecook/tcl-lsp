@@ -1,0 +1,38 @@
+{
+  "provider": "tcl9.0",
+  "version": "9.0.4",
+  "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c",
+  "source_sha256": "5c944998c2f89689ef9f591983ea7b0e322dd40756fe5baca641e2258969b125",
+  "windows": [
+    {
+      "purpose": "creation",
+      "function": "ChildCreate/SlaveCreate",
+      "lines": [
+        2457,
+        2463
+      ],
+      "snippet": "    childPtr->parentInterp = parentInterp;\n    childPtr->childEntryPtr = hPtr;\n    childPtr->childInterp = childInterp;\n    childPtr->interpCmd = Tcl_NRCreateCommand(parentInterp, path,\n\t    TclChildObjCmd, NRChildCmd, childInterp, ChildObjCmdDeleteProc);\n    Tcl_InitHashTable(&childPtr->aliasTable, TCL_STRING_KEYS);\n    Tcl_SetHashValue(hPtr, childPtr);\n",
+      "snippet_sha256": "10c9ad92cd9ca9387a395eca44945c9b25acc51553f9a03917894fe0040082e3"
+    },
+    {
+      "purpose": "interp-delete",
+      "function": "Tcl_InterpObjCmd/OPT_DELETE",
+      "lines": [
+        896,
+        915
+      ],
+      "snippet": "    case OPT_DELETE: {\n\tInterpInfo *iiPtr;\n\n\tfor (i = 2; i < objc; i++) {\n\t    childInterp = GetInterp(interp, objv[i]);\n\t    if (childInterp == NULL) {\n\t\treturn TCL_ERROR;\n\t    } else if (childInterp == interp) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"cannot delete the current interpreter\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"OPERATION\", \"INTERP\",\n\t\t\t\"DELETESELF\", (char *)NULL);\n\t\treturn TCL_ERROR;\n\t    }\n\t    iiPtr = INTERP_INFO(childInterp);\n\t    Tcl_DeleteCommandFromToken(iiPtr->child.parentInterp,\n\t\t    iiPtr->child.interpCmd);\n\t}\n\treturn TCL_OK;\n    }\n",
+      "snippet_sha256": "913bbf31d6064cce8e8c6f4c46bb37ac6db5ebd0ea541811dcfad023864c0822"
+    },
+    {
+      "purpose": "delete-callback",
+      "function": "ChildObjCmdDeleteProc",
+      "lines": [
+        2760,
+        2786
+      ],
+      "snippet": "ChildObjCmdDeleteProc(\n    void *clientData)\t\t/* The ChildRecord for the command. */\n{\n    Child *childPtr;\t\t/* Interim storage for Child record. */\n    Tcl_Interp *childInterp = (Tcl_Interp *) clientData;\n\t\t\t\t/* And for a child interp. */\n\n    childPtr = &INTERP_INFO(childInterp)->child;\n\n    /*\n     * Unlink the child from its parent interpreter.\n     */\n\n    Tcl_DeleteHashEntry(childPtr->childEntryPtr);\n\n    /*\n     * Set to NULL so that when the InterpInfo is cleaned up in the child it\n     * does not try to delete the command causing all sorts of grief. See\n     * ChildRecordDeleteProc().\n     */\n\n    childPtr->interpCmd = NULL;\n\n    if (childPtr->childInterp != NULL) {\n\tTcl_DeleteInterp(childPtr->childInterp);\n    }\n}\n",
+      "snippet_sha256": "27d942f4c60ee0fac0848caf67951b402693280322212145c6614c2df152cf09"
+    }
+  ]
+}

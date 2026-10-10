@@ -170,11 +170,20 @@ pub enum TclOoPropertyKind {
     Writable,
 }
 
+impl TclOoPropertyKind {
+    /// Canonical access kind from the independently selected Registry table.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        TCL_OO_PROPERTY_KINDS[self as usize].value
+    }
+}
+
 /// Resolve a configurable-property option from its registry metadata.
 ///
 /// # Errors
 /// Tcl's byte-exact bad/ambiguous option message.
 pub fn resolve_tcloo_property_option(word: &[u8]) -> Result<TclOoPropertyOption, Vec<u8>> {
+    let word = tcl_core_types::c_string_extent(word);
     let names: Vec<&str> = TCL_OO_PROPERTY_OPTIONS
         .iter()
         .map(|option| option.name)
@@ -192,6 +201,7 @@ pub fn resolve_tcloo_property_option(word: &[u8]) -> Result<TclOoPropertyOption,
 /// # Errors
 /// Tcl's byte-exact bad/ambiguous kind message.
 pub fn resolve_tcloo_property_kind(word: &[u8]) -> Result<TclOoPropertyKind, Vec<u8>> {
+    let word = tcl_core_types::c_string_extent(word);
     let names: Vec<&str> = TCL_OO_PROPERTY_KINDS
         .iter()
         .map(|kind| kind.value)

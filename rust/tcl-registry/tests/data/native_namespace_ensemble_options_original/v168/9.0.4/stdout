@@ -1,0 +1,15 @@
+version 9.0.4
+observation capability status 0 result 0 errorCode {}
+observation create-bare status 0 result ::r2286_nestedBare errorCode {}
+observation invoke-bare-created status 0 result payload errorCode {}
+observation create-immediate-option status 0 result {x ::list} errorCode {}
+observation create-dash-command-map status 0 result {x ::list} errorCode {}
+observation configure-command-name-map-data status 0 result {x ::list} errorCode {}
+observation configure-unqualified-map-data status 0 result {x ::list} errorCode {}
+observation configure-command-name-namespace-data status 0 result {x ::list} errorCode {}
+observation configure-option-after-command status 0 result 0 errorCode {}
+observation configure-invalid-option-after-command status 1 result {bad option "-command": must be -map, -namespace, -parameters, -prefixes, -subcommands, or -unknown} errorCode {TCL LOOKUP INDEX option -command}
+observation exists-dash-map-is-command-name status 0 result 1 errorCode {}
+observation exists-dash-namespace-is-command-name status 0 result 1 errorCode {}
+observation exists-does-not-scan-options status 1 result {wrong # args: should be "namespace ensemble exists cmdname"} errorCode {TCL WRONGARGS}
+observation create-rejects-configure-only-option status 1 result {bad option "-namespace": must be -command, -map, -parameters, -prefixes, -subcommands, or -unknown} errorCode {TCL LOOKUP INDEX option -namespace}

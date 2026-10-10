@@ -1,0 +1,23 @@
+{
+  "id": "ORIGINAL_LIST_ENCODED_ZERO",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.4.20/probe",
+    "21"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "a7af6793e5b6ce793b6707b61c39cad58c8902d5aa65a06481546c6a70fb3975",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e342e3230",
+    "ORIGINAL_LIST_ENCODED_ZERO_SCHEDULE_INPUT|0|6bc0807461696c",
+    "ORIGINAL_LIST_ENCODED_ZERO_SCHEDULE|0|61667465722330",
+    "ORIGINAL_LIST_ENCODED_ZERO_SCHEDULE_OPTIONS_NOT_TESTED|0|no-Tcl_GetReturnOptions",
+    "ORIGINAL_LIST_ENCODED_ZERO_UPDATE|0|",
+    "ORIGINAL_LIST_ENCODED_ZERO_UPDATE_OPTIONS_NOT_TESTED|0|no-Tcl_GetReturnOptions",
+    "ORIGINAL_LIST_ENCODED_ZERO_VALUE|0|56414c5545",
+    "ORIGINAL_LIST_ENCODED_ZERO_VALUE_OPTIONS_NOT_TESTED|0|no-Tcl_GetReturnOptions"
+  ],
+  "reported_version": "8.4.20"
+}

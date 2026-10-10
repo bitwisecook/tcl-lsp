@@ -22,10 +22,10 @@
 //! Value construction needs no interpreter state, so the seam is implemented
 //! directly on [`Vm`] (the natural `ops` object a builtin already holds). The
 //! copy-on-write asymmetry is explicit: the `Rc`-handle model cannot grow a
-//! buffer in place, so [`ValueOps::try_append_bytes_in_place`] /
-//! [`ValueOps::try_list_append_in_place`] keep their default (`false`) and
-//! callers build a fresh value — the contrast with the WASM runtime's amortised
-//! in-place growth that the contract is designed around. The VM retains exact
+//! buffer in place: [`ValueOps::try_append_bytes_in_place`] returns `false`,
+//! while [`ValueOps::try_list_append_in_place`] returns `Ok(false)`. Callers
+//! therefore build a fresh value. The WASM runtime supports amortised in-place
+//! growth through those capabilities. The VM retains exact
 //! string bytes independently of a checked Unicode projection; `as_bytes`
 //! uses that byte owner directly.
 
@@ -383,32 +383,25 @@ impl ValueOps for Vm {
         use tcl_syntax::value::OriginalOptionLookup;
         original.check_native_header()?;
         let dialect = self.actual_native_invocation_dialect();
-        if dialect.native_string_protocol()
-            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
-        {
-            if original.native_index_cache().is_some() {
-                return Err(ValueError::CommandProtocolUnavailable(
-                    "foreign native Index origin",
-                ));
-            }
-            let bytes = original
-                .native_string_bytes(dialect.native_string_protocol().ok_or(
-                    ValueError::CommandProtocolUnavailable("original option string getter"),
-                )?)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
-            let table = if exact {
-                tcl_cmd_core::prefix::OptionTable::exact_only(noun, words)
-            } else {
-                tcl_cmd_core::prefix::OptionTable::abbreviating(noun, words)
-            };
-            return Ok(Some(match table.index_of(&bytes) {
-                Ok(index) => OriginalOptionLookup::Index(index),
-                Err(message) => OriginalOptionLookup::Failure {
-                    message,
-                    error_code: b"NONE".to_vec(),
-                    string_result: None,
+        if dialect.native_jim_enum_protocol().is_some() {
+            let table =
+                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
+            let flags = tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact);
+            return Ok(Some(
+                match self.native_jim_enum_from_original(
+                    original,
+                    &table,
+                    flags,
+                    Some(noun.as_bytes()),
+                )? {
+                    Ok(index) => OriginalOptionLookup::Index(index),
+                    Err(message) => OriginalOptionLookup::Failure {
+                        message: message.unwrap_or_default(),
+                        error_code: b"NONE".to_vec(),
+                        string_result: None,
+                    },
                 },
-            }));
+            ));
         }
         let protocol = dialect.native_index_lookup_protocol().ok_or(
             ValueError::CommandProtocolUnavailable("original static option lookup"),
@@ -460,6 +453,20 @@ impl ValueOps for Vm {
                 "native original object Unicode issuer",
             ))?;
         value.native_unicode_units(policy.string_protocol())
+    }
+
+    fn native_unicode_string_result(
+        &mut self,
+        units: Rc<[u32]>,
+        version: tcl_dialect::TclVersion,
+    ) -> Result<Value, ValueError> {
+        let dialect = self.actual_native_invocation_dialect();
+        if dialect.tcl_version != Some(version) || dialect.native_error_log_protocol().is_none() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native Unicode result issuer",
+            ));
+        }
+        Value::from_native_unicode_units(units, dialect)
     }
 
     fn concat_policy(&self) -> Option<tcl_dialect::ConcatPolicy> {
@@ -628,6 +635,33 @@ impl ValueOps for Vm {
 
     fn new_double(&mut self, f: f64) -> Value {
         Value::native_double(f, self.native_invocation_dialect())
+    }
+
+    fn array_existence_result(&mut self, present: bool) -> Result<Value, ValueError> {
+        use tcl_registry::native_array_compilation::{
+            NativeArrayExistenceResult, native_array_existence_result,
+        };
+        if crate::interp::InterpState::name_policy_protocol(self).is_some_and(|policy| {
+            policy.authority() == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+        }) {
+            return Ok(self.new_bool(present));
+        }
+        let dialect = self.actual_native_invocation_dialect();
+        match native_array_existence_result(dialect) {
+            Some(NativeArrayExistenceResult::ExecutionBooleanConstant) => self
+                .native_c_execution_boolean(
+                    present,
+                    dialect
+                        .tcl_version
+                        .ok_or(ValueError::CommandProtocolUnavailable(
+                            "array existence execution constant release",
+                        ))?,
+                ),
+            Some(NativeArrayExistenceResult::FreshInteger) => Ok(self.new_bool(present)),
+            None => Err(ValueError::CommandProtocolUnavailable(
+                "array existence result producer",
+            )),
+        }
     }
 
     fn new_bool(&mut self, b: bool) -> Value {

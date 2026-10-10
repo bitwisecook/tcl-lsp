@@ -1,0 +1,721 @@
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-core` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.11s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_core-f816994f92f0f9f0)
+
+running 3 tests
+test minify::original::tests::original_scalar_minification_declines_observers_stores_and_open_source ... ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=31 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=23 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=31 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=23 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=1 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=8..20 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=23 stage=body-observations
+SCALAR_ALPHA offset=23 stage=body-entry
+SCALAR_ALPHA offset=23 stage=body-observers
+SCALAR_ALPHA offset=23 stage=body-words
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=48 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=48 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=4 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=8..20 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=23 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=51 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=23 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=51 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=1 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=8..20 declaration=true coverage=false
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=23 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=70 opaque=true definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=23 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=70 opaque=true definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=3 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=8..20 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=23 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=23 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=8..20 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=23 stage=body-observations
+SCALAR_ALPHA offset=23 stage=body-entry
+SCALAR_ALPHA offset=23 stage=body-observers
+SCALAR_ALPHA offset=23 stage=body-words
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=33 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=33 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=9..21 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=15 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=15 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=8..12 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=45 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=23 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=45 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=23 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=false
+SCALAR_ALPHA formal-span=8..20 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=45 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=45 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ok
+test minify::original::tests::original_scalar_minification_keeps_isolation_and_other_pass_permissions_separate ... ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+ok
+test minify::original::tests::original_scalar_minification_requires_equivalence_and_complete_edit_geometry ... ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=30 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=30 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=30 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=30 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=32 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..29 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=32 stage=body-observations
+SCALAR_ALPHA offset=32 stage=body-entry
+SCALAR_ALPHA offset=32 stage=body-observers
+SCALAR_ALPHA offset=32 stage=body-words
+SCALAR_ALPHA offset=32 stage=quiet-formal-read
+SCALAR_ALPHA offset=32 stage=selected-return-target
+SCALAR_ALPHA offset=32 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=30 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=true topology=true key=true holder_exists=true installed_count=1
+ORIGINAL_PROCEDURE_CLOSURE offset=30 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=2 formals=1 completed-world=true
+SCALAR_ALPHA formal-span=17..27 declaration=true coverage=true
+SCALAR_ALPHA offset=0 stage=consumer-correspondence
+SCALAR_ALPHA offset=0 stage=completed-world
+SCALAR_ALPHA offset=0 stage=declared-body
+SCALAR_ALPHA offset=0 stage=body-frame-owner
+SCALAR_ALPHA offset=0 stage=formal-topology
+SCALAR_ALPHA offset=0 stage=formal-rename-grammar
+SCALAR_ALPHA offset=0 stage=symbol-frame
+SCALAR_ALPHA offset=0 frame_source=true frame_identity=true frame_config=true formal_key=true formal_policy=true
+SCALAR_ALPHA offset=0 stage=renamed-symbol
+SCALAR_ALPHA offset=0 stage=body-geometry
+SCALAR_ALPHA offset=30 stage=body-observations
+SCALAR_ALPHA offset=30 stage=body-entry
+SCALAR_ALPHA offset=30 stage=body-observers
+SCALAR_ALPHA offset=30 stage=body-words
+SCALAR_ALPHA offset=30 stage=quiet-formal-read
+SCALAR_ALPHA offset=30 stage=selected-return-target
+SCALAR_ALPHA offset=30 stage=return-contract
+SCALAR_ALPHA offset=0 stage=admitted
+SCALAR_ALPHA offset=0 symbols=0 formals=0 completed-world=true
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 2521 filtered out; finished in 14.56s
+

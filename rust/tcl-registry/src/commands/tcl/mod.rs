@@ -80,9 +80,14 @@ mod http;
 mod if_;
 mod incr_;
 mod info_;
+mod info_jim;
 pub use info_::{
     InfoOoEnsembleKind, InfoOoPropertiesOption, InfoOoSubcommands, info_oo_subcommands,
-    resolve_info_oo_properties_option,
+    resolve_info_oo_properties_option, resolve_info_oo_properties_option_original,
+};
+pub use info_jim::{
+    NativeJimAliasLookupFailure, NativeJimCommandInventory, NativeJimCommandInventoryKind,
+    NativeJimInfoDispatch, NativeJimInfoProtocol, NativeJimInfoReport, NativeJimInfoScope,
 };
 mod interp;
 mod join_;
@@ -299,6 +304,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         global_::spec(),
         if_::spec(),
         incr_::spec(),
+        info_jim::spec(),
         info_::spec(),
         interp::jim_spec(),
         interp::spec(),

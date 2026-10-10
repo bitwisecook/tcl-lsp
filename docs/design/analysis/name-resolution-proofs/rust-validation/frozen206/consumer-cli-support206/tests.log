@@ -1,0 +1,53 @@
+
+running 5 tests
+test highlight::tests::original_highlight_html_shares_script_regions_and_source_escaping ... FAILED
+test highlight::tests::original_highlight_keeps_actual_custom_and_reference_only_source_schemas ... FAILED
+test highlight::tests::original_highlight_keeps_data_inert_and_single_line_bodies_visible ... FAILED
+test highlight::tests::original_highlight_keeps_selected_alias_prefix_and_shadow_roles ... FAILED
+test highlight::tests::original_highlight_uses_actual_c_jim_and_irules_lexical_axes ... FAILED
+
+failures:
+
+---- highlight::tests::original_highlight_html_shares_script_regions_and_source_escaping stdout ----
+
+thread 'highlight::tests::original_highlight_html_shares_script_regions_and_source_escaping' (775100) panicked at rust/tcl-cli-support/src/highlight.rs:413:9:
+<pre>
+<span style="color:#2b6cb0;font-weight:600;">if</span> <span style="color:#2f855a;">{1</span>} <span style="color:#2f855a;">{puts &lt;café🙂&gt;&amp;</span>}
+</pre>
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- highlight::tests::original_highlight_keeps_actual_custom_and_reference_only_source_schemas stdout ----
+
+thread 'highlight::tests::original_highlight_keeps_actual_custom_and_reference_only_source_schemas' (775353) panicked at rust/tcl-cli-support/src/highlight.rs:469:13:
+[1;34mheld[0m [32m{[0mputs custom}
+
+---- highlight::tests::original_highlight_keeps_data_inert_and_single_line_bodies_visible stdout ----
+
+thread 'highlight::tests::original_highlight_keeps_data_inert_and_single_line_bodies_visible' (775381) panicked at rust/tcl-cli-support/src/highlight.rs:400:13:
+assertion `left == right` failed: [1;34mif[0m [32m{1[0m} [32m{[0mputs single}
+  left: false
+ right: true
+
+---- highlight::tests::original_highlight_keeps_selected_alias_prefix_and_shadow_roles stdout ----
+
+thread 'highlight::tests::original_highlight_keeps_selected_alias_prefix_and_shadow_roles' (775402) panicked at rust/tcl-cli-support/src/highlight.rs:434:13:
+assertion `left == right` failed: [1;34mrename[0m if condition; [1;34mcondition[0m [32m{1[0m} [32m{[0mputs moved}
+  left: false
+ right: true
+
+---- highlight::tests::original_highlight_uses_actual_c_jim_and_irules_lexical_axes stdout ----
+
+thread 'highlight::tests::original_highlight_uses_actual_c_jim_and_irules_lexical_axes' (775458) panicked at rust/tcl-cli-support/src/highlight.rs:490:13:
+tcl8.4: [1;34mif[0m [32m{1[0m} [32m{[0mputs dialect}
+
+
+failures:
+    highlight::tests::original_highlight_html_shares_script_regions_and_source_escaping
+    highlight::tests::original_highlight_keeps_actual_custom_and_reference_only_source_schemas
+    highlight::tests::original_highlight_keeps_data_inert_and_single_line_bodies_visible
+    highlight::tests::original_highlight_keeps_selected_alias_prefix_and_shadow_roles
+    highlight::tests::original_highlight_uses_actual_c_jim_and_irules_lexical_axes
+
+test result: FAILED. 0 passed; 5 failed; 0 ignored; 0 measured; 21 filtered out; finished in 17.83s
+

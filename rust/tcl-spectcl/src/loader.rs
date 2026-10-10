@@ -93,6 +93,7 @@ use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_core_types::DiagCode;
 use tcl_dialect::TclVersion;
 use tcl_lexer::{LeadingBom, LexerConfig, SourceMap, TokenType};
+use tcl_registry::ScriptLookupScope;
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::{Arity, ArityWindow};
@@ -192,6 +193,8 @@ pub struct Notice {
     /// this build postdates) and inside the `dialect` / `environment`
     /// blocks, where every word is semantic by construction.
     pub class: VocabularyClass,
+    /// Typed literal source position of a rejected property/flag, when known.
+    pub subject: Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject>,
 }
 
 impl fmt::Display for Notice {
@@ -204,6 +207,7 @@ impl fmt::Display for Notice {
 #[derive(Debug, Default)]
 struct Log {
     context: String,
+    source: Option<std::sync::Arc<str>>,
     notices: Vec<Notice>,
     /// Sites that used vocabulary newer than 1.0, as
     /// `(context, line, word, first vocabulary that has it)`.
@@ -255,6 +259,7 @@ impl Log {
 
     fn say(&mut self, line: u32, message: impl Into<String>) {
         self.notices.push(Notice {
+            subject: None,
             context: self.context.clone(),
             line,
             message: message.into(),
@@ -266,6 +271,7 @@ impl Log {
     /// current spec was degraded by it.
     fn say_classified(&mut self, line: u32, class: VocabularyClass, message: impl Into<String>) {
         self.notices.push(Notice {
+            subject: None,
             context: self.context.clone(),
             line,
             message: message.into(),
@@ -353,11 +359,45 @@ impl Log {
         let word = quotable(raw);
         let message = format!("unknown property `{word}` dropped");
         self.unknown_word(stmt.line, raw, message);
+        self.attach_subject(
+            stmt.line,
+            raw,
+            tcl_lsp_core::code_actions::SpecPackNoticeKind::Property,
+        );
+    }
+
+    fn attach_subject(
+        &mut self,
+        line: u32,
+        word: &str,
+        kind: tcl_lsp_core::code_actions::SpecPackNoticeKind,
+    ) {
+        let Some(source) = &self.source else {
+            return;
+        };
+        // The loader's fixed pack grammar is independent of document Native naming.
+        let config = LexerConfig {
+            leading_bom: LeadingBom::Skip,
+            ..LexerConfig::default()
+        };
+        let subject = tcl_lsp_core::code_actions::SpecPackNoticeSubject::from_loader(
+            source, config, line, word, kind,
+        );
+        if let Some(notice) = self.notices.last_mut() {
+            notice.subject = subject;
+        }
     }
 
     fn unknown_flag(&mut self, row: &str, line: u32, flag: &str) {
         let message = format!("unknown flag `{}` on `{row}` dropped", quotable(flag));
         self.unknown_word(line, flag, message);
+        self.attach_subject(
+            line,
+            flag,
+            tcl_lsp_core::code_actions::SpecPackNoticeKind::Flag {
+                row: row.to_owned(),
+            },
+        );
     }
 }
 
@@ -755,7 +795,7 @@ fn abstain_command_prefixes(_args: CommandPrefixArguments<'_>) -> Vec<(u8, Appen
     Vec::new()
 }
 
-fn abstain_script_timings(_args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+fn abstain_script_timings(_args: tcl_registry::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
     Vec::new()
 }
 
@@ -772,11 +812,16 @@ fn sink_applies(_args: &[&str]) -> bool {
     true
 }
 
-fn allow_context(_args: &[&str], _in_event_body: bool) -> Option<&'static str> {
+fn allow_context(
+    _args: tcl_registry::InvocationArguments<'_>,
+    _in_event_body: bool,
+) -> Option<&'static str> {
     None
 }
 
-fn accept_clause_shape(_args: &[&str]) -> Option<ClauseShapeError> {
+fn accept_clause_shape(
+    _args: tcl_registry::InvocationArguments<'_>,
+) -> Option<tcl_registry::ClauseShapeIssue> {
     None
 }
 
@@ -1281,6 +1326,7 @@ fn finish_newer_words(pack: &Pack, log: &mut Log) {
             continue;
         }
         log.notices.push(Notice {
+            subject: None,
             context,
             line,
             class: VocabularyClass::Presentation,
@@ -1673,6 +1719,7 @@ pub(crate) fn uses_include(source: &str) -> bool {
 /// the resolver decides what a name means, but a name is never a path.
 pub(crate) fn include_name(words: &[&str], line: u32) -> Result<String, Notice> {
     let reject = |message: String| Notice {
+        subject: None,
         context: "pack".to_owned(),
         line,
         message,
@@ -5229,6 +5276,15 @@ fn apply_command_stmt(
         "excluded_events" => spec.excluded_events = leak_strs(&list_words(&value)),
         "safe_on_uninit" => spec.safe_on_uninit = parse_dialects(&value, stmt.line, log),
         "deprecated_replacement" => spec.deprecated_replacement = Some(leak_str(&value)),
+        "source_deprecation_advice" => {
+            spec.source_deprecation_advice = enum_by_name(
+                &tcl_registry::deprecation::SourceDeprecationAdvice::ALL,
+                &value,
+                "source deprecation advice",
+                stmt.line,
+                log,
+            );
+        }
         "deprecated_replacement_drop_in" => {
             spec.deprecated_replacement_drop_in = parse_flag(stmt.tail());
         }
@@ -5256,6 +5312,9 @@ fn apply_command_stmt(
         "creates_instance_at" => spec.creates_instance_at = value.parse().ok(),
         "defines_command_at" => spec.defines_command_at = value.parse().ok(),
         "body_arg_implicit_args" => spec.body_arg_implicit_args = value.parse().unwrap_or(0),
+        "variable_receivers" => {
+            spec.variable_receivers = variable_receivers_value(&value, stmt.line, log)
+        }
         "successful_handler" => {
             log.say_classified(stmt.line, VocabularyClass::Semantic,
                 "native successful_handler contracts require converged implementation, physical storage and observer proofs; this pack cannot supply them and is excluded from strong analysis");
@@ -5278,6 +5337,16 @@ fn apply_command_stmt(
             if let Some(kind) = enum_by_name(BODY_KINDS, &value, "body kind", stmt.line, log) {
                 spec.body_kind = kind;
             }
+        }
+        "script_lookup_scope" => {
+            log.v20(stmt.line, "script_lookup_scope");
+            spec.script_lookup_scope = enum_by_name(
+                &ScriptLookupScope::ALL,
+                &value,
+                "executable lookup frame",
+                stmt.line,
+                log,
+            );
         }
         "allow_unknown_subcommands" => {
             spec.allow_unknown_subcommands = parse_flag(stmt.tail());
@@ -6198,8 +6267,8 @@ fn definition_body_value(
 
 /// `world_effects none | NAME | { … }`.
 ///
-/// The block's plain data is read; its `resolver` stays reference-only, which
-/// is the boundary the design draws.
+/// Composition is supported; typed effect rows remain reference-only. An
+/// incomplete block cannot issue a closed empty effect descriptor.
 fn world_effects_value(
     stmt: &Stmt,
     tables: &PackTables,
@@ -6211,6 +6280,7 @@ fn world_effects_value(
     }
     let stmts = resolve_block(stmt, "world_effects", tables, log)?;
     let mut descriptor = WorldEffectDescriptor::EMPTY;
+    let mut complete = true;
     for stmt in &stmts {
         match stmt.word_text(0) {
             "composition" => {
@@ -6226,19 +6296,27 @@ fn world_effects_value(
                     log,
                 ) {
                     descriptor.composition = composition;
+                } else {
+                    complete = false;
+                    log.say_classified(
+                        stmt.line,
+                        VocabularyClass::Semantic,
+                        "invalid semantic composition excludes this command from strong analysis",
+                    );
                 }
             }
             // The remaining rows (`access`, `callback`, `resolver`,
             // `dynamic_fallback`) describe typed effect facts the DSL cannot
-            // yet construct; the declaration is kept as a notice rather than
-            // silently claiming a footprint the pack did not get.
-            other => log.say(
-                stmt.line,
-                format!("`world_effects` row `{other}` is not yet loadable; dropped"),
-            ),
+            // yet construct. Their omission withdraws the complete semantic
+            // descriptor rather than claiming an empty footprint.
+            other => {
+                complete = false;
+                log.say_classified(stmt.line, VocabularyClass::Semantic,
+                    format!("`world_effects` row `{other}` is not loadable; the incomplete semantic descriptor excludes this command from strong analysis"));
+            }
         }
     }
-    Some(descriptor)
+    complete.then_some(descriptor)
 }
 
 /// `state_transitions NAME | { … }`.
@@ -6249,6 +6327,7 @@ fn state_transitions_value(
 ) -> Option<tcl_registry::state_transition::StateTransitionDescriptor> {
     let stmts = resolve_block(stmt, "state_transitions", tables, log)?;
     let mut descriptor = tcl_registry::state_transition::StateTransitionDescriptor::EMPTY;
+    let mut complete = true;
     for stmt in &stmts {
         match stmt.word_text(0) {
             "composition" => {
@@ -6265,18 +6344,26 @@ fn state_transitions_value(
                     log,
                 ) {
                     descriptor.composition = composition;
+                } else {
+                    complete = false;
+                    log.say_classified(
+                        stmt.line,
+                        VocabularyClass::Semantic,
+                        "invalid semantic composition excludes this command from strong analysis",
+                    );
                 }
             }
             // `argument_shape`, `resolver`, `widen`, `covers`, and `commit`
             // name typed transition facts; the resolver in particular is
             // reference-only by design.
-            other => log.say(
-                stmt.line,
-                format!("`state_transitions` row `{other}` is not yet loadable; dropped"),
-            ),
+            other => {
+                complete = false;
+                log.say_classified(stmt.line, VocabularyClass::Semantic,
+                    format!("`state_transitions` row `{other}` is not loadable; the incomplete semantic descriptor excludes this command from strong analysis"));
+            }
         }
     }
-    Some(descriptor)
+    complete.then_some(descriptor)
 }
 
 // `refine` — invocation refinement (2.0, design Q12/D2)
@@ -6339,6 +6426,61 @@ fn load_refinement(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<Co
     })
 }
 
+/// Authored combined-argv receiver positions. Absent inherits, `{}`
+/// explicitly withdraws, and invalid positions exclude strong semantics.
+fn variable_receivers_value(
+    value: &str,
+    line: u32,
+    log: &mut Log,
+) -> Option<
+    &'static [(
+        u8,
+        tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+    )],
+> {
+    if value == "inherit" {
+        return None;
+    }
+    let Ok(positions) = tcl_syntax::list::split_list(value) else {
+        log.say_classified(line, VocabularyClass::Semantic,
+            "variable_receivers requires a complete Tcl list; invalid naming metadata is excluded from strong analysis");
+        return Some(&[]);
+    };
+    use tcl_registry::resolved_invocation::VariableReceiverOperandForm;
+    let mut receivers = Vec::new();
+    for word in positions {
+        let Ok(fields) = tcl_syntax::list::split_list(&word) else {
+            log.say_classified(line, VocabularyClass::Semantic,
+                "variable_receivers requires complete receiver fields; invalid naming metadata is excluded from strong analysis");
+            return Some(&[]);
+        };
+        let (index, form) = match fields.as_slice() {
+            [index] => (index, VariableReceiverOperandForm::Combined),
+            [index, form] if form == "combined" => (index, VariableReceiverOperandForm::Combined),
+            [index, form] if form == "trace-subject" => {
+                (index, VariableReceiverOperandForm::TraceSubject)
+            }
+            _ => {
+                log.say_classified(line, VocabularyClass::Semantic,
+                    "variable_receivers requires an argv index and optional combined or trace-subject form; invalid naming metadata is excluded from strong analysis");
+                return Some(&[]);
+            }
+        };
+        let Ok(index) = index.parse::<u8>() else {
+            log.say_classified(line, VocabularyClass::Semantic,
+                "variable_receivers requires unique byte-sized argv positions; invalid naming metadata is excluded from strong analysis");
+            return Some(&[]);
+        };
+        if receivers.iter().any(|(previous, _)| *previous == index) {
+            log.say_classified(line, VocabularyClass::Semantic,
+                "variable_receivers repeats an argv position; ambiguous naming metadata is excluded from strong analysis");
+            return Some(&[]);
+        }
+        receivers.push((index, form));
+    }
+    Some(leak_slice(receivers))
+}
+
 /// One statement of a `refine` body.
 ///
 /// The words are the owning scope's own words, read by the owning scope's own
@@ -6356,6 +6498,9 @@ fn apply_refine_stmt(
     let key = stmt.word_text(0).to_owned();
     let value = stmt.word_text(1).to_owned();
     match key.as_str() {
+        "variable_receivers" => {
+            form.variable_receivers = variable_receivers_value(&value, stmt.line, log)
+        }
         "successful_handler" => {
             log.say_classified(stmt.line, VocabularyClass::Semantic,
                 "native successful_handler contracts require converged implementation, physical storage and observer proofs; this pack cannot supply them and is excluded from strong analysis");
@@ -6675,6 +6820,9 @@ fn apply_subcommand_stmt(
         "taint_double_encode_colour" => {
             sub.taint_double_encode_colour = Some(parse_taint(&value, stmt.line, log));
         }
+        "variable_receivers" => {
+            sub.variable_receivers = variable_receivers_value(&value, stmt.line, log)
+        }
         "successful_handler" => {
             log.say_classified(stmt.line, VocabularyClass::Semantic,
                 "native successful_handler contracts require converged implementation, physical storage and observer proofs; this pack cannot supply them and is excluded from strong analysis");
@@ -6693,6 +6841,16 @@ fn apply_subcommand_stmt(
             if let Some(kind) = enum_by_name(BODY_KINDS, &value, "body kind", stmt.line, log) {
                 sub.body_kind = kind;
             }
+        }
+        "script_lookup_scope" => {
+            log.v20(stmt.line, "script_lookup_scope");
+            sub.script_lookup_scope = enum_by_name(
+                &ScriptLookupScope::ALL,
+                &value,
+                "executable lookup frame",
+                stmt.line,
+                log,
+            );
         }
         "byte_array_effect" => {
             if let Some(effect) = parse_byte_array_effect(&value, stmt.line, log) {
@@ -6727,6 +6885,9 @@ fn apply_subcommand_stmt(
         }
         "option_prefix_words" => {
             sub.option_prefix_words = value.parse().unwrap_or(0);
+        }
+        "reserved_trailing_words" => {
+            sub.reserved_trailing_words = value.parse().unwrap_or(0);
         }
         "option_placement" => {
             const PLACEMENTS: &[OptionPlacement] =
@@ -6919,6 +7080,9 @@ fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSub
                 let _ = next_text(words, &mut i);
                 log.say_classified(stmt.line, VocabularyClass::Semantic,
                     "nested native compilation contracts require selected interpreter and actual worker identity proofs; this pack cannot supply them and is excluded from strong analysis");
+            }
+            "-option_prefix_words" => {
+                row.option_prefix_words = next_text(words, &mut i).parse().unwrap_or(0)
             }
             "-detail" => row.detail = leak_str(&next_text(words, &mut i)),
             "-synopsis" => row.synopsis = leak_str(&next_text(words, &mut i)),
@@ -7187,75 +7351,53 @@ mod tests {
         );
     }
 
-    /// #2140: `state_transitions` and `world_effects` load their
-    /// `composition` row and drop every other row with a notice.
-    ///
-    /// `spec-dsl-examples/README.md` claimed the opposite — "the
-    /// surrounding plain data *is* authorable; only the resolver is
-    /// `-native`, `none`, or a derivation keyword" — while
-    /// `registry/spec-packs.md` stated the true, stricter version. This
-    /// pins which one the tree agrees with, so growing either loader fails
-    /// here until the README is corrected with it.
-    ///
-    /// `composition` is asserted as `Replace` because `Extend` is what
-    /// both `EMPTY` descriptors already hold: asserting the default would
-    /// pass whether or not the row was read at all.
     #[test]
-    fn state_transition_and_world_effect_blocks_load_only_composition_issue_2140() {
-        fn dropped_rows(pack: &Pack) -> Vec<&str> {
-            pack.notices
-                .iter()
-                .filter(|notice| notice.message.contains("is not yet loadable; dropped"))
-                .map(|notice| notice.message.as_str())
-                .collect()
-        }
+    fn incomplete_effect_and_transition_blocks_cannot_claim_empty_semantics() {
+        // Implementation contract: naming.dsl.incomplete-effect-descriptors
+        // docs/design/analysis/name-resolution-proofs/dsl-incomplete-effect-descriptors.md
 
-        let transitions = evaluate_pack(
-            "speclib probe 1.1 { command demo { state_transitions { \
-             composition Replace; argument_shape whatever; resolver none; \
-             widen -operands 1; covers x; commit yes } } }",
-        );
-        let descriptor = transitions
-            .command("demo")
-            .unwrap()
-            .spec
-            .state_transitions
-            .expect("a descriptor");
-        assert_eq!(
-            descriptor.composition,
-            tcl_registry::state_transition::StateTransitionComposition::Replace,
-            "`composition` is the one row that lands"
-        );
-        let dropped = dropped_rows(&transitions);
-        for row in ["argument_shape", "resolver", "widen", "covers", "commit"] {
+        for (field, rows) in [
+            (
+                "state_transitions",
+                "composition Replace; argument_shape whatever; resolver none; widen -operands 1; covers x; commit yes",
+            ),
+            (
+                "world_effects",
+                "composition Replace; access read; dynamic_fallback yes; resolver none",
+            ),
+            ("state_transitions", "composition invalid"),
+            ("world_effects", "composition invalid"),
+        ] {
+            let pack = evaluate_pack(&format!(
+                "speclib probe 1.1 {{ command demo {{ {field} {{ {rows} }} }} }}"
+            ));
             assert!(
-                dropped.iter().any(|message| message.contains(row)),
-                "`{row}` should be dropped with a notice; got {dropped:?}"
+                pack.command("demo").is_none(),
+                "{field}: an incomplete descriptor must not become EMPTY"
+            );
+            assert!(
+                pack.notices
+                    .iter()
+                    .any(|notice| notice.class == VocabularyClass::Semantic),
+                "{field}: {:?}",
+                pack.notices
             );
         }
-
-        let effects = evaluate_pack(
-            "speclib probe 1.1 { command demo { world_effects { \
-             composition Replace; access read; dynamic_fallback yes; \
-             resolver none } } }",
+        let pack = evaluate_pack(
+            "speclib probe 1.1 { command demo { state_transitions { composition Replace }; world_effects none } }",
         );
-        let descriptor = effects
-            .command("demo")
-            .unwrap()
-            .spec
-            .world_effects
-            .expect("a descriptor");
+        let spec = pack.command("demo").unwrap().spec;
         assert_eq!(
-            descriptor.composition,
-            tcl_registry::world_effect::WorldEffectComposition::Replace
+            spec.state_transitions.unwrap().composition,
+            tcl_registry::state_transition::StateTransitionComposition::Replace
         );
-        let dropped = dropped_rows(&effects);
-        for row in ["access", "dynamic_fallback", "resolver"] {
-            assert!(
-                dropped.iter().any(|message| message.contains(row)),
-                "`{row}` should be dropped with a notice; got {dropped:?}"
-            );
-        }
+        let effects = spec.world_effects.unwrap();
+        assert!(effects.static_footprint.accesses.is_empty());
+        assert_eq!(
+            effects.static_footprint.callback,
+            WorldEffectDescriptor::EMPTY.static_footprint.callback
+        );
+        assert!(effects.resolver.is_none());
     }
 
     #[test]
@@ -7333,8 +7475,18 @@ mod tests {
         }
         for (what, mine, catalogue) in [
             ("argument role", names(ArgRole::ALL), catalogue::ARG_ROLES),
+            (
+                "source deprecation advice",
+                names(&tcl_registry::SourceDeprecationAdvice::ALL),
+                catalogue::SOURCE_DEPRECATION_ADVICE,
+            ),
             ("Tcl type", names(TCL_TYPES), catalogue::TCL_TYPES),
             ("body kind", names(BODY_KINDS), catalogue::BODY_KINDS),
+            (
+                "executable lookup frame",
+                names(&ScriptLookupScope::ALL),
+                catalogue::SCRIPT_LOOKUP_SCOPES,
+            ),
             (
                 "variable scope",
                 names(VARIABLE_SCOPES),
@@ -9678,6 +9830,36 @@ mod tests {
     }
 
     #[test]
+    // Implementation contract: naming.variable.registry-receiver-authoring-parity
+    // docs/design/analysis/name-resolution-proofs/registry-variable-receiver-authoring-parity.md
+    fn combined_variable_receiver_positions_preserve_scope_and_explicit_withdrawal() {
+        use tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined;
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {command demo {arity 1; arg 0 -role VarWrite; variable_receivers {0}; refine read {arity 1; variable_receivers {}}; subcommand nested {arity 1; arg 0 -role VarRead; variable_receivers {0}; refine ordinary {arity 1; variable_receivers inherit}}}}",
+        );
+        let spec = &pack.command("demo").expect("pure naming metadata").spec;
+        assert_eq!(spec.variable_receivers, Some(&[(0, Combined)][..]));
+        assert_eq!(spec.command_forms[0].variable_receivers, Some(&[][..]));
+        assert_eq!(
+            spec.subcommands[0].variable_receivers,
+            Some(&[(0, Combined)][..])
+        );
+        assert_eq!(
+            spec.subcommands[0].subcommand_forms[0].variable_receivers,
+            None
+        );
+        assert!(spec.successful_handler.is_none());
+        assert!(spec.native_compilation.is_none());
+        for bad in ["0 0", "256", "RootOnly", "-1"] {
+            let rejected = evaluate_pack(&format!(
+                "speclib probe 2.0 {{command demo {{variable_receivers {{{bad}}}}}; command neighbour {{arity 0}}}}"
+            ));
+            assert!(rejected.command("demo").is_none(), "{bad}");
+            assert!(rejected.command("neighbour").is_some());
+        }
+    }
+
+    #[test]
     fn native_successful_handler_contracts_are_explicit_semantic_exclusions() {
         for block in [
             "successful_handler -native Leaf",
@@ -9801,5 +9983,67 @@ mod tests {
             vec![(3, ArgPresentation::InlineScript)]
         );
         assert_eq!(sealed.prefixes, vec![(3, AppendedArity::Exactly(2))]);
+    }
+    #[test]
+    fn original_loader_notices_retain_their_typed_property_and_flag_subjects() {
+        // Implementation contract: naming.consumer.typed-spec-pack-notice-actions
+        // docs/design/analysis/name-resolution-proofs/typed-spec-pack-notice-actions.md
+        let source = "speclib demo 1 {\n command demo::x {\n arty 1; arg 0 -rle Body\n }\n}\n";
+        let pack = evaluate_pack(source);
+        let subjects: Vec<_> = pack
+            .notices
+            .iter()
+            .filter_map(|notice| notice.subject.as_ref())
+            .collect();
+        assert!(subjects.iter().any(|subject| subject.word() == "arty"
+            && matches!(
+                subject.kind(),
+                tcl_lsp_core::code_actions::SpecPackNoticeKind::Property
+            )));
+        assert!(subjects.iter().any(|subject|subject.word()=="-rle" && matches!(subject.kind(),tcl_lsp_core::code_actions::SpecPackNoticeKind::Flag{row} if row=="arg")));
+        assert!(
+            subjects
+                .iter()
+                .all(|subject| subject.image().bytes() == source.as_bytes())
+        );
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.trace-source-receiver-purpose
+    // docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md
+    fn trace_subject_receiver_metadata_preserves_form_and_rejects_ambiguous_fields() {
+        use tcl_registry::resolved_invocation::VariableReceiverOperandForm::{
+            Combined, TraceSubject,
+        };
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {command demo {arity 2; arg 0 -role VarRead; arg 1 -role VarRead; variable_receivers {0 {1 trace-subject}}; refine nested {arity 2; variable_receivers {{0 trace-subject}}}; subcommand query {arity 1; arg 0 -role VarRead; variable_receivers {{0 trace-subject}}}}}",
+        );
+        let spec = &pack.command("demo").unwrap().spec;
+        assert_eq!(
+            spec.variable_receivers,
+            Some(&[(0, Combined), (1, TraceSubject)][..])
+        );
+        assert_eq!(
+            spec.command_forms[0].variable_receivers,
+            Some(&[(0, TraceSubject)][..])
+        );
+        assert_eq!(
+            spec.subcommands[0].variable_receivers,
+            Some(&[(0, TraceSubject)][..])
+        );
+        assert!(spec.successful_handler.is_none());
+        assert!(spec.native_compilation.is_none());
+        for bad in [
+            "{0 unsupported}",
+            "{0 trace-subject} 0",
+            "{0 trace-subject extra}",
+            "{256 trace-subject}",
+        ] {
+            let pack = evaluate_pack(&format!(
+                "speclib probe 2.0 {{command demo {{variable_receivers {{{bad}}}}}; command neighbour {{arity 0}}}}"
+            ));
+            assert!(pack.command("demo").is_none(), "{bad}");
+            assert!(pack.command("neighbour").is_some());
+        }
     }
 }

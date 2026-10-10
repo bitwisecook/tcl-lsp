@@ -1,0 +1,13 @@
+{
+  "question_id": "naming.namespace-ensemble.original-nested-option-positions",
+  "source_sha256": "f41e76658925f52c171d4bfb6d8cc5a8b731513e8ea04568e3c6c5f4797dc952",
+  "input_channel": "ASCII LF source-file CLI",
+  "requested_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ]
+}

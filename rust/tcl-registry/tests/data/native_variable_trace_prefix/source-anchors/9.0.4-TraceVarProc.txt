@@ -1,0 +1,18 @@
+	    /*
+	     * Make sure that unset traces are rune even if the execEnv is
+	     * rewinding (coroutine deletion, [Bug 2093947]
+	     */
+
+	    if (rewind && (flags & TCL_TRACE_UNSETS)) {
+		((Interp *)interp)->execEnvPtr->rewind = 0;
+	    }
+	    code = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),
+		    Tcl_DStringLength(&cmd), 0);
+	    if (rewind) {
+		((Interp *)interp)->execEnvPtr->rewind = rewind;
+	    }
+	    if (code != TCL_OK) {		/* copy error msg to result */
+		Tcl_Obj *errMsgObj = Tcl_GetObjResult(interp);
+
+		Tcl_IncrRefCount(errMsgObj);
+		result = (char *) errMsgObj;

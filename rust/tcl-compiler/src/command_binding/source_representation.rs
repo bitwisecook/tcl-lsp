@@ -279,16 +279,19 @@ pub(super) fn unobserved_read_result(
             })
             .map(Arc::new);
     }
-    // A scalar read with closed storage/materialisation cannot fail before
-    // yielding its original value. Indexed reads retain their own index and
-    // container obligations and do not obtain this certificate.
-    if access.kind == crate::place::PlaceKind::Scalar
-        && access.index.is_none()
-        && state.source_variables.read_produces_value(access, registry)
-        && state
-            .source_variables
-            .contents_integer_increment_conversion_at(access, registry)
-            .is_some()
+    if let Some(read) = state
+        .source_variables
+        .original_name_read_result(access, registry)
+        && read.is_current(&state.source_variables, registry)
+    {
+        outcomes.normal_name_value = Some(Arc::new(read.value().clone()));
+    }
+    // The value-free normal read issuer owns scalar/indexed kind, membership,
+    // observers and current receiver. Known bytes cannot donate this proof.
+    if let Some(read) = state
+        .source_variables
+        .original_normal_value_read(access, registry)
+        && read.is_current(&state.source_variables, registry)
     {
         outcomes.retain_complete_normal_evaluation();
     }
@@ -622,7 +625,9 @@ pub(super) fn retain_value_formals(
             words.iter().any(|word| {
                 matches!(
                     word,
-                    EffectiveInvocationWord::Expanded | EffectiveInvocationWord::KnownExpansion(_)
+                    EffectiveInvocationWord::Expanded
+                        | EffectiveInvocationWord::KnownExpansion(_)
+                        | EffectiveInvocationWord::KnownByteExpansion(_)
                 )
             })
         })
@@ -703,7 +708,9 @@ fn frozen_store_representation(
             words.iter().any(|word| {
                 matches!(
                     word,
-                    EffectiveInvocationWord::Expanded | EffectiveInvocationWord::KnownExpansion(_)
+                    EffectiveInvocationWord::Expanded
+                        | EffectiveInvocationWord::KnownExpansion(_)
+                        | EffectiveInvocationWord::KnownByteExpansion(_)
                 )
             })
         })

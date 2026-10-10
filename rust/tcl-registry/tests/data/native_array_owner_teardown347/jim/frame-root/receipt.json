@@ -1,0 +1,42 @@
+{
+  "provider": "jim",
+  "command": [
+    "/workspace/.proofs/native-array-owner-teardown347-capture/jim/probe.elf",
+    "-",
+    "/workspace/.proofs/native-array-owner-teardown347-capture/frame-root.tcl",
+    "-"
+  ],
+  "exit": 0,
+  "seconds": 0.007334613997954875,
+  "rows": [
+    "VERSION|0|302e38342d392d6735626163376339",
+    "ORIGINAL|1|626164206c6576656c2022233122"
+  ],
+  "executable_sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+  "compile_receipt_sha256": "4e4b2322b00a21e4b66e8fc44b34c759b74c1b7fae13e097b807141a27074bac",
+  "source_sha256": {
+    "original": "d83ab56e9eb68b2b33ec72425c8571be2b2ce3469f7a748b160e25ae7de1027c"
+  },
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "/workspace/.proofs/native-array-owner-teardown347-capture/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/.proofs/native-providers/jimtcl/stdlib.tcl": "3597b76b785f697242a5354816792ad5fa538dd0a41b3973bdcbcb5edbb8893a",
+    "/workspace/.proofs/native-providers/jimtcl/_stdlib.c": "593b57426539e77ab00efb961a77c1f8a3845ce0c82f29943516f30db4142751",
+    "/workspace/.proofs/native-providers/jimtcl/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+  },
+  "stdout_sha256": "8082fd5655a97f08142a912583d35fc92160cc10290cd5aa7af48319cb208f94",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "reported_cli_provider_version_association": "version 0.84-9-g5bac7c9 initial_class class alias_command alias",
+  "provider_version_receipt_sha256": "006a4501536c0ae6e1919ef33f8cfcad38ebd8698b965f90abfcd6d364e32b54",
+  "channel": "External C API driver: fresh full Tcl_Init or Jim core/static extensions per control; independent exact prelude, original counted source, query evaluations in one interpreter; source is not surrounded by catch/eval/puts; C Tcl_EvalEx flags0, Jim original counted object Jim_EvalObj; public counted hex completions only"
+}

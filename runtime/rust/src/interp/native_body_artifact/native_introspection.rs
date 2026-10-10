@@ -158,12 +158,16 @@ mod tests {
     }
     #[test]
     fn compiled_introspection_preserves_thirty_three_native_original_header_windows() {
-        original_windows(false);
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        original_windows(WindowKind::Introspection);
     }
 
     #[test]
     fn compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows() {
-        original_windows(true);
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        original_windows(WindowKind::Arrays);
     }
 
     #[test]
@@ -187,9 +191,36 @@ mod tests {
         }
     }
 
-    fn original_windows(arrays: bool) {
+    #[test]
+    fn generic_array_existence_preserves_six_legacy_native_original_header_windows() {
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        // Original C8.4/8.5 case15/16/17 observe fresh versus retained results.
+        original_windows(WindowKind::LegacyArrayExistence);
+    }
+
+    #[derive(Clone, Copy)]
+    enum WindowKind {
+        Introspection,
+        Arrays,
+        LegacyArrayExistence,
+    }
+
+    fn original_windows(kind: WindowKind) {
         let mut windows = 0;
         for (engine, table) in [
+            (
+                "tcl8.4",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_introspection_compilation/8.4.20.tsv"
+                ),
+            ),
+            (
+                "tcl8.5",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_introspection_compilation/8.5.19.tsv"
+                ),
+            ),
             (
                 "tcl8.6",
                 include_str!(
@@ -209,16 +240,20 @@ mod tests {
                 ),
             ),
         ] {
+            if matches!(kind, WindowKind::LegacyArrayExistence) != matches!(engine, "tcl8.4" | "tcl8.5") {
+                continue;
+            }
             let mut interp = super::super::tests::interpreter(engine);
             assert_eq!(interp.eval_str(b"namespace eval ::N {}; namespace eval ::source {proc target {} {}; namespace export target}; namespace eval ::N {namespace import ::source::target}"),Code::Ok);
             for row in table.lines() {
                 let fields: Vec<_> = row.split('\t').collect();
                 let case = fields[0].parse::<usize>().unwrap();
-                if if arrays {
-                    case < 15
-                } else {
-                    !matches!(case, 0 | 2 | 3 | 4 | 6 | 8 | 9 | 10 | 11 | 12 | 13)
-                } {
+                let selected = match kind {
+                    WindowKind::Introspection => matches!(case, 0 | 2 | 3 | 4 | 6 | 8 | 9 | 10 | 11 | 12 | 13),
+                    WindowKind::Arrays => case >= 15,
+                    WindowKind::LegacyArrayExistence => matches!(case, 15..=17),
+                };
+                if !selected {
                     continue;
                 }
                 assert_eq!(
@@ -273,7 +308,7 @@ mod tests {
                     unhex(fields[8]),
                     "{engine}/{case}"
                 );
-                if arrays {
+                if !matches!(kind, WindowKind::Introspection) {
                     let procedure = interp
                         .proc_def(b"::N::p")
                         .expect("actual original array procedure");
@@ -304,6 +339,13 @@ mod tests {
                 windows += 1;
             }
         }
-        assert_eq!(windows, if arrays { 48 } else { 33 });
+        assert_eq!(
+            windows,
+            match kind {
+                WindowKind::Introspection => 33,
+                WindowKind::Arrays => 48,
+                WindowKind::LegacyArrayExistence => 6,
+            }
+        );
     }
 }

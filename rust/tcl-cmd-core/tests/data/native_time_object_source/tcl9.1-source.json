@@ -1,0 +1,17 @@
+{
+  "source_only": true,
+  "window": {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "9.1.0",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c",
+    "function": "Tcl_TimeObjCmd",
+    "lines": [
+      4068,
+      4135
+    ],
+    "source_sha256": "62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f",
+    "snippet_sha256": "c8ee625f3bab957c06acc608bbbfefc8ccd59467de3148a0c05773e57f4368a3",
+    "snippet": "Tcl_TimeObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    Tcl_Size objc,\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Argument objects. */\n{\n    Tcl_Obj *objPtr;\n    Tcl_Obj *objs[4];\n    int result;\n    long long i, count;\n    double totalMicroSec;\n    long long start, stop;\n\n    if (objc == 2) {\n\tcount = 1;\n    } else if (objc == 3) {\n\tresult = TclGetWideIntFromObj(interp, objv[2], &count);\n\tif (result != TCL_OK) {\n\t    return result;\n\t}\n    } else {\n\tTcl_WrongNumArgs(interp, 1, objv, \"command ?count?\");\n\treturn TCL_ERROR;\n    }\n\n    objPtr = objv[1];\n    i = count;\n#ifndef TCL_WIDE_CLICKS\n    start = Tcl_GetMonotonicTime();\n#else\n    start = TclpGetWideClicks();\n#endif\n    while (i-- > 0) {\n\tresult = TclEvalObjEx(interp, objPtr, 0, NULL, 0);\n\tif (result != TCL_OK) {\n\t    return result;\n\t}\n    }\n#ifndef TCL_WIDE_CLICKS\n    stop = Tcl_GetMonotonicTime();\n    totalMicroSec = (double) (stop - start);\n#else\n    stop = TclpGetWideClicks();\n    totalMicroSec = ((double) TclpWideClicksToNanoseconds(stop - start))/1.0e3;\n#endif\n\n    if (count <= 1) {\n\t/*\n\t * Use int obj since we know time is not fractional. [Bug 1202178]\n\t */\n\n\tTclNewIntObj(objs[0], (count <= 0) ? 0 : (Tcl_WideInt)totalMicroSec);\n    } else {\n\tTclNewDoubleObj(objs[0], totalMicroSec/count);\n    }\n\n    /*\n     * Construct the result as a list because many programs have always parsed\n     * as such (extracting the first element, typically).\n     */\n\n    TclNewLiteralStringObj(objs[1], \"microseconds\");\n    TclNewLiteralStringObj(objs[2], \"per\");\n    TclNewLiteralStringObj(objs[3], \"iteration\");\n    Tcl_SetObjResult(interp, Tcl_NewListObj(4, objs));\n\n    return TCL_OK;\n}\n"
+  }
+}

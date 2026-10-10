@@ -120,13 +120,17 @@ pub mod native_expression_program;
 pub mod native_introspection_compilation;
 pub mod native_mathop_compilation;
 pub mod native_namespace_binding_compilation;
+pub mod native_namespace_string_compilation;
 pub mod native_namespace_upvar_compilation;
 pub mod native_scalar_compilation;
 pub mod native_string_compilation;
 pub mod native_string_trim_compilation;
 pub mod native_switch_compilation;
+pub mod native_tcloo_bootstrap;
 pub mod native_tcloo_compilation;
+pub mod native_tcloo_info;
 pub mod native_tcloo_method_cache;
+pub mod native_tcloo_method_definition;
 pub mod native_tcloo_registration;
 pub mod native_try_compilation;
 
@@ -139,11 +143,16 @@ pub mod native_ensemble_rewrite;
 pub mod native_error_log;
 pub mod native_error_objects;
 pub mod native_eval_object;
+pub mod native_event;
 pub mod native_expression_error;
 pub mod native_handler_path;
 pub mod native_index_lookup;
 pub mod native_info_exists_compilation;
+/// Independent native info version-reporting sources.
+pub mod native_info_version;
 pub mod native_instruction_plan;
+pub mod native_lambda;
+pub mod native_list_assignment;
 pub mod native_list_index;
 pub mod native_list_index_compilation;
 pub mod native_list_operations_compilation;
@@ -163,6 +172,7 @@ pub mod native_result;
 pub mod native_return_compilation;
 pub mod native_return_options;
 pub mod native_rmw;
+pub mod native_scripted_distribution;
 pub mod native_selected_worker;
 pub mod native_stock_list;
 pub mod native_string_length;
@@ -171,6 +181,7 @@ mod native_try;
 pub mod native_unset_compilation;
 pub mod native_unset_options;
 pub mod native_upvar_compilation;
+pub mod native_vwait;
 pub use native_try::{NativeTryClauseArgument, NativeTryClauseFailure};
 pub mod native_regex;
 pub mod native_usage;
@@ -201,6 +212,7 @@ pub mod semantic_operation;
 pub mod side_effects;
 pub mod snapshot;
 pub mod source_file;
+pub mod source_navigation;
 pub mod spec;
 pub mod special_vars;
 pub mod state_transition;
@@ -222,6 +234,7 @@ pub use crate::hover::{first_positional_index, leading_option_specs};
 /// `use crate::prelude::*;` in each command file brings in all the
 /// types needed to construct a `CommandSpec`.
 pub mod prelude {
+    pub use crate::ScriptLookupScope;
     pub use crate::abbrev::{KeywordMatch, KeywordTable, PrefixMatching};
     pub use crate::arg_role::{AppendedArity, AppendedAritySet, ArgRole};
     pub use crate::arity::Arity;
@@ -231,7 +244,9 @@ pub mod prelude {
         BpfVerdictKind,
     };
     pub use crate::byte_array_effect::ByteArrayEffect;
-    pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
+    pub use crate::clause_shape::{
+        ClauseShapeChecker, ClauseShapeError, ClauseShapeIssue, ClauseShapeRepair,
+    };
     pub use crate::command_table::CommandTableEffect;
     pub use crate::completion::{
         CompletionCode, CompletionCodeDomain, CompletionDescriptor, CompletionPayloadObligation,
@@ -241,7 +256,9 @@ pub mod prelude {
         DefinerFamily, DefinitionBodyGrammar, MemberCurrentNamespace, MemberKind, MemberRefKind,
         MemberRetraction, MemberSpec, MemberVisibility, RetractionWords,
     };
-    pub use crate::deprecation::{DeprecationFixHook, DeprecationFixSafety};
+    pub use crate::deprecation::{
+        DeprecationFixHook, DeprecationFixSafety, SourceDeprecationAdvice,
+    };
     pub use crate::dispatch_stability::{
         DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,
         DispatchDependencyDomain,
@@ -345,7 +362,7 @@ pub use cache::{
     core_surface_generation, default_registry, register_core_surface_specs,
     registry_for_profile_with_overlay, safe_interp_hidden_commands,
 };
-pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
+pub use clause_shape::{ClauseShapeChecker, ClauseShapeError, ClauseShapeIssue, ClauseShapeRepair};
 pub use command_prefix_target::CommandPrefixTarget;
 pub use command_table::CommandTableEffect;
 pub use completion::{
@@ -401,6 +418,11 @@ pub use relation::{
 pub use repeated::RepeatedArgLayout;
 pub use representation::RepresentationEffect;
 pub use resolved_invocation::{
+    AuthoredSourceAppendArguments, AuthoredSourceArity, AuthoredSourceCaseBody,
+    AuthoredSourceCommandPublication, AuthoredSourceCommandPublicationKind,
+    AuthoredSourceDescriptors, AuthoredSourceExpressionArguments, AuthoredSourceLambdaCall,
+    AuthoredSourceOption, AuthoredSourceOptionBoundary, AuthoredSourceOptionRelationships,
+    AuthoredSourceOptionScan, AuthoredSourceSubcommandDiagnostic, InvocationArgumentCount,
     InvocationFacts, InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics,
     NamedObjectFactory, OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation,
     ResolvedSubcommand, StructuredInvocationResolution, SubcommandResolution,
@@ -454,6 +476,9 @@ pub use world_effect::{
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub mod script_lookup_scope;
+pub use script_lookup_scope::ScriptLookupScope;
+
 mod selected_script_timing;
 
 pub mod native_jim_local;
@@ -472,3 +497,5 @@ pub mod native_interpreter_options;
 pub mod native_jim_enum;
 
 pub mod native_property_lookup;
+
+pub use deprecation::SourceDeprecationAdvice;

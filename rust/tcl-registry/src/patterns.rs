@@ -68,22 +68,22 @@ pub struct PatternArg {
 
 /// Registry context supplied to a call-specific pattern resolver.
 ///
-/// The caller filters [`options`](Self::options) for the document's resolved
-/// profile before invoking the resolver.  Keeping the option grammar and the
+/// The caller filters [`options`](Self::options) for the invocation's retained
+/// availability context before invoking the resolver.  Keeping the option grammar and the
 /// reserved positional suffix together means an option-selected pattern
 /// layout cannot accidentally recognise a switch that this Tcl release does
 /// not have, nor scan a mandatory operand merely because it looks like one.
 #[derive(Debug, Clone, Copy)]
 pub struct PatternArgResolverContext<'a> {
-    /// Available option descriptors in declaration order.
-    pub options: &'a [&'static OptionSpec],
+    /// Available option descriptors from the selected invocation, in declaration order.
+    pub options: &'a [&'a OptionSpec],
     /// Mandatory trailing operands excluded from the leading option scan.
     pub reserved_trailing_words: usize,
 }
 
 /// Resolve a command's call-specific pattern arguments.
 ///
-/// Resolver callbacks receive the profile-filtered option metadata and the
+/// Resolver callbacks receive the selected available option metadata and the
 /// command's reserved trailing operand boundary.  The callback must use both
 /// rather than carrying a private option table or inferring the positional
 /// boundary itself.

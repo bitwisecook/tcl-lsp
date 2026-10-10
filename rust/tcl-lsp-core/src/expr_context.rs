@@ -105,6 +105,11 @@ pub(crate) fn math_function_target_at<'a>(
     cursor_off: u32,
 ) -> Option<MathFuncTarget<'a>> {
     let inv = mathfunc_call_at(analysis, cursor_off)?;
+    if !analysis.allows_lexical_declaration_advice() {
+        // Expression function identifiers have their own native producer and
+        // lookup purpose; a command-head display name cannot supply it.
+        return None;
+    }
     let resolved = inv.resolved_qualified_name.as_deref()?;
     // A user-defined override is a real command in the resolved namespace —
     // it wins over the built-in, exactly as it does at runtime.
@@ -278,8 +283,9 @@ fn word_at_is_expr_argument(source: &str, probe: usize, registry: &CommandRegist
         .contains(&arg_idx)
 }
 
-/// Whether the cursor sits inside an [`ArgRole::Expr`] argument of the
-/// innermost enclosing command, per the **registry**'s own role map.
+/// Nominal authoring probe for an [`ArgRole::Expr`] argument in source without
+/// retained analysis. Production completion uses the original source selector
+/// below; this compatibility helper has no selected handler or shadow proof.
 ///
 /// Built for completion, where the source is unbalanced — see the module docs
 /// for why this cannot reuse [`mathfunc_call_at`]'s analyser records.
@@ -311,6 +317,164 @@ pub fn expr_arg_context_at(
         // context: the cursor's own word is the candidate argument.
         _ => word_at_is_expr_argument(source, cursor_off, registry),
     }
+}
+
+/// Original source word selected by an independently retained expression role.
+/// This is readonly source geometry, without expression evaluation or rewrite
+/// equivalence. Hosted candidates retain their conditional applicability.
+#[derive(Debug, Clone)]
+pub(crate) struct SourceExpressionOperand {
+    word: tcl_lexer::NativeWord,
+}
+
+impl SourceExpressionOperand {
+    pub(crate) fn content_span(&self) -> Option<tcl_lexer::Span> {
+        self.word.content_span().ok()
+    }
+}
+
+/// The original expression operand covering this cursor under the complete
+/// current source/configuration and actual Registry generation. Reporting
+/// heads cannot select a role after an original command becomes unavailable.
+pub(crate) fn source_expression_operand_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<SourceExpressionOperand> {
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    if !analysis.matches_original_source_image(&image, config) {
+        return None;
+    }
+    let registry = analysis.resolved_registry()?;
+    if analysis.has_original_vendor_source_names() {
+        let (metadata, _) = crate::original_invocation::selected_vendor_registry_words_at(
+            source, analysis, offset,
+        )?;
+        let shape = metadata.shape();
+        if !shape.roles_complete() {
+            return None;
+        }
+        let mut selected = None;
+        for &(ordinal, role) in shape.roles() {
+            if role != ArgRole::Expr {
+                continue;
+            }
+            let index = shape
+                .argument_offset()
+                .checked_add(usize::from(ordinal))?
+                .checked_add(1)?;
+            let word = shape.original_words().get(index)?;
+            let span = word.content_span().ok()?;
+            if span.start() <= offset && offset <= span.end() {
+                if selected
+                    .replace(SourceExpressionOperand { word: word.clone() })
+                    .is_some()
+                {
+                    return None;
+                }
+            }
+        }
+        return selected;
+    }
+    let selector = ExpressionOperandSelector {
+        source,
+        analysis,
+        registry,
+        walk: crate::refactor::FrameWalk::new(source, analysis)?,
+    };
+    selector.in_region(source, 0, offset, 0)
+}
+
+struct ExpressionOperandSelector<'a> {
+    source: &'a str,
+    analysis: &'a AnalysisResult,
+    registry: &'a CommandRegistry,
+    walk: crate::refactor::FrameWalk<'a>,
+}
+impl ExpressionOperandSelector<'_> {
+    fn in_region(
+        &self,
+        text: &str,
+        base: u32,
+        offset: u32,
+        depth: u32,
+    ) -> Option<SourceExpressionOperand> {
+        if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
+            return None;
+        }
+        for command in self.walk.segment(text, base) {
+            if command.span.start() > offset || offset > command.span.end() {
+                continue;
+            }
+            let regions = self
+                .walk
+                .same_frame_regions(self.source, &command)
+                .into_iter()
+                .chain(self.walk.frame_shifted_regions(self.source, &command));
+            for (start, end) in regions {
+                let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
+                    continue;
+                };
+                if start <= offset
+                    && offset <= end
+                    && let Some(text) = self.source.get(start as usize..end as usize)
+                    && let Some(operand) = self.in_region(text, start, offset, depth + 1)
+                {
+                    return Some(operand);
+                }
+            }
+            let selected = crate::original_invocation::selected_registry_words(
+                self.source,
+                self.analysis,
+                &command,
+                self.registry,
+            )?;
+            let words = self.walk.native_words(self.source, &command)?;
+            for &(index, role) in selected.roles.as_ref()? {
+                if role != ArgRole::Expr {
+                    continue;
+                }
+                let origin = selected.origins.get(index.checked_add(1)?)?;
+                let tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) =
+                    origin
+                else {
+                    continue;
+                };
+                let word = words.get(*written)?;
+                let span = word.content_span().ok()?;
+                if span.start() <= offset && offset <= span.end() {
+                    return Some(SourceExpressionOperand { word: word.clone() });
+                }
+            }
+        }
+        None
+    }
+}
+
+/// Completion geometry from the same retained source-role selector used by
+/// expression actions. It grants no native math-function target or evaluation.
+pub(crate) fn source_expr_arg_context_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+    line_index: &tcl_lexer::LineIndex,
+) -> bool {
+    let offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    let Some(operand) = source_expression_operand_at(source, analysis, offset) else {
+        return false;
+    };
+    let Some(span) = operand.content_span() else {
+        return false;
+    };
+    let Some(content) = source.get(span.start() as usize..span.end() as usize) else {
+        return false;
+    };
+    !matches!(
+        innermost_unclosed_opener(content, offset.saturating_sub(span.start()) as usize),
+        Some((_, '['))
+    )
 }
 
 #[cfg(test)]
@@ -379,5 +543,57 @@ mod tests {
         let (words, idx) = command_words_at("puts hello ", 11).expect("in a command");
         assert_eq!(words, vec!["puts".to_owned(), "hello".to_owned()]);
         assert_eq!(idx, 2);
+    }
+}
+
+#[cfg(test)]
+mod original_expression_position_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    // Implementation contract: naming.core.original-expression-source-selection
+    // docs/design/analysis/name-resolution-proofs/original-expression-source-selection.md
+    fn original_expression_positions_keep_handler_roles_and_source_currency() {
+        let source = "expr {sin(1)}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.find("sin").unwrap()).unwrap();
+        let operand = source_expression_operand_at(source, &analysis, offset)
+            .expect("original expression role");
+        assert_eq!(operand.content_span().unwrap(), tcl_lexer::Span::new(6, 12));
+        analysis.command_invocations.clear();
+        analysis.all_procs.clear();
+        analysis.dialect = "f5-irules".into();
+        assert!(source_expression_operand_at(source, &analysis, offset).is_some());
+        assert!(source_expression_operand_at(&format!("#{source}"), &analysis, offset).is_none());
+        for source in [
+            "set data {sin(1)}",
+            "# expr {sin(1)}",
+            "proc expr args {}; expr {sin(1)}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let offset = u32::try_from(source.rfind("sin").unwrap()).unwrap();
+            assert!(
+                source_expression_operand_at(source, &analysis, offset).is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    // Implementation contract: naming.core.original-expression-source-selection
+    // docs/design/analysis/name-resolution-proofs/original-expression-source-selection.md
+    fn original_expression_positions_retain_nested_hosted_source_candidates() {
+        let source = "when HTTP_REQUEST {if {1 == 1} {HTTP::respond 200}}";
+        let analysis = Analyser::new().analyse(source, "f5-irules");
+        let offset = u32::try_from(source.find("1 ==").unwrap()).unwrap();
+        let operand = source_expression_operand_at(source, &analysis, offset)
+            .expect("hosted original expression role");
+        let span = operand.content_span().unwrap();
+        assert_eq!(
+            &source[span.start() as usize..span.end() as usize],
+            "1 == 1"
+        );
+        assert!(source_expression_operand_at(&format!("#{source}"), &analysis, offset).is_none());
     }
 }

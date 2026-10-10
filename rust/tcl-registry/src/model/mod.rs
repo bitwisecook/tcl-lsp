@@ -72,6 +72,8 @@ pub mod declaration;
 pub mod ingress;
 pub mod registration;
 pub mod semantic;
+mod source_unavailability;
+pub use source_unavailability::{CommandSourceUnavailability, CommandSourceUnavailabilityKind};
 pub mod surface;
 pub mod tcllib;
 

@@ -29,7 +29,7 @@ use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisat
 use crate::ssa::{SsaSourceView, SsaStatement, ValueKey};
 use crate::tcl_expr_eval::{FoldPolicy, TclValue, parse_integer_operand_with_policy};
 use crate::types::{TypeLattice, TypeShape};
-use crate::var_observability::analyse_var_observability;
+use crate::var_observability::analyse_var_observability_with_metadata_context;
 
 /// Signed machine width a consumer proposes for an integer fast path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -249,6 +249,8 @@ pub enum NativeIntegerProof {
     Disabled,
     /// No function with this qualified name exists in the compilation unit.
     FunctionUnavailable,
+    /// The actual source metadata is absent or belongs to another command store.
+    SourceMetadataUnavailable,
     /// The compiler's shared complexity guard disabled deep analysis.
     ComplexityGuarded,
     /// Consumed analysis constants require actual math dispatch prerequisites
@@ -296,7 +298,10 @@ pub fn prove_native_integer_adds(
         &function_unit.sccp.values,
         numbers,
     );
-    let observability = analyse_var_observability(&function_unit.cfg, registry);
+    let Some(metadata) = function_unit.invocation_metadata_context(registry) else {
+        return NativeIntegerProof::SourceMetadataUnavailable;
+    };
+    let observability = analyse_var_observability_with_metadata_context(&function_unit.cfg, registry, Some(metadata));
     let params: &[String] = match unit.ir_module.procedures.get(function) {
         Some(procedure) => procedure.params.as_slice(),
         None => &[],
@@ -520,7 +525,9 @@ fn collect_caller_ranges(
             &caller.sccp.values,
             unit.ir_module.number_syntax(),
         );
-        let caller_observability = analyse_var_observability(&caller.cfg, registry);
+        let metadata = caller.invocation_metadata_context(registry)
+            .ok_or(NativeIntegerDeclineReason::MissingDirectProcEvidence)?;
+        let caller_observability = analyse_var_observability_with_metadata_context(&caller.cfg, registry, Some(metadata));
         for (index, (param, argument)) in params.iter().zip(args.iter()).enumerate() {
             let range =
                 if let Some(name) = crate::value_shapes::whole_word_scalar_var_name(argument) {

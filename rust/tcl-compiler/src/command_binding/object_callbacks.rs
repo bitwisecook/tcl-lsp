@@ -590,6 +590,9 @@ mod tests {
 
     #[test]
     fn stock_conversion_effects_stay_open_on_unknown_zero_trip_inputs() {
+        // Native proof: naming.list.zero-trip-foreach-preparation-world
+        // docs/design/analysis/name-resolution-proofs/list.zero-trip-foreach-preparation-world.md
+
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let source = "proc f {items} {set keep SAFE; foreach item $items {}; set answer $keep}";
             let (bindings, _) = analyse(source, dialect);
@@ -657,6 +660,12 @@ mod tests {
 
     #[test]
     fn unknown_list_inputs_withdraw_callback_worlds_on_every_engine() {
+        // Native proof: naming.list.length-custom-intrep-release-world
+        // docs/design/analysis/name-resolution-proofs/list.length-custom-intrep-release-world.md
+
+        // Native proof: naming.list.length-custom-string-update-world
+        // docs/design/analysis/name-resolution-proofs/list.length-custom-string-update-world.md
+
         let source = "proc f {input} {set keep SAFE; llength $input; set answer $keep}";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let (bindings, registry) = analyse(source, dialect);

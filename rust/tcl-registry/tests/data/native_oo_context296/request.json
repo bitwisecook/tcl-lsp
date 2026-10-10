@@ -1,0 +1,27 @@
+{
+  "original_request_directory": "/workspace/.proofs/native-oo-context-request296",
+  "driver_sha256": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+  "cases": [
+    {
+      "id": "self",
+      "source_file": "self.tcl",
+      "source_sha256": "74f84ada9192f8c2153aa7f1522b8335e43fefa63350ddcc6a6be7a2979dd660"
+    },
+    {
+      "id": "definitionnamespace",
+      "source_file": "definitionnamespace.tcl",
+      "source_sha256": "bf58b0814d08d4a290a6f429871ddffa4711a0f4a711f556c33ea2cfe1831031"
+    },
+    {
+      "id": "superclass",
+      "source_file": "superclass.tcl",
+      "source_sha256": "8c9cec1f986adfb206bfe9bf82e944977d8c610c7e4e32852b26c90107931fff"
+    },
+    {
+      "id": "const-links",
+      "source_file": "const-links.tcl",
+      "source_sha256": "ddba5d74d88e7ebf1dd4dcc239e5198d2fed1bd9f10b4c4fc5fd3ba6a5f82ebf"
+    }
+  ],
+  "scope": "Exactly requested original counted source under independently pinned fresh fullInit CAPI observer, public completions/stdout only, no private objects or frames. Unavailable features retain observed errors."
+}

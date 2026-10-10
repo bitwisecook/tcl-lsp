@@ -27,8 +27,11 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
-fn coroinject_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() >= 2)
+fn coroinject_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count >= 2)
         .then_some((1, ScriptTiming::Deferred))
         .into_iter()
         .collect()

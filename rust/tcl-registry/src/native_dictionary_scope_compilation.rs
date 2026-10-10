@@ -106,16 +106,12 @@ fn prepare_update(
 ) -> Option<(NativeDictionaryScopeReceiver, NativeDictionaryScopeKind)> {
     let count = operands.len();
     let body = &operands[count - 1];
-    let Some(name) = local(&operands[0], version, context.frame, preparations) else {
-        return None;
-    };
+    let name = local(&operands[0], version, context.frame, preparations)?;
     let receiver = NativeDictionaryScopeReceiver::Local(name);
     let mut keys = Vec::new();
     let mut targets = Vec::new();
-    for pair in operands[1..count - 1].chunks_exact(2) {
-        let Some(name) = local(&pair[1], version, context.frame, preparations) else {
-            return None;
-        };
+    for pair in operands[1..count - 1].as_chunks::<2>().0 {
+        let name = local(&pair[1], version, context.frame, preparations)?;
         keys.push(pair[0].operand.clone());
         targets.push(name);
     }

@@ -1,0 +1,19 @@
+{
+  "id": "AFTER_ABBREVIATION",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.4.20/probe",
+    "15"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "02432d99a19b97c467c77046e084053e9a9d891222ede25130fb9aafa30b0048",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e342e3230",
+    "AFTER_ABBREVIATION_INPUT|0|616674657220696e",
+    "AFTER_ABBREVIATION|0|",
+    "AFTER_ABBREVIATION_OPTIONS_NOT_TESTED|0|no-Tcl_GetReturnOptions"
+  ],
+  "reported_version": "8.4.20"
+}

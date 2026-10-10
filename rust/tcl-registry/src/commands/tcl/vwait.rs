@@ -192,6 +192,16 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
+fn vwait_layout_roles(
+    arguments: crate::InvocationArguments<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    arguments
+        .dialect()?
+        .native_vwait_protocol()?
+        .source_roles(arguments)
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vwait",
@@ -244,25 +254,11 @@ pub fn spec() -> CommandSpec {
         // OptionSpec's own `dialects` for exactly which switches exist
         // in which release.
         arity: Arity::any(),
-        // `VarWrite`, not `VarRead`: `Tcl_VwaitObjCmd` (tclEvent.c) never
-        // reads the variable's value — it installs a
-        // `TCL_TRACE_WRITES|TCL_TRACE_UNSETS` trace (creating the entry when
-        // absent) and returns only once the variable has been *written* by
-        // an event handler.  `vwait forever` on a never-set variable is the
-        // canonical infinite-wait idiom, so modelling the operand as a read
-        // produced a false W210 (read-before-set); as a write the post-state
-        // is a defined variable, which is what the analyser records.
-        //
-        // This static table only covers argument 0 — the common
-        // single-bare-varName call shape that remains legal, and by far
-        // the most usual, in every version. Tcl 9.0's further trailing
-        // varNames and its `-variable varName` option (itself
-        // independently `VarWrite`-tagged above via
-        // `OptionValue::var_name()`) are not walked into extra
-        // `arg_roles` entries here; `Traits::CREATES_DYNAMIC_BARRIER`
-        // (see `traits` above) is the safety net that keeps an untracked
-        // second or third varName from ever being silently mis-renamed.
-        arg_roles: &[(0, ArgRole::VarWrite)],
+        // Selected argv roles distinguish option data, actual global variable
+        // operands and Jim's optional script. Unknown selectors retain no role
+        // rather than classifying the first option as a variable name.
+        arg_role_layout_resolver: Some(vwait_layout_roles),
+        arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::Body],
         // The value observed after the wait is whatever the event handler
         // stored — unknowable statically — so the written variable is typed
         // overdefined, never from vwait's own (empty-string) return type.

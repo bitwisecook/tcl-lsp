@@ -1,0 +1,1329 @@
+[
+  {
+    "id": "naming.property.original-accessor-clientdata",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/property-original-accessor-clientdata.md",
+    "problem_statement": "Default property accessors may retain the original declaration-name object as client data, rather than a separately rendered name. Confusing that ownership with the caller management option can change reference counts or cache the wrong object. The check uses direct counted name operands, including non-UTF8 and NUL, and inspects the exact C9.1 accessor objects.",
+    "question": "Do default C9.1 property accessors retain the original counted declaration-name object and leave its primary representation unchanged?",
+    "conclusion": "For p, xFF and x00tail, both generated accessor client-data pointers equal the original declaration object; it has three references and no typed primary at declaration, write and read. Default write returns empty; read returns the exact supplied VALUE object. The caller management option remains untyped. This does not establish general method-name equality or object ownership outside the captured accessor lifecycle.",
+    "scope": "Only the recorded C Tcl9.1.0 process linked to the hashed private-header build is observed. Other C releases, Jim and BIG-IP are not tested for this question. Native object/cache/reference snapshots are distinct from source-name bytes, command dispatch and current runtime ownership.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII Tcl_Eval setup plus directly constructed counted Tcl_Obj names used by Tcl_EvalObjv flags0.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Three declaration/write/read windows: accessor clientData pointer equality 1/1, declaration refcount3/type none, empty write1, original read-value identity1 and caller primary none.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_property_clientdata/manifest.json",
+        "sha256": "1cc949117726faff50a59a5ec4c404f2e1adf06da0d7848afb9d1b88b7dcf57d",
+        "description": "Compile/run receipt, exact source/header/library/executable hashes and all nine output rows."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_property_clientdata/probe.c",
+        "sha256": "3104127ec7a6553d9506914baf25c8fc7365dfe5d09a4cf63ded6f6c0492f783",
+        "description": "Direct counted Tcl_NewStringObj name operands and Tcl_EvalObjv calls; private accessor client-data inspection precedes subsequent management operations."
+      },
+      {
+        "id": "e2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_property_clientdata/native.tsv",
+        "sha256": "85b10c7190eb4cfe5303e577a31fee9ccb70d060a2f54c395d90988f5e5bddc5",
+        "description": "Exact nine-row stdout, independently equal to the receipt stream."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+        "selector": "default_property_methods_retain_original_clientdata_and_leave_its_primary",
+        "assertion": "Compare accessor client-data identity, original declaration reference count/primary and caller cache separately.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+        "selector": "default_property_methods_retain_original_clientdata_and_leave_its_primary",
+        "assertion": "Compare accessor client-data identity, original declaration reference count/primary and caller cache separately.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "runtime/rust/tests/data/native_property_clientdata/probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": " Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted."
+    }
+  },
+  {
+    "id": "naming.property.clientdata-probe-availability",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/property-clientdata-probe-availability.md",
+    "problem_statement": "A successfully compiled private-header probe can fail before emitting any property observations. Treating such an execution as a Tcl feature rejection or a successful ownership test would invent evidence. The recorded process outcome must remain independent of the successful client-data program.",
+    "question": "What compile and process outcome is retained for the c176f651 C9.1 client-data probe, and does it contain a usable ownership observation?",
+    "conclusion": "Compilation succeeds, but execution terminates with signal11 and empty stdout/stderr. It provides no guest property answer and no ownership observation. This process failure neither proves feature unavailability nor invalidates the separately captured program.",
+    "scope": "Only the recorded C Tcl9.1.0 process linked to the hashed private-header build is observed. Other C releases, Jim and BIG-IP are not tested for this question. Native object/cache/reference snapshots are distinct from source-name bytes, command dispatch and current runtime ownership.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Private C probe with public Tcl_EvalObjv entry; execution fails before a retained observation.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "The recorded compiler succeeds and the isolated native process exits -11 with empty stdout/stderr. This is an observed process failure; no guest property ownership was measured.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_property_clientdata/initial-manifest.json",
+        "sha256": "94a30168d64768558962ee34471c14e8df06f9b132fee43eb27b1c78ac7699ac",
+        "description": "Compile success and run exit -11, exact failed probe/build/executable hashes; no emitted native rows."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_property_clientdata/initial-probe.c",
+        "sha256": "c176f65164e16d8db1363db652da51546652e6e8ee5f37b3e24605ba2c12b7a0",
+        "description": "Exact failed C probe whose hash matches the original receipt."
+      },
+      {
+        "id": "e2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_property_clientdata/initial-native.tsv",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Empty retained stdout for the failed process."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "runtime/rust/tests/data/native_property_clientdata/initial-probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": "The expected original process failure is not a successful guest comparison. Reconfirming it may terminate the isolated probe process; it must never be counted as a passed property test. Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted."
+    }
+  },
+  {
+    "id": "naming.property.original-enumeration-header-and-members",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/property-original-enumeration-header-and-members.md",
+    "problem_statement": "A property enumeration can return a cached List header whose child objects are separately shared. Copying the header is not equivalent to copying its members, and a consumer cannot infer header ownership from a rendered list. This check inspects the original result and its TclListObjCopy before any later mutation.",
+    "question": "What header and child identity does C9.1 property enumeration retain across an original list-header copy?",
+    "conclusion": "The first enumeration returns the exact readable-property cache header (identity1, refcount2); its first child has refcount3 and String primary. TclListObjCopy creates a different header while retaining the same first child (identity predicate1, copied-header refcount1, child refcount3). These two windows establish neither a stable cache after mutation nor general list-copy authority.",
+    "scope": "Only the recorded C Tcl9.1.0 process linked to the hashed private-header build is observed. Other C releases, Jim and BIG-IP are not tested for this question. Native object/cache/reference snapshots are distinct from source-name bytes, command dispatch and current runtime ownership. An independently retained full11-row property-name probe also supplies the same earlier scoped windows; its additional reader/writer duplicate rows belong to naming.property.original-accessor-name-cache-children. Exact whole probe and full-stream hashes are retained independently, not substituted as a duplicate capture.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII source passed to Tcl_Eval; original property cache header and TclListObjCopy are inspected through matching private headers.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "all-header: epoch32, result equals cached header, refs2, child refs3/String; copy-header: distinct header with same child, refs1, child refs3/String. Independent property-name probe rows0–1 exactly reproduce these earlier row bytes; its original full11-row input/stream remains separately retained.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "names-supplement-probe.c",
+          "names-supplement-manifest.json",
+          "names-supplement-native.tsv"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/manifest.json",
+        "sha256": "447d2fe2ba34bc7acc4f6855ef8141de6cc93a4a10b72a10381fe280adcca6a9",
+        "description": "Exact successful private-header compile/run receipt and build/probe/executable hashes."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/probe.c",
+        "sha256": "816d811eb93e055f1f5389071e5690fcc9ba6a09e7b65aa7eeecc4c77d44589b",
+        "description": "Exact property enumeration, list-header copy, definition mutation and cache inspection order."
+      },
+      {
+        "id": "e2",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/native.tsv",
+        "sha256": "124315feba04c07a36ff10b961bf66642ccf4c2f05cf617baca2815e211b1ac0",
+        "description": "All eight exact rows; each question uses only its stated snapshot window."
+      },
+      {
+        "id": "names-supplement-probe.c",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_property_names/probe.c",
+        "sha256": "d8d45219397efbb3ace20232576030f87b77d06b7f2ab9b9787283eecbd9c5e4",
+        "description": "Independent full original11-row property-name probe; its earlier scoped rows are byte-equal to the current property-owner output, while later accessor-child duplicate windows remain separate."
+      },
+      {
+        "id": "names-supplement-manifest.json",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_property_names/manifest.json",
+        "sha256": "62716a386cf1022111c59359b4783ea36a0206f66150dedb0be9ffccf3dde5b8",
+        "description": "Independent original compile/process/build/source metadata and full11-row captured stdout."
+      },
+      {
+        "id": "names-supplement-native.tsv",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_names/native.tsv",
+        "sha256": "9e9b96d1fe13e4267e47425ae247b3355dc438fad86aa43c144f2b81b8bdbafd",
+        "description": "Original full output; this question uses rows0–1 (zero-based), independently equal to the original property-owner controls.",
+        "lines": [
+          1,
+          2
+        ]
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "rust/tcl-registry/tests/data/native_property_owners/probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": " Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted."
+    }
+  },
+  {
+    "id": "naming.property.original-foundation-epoch-and-cache",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/property-original-foundation-epoch-and-cache.md",
+    "problem_statement": "An instance method change, a class method change and a structure change affect different property-cache owners. A class-definition error can occur after the mutation, so transaction-like rollback would preserve the wrong cache generation. This question follows the original cache and foundation epoch through those distinct operations.",
+    "question": "Which recorded C9.1 method and structure changes advance the property foundation epoch or replace its cache?",
+    "conclusion": "An instance method addition leaves epoch32 and the original cache intact. A class method is installed before a caught LATE error, advances the foundation to33, and leaves the old header until the next enumeration refreshes it. An unused class structure change leaves epoch33; changing the used class structure advances to34. The exact result does not license a broad class/object mutation rule.",
+    "scope": "Only the recorded C Tcl9.1.0 process linked to the hashed private-header build is observed. Other C releases, Jim and BIG-IP are not tested for this question. Native object/cache/reference snapshots are distinct from source-name bytes, command dispatch and current runtime ownership. An independently retained full11-row property-name probe also supplies the same earlier scoped windows; its additional reader/writer duplicate rows belong to naming.property.original-accessor-name-cache-children. Exact whole probe and full-stream hashes are retained independently, not substituted as a duplicate capture.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII Tcl_Eval scripts, including caught guest Error after class-method installation; private epoch/cache snapshots.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "instance-method epoch32/delta0/same header1; class-method-error epoch33/delta1/old header1; refresh header0; untangled structure delta0; used structure epoch34/delta1. Independent property-name probe rows2–6 exactly reproduce these earlier row bytes; its original full11-row input/stream remains separately retained.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "names-supplement-probe.c",
+          "names-supplement-manifest.json",
+          "names-supplement-native.tsv"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/manifest.json",
+        "sha256": "447d2fe2ba34bc7acc4f6855ef8141de6cc93a4a10b72a10381fe280adcca6a9",
+        "description": "Exact successful private-header compile/run receipt and build/probe/executable hashes."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/probe.c",
+        "sha256": "816d811eb93e055f1f5389071e5690fcc9ba6a09e7b65aa7eeecc4c77d44589b",
+        "description": "Exact property enumeration, list-header copy, definition mutation and cache inspection order."
+      },
+      {
+        "id": "e2",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/native.tsv",
+        "sha256": "124315feba04c07a36ff10b961bf66642ccf4c2f05cf617baca2815e211b1ac0",
+        "description": "All eight exact rows; each question uses only its stated snapshot window."
+      },
+      {
+        "id": "names-supplement-probe.c",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_property_names/probe.c",
+        "sha256": "d8d45219397efbb3ace20232576030f87b77d06b7f2ab9b9787283eecbd9c5e4",
+        "description": "Independent full original11-row property-name probe; its earlier scoped rows are byte-equal to the current property-owner output, while later accessor-child duplicate windows remain separate."
+      },
+      {
+        "id": "names-supplement-manifest.json",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_property_names/manifest.json",
+        "sha256": "62716a386cf1022111c59359b4783ea36a0206f66150dedb0be9ffccf3dde5b8",
+        "description": "Independent original compile/process/build/source metadata and full11-row captured stdout."
+      },
+      {
+        "id": "names-supplement-native.tsv",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_names/native.tsv",
+        "sha256": "9e9b96d1fe13e4267e47425ae247b3355dc438fad86aa43c144f2b81b8bdbafd",
+        "description": "Original full output; this question uses rows2–6 (zero-based), independently equal to the original property-owner controls.",
+        "lines": [
+          3,
+          7
+        ]
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_property_lookup.rs",
+        "selector": "property_temporary_lookup_and_mutation_axes_are_independent",
+        "assertion": "Keep instance/foundation invalidation and failed-definition chronology independent.",
+        "status": "linked"
+      },
+      {
+        "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+        "selector": "property_epochs_follow_mutations_before_definition_failure",
+        "assertion": "Check class mutation is retained before definition Error.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+        "selector": "property_epochs_follow_mutations_before_definition_failure",
+        "assertion": "Check the same mutation-before-Error boundary.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "rust/tcl-registry/tests/data/native_property_owners/probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": " Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted."
+    }
+  },
+  {
+    "id": "naming.property.original-selected-name-cache",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/property-original-selected-name-cache.md",
+    "problem_statement": "An abbreviated caller property option and an enumerated original property-name member are separate objects. Applying a property-name cache to the caller because the bytes match would attach owner-dependent state to the wrong object. The check inspects the enumerated member after an actual configure -y lookup.",
+    "question": "What primary cache does the original C9.1 enumerated property-name member acquire after management read?",
+    "conclusion": "After o configure -y, the original first readable-property member has primary tcl::oo property name and refcount3 at epoch34. Only that original member is inspected; the record does not establish the caller option primary or a current owner outside this process.",
+    "scope": "Only the recorded C Tcl9.1.0 process linked to the hashed private-header build is observed. Other C releases, Jim and BIG-IP are not tested for this question. Native object/cache/reference snapshots are distinct from source-name bytes, command dispatch and current runtime ownership. An independently retained full11-row property-name probe also supplies the same earlier scoped windows; its additional reader/writer duplicate rows belong to naming.property.original-accessor-name-cache-children. Exact whole probe and full-stream hashes are retained independently, not substituted as a duplicate capture.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII Tcl_Eval enumeration and abbreviated configure -y read; private cache inspection of the original enumerated child.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "property-read: epoch34, first original member refs3, primary tcl::oo property name. Independent property-name probe rows7–7 exactly reproduce these earlier row bytes; its original full11-row input/stream remains separately retained.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "names-supplement-probe.c",
+          "names-supplement-manifest.json",
+          "names-supplement-native.tsv"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/manifest.json",
+        "sha256": "447d2fe2ba34bc7acc4f6855ef8141de6cc93a4a10b72a10381fe280adcca6a9",
+        "description": "Exact successful private-header compile/run receipt and build/probe/executable hashes."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/probe.c",
+        "sha256": "816d811eb93e055f1f5389071e5690fcc9ba6a09e7b65aa7eeecc4c77d44589b",
+        "description": "Exact property enumeration, list-header copy, definition mutation and cache inspection order."
+      },
+      {
+        "id": "e2",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/native.tsv",
+        "sha256": "124315feba04c07a36ff10b961bf66642ccf4c2f05cf617baca2815e211b1ac0",
+        "description": "All eight exact rows; each question uses only its stated snapshot window."
+      },
+      {
+        "id": "names-supplement-probe.c",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_property_names/probe.c",
+        "sha256": "d8d45219397efbb3ace20232576030f87b77d06b7f2ab9b9787283eecbd9c5e4",
+        "description": "Independent full original11-row property-name probe; its earlier scoped rows are byte-equal to the current property-owner output, while later accessor-child duplicate windows remain separate."
+      },
+      {
+        "id": "names-supplement-manifest.json",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_property_names/manifest.json",
+        "sha256": "62716a386cf1022111c59359b4783ea36a0206f66150dedb0be9ffccf3dde5b8",
+        "description": "Independent original compile/process/build/source metadata and full11-row captured stdout."
+      },
+      {
+        "id": "names-supplement-native.tsv",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_names/native.tsv",
+        "sha256": "9e9b96d1fe13e4267e47425ae247b3355dc438fad86aa43c144f2b81b8bdbafd",
+        "description": "Original full output; this question uses rows7–7 (zero-based), independently equal to the original property-owner controls.",
+        "lines": [
+          8,
+          8
+        ]
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "rust/tcl-registry/tests/data/native_property_owners/probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": " Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted."
+    }
+  },
+  {
+    "id": "naming.property.owner-probe-availability",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/property-owner-probe-availability.md",
+    "problem_statement": "An enumeration probe can emit valid header windows and then stop at a failed definition-worker lookup. Those partial observations must not be expanded into later cache/epoch answers, and the failed source cannot be replaced by a different retained program.",
+    "question": "Which property-owner windows are available from the retained c8b7e47d probe process?",
+    "conclusion": "Two header/copy rows are recorded, then the process exits2 after a guest invalid-command-name method error. The later epoch/cache windows are unmeasured. Its original source hash is retained, but the corresponding source bytes are absent, limiting exact replay; the successful 816d811e program is a different input.",
+    "scope": "Only the recorded C Tcl9.1.0 process linked to the hashed private-header build is observed. Other C releases, Jim and BIG-IP are not tested for this question. Native object/cache/reference snapshots are distinct from source-name bytes, command dispatch and current runtime ownership.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII Tcl_Eval inside a private-header C probe; partial rows precede a caught-by-harness guest worker failure.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Two epoch32 header/copy rows, followed by process2 and invalid command name method; later snapshots are not observed.",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/initial-manifest.json",
+        "sha256": "7c80d5d7665fd659c389ab58d251a7199cd450e4e8cbf0f105502f0e85b0fbcf",
+        "description": "Compile0, process2, exact partial stdout/error stream and original source/build/executable hashes."
+      },
+      {
+        "id": "e1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_owners/initial.tsv",
+        "sha256": "348302dc14eaec5a35e19bcaeff2389964344e7719fba0f11b4af47c89231604",
+        "description": "Only the two emitted header/copy rows."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "<source-not-retained>",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": "The source bytes with recorded SHA c8b7e47d609415e347d1db29bc6f47e81445f62242951b3d9c006194b7e00c29 are not retained. Exact source replay is unavailable; do not substitute the current probe.c, whose SHA differs. Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted."
+    }
+  },
+  {
+    "id": "naming.namespace.origin-original-cmdname-residency",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/namespace-origin-original-cmdname-residency.md",
+    "problem_statement": "namespace origin may consume a name object that already has a cmdName cache, including one whose string representation has been invalidated. Reconstructing original source ownership from the returned origin or resident bytes would conflate distinct values. This direct object-vector probe retains the same original name across origin, rename and replacement operations.",
+    "question": "Does namespace origin preserve the original cmdName primary and resident-string absence across the recorded C import operations?",
+    "conclusion": "All five resident captures preserve original cmdName and resident bytes while results change from ::src::p to ::src::q to ::dest::p. C8.5–C9.1 stringless captures preserve cmdName and leave the original bytes absent after invalidation, returning ::src::p again. C8.4 has no retained stringless observation. The result spelling cannot donate original word/namespace/Native ownership.",
+    "scope": "Only these nine C process snapshots are observed; C8.4 stringless, Jim and BIG-IP are not tested. Returned namespace origin, original primary and resident string are independent purposes.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Resident: cmdName remains, bytes present, results ::src::p / ::src::q / ::dest::p. Stringless mode not recorded.",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Resident: cmdName remains, bytes present, results ::src::p / ::src::q / ::dest::p. Stringless: cmdName remains, original bytes absent after invalidation, result ::src::p.",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Resident: cmdName remains, bytes present, results ::src::p / ::src::q / ::dest::p. Stringless: cmdName remains, original bytes absent after invalidation, result ::src::p.",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Resident: cmdName remains, bytes present, results ::src::p / ::src::q / ::dest::p. Stringless: cmdName remains, original bytes absent after invalidation, result ::src::p.",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Resident: cmdName remains, bytes present, results ::src::p / ::src::q / ::dest::p. Stringless: cmdName remains, original bytes absent after invalidation, result ::src::p.",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_origin/original_provenance.json",
+        "sha256": "e272081d1b2b831762605ffd8b53f200faf0c10f95ff29db68d5143e994ef0ee",
+        "description": "Nine exact resident/stringless process receipts, inline stdout/stderr and source/archive/executable hashes."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_namespace_origin/original_probe.c",
+        "sha256": "a92f35cb0dafec70f001edf032334266fa4f53aaf16f9fd0b815d808dffd5e01",
+        "description": "Original ::dest::p object reused across public Tcl_EvalObjv namespace origin, rename/replacement and explicit string invalidation."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "runtime/rust/tests/data/native_namespace_origin/original_probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": "Run the probe once without arguments for the resident sequence and with argument stringless for the recorded C8.5–C9.1 variant. Compare the matching inline receipt stdout/stderr and exit0 exactly. Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted."
+    }
+  },
+  {
+    "id": "naming.procedure.original-relocation-namespace-and-identity",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/procedure-original-relocation-namespace-and-identity.md",
+    "problem_statement": "Moving a procedure command can preserve its command identity while changing the namespace used by future calls. An already active frame can retain a different namespace, and Jim namespace-object reuse makes pointer comparison unsafe unless the original object is pinned. This probe compares those owners separately within one interpreter.",
+    "question": "Which original command/declaration and active/future namespace owners survive the six recorded procedure moves?",
+    "conclusion": "All C captures retain both original command and Proc identity; Jim retains command identity. C root moves change future namespace to root while the already active frame keeps its original namespace. Jim root moves in the two root cases retain the original procedure namespace object and future calls report ::A; other destination qualification controls select the recorded new namespaces. The Jim observer pins the original namespace object to prevent freed-address reuse. No display name or pointer from another process can mint this identity.",
+    "scope": "Six exact move controls per engine; C8.4.20–9.1.0 and the hashed Jim library are observed. Jim reported patchlevel/revision and executable hashes are not retained. BIG-IP is not tested. Namespace pointer comparison stays within the retained interpreter and lifetime.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Six moves retain original command and Proc identity; active frames and future namespace move are recorded separately; root moves future namespace ::.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Six moves retain original command and Proc identity; active frames and future namespace move are recorded separately; root moves future namespace ::.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Six moves retain original command and Proc identity; active frames and future namespace move are recorded separately; root moves future namespace ::.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Six moves retain original command and Proc identity; active frames and future namespace move are recorded separately; root moves future namespace ::.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Six moves retain original command and Proc identity; active frames and future namespace move are recorded separately; root moves future namespace ::.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim; patchlevel/revision not retained",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Six moves retain command identity; root rename controls preserve original namespace holder and future ::A; active/future and qualification rows remain separately recorded.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_procedure_relocation/manifest.json",
+        "sha256": "c4b50f9543319bef2dad9cefa47a22392e61972142a33594c636c704b4b90cda",
+        "description": "Six original source/header/library-hashed compile/run receipts with exact inline streams; executable hashes and a Jim patchlevel/revision are not retained."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_procedure_relocation/probe.c",
+        "sha256": "e8d9b48f63b6dd13877186ec1f0b502925e19d82aad96689f0621130c282a754",
+        "description": "Six move/source-call controls, private command/procedure comparison and pinned Jim namespace-object observer."
+      },
+      {
+        "id": "e2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_procedure_relocation/observations.tsv",
+        "sha256": "2cf71506762fcd5f04d765e1b6bd271df75f8e75f69e0e70c0f42b3a6604712a",
+        "description": "Projected active/first/future namespace and command/procedure identity fields for all36 controls."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_procedure_relocation_tests.rs",
+        "selector": "relocation_retains_native_binding_and_declaration_with_separate_active_namespace",
+        "assertion": "Compare each actual command/declaration identity and original active/future namespace independently.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "runtime/rust/tests/data/native_procedure_relocation/probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": "Jim requires the matching captured jim.h/libjim.a, -DJIM_PROBE=1 and its recorded SSL/crypto links; do not borrow the current Jim executable version for this capture. Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted."
+    }
+  },
+  {
+    "id": "naming.procedure.original-counted-relocation-identity",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/procedure-original-counted-relocation-identity.md",
+    "problem_statement": "A procedure name containing FF or counted zero can be moved using directly constructed name objects. Rendering or Unicode repair before rename can target a different command. This check observes the actual original command pointer and its future namespace, not a logical name roundtrip.",
+    "question": "Do the four recorded counted FF/NUL procedure-name moves preserve the original command identity and select the destination namespace?",
+    "conclusion": "All five C releases and the hashed Jim library record rename success, original command identity1, and future result ::B for all four counted-name controls. These observations establish only the selected rename/command identity within each process; they do not prove a general name comparator, resident string protocol or source Document producer.",
+    "scope": "Exactly four counted FF/NUL name moves per engine. C releases and hashed Jim library are observed; Jim reported revision/patchlevel and executable hashes are not retained. No BIG-IP or Document-character-channel claim.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim; patchlevel/revision not retained",
+        "build": "Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.",
+        "input_channel": "Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_procedure_relocation/raw-manifest.json",
+        "sha256": "c92823957a01c56555f4b2cfd4e232ed97925fad2ccd93e2066b3aafbbbd5803",
+        "description": "Six exact original compile/run receipts and inline24-control streams with source/header/library hashes."
+      },
+      {
+        "id": "e1",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_procedure_relocation/raw-probe.c",
+        "sha256": "cdc3a3d56cd549f2d85b0f0379bb50d0f1f80ee28c1a2b876d398d177293f05d",
+        "description": "Exact directly constructed counted original and destination procedure name operands, including FF and NUL."
+      },
+      {
+        "id": "e2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_procedure_relocation/raw-observations.tsv",
+        "sha256": "9874f817a6721b8728c7f9a5bc5e3acfd68724452450e24a49354c7ff9e09434",
+        "description": "Twenty-four projected success/command-identity/future namespace rows."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_procedure_relocation_tests.rs",
+        "selector": "relocation_of_original_counted_names_matches_native_binding_identity",
+        "assertion": "Compare the counted rename command identity and future namespace for all24 controls.",
+        "status": "linked"
+      }
+    ],
+    "owners": [],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I${TCL_SOURCE}/generic",
+        "-I${TCL_SOURCE}/unix",
+        "runtime/rust/tests/data/native_procedure_relocation/raw-probe.c",
+        "${TCL_BUILD}/libtcl${TCL_ABI}.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "${PROBE_EXE}"
+      ],
+      "limitations": "Jim uses -DJIM_PROBE=1 and its matching captured header/library; preserve lengths and literal zero bytes of both operands. Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted."
+    }
+  }
+]

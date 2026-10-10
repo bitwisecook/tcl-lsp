@@ -29,6 +29,33 @@ use crate::native_info_exists_compilation::NativeInfoExistsReceiver;
 use tcl_dialect::TclVersion;
 use tcl_syntax::native_variable_words::{NativeVariableWordOperand, native_variable_word};
 
+/// Selected array-existence result producer, independently from name lookup
+/// and whether the original command is compiled or dispatched generically.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeArrayExistenceResult {
+    /// C8.4 and Jim create an Integer result rather than borrowing a constant.
+    FreshInteger,
+    /// C8.5+ publishes the actual interpreter execution-environment Boolean.
+    ExecutionBooleanConstant,
+}
+
+/// Select only an authored actual-engine result recipe. This does not attest
+/// an object, interpreter environment, source body or entered frame.
+#[must_use]
+pub fn native_array_existence_result(
+    dialect: crate::InvocationDialect,
+) -> Option<NativeArrayExistenceResult> {
+    use tcl_syntax::native_string::NativeStringProtocol;
+    match dialect.native_string_protocol()? {
+        NativeStringProtocol::C(TclVersion::V8_4) | NativeStringProtocol::Jim084 => {
+            Some(NativeArrayExistenceResult::FreshInteger)
+        }
+        NativeStringProtocol::C(
+            TclVersion::V8_5 | TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1,
+        ) => Some(NativeArrayExistenceResult::ExecutionBooleanConstant),
+    }
+}
+
 /// Authentic inline Array operation; live receivers and callbacks are separate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeArrayInstruction {
@@ -38,7 +65,7 @@ pub struct NativeArrayInstruction {
     pub operand: NativeCompilerWordOperand,
     /// Original variable layout, retaining counted root and source extents.
     pub receiver: NativeInfoExistsReceiver,
-    /// Original RHS visited after ARRAY_EXISTS/MAKE, never before them.
+    /// Original RHS visited after `ARRAY_EXISTS/MAKE`, never before them.
     pub values: Option<NativeCompilerWordOperand>,
     /// Compile-known empty valid list selects ensure-array without foreach.
     pub empty: bool,
@@ -106,19 +133,18 @@ pub fn native_array_compilation(
                 )
                 && (context.frame == NativeCompilationFrame::ProcedureCode
                     || values.as_ref().is_some_and(Vec::is_empty));
-        if before_target {
-            if let NativeCompilerWordOperand::Original(index) = &arguments[0].operand {
-                if let Ok(
-                    NativeVariableWordOperand::Literal { name, .. }
-                    | NativeVariableWordOperand::CompoundArray { name, .. },
-                ) = native_variable_word(
-                    &words.original_words()[*index],
-                    version,
-                    words.source_protocol(),
-                ) {
-                    declarations.push(name);
-                }
-            }
+        if before_target
+            && let NativeCompilerWordOperand::Original(index) = &arguments[0].operand
+            && let Ok(
+                NativeVariableWordOperand::Literal { name, .. }
+                | NativeVariableWordOperand::CompoundArray { name, .. },
+            ) = native_variable_word(
+                &words.original_words()[*index],
+                version,
+                words.source_protocol(),
+            )
+        {
+            declarations.push(name);
         }
     }
     Some(NativeArrayCompilation {
@@ -215,6 +241,47 @@ pub fn compile_native_array(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn array_existence_result_recipes_keep_provider_and_purpose_boundaries() {
+        // naming.compiler.introspection-source-and-effect-frontiers
+        // docs/design/analysis/name-resolution-proofs/compiler-introspection-source-and-effect-frontiers.md
+        for (engine, expected) in [
+            ("tcl8.4", NativeArrayExistenceResult::FreshInteger),
+            (
+                "tcl8.5",
+                NativeArrayExistenceResult::ExecutionBooleanConstant,
+            ),
+            (
+                "tcl8.6",
+                NativeArrayExistenceResult::ExecutionBooleanConstant,
+            ),
+            (
+                "tcl9.0",
+                NativeArrayExistenceResult::ExecutionBooleanConstant,
+            ),
+            (
+                "tcl9.1",
+                NativeArrayExistenceResult::ExecutionBooleanConstant,
+            ),
+            ("jim", NativeArrayExistenceResult::FreshInteger),
+        ] {
+            let profile = crate::model::ingress::resolve_environment(engine).unit_profile();
+            assert_eq!(
+                native_array_existence_result(crate::InvocationDialect::of_profile(profile)),
+                Some(expected),
+                "{engine}"
+            );
+        }
+        for engine in ["f5-irules", "f5-iapps", "tcl"] {
+            let profile = crate::model::ingress::resolve_environment(engine).unit_profile();
+            assert_eq!(
+                native_array_existence_result(crate::InvocationDialect::of_profile(profile)),
+                None,
+                "{engine}"
+            );
+        }
+    }
+
     use super::*;
     include!("../tests/data/native_introspection_compilation/cases.rs");
 

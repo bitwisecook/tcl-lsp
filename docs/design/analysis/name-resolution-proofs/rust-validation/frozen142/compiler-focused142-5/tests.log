@@ -1,0 +1,51 @@
+
+running 4 tests
+test command_binding::command_presence::tests::logical_source_slot_advice_keeps_unknown_and_hosted_contexts_outside_absence ... ORIGINAL_SELECTION site=0 words=1 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("missing")] written=1 names=0 head=None
+ORIGINAL_SELECTION site=0 words=1 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("missing")] written=1 names=0 head=None
+ok
+test command_binding::command_presence::tests::logical_source_slot_advice_requires_authentic_complete_ingress ... ORIGINAL_SELECTION site=0 words=1 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("missing")] written=1 names=0 head=None
+ORIGINAL_SELECTION site=0 words=1 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("missing")] written=1 names=0 head=None
+ORIGINAL_SELECTION site=0 words=1 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=Some(NativeRecipe(NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation }))
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("missing")] written=1 names=0 head=None
+ORIGINAL_SELECTION site=0 words=1 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("missing")] written=1 names=0 head=None
+ok
+test command_binding::command_presence::tests::logical_source_slot_advice_uses_the_interpreted_head_not_query_labels ... ORIGINAL_SELECTION site=0 words=3 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("missing"), Literal("1"), Literal("2")] written=3 names=0 head=None
+ORIGINAL_COMPLETED_WORLD root_state=false
+ORIGINAL_SELECTION site=0 words=3 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("missing"), Literal("1"), Literal("2")] written=3 names=0 head=None
+ok
+test command_binding::command_presence::tests::logical_source_slot_advice_uses_the_retained_input_instead_of_site_kind ... ORIGINAL_SELECTION site=0 words=3 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("missing"), Literal("1"), Literal("2")] written=3 names=0 head=None
+ORIGINAL_COMPLETED_WORLD root_state=false
+ORIGINAL_SELECTION site=0 words=3 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("missing"), Literal("1"), Literal("2")] written=3 names=0 head=None
+ORIGINAL_SELECTION site=0 words=4 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("proc"), Literal("defined"), Literal(""), Literal("")] written=4 names=0 head=None
+ORIGINAL_SELECTION site=20 words=1 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=20 complete=true effective=[Literal("defined")] written=1 names=0 head=None
+ORIGINAL_COMPLETED_WORLD root_state=false
+ORIGINAL_SELECTION site=0 words=4 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=0 complete=true effective=[Literal("proc"), Literal("defined"), Literal(""), Literal("")] written=4 names=0 head=None
+ORIGINAL_SELECTION site=20 words=1 head=None mode=Direct admission=Some(Generic) live=true unknown=false error=false namespace=Authored("::") name_policy=None
+ORIGINAL_ARGV site=20 complete=true effective=[Literal("defined")] written=1 names=0 head=None
+
+thread 'command_binding::command_presence::tests::logical_source_slot_advice_uses_the_retained_input_instead_of_site_kind' (565565) panicked at rust/tcl-compiler/src/command_binding/command_presence.rs:561:13:
+assertion `left == right` failed: proc defined {} {}; defined
+  left: Unknown
+ right: Present
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::command_presence::tests::logical_source_slot_advice_uses_the_retained_input_instead_of_site_kind
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 8154 filtered out; finished in 1.07s
+

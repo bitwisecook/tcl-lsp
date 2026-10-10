@@ -42,6 +42,8 @@ fn pop_frame(interp: &mut Interp) {
     interp.leave_namespace_activation(namespace);
 }
 
+// Native proof: naming.variable.absolute-level-cache-reselects-current-frame
+// docs/design/analysis/name-resolution-proofs/variable.absolute-level-cache-reselects-current-frame.md
 #[test]
 fn level_reference_reselects_current_frames_in_thirty_native_windows() {
     let mut compared = 0;
@@ -175,18 +177,22 @@ fn frame_reference_cache_refuses_foreign_issuers_and_retired_headers() {
     )
     .unwrap();
     let foreign = actual("tcl8.6");
-    assert!(foreign
-        .native_object_string_bytes(original.as_ptr())
-        .is_err());
+    assert!(
+        foreign
+            .native_object_string_bytes(original.as_ptr())
+            .is_err()
+    );
     let lifetime = obj::ProcedureObject::retain_lifetime(&original);
     drop(original);
     assert!(obj::native_frame_level_cache_in(lifetime.as_ptr(), dialect).is_err());
-    assert!(obj::install_native_frame_level_cache(
-        lifetime.as_ptr(),
-        tcl_registry::NativeFrameLevelCache::Absolute(1),
-        dialect
-    )
-    .is_err());
+    assert!(
+        obj::install_native_frame_level_cache(
+            lifetime.as_ptr(),
+            tcl_registry::NativeFrameLevelCache::Absolute(1),
+            dialect
+        )
+        .is_err()
+    );
     // The normal live interpreter's unrelated objects retain their own recipe.
     let plain = Owned::fresh(obj::new_string_bytes(b"plain"));
     assert_eq!(
@@ -196,4 +202,56 @@ fn frame_reference_cache_refuses_foreign_issuers_and_retired_headers() {
             .as_ref(),
         b"plain"
     );
+}
+
+#[test]
+fn required_upvar_level_does_not_borrow_optional_leading_frame_default() {
+    // naming.variable.original-upvar-and-exists-completion-and-name-windows
+    // docs/design/analysis/name-resolution-proofs/variable.original-upvar-and-exists-completion-and-name-windows.md
+    // Case11's unchanged original C8.6/9.0/9.1 native tables require bad level k.
+    for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut interp = actual(engine);
+        push_frame(&mut interp);
+        let original = Owned::fresh(obj::new_string_bytes(b"k"));
+        let dialect = interp.eval_frame_dialect();
+        let protocol = dialect.native_frame_level_protocol().unwrap();
+        let mut operand = OriginalLevel {
+            value: original.as_ptr(),
+            dialect,
+        };
+        let optional = protocol
+            .resolve_object(interp.current_level(), &mut operand)
+            .unwrap()
+            .unwrap();
+        assert!(!optional.explicit);
+        assert_eq!(optional.target, 0);
+        for current in [0, interp.current_level()] {
+            let result = protocol
+                .resolve_required_object(current, &mut operand)
+                .unwrap();
+            assert!(matches!(result,
+                Err(tcl_registry::frame_effect::NativeFrameLevelFailure::BadLevel { name, lookup_code: true, .. })
+                    if name == b"k"
+            ));
+        }
+        let x = Owned::fresh(obj::new_string_bytes(b"x"));
+        let alias = Owned::fresh(obj::new_string_bytes(b"alias"));
+        assert!(
+            super::select_frame(
+                &mut interp,
+                &[original.as_ptr(), x.as_ptr(), alias.as_ptr()],
+                tcl_registry::FrameEffectSpec::UPVAR,
+            )
+            .is_err()
+        );
+        assert!(matches!(
+            obj::native_object_snapshot(interp.result_obj()).unwrap().cache,
+            tcl_syntax::native_object::NativeObjectCacheSnapshot::String { protocol: producer, .. }
+                if Some(producer) == protocol.bad_level_string_result()
+        ));
+        assert!(obj::has_string_rep(interp.result_obj()));
+        assert_eq!(interp.result_bytes(), b"bad level \"k\"");
+        assert!(!interp.host_refusal_pending());
+        pop_frame(&mut interp);
+    }
 }

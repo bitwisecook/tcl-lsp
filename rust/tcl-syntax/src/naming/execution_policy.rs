@@ -51,19 +51,19 @@ impl ObservedBigIpNamePolicy {
     ///
     /// # Errors
     /// Separate forms, qualification, empty names and other grammars are unmeasured.
-    pub fn variable_input<'a>(
+    pub fn variable_input(
         self,
-        original: NativeVariableInputForm<'a>,
+        original: NativeVariableInputForm<'_>,
         purpose: ObservedVariableNamePurpose,
-    ) -> Result<ExecutionVariableNameProjection<'a>, NameProjectionUnavailable> {
+    ) -> Result<ExecutionVariableNameProjection<'_>, NameProjectionUnavailable> {
         let NativeVariableInputForm::Combined(written) = original else {
             return Err(NameProjectionUnavailable::PurposeNotModelled);
         };
         let (root, element) = match purpose {
-            ObservedVariableNamePurpose::ScalarReceiver if measured_unqualified_root(written) => {
-                (written, None)
-            }
-            ObservedVariableNamePurpose::ArrayRoot if measured_unqualified_root(written) => {
+            ObservedVariableNamePurpose::ScalarReceiver
+            | ObservedVariableNamePurpose::ArrayRoot
+                if measured_unqualified_root(written) =>
+            {
                 (written, None)
             }
             ObservedVariableNamePurpose::CombinedElement => {

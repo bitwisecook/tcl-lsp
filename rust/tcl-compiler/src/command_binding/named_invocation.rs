@@ -189,12 +189,10 @@ pub(super) mod tests {
     /// An actual modern C ensemble chooses a late custom worker. All lookup
     /// candidates are retained native slots, including a colon-named caller
     /// context which cannot be reconstructed from a displayed namespace.
-    pub(in crate::command_binding) fn native_entry()
-    -> tcl_runtime_api::native_compilation::NativeCompilationEntry {
+    fn native_named_command_rows()
+    -> Vec<tcl_runtime_api::native_compilation::NativeCompilationBinding> {
         use tcl_core_types::{ByteNamespacePath, NativeByteCommandSlot};
         use tcl_runtime_api::native_compilation::*;
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
-        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let public = NativeCompilationBinding {
             slot: NativeByteCommandSlot::new(ByteNamespacePath::root(), "info".into()),
             namespace_token: 0,
@@ -236,6 +234,16 @@ pub(super) mod tests {
             };
             commands.push(row);
         }
+        commands
+    }
+
+    pub(in crate::command_binding) fn native_entry()
+    -> tcl_runtime_api::native_compilation::NativeCompilationEntry {
+        use tcl_core_types::ByteNamespacePath;
+        use tcl_runtime_api::native_compilation::*;
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let commands = native_named_command_rows();
         let root = NativeCompilationNamespace {
             path: ByteNamespacePath::root(),
             jim_namespace_object: None,
@@ -276,6 +284,7 @@ pub(super) mod tests {
             math_functions: None,
             closed: true,
             commands,
+            oo_classes: None,
             ensemble_target_objects: Some(vec![NativeEnsembleTargetObservation {
                 ensemble_token: 1,
                 member: "body".into(),
@@ -289,6 +298,7 @@ pub(super) mod tests {
             namespace_variable_tables: None,
             empty_literal_world: None,
             compiler_pass_environment: None,
+            command_resolvers: None,
             variable_observers: NativeVariableObserverPresence::Absent,
             authored_tmm_static: None,
             frame: NativeCompilationFrame::Namespace,

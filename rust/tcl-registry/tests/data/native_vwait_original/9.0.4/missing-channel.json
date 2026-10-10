@@ -1,0 +1,17 @@
+{
+  "case": "missing-channel",
+  "command": [
+    "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+    "missing-channel"
+  ],
+  "external_timeout": false,
+  "timeout_seconds": 3,
+  "process_exit": 0,
+  "seconds": 0.004295887003536336,
+  "stdout_sha256": "94ed965c2863e8b548d37f2f9bee014737d4792d9461d58d06197f5132f829f5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "V|actual-provider|0|5|392e302e34",
+    "R|missing-channel|1|53|63616e206e6f742066696e64206368616e6e656c206e616d656420226e6f5f737563685f6f726967696e616c5f6368616e6e656c22"
+  ]
+}

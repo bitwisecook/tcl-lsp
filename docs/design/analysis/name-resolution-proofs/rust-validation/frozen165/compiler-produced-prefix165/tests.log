@@ -1,0 +1,17 @@
+
+running 3 tests
+test command_binding::source_transition_advice::produced_prefix::tests::original_produced_prefix_keeps_deferred_parent_builder_and_each_word ... 
+thread 'command_binding::source_transition_advice::produced_prefix::tests::original_produced_prefix_keeps_deferred_parent_builder_and_each_word' (630345) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs:440:83:
+tcl8.5
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::source_transition_advice::produced_prefix::tests::original_produced_prefix_keeps_logical_context_capture_and_terminal_refusals ... ok
+test command_binding::source_transition_advice::produced_prefix::tests::substitution_geometry_keeps_expansion_and_declines_compound_or_multiple_commands ... ok
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::produced_prefix::tests::original_produced_prefix_keeps_deferred_parent_builder_and_each_word
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 8223 filtered out; finished in 3.81s
+

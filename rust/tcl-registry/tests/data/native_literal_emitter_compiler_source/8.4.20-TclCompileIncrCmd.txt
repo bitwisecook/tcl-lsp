@@ -1,0 +1,122 @@
+TclCompileIncrCmd(interp, parsePtr, envPtr)
+    Tcl_Interp *interp;		/* Used for error reporting. */
+    Tcl_Parse *parsePtr;	/* Points to a parse structure for the
+				 * command created by Tcl_ParseCommand. */
+    CompileEnv *envPtr;		/* Holds resulting instructions. */
+{
+    Tcl_Token *varTokenPtr, *incrTokenPtr;
+    int simpleVarName, isScalar, localIndex, haveImmValue, immValue;
+    int code = TCL_OK;
+
+    DefineLineInformation;
+
+    if ((parsePtr->numWords != 2) && (parsePtr->numWords != 3)) {
+	Tcl_ResetResult(interp);
+	Tcl_AppendToObj(Tcl_GetObjResult(interp),
+	        "wrong # args: should be \"incr varName ?increment?\"", -1);
+	return TCL_ERROR;
+    }
+
+    varTokenPtr = parsePtr->tokenPtr
+	    + (parsePtr->tokenPtr->numComponents + 1);
+
+    code = TclPushVarNameWord(interp, varTokenPtr, envPtr, 
+	    (TCL_NO_LARGE_INDEX | TCL_CREATE_VAR),
+	    &localIndex, &simpleVarName, &isScalar, 1);
+    if (code != TCL_OK) {
+	goto done;
+    }
+
+    /*
+     * If an increment is given, push it, but see first if it's a small
+     * integer.
+     */
+
+    haveImmValue = 0;
+    immValue = 1;
+    if (parsePtr->numWords == 3) {
+	incrTokenPtr = varTokenPtr + (varTokenPtr->numComponents + 1);
+	if (incrTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+	    CONST char *word = incrTokenPtr[1].start;
+	    int numBytes = incrTokenPtr[1].size;
+
+	    /*
+	     * Note there is a danger that modifying the string could have
+	     * undesirable side effects.  In this case, TclLooksLikeInt has
+	     * no dependencies on shared strings so we should be safe.
+	     */
+
+	    if (TclLooksLikeInt(word, numBytes)) {
+		int code;
+		Tcl_Obj *intObj = Tcl_NewStringObj(word, numBytes);
+		Tcl_IncrRefCount(intObj);
+		code = Tcl_GetIntFromObj(NULL, intObj, &immValue);
+		Tcl_DecrRefCount(intObj);
+		if ((code == TCL_OK)
+			&& (-127 <= immValue) && (immValue <= 127)) {
+		    haveImmValue = 1;
+		}
+	    }
+	    if (!haveImmValue) {
+		TclEmitPush(
+			TclRegisterNewLiteral(envPtr, word, numBytes), envPtr);
+	    }
+	} else {
+	    SetLineInformation (2);
+	    code = TclCompileTokens(interp, incrTokenPtr+1, 
+	            incrTokenPtr->numComponents, envPtr);
+	    if (code != TCL_OK) {
+		goto done;
+	    }
+	}
+    } else {			/* no incr amount given so use 1 */
+	haveImmValue = 1;
+    }
+    
+    /*
+     * Emit the instruction to increment the variable.
+     */
+
+    if (simpleVarName) {
+	if (isScalar) {
+	    if (localIndex >= 0) {
+		if (haveImmValue) {
+		    TclEmitInstInt1(INST_INCR_SCALAR1_IMM, localIndex, envPtr);
+		    TclEmitInt1(immValue, envPtr);
+		} else {
+		    TclEmitInstInt1(INST_INCR_SCALAR1, localIndex, envPtr);
+		}
+	    } else {
+		if (haveImmValue) {
+		    TclEmitInstInt1(INST_INCR_SCALAR_STK_IMM, immValue, envPtr);
+		} else {
+		    TclEmitOpcode(INST_INCR_SCALAR_STK, envPtr);
+		}
+	    }
+	} else {
+	    if (localIndex >= 0) {
+		if (haveImmValue) {
+		    TclEmitInstInt1(INST_INCR_ARRAY1_IMM, localIndex, envPtr);
+		    TclEmitInt1(immValue, envPtr);
+		} else {
+		    TclEmitInstInt1(INST_INCR_ARRAY1, localIndex, envPtr);
+		}
+	    } else {
+		if (haveImmValue) {
+		    TclEmitInstInt1(INST_INCR_ARRAY_STK_IMM, immValue, envPtr);
+		} else {
+		    TclEmitOpcode(INST_INCR_ARRAY_STK, envPtr);
+		}
+	    }
+	}
+    } else {			/* non-simple variable name */
+	if (haveImmValue) {
+	    TclEmitInstInt1(INST_INCR_STK_IMM, immValue, envPtr);
+	} else {
+	    TclEmitOpcode(INST_INCR_STK, envPtr);
+	}
+    }
+	
+    done:
+    return code;
+}

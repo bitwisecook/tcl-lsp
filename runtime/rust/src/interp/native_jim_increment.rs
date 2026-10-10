@@ -151,8 +151,20 @@ impl Interp {
                 crate::value_ops::RuntimeAppendValue::borrowed(pointer)
             }
         };
-        crate::dict::ensure_dict_native(root.as_ptr(), NativeStringProtocol::Jim084)
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+        if let Err(error) =
+            crate::dict::ensure_dict_native(root.as_ptr(), NativeStringProtocol::Jim084)
+        {
+            if error.native_access_refusal().is_some() {
+                return Err(self.report_cmd_error(error.into()));
+            }
+            let name = crate::dict::native_object_bytes(original, NativeStringProtocol::Jim084)
+                .map_err(|error| self.report_cmd_error(error.into()))?;
+            return Err(crate::builtins::var_error(
+                self,
+                &name,
+                crate::frame::VarError::IsScalar,
+            ));
+        }
         crate::dict::native_object_bytes(key, NativeStringProtocol::Jim084)
             .map_err(|error| self.report_cmd_error(error.into()))?;
         crate::dict::dict_set(root.as_ptr(), key, value)

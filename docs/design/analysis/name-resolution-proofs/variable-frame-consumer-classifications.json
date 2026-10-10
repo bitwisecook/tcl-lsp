@@ -1,0 +1,65 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_dictionary_scope_traces/manifest.json",
+    "sha256": "1290e1622af8bf16ef630d92f08024df221045dfbbd9248f460bd62bc157acf1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.dictionary-scope-trace-phase-order"
+    ],
+    "reason": "96 actually executed outer-presented scripts with explicit unsupported provider outcomes."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_dictionary_scope_traces/cases.json",
+    "sha256": "70af6114d0b6e0a46b5b54aff51cdc311af5720792b9dad9355be5ace9ac31f9",
+    "classification": "input-fixture",
+    "proof_ids": [
+      "naming.variable.dictionary-scope-trace-phase-order"
+    ],
+    "reason": "Inspected exact sixteen script inputs; observed answers are separate manifest/controls, not inferred from this input table."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_dictionary_rmw/manifest.json",
+    "sha256": "38d788e8499c90ba4ceab069d790e402e360ea0b80532fd9b15fb76218526b16",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+    ],
+    "reason": "Sixty explicit compiled/generic/callback scripts with completed tuples and fifteen independently preserved signal process outcomes."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_explicit_uplevel/manifest.json",
+    "sha256": "5dfa925c198fa40edc5c80928feabc30e46b0004b14509aa182728bda9703ed5",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.explicit-uplevel-level-body-cache-and-frame-restoration"
+    ],
+    "reason": "Seventy original-object explicit frame selection/evaluation/cache/restoration windows, distinct from general uplevel instruction compilation."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_foreach_slots/manifest.json",
+    "sha256": "d870c524a716f40c096056926d120625c39ca97d40062920a9d26b4c35fbb2f1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.counted-formal-foreach-slot-execution-frontier"
+    ],
+    "reason": "Twelve real definition/invocation outcomes; C body never runs, so scope excludes positive C foreach cell semantics."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_namespace_upvar/manifest.json",
+    "sha256": "1d0bdc8ff5aba585626735bffdc3b16095d0e97224e78c6ddc42593dc44dda9d",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.namespace-upvar-target-and-empty-pair-grammar"
+    ],
+    "reason": "Thirty-six actual pair grammar and variable target execution answers, independent of compiler/physical table questions."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_namespace_variables/manifest.json",
+    "sha256": "90ce8e8f4ee3455d527de2f41d33674b3eb819236af92c2cda426f2a4aa27e61",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.namespace-which-variable-original-object-and-storage-state"
+    ],
+    "reason": "Actual native query input/object/storage matrix with semantic result projections; complete physical diagnostic log content is not recovered by its hash."
+  }
+]

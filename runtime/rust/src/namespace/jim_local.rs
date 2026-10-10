@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Actual owning previous-node edges and live Jim upcall traversal.
 
-use super::{CommandBinding, Namespaces, NsId};
+use super::{CommandBinding, Namespaces};
 use crate::interp::Command;
 
 impl Namespaces {
-    pub(crate) fn bind_jim_local(&mut self, ns: NsId, name: &[u8], command: Command) {
+    pub(crate) fn bind_jim_local(
+        &mut self,
+        entry: super::NativeCommandCreation,
+        name: &[u8],
+        command: Command,
+    ) {
+        let ns = entry.namespace;
         let previous = self.arena[ns].commands.take_slot(name);
-        self.insert_bound(ns, name.to_vec(), command);
+        self.insert_bound_after_entry(entry, name.to_vec(), command);
         if let Some(previous) = previous {
             if let Some(node) = self.native_command_nodes.get_mut(&previous.generation) {
                 node.placement = None;

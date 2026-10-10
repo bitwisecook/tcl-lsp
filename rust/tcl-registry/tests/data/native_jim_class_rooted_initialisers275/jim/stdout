@@ -1,0 +1,6 @@
+version 0.84-9-g5bac7c9 initial_class class
+oo_package 0 1.0 class_command class
+rooted_early_constructor 0 1 0
+rooted_early_constructor_call 1 {}
+rooted_early_get 0 0 0
+rooted_later_constructor_call 0 {{REPLACEMENT SECOND}}

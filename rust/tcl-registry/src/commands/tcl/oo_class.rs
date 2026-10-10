@@ -42,10 +42,19 @@ const CLASS_EXPLICIT_NAMESPACE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::ObjectDispatch,
 ];
 
-const CLASS_INTERP_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCoverage {
-    source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
-    domains: &[WorldStateDomain::InterpreterPolicy],
-}];
+const CLASS_INTERP_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+        domains: &[WorldStateDomain::InterpreterPolicy],
+    },
+    // The emitted OnOkOnly Define fact owns installation of the public
+    // object command. This does not cover the separately retained script
+    // callback, command traces, or any body-authored world mutation.
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacyCommandTable,
+        domains: &[WorldStateDomain::CommandBindings],
+    },
+];
 
 const CLASS_FACTORY_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
@@ -111,7 +120,11 @@ fn push_named_class_creation(
     target: TransitionSubject,
     private_namespace: ObjectPrivateNamespace,
 ) {
-    if matches!(&target, TransitionSubject::Literal(name) if !name.is_empty()) {
+    if target.literal().is_some_and(|name| !name.is_empty())
+        || target
+            .native_bytes()
+            .is_some_and(|name| !tcl_core_types::c_string_extent(name).is_empty())
+    {
         transitions.push(StateTransition::CommandBinding(
             CommandBindingTransition::Define {
                 name: target.clone(),
@@ -317,6 +330,53 @@ mod tests {
     };
 
     #[test]
+    fn class_creation_keeps_opaque_native_target_and_conditional_commit() {
+        // Implementation contract: naming.invocation.known-native-byte-values
+        // docs/design/analysis/name-resolution-proofs/known-native-byte-values.md
+        for value in [
+            b"C\xed\xa0\x80".as_slice(),
+            b"C\0tail".as_slice(),
+            b"C\xff".as_slice(),
+        ] {
+            let words = [
+                crate::InvocationWord::Literal("create"),
+                crate::InvocationWord::KnownBytes(value),
+                crate::InvocationWord::Literal(""),
+            ];
+            let transitions = super::CLASS_CREATE_TRANSITIONS
+                .resolve(crate::InvocationArguments::structured(&words));
+            assert!(
+                transitions
+                    .facts()
+                    .iter()
+                    .all(|fact| fact.commit == StateTransitionCommit::OnOkOnly)
+            );
+            assert!(!transitions.widens(crate::StateTransitionDomain::CommandBindings));
+            assert!(!transitions.widens(crate::StateTransitionDomain::Namespaces));
+            assert!(!transitions.widens(crate::StateTransitionDomain::ObjectDispatch));
+            assert!(transitions.facts().iter().any(|fact| matches!(&fact.transition,
+                StateTransition::CommandBinding(CommandBindingTransition::Define { name, .. })
+                    if name.native_bytes() == Some(value) && name.literal().is_none() && name.argument_index() == Some(1))));
+            assert!(transitions.facts().iter().any(|fact| matches!(&fact.transition,
+                StateTransition::ObjectDispatch(ObjectDispatchTransition::Create { target: ObjectDispatchTarget::Named(name), .. })
+                    if name.native_bytes() == Some(value) && name.argument_index() == Some(1))));
+        }
+        for target in [
+            crate::InvocationWord::KnownBytes(b""),
+            crate::InvocationWord::KnownBytes(b"\0tail"),
+            crate::InvocationWord::Dynamic,
+        ] {
+            let words = [crate::InvocationWord::Literal("create"), target];
+            let transitions = super::CLASS_CREATE_TRANSITIONS
+                .resolve(crate::InvocationArguments::structured(&words));
+            assert!(!transitions.facts().iter().any(|fact| matches!(
+                fact.transition,
+                StateTransition::CommandBinding(CommandBindingTransition::Define { .. })
+            )));
+        }
+    }
+
+    #[test]
     fn class_create_records_command_dispatch_and_independent_private_namespace() {
         let registry = CommandRegistry::build_default();
         let invocation = registry
@@ -358,6 +418,84 @@ mod tests {
     }
 
     #[test]
+    fn class_creation_owns_installation_write_but_keeps_body_and_trace_callbacks() {
+        // Implementation contract: naming.tcloo.class-installation-effect-coverage-contract
+        // docs/design/analysis/name-resolution-proofs/tcloo-class-installation-effect-coverage-contract.md
+        use crate::{
+            EffectAccessMode, InvocationDialect, InvocationWord, InvocationWords,
+            StateTransitionDomain, WorldEffectWriteSource,
+        };
+        let registry = CommandRegistry::build_default();
+        for release in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            let dialect = InvocationDialect::for_version(release);
+            let arguments = [
+                InvocationWord::Literal("create"),
+                InvocationWord::Literal("C"),
+                InvocationWord::Literal("rename ::oo::class {}; error BODY"),
+            ];
+            let selected = registry
+                .resolve_structured_invocation(
+                    InvocationWords::structured(InvocationWord::Literal("oo::class"), &arguments)
+                        .with_dialect(dialect),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .expect("selected class creation");
+            let facts = selected.facts();
+            assert!(
+                facts
+                    .transition_effect_coverage
+                    .entries()
+                    .iter()
+                    .any(|coverage| coverage.covers(
+                        WorldEffectWriteSource::LegacyCommandTable,
+                        WorldStateDomain::CommandBindings
+                    ))
+            );
+            let effects = selected.effect_footprint();
+            assert!(
+                !effects
+                    .accesses()
+                    .iter()
+                    .any(|access| access.domain == WorldStateDomain::CommandBindings
+                        && !matches!(access.mode, EffectAccessMode::Read))
+            );
+            assert!(
+                effects
+                    .accesses()
+                    .iter()
+                    .any(|access| access.domain == WorldStateDomain::CommandTraces)
+            );
+            assert!(effects.callback().kinds.contains(CallbackKinds::SCRIPT));
+            assert!(effects.callback().kinds.contains(CallbackKinds::TRACE));
+            assert!(effects.requires_world_barrier());
+
+            let unknown = [
+                InvocationWord::Literal("create"),
+                InvocationWord::Dynamic,
+                InvocationWord::Literal(""),
+            ];
+            let selected = registry
+                .resolve_structured_invocation(
+                    InvocationWords::structured(InvocationWord::Literal("oo::class"), &unknown)
+                        .with_dialect(dialect),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .expect("unknown class name retains transition uncertainty");
+            assert!(
+                selected
+                    .state_transitions()
+                    .widens(StateTransitionDomain::CommandBindings)
+            );
+        }
+    }
+
+    #[test]
     fn create_with_namespace_retains_explicit_private_identity() {
         let registry = CommandRegistry::build_default();
         let transitions = registry
@@ -375,6 +513,61 @@ mod tests {
                 ..
             }) if namespace.literal() == Some("::private::C")
         )));
+    }
+
+    #[test]
+    fn original_stock_metaclass_compilation_has_no_hook_without_factory_authority() {
+        // Implementation contract: naming.tcloo.original-stock-metaclass-no-hook-selection
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-stock-metaclass-no-hook-selection.md
+        use crate::native_compilation::{
+            NativeCompilationContext, NativeCompilationGrammar, NativeCompilationSelection,
+            NativeCompilationWordShape,
+        };
+        let registry = CommandRegistry::build_default();
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            for (name, since) in [
+                ("oo::class", tcl_dialect::TclVersion::V8_6),
+                ("oo::configurable", tcl_dialect::TclVersion::V9_0),
+                ("oo::abstract", tcl_dialect::TclVersion::V9_0),
+                ("oo::singleton", tcl_dialect::TclVersion::V9_0),
+            ] {
+                let spec = registry.get_for_surface(name, dialect.authoring_query());
+                if version < since {
+                    assert!(spec.is_none(), "{version:?}: {name}");
+                    continue;
+                }
+                let arguments = [
+                    crate::InvocationWord::Literal("create"),
+                    crate::InvocationWord::Literal("C"),
+                    crate::InvocationWord::Literal(""),
+                ];
+                let words = crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal(name),
+                    &arguments,
+                )
+                .with_dialect(dialect);
+                let selected = registry
+                    .resolve_structured_invocation(words, dialect.authoring_query())
+                    .resolved()
+                    .expect("actual available stock metaclass");
+                let compilation = selected
+                    .facts()
+                    .native_compilation
+                    .expect("selected no-hook registration");
+                assert_eq!(compilation.grammar, NativeCompilationGrammar::NoHook);
+                assert_eq!(compilation.compiler_hook_presence(dialect), Some(false));
+                assert_eq!(
+                    compilation.select(
+                        words,
+                        &[NativeCompilationWordShape::Literal; 4],
+                        Some(dialect),
+                        NativeCompilationContext::default()
+                    ),
+                    NativeCompilationSelection::Generic
+                );
+            }
+        }
     }
 
     #[test]

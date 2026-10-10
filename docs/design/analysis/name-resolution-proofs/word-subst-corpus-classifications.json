@@ -1,0 +1,74 @@
+[
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.4.20/receipt.json",
+    "sha256": "31fbe2d46d6bdc036efc429477a3c37cc26ba5fc6ecfb01845dd2ec650f099cd",
+    "classification": "native-observation",
+    "reason": "Exact original word/subst constructors and completed six-provider output/cache/alias question; input availability and getter chronology retained.",
+    "proof_ids": [
+      "naming.word-and-subst.original-concatenation"
+    ]
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.5.19/receipt.json",
+    "sha256": "35e2511ba418a8d790d03f9409e25dc467cbd17147e1d26bb3f635154757b185",
+    "classification": "native-observation",
+    "reason": "Exact original word/subst constructors and completed six-provider output/cache/alias question; input availability and getter chronology retained.",
+    "proof_ids": [
+      "naming.word-and-subst.original-concatenation"
+    ]
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.6.18/receipt.json",
+    "sha256": "7c0de92ecea3899f1eccba716f09a067236966cbd9adcc39b43b11c2995a03f6",
+    "classification": "native-observation",
+    "reason": "Exact original word/subst constructors and completed six-provider output/cache/alias question; input availability and getter chronology retained.",
+    "proof_ids": [
+      "naming.word-and-subst.original-concatenation"
+    ]
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.0.4/receipt.json",
+    "sha256": "211a98ebf652f81e854e79daac5726c6c6ed1d50b36baec19f6556765b90f8c2",
+    "classification": "native-observation",
+    "reason": "Exact original word/subst constructors and completed six-provider output/cache/alias question; input availability and getter chronology retained.",
+    "proof_ids": [
+      "naming.word-and-subst.original-concatenation"
+    ]
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.1.0/receipt.json",
+    "sha256": "59e55d4cb29cb8715f259f67b944d579909555e9fdd4fc8cd371d11421142ff4",
+    "classification": "native-observation",
+    "reason": "Exact original word/subst constructors and completed six-provider output/cache/alias question; input availability and getter chronology retained.",
+    "proof_ids": [
+      "naming.word-and-subst.original-concatenation"
+    ]
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/input.json",
+    "sha256": "63c64b4dac844c4997b72ad6910c7c307f6cd445eaf81b29f6c1ab1f51b5491a",
+    "classification": "input-fixture",
+    "reason": "Retained source-input/probe identifiers for the original word/subst controls; actual guest windows are separately captured in each provider receipt.",
+    "proof_ids": [
+      "naming.word-and-subst.original-concatenation"
+    ]
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/receipt.json",
+    "sha256": "a891ff0dcbd2aba0eb70c55485ea051b6a822d5fdafb0c9be34adb3f1d85bc92",
+    "classification": "native-observation",
+    "reason": "Exact original word/subst constructors and completed six-provider output/cache/alias question; input availability and getter chronology retained.",
+    "proof_ids": [
+      "naming.word-and-subst.original-concatenation"
+    ]
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/receipt.json",
+    "sha256": "512c96256533cf4696408520361fde482762ed8a37826547834a6633685aab30",
+    "classification": "native-observation",
+    "reason": "Exact original word/subst constructors and completed six-provider output/cache/alias question; input availability and getter chronology retained.",
+    "proof_ids": [
+      "naming.word-and-subst.original-concatenation"
+    ]
+  }
+]

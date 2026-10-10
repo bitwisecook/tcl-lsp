@@ -1,0 +1,35 @@
+{
+  "provider": "8.5.19",
+  "probe_sha256": "782a68c3171081d0be4c5e89bb10b4d93f143d52eaaf797b08c7dc1afb457b76",
+  "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+  "library_sha256": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+    "/workspace/.proofs/current-tail-frame-release-probe/probe-v2.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-tail-frame-release-v2/8.5.19/probe"
+  ],
+  "compile_exit": 0,
+  "executable_sha256": "93566dcf1f131915471cd1fa8027ee84bf9c9df17a45fb581af923326ddea2cc",
+  "process_exit": 0,
+  "stdout_sha256": "d2e623ee05351968ca36dadfc3416f7a870264241ed84ae1ddda80fbaa1533d2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "case\t0\toriginal\t0\t33\tmade=0\tfree=",
+    "case\t0\tloop\t0\t31\tmade=0\tfree=",
+    "case\t1\toriginal\t0\t31\tmade=0\tfree=",
+    "case\t1\tloop\t0\t3939\tmade=0\tfree=",
+    "case\t2\toriginal\t0\t444f4e45207b7b3020327d207b3120317d207b3220307d7d\tmade=0\tfree=",
+    "case\t2\tloop\t0\t444f4e45207b7b3020307d207b3120307d207b3220307d7d\tmade=0\tfree=",
+    "case\t3\toriginal\t0\t444f4e45\tmade=2\tfree=2,1",
+    "case\t3\tloop\t0\t444f4e45\tmade=2\tfree=1,2"
+  ]
+}

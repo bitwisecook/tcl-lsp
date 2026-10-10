@@ -881,6 +881,7 @@ impl Analyser {
                     &self.source,
                     &self.head_identities,
                     self.lexer_config(),
+                    self.analysis_context(),
                 )
             });
             self.irules_debug_flags = Some(flags);
@@ -939,6 +940,7 @@ fn collect_debug_flag_names(
     source: &str,
     resolver: &crate::realm::CommandBindingRealm,
     config: tcl_lexer::LexerConfig,
+    metadata: std::sync::Arc<tcl_registry::model::ContextRegistry>,
 ) -> Vec<crate::connection_scope::EventCell> {
     use tcl_registry::events::EventExecutionMultiplicity;
     let mut names = std::collections::HashSet::new();
@@ -969,7 +971,8 @@ fn collect_debug_flag_names(
             continue;
         };
         let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
-            .with_dialect(registry.profile());
+            .with_dialect(registry.profile())
+            .with_context_registry(std::sync::Arc::clone(&metadata));
         let Ok(text) = body.try_text() else {
             continue;
         };
@@ -981,6 +984,7 @@ fn collect_debug_flag_names(
             crate::ir::ExecutionNamespace::exact("::"),
             registry,
             config,
+            std::sync::Arc::clone(&metadata),
         );
         let points = crate::place_bridge::build_point_resolve_contexts_with_entry(
             &cfg,

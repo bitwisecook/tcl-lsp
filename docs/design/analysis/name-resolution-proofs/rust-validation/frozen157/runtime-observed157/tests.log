@@ -1,0 +1,24 @@
+
+running 8 tests
+test interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch ... 
+thread 'interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch' (613619) panicked at src/interp/execution_name_policy.rs:501:13:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test interp::execution_name_policy::tests::counted_dynamic_cell_does_not_collide_with_declared_cstring_prefix ... ok
+test interp::execution_name_policy::tests::measured_names_use_actual_frame_and_retire_on_error_completion ... ok
+test interp::execution_name_policy::tests::observed_counted_set_dispatch_uses_actual_entered_frame ... ok
+test interp::execution_name_policy::tests::observed_trace_and_upvar_purposes_are_unavailable_in_source_dispatch ... ok
+test interp::execution_name_policy::tests::original_object_assignments_use_the_current_observed_receiver ... ok
+test interp::execution_name_policy::tests::replacement_activation_and_changed_profile_do_not_inherit_capability ... ok
+test interp::execution_name_policy::tests::scoped_policy_restores_after_error_completion ... ok
+
+failures:
+
+failures:
+    interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 1221 filtered out; finished in 3.50s
+

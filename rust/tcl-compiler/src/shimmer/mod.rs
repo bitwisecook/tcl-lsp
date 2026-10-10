@@ -41,9 +41,11 @@ pub mod graph;
 pub mod hints;
 pub mod phi;
 pub mod sharing;
+mod source_context;
 pub mod span;
 pub mod thunking;
 pub mod use_site;
+pub use source_context::ShimmerContext;
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
@@ -180,6 +182,7 @@ pub(crate) fn committed_from_label(
 /// 3. **Expression** ([`expr`]): arithmetic/comparison operators used with
 ///    the wrong operand type (S100).
 #[must_use]
+#[cfg(test)]
 pub(crate) fn find_shimmer_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -189,12 +192,34 @@ pub(crate) fn find_shimmer_warnings(
     values: &HashMap<ValueKey, crate::analyses::LatticeValue>,
     executable_edges: &HashSet<(BlockId, BlockId)>,
 ) -> Vec<ShimmerWarning> {
+    find_shimmer_warnings_with_context(
+        cfg,
+        ssa,
+        types,
+        executable_blocks,
+        ShimmerContext::standalone(registry),
+        values,
+        executable_edges,
+    )
+}
+
+pub(crate) fn find_shimmer_warnings_with_context(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    types: &HashMap<ValueKey, TypeLattice>,
+    executable_blocks: &HashSet<BlockId>,
+    context: ShimmerContext<'_>,
+    values: &HashMap<ValueKey, crate::analyses::LatticeValue>,
+    executable_edges: &HashSet<(BlockId, BlockId)>,
+) -> Vec<ShimmerWarning> {
+    let registry = context.registry();
     // The committed-intrep dataflow (first-use commit) is shared by the
     // use-site and expr detectors: it tells each use whether the value has
     // already committed a different intrep on every path (a genuine second
     // conversion) or is still pure (a free first conversion).
     let commit_ctx = commit::CommitCtx {
         registry,
+        context,
         ssa,
         source: crate::ssa::SsaSourceView::unpositioned(ssa),
         types,
@@ -205,12 +230,12 @@ pub(crate) fn find_shimmer_warnings(
         loop_blocks: graph::loop_body_blocks(cfg),
     };
     let mut out = Vec::new();
-    out.extend(use_site::find_use_site_shimmers(
+    out.extend(use_site::find_use_site_shimmers_with_context(
         cfg,
         ssa,
         types,
         executable_blocks,
-        registry,
+        context,
         values,
         &facts,
     ));
@@ -221,13 +246,13 @@ pub(crate) fn find_shimmer_warnings(
         executable_blocks,
         &facts.loop_blocks,
     ));
-    out.extend(expr::find_expr_shimmers(
+    out.extend(expr::find_expr_shimmers_with_context(
         cfg,
         ssa,
         types,
         executable_blocks,
         values,
-        registry,
+        context,
         &facts,
     ));
     out
@@ -261,12 +286,15 @@ pub fn find_shimmer_warnings_for_cu(
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_shimmer_warnings(
+        let Some(context) = ShimmerContext::for_function(fu, registry) else {
+            continue;
+        };
+        out.extend(find_shimmer_warnings_with_context(
             &fu.cfg,
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
-            registry,
+            context,
             &fu.sccp.values,
             &fu.sccp.executable_edges,
         ));
@@ -287,8 +315,12 @@ pub fn first_use_commitments_for_cu(
 ) -> HashMap<String, HashMap<String, TclType>> {
     let mut out: HashMap<String, HashMap<String, TclType>> = HashMap::new();
     for fu in cu.analysable_functions() {
+        let Some(context) = ShimmerContext::for_function(fu, registry) else {
+            continue;
+        };
         let ctx = commit::CommitCtx {
             registry,
+            context,
             ssa: &fu.ssa,
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
@@ -333,12 +365,15 @@ pub fn find_thunking_warnings_for_cu(
 ) -> Vec<ThunkingWarning> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_thunking_warnings(
+        let Some(context) = ShimmerContext::for_function(fu, registry) else {
+            continue;
+        };
+        out.extend(find_thunking_warnings_with_context(
             &fu.cfg,
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
-            registry,
+            context,
             cu.method_instance_vars(&fu.name),
         ));
     }
@@ -350,6 +385,7 @@ pub fn find_thunking_warnings_for_cu(
 /// Identifies variables that oscillate between two intrep types across
 /// loop iterations, causing a type conversion on every pass (S102).
 #[must_use]
+#[cfg(test)]
 pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -358,12 +394,30 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<ThunkingWarning> {
-    thunking::find_thunking_warnings(
+    find_thunking_warnings_with_context(
         cfg,
         ssa,
         types,
         executable_blocks,
-        registry,
+        ShimmerContext::standalone(registry),
+        extra_scope_aliases,
+    )
+}
+
+pub(crate) fn find_thunking_warnings_with_context<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    types: &HashMap<ValueKey, TypeLattice>,
+    executable_blocks: &HashSet<BlockId>,
+    context: ShimmerContext<'_>,
+    extra_scope_aliases: Option<&HashSet<String, S>>,
+) -> Vec<ThunkingWarning> {
+    thunking::find_thunking_warnings_with_context(
+        cfg,
+        ssa,
+        types,
+        executable_blocks,
+        context,
         extra_scope_aliases,
     )
 }
@@ -374,21 +428,20 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
 /// where both holders are provably alive — C Tcl duplicates the shared
 /// value before every such mutation. See [`sharing`] for the pattern and
 /// its deliberate exclusions.
-#[must_use]
-pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
+pub(crate) fn find_sharing_warnings_with_context<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     def_use: &crate::def_use::DefUseResult,
     executable_blocks: &HashSet<BlockId>,
-    registry: &CommandRegistry,
+    context: ShimmerContext<'_>,
     extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<SharingWarning> {
-    sharing::find_sharing_warnings(
+    sharing::find_sharing_warnings_with_context(
         cfg,
         ssa,
         def_use,
         executable_blocks,
-        registry,
+        context,
         extra_scope_aliases,
     )
 }
@@ -402,12 +455,15 @@ pub fn find_sharing_warnings_for_cu(
 ) -> Vec<SharingWarning> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_sharing_warnings(
+        let Some(context) = ShimmerContext::for_function(fu, registry) else {
+            continue;
+        };
+        out.extend(find_sharing_warnings_with_context(
             &fu.cfg,
             &fu.ssa,
             &fu.def_use,
             &fu.sccp.executable_blocks,
-            registry,
+            context,
             cu.method_instance_vars(&fu.name),
         ));
     }
@@ -422,15 +478,20 @@ pub fn find_sharing_warnings_for_cu(
 /// (`*::payload replace`), or case-folded / re-encoded directly. See
 /// [`byte_array`]. `payload_layouts` is the dialect-gated `*::payload` byte
 /// command set (empty under non-iRules dialects).
-#[must_use]
-pub(crate) fn find_byte_array_warnings(
+pub(crate) fn find_byte_array_warnings_with_context(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     executable_blocks: &HashSet<BlockId>,
-    registry: &CommandRegistry,
+    context: ShimmerContext<'_>,
     payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
 ) -> Vec<ShimmerWarning> {
-    byte_array::find_byte_array_warnings(cfg, ssa, executable_blocks, registry, payload_layouts)
+    byte_array::find_byte_array_warnings_with_context(
+        cfg,
+        ssa,
+        executable_blocks,
+        context,
+        payload_layouts,
+    )
 }
 
 /// Find every byte-array-corruption warning (S110) across a whole compilation
@@ -444,11 +505,14 @@ pub fn find_byte_array_warnings_for_cu(
     let payload_layouts = registry.byte_array_payload_layouts();
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_byte_array_warnings(
+        let Some(context) = ShimmerContext::for_function(fu, registry) else {
+            continue;
+        };
+        out.extend(find_byte_array_warnings_with_context(
             &fu.cfg,
             &fu.ssa,
             &fu.sccp.executable_blocks,
-            registry,
+            context,
             &payload_layouts,
         ));
     }
@@ -483,6 +547,7 @@ mod tests {
             None,
             crate::tcl_expr_eval::FoldPolicy::default(),
             crate::sccp::TraceInputs {
+                source_metadata_input: None,
                 registry: &registry(),
                 traced_variables: &std::collections::BTreeSet::new(),
                 has_dynamic_variable_trace: false,

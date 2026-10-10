@@ -37,29 +37,92 @@ use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config
 
 use super::types::{Diagnostic, Severity};
 
+/// Metadata for shallow written syntax and numeric advice. Retained analysis
+/// callers supply the actual context; explicit standalone controls select
+/// their own catalogue. Neither mode supplies Native identity or effects.
+#[derive(Clone, Copy)]
+pub(crate) enum BoundsMetadataContext<'a> {
+    Retained(&'a tcl_registry::model::ContextRegistry),
+    #[cfg(test)]
+    Standalone(Option<&'a tcl_registry::CommandRegistry>),
+}
+impl<'a> BoundsMetadataContext<'a> {
+    fn spec(self, name: &str) -> Option<&'a tcl_registry::CommandSpec> {
+        match self {
+            Self::Retained(context) => context.context().resolve_spec(context.commands(), name),
+            #[cfg(test)]
+            Self::Standalone(registry) => registry
+                .unwrap_or_else(|| {
+                    tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
+                })
+                .get(name),
+        }
+    }
+    fn argument_indices(
+        self,
+        head: &str,
+        args: &[&str],
+        role: tcl_registry::ArgRole,
+    ) -> Vec<usize> {
+        match self {
+            #[cfg(test)]
+            Self::Standalone(registry) => registry
+                .unwrap_or_else(|| {
+                    tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
+                })
+                .arg_indices_for_role(head, args, role),
+            Self::Retained(context) => {
+                let values = args
+                    .iter()
+                    .map(|argument| {
+                        if crate::naming::is_dynamic_word(argument) {
+                            tcl_registry::InvocationWord::Dynamic
+                        } else {
+                            tcl_registry::InvocationWord::Literal(argument)
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let resolution = tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(), Some(context.context()),
+                    tcl_registry::InvocationWords::structured(tcl_registry::InvocationWord::Literal(head), &values),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+                let Some(schema) = resolution.resolved() else {
+                    return Vec::new();
+                };
+                let (roles, complete) = schema.authored_source_argument_roles();
+                if !complete {
+                    return Vec::new();
+                }
+                roles
+                    .into_iter()
+                    .filter_map(|(ordinal, found)| {
+                        (found == role)
+                            .then(|| usize::from(ordinal) + schema.semantics.argument_offset)
+                    })
+                    .collect()
+            }
+        }
+    }
+}
+
 /// The comparison operators a simple `for`-condition may use.
 const SIMPLE_CMP_OPS: &[&str] = &["<=", ">=", "<", ">", "==", "!=", "eq", "ne"];
 
 /// Whether `name` in command position ends the current loop's straight-line
 /// flow — the set consulted by the W241 "provably infinite" check.
 ///
-/// `break` exits the loop and `tailcall` replaces the current procedure's
-/// frame (Tcl 8.6+) and never returns to it; neither is a block-terminator, so
-/// they are named explicitly here, mirroring the CFG builder's own
-/// `is_tailcall_command`. Everything that unwinds the enclosing block/proc —
-/// `return` / `error` / `exit` / `throw` — is read from the registry's
-/// [`tcl_registry::Traits::TERMINATES_BLOCK`] trait, so a newly-added
-/// block-terminating command is recognised automatically instead of needing a
-/// second hardcoded list — a hardcoded set that omits `throw` or `tailcall`
-/// draws a W241 false positive, since both leave the loop.
-fn is_loop_exit_command(name: &str, registry: Option<&tcl_registry::CommandRegistry>) -> bool {
-    let bare = name.trim_start_matches(':');
-    if bare == "break" || bare == "tailcall" {
-        return true;
-    }
-    registry
-        .and_then(|r| r.get(bare))
-        .is_some_and(|spec| spec.traits.contains(tcl_registry::Traits::TERMINATES_BLOCK))
+/// Selected `BREAKS_LOOP`, `REPLACES_FRAME` and `TERMINATES_BLOCK` traits
+/// share the actual metadata context. This is shallow source advice; a
+/// written spelling alone supplies no Native control-flow effect.
+fn is_loop_exit_command(name: &str, registry: BoundsMetadataContext<'_>) -> bool {
+    registry.spec(name).is_some_and(|spec| {
+        spec.traits.intersects(
+            tcl_registry::Traits::TERMINATES_BLOCK
+                .union(tcl_registry::Traits::BREAKS_LOOP)
+                .union(tcl_registry::Traits::REPLACES_FRAME),
+        )
+    })
 }
 
 /// Which argument of a conditional-loop invocation is which: the boolean
@@ -82,24 +145,24 @@ struct LoopShape {
 /// step.  A pack-declared loop therefore reaches W240 / W241 / W242 with no
 /// command name written here.
 ///
-/// The literal `while` / `for` positions survive only as the registry-less
-/// fallback, the same shape [`is_loop_exit_command`] documents: an analyse
-/// with no registry still checks the two core loops.
-fn loop_shape(name: &str, registry: Option<&tcl_registry::CommandRegistry>) -> Option<LoopShape> {
-    let Some(registry) = registry else {
-        return core_loop_shape(name);
+/// Standalone test controls can select the core syntax fallback. Production
+/// callers retain their actual availability; an unavailable schema refuses.
+fn loop_shape(name: &str, registry: BoundsMetadataContext<'_>) -> Option<LoopShape> {
+    let Some(spec) = registry.spec(name) else {
+        #[cfg(test)]
+        if matches!(registry, BoundsMetadataContext::Standalone(_)) {
+            return core_loop_shape(name);
+        }
+        return None;
     };
-    let Some(spec) = registry.get(name) else {
-        return core_loop_shape(name);
-    };
-    registry
-        .is_loop_command(name)
+    spec.traits
+        .contains(tcl_registry::Traits::HAS_LOOP_BODY)
         .then(|| conditional_loop_shape(spec))
         .flatten()
 }
 
-/// The `while` / `for` argument positions, for an analyse with no registry to
-/// ask.
+/// Core syntax positions for standalone test controls without a catalogue.
+#[cfg(test)]
 fn core_loop_shape(name: &str) -> Option<LoopShape> {
     match name {
         "while" => Some(LoopShape {
@@ -153,7 +216,7 @@ pub(crate) fn loop_termination_diagnostics(
     cmd_name: &str,
     args: &[String],
     arg_tokens: &[Token],
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
     grammar: &tcl_dialect::LexerGrammar,
 ) -> Vec<Diagnostic> {
@@ -294,7 +357,7 @@ fn loop_modifies_var(
     var: &str,
     step: &str,
     body: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> bool {
     if !step.is_empty() {
@@ -317,7 +380,7 @@ fn for_is_provably_infinite(
     cond: &str,
     step: &str,
     body: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
     grammar: &tcl_dialect::LexerGrammar,
 ) -> Option<String> {
@@ -581,7 +644,7 @@ fn parse_signed_decimal(word: &str) -> Option<i64> {
 fn body_writes_var(
     body: &str,
     var: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> bool {
     any_command_recursive(body, lexer_config, &mut |cmd| {
@@ -593,11 +656,16 @@ fn body_writes_var(
 /// Whether `name` writes/modifies the variable named by its first argument
 /// (`set` / `incr` / `append` / `lappend` / `lset`) — the registry's
 /// `writes_first_arg_variable` query, with the cached default registry as
-/// the registry-less fallback (mirroring [`is_loop_exit_command`]'s shape).
-fn writes_first_arg(name: &str, registry: Option<&tcl_registry::CommandRegistry>) -> bool {
-    registry
-        .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands())
-        .writes_first_arg_variable(name.trim_start_matches(':'))
+/// an independently selected standalone catalogue. Retained callers use
+/// only their actual available schema.
+fn writes_first_arg(name: &str, registry: BoundsMetadataContext<'_>) -> bool {
+    registry.spec(name).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::FIRST_ARG_VARNAME)
+            && !spec
+                .traits
+                .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+    })
 }
 
 /// Walk every command in `script`, recursing into braced / quoted word
@@ -747,7 +815,7 @@ pub(crate) fn lset_index_diagnostics(
     args: &[String],
     arg_tokens: &[Token],
     source: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
     numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<Diagnostic> {
@@ -842,14 +910,12 @@ fn infer_list_length_from_recent_set(
     source: &str,
     var_name: &str,
     before_offset: u32,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> Option<i64> {
     if before_offset == 0 || before_offset as usize > source.len() || var_name.is_empty() {
         return None;
     }
-    let registry = registry
-        .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     let mut script: &str = source;
     let mut base: u32 = 0;
     let mut best: Option<i64> = None;
@@ -874,7 +940,7 @@ fn infer_list_length_from_recent_set(
                     .and_then(|tok| super::scope::inner_of(source, *tok));
                 break;
             }
-            if let Some(length) = literal_list_assignment(registry, &cmd, var_name) {
+            if let Some(length) = literal_list_assignment(registry, &cmd, var_name, lexer_config) {
                 best = Some(length);
             } else if writes_the_name(registry, &cmd, var_name) {
                 // A write this scan cannot turn into a fresh literal length —
@@ -924,35 +990,34 @@ const MAX_SCOPE_DESCENT: tcl_core_types::RecursionLimit = tcl_core_types::Recurs
 /// requirement, because the question here is only "did this command touch the
 /// name", not "what is its new length".
 fn writes_the_name(
-    registry: &tcl_registry::CommandRegistry,
+    registry: BoundsMetadataContext<'_>,
     cmd: &SegmentedCommand,
     var_name: &str,
 ) -> bool {
     let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
     let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
     registry
-        .arg_indices_for_role(head, &args, tcl_registry::ArgRole::VarWrite)
+        .argument_indices(head, &args, tcl_registry::ArgRole::VarWrite)
         .into_iter()
         .any(|index| args.get(index) == Some(&var_name))
 }
 
 fn literal_list_assignment(
-    registry: &tcl_registry::CommandRegistry,
+    registry: BoundsMetadataContext<'_>,
     cmd: &SegmentedCommand,
     var_name: &str,
+    lexer_config: tcl_lexer::LexerConfig,
 ) -> Option<i64> {
-    // The registry carries the environment's profile, so the assigned list
-    // divides under the document's own list grammar.
-    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile());
+    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&lexer_config);
     let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
-    let spec = registry.get(head)?;
+    let spec = registry.spec(head)?;
     if spec.traits.intersects(
         tcl_registry::Traits::READS_BEFORE_WRITE.union(tcl_registry::Traits::WHOLE_ARRAY_ARG),
     ) {
         return None;
     }
     let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-    let writes = registry.arg_indices_for_role(head, &args, tcl_registry::ArgRole::VarWrite);
+    let writes = registry.argument_indices(head, &args, tcl_registry::ArgRole::VarWrite);
     let [name_index] = writes.as_slice() else {
         return None;
     };
@@ -1239,7 +1304,7 @@ fn condition_constant(cond: &str) -> Option<bool> {
 /// argument no longer triggers a false exit.
 fn body_may_exit(
     body: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> bool {
     any_command_recursive(body, lexer_config, &mut |cmd| {
@@ -1288,7 +1353,13 @@ mod tests {
         let source = "set xs {a b}\nlset xs 9 v\n";
         let before = u32::try_from(source.find("lset").expect("lset")).expect("offset");
         assert_eq!(
-            infer_list_length_from_recent_set(source, "xs", before, None, config,),
+            infer_list_length_from_recent_set(
+                source,
+                "xs",
+                before,
+                super::BoundsMetadataContext::Standalone(None),
+                config,
+            ),
             Some(2)
         );
     }
@@ -1363,7 +1434,7 @@ mod tests {
             &name,
             command.args(),
             command.arg_tokens(),
-            Some(registry),
+            super::BoundsMetadataContext::Standalone(Some(registry)),
             config(),
             &tcl_dialect::LexerGrammar::default(),
         )
@@ -1527,40 +1598,40 @@ mod tests {
     #[test]
     fn body_scans_are_command_structural() {
         // A write counts only in command position, not inside a string.
-        assert!(super::body_writes_var("incr i", "i", None, config()));
+        assert!(super::body_writes_var("incr i", "i", super::BoundsMetadataContext::Standalone(None), config()));
         assert!(super::body_writes_var(
             "if {$c} {set i 9}",
             "i",
-            None,
+            super::BoundsMetadataContext::Standalone(None),
             config()
         )); // nested body
         assert!(!super::body_writes_var(
             "puts \"set i now\"",
             "i",
-            None,
+            super::BoundsMetadataContext::Standalone(None),
             config()
         )); // inside a string
-        assert!(!super::body_writes_var("incr index", "i", None, config())); // word boundary
+        assert!(!super::body_writes_var("incr index", "i", super::BoundsMetadataContext::Standalone(None), config())); // word boundary
         // `break` / `return` / `throw` / `tailcall` likewise count only as
         // commands. `return`/`throw` resolve via the registry's
         // TERMINATES_BLOCK trait; `break`/`tailcall` are recognised without it.
         let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        assert!(super::body_may_exit("break", Some(reg), config()));
+        assert!(super::body_may_exit("break", super::BoundsMetadataContext::Standalone(Some(reg)), config()));
         assert!(super::body_may_exit(
             "if {$c} {return}",
-            Some(reg),
+            super::BoundsMetadataContext::Standalone(Some(reg)),
             config()
         )); // nested
         assert!(super::body_may_exit(
             "throw MYERR boom",
-            Some(reg),
+            super::BoundsMetadataContext::Standalone(Some(reg)),
             config()
         )); // now covered
-        assert!(super::body_may_exit("tailcall foo", Some(reg), config()));
-        assert!(!super::body_may_exit("puts breakfast", Some(reg), config())); // not a command
+        assert!(super::body_may_exit("tailcall foo", super::BoundsMetadataContext::Standalone(Some(reg)), config()));
+        assert!(!super::body_may_exit("puts breakfast", super::BoundsMetadataContext::Standalone(Some(reg)), config())); // not a command
         // `break`/`tailcall` are recognised even without a registry handle.
-        assert!(super::body_may_exit("break", None, config()));
-        assert!(super::body_may_exit("tailcall foo", None, config()));
+        assert!(super::body_may_exit("break", super::BoundsMetadataContext::Standalone(None), config()));
+        assert!(super::body_may_exit("tailcall foo", super::BoundsMetadataContext::Standalone(None), config()));
     }
 
     fn idx_codes_for(src: &str, dialect: &str) -> Vec<String> {
@@ -2030,5 +2101,39 @@ mod tests {
         // are ordinary words to the segmenter, though neither matches
         // `(?:^|\\n)\\s*set\\s+(\\w+)\\s+(\\{[^{}]*\\})`.
         assert_eq!(w231("puts hi; set l {a {b c} d}\nlset l 9 X\n"), 1);
+    }
+    #[test]
+    fn shallow_bounds_metadata_retains_availability_without_default_catalogue_fallback() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current = tcl_registry::model::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
+        );
+        let old = tcl_registry::model::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.4").unwrap(),
+        );
+        let old = old.with_command_store(std::sync::Arc::clone(current.commands()));
+        assert!(super::is_loop_exit_command(
+            "tailcall",
+            super::BoundsMetadataContext::Retained(&current)
+        ));
+        assert!(!super::is_loop_exit_command(
+            "tailcall",
+            super::BoundsMetadataContext::Retained(&old)
+        ));
+        assert!(super::is_loop_exit_command(
+            "break",
+            super::BoundsMetadataContext::Retained(&old)
+        ));
+        let no_tcl = tcl_registry::model::context_for_profile(
+            tcl_dialect::DialectProfile::find("f5-bigip").unwrap(),
+        );
+        let no_tcl = no_tcl.with_command_store(std::sync::Arc::clone(current.commands()));
+        assert!(
+            super::loop_shape("while", super::BoundsMetadataContext::Retained(&no_tcl)).is_none()
+        );
+        assert!(
+            super::loop_shape("while", super::BoundsMetadataContext::Standalone(None)).is_some()
+        );
     }
 }

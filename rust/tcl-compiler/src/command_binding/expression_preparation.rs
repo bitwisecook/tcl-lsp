@@ -740,6 +740,10 @@ impl SourceConditionalExpressionEvaluation {
         self.evaluation.lexer_grammar()
     }
 
+    pub(crate) fn parse_context(&self) -> &tcl_syntax::expr::parser::ExprParseContext {
+        self.evaluation.context()
+    }
+
     pub(crate) fn normal_result_representation(
         &self,
         variable: impl FnMut(&crate::expr_ast::ExprNode) -> Option<tcl_registry::TclType>,
@@ -946,6 +950,32 @@ impl super::SourceInvocationBinding {
         }
         let expression = self.conditional_expression_evaluation(registry, tokens)?;
         expression.semantic_lookup_closed().then_some(expression)
+    }
+
+    pub(super) fn conditional_expression_evaluation_for_original_word(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+        written: usize,
+    ) -> Option<SourceConditionalExpressionEvaluation> {
+        let advice = crate::registry_invocation::original_expression_operand_advice_for_word(
+            registry, tokens, written,
+        )?;
+        let site = self.invocation_site()?;
+        Some(SourceConditionalExpressionEvaluation {
+            issuer: ExpressionEvaluationIssuer::OriginalSource,
+            invocation: site.clone(),
+            namespace_key: advice.namespace_key,
+            frame: advice.frame,
+            source: Arc::new(ExecutedScriptSource::contiguous(
+                Arc::clone(&site.source),
+                &advice.expression_text,
+                advice.expression_base,
+            )?),
+            evaluation: advice.evaluation,
+            pool: advice.pool,
+            lookup_closed: advice.lookup_closed,
+        })
     }
 
     /// Unanimous original conditional grammar and current authored pool state.
@@ -1929,6 +1959,7 @@ mod tests {
                 compilation: tcl_registry::native_compilation::NativeCompilationContext::default(),
                 compilation_snapshot: None,
                 selected_compilation: None,
+                original_variable_compilation: None,
                 namespace: "::",
                 namespace_key: namespace.as_ref(),
                 config: tcl_lexer::LexerConfig::default(),
@@ -1937,8 +1968,10 @@ mod tests {
                 frame: &frame,
                 invocation_offset: 0,
                 variable_read_owner: None,
+                original_written_projection: None,
                 written_arguments: None,
                 written_values: None,
+                written_name_values: None,
                 written_representations: None,
                 written_objects: None,
                 written_method_prefixes: None,

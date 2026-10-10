@@ -1,0 +1,10 @@
+
+running 5 tests
+test inlay_hints::retained_hint_context_tests::original_builtin_hints_use_the_selected_availability_not_registry_profile ... ok
+test inlay_hints::retained_hint_context_tests::original_format_hints_follow_actual_nested_roles_and_known_shadow ... ok
+test inlay_hints::retained_hint_context_tests::original_format_hints_use_selected_option_roles_under_the_actual_context ... ok
+test inlay_hints::retained_hint_context_tests::original_hint_metadata_keeps_the_generation_after_reporting_maps_are_cleared ... ok
+test inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 2623 filtered out; finished in 6.85s
+

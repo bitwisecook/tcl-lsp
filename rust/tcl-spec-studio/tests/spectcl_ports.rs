@@ -647,7 +647,8 @@ fn the_clause_grammar_derivation_agrees_with_the_shipped_walk() {
         );
         assert_eq!(
             derived.error,
-            shipped_shape(&words),
+            shipped_shape(tcl_registry::InvocationArguments::literals(&words))
+                .map(tcl_registry::ClauseShapeIssue::error),
             "shape disagrees for `if {call}`"
         );
     }

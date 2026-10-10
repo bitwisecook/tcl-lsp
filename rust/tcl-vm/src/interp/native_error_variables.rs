@@ -1037,7 +1037,7 @@ mod tests {
             vm.add_var_trace_bytes(
                 b"::errorInfo",
                 vec!["write".into()],
-                Value::new_native_string_bytes(b"list".as_slice()),
+                &Value::new_native_string_bytes(b"list".as_slice()),
                 false,
             );
             vm.log_command_info_only(b"second command", b"second error", 1);
@@ -1116,13 +1116,13 @@ mod tests {
             vm.add_var_trace_bytes(
                 b"::errorCode",
                 vec!["write".into()],
-                Value::string("observe_native_reset"),
+                &Value::string("observe_native_reset"),
                 false,
             );
             vm.add_var_trace_bytes(
                 b"::errorInfo",
                 vec!["write".into()],
-                Value::string("observe_native_reset"),
+                &Value::string("observe_native_reset"),
                 false,
             );
             RESET_CALLBACKS.with(|seen| seen.borrow_mut().clear());
@@ -1259,7 +1259,7 @@ mod tests {
                 vm.add_var_trace_bytes(
                     b"::errorInfo",
                     vec!["read".into()],
-                    Value::string("list"),
+                    &Value::string("list"),
                     false,
                 );
                 vm.remove_var_trace_bytes(b"::errorInfo", &["read".into()], b"list");

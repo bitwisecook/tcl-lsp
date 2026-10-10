@@ -1,0 +1,53 @@
+{
+  "request_id": "naming.info.original-command-inventory-option-and-scope",
+  "question": "What original info commands grammar accepts absent, literal-pattern, exact -all, abbreviated -al and extra operands in actual current namespace, and how does selected grammar report caller-owned global/namespace commands?",
+  "problem": "The authentic Jim ensemble helper uses info commands -all $autoprefix*. Runtime currently applies C one-pattern arity, so actual source helper cannot complete. Both consumers need the shared selected engine grammar/scope, independently of original namespace and command table ownership.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse unchanged Native236/245 original counted C API driver and independently verified provider build pins. Fresh full Tcl_Init or Jim static extensions per source. Emit VERSION and original whole code/result bytes with no outer catch/eval normalization, plus stdout/stderr/exit and exact source hashes. ",
+  "cases": [
+    {
+      "id": "original-all-option-current-namespace",
+      "source_file": "/workspace/.proofs/native-jim-info-command-inventory254-request/original-all-option-current-namespace.tcl",
+      "source_sha256": "390fa2be16b2cb40a29cc84f62b2d9ba332cc85a2f99090f062b5096ad1a5caa",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality."
+    },
+    {
+      "id": "original-all-option-qualified-pattern",
+      "source_file": "/workspace/.proofs/native-jim-info-command-inventory254-request/original-all-option-qualified-pattern.tcl",
+      "source_sha256": "3d4de5616fb711259f0c72444ccc1a1741f2eaf07a0a19414317c15919991219",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality."
+    },
+    {
+      "id": "original-abbreviated-all-option",
+      "source_file": "/workspace/.proofs/native-jim-info-command-inventory254-request/original-abbreviated-all-option.tcl",
+      "source_sha256": "d75c8fb196d7a3c18c017e2f18006a6a408395786bca9e4677edd5c92a191e8f",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality."
+    },
+    {
+      "id": "original-option-without-pattern",
+      "source_file": "/workspace/.proofs/native-jim-info-command-inventory254-request/original-option-without-pattern.tcl",
+      "source_sha256": "60e1c87622710162f21a87f0b1cc21c9a8c75ad45bce8fc9953220105fff6d22",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality."
+    },
+    {
+      "id": "original-pattern-and-extra-argument",
+      "source_file": "/workspace/.proofs/native-jim-info-command-inventory254-request/original-pattern-and-extra-argument.tcl",
+      "source_sha256": "3aae2d1facc3c235afbf177923c2e447663d0b6c384ed4336428872cf8271174",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality."
+    },
+    {
+      "id": "original-absent-and-literal-pattern",
+      "source_file": "/workspace/.proofs/native-jim-info-command-inventory254-request/original-absent-and-literal-pattern.tcl",
+      "source_sha256": "070b298b6e6aab850887d9163fff9404f7d12d812f2b9727581ec4ca80171504",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality."
+    }
+  ],
+  "scope": "Whole original caught code/result, sorted caller-owned public reported names and selected current namespace invocation. No private hash ordering/cache/token/worker identity, arbitrary Unicode/NUL or complete stock roster law is inferred. C literal-pattern versus Jim option semantics remain separate measured answers."
+}

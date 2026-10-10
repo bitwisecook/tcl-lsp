@@ -662,6 +662,154 @@ fn jim_alias_retains_root_slot_and_caller_lookup_and_frame() {
     }
 }
 
+// Native proof: naming.jim.rooted-alias-publication-and-lookup
+// docs/design/analysis/name-resolution-proofs/jim-rooted-alias-publication-and-lookup.md
+#[test]
+fn jim_rooted_alias_publication_matches_original_native_source_and_values() {
+    compare_alias_publication_fixture(
+        "jim",
+        include_str!("../../tcl-registry/tests/data/native_jim_alias_publication194/probe.tcl"),
+        include_bytes!("../../tcl-registry/tests/data/native_jim_alias_publication194/jim/stdout"),
+    );
+}
+
+fn compare_alias_publication_fixture(engine: &str, source: &str, native: &[u8]) {
+    use std::cell::RefCell;
+    use std::io::Write;
+    use std::rc::Rc;
+
+    struct Capture(Rc<RefCell<Vec<u8>>>);
+    impl Write for Capture {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.borrow_mut().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let output = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&output))));
+    let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+    vm.set_dialect_profile(profile);
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    let result = vm
+        .try_eval_source(source)
+        .expect("original native source admission");
+    assert!(result.code.is_ok(), "{engine}: {}", result.result.to_str());
+
+    // The reported native provider version is evidence metadata, not a VM value.
+    let output = output.borrow();
+    let observed = output
+        .splitn(2, |byte| *byte == b'\n')
+        .nth(1)
+        .expect("VM report row");
+    let expected = native
+        .splitn(2, |byte| *byte == b'\n')
+        .nth(1)
+        .expect("native provider report row");
+    assert_eq!(
+        observed, expected,
+        "{engine}: original alias public control rows"
+    );
+}
+
+// Native proof: naming.alias.c-current-namespace-publication-holder
+// docs/design/analysis/name-resolution-proofs/alias-c-current-namespace-publication-holder.md
+#[test]
+fn alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api() {
+    let source = include_str!("../../tcl-registry/tests/data/native_c_alias_holder197/probe.tcl");
+    for (engine, native) in [
+        (
+            "tcl8.4",
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stdout")
+                .as_slice(),
+        ),
+        (
+            "tcl8.5",
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/8.5.19/stdout")
+                .as_slice(),
+        ),
+        (
+            "tcl8.6",
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/8.6.18/stdout")
+                .as_slice(),
+        ),
+        (
+            "tcl9.0",
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/9.0.4/stdout")
+                .as_slice(),
+        ),
+        (
+            "tcl9.1",
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/9.1.0/stdout")
+                .as_slice(),
+        ),
+        (
+            "jim",
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/jim/stdout")
+                .as_slice(),
+        ),
+    ] {
+        compare_alias_publication_fixture(engine, source, native);
+    }
+}
+
+// Native proof: naming.alias.original-child-interpreter-publication
+// docs/design/analysis/name-resolution-proofs/alias-original-child-interpreter-publication.md
+#[test]
+fn child_alias_publication_matches_original_supported_provider_apis() {
+    let source =
+        include_str!("../../tcl-registry/tests/data/native_child_alias_publication199/probe.tcl");
+    for (engine, native) in [
+        (
+            "tcl8.4",
+            include_bytes!(
+                "../../tcl-registry/tests/data/native_child_alias_publication199/8.4.20/stdout"
+            )
+            .as_slice(),
+        ),
+        (
+            "tcl8.5",
+            include_bytes!(
+                "../../tcl-registry/tests/data/native_child_alias_publication199/8.5.19/stdout"
+            )
+            .as_slice(),
+        ),
+        (
+            "tcl8.6",
+            include_bytes!(
+                "../../tcl-registry/tests/data/native_child_alias_publication199/8.6.18/stdout"
+            )
+            .as_slice(),
+        ),
+        (
+            "tcl9.0",
+            include_bytes!(
+                "../../tcl-registry/tests/data/native_child_alias_publication199/9.0.4/stdout"
+            )
+            .as_slice(),
+        ),
+        (
+            "tcl9.1",
+            include_bytes!(
+                "../../tcl-registry/tests/data/native_child_alias_publication199/9.1.0/stdout"
+            )
+            .as_slice(),
+        ),
+        (
+            "jim",
+            include_bytes!(
+                "../../tcl-registry/tests/data/native_child_alias_publication199/jim/stdout"
+            )
+            .as_slice(),
+        ),
+    ] {
+        compare_alias_publication_fixture(engine, source, native);
+    }
+}
+
 #[test]
 fn unresolved_foreign_native_preflight_is_a_host_admission_error() {
     use tcl_runtime_api::{

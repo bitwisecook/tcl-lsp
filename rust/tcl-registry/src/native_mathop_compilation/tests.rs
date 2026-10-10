@@ -222,6 +222,7 @@ fn shared_mathop_factory_keeps_original_operator_after_command_rename() {
         .native_compilation_for_registration("::tcl::mathop::+", dialect)
         .unwrap();
     let context = NativeCompilationContext {
+        mode: crate::native_compilation::NativeCompilationMode::BytecodeObject,
         frame: NativeCompilationFrame::ProcedureCode,
         ..NativeCompilationContext::default()
     };

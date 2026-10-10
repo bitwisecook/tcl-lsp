@@ -74,11 +74,10 @@
 //! behind after renaming `Foo` to `Bar` really does break the program —
 //! tclsh 9.0.4 / 8.6.16, identically: `$a Bar` then answers `unknown method
 //! "Bar": must be destroy`, because the renamed method is no longer
-//! exported.  Rename rewrites those words ([`crate::references::
-//! member_reference_spans`]); when the analyser recorded such a member for
-//! the renamed name but the grammar-driven scan cannot find a rewritable
-//! word for it (an `oo::define` block the class record does not span), the
-//! rename is refused rather than emitted incomplete.
+//! exported. [`crate::references::member_reference_spans`] locates readonly
+//! hazards through original source class and definition-body owners. An edit
+//! requires the independent original selected worker and class-allocation
+//! receipt; missing references or receipts refuse the rename.
 //!
 //! ## Ambiguous object commands
 //!
@@ -222,16 +221,22 @@ fn unproved_definition_member_reference(
         .iter()
         .filter_map(|name| analysis.all_classes.get(name))
         .find_map(|class| {
-            crate::references::member_reference_spans(source, dialect, class, target.method)
-                .into_iter()
-                .find(|span| {
-                    crate::receiver_identity::definition_reference_at_cursor(
-                        analysis,
-                        source,
-                        span.start(),
-                    )
-                    .is_none()
-                })
+            crate::references::member_reference_spans(
+                source,
+                analysis,
+                dialect,
+                class,
+                target.method,
+            )
+            .into_iter()
+            .find(|span| {
+                crate::receiver_identity::definition_reference_at_cursor(
+                    analysis,
+                    source,
+                    span.start(),
+                )
+                .is_none()
+            })
         })?;
     Some(RenameRefusal::new(
         format!(
@@ -470,8 +475,14 @@ fn unlocatable_member_reference(
         if !recorded {
             continue;
         }
-        if crate::references::member_reference_spans(source, dialect, class_def, target.method)
-            .is_empty()
+        if crate::references::member_reference_spans(
+            source,
+            analysis,
+            dialect,
+            class_def,
+            target.method,
+        )
+        .is_empty()
         {
             return Some(RenameRefusal::new(
                 format!(
@@ -587,17 +598,20 @@ fn dispatch_hazard(
             let Some(receiver) = strip_var_decoration(head_text) else {
                 return;
             };
-            // The receiver's class binding: the analyser's `instance_classes`
-            // walk first, then the object-type lattice's scope-keyed map — a
-            // **singleton** there is the same sound fact the reference scan
-            // rewrites through, so a site the scan covers is
-            // no hazard and a site provably of a *different* class is not
-            // either.  A multi-class or absent lattice binding stays the
-            // untracked-receiver refusal: widening an abstention into "not
-            // family" would silence the gate that keeps this rename honest.
-            let bound_class = analysis.instance_classes.get(receiver).or_else(|| {
-                crate::definition::lattice_singleton_class(analysis, receiver, head.span.start())
-            });
+            // Only a positioned current receiver can narrow a Native hazard.
+            // Source constructor candidates never establish rename identity.
+            let bound_class = if analysis.allows_lexical_declaration_advice() {
+                analysis.instance_classes.get(receiver).or_else(|| {
+                    crate::definition::lattice_singleton_class(
+                        analysis,
+                        receiver,
+                        head.span.start(),
+                    )
+                })
+            } else {
+                crate::receiver_identity::class_at_command_head(analysis, source, cmd)
+                    .map(|class| &class.qualified_name)
+            };
             match bound_class {
                 // Receiver bound to a class: only a computed member word is
                 // a hazard, and only when that class's dispatch really can
@@ -668,9 +682,20 @@ pub(crate) fn walk_document(
     analysis: &AnalysisResult,
     visit: &mut impl FnMut(&SegmentedCommand),
 ) {
-    walk_region(source, dialect, 0, source.len(), 0, visit);
+    if !analysis.allows_lexical_declaration_advice() {
+        crate::executable_regions::visit_analysis_executable_commands(
+            source,
+            analysis,
+            &mut |command, _, _| {
+                visit(command);
+                false
+            },
+        );
+        return;
+    }
+    walk_region(source, dialect, analysis, 0, source.len(), 0, visit);
     for proc_def in analysis.all_procs.values() {
-        walk_body(source, dialect, proc_def.body_span, visit);
+        walk_body(source, dialect, analysis, proc_def.body_span, visit);
     }
     for class_def in analysis.all_classes.values() {
         for m in class_def
@@ -680,7 +705,7 @@ pub(crate) fn walk_document(
             .chain(class_def.constructors.iter())
             .chain(class_def.destructor.iter())
         {
-            walk_body(source, dialect, m.body_span, visit);
+            walk_body(source, dialect, analysis, m.body_span, visit);
         }
     }
 }
@@ -702,25 +727,31 @@ fn walk_self_dispatch(
             continue;
         };
         for body in collect_member_bodies_scoped(class_def, target.is_classmethod) {
-            walk_body(source, dialect, body, &mut |cmd: &SegmentedCommand| {
-                if found.is_some() {
-                    return;
-                }
-                let (Some(head), Some(member)) = (cmd.argv.first(), cmd.argv.get(1)) else {
-                    return;
-                };
-                if !matches!(member.kind, TokenType::Var | TokenType::Cmd) {
-                    return;
-                }
-                let Some(head_text) = slice(source, head.span) else {
-                    return;
-                };
-                if crate::definition::method_dispatch_keyword_in(dialect, head_text)
-                    == Some(tcl_registry::registry::MethodDispatchKind::SelfDispatch)
-                {
-                    found = Some(member.span);
-                }
-            });
+            walk_body(
+                source,
+                dialect,
+                analysis,
+                body,
+                &mut |cmd: &SegmentedCommand| {
+                    if found.is_some() {
+                        return;
+                    }
+                    let (Some(head), Some(member)) = (cmd.argv.first(), cmd.argv.get(1)) else {
+                        return;
+                    };
+                    if !matches!(member.kind, TokenType::Var | TokenType::Cmd) {
+                        return;
+                    }
+                    let Some(head_text) = slice(source, head.span) else {
+                        return;
+                    };
+                    if crate::definition::method_dispatch_keyword_in(dialect, head_text)
+                        == Some(tcl_registry::registry::MethodDispatchKind::SelfDispatch)
+                    {
+                        found = Some(member.span);
+                    }
+                },
+            );
         }
     }
     if let Some(span) = found {
@@ -731,22 +762,39 @@ fn walk_self_dispatch(
 fn walk_body(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     body_span: Span,
     visit: &mut impl FnMut(&SegmentedCommand),
 ) {
     if body_span.is_empty() {
         return;
     }
+    if !analysis.allows_lexical_declaration_advice() {
+        crate::executable_regions::visit_analysis_executable_commands(
+            source,
+            analysis,
+            &mut |command, _, _| {
+                if body_span.start() <= command.span.start()
+                    && command.span.end() <= body_span.end()
+                {
+                    visit(command);
+                }
+                false
+            },
+        );
+        return;
+    }
     let (start, end) = strip_outer_braces(source, body_span);
     if start >= end {
         return;
     }
-    walk_region(source, dialect, start, end, 0, visit);
+    walk_region(source, dialect, analysis, start, end, 0, visit);
 }
 
 fn walk_region(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     start: usize,
     end: usize,
     depth: u32,
@@ -763,8 +811,16 @@ fn walk_region(
     );
     for cmd in &commands {
         visit(cmd);
-        for (inner_start, inner_end) in dispatch_scan_regions(source, dialect, cmd) {
-            walk_region(source, dialect, inner_start, inner_end, depth + 1, visit);
+        for (inner_start, inner_end) in dispatch_scan_regions(source, analysis, dialect, cmd) {
+            walk_region(
+                source,
+                dialect,
+                analysis,
+                inner_start,
+                inner_end,
+                depth + 1,
+                visit,
+            );
         }
     }
 }
@@ -915,6 +971,13 @@ fn site_resolution_rules_out(
     cell: &str,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> bool {
+    // naming.core.original-dynamic-name-value-purpose
+    // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+    // Source role/value advice does not prove a Native or hosted current cell.
+    // Logical compatibility may narrow its own source refusal independently.
+    if !analysis.allows_lexical_declaration_advice() {
+        return false;
+    }
     analysis.dynamic_variable_names.iter().any(|site| {
         site.span == span
             && site.resolved.as_deref().is_some_and(|resolved| {
@@ -1419,6 +1482,47 @@ mod tests {
         assert!(reason.contains("computed at run time"), "{reason}");
     }
 
+    #[test]
+    fn original_dynamic_name_value_narrowing_stays_in_its_logical_purpose() {
+        // naming.core.original-dynamic-name-value-purpose
+        // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+        let source = "set n other\nset $n 2";
+        for dialect in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jimtcl",
+            "f5-irules",
+        ] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            assert!(!analysis.allows_lexical_declaration_advice(), "{dialect}");
+            assert_eq!(analysis.dynamic_variable_names.len(), 1, "{dialect}");
+            for site in &analysis.dynamic_variable_names {
+                assert!(
+                    !site_resolution_rules_out(
+                        &analysis,
+                        site.span,
+                        "target",
+                        tcl_dialect::DialectProfile::find(dialect).unwrap()
+                    ),
+                    "{dialect}"
+                );
+            }
+        }
+        let logical = Analyser::new().analyse(source, "tcl");
+        assert!(logical.allows_lexical_declaration_advice());
+        let site = logical.dynamic_variable_names.first().unwrap();
+        assert_eq!(site.resolved.as_deref(), Some("other"));
+        assert!(site_resolution_rules_out(
+            &logical,
+            site.span,
+            "target",
+            tcl_dialect::DialectProfile::find("tcl").unwrap()
+        ));
+    }
+
     /// The provenance table itself: a resolvable site carries its value, an
     /// unresolvable one carries `None`, and a **braced** name word — which
     /// substitutes nothing — is not a dynamic site at all.
@@ -1713,6 +1817,43 @@ mod tests {
                 crate::profile_for_dialect("tcl9.0")
             ),
             None
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_receiver_hazard_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_receiver_hazards_cannot_be_narrowed_by_detached_source_class_reports() {
+        // naming.core.original-source-instance-completion
+        // docs/design/analysis/name-resolution-proofs/core-original-source-instance-completion.md
+        let source = "oo::class create C {method method {} {}}; oo::class create Other {}; proc p {receiver} {$receiver method}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis
+            .instance_classes
+            .insert("receiver".to_owned(), "::Other".to_owned());
+        let family = ["::C".to_owned()];
+        let hazard = dispatch_hazard(
+            source,
+            analysis.resolved_profile().unwrap(),
+            &analysis,
+            MethodRenameTarget {
+                family: &family,
+                method: "method",
+                is_classmethod: false,
+                new_name: "changed",
+            },
+            &LineIndex::new(source),
+        )
+        .expect("unproved original receiver remains a hazard");
+        assert!(hazard.reason.contains("class is not tracked"));
+        let range = hazard.range.unwrap();
+        assert_eq!(
+            range.start_character,
+            u32::try_from(source.rfind("method}").unwrap()).unwrap()
         );
     }
 }

@@ -1,0 +1,14 @@
+
+running 9 tests
+test interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch ... ok
+test interp::execution_name_policy::tests::counted_dynamic_cell_does_not_collide_with_declared_cstring_prefix ... ok
+test interp::execution_name_policy::tests::measured_names_use_actual_frame_and_retire_on_error_completion ... ok
+test interp::execution_name_policy::tests::observed_counted_set_dispatch_uses_actual_entered_frame ... ok
+test interp::execution_name_policy::tests::observed_trace_and_upvar_purposes_are_unavailable_in_source_dispatch ... ok
+test interp::execution_name_policy::tests::original_object_assignments_use_the_current_observed_receiver ... ok
+test interp::execution_name_policy::tests::original_observed_substitutions_keep_counted_cells_and_input_forms_separate ... ok
+test interp::execution_name_policy::tests::replacement_activation_and_changed_profile_do_not_inherit_capability ... ok
+test interp::execution_name_policy::tests::scoped_policy_restores_after_error_completion ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 1222 filtered out; finished in 4.25s
+

@@ -1,0 +1,31 @@
+{
+  "purpose": "Finite original Jim static-link recursive getter and free-call-frame storage reuse; C5 optional-statics arity controls independently measured",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "input_channel": "Original ASCII C probe uses original whole-script Tcl_Eval/Jim_Eval in six fresh interpreters per provider; result getter only after completed evaluation",
+  "source_sha256": "75d066787c5141a00ad3a303fe16b6968ac675ffadd6136dac3c39e90e18cd33",
+  "source_pins": [
+    "generic/tclProc.c",
+    "jim.c"
+  ],
+  "limits": [
+    "No address/layout measurements",
+    "No activation identity equivalence or frame-entry authority follows from result data",
+    "No trace/observer or arbitrary teardown completeness claim",
+    "C optional-statics arity controls distinct from Jim storage-reuse results"
+  ],
+  "cases": [
+    "ACTIVE_LINK",
+    "RETIRED_SLOT_SELF_REUSE",
+    "NESTED_SLOT_REUSE",
+    "RETIRED_WRITE_THEN_READ",
+    "SCALAR_CELL_REFERENCE",
+    "GLOBAL_LINK"
+  ]
+}

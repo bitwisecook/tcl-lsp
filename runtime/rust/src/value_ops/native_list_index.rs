@@ -49,9 +49,6 @@ impl RuntimeIndexOwner {
             _owner: owner,
         }
     }
-    pub(crate) fn retain(pointer: *mut TclObj) -> Self {
-        Self::from_owned(obj::Owned::retain(pointer))
-    }
     pub(crate) fn as_ptr(&self) -> *mut TclObj {
         self.pointer
     }
@@ -84,6 +81,15 @@ impl NativeListIndexOps for Interp {
     }
     fn index_members(&mut self, original: &*mut TclObj) -> Result<Vec<*mut TclObj>, ValueError> {
         list::list_elements_native_checked(
+            *original,
+            tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?),
+        )
+    }
+    fn index_ordinary_members(
+        &mut self,
+        original: &*mut TclObj,
+    ) -> Result<Vec<*mut TclObj>, ValueError> {
+        list::ordinary_list_elements_native_checked(
             *original,
             tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?),
         )
@@ -133,7 +139,39 @@ impl NativeListIndexOps for Interp {
         crate::native_arithseries::is_series(*original)
     }
 }
+impl tcl_cmd_core::native_list_index::NativeListRangeOps for Interp {
+    fn range_original(
+        &mut self,
+        original: &*mut TclObj,
+        first: i64,
+        last: i64,
+    ) -> Result<RuntimeIndexOwner, ValueError> {
+        list::native_list_command_range(
+            *original,
+            first,
+            last,
+            tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?),
+        )
+        .map(RuntimeIndexOwner::from_owned)
+    }
+}
 impl Interp {
+    pub(crate) fn original_list_range(
+        &mut self,
+        list: *mut TclObj,
+        first: *mut TclObj,
+        last: *mut TclObj,
+    ) -> Result<RuntimeIndexOwner, CmdError> {
+        if self
+            .native_invocation_dialect()
+            .native_string_protocol()
+            .is_some_and(|protocol| protocol.tcl_version().is_some())
+        {
+            return native_list_index::command_range(self, &list, &first, &last);
+        }
+        let value = tcl_cmd_core::list::lrange(self, &list, &first, &last)?;
+        Ok(RuntimeIndexOwner::from_owned(obj::Owned::retain(value)))
+    }
     pub(crate) fn original_list_index(
         &mut self,
         list: *mut TclObj,

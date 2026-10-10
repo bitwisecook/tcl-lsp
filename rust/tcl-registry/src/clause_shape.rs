@@ -66,6 +66,61 @@ pub enum ClauseShapeError {
 /// Validate a command's clause-chain shape.
 ///
 /// Called with the command's arguments (excluding the command name).
-/// Returns the first structural defect, or `None` for any shape the
+/// Returns the first structural issue, or `None` for any shape the
 /// command accepts.
-pub type ClauseShapeChecker = fn(args: &[&str]) -> Option<ClauseShapeError>;
+pub type ClauseShapeChecker = fn(args: crate::InvocationArguments<'_>) -> Option<ClauseShapeIssue>;
+
+/// An optional source proposal selected by the clause grammar itself.
+/// Positions address complete original arguments after the command head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClauseShapeRepair {
+    /// Merge the recognised final body and all trailing words into one body.
+    MergeTrailingWords {
+        /// Index of the recognised final body, before the first extra word.
+        body: usize,
+    },
+    /// Remove a trailing incomplete clause from its actual opening keyword.
+    RemoveTrailingClause {
+        /// Index of the actual opening keyword of the incomplete clause.
+        keyword: usize,
+    },
+}
+
+/// The first clause defect and an independently authored proposal anchor.
+/// A diagnostic-only hook carries no proposal merely because its error has
+/// the same presentation as an issue produced by a different clause grammar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClauseShapeIssue {
+    error: ClauseShapeError,
+    repair: Option<ClauseShapeRepair>,
+}
+
+impl ClauseShapeIssue {
+    /// Report a defect without borrowing a different grammar's edit anchors.
+    #[must_use]
+    pub const fn diagnostic(error: ClauseShapeError) -> Self {
+        Self {
+            error,
+            repair: None,
+        }
+    }
+
+    pub(crate) const fn with_repair(
+        error: ClauseShapeError,
+        repair: Option<ClauseShapeRepair>,
+    ) -> Self {
+        Self { error, repair }
+    }
+
+    /// The structural defect, independent of diagnostic presentation.
+    #[must_use]
+    pub const fn error(self) -> ClauseShapeError {
+        self.error
+    }
+
+    /// A proposal anchor authored by the same selected clause grammar.
+    #[must_use]
+    pub const fn repair(self) -> Option<ClauseShapeRepair> {
+        self.repair
+    }
+}

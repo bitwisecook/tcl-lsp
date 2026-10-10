@@ -1,0 +1,67 @@
+{
+  "provider": "8.6.18",
+  "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+  "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+  "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "compile_command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+    "/workspace/.proofs/current-native-static-original143/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-native-static-original144/8.6.18/probe"
+  ],
+  "compile_exit": 0,
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c": "c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3"
+  },
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  "probe_sha256": "88b0b366ceed66311cc46a667c4a5851d9a34569c2969a82f4e20329b5d46405",
+  "queue_sha256": "a6fd58fc898fc9ca98b1001f6407b1022da1a4045ff41cf35ba07ec39b16dcf6",
+  "runner_sha256": "30c1baccd4cf1d2c24fea4d8e1dac1eb48a6d7b51ca577547facf93f312aed82",
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "4f7fc4011d2d4418866b457cdb4a4e64913df877bd14c6e3f57b47d37f9efaf1",
+  "command": [
+    "/workspace/.proofs/captured-native-static-original144/8.6.18/probe"
+  ],
+  "process_exit": 0,
+  "seconds": 0.013240161002613604,
+  "stdout_sha256": "f6cd022f2ae7c20a07000c04ba672f96f2c690f1e1bb027f4ce0f208d47f9ab8",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|0|382e362e3138",
+    "INPUT|ASCII|78",
+    "ASCII_LITERAL_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "INPUT|FF|78ff",
+    "FF_LITERAL_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "INPUT|D800|78eda080",
+    "D800_LITERAL_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "INPUT|D801|78eda081",
+    "D801_LITERAL_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "INPUT|ZERO|78007461696c",
+    "ZERO_LITERAL_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "SOURCE_SET|0|0|4649525354",
+    "COPY_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "SOURCE_SET|0|0|4649525354",
+    "REFERENCE_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "MISSING_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "MISSING_COMMAND|0|0|",
+    "DUPLICATE_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "DUPLICATE_COMMAND|0|0|"
+  ],
+  "reported_version": "8.6.18"
+}

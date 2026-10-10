@@ -21,8 +21,9 @@
 //! Scans iRules source for `if`/`switch` patterns that could become
 //! data-groups and returns structured context (pattern type, inferred value
 //! type, CIDR detection, body-shape analysis, confidence) for an LLM to
-//! refine, plus whether the deterministic extractor
-//! ([`extract_to_datagroup`]) can handle the construct at its cursor.
+//! refine. Static extraction is advertised only when the actual current
+//! analysis independently selects lexical editing advice and the deterministic
+//! extractor ([`extract_to_datagroup`]) accepts the construct.
 //!
 //! This is an AI-only heuristic: segmentation comes from [`walk_commands`] and
 //! the static-extractability check from [`extract_to_datagroup`].
@@ -31,6 +32,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use regex::Regex;
 use serde_json::{Value, json};
+use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_lsp_core::refactor::{extract_to_datagroup, walk_commands};
@@ -87,11 +89,22 @@ impl Candidate {
 
 /// Scan `source` for `if`/`switch` patterns extractable to data-groups.
 fn suggest(source: &str) -> Vec<Value> {
-    let registry = crate::environment::store_for_dialect(DIALECT);
+    let analysis = crate::tools::analyse(source, DIALECT);
+    suggest_for_analysis(source, &analysis)
+}
+
+/// Heuristic report candidates and independent current extraction eligibility.
+fn suggest_for_analysis(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
+    let Some((_, config)) = tcl_compiler::source_graph::current_analysis(source, analysis) else {
+        return Vec::new();
+    };
+    let Some(registry) = analysis.resolved_registry() else {
+        return Vec::new();
+    };
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
 
-    for (texts, line, character) in walk_commands(source, registry, config()) {
+    for (texts, line, character) in walk_commands(source, registry, config) {
         let Some(head) = texts.first() else { continue };
         let mut cand = match head.as_str() {
             "if" => analyse_if_chain(&texts, line),
@@ -101,8 +114,9 @@ fn suggest(source: &str) -> Vec<Value> {
         if let Some(c) = cand.as_mut() {
             let cursor =
                 line_index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(character), source);
-            c.has_static_extraction =
-                extract_to_datagroup(source, cursor, "", registry, &line_index, config()).is_some();
+            c.has_static_extraction = analysis.allows_lexical_declaration_advice()
+                && extract_to_datagroup(source, cursor, "", registry, &line_index, config)
+                    .is_some();
         }
         if let Some(c) = cand {
             out.push(c.into_json());
@@ -560,7 +574,7 @@ mod tests {
         assert_eq!(c[0]["confidence"], "high");
         assert_eq!(c[0]["value_count"], 3);
         assert_eq!(c[0]["suggested_name"], "host_whitelist");
-        assert_eq!(c[0]["has_static_extraction"], true);
+        assert_eq!(c[0]["has_static_extraction"], false);
     }
 
     #[test]
@@ -614,6 +628,50 @@ mod tests {
         let source =
             "switch -glob -- $x {\n    a* { set y 1 }\n    b* { set y 2 }\n    c* { set y 3 }\n}";
         assert!(candidates(source).is_empty());
+    }
+
+    #[test]
+    fn original_datagroup_suggestions_separate_heuristics_from_current_edit_eligibility() {
+        // Implementation contract: naming.mcp.original-datagroup-suggestion-eligibility
+        // docs/design/analysis/name-resolution-proofs/original-datagroup-suggestion-eligibility.md
+        let source = "if {$host eq \"a.com\"} {pool p} elseif {$host eq \"b.com\"} {pool p} elseif {$host eq \"c.com\"} {pool p}";
+        let hosted = crate::tools::analyse(source, DIALECT);
+        let native = crate::tools::analyse(source, "tcl8.6");
+        for analysis in [&hosted, &native] {
+            let candidates = suggest_for_analysis(source, analysis);
+            assert_eq!(candidates.len(), 1);
+            assert_eq!(candidates[0]["has_static_extraction"], false);
+            assert!(suggest_for_analysis(&format!("# changed\n{source}"), analysis).is_empty());
+        }
+
+        let point =
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79);
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "datagroup-explicit-lexical",
+            &[],
+            "Logical data-group source advice",
+            point,
+        )
+        .intern();
+        let registry = hosted.resolved_registry().unwrap();
+        let context = tcl_lsp_core::context_for_dialect_profile(profile)
+            .with_command_store(registry.snapshot().shared_registry());
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(context),
+            LexerConfig::for_profile(Some(profile)),
+        );
+        let mut lexical = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(lexical.allows_lexical_declaration_advice());
+        let candidates = suggest_for_analysis(source, &lexical);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0]["has_static_extraction"], true);
+        let config = lexical.body_lexer_config.as_mut().unwrap();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(suggest_for_analysis(source, &lexical).is_empty());
     }
 
     #[test]

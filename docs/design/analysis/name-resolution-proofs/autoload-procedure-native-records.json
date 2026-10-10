@@ -1,0 +1,1654 @@
+[
+  {
+    "id": "naming.autoload.separator-rebuild-opaque",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/autoload-separator-rebuild-opaque.md",
+    "problem_statement": "A counted command name ::a-FF::b has a matched namespace separator. Retaining the original FF byte and rebuilding it through the selected native string encoder predict different auto_qualify candidate keys.",
+    "question": "What candidate bytes does actual auto_qualify return for counted ::a-FF::b under namespace ::n?",
+    "conclusion": "All five C captures return one rooted key 3a3a61c3bf3a3a62. The FF input unit is represented as C3BF in the returned candidate after this separator-matching library path. This is a measured library result, not an original command lookup or loader execution.",
+    "scope": "Original counted Tcl_NewStringObj names are passed with the separate ASCII ::n namespace to auto_qualify through Tcl_EvalObjv(TCL_EVAL_DIRECT). The retained public C observer reads counted result-list members, not source UTF encoding or displayed names. Each selected release has a successful compile/run association, source/header/static-library/observer/init.tcl digests. Full runtime patchlevel, compiler flags/version, initialisation argument vector and separate raw stderr are unrecorded. No Jim, BIG-IP, loader invocation or command allocation is measured.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "observed",
+        "version": "8.4.20 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; static library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; observer binary SHA256 d1924c4ea8413e92468aab28075bdd1caf4da8f2de815c9d4dc00049738cac57; init.tcl SHA256 a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n0 code0 3a3a61c3bf3a3a62\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.4",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "status": "observed",
+        "version": "8.5.19 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; static library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; observer binary SHA256 916e1a6758acc9ae2113eb62a6a6bf37324a2a359957a395c7a07b5445ef81b5; init.tcl SHA256 21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n0 code0 3a3a61c3bf3a3a62\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.5",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "status": "observed",
+        "version": "8.6.18 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; static library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; observer binary SHA256 8cb139256495a2de1cede70d7aebaa848f4d3d857ef27dab202417133e82e9bd; init.tcl SHA256 513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n0 code0 3a3a61c3bf3a3a62\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.6",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "status": "observed",
+        "version": "9.0.4 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; static library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; observer binary SHA256 a7c5ad8f920cb0ba5785ef5342a37424e66c75938be38ebfa9bd08d8daa0f7fe; init.tcl SHA256 8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n0 code0 3a3a61c3bf3a3a62\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl9.0",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "status": "observed",
+        "version": "9.1.0 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; static library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; observer binary SHA256 1a19f25e3534ff22214153adfc3e382ee78cee6facc35e500b89d6bc2e116442; init.tcl SHA256 636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n0 code0 3a3a61c3bf3a3a62\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl9.1",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "answer": "No Jim auto_qualify original-object capture is attached to this C-library question; a Rust recipe refusal is an independent implementation boundary.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No appliance auto_qualify capture is attached; C library outputs do not establish BIG-IP loader or event behaviour.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/probe.c",
+        "sha256": "85208125b17006c35561364e1ea7a8736353bc36731f48480d65777a5d9a0ab5",
+        "description": "Exact counted original input and reached auto_qualify result-list observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Five recorded source/build/init-library associations; unrecorded fields are not inferred."
+      },
+      {
+        "id": "provider-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/0"
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.4.20.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/1"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.5.19.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/2"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.6.18.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/3"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/9.0.4.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/9.1.0.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      }
+    ],
+    "source_anchors": [],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/naming/autoload.rs",
+        "symbol": "native_autoload_command_candidates",
+        "purpose": "Selected C resident-byte candidate recipe; this pure inventory supplies no loader or original-object authority."
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/naming/autoload.rs",
+        "selector": "naming::autoload::tests::native_autoload_keys_follow_original_regsub_rebuilding",
+        "status": "linked",
+        "assertion": "Compares all25 actual C key projection rows by selected release, including these original ordinal cases; the Jim refusal and constructed namespace preservation are independent Rust assertions."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The exact C probe is retained, but the original argv[1] initialisation script and argv[2] library path are not attached as an argument-vector receipt. The recorded init.tcl digest alone does not reconstruct that source. No exact original-bootstrap runner is claimed. A new reconfirmation must independently supply and hash the selected init.tcl/library and initialisation script, compile this unchanged probe against its selected headers/static library, and record actual runtime version, process status and separate raw streams. Existing five-row projections are retained evidence, not a newly executed run or Rust pass."
+    }
+  },
+  {
+    "id": "naming.autoload.separator-rebuild-zero",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/autoload-separator-rebuild-zero.md",
+    "problem_statement": "Raw-zero and modified-zero original objects have different resident bytes. A separator-matching library transformation may return equal candidate bytes even though it does not establish equality of the original objects or general command-name keys.",
+    "question": "Do a-raw-zero::b and a-C080::b yield the same ordered candidate bytes in actual auto_qualify under ::n?",
+    "conclusion": "The five C providers each return the same two ordered candidate keys for both originals: 3a3a6e3a3a61c0803a3a62, then 3a3a61c0803a3a62. Equality of these transformed library outputs does not establish raw-zero versus modified-zero identity at another command, variable or dictionary comparator.",
+    "scope": "Original counted Tcl_NewStringObj names are passed with the separate ASCII ::n namespace to auto_qualify through Tcl_EvalObjv(TCL_EVAL_DIRECT). The retained public C observer reads counted result-list members, not source UTF encoding or displayed names. Each selected release has a successful compile/run association, source/header/static-library/observer/init.tcl digests. Full runtime patchlevel, compiler flags/version, initialisation argument vector and separate raw stderr are unrecorded. No Jim, BIG-IP, loader invocation or command allocation is measured.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "observed",
+        "version": "8.4.20 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; static library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; observer binary SHA256 d1924c4ea8413e92468aab28075bdd1caf4da8f2de815c9d4dc00049738cac57; init.tcl SHA256 a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n1 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62\n4 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.4",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "status": "observed",
+        "version": "8.5.19 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; static library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; observer binary SHA256 916e1a6758acc9ae2113eb62a6a6bf37324a2a359957a395c7a07b5445ef81b5; init.tcl SHA256 21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n1 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62\n4 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.5",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "status": "observed",
+        "version": "8.6.18 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; static library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; observer binary SHA256 8cb139256495a2de1cede70d7aebaa848f4d3d857ef27dab202417133e82e9bd; init.tcl SHA256 513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n1 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62\n4 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.6",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "status": "observed",
+        "version": "9.0.4 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; static library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; observer binary SHA256 a7c5ad8f920cb0ba5785ef5342a37424e66c75938be38ebfa9bd08d8daa0f7fe; init.tcl SHA256 8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n1 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62\n4 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl9.0",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "status": "observed",
+        "version": "9.1.0 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; static library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; observer binary SHA256 1a19f25e3534ff22214153adfc3e382ee78cee6facc35e500b89d6bc2e116442; init.tcl SHA256 636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n1 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62\n4 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl9.1",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "answer": "No Jim auto_qualify original-object capture is attached to this C-library question; a Rust recipe refusal is an independent implementation boundary.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No appliance auto_qualify capture is attached; C library outputs do not establish BIG-IP loader or event behaviour.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/probe.c",
+        "sha256": "85208125b17006c35561364e1ea7a8736353bc36731f48480d65777a5d9a0ab5",
+        "description": "Exact counted original input and reached auto_qualify result-list observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Five recorded source/build/init-library associations; unrecorded fields are not inferred."
+      },
+      {
+        "id": "provider-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/0"
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.4.20.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/1"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.5.19.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/2"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.6.18.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/3"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/9.0.4.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/9.1.0.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      }
+    ],
+    "source_anchors": [],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/naming/autoload.rs",
+        "symbol": "native_autoload_command_candidates",
+        "purpose": "Selected C resident-byte candidate recipe; this pure inventory supplies no loader or original-object authority."
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/naming/autoload.rs",
+        "selector": "naming::autoload::tests::native_autoload_keys_follow_original_regsub_rebuilding",
+        "status": "linked",
+        "assertion": "Compares all25 actual C key projection rows by selected release, including these original ordinal cases; the Jim refusal and constructed namespace preservation are independent Rust assertions."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The exact C probe is retained, but the original argv[1] initialisation script and argv[2] library path are not attached as an argument-vector receipt. The recorded init.tcl digest alone does not reconstruct that source. No exact original-bootstrap runner is claimed. A new reconfirmation must independently supply and hash the selected init.tcl/library and initialisation script, compile this unchanged probe against its selected headers/static library, and record actual runtime version, process status and separate raw streams. Existing five-row projections are retained evidence, not a newly executed run or Rust pass."
+    }
+  },
+  {
+    "id": "naming.autoload.root-prefix-rebuild-zero",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/autoload-root-prefix-rebuild-zero.md",
+    "problem_statement": "The rooted original ::a-raw-zero-x has one separator. Keeping the root prefix or returning an unrooted reconstructed key changes the autoload inventory even before a loader can run.",
+    "question": "What candidate bytes does actual auto_qualify return for counted ::a-raw-zero-x under ::n?",
+    "conclusion": "All five C captures return the single unrooted candidate 61c08078. The original root prefix is absent and the zero is represented as C080 in this returned key. The observation proves neither a matching auto_index entry nor installed command ownership.",
+    "scope": "Original counted Tcl_NewStringObj names are passed with the separate ASCII ::n namespace to auto_qualify through Tcl_EvalObjv(TCL_EVAL_DIRECT). The retained public C observer reads counted result-list members, not source UTF encoding or displayed names. Each selected release has a successful compile/run association, source/header/static-library/observer/init.tcl digests. Full runtime patchlevel, compiler flags/version, initialisation argument vector and separate raw stderr are unrecorded. No Jim, BIG-IP, loader invocation or command allocation is measured.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "observed",
+        "version": "8.4.20 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; static library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; observer binary SHA256 d1924c4ea8413e92468aab28075bdd1caf4da8f2de815c9d4dc00049738cac57; init.tcl SHA256 a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n2 code0 61c08078\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.4",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "status": "observed",
+        "version": "8.5.19 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; static library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; observer binary SHA256 916e1a6758acc9ae2113eb62a6a6bf37324a2a359957a395c7a07b5445ef81b5; init.tcl SHA256 21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n2 code0 61c08078\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.5",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "status": "observed",
+        "version": "8.6.18 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; static library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; observer binary SHA256 8cb139256495a2de1cede70d7aebaa848f4d3d857ef27dab202417133e82e9bd; init.tcl SHA256 513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n2 code0 61c08078\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.6",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "status": "observed",
+        "version": "9.0.4 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; static library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; observer binary SHA256 a7c5ad8f920cb0ba5785ef5342a37424e66c75938be38ebfa9bd08d8daa0f7fe; init.tcl SHA256 8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n2 code0 61c08078\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl9.0",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "status": "observed",
+        "version": "9.1.0 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; static library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; observer binary SHA256 1a19f25e3534ff22214153adfc3e382ee78cee6facc35e500b89d6bc2e116442; init.tcl SHA256 636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n2 code0 61c08078\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl9.1",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "answer": "No Jim auto_qualify original-object capture is attached to this C-library question; a Rust recipe refusal is an independent implementation boundary.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No appliance auto_qualify capture is attached; C library outputs do not establish BIG-IP loader or event behaviour.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/probe.c",
+        "sha256": "85208125b17006c35561364e1ea7a8736353bc36731f48480d65777a5d9a0ab5",
+        "description": "Exact counted original input and reached auto_qualify result-list observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Five recorded source/build/init-library associations; unrecorded fields are not inferred."
+      },
+      {
+        "id": "provider-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/0"
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.4.20.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/1"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.5.19.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/2"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.6.18.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/3"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/9.0.4.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/9.1.0.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      }
+    ],
+    "source_anchors": [],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/naming/autoload.rs",
+        "symbol": "native_autoload_command_candidates",
+        "purpose": "Selected C resident-byte candidate recipe; this pure inventory supplies no loader or original-object authority."
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/naming/autoload.rs",
+        "selector": "naming::autoload::tests::native_autoload_keys_follow_original_regsub_rebuilding",
+        "status": "linked",
+        "assertion": "Compares all25 actual C key projection rows by selected release, including these original ordinal cases; the Jim refusal and constructed namespace preservation are independent Rust assertions."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The exact C probe is retained, but the original argv[1] initialisation script and argv[2] library path are not attached as an argument-vector receipt. The recorded init.tcl digest alone does not reconstruct that source. No exact original-bootstrap runner is claimed. A new reconfirmation must independently supply and hash the selected init.tcl/library and initialisation script, compile this unchanged probe against its selected headers/static library, and record actual runtime version, process status and separate raw streams. Existing five-row projections are retained evidence, not a newly executed run or Rust pass."
+    }
+  },
+  {
+    "id": "naming.autoload.unqualified-opaque-preservation",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/autoload-unqualified-opaque-preservation.md",
+    "problem_statement": "An unqualified original a-FF has no matched separator. Applying the separator-rebuilding rule unconditionally would rewrite FF even when the actual library preserves it.",
+    "question": "Does actual auto_qualify preserve counted a-FF bytes in its namespace-first and fallback candidates?",
+    "conclusion": "All five C captures return namespace-first 3a3a6e3a3a61ff, then unqualified 61ff. The original FF resident unit survives this no-separator candidate path. This finite result supplies no native original-object getter or arbitrary malformed-UTF command lookup grant.",
+    "scope": "Original counted Tcl_NewStringObj names are passed with the separate ASCII ::n namespace to auto_qualify through Tcl_EvalObjv(TCL_EVAL_DIRECT). The retained public C observer reads counted result-list members, not source UTF encoding or displayed names. Each selected release has a successful compile/run association, source/header/static-library/observer/init.tcl digests. Full runtime patchlevel, compiler flags/version, initialisation argument vector and separate raw stderr are unrecorded. No Jim, BIG-IP, loader invocation or command allocation is measured.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "observed",
+        "version": "8.4.20 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; static library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; observer binary SHA256 d1924c4ea8413e92468aab28075bdd1caf4da8f2de815c9d4dc00049738cac57; init.tcl SHA256 a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n3 code0 3a3a6e3a3a61ff 61ff\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.4",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "status": "observed",
+        "version": "8.5.19 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; static library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; observer binary SHA256 916e1a6758acc9ae2113eb62a6a6bf37324a2a359957a395c7a07b5445ef81b5; init.tcl SHA256 21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n3 code0 3a3a6e3a3a61ff 61ff\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.5",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "status": "observed",
+        "version": "8.6.18 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; static library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; observer binary SHA256 8cb139256495a2de1cede70d7aebaa848f4d3d857ef27dab202417133e82e9bd; init.tcl SHA256 513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n3 code0 3a3a6e3a3a61ff 61ff\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl8.6",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "status": "observed",
+        "version": "9.0.4 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; static library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; observer binary SHA256 a7c5ad8f920cb0ba5785ef5342a37424e66c75938be38ebfa9bd08d8daa0f7fe; init.tcl SHA256 8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n3 code0 3a3a6e3a3a61ff 61ff\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl9.0",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "status": "observed",
+        "version": "9.1.0 (recorded release association; launched patchlevel unqueried)",
+        "build": "Header SHA256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; static library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; observer binary SHA256 1a19f25e3534ff22214153adfc3e382ee78cee6facc35e500b89d6bc2e116442; init.tcl SHA256 636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f; compile/run statuses0. Compiler/configure details are unrecorded.",
+        "input_channel": "Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.",
+        "dialect": "C Tcl",
+        "answer": "Selected original ordinal rows:\n\n```text\n3 code0 3a3a6e3a3a61ff 61ff\n```\nEach returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.",
+        "evidence": [
+          "probe",
+          "provider-tcl9.1",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "answer": "No Jim auto_qualify original-object capture is attached to this C-library question; a Rust recipe refusal is an independent implementation boundary.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No appliance auto_qualify capture is attached; C library outputs do not establish BIG-IP loader or event behaviour.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/probe.c",
+        "sha256": "85208125b17006c35561364e1ea7a8736353bc36731f48480d65777a5d9a0ab5",
+        "description": "Exact counted original input and reached auto_qualify result-list observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Five recorded source/build/init-library associations; unrecorded fields are not inferred."
+      },
+      {
+        "id": "provider-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/0"
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.4.20.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/1"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.5.19.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/2"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/8.6.18.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/3"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/9.0.4.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      },
+      {
+        "id": "provider-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+        "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+        "description": "Exact provider build and successful process association.",
+        "json_pointer": "/engines/4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_autoload_keys/9.1.0.tsv",
+        "sha256": "66b41df6ac0ee884a59e135b9dedeb1d9a8b5602e9a9c9a261c562adb5a5f58c",
+        "description": "Exact counted returned keys; selected ordinal rows are named explicitly in the answer."
+      }
+    ],
+    "source_anchors": [],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/naming/autoload.rs",
+        "symbol": "native_autoload_command_candidates",
+        "purpose": "Selected C resident-byte candidate recipe; this pure inventory supplies no loader or original-object authority."
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/naming/autoload.rs",
+        "selector": "naming::autoload::tests::native_autoload_keys_follow_original_regsub_rebuilding",
+        "status": "linked",
+        "assertion": "Compares all25 actual C key projection rows by selected release, including these original ordinal cases; the Jim refusal and constructed namespace preservation are independent Rust assertions."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The exact C probe is retained, but the original argv[1] initialisation script and argv[2] library path are not attached as an argument-vector receipt. The recorded init.tcl digest alone does not reconstruct that source. No exact original-bootstrap runner is claimed. A new reconfirmation must independently supply and hash the selected init.tcl/library and initialisation script, compile this unchanged probe against its selected headers/static library, and record actual runtime version, process status and separate raw streams. Existing five-row projections are retained evidence, not a newly executed run or Rust pass."
+    }
+  },
+  {
+    "id": "naming.procedure.local-colon-creation-result",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/procedure-local-colon-creation-result.md",
+    "problem_statement": "A single-colon :p procedure name in non-global ::ns is neither an ordinary p nor an explicitly rooted name. Older C releases reject its creation while later C and Jim accept it, and successful native return text differs from a pure validation result.",
+    "question": "Does proc :p succeed inside namespace eval ::ns, and what exact caught completion/result does each provider return?",
+    "conclusion": "C8.4 and C8.5 catch code1 with the exact non-global colon-leading procedure-creation error. C8.6, C9.0 and C9.1 catch code0 with an empty result; Jim catches code0 with result :p. This measures declaration creation acceptance and result only; the procedure body is not invoked.",
+    "scope": "One exact ASCII source creates ::ns and performs local-colon, root-colon and ordinary-local procedure declarations under catch. It prints case/completion/result-character hex in that order; no body invocation occurs. Six original shell digests, native source/header digests, selected Jim dynamic-library digests and process/status/stream hashes are retained. Full launched patchlevels, Jim revision/configure flags and original shell stdin-versus-file argument vector were not queried. Success-return bytes are separate from textual validation and do not grant physical native/CPP/compiler storage.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "observed",
+        "version": "8.4 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-colon\t1\t63616e2774206372656174652070726f63656475726520223a702220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a22\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl8.4",
+          "rows-tcl8.4",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "status": "observed",
+        "version": "8.5 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-colon\t1\t63616e2774206372656174652070726f63656475726520223a702220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a22\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl8.5",
+          "rows-tcl8.5",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "status": "observed",
+        "version": "8.6 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-colon\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl8.6",
+          "rows-tcl8.6",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "status": "observed",
+        "version": "9.0 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-colon\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl9.0",
+          "rows-tcl9.0",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "status": "observed",
+        "version": "9.1 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-colon\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl9.1",
+          "rows-tcl9.1",
+          "projection"
+        ]
+      },
+      {
+        "id": "jim",
+        "status": "observed",
+        "version": "jim (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "Jim Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-colon\t0\t3a70\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-jim",
+          "rows-jim",
+          "projection"
+        ]
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No appliance declaration capture for this exact ASCII source is attached; C/Jim holder validation and return text do not establish BIG-IP load or event outcomes.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "source",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/source.tcl",
+        "sha256": "76f251fec535cf38634e72c7d1d79909242888b045c0333c53f38d29d25c4b04",
+        "description": "Exact three original self-presenting declaration controls; no invocation of the created body."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "Actual six source/shell/status/stream/native-input associations."
+      },
+      {
+        "id": "projection",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/native.tsv",
+        "sha256": "4878d0fc670387ad794a8bca9f6dd8b144a95781cdc6bb7a4bd9118d1a7e030d",
+        "description": "Exact eighteen rows including authored holder/name annotations independently checked against the source and original stdout."
+      },
+      {
+        "id": "provider-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/0"
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.4.txt",
+        "sha256": "8b14197afedbbcca0a966ac750c7f478fbfa99343b4088f89982657f4164bc32",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "provider-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/1"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.5.txt",
+        "sha256": "8b14197afedbbcca0a966ac750c7f478fbfa99343b4088f89982657f4164bc32",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "provider-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/2"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.6.txt",
+        "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "provider-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/3"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/9.0.txt",
+        "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "provider-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/9.1.txt",
+        "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "provider-jim",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/5"
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/jim.txt",
+        "sha256": "3b7a95a4c9d2a6779e6835e72e3db256e8d28d84352b8d71194abff7a6cb5c6f",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          1,
+          1
+        ]
+      }
+    ],
+    "source_anchors": [],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "symbol": "procedure_name_creation_error_for_policy",
+        "purpose": "Selected authored/native textual procedure-name validation; acceptance supplies no physical procedure/header/CPP allocation or native success return value."
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "selector": "native_procedure::tests::procedure_creation_name_policy_matches_18_native_slots_without_header_grants",
+        "status": "linked",
+        "assertion": "Compares selected naming-policy acceptance/error bytes for all18 provider/holder/name annotations, including this case; native success-result bytes remain separate observed data and are not manufactured by the validation query."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The exact complete self-presenting source and six stdout streams are retained with original source/stream digests. The receipt lacks the original shell invocation argument vector, and raw stderr files are absent despite recorded empty-stderr digests; no exact original-channel runner is claimed. A reconfirmation must explicitly select and identify each provider, record stdin versus file consumption, hash the unchanged source, and retain process status and separate streams. Authored naming policy queries are Rust text-validation contracts and cannot donate native execution or physical procedure ownership."
+    }
+  },
+  {
+    "id": "naming.procedure.root-colon-creation-result",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/procedure-root-colon-creation-result.md",
+    "problem_statement": "Rejecting all colon-leading procedure names would erase the distinction between a root holder and the non-global case. A successful creation result also differs between C and Jim.",
+    "question": "What caught completion and result follow proc :p inside namespace eval ::?",
+    "conclusion": "All six captured providers catch code0 for the root-holder declaration. The five C releases return empty creation result; Jim returns :p. This root control does not establish how a single-colon written invocation resolves in an arbitrary caller.",
+    "scope": "One exact ASCII source creates ::ns and performs local-colon, root-colon and ordinary-local procedure declarations under catch. It prints case/completion/result-character hex in that order; no body invocation occurs. Six original shell digests, native source/header digests, selected Jim dynamic-library digests and process/status/stream hashes are retained. Full launched patchlevels, Jim revision/configure flags and original shell stdin-versus-file argument vector were not queried. Success-return bytes are separate from textual validation and do not grant physical native/CPP/compiler storage.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "observed",
+        "version": "8.4 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nroot-colon\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl8.4",
+          "rows-tcl8.4",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "status": "observed",
+        "version": "8.5 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nroot-colon\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl8.5",
+          "rows-tcl8.5",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "status": "observed",
+        "version": "8.6 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nroot-colon\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl8.6",
+          "rows-tcl8.6",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "status": "observed",
+        "version": "9.0 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nroot-colon\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl9.0",
+          "rows-tcl9.0",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "status": "observed",
+        "version": "9.1 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nroot-colon\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl9.1",
+          "rows-tcl9.1",
+          "projection"
+        ]
+      },
+      {
+        "id": "jim",
+        "status": "observed",
+        "version": "jim (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "Jim Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nroot-colon\t0\t3a70\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-jim",
+          "rows-jim",
+          "projection"
+        ]
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No appliance declaration capture for this exact ASCII source is attached; C/Jim holder validation and return text do not establish BIG-IP load or event outcomes.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "source",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/source.tcl",
+        "sha256": "76f251fec535cf38634e72c7d1d79909242888b045c0333c53f38d29d25c4b04",
+        "description": "Exact three original self-presenting declaration controls; no invocation of the created body."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "Actual six source/shell/status/stream/native-input associations."
+      },
+      {
+        "id": "projection",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/native.tsv",
+        "sha256": "4878d0fc670387ad794a8bca9f6dd8b144a95781cdc6bb7a4bd9118d1a7e030d",
+        "description": "Exact eighteen rows including authored holder/name annotations independently checked against the source and original stdout."
+      },
+      {
+        "id": "provider-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/0"
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.4.txt",
+        "sha256": "8b14197afedbbcca0a966ac750c7f478fbfa99343b4088f89982657f4164bc32",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          2,
+          2
+        ]
+      },
+      {
+        "id": "provider-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/1"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.5.txt",
+        "sha256": "8b14197afedbbcca0a966ac750c7f478fbfa99343b4088f89982657f4164bc32",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          2,
+          2
+        ]
+      },
+      {
+        "id": "provider-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/2"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.6.txt",
+        "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          2,
+          2
+        ]
+      },
+      {
+        "id": "provider-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/3"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/9.0.txt",
+        "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          2,
+          2
+        ]
+      },
+      {
+        "id": "provider-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/9.1.txt",
+        "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          2,
+          2
+        ]
+      },
+      {
+        "id": "provider-jim",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/5"
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/jim.txt",
+        "sha256": "3b7a95a4c9d2a6779e6835e72e3db256e8d28d84352b8d71194abff7a6cb5c6f",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          2,
+          2
+        ]
+      }
+    ],
+    "source_anchors": [],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "symbol": "procedure_name_creation_error_for_policy",
+        "purpose": "Selected authored/native textual procedure-name validation; acceptance supplies no physical procedure/header/CPP allocation or native success return value."
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "selector": "native_procedure::tests::procedure_creation_name_policy_matches_18_native_slots_without_header_grants",
+        "status": "linked",
+        "assertion": "Compares selected naming-policy acceptance/error bytes for all18 provider/holder/name annotations, including this case; native success-result bytes remain separate observed data and are not manufactured by the validation query."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The exact complete self-presenting source and six stdout streams are retained with original source/stream digests. The receipt lacks the original shell invocation argument vector, and raw stderr files are absent despite recorded empty-stderr digests; no exact original-channel runner is claimed. A reconfirmation must explicitly select and identify each provider, record stdin versus file consumption, hash the unchanged source, and retain process status and separate streams. Authored naming policy queries are Rust text-validation contracts and cannot donate native execution or physical procedure ownership."
+    }
+  },
+  {
+    "id": "naming.procedure.ordinary-local-creation-result",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/procedure-ordinary-local-creation-result.md",
+    "problem_statement": "The colon-leading rejection could be mistaken for a general refusal to create a procedure in ::ns. An ordinary p control distinguishes holder existence from the name-specific rule and preserves native creation return text.",
+    "question": "What caught completion and result follow ordinary proc p inside namespace eval ::ns?",
+    "conclusion": "All six captured providers catch code0 for ordinary local p. C creation results are empty; Jim returns p. This control establishes neither the created command's physical header nor its later procedure activation or body execution.",
+    "scope": "One exact ASCII source creates ::ns and performs local-colon, root-colon and ordinary-local procedure declarations under catch. It prints case/completion/result-character hex in that order; no body invocation occurs. Six original shell digests, native source/header digests, selected Jim dynamic-library digests and process/status/stream hashes are retained. Full launched patchlevels, Jim revision/configure flags and original shell stdin-versus-file argument vector were not queried. Success-return bytes are separate from textual validation and do not grant physical native/CPP/compiler storage.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "observed",
+        "version": "8.4 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-plain\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl8.4",
+          "rows-tcl8.4",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "status": "observed",
+        "version": "8.5 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-plain\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl8.5",
+          "rows-tcl8.5",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "status": "observed",
+        "version": "8.6 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-plain\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl8.6",
+          "rows-tcl8.6",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "status": "observed",
+        "version": "9.0 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-plain\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl9.0",
+          "rows-tcl9.0",
+          "projection"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "status": "observed",
+        "version": "9.1 (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "C Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-plain\t0\t\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-tcl9.1",
+          "rows-tcl9.1",
+          "projection"
+        ]
+      },
+      {
+        "id": "jim",
+        "status": "observed",
+        "version": "jim (capture association; full launched version was not queried)",
+        "build": "Selected original shell SHA256 d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0; recorded native-input and loaded-library digests are in the provider receipt. They supply no absent source excerpt or current build equivalence; compiler/configure and Jim revision are unrecorded.",
+        "input_channel": "ASCII self-presenting shell source; original stdin-versus-file invocation unrecorded",
+        "dialect": "Jim Tcl",
+        "answer": "Exact original case/completion/result-character hex:\n\n```text\nlocal-plain\t0\t70\n```\nThe shell process exits0; the middle column is the caught guest completion, independently from process status. Success return text is preserved separately from declaration validation.",
+        "evidence": [
+          "source",
+          "provider-jim",
+          "rows-jim",
+          "projection"
+        ]
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No appliance declaration capture for this exact ASCII source is attached; C/Jim holder validation and return text do not establish BIG-IP load or event outcomes.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "source",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/source.tcl",
+        "sha256": "76f251fec535cf38634e72c7d1d79909242888b045c0333c53f38d29d25c4b04",
+        "description": "Exact three original self-presenting declaration controls; no invocation of the created body."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "Actual six source/shell/status/stream/native-input associations."
+      },
+      {
+        "id": "projection",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/native.tsv",
+        "sha256": "4878d0fc670387ad794a8bca9f6dd8b144a95781cdc6bb7a4bd9118d1a7e030d",
+        "description": "Exact eighteen rows including authored holder/name annotations independently checked against the source and original stdout."
+      },
+      {
+        "id": "provider-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/0"
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.4.txt",
+        "sha256": "8b14197afedbbcca0a966ac750c7f478fbfa99343b4088f89982657f4164bc32",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          3,
+          3
+        ]
+      },
+      {
+        "id": "provider-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/1"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.5.txt",
+        "sha256": "8b14197afedbbcca0a966ac750c7f478fbfa99343b4088f89982657f4164bc32",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          3,
+          3
+        ]
+      },
+      {
+        "id": "provider-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/2"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/8.6.txt",
+        "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          3,
+          3
+        ]
+      },
+      {
+        "id": "provider-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/3"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/9.0.txt",
+        "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          3,
+          3
+        ]
+      },
+      {
+        "id": "provider-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/9.1.txt",
+        "sha256": "f5f9f2aeaff367ef4d0e45e47c964f6d1ca7222c05eef90e0384a68e15423176",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          3,
+          3
+        ]
+      },
+      {
+        "id": "provider-jim",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+        "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+        "description": "This exact selected shell association, source/header digest references and status.",
+        "json_pointer": "/engines/5"
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/authored_procedure_names/jim.txt",
+        "sha256": "3b7a95a4c9d2a6779e6835e72e3db256e8d28d84352b8d71194abff7a6cb5c6f",
+        "description": "Original caught declaration completion/result stream.",
+        "lines": [
+          3,
+          3
+        ]
+      }
+    ],
+    "source_anchors": [],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "symbol": "procedure_name_creation_error_for_policy",
+        "purpose": "Selected authored/native textual procedure-name validation; acceptance supplies no physical procedure/header/CPP allocation or native success return value."
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "selector": "native_procedure::tests::procedure_creation_name_policy_matches_18_native_slots_without_header_grants",
+        "status": "linked",
+        "assertion": "Compares selected naming-policy acceptance/error bytes for all18 provider/holder/name annotations, including this case; native success-result bytes remain separate observed data and are not manufactured by the validation query."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The exact complete self-presenting source and six stdout streams are retained with original source/stream digests. The receipt lacks the original shell invocation argument vector, and raw stderr files are absent despite recorded empty-stderr digests; no exact original-channel runner is claimed. A reconfirmation must explicitly select and identify each provider, record stdin versus file consumption, hash the unchanged source, and retain process status and separate streams. Authored naming policy queries are Rust text-validation contracts and cannot donate native execution or physical procedure ownership."
+    }
+  }
+]

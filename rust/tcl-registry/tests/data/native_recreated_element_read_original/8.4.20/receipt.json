@@ -1,0 +1,31 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/native-recreated-element142/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.0048439319944009185,
+  "reported_version": "8.4.20",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "6332cbe0cc8ea8128016174dad8719410b89ed844f0234232ca6fbcf34b34e32",
+  "runner_sha256": "7d517f1ab2deb50c65b14582cb5b517562f65ec7acfd274ccd88ea5c7305af6b",
+  "stdout_sha256": "c870bd1bba73299339c1b8bfa9df1cfecf288ae2dbf07a0ae94198696371ce91",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a"
+  },
+  "rows": [
+    "PATCHLEVEL 8.4.20",
+    "SETUP 0 ",
+    "OBSERVATION 31207b63616e2774207265616420223a3a61286b29223a206e6f207375636820656c656d656e7420696e2061727261797d20313030205245414420313030"
+  ],
+  "input_channel": "ASCII LF source-file CLI; selected interpreter trace registration and fresh scalar callbacks",
+  "boundary": "Old element READ callback unsets whole array, recreates same-key element, installs a new READ observer and reads the new element before old callback return. Observes old increment completion separately. Explicit trace SETUP refusal is unsupported, not callback behaviour. No physical object/header, compiler/cache or BIG-IP claim."
+}

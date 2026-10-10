@@ -1003,9 +1003,8 @@ fn emit_missing_data_collect_warnings(
     state: &CollectFlowState,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
-    // The event table owns protocol and side requirements. The first event
-    // statement is a fallback anchor until the analyser exposes event-token
-    // spans directly to this flow pass.
+    // The event table owns protocol/side requirements; the retained declaration
+    // owns its original event operand. Body statements supply no header geometry.
     let mut emitted_events: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for event in events_seen {
         let Some((protocols, required_side)) = events.data_collect_requirement(event) else {
@@ -1040,8 +1039,11 @@ fn emit_missing_data_collect_warnings(
             // miss one. This is intentionally an abstention, not a warning.
             continue;
         }
+        let Some(span) = event_anchor_span(cu, registry, event) else {
+            continue;
+        };
         out.push(IrulesCheckWarning {
-            span: event_anchor_span(cu, event),
+            span,
             code: DiagCode::Irule1005,
             message: format!(
                 "'{event}' will never fire without a {required_side} {} call in another event.",
@@ -1053,20 +1055,20 @@ fn emit_missing_data_collect_warnings(
     }
 }
 
-/// Return the first statement span in `event`, or a stable zero-width fallback.
-fn event_anchor_span(cu: &CompilationUnit, event: &str) -> Span {
-    let qname = format!("::when::{event}");
+/// Original event operand from the authentic selected declaration generation.
+fn event_anchor_span(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    event: &str,
+) -> Option<Span> {
     cu.functions()
-        .find(|fu| fu.name == qname || fu.name.starts_with(&format!("{qname}#")))
-        .and_then(|fu| {
-            let span = fu
-                .cfg
-                .blocks
-                .get(&fu.cfg.entry)
-                .and_then(|b| b.statements.first().map(crate::ir::Statement::span))?;
-            Some(fu.abs_span(span))
+        .filter_map(|fu| fu.irules_event_body.as_ref())
+        .filter(|body| body.event() == event)
+        .filter_map(|body| {
+            body.event_word(&cu.ir_module.source, cu.ir_module.lexer_config, registry)
         })
-        .unwrap_or(Span::new(0, 0))
+        .map(tcl_lexer::NativeWord::span)
+        .min_by_key(|span| span.start())
 }
 
 /// Emit IRULE1006 for payload commands that explicitly require collection.
@@ -1722,11 +1724,12 @@ pub fn find_hoistable_set_warnings(
             let [place] = places.as_slice() else {
                 continue;
             };
-            let Some(cell @ crate::connection_scope::EventCell::Connection(_)) =
-                crate::connection_scope::cell_from_place(place)
-            else {
+            let Some(cell) = crate::connection_scope::cell_from_place(place) else {
                 continue;
             };
+            if !cell.is_connection() {
+                continue;
+            }
             if name.is_empty()
                 || value.is_empty()
                 || place.observed
@@ -2351,6 +2354,53 @@ mod tests {
             ws.iter().any(|w| w.code == DiagCode::Irule1005),
             "expected IRULE1005, got {ws:?}",
         );
+    }
+
+    #[test]
+    fn irule1005_retains_the_original_event_operand_instead_of_a_body_anchor() {
+        // naming.consumer.original-diagnostic-source-actions
+        // docs/design/analysis/name-resolution-proofs/original-diagnostic-source-actions.md
+        // Source geometry, with no Native event/TMM activation claim.
+        for source in [
+            "set marker 😀\nwhen {HTTP_REQUEST_DATA} {set body value}\n",
+            "when HTTP_REQUEST_DATA priority 123 { }\n",
+        ] {
+            let reg = registry();
+            let cu = CompilationUnit::build_for(source, &reg, false);
+            let diagnostics = find_collect_flow_warnings(
+                &cu,
+                &reg,
+                Some(SurfaceQuery::any_release(Family::F5Irules)),
+            );
+            let diagnostic = diagnostics
+                .iter()
+                .find(|row| row.code == DiagCode::Irule1005)
+                .expect("source event requiring collection");
+            let body = cu.ir_module.irules_event_bodies.values().next().unwrap();
+            let word = body
+                .event_word(&cu.ir_module.source, cu.ir_module.lexer_config, &reg)
+                .expect("genuine complete original event operand");
+            assert_eq!(diagnostic.span, word.span());
+            let written = &source[word.span().as_range()];
+            assert!(matches!(
+                written,
+                "{HTTP_REQUEST_DATA}" | "HTTP_REQUEST_DATA"
+            ));
+            assert!(
+                body.event_word(
+                    &tcl_lexer::SourceImage::document(&format!("#{source}")),
+                    cu.ir_module.lexer_config,
+                    &reg
+                )
+                .is_none()
+            );
+            let mut stale_config = cu.ir_module.lexer_config;
+            stale_config.strict_quoting ^= true;
+            assert!(
+                body.event_word(&cu.ir_module.source, stale_config, &reg)
+                    .is_none()
+            );
+        }
     }
 
     #[test]

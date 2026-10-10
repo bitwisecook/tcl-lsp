@@ -1,0 +1,49 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/native-matcher-output-retention317/probe.tcl"
+  ],
+  "exit": 1,
+  "seconds": 0.016502897982718423,
+  "provider": "jim",
+  "provider_version_association": "version 0.84-9-g5bac7c9 initial_class class alias_command alias",
+  "version_association_receipt": "/workspace/.proofs/native-jim-class-source269/jim/receipt.json",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "9bc275e5e4b587352b931685e82d909d54eabf58e2c6654007869d60a35fa2c7",
+  "stdout_sha256": "4d952a4ff31085bb9a940b04eb31b0ffc252c68153d4ad41fd2975a1c721d1cf",
+  "stderr_sha256": "5659c806add458096614531039542917d9d86b4b8949c165652f34c8dd09ee9e",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806"
+  },
+  "rows": [
+    "regexp 0 0 0 0 ABSENT",
+    "regexp_nocase 0 0 0 0 ABSENT",
+    "regexp_expanded_plain 0 0 0 0 ABSENT",
+    "regexp_expanded_space 0 0 1 1 ab",
+    "scan_decimal 0 0 0 0 ABSENT",
+    "scan_hex 0 0 0 0 ABSENT",
+    "scan_literal 0 0 0 0 ABSENT",
+    "scan_match 0 0 1 1 42",
+    "regexp 1 0 0 1 OLD",
+    "regexp_nocase 1 0 0 1 OLD",
+    "regexp_expanded_plain 1 0 0 1 OLD",
+    "regexp_expanded_space 1 0 1 1 ab",
+    "scan_decimal 1 0 0 1 OLD",
+    "scan_hex 1 0 0 1 OLD",
+    "scan_literal 1 0 0 1 OLD",
+    "scan_match 1 0 1 1 42"
+  ],
+  "input_channel": "Fixed ASCII LF source-file CLI; public catch code/result, info-exists and output values only. No native object representation, argv/header pointer, entered callback frame or internal table inference.",
+  "question": "naming.diagnostics.original-matcher-output-retention"
+}

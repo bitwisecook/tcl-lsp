@@ -1,0 +1,12 @@
+
+running 7 tests
+test namespace_rename::original::tests::original_namespace_coverage_reuses_analysis_body_sources_and_rejects_foreign_images ... ok
+test namespace_rename::original::tests::original_namespace_rename_batches_path_children_and_preserves_other_native_values ... ok
+test namespace_rename::original::tests::original_namespace_rename_coverage_detects_escaped_names_in_unpositioned_data ... ok
+test namespace_rename::original::tests::original_namespace_rename_keeps_opaque_siblings_distinct_with_ui_maps_cleared ... ok
+test namespace_rename::original::tests::original_namespace_rename_preserves_braced_and_array_variable_boundaries ... ok
+test namespace_rename::original::tests::original_namespace_rename_refuses_readonly_computed_and_stale_sources ... ok
+test namespace_rename::original::tests::original_namespace_rename_unknown_operands_refuse_only_unruled_out_prefixes ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 2607 filtered out; finished in 9.68s
+

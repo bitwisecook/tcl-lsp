@@ -1,0 +1,147 @@
+[
+  {
+    "id": "naming.variable.hosted-storage-context",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/variable-hosted-storage-context.md",
+    "problem_statement": "A source profile can advertise iRules commands while the supplied entry belongs to another hosted interpreter or has no worker context. Selecting namespace storage from that profile can fabricate per-TMM cells and carry equal contents across different host contexts.",
+    "question": "Which inputs select hosted variable storage, and can source naming advice or a registry profile supply those inputs?",
+    "conclusion": "Hosted storage policy is retained separately from source naming and the registry profile. Namespace cells use the explicitly supplied hosted context and retained namespace components, while the independently selected authored worker publication receipt retains its own namespace and observer boundary. Missing TMM namespace geometry supplies no storage domain. Frame entry and restoration preserve the context; joins of unequal contexts withdraw contents, representations, binding certainty and observer closure. Source advice supplies no worker, RULE_INIT publication, runtime cell, Normal completion or cross-worker value agreement.",
+    "scope": "Rust implementation contract for explicitly supplied hosted execution contexts, actual namespace geometry and separately supplied worker/publication receipts. Source-only vendor inputs and floating profiles do not attest an appliance build or select an executing worker. No BIG-IP appliance observation or RULE_INIT broadcast law is asserted.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/var_resolve.rs",
+        "selector": "var_resolve::worker_execution_ingress_tests::hosted_storage_requires_selected_context_and_retained_namespace_geometry",
+        "assertion": "Explicit host context and exact root/static components select the domain independently of catalogue profile; unrelated contexts and unavailable components cannot select worker storage.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_resolve.rs",
+        "selector": "var_resolve::worker_execution_ingress_tests::different_hosted_contexts_with_equal_values_withdraw_cell_contents",
+        "assertion": "Entered frames and restoration retain the context, while unequal host contexts withdraw equal known bytes and observer/binding certainty.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding.rs",
+        "selector": "command_binding::hosted_storage_entry_tests::hosted_storage_entry_is_independent_of_registry_and_source_name_policy",
+        "assertion": "Entry options retain independent host policy without a worker, publication provider or registry-profile inference.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-registry/src/f5/storage.rs",
+        "selector": "f5::storage::tests::hosted_domain_uses_exact_resolved_components",
+        "assertion": "Exact root/static components differ from nested, raw-zero and literal-colon components; non-TMM contexts do not acquire TMM storage classification.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding.rs",
+        "symbol": "SourceAnalysisEntry",
+        "purpose": "Host policy is supplied independently of source syntax, name input, physical compiler and catalogue."
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_resolve.rs",
+        "symbol": "bind_cell_identity",
+        "purpose": "Use retained namespace components and independently selected host context; an authored publication receipt remains a separate issuer."
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_resolve.rs",
+        "symbol": "ResolveContext::join",
+        "purpose": "Unequal hosted contexts withdraw precise contents and observers instead of meeting equal reported names or values."
+      },
+      {
+        "path": "rust/tcl-registry/src/f5/storage.rs",
+        "symbol": "namespace_storage_domain_in_path",
+        "purpose": "One shared host-domain classifier consumes already resolved component geometry."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs",
+        "symbol": "SourceAnalysisCacheKey",
+        "purpose": "Retain the independent host context in the complete immutable entry key."
+      },
+      {
+        "path": "rust/tcl-compiler/src/lowering/mod.rs",
+        "symbol": "set_source_analysis_options",
+        "purpose": "Transport the host context through the owned entry and subsequent lowerer source options."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The linked Rust selectors exercise context, geometry and join premises. No executed Rust receipt or native appliance protocol is attached to this record. Actual worker publication and the unanswered appliance publication question remain independent."
+    }
+  }
+]

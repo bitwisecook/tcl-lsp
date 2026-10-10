@@ -729,7 +729,7 @@ pub fn origin_bytes<O: Namespaces + ?Sized>(ops: &O, name: &[u8]) -> Option<Vec<
     let cur = ops.current();
     let mut cmd = ops.find_command_bytes(cur, name)?;
     if ops.namespace_import_binding() == Some(tcl_dialect::NamespaceImportBinding::SourceName) {
-        let root = ops.find_namespace(cur, "::")?;
+        let root = ops.root_command_context_checked().ok()??;
         let mut visited = std::collections::HashSet::new();
         while let Some(prefix) = ops.command_alias_prefix_bytes(cmd) {
             if !visited.insert(cmd) {
@@ -765,11 +765,11 @@ pub fn origin_bytes_checked<O: Namespaces + ?Sized>(
         return Ok(None);
     };
     if ops.namespace_import_binding() == Some(tcl_dialect::NamespaceImportBinding::SourceName) {
-        let Some(root) = ops.find_namespace_bytes_checked(ops.current(), b"::")? else {
+        let Some(root) = ops.root_command_context_checked()? else {
             return Ok(None);
         };
         let mut visited = std::collections::HashSet::new();
-        while let Some(prefix) = ops.command_alias_prefix_bytes(command) {
+        while let Some(prefix) = ops.command_alias_prefix_bytes_checked(command)? {
             if !visited.insert(command) {
                 return Ok(None);
             }
@@ -1365,6 +1365,10 @@ mod tests {
 mod native_dispatch_diagnostic_tests {
     #[test]
     fn original_namespace_dispatch_errors_match_all_eighteen_native_results() {
+        // Native proof naming.namespace.dispatch-error-noun-and-ambiguity:
+        // docs/design/analysis/name-resolution-proofs/namespace-dispatch-error-noun-and-ambiguity.md
+        // Native proof naming.namespace.dispatch-prefix-worker-availability:
+        // docs/design/analysis/name-resolution-proofs/namespace-dispatch-prefix-worker-availability.md
         use tcl_syntax::naming::NativeNameProtocol;
         let mut compared = 0;
         for row in include_str!("../tests/data/native_namespace_dispatch/errors.tsv").lines() {

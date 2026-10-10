@@ -1,0 +1,7 @@
+{
+  "source_path": "tmp/tcl9.1.0/generic/tclDecls.h",
+  "source_sha256": "590a2f27f095e7150bfb648f43d00c9a9ec5dbb2b936e413b551f663dc972142",
+  "snippet": "#define Tcl_Eval(interp, objPtr) \\\n\tTcl_EvalEx(interp, objPtr, TCL_INDEX_NONE, 0)\n",
+  "snippet_sha256": "50cde600478b3551463746d96b83ba951a98a33fb5793926b165d8ae364f9342",
+  "function": "Tcl_Eval macro"
+}

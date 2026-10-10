@@ -1,0 +1,55 @@
+{
+  "source_rows": [
+    {
+      "provider": "8.5.19",
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+      "source_sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+      "lf_start": 1349,
+      "lf_end": 1362,
+      "prefix_sha256": "47c5229b0036a8b89c368dcb7635d3866b75f3986d0e0565a38bcf16fdf4529f",
+      "exact_prefix_equality": true,
+      "snippet": "    script = Tcl_NewStringObj(\n\"\t    ::apply [::list {{pattern *}} {\\n\"\n\"\t\t::set cmds {}\\n\"\n\"\t\t::foreach cmd [::info commands ::tcl::mathfunc::$pattern] {\\n\"\n\"\t\t    ::lappend cmds [::namespace tail $cmd]\\n\"\n\"\t\t}\\n\"\n\"\t\t::foreach cmd [::info commands tcl::mathfunc::$pattern] {\\n\"\n\"\t\t    ::set cmd [::namespace tail $cmd]\\n\"\n\"\t\t    ::if {$cmd ni $cmds} {\\n\"\n\"\t\t\t::lappend cmds $cmd\\n\"\n\"\t\t    }\\n\"\n\"\t\t}\\n\"\n\"\t\t::return $cmds\\n\"\n\"\t    } [::namespace current]] \", -1);",
+      "snippet_sha256": "f13eaca39c0aed81b750f4f9a08418db998f06500c3129ddfa9cae766120f7c2",
+      "scope": "Exact InfoFunctionsCmd script-construction prefix only; subsequent argument append and evaluation are outside this excerpt."
+    },
+    {
+      "provider": "8.6.18",
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "source_sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "lf_start": 1495,
+      "lf_end": 1508,
+      "prefix_sha256": "47c5229b0036a8b89c368dcb7635d3866b75f3986d0e0565a38bcf16fdf4529f",
+      "exact_prefix_equality": true,
+      "snippet": "    script = Tcl_NewStringObj(\n\"\t    ::apply [::list {{pattern *}} {\\n\"\n\"\t\t::set cmds {}\\n\"\n\"\t\t::foreach cmd [::info commands ::tcl::mathfunc::$pattern] {\\n\"\n\"\t\t    ::lappend cmds [::namespace tail $cmd]\\n\"\n\"\t\t}\\n\"\n\"\t\t::foreach cmd [::info commands tcl::mathfunc::$pattern] {\\n\"\n\"\t\t    ::set cmd [::namespace tail $cmd]\\n\"\n\"\t\t    ::if {$cmd ni $cmds} {\\n\"\n\"\t\t\t::lappend cmds $cmd\\n\"\n\"\t\t    }\\n\"\n\"\t\t}\\n\"\n\"\t\t::return $cmds\\n\"\n\"\t    } [::namespace current]] \", -1);",
+      "snippet_sha256": "f13eaca39c0aed81b750f4f9a08418db998f06500c3129ddfa9cae766120f7c2",
+      "scope": "Exact InfoFunctionsCmd script-construction prefix only; subsequent argument append and evaluation are outside this excerpt."
+    },
+    {
+      "provider": "9.0.4",
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "lf_start": 1484,
+      "lf_end": 1497,
+      "prefix_sha256": "47c5229b0036a8b89c368dcb7635d3866b75f3986d0e0565a38bcf16fdf4529f",
+      "exact_prefix_equality": true,
+      "snippet": "    script = Tcl_NewStringObj(\n\"\t    ::apply [::list {{pattern *}} {\\n\"\n\"\t\t::set cmds {}\\n\"\n\"\t\t::foreach cmd [::info commands ::tcl::mathfunc::$pattern] {\\n\"\n\"\t\t    ::lappend cmds [::namespace tail $cmd]\\n\"\n\"\t\t}\\n\"\n\"\t\t::foreach cmd [::info commands tcl::mathfunc::$pattern] {\\n\"\n\"\t\t    ::set cmd [::namespace tail $cmd]\\n\"\n\"\t\t    ::if {$cmd ni $cmds} {\\n\"\n\"\t\t\t::lappend cmds $cmd\\n\"\n\"\t\t    }\\n\"\n\"\t\t}\\n\"\n\"\t\t::return $cmds\\n\"\n\"\t    } [::namespace current]] \", -1);",
+      "snippet_sha256": "f13eaca39c0aed81b750f4f9a08418db998f06500c3129ddfa9cae766120f7c2",
+      "scope": "Exact InfoFunctionsCmd script-construction prefix only; subsequent argument append and evaluation are outside this excerpt."
+    },
+    {
+      "provider": "9.1.0",
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "lf_start": 1468,
+      "lf_end": 1481,
+      "prefix_sha256": "47c5229b0036a8b89c368dcb7635d3866b75f3986d0e0565a38bcf16fdf4529f",
+      "exact_prefix_equality": true,
+      "snippet": "    script = Tcl_NewStringObj(\n\"\t    ::apply [::list {{pattern *}} {\\n\"\n\"\t\t::set cmds {}\\n\"\n\"\t\t::foreach cmd [::info commands ::tcl::mathfunc::$pattern] {\\n\"\n\"\t\t    ::lappend cmds [::namespace tail $cmd]\\n\"\n\"\t\t}\\n\"\n\"\t\t::foreach cmd [::info commands tcl::mathfunc::$pattern] {\\n\"\n\"\t\t    ::set cmd [::namespace tail $cmd]\\n\"\n\"\t\t    ::if {$cmd ni $cmds} {\\n\"\n\"\t\t\t::lappend cmds $cmd\\n\"\n\"\t\t    }\\n\"\n\"\t\t}\\n\"\n\"\t\t::return $cmds\\n\"\n\"\t    } [::namespace current]] \", -1);",
+      "snippet_sha256": "f13eaca39c0aed81b750f4f9a08418db998f06500c3129ddfa9cae766120f7c2",
+      "scope": "Exact InfoFunctionsCmd script-construction prefix only; subsequent argument append and evaluation are outside this excerpt."
+    }
+  ],
+  "original_receipt_sha256": "f371d950b2d73bfcc5c81eecf8a87f72036b08459e8a12b303e11760184f9856",
+  "implementation_prefix_sha256": "47c5229b0036a8b89c368dcb7635d3866b75f3986d0e0565a38bcf16fdf4529f",
+  "scope": "Four independently inspected pinned C script prefixes. No compilation, linked build or execution is inferred from these excerpts."
+}

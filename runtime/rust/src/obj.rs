@@ -1709,6 +1709,9 @@ pub(crate) fn stock_list_input_class(
     {
         return Class::String;
     }
+    if core::ptr::eq(kind, &crate::native_source::JIM_SOURCE_TYPE) {
+        return Class::JimSource;
+    }
     if core::ptr::eq(kind, &crate::list::TCL_LIST_TYPE) {
         return Class::List;
     }

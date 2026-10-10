@@ -272,3 +272,136 @@ fn last_list_header_retires_source_filename_before_lifetime_view() {
     assert_eq!(expected.lines().count(), 11);
     assert_eq!(observed, expected);
 }
+
+#[test]
+fn original_jim_source_length_preserves_resident_bytes_and_child_source() {
+    // Native proof: naming.list.original-jim-source-length-conversion
+    // docs/design/analysis/name-resolution-proofs/list-original-jim-source-length-conversion.md
+    use tcl_syntax::value::ValueOps;
+    let mut vm = crate::Vm::with_native_core(
+        Box::new(Vec::<u8>::new()),
+        std::rc::Rc::new(crate::host_native::NativeHost::new()),
+        tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .unwrap();
+    let context = vm.native_jim_object_context().unwrap();
+    let parent = Value::new_native_string_bytes(b"A  B".as_slice());
+    parent
+        .install_native_jim_source(
+            NativeJimSourceInfo {
+                filename: Value::new_native_string_bytes(b"source-check.tcl".as_slice()),
+                line: 17,
+            },
+            &context,
+        )
+        .unwrap();
+    assert_eq!(
+        parent.stock_list_input_class(),
+        tcl_registry::native_stock_list::NativeStockListInputClass::JimSource
+    );
+    let mut observed = String::new();
+    writeln!(
+        observed,
+        "SOURCE_BEFORE|{}|{}",
+        kind(&parent),
+        usize::from(parent.resident_string_bytes().is_some())
+    )
+    .unwrap();
+    let length = vm.list_len(&parent).unwrap();
+    writeln!(
+        observed,
+        "SOURCE_AFTER|{}|{length}|{}|{}",
+        kind(&parent),
+        usize::from(parent.resident_string_bytes().is_some()),
+        hex(&parent.resident_string_bytes().unwrap())
+    )
+    .unwrap();
+    let member = vm.list_index(&parent, 0).unwrap().unwrap();
+    let info = member.pin_native_jim_source_info(&context).unwrap();
+    writeln!(
+        observed,
+        "SOURCE_CHILD|{}|{}|{}",
+        kind(&member),
+        info.line,
+        hex(&info.filename.resident_string_bytes().unwrap())
+    )
+    .unwrap();
+    let native =
+        include_str!("../../tcl-registry/tests/data/native_source_list_length241/jim/stdout");
+    assert_eq!(
+        observed.lines().collect::<Vec<_>>(),
+        native
+            .lines()
+            .filter(|row| row.starts_with("SOURCE_"))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn original_source_length_and_concat_channels_match_all_native_providers() {
+    // Native proof: naming.list.original-jim-source-length-conversion
+    // docs/design/analysis/name-resolution-proofs/list-original-jim-source-length-conversion.md
+    macro_rules! fixture {
+        ($file:literal) => {
+            include_bytes!(concat!(
+                "../../tcl-registry/tests/data/native_source_list_length241/",
+                $file
+            ))
+        };
+    }
+    macro_rules! rows {
+        ($provider:literal) => {
+            include_str!(concat!(
+                "../../tcl-registry/tests/data/native_source_list_length241/",
+                $provider,
+                "/stdout"
+            ))
+        };
+    }
+    let sources: [&[u8]; 3] = [
+        fixture!("original-0.tcl"),
+        fixture!("original-1.tcl"),
+        fixture!("original-2.tcl"),
+    ];
+    let mut compared = 0;
+    for (engine, native) in [
+        ("tcl8.4", rows!("8.4.20")),
+        ("tcl8.5", rows!("8.5.19")),
+        ("tcl8.6", rows!("8.6.18")),
+        ("tcl9.0", rows!("9.0.4")),
+        ("tcl9.1", rows!("9.1.0")),
+        ("jim", rows!("jim")),
+    ] {
+        let mut vm = crate::Vm::with_native_core(
+            Box::new(Vec::<u8>::new()),
+            std::rc::Rc::new(crate::host_native::NativeHost::new()),
+            tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        for (index, source) in sources.into_iter().enumerate() {
+            let completion = vm.try_eval_source_bytes(source).unwrap();
+            let label = format!("ORIGINAL_{index}");
+            let row = native
+                .lines()
+                .find(|row| row.split('|').next() == Some(label.as_str()))
+                .unwrap();
+            let fields = row.split('|').collect::<Vec<_>>();
+            assert_eq!(
+                completion.code.as_int(),
+                fields[1].parse::<i64>().unwrap(),
+                "{engine}/{index}"
+            );
+            assert_eq!(
+                vm.native_name_operand_bytes(&completion.result)
+                    .unwrap()
+                    .as_ref(),
+                unhex(fields[2]),
+                "{engine}/{index}"
+            );
+            compared += 1;
+        }
+    }
+    assert_eq!(compared, 18);
+}

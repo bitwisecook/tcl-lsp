@@ -255,6 +255,8 @@ mod tests {
         }
     }
 
+    // Native proof: naming.variable.namespace-upvar-original-compiler-frontiers
+    // docs/design/analysis/name-resolution-proofs/variable.namespace-upvar-original-compiler-frontiers.md
     #[test]
     fn original_c85_namespace_upvar_matches_15_native_compiler_frontiers() {
         let mut count = 0;
@@ -321,6 +323,8 @@ mod tests {
         assert_eq!(direct.outcome, NativeNamespaceBindingOutcome::Generic);
         assert!(direct.namespace.is_none());
     }
+    // Native proof: naming.variable.namespace-upvar-original-compiler-frontiers
+    // docs/design/analysis/name-resolution-proofs/variable.namespace-upvar-original-compiler-frontiers.md
     #[test]
     fn original_modern_namespace_upvar_matches_45_native_compiler_frontiers() {
         for (label, version, rows) in [

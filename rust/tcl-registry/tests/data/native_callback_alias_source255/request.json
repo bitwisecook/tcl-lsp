@@ -1,0 +1,15 @@
+{
+  "question": "naming.callback.alias-capture-source-control",
+  "problem": "What public argument order do single and nested aliases deliver to lsort callbacks, and does moving an alias or moving/replacing its target change target-name lookup and accepted count?",
+  "channel": "Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim.",
+  "source_sha256": "aa5887af2a1f90a6ef9658d0ac679ef72567670eb67df30b08753ee3830454b0",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested"
+}

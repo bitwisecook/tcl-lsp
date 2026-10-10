@@ -16,6 +16,33 @@ fn matches(pattern: &[u8], candidate: &[u8]) -> Result<bool, NativeGlobUnavailab
 }
 
 impl NativeNameProtocol {
+    /// Enumerate retained original Jim table-key spellings through the core handler.
+    /// The selected comparison/match strips root qualifiers; the result keeps the
+    /// original key bytes. Kind and live availability are supplied by the owner.
+    ///
+    /// # Errors
+    /// Refuses a non-Jim recipe or an unavailable original native match operation.
+    pub fn jim_core_command_names(
+        self,
+        original_pattern: Option<&[u8]>,
+        candidates: &[Vec<u8>],
+        include_spaces: bool,
+    ) -> Result<Vec<Vec<u8>>, NativeGlobUnavailable> {
+        if !self.is_jim084() {
+            return Err(NativeGlobUnavailable::PurposeUnavailable);
+        }
+        let mut names = std::collections::BTreeSet::new();
+        for candidate in candidates {
+            if !include_spaces && c_string_extent(candidate).contains(&b' ') {
+                continue;
+            }
+            if original_pattern.map_or(Ok(true), |pattern| matches(pattern, candidate))? {
+                names.insert(candidate.clone());
+            }
+        }
+        Ok(names.into_iter().collect())
+    }
+
     /// Enumerate Jim's actual flat table through its namespace-aware `info` helper.
     /// Candidates are retained primary command keys, already filtered by command
     /// kind and availability. A constructed C namespace path supplies no holder.
@@ -80,6 +107,41 @@ impl NativeNameProtocol {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn original_jim_core_inventory_matches_comparison_keys_but_retains_original_reports() {
+        // Native proof: naming.info.original-root-and-explicit-nons-command-inventory
+        // docs/design/analysis/name-resolution-proofs/info-original-root-and-explicit-nons-command-inventory.md
+        // These supplied keys are premises; this pure operation does not allocate a table entry.
+        let names = [
+            b"::r2286_global".to_vec(),
+            b"::r2286 spaced".to_vec(),
+            b"r2286_holder::r2286_local".to_vec(),
+        ];
+        let jim = NativeNameProtocol::Jim084;
+        assert_eq!(
+            jim.jim_core_command_names(Some(b"r2286*"), &names, false)
+                .unwrap(),
+            [
+                b"::r2286_global".to_vec(),
+                b"r2286_holder::r2286_local".to_vec()
+            ]
+        );
+        assert_eq!(
+            jim.jim_core_command_names(Some(b"r2286*"), &names, true)
+                .unwrap(),
+            [
+                b"::r2286 spaced".to_vec(),
+                b"::r2286_global".to_vec(),
+                b"r2286_holder::r2286_local".to_vec()
+            ]
+        );
+        assert_eq!(
+            jim.jim_core_command_names(Some(b"::r2286_holder::*"), &names, true)
+                .unwrap(),
+            [b"r2286_holder::r2286_local".to_vec()]
+        );
+    }
+
     #[test]
     fn jim_helper_keeps_flat_keys_and_relative_global_fallback_separate() {
         let keys = [

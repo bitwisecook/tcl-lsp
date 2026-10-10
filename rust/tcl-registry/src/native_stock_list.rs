@@ -31,6 +31,8 @@ pub enum NativeStockListInputClass {
     InstructionName,
     /// Authentic pinned Jim command/variable lookup primary with ordinary List conversion.
     JimLookup,
+    /// Authentic pinned Jim Source primary, retaining its original filename and line.
+    JimSource,
     /// Native namespace-name primary with ordinary stock List conversion.
     NamespaceName,
     /// Authentic C parsed variable-name primary.
@@ -102,6 +104,9 @@ impl NativeObjectLengthProtocol {
         use NativeObjectLengthAction as Action;
         use NativeStockListInputClass as Class;
         let version = self.engine.tcl_version();
+        if class == Class::JimSource && !self.engine.is_jim084() {
+            return None;
+        }
         if version.is_some_and(|version| version >= TclVersion::V9_0) && canonical_empty {
             return Some(Action::Constant(0));
         }
@@ -195,6 +200,9 @@ impl NativeStockListLengthProtocol {
     ) -> Option<NativeStockListCacheDisposition> {
         use NativeStockListCacheDisposition as Cache;
         use NativeStockListInputClass as Class;
+        if class == Class::JimSource && !self.engine.engine.is_jim084() {
+            return None;
+        }
         if self.engine.engine.is_jim084() {
             return (class != Class::ByteArray).then_some(Cache::List);
         }

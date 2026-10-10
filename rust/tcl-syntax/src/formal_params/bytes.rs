@@ -36,6 +36,17 @@ pub enum ByteFormalParameterError {
 }
 
 impl ByteFormalParameterError {
+    /// Explicit native formal-format error code, independent of its message.
+    /// C8.4/8.5 and Jim leave the default error code in the measured definition path.
+    #[must_use]
+    pub fn error_code_for_definition(&self, protocol: NativeNameProtocol) -> Option<&'static [u8]> {
+        (protocol
+            .tcl_version()
+            .is_some_and(|version| version >= TclVersion::V8_6)
+            && !matches!(self, Self::DuplicateArgs))
+        .then_some(b"TCL OPERATION PROC FORMALARGUMENTFORMAT".as_slice())
+    }
+
     /// Render the native definition diagnostic without repairing operand bytes.
     #[must_use]
     pub fn message_for_definition(
@@ -235,20 +246,23 @@ pub fn bind_formal_argument_bytes(
 ) -> Result<Vec<FormalByteArgumentBinding>, super::FormalArityError> {
     use FormalByteArgumentBinding as Binding;
     let jim = grammar == ParameterGrammar::Jim;
+    let shape = super::formal_argument_count_shape(
+        parameters
+            .iter()
+            .map(|parameter| (parameter.name == b"args", parameter.default.is_some())),
+        grammar,
+    );
+    if !shape.accepts(count) {
+        return Err(super::FormalArityError);
+    }
     let required = parameters
         .iter()
-        .filter(|p| p.name != b"args" && p.default.is_none())
+        .filter(|parameter| parameter.name != b"args" && parameter.default.is_none())
         .count();
     let optional = parameters
         .iter()
-        .filter(|p| p.name != b"args" && p.default.is_some())
+        .filter(|parameter| parameter.name != b"args" && parameter.default.is_some())
         .count();
-    if jim
-        && (count < required
-            || (parameters.iter().all(|p| p.name != b"args") && count > required + optional))
-    {
-        return Err(super::FormalArityError);
-    }
     let mut optional_left = count.saturating_sub(required);
     let mut argument = 0;
     let mut seen = std::collections::HashSet::new();

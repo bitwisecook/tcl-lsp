@@ -1,0 +1,19 @@
+{
+  "provider": "jim",
+  "channel": "ASCII source-file shell ingress; result string length/index and scan %c are reported as decimal units in an ASCII-only row. No raw counted NativeString NUL, binary byte projection or physical object cache claim.",
+  "input_sha256": "e744d3ba4b9237b459549aecc16d80cd1cc65dfd02f2f4dcf857af37dfaf05c4",
+  "runner_sha256": "7cbc9896b77e4075d092e6d2a6a27571dc09059acc75205b1f959fdf256cf29d",
+  "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/current-namespace-byte-controls88-v2/cases.tcl"
+  ],
+  "reported_version": "0.84-9-g5bac7c9",
+  "version_exit": 0,
+  "exit": 0,
+  "stdout_sha256": "27162260b7b7501c40f2429bc349e88854210f8150bfa3913e9b47f9d462c51f",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": 11,
+  "limits": "ASCII source shell. No counted API, raw NUL, physical cache, options, or arbitrary namespace protocol grant."
+}

@@ -45,7 +45,7 @@ use tcl_registry::events::{EventLifecycleRelation, EventRegistry, EventVariableF
 use tcl_registry::{CommandRegistry, Traits};
 
 use crate::compilation_unit::FunctionUnit;
-use crate::ir::{Statement, when_event_name};
+use crate::ir::Statement;
 use crate::var_resolve::{VariableCellKey, VariableCellSet, VariableCellTable};
 
 /// A resolved cross-event cell; namespace cells and flow locals never alias.
@@ -54,7 +54,31 @@ pub enum EventCell {
     /// A Tcl namespace cell in the executing interpreter/worker.
     Namespace(VariableCellKey),
     /// A variable in the current connection frame.
-    Connection(String),
+    Connection(tcl_core_types::NameBytes),
+    /// A supplied execution context retained separately from naming geometry.
+    Executed {
+        /// Exact underlying namespace or connection root.
+        cell: Box<EventCell>,
+        /// Independently supplied interpreter identity.
+        interpreter: Option<String>,
+        /// Worker, reload epoch and connection selected by execution.
+        execution: Option<tcl_registry::f5::WorkerExecution>,
+        /// Host storage policy of this resolved cell.
+        storage_domain: Option<tcl_registry::f5::VariableStorageDomain>,
+    },
+}
+
+impl EventCell {
+    /// Whether the independently retained root is a connection-frame cell.
+    /// This classification establishes no event ordering or current value.
+    #[must_use]
+    pub fn is_connection(&self) -> bool {
+        match self {
+            Self::Connection(_) => true,
+            Self::Namespace(_) => false,
+            Self::Executed { cell, .. } => cell.is_connection(),
+        }
+    }
 }
 
 /// Variable summary for a single ``when`` event handler.
@@ -172,6 +196,7 @@ impl ConnectionScope {
 #[must_use]
 pub fn event_resolve_context(event: &str) -> crate::var_resolve::ResolveContext {
     let mut entry = crate::var_resolve::ResolveContext::for_namespace("::");
+    entry.hosted_execution_context = Some(tcl_registry::f5::BigIpExecutionContext::TmmIRule);
     let frame = EventRegistry::build().variable_frame(event);
     entry.frame_kind = if frame == EventVariableFrame::InitialisationNamespace {
         crate::var_resolve::VariableFrameKind::Global
@@ -191,21 +216,6 @@ pub fn event_resolve_context(event: &str) -> crate::var_resolve::ResolveContext 
             .map(|namespace| (*namespace).to_owned()),
     );
     entry
-}
-
-/// F5 function entry shared by diagnostics and execution adapters.
-#[must_use]
-pub fn irules_function_resolve_context(qname: &str) -> crate::var_resolve::ResolveContext {
-    if qname.starts_with("::when::") {
-        return event_resolve_context(when_event_name(qname));
-    }
-    let mut context = crate::var_resolve::ResolveContext::for_function(qname);
-    context.known_namespaces.extend(
-        tcl_registry::f5::runtime_namespaces(tcl_registry::f5::BigIpExecutionContext::TmmIRule)
-            .iter()
-            .map(|namespace| (*namespace).to_owned()),
-    );
-    context
 }
 
 /// Build a [`ConnectionScope`] from compiled ``when``
@@ -237,7 +247,10 @@ pub fn build_connection_scope_with_registry<S: std::hash::BuildHasher>(
     let mut summaries: HashMap<String, EventVarSummary> = HashMap::new();
     let mut handlers = HashMap::new();
     for (qname, fu) in when_procedures {
-        let event = when_event_name(qname);
+        let Some(body) = &fu.irules_event_body else {
+            continue;
+        };
+        let event = body.event();
         let summary = extract_event_summary(event, fu, commands);
         handlers.insert(qname.clone(), summary.clone());
         if let Some(previous) = summaries.get_mut(event) {
@@ -306,11 +319,7 @@ fn collect_handler_relations(events: &EventRegistry, scope: &mut ConnectionScope
                 continue;
             }
             if writer.event != reader.event {
-                for cell in writer
-                    .cell_defs
-                    .keys()
-                    .filter(|cell| matches!(cell, EventCell::Connection(_)))
-                {
+                for cell in writer.cell_defs.keys().filter(|cell| cell.is_connection()) {
                     if reader.cell_reads.contains_key(cell)
                         && let Some(note) = events.variable_scope_note(&writer.event, &reader.event)
                     {
@@ -361,7 +370,10 @@ fn collect_handler_relations(events: &EventRegistry, scope: &mut ConnectionScope
                         cross_imports.extend(labels.iter().cloned());
                     }
                 }
-                if writer.event != "RULE_INIT" && writer.worker_static_cells.contains(cell) {
+                if events.variable_frame(&writer.event)
+                    != EventVariableFrame::InitialisationNamespace
+                    && writer.worker_static_cells.contains(cell)
+                {
                     for key in names {
                         if let Some(labels) = writer.source_labels.get(key) {
                             racy_statics.extend(labels.iter().cloned());
@@ -426,12 +438,28 @@ pub(crate) fn cell_from_place(place: &crate::place::Place) -> Option<EventCell> 
     if place.dynamic {
         return None;
     }
-    if place.is_global() {
-        Some(EventCell::Namespace(crate::var_resolve::cell_key(place)))
+    let root = if place.is_global() {
+        EventCell::Namespace(crate::var_resolve::cell_key(place))
     } else if place.ns == crate::place::LOCAL_NS {
-        Some(EventCell::Connection(place.name.clone()))
+        // A resolved native root never re-enters through its reporting label.
+        // Places without cell identity belong to the explicit authored model.
+        EventCell::Connection(place.cell.as_ref().map_or_else(
+            || tcl_core_types::NameBytes::from(place.name.as_bytes()),
+            |cell| cell.name.clone(),
+        ))
     } else {
-        None
+        return None;
+    };
+    match &place.cell {
+        Some(cell) if cell.execution.is_some() || cell.interpreter.is_some() => {
+            Some(EventCell::Executed {
+                cell: Box::new(root),
+                interpreter: cell.interpreter.clone(),
+                execution: cell.execution,
+                storage_domain: cell.storage_domain,
+            })
+        }
+        _ => Some(root),
     }
 }
 
@@ -844,9 +872,119 @@ mod tests {
     fn when_procs(cu: &CompilationUnit) -> HashMap<String, FunctionUnit> {
         cu.procedures
             .iter()
-            .filter(|(qn, _)| qn.starts_with("::when::"))
+            .filter(|(_, unit)| unit.irules_event_body.is_some())
             .map(|(qn, fu)| (qn.clone(), fu.clone()))
             .collect()
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.registry-event-frame-identity
+    // docs/design/analysis/name-resolution-proofs/variable-registry-event-frame-identity.md
+    fn original_event_frames_require_the_selected_body_and_not_function_labels() {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::irules());
+        let source = "when HTTP_REQUEST {set local 1}";
+        let unit = CompilationUnit::build_for(source, &registry, false);
+        let event = unit.procedures.get("::when::HTTP_REQUEST").unwrap();
+        let body = event
+            .irules_event_body
+            .as_ref()
+            .expect("selected original event body");
+        assert_eq!(body.event(), "HTTP_REQUEST");
+        assert!(body.matches_source(
+            &tcl_lexer::SourceImage::document(source),
+            unit.ir_module.lexer_config
+        ));
+        assert!(!body.matches_source(
+            &tcl_lexer::SourceImage::document(&format!("{source}# changed")),
+            unit.ir_module.lexer_config
+        ));
+        let mut changed_config = unit.ir_module.lexer_config;
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        assert!(!body.matches_source(&tcl_lexer::SourceImage::document(source), changed_config));
+        let points = event
+            .ssa
+            .point_contexts
+            .as_ref()
+            .expect("actual event point contexts");
+        let (&first, _) = event
+            .cfg
+            .blocks
+            .iter()
+            .find(|(_, block)| !block.statements.is_empty())
+            .unwrap();
+        let actual_entry = points.context_before(first, 0).unwrap();
+        assert_eq!(
+            actual_entry.frame_kind,
+            crate::var_resolve::VariableFrameKind::Local
+        );
+        assert_eq!(
+            actual_entry.hosted_execution_context,
+            Some(tcl_registry::f5::BigIpExecutionContext::TmmIRule)
+        );
+        assert_eq!(actual_entry.execution, None);
+        let entry = body.conditional_entry();
+        assert_eq!(
+            entry.frame_kind,
+            crate::var_resolve::VariableFrameKind::Local
+        );
+        assert_eq!(
+            entry.hosted_execution_context,
+            Some(tcl_registry::f5::BigIpExecutionContext::TmmIRule)
+        );
+        assert_eq!(entry.execution, None);
+        assert!(entry.constant_values.is_empty());
+        let handlers =
+            HashMap::from([("report label unrelated to event".to_owned(), event.clone())]);
+        let scope = build_connection_scope_with_registry(&handlers, &registry);
+        assert!(scope.summaries.contains_key("HTTP_REQUEST"));
+        assert!(
+            !scope
+                .summaries
+                .contains_key("report label unrelated to event")
+        );
+        let mut unowned = event.clone();
+        unowned.irules_event_body = None;
+        let scope = build_connection_scope_with_registry(
+            &HashMap::from([("::when::RULE_INIT".to_owned(), unowned)]),
+            &registry,
+        );
+        assert!(
+            scope.summaries.is_empty(),
+            "a display label cannot manufacture event policy"
+        );
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.registry-event-frame-identity
+    // docs/design/analysis/name-resolution-proofs/variable-registry-event-frame-identity.md
+    fn original_procedure_prefix_and_foreign_body_cannot_select_event_storage() {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::irules());
+        let source = "namespace eval ::when {}\nproc ::when::HTTP_REQUEST {} {set local 1}";
+        let unit = CompilationUnit::build_for(source, &registry, false);
+        assert!(unit.ir_module.irules_event_bodies.is_empty());
+        assert!(
+            unit.procedures
+                .values()
+                .all(|function| function.irules_event_body.is_none())
+        );
+        let source = "when HTTP_REQUEST {set local 1}";
+        let module = crate::lowering::lower_to_ir(source, &registry);
+        let body = module
+            .irules_event_bodies
+            .get("::when::HTTP_REQUEST")
+            .unwrap();
+        let procedure = module.procedures.get("::when::HTTP_REQUEST").unwrap();
+        assert!(body.owns_procedure(procedure, &module.source, module.lexer_config, &registry));
+        let mut changed = procedure.clone();
+        changed.span = tcl_lexer::Span::new(procedure.span.start() + 1, procedure.span.end());
+        assert!(!body.owns_procedure(&changed, &module.source, module.lexer_config, &registry));
+        changed = procedure.clone();
+        changed.body.statements.clear();
+        assert!(!body.owns_procedure(&changed, &module.source, module.lexer_config, &registry));
+        let foreign = CommandRegistry::build_default();
+        assert!(!body.owns_procedure(procedure, &module.source, module.lexer_config, &foreign));
     }
 
     #[test]
@@ -881,7 +1019,7 @@ mod tests {
                 token,
                 path: tcl_core_types::ByteNamespacePath::from_segments(["static"]),
             }),
-            simple: "x".to_owned(),
+            simple: "x".into(),
         };
         let selected = native_key(1);
         let relocation = crate::var_resolve::VariableProofRelocation {
@@ -909,6 +1047,99 @@ mod tests {
     }
 
     #[test]
+    fn cross_event_cells_keep_native_bytes_and_supplied_execution_context() {
+        // Implementation contract: naming.variable.event-cell-execution-isolation
+        // docs/design/analysis/name-resolution-proofs/variable-event-cell-execution-isolation.md
+        use crate::place::{CellGeneration, CellIdentity, CellOwner};
+        use tcl_registry::f5::WorkerExecution;
+        let local = |bytes: &[u8], execution| {
+            let mut place = crate::place::scalar("SAME_REPORT", crate::place::LOCAL_NS, false);
+            place.cell = Some(CellIdentity {
+                owner: CellOwner::Activation("authored handler".into()),
+                name: bytes.into(),
+                generation: CellGeneration::Incoming,
+                interpreter: None,
+                storage_domain: None,
+                execution,
+            });
+            place
+        };
+        let first = cell_from_place(&local(b"v\xed\xa0\x80", None)).unwrap();
+        let other = cell_from_place(&local(b"v\xed\xa0\x81", None)).unwrap();
+        assert_ne!(first, other, "display equality cannot merge opaque roots");
+        assert!(first.is_connection());
+        let execution = WorkerExecution {
+            worker: Some(1),
+            initialisation_epoch: 2,
+            connection: Some(3),
+        };
+        let selected = cell_from_place(&local(b"x", Some(execution))).unwrap();
+        assert!(selected.is_connection());
+        assert_eq!(
+            selected,
+            cell_from_place(&local(b"x", Some(execution))).unwrap()
+        );
+        for other in [
+            WorkerExecution {
+                worker: Some(4),
+                ..execution
+            },
+            WorkerExecution {
+                initialisation_epoch: 5,
+                ..execution
+            },
+            WorkerExecution {
+                connection: Some(6),
+                ..execution
+            },
+            WorkerExecution {
+                worker: None,
+                ..execution
+            },
+        ] {
+            assert_ne!(
+                selected,
+                cell_from_place(&local(b"x", Some(other))).unwrap()
+            );
+        }
+        assert_ne!(selected, cell_from_place(&local(b"x", None)).unwrap());
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let namespace = |execution| {
+            let mut context = crate::var_resolve::ResolveContext::for_function("::event");
+            context.known_namespaces.insert("::static".into());
+            context.execution = Some(execution);
+            crate::var_resolve::resolve_literal_place("::static::x", &context, false, registry)
+        };
+        let initial = cell_from_place(&namespace(execution)).unwrap();
+        assert!(!initial.is_connection());
+        assert_eq!(
+            initial,
+            cell_from_place(&namespace(WorkerExecution {
+                connection: Some(99),
+                ..execution
+            }))
+            .unwrap(),
+            "worker namespace ownership excludes connection identity"
+        );
+        assert_ne!(
+            initial,
+            cell_from_place(&namespace(WorkerExecution {
+                worker: Some(4),
+                ..execution
+            }))
+            .unwrap()
+        );
+        assert_ne!(
+            initial,
+            cell_from_place(&namespace(WorkerExecution {
+                initialisation_epoch: 5,
+                ..execution
+            }))
+            .unwrap()
+        );
+    }
+
+    #[test]
     fn build_connection_scope_empty_when_no_when_procs() {
         let cu = cu("proc foo {} {}");
         let cs = build_connection_scope(&when_procs(&cu));
@@ -931,7 +1162,7 @@ mod tests {
         let cs = build_connection_scope(&when_procs(&cu));
         // Each handler keeps its own captured SSA proof key, while the
         // lifecycle joins their common physical connection cell.
-        let cell = EventCell::Connection("ip".to_owned());
+        let cell = EventCell::Connection("ip".into());
         assert!(
             cs.summaries["CLIENT_ACCEPTED"].cell_defs[&cell]
                 .iter()
@@ -1028,10 +1259,8 @@ mod tests {
             .get("CLIENT_ACCEPTED")
             .expect("CLIENT_ACCEPTED summary");
         assert!(
-            s.cell_defs
-                .contains_key(&EventCell::Connection("a".to_owned()))
-                && s.cell_defs
-                    .contains_key(&EventCell::Connection("b".to_owned())),
+            s.cell_defs.contains_key(&EventCell::Connection("a".into()))
+                && s.cell_defs.contains_key(&EventCell::Connection("b".into())),
             "{s:?}"
         );
     }
@@ -1067,12 +1296,12 @@ mod tests {
         assert!(
             summary
                 .cell_defs
-                .contains_key(&EventCell::Connection("flag".to_owned()))
+                .contains_key(&EventCell::Connection("flag".into()))
         );
         assert!(
             !summary
                 .must_defs
-                .contains(&EventCell::Connection("flag".to_owned()))
+                .contains(&EventCell::Connection("flag".into()))
         );
     }
 
@@ -1085,7 +1314,7 @@ mod tests {
         for source in sources {
             let unit = cu(source);
             let scope = build_connection_scope(&when_procs(&unit));
-            let debug = EventCell::Connection("debug".to_owned());
+            let debug = EventCell::Connection("debug".into());
             assert!(
                 scope.summaries["CLIENT_ACCEPTED"]
                     .cell_defs

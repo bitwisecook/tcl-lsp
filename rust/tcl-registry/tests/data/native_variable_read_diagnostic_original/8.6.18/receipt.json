@@ -1,0 +1,36 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/workspace/.proofs/consumer-native-variable-read149/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.006930472009116784,
+  "reported_version": "8.6.18",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+  "executable_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+  "source_sha256": "ea7d2eff456aeaab5a31784731649f59ac049f73a08434db375aa8b58c2dd56f",
+  "runner_sha256": "dbe21a5970d52155c2b6c94fcbfe478b10ba7789e273e22815f538a73c86b403",
+  "stdout_sha256": "1c24f6ecd2de10a2fe5c49c4a347f9ce726a84baa569d830346e0a496e8165ff",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b"
+  },
+  "rows": [
+    "PATCHLEVEL 8.6.18",
+    "RESULT literal_array_read 1 {can't read \"a\": variable is array}",
+    "RESULT dynamic_array_read 1 {can't read \"a\": variable is array}",
+    "RESULT procedure_array_read 1 {can't read \"a\": variable is array}",
+    "RESULT literal_scalar_element 1 {can't read \"b(k)\": variable isn't array}",
+    "RESULT dynamic_scalar_element 1 {can't read \"b(k)\": variable isn't array}",
+    "RESULT procedure_scalar_element 1 {can't read \"b(k)\": variable isn't array}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; six scalar/element variable read cases",
+  "boundary": "Six labelled variable read cases across literal, dynamic and procedure source entries. Full native result and error outcomes are retained independently by provider. No physical object/header/cache or compiler admission proof is inferred from CLI results."
+}

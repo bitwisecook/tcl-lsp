@@ -413,14 +413,13 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6")
             .commands()
             .clone();
-        let mut state = ResolveContext {
-            frame_kind: VariableFrameKind::Global,
-            binding_identity: BindingIdentity::Bound,
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+        let mut state = ResolveContext::for_frame(
+            VariableFrameKind::Global,
+            BindingIdentity::Bound,
+            Some(tcl_registry::InvocationDialect::of_profile(
                 tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
             )),
-            ..Default::default()
-        };
+        );
         state.define_literal("a(x)", "X", &registry);
         state.define_literal("a(y)", "Y", &registry);
         let x = resolve_literal_place("a(x)", &state, false, &registry);

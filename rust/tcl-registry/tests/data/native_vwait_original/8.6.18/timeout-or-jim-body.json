@@ -1,0 +1,17 @@
+{
+  "case": "timeout-or-jim-body",
+  "command": [
+    "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+    "timeout-or-jim-body"
+  ],
+  "external_timeout": false,
+  "timeout_seconds": 3,
+  "process_exit": 0,
+  "seconds": 0.003976858002715744,
+  "stdout_sha256": "e0b9356a766206d63b4691bd3de02f198e821d4993882b14c079b1af91f1e24d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "V|actual-provider|0|6|382e362e3138",
+    "R|timeout-or-jim-body|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+  ]
+}

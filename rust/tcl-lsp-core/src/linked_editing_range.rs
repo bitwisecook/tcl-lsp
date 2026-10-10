@@ -70,6 +70,9 @@ pub fn linked_editing_ranges(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Option<LinkedEditingRanges> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return original_linked_editing_ranges(source, line, character, analysis);
+    }
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
     let line_index = LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
@@ -126,6 +129,127 @@ pub fn linked_editing_ranges(
         ranges,
         word_pattern: WORD_PATTERN.to_owned(),
     })
+}
+
+// A linked edit mirrors source text, so both canonical declaration identity
+// and literal tail correspondence are necessary. A computed, linked alias or
+// differently escaped head cannot borrow the declaration's writable extent.
+fn original_linked_editing_ranges(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<LinkedEditingRanges> {
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    if !analysis.matches_original_source_image(&image, config) {
+        return None;
+    }
+    let index = LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    if analysis
+        .original_variable_root_in_source(&image, config, cursor)
+        .is_some()
+    {
+        return None;
+    }
+    let rows = analysis
+        .original_procedure_declarations()
+        .filter_map(|record| {
+            let declaration = record.name_input();
+            let extent = original_command_tail_span(declaration)?;
+            let text = source.get(extent.as_range())?;
+            if !plain_linked_component(text) {
+                return None;
+            }
+            let mut spans = vec![extent];
+            for invocation in &analysis.command_invocations {
+                if invocation.indirect
+                    || !invocation.lookup.is_execution_site()
+                    || !span_contains(record.metadata().body_span, invocation.range.start())
+                    || !crate::original_declaration::invocation_targets_declaration(
+                        source, analysis, invocation, record, false,
+                    )
+                {
+                    continue;
+                }
+                let Some(key) = invocation
+                    .original_name_input
+                    .as_ref()
+                    .and_then(|input| input.original_word_key())
+                else {
+                    continue;
+                };
+                if key.source_image() != &image || key.lexer_config() != config {
+                    continue;
+                }
+                let Some(call) = original_command_tail_span(key) else {
+                    continue;
+                };
+                if source.get(call.as_range()) == Some(text) {
+                    spans.push(call);
+                }
+            }
+            if spans.len() < 2 || !spans.iter().any(|span| span_contains(*span, cursor)) {
+                return None;
+            }
+            Some((spans, text))
+        })
+        .collect::<Vec<_>>();
+    let [(spans, text)] = rows.as_slice() else {
+        return None;
+    };
+    let mut ranges = spans
+        .iter()
+        .map(|span| span_to_range(source, &index, *span))
+        .collect();
+    dedup_ranges(&mut ranges);
+    if ranges.len() < 2 {
+        return None;
+    }
+    Some(LinkedEditingRanges {
+        ranges,
+        word_pattern: if text.is_ascii() {
+            WORD_PATTERN.to_owned()
+        } else {
+            r#"[^\\\s{}\[\];$":#]+"#.to_owned()
+        },
+    })
+}
+
+fn original_command_tail_span(
+    key: &tcl_compiler::signature_scan::scope::SignatureSourceNameKey,
+) -> Option<Span> {
+    let word = key.original_word();
+    let words = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+        std::slice::from_ref(word),
+        key.policy().string_protocol(),
+    )
+    .ok()?;
+    if words.literal(0)? != key.bytes() {
+        return None;
+    }
+    words.original_literal_extent(0, key.policy().recipe().command_tail_extent(key.bytes())?)
+}
+
+fn plain_linked_component(text: &str) -> bool {
+    !text.is_empty()
+        && !text.chars().any(|character| {
+            character.is_whitespace()
+                || character.is_control()
+                || matches!(
+                    character,
+                    '\\' | '{' | '}' | '[' | ']' | ';' | '$' | '"' | ':' | '#'
+                )
+        })
+        && (!text.is_ascii()
+            || text
+                .as_bytes()
+                .first()
+                .is_some_and(|first| first.is_ascii_alphabetic() || *first == b'_')
+                && text
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'))
 }
 
 /// Find the proc the cursor sits inside — either on its name
@@ -332,5 +456,66 @@ mod tests {
         let result = linked_editing_ranges(src, 1, 14, &analysis)
             .expect("cursor inside body on the recursive call should link");
         assert!(result.ranges.len() >= 2, "{result:?}");
+    }
+}
+
+#[cfg(test)]
+mod original_linked_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source() {
+        // Contract: naming.consumer.original-linked-editing
+        // (docs/design/analysis/name-resolution-proofs/original-linked-editing.md).
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let source = "namespace eval N {proc café {} {::N::café}}\n";
+            let mut analysis = Analyser::new().analyse(source, dialect);
+            analysis.all_procs.clear();
+            analysis.global_scope.procs.clear();
+            let cursor = u32::try_from(source.find("café").unwrap()).unwrap();
+            let result = linked_editing_ranges(source, 0, cursor, &analysis).expect(dialect);
+            assert_eq!(result.ranges.len(), 2, "{dialect}");
+            let index = LineIndex::new(source);
+            for range in result.ranges {
+                let start = crate::definition::byte_offset_at(
+                    &index,
+                    source,
+                    range.start_line,
+                    range.start_character,
+                );
+                let end = crate::definition::byte_offset_at(
+                    &index,
+                    source,
+                    range.end_line,
+                    range.end_character,
+                );
+                assert_eq!(source.get(start as usize..end as usize), Some("café"));
+            }
+            assert!(
+                linked_editing_ranges(&format!("# changed\n{source}"), 1, cursor, &analysis)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_linked_editing_does_not_mirror_escapes_computed_heads_or_unrelated_body_words() {
+        // Implementation contract: naming.consumer.original-linked-editing
+        // docs/design/analysis/name-resolution-proofs/original-linked-editing.md
+        for source in [
+            "proc p\\u0061 {} {pa}\n",
+            "proc pa {} {p\\u0061}\n",
+            "proc p {} {set name p; $name}\n",
+            "proc p {} {puts p}\n",
+        ] {
+            let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+            analysis.all_procs.clear();
+            analysis.global_scope.procs.clear();
+            assert!(
+                linked_editing_ranges(source, 0, 6, &analysis).is_none(),
+                "{source}"
+            );
+        }
     }
 }

@@ -2053,10 +2053,44 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     extra_global_escaping: &HashSet<String, S>,
     trace_facts: crate::compilation_unit::ModuleTraceFacts<'_>,
 ) -> HashMap<ValueKey, TypeLattice> {
+    let context = registry.profile().map(tcl_registry::model::semantic::SemanticContext::for_profile).map(Into::into);
+    propagate_types_with_metadata_context(
+        cfg, ssa, sccp,
+        TypePropagationMetadata { registry, context, numbers: numbers_of(registry) },
+        known_classes, extra_global_escaping, trace_facts,
+    )
+}
+
+/// Exact source metadata and numeric grammar used by the type solver.
+#[derive(Clone, Copy)]
+pub struct TypePropagationMetadata<'a> {
+    /// Actual command store used by this graph.
+    pub registry: &'a CommandRegistry,
+    /// Supplied complete availability, independent of an executing interpreter.
+    pub context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    /// Exact source numeric grammar.
+    pub numbers: NumberSyntax,
+}
+
+/// Infer source values under retained metadata without recreating availability.
+#[must_use]
+pub fn propagate_types_with_metadata_context<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    sccp: &SccpResult,
+    metadata: TypePropagationMetadata<'_>,
+    known_classes: &HashSet<String, S>,
+    extra_global_escaping: &HashSet<String, S>,
+    trace_facts: crate::compilation_unit::ModuleTraceFacts<'_>,
+) -> HashMap<ValueKey, TypeLattice> {
+    let registry = metadata.registry;
+    let Some(context) = metadata.context.filter(|context| context.matches_registry(registry)) else {
+        return HashMap::new();
+    };
     let preds = cfg.predecessors();
     let order = crate::sccp::cfg_order(cfg);
     let mut escaping =
-        crate::var_observability::analyse_var_observability(cfg, registry).escaping_var_names();
+        crate::var_observability::analyse_var_observability_with_metadata_context(cfg, registry, Some(context)).escaping_var_names();
     if !extra_global_escaping.is_empty() {
         escaping.extend(extra_global_escaping.iter().cloned());
     }
@@ -2067,22 +2101,17 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     // The I4 binding proof for spec-fact specialisation: the dialect-
     // selected registry's own environment context (a profile-less
     // registry carries no obligation).
-    let generation = registry
-        .profile()
-        .map(crate::environment_ingress::context_for_profile);
     let ctx = StatementTypingCtx {
         preparations: &cfg.expression_preparations,
         ssa,
-        context: generation
-            .as_deref()
-            .map(tcl_registry::model::ContextRegistry::context),
+        context: Some(context.context()),
         registry,
         known_classes,
         namespace: &namespace,
         values: &sccp.values,
         escaping: &escaping,
         has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace,
-        numbers: numbers_of(registry),
+        numbers: metadata.numbers,
     };
 
     let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();

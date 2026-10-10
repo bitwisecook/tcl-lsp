@@ -207,10 +207,19 @@ impl<'a> KeywordTable<'a> {
     /// says so.
     #[must_use]
     pub fn resolve(&self, word: &str) -> KeywordMatch<'a> {
+        self.resolve_bytes(word.as_bytes())
+    }
+
+    /// Resolve an already selected byte-valued operand against authored
+    /// descriptor spellings. Input extent and native object access belong to
+    /// the caller's independently selected protocol; this table neither clips
+    /// NUL nor repairs invalid UTF-8.
+    #[must_use]
+    pub fn resolve_bytes(&self, word: &[u8]) -> KeywordMatch<'a> {
         if word.is_empty() {
             return KeywordMatch::Unknown;
         }
-        if let Some(exact) = self.keywords.iter().find(|k| k.name == word) {
+        if let Some(exact) = self.keywords.iter().find(|k| k.name.as_bytes() == word) {
             return KeywordMatch::Unique(exact.name);
         }
         if !self.prefix_matching.accepts_prefixes() {
@@ -220,7 +229,7 @@ impl<'a> KeywordTable<'a> {
             .keywords
             .iter()
             .filter(|k| {
-                k.name.starts_with(word)
+                k.name.as_bytes().starts_with(word)
                     && k.min_abbrev
                         .is_none_or(|min| word.len() >= usize::from(min))
             })
@@ -382,6 +391,33 @@ pub fn is_boolean_word(word: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn byte_keywords_preserve_selected_extent_and_do_not_repair_unicode() {
+        // Native proof: naming.selector.selected-byte-descriptor-lookup
+        // docs/design/analysis/name-resolution-proofs/selected-byte-descriptor-lookup.md
+        let table = KeywordTable::new(["exists", "export", "�"], PrefixMatching::Enabled);
+        assert_eq!(
+            table.resolve_bytes(b"exists"),
+            KeywordMatch::Unique("exists")
+        );
+        assert_eq!(table.resolve_bytes(b"exi"), KeywordMatch::Unique("exists"));
+        assert_eq!(
+            table.resolve_bytes(b"ex"),
+            KeywordMatch::Ambiguous(vec!["exists", "export"])
+        );
+        assert_eq!(table.resolve_bytes(b"exists\0tail"), KeywordMatch::Unknown);
+        assert_eq!(table.resolve_bytes(b"\xff"), KeywordMatch::Unknown);
+        assert_eq!(
+            table.resolve_bytes("�".as_bytes()),
+            KeywordMatch::Unique("�")
+        );
+        assert_eq!(table.resolve_bytes(b"\xed\xa0\x80"), KeywordMatch::Unknown);
+        assert_eq!(table.resolve_bytes(b"\xc0\x80"), KeywordMatch::Unknown);
+        assert_eq!(table.resolve_bytes(b""), KeywordMatch::Unknown);
+        let strict = KeywordTable::new(["exists"], PrefixMatching::Strict);
+        assert_eq!(strict.resolve_bytes(b"exi"), KeywordMatch::Unknown);
+    }
 
     /// The Tcl 8.6 `string` ensemble table, in the order tclsh reports it.
     const STRING_86: &[&str] = &[

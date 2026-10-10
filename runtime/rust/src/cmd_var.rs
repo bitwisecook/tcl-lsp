@@ -401,6 +401,13 @@ fn bind_upvar_at_original(
         };
         return interp.bind_original_c_alias_local(local_original, link);
     }
+    if interp
+        .native_invocation_dialect()
+        .native_jim_lookup_protocol()
+        .is_some()
+    {
+        return interp.bind_original_jim_alias_local(local_original, local, local_key, link);
+    }
     // C resolves the other-variable first, then rejects a namespace alias
     // to a procedure cell before inspecting the alias's element shape or
     // parent namespace (`TCL UPVAR INVERTED`).
@@ -439,9 +446,92 @@ fn bind_upvar_at_original(
 }
 
 #[cfg(test)]
+mod member_trace_horizon;
+
+#[cfg(test)]
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
+
+    #[test]
+    fn original_upvar_error_publication_matches_all_six_native_sources() {
+        // naming.variable.original-upvar-error-publication
+        // docs/design/analysis/name-resolution-proofs/variable-original-upvar-error-publication.md
+        // Each whole row preserves catch result and errorCode. The C9 trace
+        // row records unavailable legacy API, independently of upvar rejection.
+        let source = include_bytes!(
+            "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/source.tcl"
+        );
+        for (engine, stdout) in [
+            (
+                "tcl8.4",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/8.4.20/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl8.5",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/8.5.19/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl8.6",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/8.6.18/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl9.0",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/9.0.4/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/9.1.0/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "jim",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/jim/original-upvar-errors/stdout"
+                ),
+            ),
+        ] {
+            let original = stdout
+                .lines()
+                .find_map(|line| line.strip_prefix("ORIGINAL|0|"))
+                .unwrap();
+            let expected: Vec<u8> = original
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect();
+            counters::reset();
+            {
+                let mut interp = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    crate::environment::profile_for_dialect(engine),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                assert_eq!(
+                    interp.eval_str(source),
+                    Code::Ok,
+                    "{engine}: result {:?}, admission {:?}, access {:?}",
+                    interp.result_bytes(),
+                    interp.native_compilation_admission_error(),
+                    interp.native_access_refusal()
+                );
+                assert!(!interp.host_refusal_pending(), "{engine}");
+                assert_eq!(interp.result_bytes(), expected, "{engine}");
+            }
+            assert_eq!(counters::finalize(), 0, "{engine}");
+            assert_eq!(counters::double_free_count(), 0, "{engine}");
+        }
+    }
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();
@@ -457,6 +547,73 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn original_array_read_destruction_matches_six_native_source_results() {
+        // naming.variable.original-array-read-destruction
+        // docs/design/analysis/name-resolution-proofs/variable-original-array-read-destruction.md
+        // Exact completion/value/trace-log observations only. Jim's original
+        // unavailable trace setup is independent of C's entered callbacks.
+        macro_rules! provider {
+            ($engine:literal, $version:literal) => {
+                ($engine, [
+                    include_str!(concat!(
+                        "../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
+                        $version, "/variable_array_unset_live_member_read_trace_fires/stdout"
+                    )),
+                    include_str!(concat!(
+                        "../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
+                        $version, "/variable_array_unset_active_member_read_guard_survives/stdout"
+                    )),
+                ])
+            };
+        }
+        let sources = [
+            include_bytes!("../../../rust/tcl-registry/tests/data/native_array_read_destruction324/variable_array_unset_live_member_read_trace_fires.tcl").as_slice(),
+            include_bytes!("../../../rust/tcl-registry/tests/data/native_array_read_destruction324/variable_array_unset_active_member_read_guard_survives.tcl").as_slice(),
+        ];
+        for (engine, outputs) in [
+            provider!("tcl8.4", "8.4.20"),
+            provider!("tcl8.5", "8.5.19"),
+            provider!("tcl8.6", "8.6.18"),
+            provider!("tcl9.0", "9.0.4"),
+            provider!("tcl9.1", "9.1.0"),
+            provider!("jim", "jim"),
+        ] {
+            for (source, stdout) in sources.iter().zip(outputs) {
+                let (expected_code, original) = stdout
+                    .lines()
+                    .find_map(|line| line.strip_prefix("ORIGINAL|"))
+                    .unwrap()
+                    .split_once('|')
+                    .unwrap();
+                let expected: Vec<u8> = original
+                    .as_bytes()
+                    .chunks_exact(2)
+                    .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                    .collect();
+                counters::reset();
+                {
+                    let mut interp = Interp::with_native_core(
+                        crate::interp::default_host(),
+                        crate::environment::profile_for_dialect(engine),
+                        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                    )
+                    .unwrap();
+                    let code = interp.eval_str(source);
+                    assert!(
+                        !interp.host_refusal_pending(),
+                        "{engine}: {:?}",
+                        interp.native_access_refusal()
+                    );
+                    assert_eq!(code.as_int().to_string(), expected_code, "{engine}");
+                    assert_eq!(interp.result_bytes(), expected, "{engine}");
+                }
+                assert_eq!(counters::finalize(), 0, "{engine}");
+                assert_eq!(counters::double_free_count(), 0, "{engine}");
+            }
+        }
     }
 
     #[test]
@@ -864,6 +1021,8 @@ mod tests {
     }
 
     #[test]
+    // Native proof: naming.variable.qualified-declaration-frame-target
+    // docs/design/analysis/name-resolution-proofs/variable.qualified-declaration-frame-target.md
     fn variable_qualified_target() {
         leak_free(|i| {
             i.eval_str(b"namespace eval a {}");

@@ -23,6 +23,8 @@ fn decode(hex: &str) -> Vec<u8> {
         .collect()
 }
 
+// Native proof: naming.variable.namespace-upvar-original-argument-grammar
+// docs/design/analysis/name-resolution-proofs/variable.namespace-upvar-original-argument-grammar.md
 #[test]
 fn namespace_upvar_original_vectors_match_eighteen_native_arity_windows() {
     let rows = include_str!(
@@ -56,6 +58,8 @@ fn namespace_upvar_original_vectors_match_eighteen_native_arity_windows() {
     assert_eq!(compared, 18);
 }
 
+// Native proof: naming.variable.namespace-upvar-target-and-empty-pair-grammar
+// docs/design/analysis/name-resolution-proofs/variable.namespace-upvar-target-and-empty-pair-grammar.md
 #[test]
 fn namespace_upvar_grammar_and_target_cells_match_36_native_results() {
     const CASES: &str =
@@ -107,10 +111,14 @@ fn namespace_upvar_grammar_and_target_cells_match_36_native_results() {
     assert_eq!(compared, 36);
 }
 
+// Native proof: naming.variable.jim-namespace-upvar-root-worker-forwarding
+// docs/design/analysis/name-resolution-proofs/variable.jim-namespace-upvar-root-worker-forwarding.md
 #[test]
 fn jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame() {
     let mut interp = actual("jim");
-    let source = include_bytes!("../../../../rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding.tcl");
+    let source = include_bytes!(
+        "../../../../rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding.tcl"
+    );
     assert_eq!(interp.eval_str(source), Code::Ok);
     assert_eq!(interp.result_bytes(), b"VALUE {FORWARD 0 ::missing::a {}}");
 }

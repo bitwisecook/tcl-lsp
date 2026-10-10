@@ -43,7 +43,7 @@ pub(crate) struct NameLink {
 #[derive(Clone)]
 pub(crate) struct JimNameLinkOriginal {
     pub(crate) name: Value,
-    pub(crate) frame: std::rc::Weak<crate::frame::ActivationIdentity>,
+    pub(crate) frame: tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference,
 }
 
 /// A name table owns bindings, while the arena owns the cells they identify.

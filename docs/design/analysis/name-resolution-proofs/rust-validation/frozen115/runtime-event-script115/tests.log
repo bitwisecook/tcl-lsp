@@ -1,0 +1,81 @@
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-dialect)
+   Compiling tcl-core-types v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-core-types)
+   Compiling tcl-platform v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-platform)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-host-c-abi)
+   Compiling tcl-runtime v0.1.0 (/workspace/.checkpoints/naming115/runtime/rust)
+   Compiling tcl-lexer v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-runtime-api)
+   Compiling tcl-test-support v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-test-support)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-bytecode)
+   Compiling tcl-host-native v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-host-native)
+   Compiling tcl-regex v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-registry)
+error: let chains are only allowed in Rust 2024 or later
+   --> src/cmd_event.rs:284:16
+    |
+284 |             && let Some(remaining) = remaining
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0425]: cannot find function `new_int` in module `crate::interp`
+   --> src/cmd_event.rs:286:38
+    |
+286 |             return Ok(crate::interp::new_int(
+    |                                      ^^^^^^^ not found in `crate::interp`
+
+error[E0308]: mismatched types
+   --> src/cmd_event.rs:112:63
+    |
+112 |         return match interp.native_static_option_index(first, p.after_options(), true, "argument") {
+    |                             --------------------------        ^^^^^^^^^^^^^^^^^ expected `&[&[u8]]`, found `&[&str]`
+    |                             |
+    |                             arguments to this method are incorrect
+    |
+    = note: expected reference `&'static [&'static [u8]]`
+               found reference `&'static [&'static str]`
+note: method defined here
+   --> src/interp/native_index_lookup.rs:130:19
+    |
+130 |     pub(crate) fn native_static_option_index(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+133 |         words: &'static [&'static [u8]],
+    |         -------------------------------
+
+error[E0308]: mismatched types
+   --> src/cmd_event.rs:454:64
+    |
+454 |             match interp.native_static_option_index(*option, &["idletasks"], false, "option") {
+    |                                                                ^^^^^^^^^^^ expected `&[u8]`, found `&str`
+    |
+    = note: expected reference `&'static [u8]`
+               found reference `&'static str`
+help: consider adding a leading `b`
+    |
+454 |             match interp.native_static_option_index(*option, &[b"idletasks"], false, "option") {
+    |                                                                +
+
+error[E0277]: the trait bound `RefMut<'_, Vec<(obj::Owned, obj::Owned)>>: std::default::Default` is not satisfied
+    --> src/interp.rs:8174:40
+     |
+8174 |             let batch = std::mem::take(&mut self.bg_queue.borrow_mut());
+     |                         -------------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `std::default::Default` is not implemented for `RefMut<'_, Vec<(obj::Owned, obj::Owned)>>`
+     |                         |
+     |                         required by a bound introduced by this call
+     |
+note: required by a bound in `std::mem::take`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/mem/mod.rs:894:0
+
+error[E0277]: `RefMut<'_, Vec<(obj::Owned, obj::Owned)>>` is not an iterator
+    --> src/interp.rs:8175:39
+     |
+8175 |             for (message, options) in batch {
+     |                                       ^^^^^ `RefMut<'_, Vec<(obj::Owned, obj::Owned)>>` is not an iterator
+     |
+     = help: the trait `Iterator` is not implemented for `RefMut<'_, Vec<(obj::Owned, obj::Owned)>>`
+     = note: required for `RefMut<'_, Vec<(obj::Owned, obj::Owned)>>` to implement `IntoIterator`
+
+Some errors have detailed explanations: E0277, E0308, E0425.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `tcl-runtime` (lib test) due to 6 previous errors

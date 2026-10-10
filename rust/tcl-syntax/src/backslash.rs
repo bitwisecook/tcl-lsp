@@ -160,6 +160,243 @@ pub fn source_literal_bytes(raw: &[u8], channel: tcl_lexer::SourceChannel) -> Co
     Cow::Owned(value)
 }
 
+/// Native literal bytes produced by an independently selected source channel.
+/// A Unicode Document models UTF-8 character-channel ingress and automatic
+/// newline translation. A `NativeValue` is already a counted native string and
+/// remains byte-exact. This does not materialise a resident object, select a
+/// name purpose, or change any original source coordinate.
+///
+/// # Errors
+/// A Document must contain valid Unicode; arbitrary native bytes use
+/// [`tcl_lexer::SourceChannel::NativeValue`].
+pub fn native_source_literal_bytes(
+    raw: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<Cow<'_, [u8]>, NativeSourceUnavailable> {
+    if channel == tcl_lexer::SourceChannel::NativeValue {
+        return Ok(Cow::Borrowed(raw));
+    }
+    Ok(native_document_ingress(raw, protocol)?.bytes)
+}
+
+/// Map native literal-value boundaries to their original source extent.
+/// Only the channel ingress map participates: no escapes, word evaluation,
+/// name purpose or edit authority is selected here. A boundary inside a
+/// produced native unit cannot acquire an original source coordinate.
+#[must_use]
+pub fn native_source_literal_extent(
+    raw: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    protocol: crate::native_string::NativeStringProtocol,
+    native: std::ops::Range<usize>,
+) -> Option<std::ops::Range<usize>> {
+    if native.start > native.end {
+        return None;
+    }
+    if channel == tcl_lexer::SourceChannel::NativeValue {
+        return (native.end <= raw.len()).then_some(native);
+    }
+    let ingress = native_document_ingress(raw, protocol).ok()?;
+    if native.end > ingress.bytes.len() {
+        return None;
+    }
+    let start = ingress.original_offset(native.start)?;
+    let end = ingress.original_offset(native.end)?;
+    let text = std::str::from_utf8(raw).ok()?;
+    (text.is_char_boundary(start) && text.is_char_boundary(end)).then_some(start..end)
+}
+
+/// Map native escaped-text boundaries to the original source extent. Literal
+/// runs use the channel ingress map; each scanner-selected escape maps only
+/// at the boundaries of its complete result. A byte inside a produced unit or
+/// an ambiguous zero-length result has no source coordinate. This selects no
+/// word, variable, compiler, edit or execution purpose.
+#[must_use]
+pub fn native_source_string_extent(
+    raw: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    escapes: EscapeSyntax,
+    protocol: crate::native_string::NativeStringProtocol,
+    native: std::ops::Range<usize>,
+) -> Option<std::ops::Range<usize>> {
+    if native.start > native.end || escapes != protocol.escape_syntax() {
+        return None;
+    }
+    if !raw.contains(&b'\\') {
+        return native_source_literal_extent(raw, channel, protocol, native);
+    }
+    let mut position = 0;
+    let mut produced = 0_usize;
+    let mut start = None;
+    let mut end = None;
+    while position < raw.len() {
+        let (next, length, is_escape_fragment) = if raw[position] == b'\\' {
+            let fragment =
+                native_source_escape_channel_in(raw, position, channel, escapes, protocol).ok()?;
+            (fragment.end, fragment.bytes.len(), true)
+        } else {
+            let next = raw[position..]
+                .iter()
+                .position(|&byte| byte == b'\\')
+                .map_or(raw.len(), |offset| position + offset);
+            let length = native_source_literal_bytes(&raw[position..next], channel, protocol)
+                .ok()?
+                .len();
+            (next, length, false)
+        };
+        if next <= position {
+            return None;
+        }
+        let produced_end = produced.checked_add(length)?;
+        for (boundary, selected) in [(native.start, &mut start), (native.end, &mut end)] {
+            if !(produced..=produced_end).contains(&boundary) {
+                continue;
+            }
+            let local = boundary - produced;
+            let original = if is_escape_fragment {
+                if length == 0 {
+                    return None;
+                }
+                if local == 0 {
+                    position
+                } else if local == length {
+                    next
+                } else {
+                    return None;
+                }
+            } else {
+                position.checked_add(
+                    native_source_literal_extent(
+                        &raw[position..next],
+                        channel,
+                        protocol,
+                        local..local,
+                    )?
+                    .start,
+                )?
+            };
+            if selected.is_some_and(|previous| previous != original) {
+                return None;
+            }
+            *selected = Some(original);
+        }
+        position = next;
+        produced = produced_end;
+    }
+    Some(start?..end?)
+}
+
+/// Braced source value with native channel production and independently
+/// retained continuation grammar. Literal backslashes remain literal.
+///
+/// # Errors
+/// Returns the same Document Unicode refusal as [`native_source_literal_bytes`].
+pub fn native_source_braced_word_bytes(
+    raw: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    rule: tcl_dialect::BraceBackslashNewline,
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<Cow<'_, [u8]>, NativeSourceUnavailable> {
+    match source_braced_word_bytes(raw, channel, rule) {
+        Cow::Borrowed(bytes) => native_source_literal_bytes(bytes, channel, protocol),
+        Cow::Owned(bytes) => Ok(Cow::Owned(
+            native_source_literal_bytes(&bytes, channel, protocol)?.into_owned(),
+        )),
+    }
+}
+
+/// Source-to-native value map. Only boundaries owned by original input are
+/// mapped; a native byte inside a produced unit cannot fabricate a source span.
+struct NativeDocumentIngress<'a> {
+    bytes: Cow<'a, [u8]>,
+    boundaries: Option<Vec<Option<usize>>>,
+}
+
+impl NativeDocumentIngress<'_> {
+    fn native_offset(&self, original: usize) -> Option<usize> {
+        self.boundaries.as_ref().map_or(Some(original), |map| {
+            map.iter().position(|boundary| *boundary == Some(original))
+        })
+    }
+
+    fn original_offset(&self, native: usize) -> Option<usize> {
+        self.boundaries
+            .as_ref()
+            .map_or(Some(native), |map| map.get(native).copied().flatten())
+    }
+}
+
+fn native_document_ingress(
+    raw: &[u8],
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<NativeDocumentIngress<'_>, NativeSourceUnavailable> {
+    use crate::native_string::NativeStringProtocol;
+    use tcl_dialect::TclVersion;
+    let text =
+        std::str::from_utf8(raw).map_err(|_| NativeSourceUnavailable::InvalidDocumentUnicode)?;
+    let c_version = protocol.tcl_version();
+    let changes_units = c_version.is_some()
+        && (raw.contains(&0)
+            || (c_version.is_some_and(|version| version < TclVersion::V9_0)
+                && text.chars().any(|character| u32::from(character) > 0xffff)));
+    if !changes_units && !raw.contains(&b'\r') {
+        return Ok(NativeDocumentIngress {
+            bytes: Cow::Borrowed(raw),
+            boundaries: None,
+        });
+    }
+    let mut bytes = Vec::with_capacity(raw.len());
+    let mut boundaries = vec![Some(0)];
+    let mut characters = text.char_indices().peekable();
+    while let Some((start, character)) = characters.next() {
+        let mut end = start + character.len_utf8();
+        let character = if character == '\r' {
+            if characters.peek().is_some_and(|(_, next)| *next == '\n') {
+                let (offset, next) = characters.next().expect("peeked LF");
+                end = offset + next.len_utf8();
+            }
+            '\n'
+        } else {
+            character
+        };
+        match protocol {
+            NativeStringProtocol::Jim084 => {
+                let mut encoded = [0; 4];
+                bytes.extend_from_slice(character.encode_utf8(&mut encoded).as_bytes());
+            }
+            NativeStringProtocol::C(version) => {
+                let utf = crate::native_tcl_utf::NativeTclUtf::for_version(version);
+                if u32::from(character) > 0xffff && version < TclVersion::V8_6 {
+                    // C84/85 UTF-8 channels admit the four external bytes as
+                    // Latin-1 units. The counted source adapter does not.
+                    for (ordinal, byte) in raw[start..end].iter().enumerate() {
+                        utf.encode_unit(u32::from(*byte), &mut bytes)
+                            .expect("one admitted Latin-1 unit");
+                        boundaries.resize(bytes.len() + 1, None);
+                        boundaries[bytes.len()] = Some(start + ordinal + 1);
+                    }
+                } else if u32::from(character) > 0xffff && version == TclVersion::V8_6 {
+                    let mut units = [0; 2];
+                    for unit in character.encode_utf16(&mut units) {
+                        utf.encode_unit(u32::from(*unit), &mut bytes)
+                            .expect("admitted UTF-16 channel unit");
+                    }
+                } else {
+                    utf.encode_unit(u32::from(character), &mut bytes)
+                        .expect("admitted character-channel unit");
+                }
+            }
+        }
+        boundaries.resize(bytes.len() + 1, None);
+        boundaries[bytes.len()] = Some(end);
+    }
+    Ok(NativeDocumentIngress {
+        bytes: Cow::Owned(bytes),
+        boundaries: Some(boundaries),
+    })
+}
+
 /// Braced literal value under an explicit source channel and brace rule.
 /// Every span still belongs to the original image; only returned value bytes
 /// reflect channel translation and the selected continuation-folding rule.
@@ -249,6 +486,8 @@ pub enum NativeSourceUnavailable {
     GrammarProtocolMismatch,
     /// The requested position is not a backslash or has no valid bounded extent.
     InvalidEscapePosition,
+    /// A Unicode Document contains native bytes that have no Unicode source value.
+    InvalidDocumentUnicode,
 }
 
 /// Unavailable original executable text, distinct from a guest syntax error.
@@ -283,7 +522,8 @@ pub fn native_arena_text<'a>(
         .ok_or(NativeArenaTextUnavailable::SourceGeometry)?;
     match &component.part {
         tcl_lexer::ExecutablePart::Text(tcl_lexer::ExecutableText::Original) => {
-            Ok(source_literal_bytes(original, arena.image().channel()))
+            native_source_literal_bytes(original, arena.image().channel(), protocol)
+                .map_err(NativeArenaTextUnavailable::Source)
         }
         tcl_lexer::ExecutablePart::Text(tcl_lexer::ExecutableText::Decoded(_)) => {
             native_source_string_bytes_channel_in(
@@ -347,6 +587,20 @@ pub fn native_source_escape_channel_in(
     use tcl_lexer::{BackslashFragmentValue, source_backslash_fragment_in};
     if escapes != protocol.escape_syntax() {
         return Err(NativeSourceUnavailable::GrammarProtocolMismatch);
+    }
+    if channel == tcl_lexer::SourceChannel::Document {
+        let ingress = native_document_ingress(raw, protocol)?;
+        let native_pos = ingress
+            .native_offset(pos)
+            .ok_or(NativeSourceUnavailable::InvalidEscapePosition)?;
+        let decoded = native_source_escape_in(&ingress.bytes, native_pos, escapes, protocol)?;
+        let end = ingress
+            .original_offset(decoded.end)
+            .ok_or(NativeSourceUnavailable::InvalidEscapePosition)?;
+        return Ok(NativeSourceEscape {
+            end,
+            bytes: decoded.bytes,
+        });
     }
     let scan = source_backslash_fragment_in(raw, pos, channel, escapes, |suffix| {
         native_original_escape_unit(protocol, suffix)
@@ -417,6 +671,14 @@ pub fn native_source_string_bytes_channel_in(
     if escapes != protocol.escape_syntax() {
         return Err(NativeSourceUnavailable::GrammarProtocolMismatch);
     }
+    if channel == tcl_lexer::SourceChannel::Document {
+        return match native_document_ingress(raw, protocol)?.bytes {
+            Cow::Borrowed(bytes) => native_source_string_bytes_in(bytes, escapes, protocol),
+            Cow::Owned(bytes) => Ok(Cow::Owned(
+                native_source_string_bytes_in(&bytes, escapes, protocol)?.into_owned(),
+            )),
+        };
+    }
     if !raw.contains(&b'\\') {
         return Ok(source_literal_bytes(raw, channel));
     }
@@ -473,9 +735,435 @@ fn native_original_escape_unit(
     }
 }
 
+/// Quote literal source characters for the content of a double-quoted word.
+/// The selected escape grammar must reproduce every character. This lexical
+/// spelling operation grants no native unit, name, lookup or execution proof.
+#[must_use]
+pub fn literal_quoted_source_fragment(text: &str, escapes: EscapeSyntax) -> Option<String> {
+    let fragment = quote_literal_source_content(text);
+    (decode_in(&fragment, escapes).as_ref() == text).then_some(fragment)
+}
+
+fn quote_literal_source_content(text: &str) -> String {
+    let mut result = String::new();
+    for character in text.chars() {
+        match character {
+            '\\' | '"' | '$' | '[' | ']' => {
+                result.push('\\');
+                result.push(character);
+            }
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            _ => result.push(character),
+        }
+    }
+    result
+}
+
+/// Place an original substitution template inside a double-quoted word.
+/// Literal quotes are escaped; variable, command and expression components
+/// keep their original source spelling. The shared parser must reproduce the
+/// same components under the retained complete lexical configuration.
+///
+/// Malformed or incompletely retained substitutions remain unavailable. This
+/// checks lexical components only, without evaluating any substitution.
+#[must_use]
+pub fn substituting_quoted_source_fragment(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    use tcl_lexer::{SubstFlags, WordPart};
+    let parts = tcl_lexer::word_parts::decompose_spanned_checked(
+        source.as_bytes(),
+        SubstFlags::default(),
+        config,
+    )
+    .ok()?;
+    let mut fragment = String::new();
+    for part in &parts {
+        let written = source.get(part.start..part.end)?;
+        match &part.part {
+            WordPart::ParseError(_) => return None,
+            WordPart::Text(_) => {
+                let mut at = 0;
+                while at < written.len() {
+                    if written.as_bytes()[at] == b'\\' {
+                        let end = escape_end_in(written, at, config.escapes);
+                        if end <= at || end > written.len() || at + 1 == written.len() {
+                            return None;
+                        }
+                        fragment.push_str(written.get(at..end)?);
+                        at = end;
+                    } else {
+                        let character = written.get(at..)?.chars().next()?;
+                        if character == '"' {
+                            fragment.push('\\');
+                        }
+                        fragment.push(character);
+                        at += character.len_utf8();
+                    }
+                }
+            }
+            WordPart::Variable(_) | WordPart::Command(_) | WordPart::Expression(_) => {
+                fragment.push_str(written);
+            }
+        }
+    }
+    let projected = tcl_lexer::word_parts::decompose_spanned_checked(
+        fragment.as_bytes(),
+        SubstFlags::default(),
+        config,
+    )
+    .ok()?;
+    parts
+        .iter()
+        .map(|part| &part.part)
+        .eq(projected.iter().map(|part| &part.part))
+        .then_some(fragment)
+}
+
+/// Render native units as literal source text, without numeric escapes or
+/// word quoting. Lexical variable roots use this purpose because their names
+/// do not evaluate backslash escapes. The selected input channel must reproduce
+/// every original unit; invalid/unpaired units remain unavailable.
+#[must_use]
+pub fn native_literal_source_text(
+    value: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Option<String> {
+    let exact = |text: &str| {
+        native_source_literal_bytes(text.as_bytes(), channel, protocol)
+            .is_ok_and(|bytes| bytes.as_ref() == value)
+    };
+    if let Ok(text) = std::str::from_utf8(value)
+        && exact(text)
+    {
+        return Some(text.to_owned());
+    }
+    let version = protocol.tcl_version()?;
+    let native = crate::native_tcl_utf::NativeTclUtf::for_version(version);
+    let units = native.decode_units(value);
+    if native.encode_units(&units)?.as_slice() != value {
+        return None;
+    }
+    let text = if channel == tcl_lexer::SourceChannel::Document
+        && version < tcl_dialect::TclVersion::V8_6
+    {
+        legacy_document_literal_text(&units)?
+    } else if version < tcl_dialect::TclVersion::V9_0 {
+        let utf16 = units
+            .into_iter()
+            .map(u16::try_from)
+            .collect::<Result<Vec<_>, _>>()
+            .ok()?;
+        char::decode_utf16(utf16)
+            .collect::<Result<String, _>>()
+            .ok()?
+    } else {
+        units
+            .into_iter()
+            .map(char::from_u32)
+            .collect::<Option<String>>()?
+    };
+    exact(&text).then_some(text)
+}
+
+fn legacy_document_literal_text(units: &[u32]) -> Option<String> {
+    let mut text = String::new();
+    let mut remaining = units;
+    while let Some((&unit, tail)) = remaining.split_first() {
+        // C 8.4/8.5 Document ingress represents a supplementary character as
+        // four Latin-1 byte units. This is a proposed spelling only; the caller
+        // verifies the complete selected channel roundtrip before returning it.
+        let supplementary = remaining.get(..4).and_then(|four| {
+            let bytes = [
+                u8::try_from(four[0]).ok()?,
+                u8::try_from(four[1]).ok()?,
+                u8::try_from(four[2]).ok()?,
+                u8::try_from(four[3]).ok()?,
+            ];
+            let decoded = std::str::from_utf8(&bytes).ok()?;
+            let mut characters = decoded.chars();
+            let character = characters.next()?;
+            (u32::from(character) > 0xffff && characters.next().is_none()).then_some(character)
+        });
+        if let Some(character) = supplementary {
+            text.push(character);
+            remaining = &remaining[4..];
+        } else {
+            text.push(char::from_u32(unit)?);
+            remaining = tail;
+        }
+    }
+    Some(text)
+}
+
+/// Render one literal source word whose selected native value is exactly
+/// `value`. The source channel, complete escape grammar and independently
+/// selected native string recipe are retained separately. A value that cannot
+/// be written in the requested channel is unavailable, rather than repaired.
+///
+/// This is a source spelling operation only. It supplies no name-key, object,
+/// lookup, compiler, cache or runtime-entry capability.
+#[must_use]
+pub fn native_literal_source_word(
+    value: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    config: tcl_lexer::LexerConfig,
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Option<String> {
+    fn quote(text: &str) -> String {
+        format!("\"{}\"", quote_literal_source_content(text))
+    }
+    let exact = |word: &str| {
+        native_source_string_bytes_channel_in(
+            &word.as_bytes()[1..word.len() - 1],
+            channel,
+            config.escapes,
+            protocol,
+        )
+        .is_ok_and(|produced| produced.as_ref() == value)
+    };
+    if let Ok(text) = std::str::from_utf8(value) {
+        let word = quote(text);
+        if exact(&word) {
+            return Some(word);
+        }
+    }
+    let version = protocol.tcl_version()?;
+    let native = crate::native_tcl_utf::NativeTclUtf::for_version(version);
+    let units = native.decode_units(value);
+    // Invalid byte fallbacks and raw zero must never acquire the spelling of
+    // a different modified-UTF value through a Unicode display projection.
+    if native.encode_units(&units)?.as_slice() != value {
+        return None;
+    }
+    let mut word = String::from("\"");
+    for unit in units {
+        use std::fmt::Write;
+        if unit <= 0xffff {
+            write!(word, "\\u{unit:04x}").ok()?;
+        } else {
+            write!(word, "\\U{unit:08x}").ok()?;
+        }
+    }
+    word.push('"');
+    exact(&word).then_some(word)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quoted_fragments_preserve_literal_characters_and_original_substitutions() {
+        // naming.diagnostics.original-w216-literal-source-replacement
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-w216-literal-source-replacement.md
+        for escapes in EscapeSyntax::ALL {
+            let config = tcl_lexer::LexerConfig {
+                escapes: *escapes,
+                ..Default::default()
+            };
+            for text in ["$arr", "a\"b", "a[b]", "a\\b", "é", "a\nb"] {
+                let fragment = literal_quoted_source_fragment(text, *escapes).unwrap();
+                assert_eq!(decode_in(&fragment, *escapes).as_ref(), text);
+            }
+            assert_eq!(
+                substituting_quoted_source_fragment("$key\"x\"", config).as_deref(),
+                Some("$key\\\"x\\\"")
+            );
+            assert_eq!(
+                substituting_quoted_source_fragment("[format \"%s\" $key]", config).as_deref(),
+                Some("[format \"%s\" $key]")
+            );
+            assert!(substituting_quoted_source_fragment("[unterminated", config).is_none());
+            assert!(substituting_quoted_source_fragment("trailing\\", config).is_none());
+        }
+    }
+
+    #[test]
+    fn literal_source_renderer_preserves_selected_native_bytes_and_channel() {
+        // Implementation contract: naming.source.native-literal-word-renderer
+        // docs/design/analysis/name-resolution-proofs/native-literal-word-renderer.md
+        use tcl_lexer::SourceChannel::{Document, NativeValue};
+        for version in tcl_dialect::TclVersion::ALL {
+            let protocol = crate::native_string::NativeStringProtocol::C(version);
+            let config = tcl_lexer::LexerConfig {
+                escapes: protocol.escape_syntax(),
+                ..tcl_lexer::LexerConfig::default()
+            };
+            for channel in [Document, NativeValue] {
+                for value in [
+                    b"plain".as_slice(),
+                    b"a $[x]\\\"\n\r\ttail",
+                    b"p\xc0\x80tail",
+                    b"p\xed\xa0\x80",
+                    b"p\xed\xa0\x81",
+                ] {
+                    let word = native_literal_source_word(value, channel, config, protocol)
+                        .expect("exact selected spelling");
+                    assert_eq!(
+                        native_source_string_bytes_channel_in(
+                            &word.as_bytes()[1..word.len() - 1],
+                            channel,
+                            config.escapes,
+                            protocol
+                        )
+                        .unwrap()
+                        .as_ref(),
+                        value
+                    );
+                }
+            }
+            assert!(native_literal_source_word(b"p\0tail", Document, config, protocol).is_none());
+            let counted =
+                native_literal_source_word(b"p\0tail", NativeValue, config, protocol).unwrap();
+            assert!(counted.as_bytes().contains(&0));
+            assert!(native_literal_source_word(b"\xff", NativeValue, config, protocol).is_none());
+        }
+        let protocol = crate::native_string::NativeStringProtocol::Jim084;
+        let config = tcl_lexer::LexerConfig::for_dialect("jimtcl");
+        assert!(native_literal_source_word(b"p\0tail", Document, config, protocol).is_some());
+        assert!(native_literal_source_word(b"\xff", NativeValue, config, protocol).is_none());
+    }
+
+    fn ingress_observed_bytes(
+        version: tcl_dialect::TclVersion,
+        path: &str,
+        operation: &str,
+    ) -> Vec<u8> {
+        let release = match version {
+            tcl_dialect::TclVersion::V8_4 => "8.4.20",
+            tcl_dialect::TclVersion::V8_5 => "8.5.19",
+            tcl_dialect::TclVersion::V8_6 => "8.6.18",
+            tcl_dialect::TclVersion::V9_0 => "9.0.4",
+            tcl_dialect::TclVersion::V9_1 => "9.1.0",
+        };
+        let row = include_str!("../tests/data/native_source_ingress/observations.tsv")
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .map(|line| line.split('\t').collect::<Vec<_>>())
+            .find(|row| row[..3] == [release, path, operation])
+            .expect("actual native row");
+        row[3]
+            .as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn document_native_ingress_matches_readchars_and_preserves_counted_source() {
+        // Native proof: naming.source.document-native-utf-ingress
+        // docs/design/analysis/name-resolution-proofs/document-native-utf-ingress.md
+        use tcl_lexer::SourceChannel::{Document, NativeValue};
+        let source = include_bytes!("../tests/data/native_source_ingress/source.tcl");
+        for version in tcl_dialect::TclVersion::ALL {
+            let protocol = crate::native_string::NativeStringProtocol::C(version);
+            assert_eq!(
+                native_source_literal_bytes(source, Document, protocol)
+                    .unwrap()
+                    .as_ref(),
+                ingress_observed_bytes(version, "character-channel", "source")
+            );
+            assert_eq!(
+                native_source_literal_bytes(source, NativeValue, protocol)
+                    .unwrap()
+                    .as_ref(),
+                source.as_slice()
+            );
+            for (operation, raw) in [
+                ("plain", "A\0😀\r\nB\rC".as_bytes()),
+                ("escaped", "\\😀".as_bytes()),
+                ("numeric", br"A\u0000\uD83D\uDE00".as_slice()),
+                ("slashzero", b"\\\0tail".as_slice()),
+            ] {
+                for (channel, path) in [
+                    (Document, "character-channel-source"),
+                    (NativeValue, "counted-native-source"),
+                ] {
+                    assert_eq!(
+                        native_source_string_bytes_channel_in(
+                            raw,
+                            channel,
+                            protocol.escape_syntax(),
+                            protocol
+                        )
+                        .unwrap()
+                        .as_ref(),
+                        ingress_observed_bytes(version, path, operation),
+                        "{version:?} {channel:?} {operation}"
+                    );
+                }
+            }
+            assert_eq!(
+                native_source_braced_word_bytes(
+                    "A\0😀\r\nB\rC".as_bytes(),
+                    Document,
+                    tcl_dialect::BraceBackslashNewline::Folds,
+                    protocol
+                )
+                .unwrap()
+                .as_ref(),
+                ingress_observed_bytes(version, "character-channel-source", "braced")
+            );
+            assert_eq!(
+                native_source_literal_bytes(b"\xff", Document, protocol),
+                Err(NativeSourceUnavailable::InvalidDocumentUnicode)
+            );
+            assert_eq!(
+                native_source_literal_bytes(b"\xff", NativeValue, protocol)
+                    .unwrap()
+                    .as_ref(),
+                b"\xff"
+            );
+            let fragment = native_source_escape_channel_in(
+                b"A\\\0tail",
+                1,
+                Document,
+                protocol.escape_syntax(),
+                protocol,
+            )
+            .unwrap();
+            assert_eq!(
+                fragment.end, 3,
+                "original extent must not become native byte extent"
+            );
+            assert_eq!(fragment.bytes, b"\xc0\x80");
+        }
+    }
+
+    #[test]
+    fn literal_text_inverse_roundtrips_actual_document_ingress_units() {
+        // Implementation contract: naming.source.literal-text-source-inversion
+        // docs/design/analysis/name-resolution-proofs/literal-text-source-inversion.md
+        // Native proof: naming.source.document-native-utf-ingress
+        // docs/design/analysis/name-resolution-proofs/document-native-utf-ingress.md
+        // The retained guest observations provide the units. This separately
+        // asserts source-renderer inversion, without an execution/name grant.
+        use tcl_lexer::SourceChannel::{Document, NativeValue};
+        for version in tcl_dialect::TclVersion::ALL {
+            let protocol = crate::native_string::NativeStringProtocol::C(version);
+            let actual = ingress_observed_bytes(version, "character-channel-source", "plain");
+            let text = native_literal_source_text(&actual, Document, protocol).unwrap();
+            assert_eq!(text, "A\0😀\nB\nC", "{version:?}");
+            assert_eq!(
+                native_source_literal_bytes(text.as_bytes(), Document, protocol)
+                    .unwrap()
+                    .as_ref(),
+                actual
+            );
+            assert!(native_literal_source_text(b"\xff", Document, protocol).is_none());
+            assert!(native_literal_source_text(b"\xc0\x80", NativeValue, protocol).is_none());
+            if version < tcl_dialect::TclVersion::V9_0 {
+                assert!(native_literal_source_text(b"\xed\xa0\x80", Document, protocol).is_none());
+            }
+        }
+    }
 
     #[test]
     fn brace_continuations_collapse_like_tcl9() {
@@ -777,6 +1465,48 @@ mod executable_text_tests {
     use tcl_lexer::{ExecutablePartArena, LexerConfig, SourceImage, Span, SubstFlags};
 
     #[test]
+    fn escaped_text_extents_keep_complete_escapes_and_channel_unit_boundaries() {
+        // Implementation contract: naming.source.native-string-original-extents
+        // docs/design/analysis/name-resolution-proofs/native-string-original-extents.md
+        use tcl_lexer::SourceChannel::{Document, NativeValue};
+        for protocol in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(crate::native_string::NativeStringProtocol::C)
+            .chain([crate::native_string::NativeStringProtocol::Jim084])
+        {
+            let raw = br"::N::v\uD800(k)";
+            let escapes = protocol.escape_syntax();
+            assert_eq!(
+                native_source_string_extent(raw, NativeValue, escapes, protocol, 5..9),
+                Some(5..12),
+            );
+            assert!(
+                native_source_string_extent(raw, NativeValue, escapes, protocol, 6..7).is_none()
+            );
+            assert!(
+                native_source_string_extent(raw, NativeValue, escapes, protocol, 5..100).is_none()
+            );
+            let raw = b"v\0\\uD800";
+            let zero_length = native_source_literal_bytes(&raw[..2], Document, protocol)
+                .unwrap()
+                .len();
+            assert_eq!(
+                native_source_string_extent(raw, Document, escapes, protocol, 1..zero_length),
+                Some(1..2),
+            );
+            assert_eq!(
+                native_source_string_extent(raw, Document, escapes, protocol, 1..zero_length + 3),
+                Some(1..raw.len()),
+            );
+            if zero_length == 3 {
+                assert!(
+                    native_source_string_extent(raw, Document, escapes, protocol, 1..2).is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn source_channel_changes_value_bytes_without_changing_original_extents() {
         use tcl_lexer::SourceChannel::{Document, NativeValue};
         let protocol = crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
@@ -883,6 +1613,55 @@ mod executable_text_tests {
                     "{name}: {source:?}"
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_literal_extent_tests {
+    use super::*;
+
+    #[test]
+    fn original_literal_extents_share_channel_translation_and_exact_unit_boundaries() {
+        use tcl_lexer::SourceChannel::{Document, NativeValue};
+        let source = "x\0😀\r\ny".as_bytes();
+        for version in tcl_dialect::TclVersion::ALL {
+            let protocol = crate::native_string::NativeStringProtocol::C(version);
+            let value = native_source_literal_bytes(source, Document, protocol).unwrap();
+            assert_eq!(
+                native_source_literal_extent(source, Document, protocol, 1..3),
+                Some(1..2)
+            );
+            assert!(native_source_literal_extent(source, Document, protocol, 1..2).is_none());
+            let emoji_start = 3;
+            let emoji_end = native_source_literal_bytes("x\0😀".as_bytes(), Document, protocol)
+                .unwrap()
+                .len();
+            assert_eq!(
+                native_source_literal_extent(source, Document, protocol, emoji_start..emoji_end),
+                Some(2..6)
+            );
+            assert!(
+                native_source_literal_extent(
+                    source,
+                    Document,
+                    protocol,
+                    emoji_start..emoji_start + 1
+                )
+                .is_none()
+            );
+            assert_eq!(
+                native_source_literal_extent(source, Document, protocol, emoji_end..emoji_end + 1),
+                Some(6..8)
+            );
+            assert!(
+                native_source_literal_extent(source, Document, protocol, 0..value.len() + 1)
+                    .is_none()
+            );
+            assert_eq!(
+                native_source_literal_extent(source, NativeValue, protocol, 1..2),
+                Some(1..2)
+            );
         }
     }
 }

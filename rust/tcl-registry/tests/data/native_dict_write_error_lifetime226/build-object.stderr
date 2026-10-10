@@ -1,0 +1,7 @@
+/workspace/.proofs/native-dict-write-error-lifetime226-request/instrumented-source/tclObj.c: In function ‘ParseBoolean’:
+/workspace/.proofs/native-dict-write-error-lifetime226-request/instrumented-source/tclObj.c:2046:23: warning: writing 1 byte into a region of size 0 [-Wstringop-overflow=]
+ 2046 |     lowerCase[length] = 0;
+      |     ~~~~~~~~~~~~~~~~~~^~~
+/workspace/.proofs/native-dict-write-error-lifetime226-request/instrumented-source/tclObj.c:2004:10: note: at offset [-2147483648, -1] into destination object ‘lowerCase’ of size 6
+ 2004 |     char lowerCase[6], *str = TclGetStringFromObj(objPtr, &length);
+      |          ^~~~~~~~~

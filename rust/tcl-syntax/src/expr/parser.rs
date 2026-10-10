@@ -47,7 +47,7 @@ use tcl_dialect::{DialectProfile, NumberSyntax, TclVersion};
 use tcl_lexer::{ExprToken, ExprTokenType};
 
 use crate::expr::ast::{BinOp, ExprNode, ExprText, UnaryOp};
-use crate::naming::normalise_var_name;
+use crate::naming::variable_reference_root_bytes;
 
 /// Binding powers for binary operators: `(left_bp, right_bp)`.
 ///
@@ -233,7 +233,7 @@ struct PrattParser<'a, Text: ExprText = String> {
 impl<'a, Text: ExprText> PrattParser<'a, Text> {
     fn new(
         tokens: &'a [ExprToken<Text>],
-        numbers: NumberSyntax,
+        grammar: tcl_dialect::LexerGrammar,
         expr_grammar_base: Option<TclVersion>,
     ) -> Self {
         Self {
@@ -242,9 +242,9 @@ impl<'a, Text: ExprText> PrattParser<'a, Text> {
             depth: 0,
             function_depth: 0,
             function_syntax: NativeFunctionCallSyntax::Strict,
-            numbers,
+            numbers: grammar.numbers,
             expr_grammar_base,
-            variable_config: tcl_lexer::LexerConfig::default(),
+            variable_config: tcl_lexer::LexerConfig::from_grammar(grammar),
         }
     }
 
@@ -426,15 +426,10 @@ impl<'a, Text: ExprText> PrattParser<'a, Text> {
         // Variable reference
         if tok.kind == ExprTokenType::Variable {
             let tok = self.advance();
-            let name = if let Some(text) = tok.text.try_text() {
-                Text::from_source_bytes(normalise_var_name(text).as_bytes())
-            } else {
-                let reference =
-                    tcl_lexer::word_parts::scan_var_ref(tok.text.bytes(), 0, self.variable_config)
-                        .map_err(|_| self.failure(ExprParseFailureReason::UnexpectedToken))?
-                        .ok_or_else(|| self.failure(ExprParseFailureReason::UnexpectedToken))?;
-                Text::from_source_bytes(reference.name)
-            };
+            let name = variable_reference_root_bytes(tok.text.bytes(), self.variable_config)
+                .map_err(|_| self.failure(ExprParseFailureReason::UnexpectedToken))?
+                .ok_or_else(|| self.failure(ExprParseFailureReason::UnexpectedToken))?;
+            let name = Text::from_source_bytes(name);
             return Ok(ExprNode::Var {
                 text: tok.text.clone(),
                 name,
@@ -608,7 +603,7 @@ pub fn parse_expr_with_grammar(source: &str, grammar: &tcl_dialect::LexerGrammar
         source,
         raw_tokens,
         has_unknown,
-        grammar.numbers,
+        *grammar,
         None,
         NativeFunctionCallSyntax::Strict,
     )
@@ -628,7 +623,7 @@ pub fn parse_expr_with_syntax_context(source: &str, context: &ExprParseContext) 
         source,
         raw_tokens,
         has_unknown,
-        context.lexer_grammar.numbers,
+        context.lexer_grammar,
         context.expr_grammar_base,
         context
             .native_syntax
@@ -643,7 +638,7 @@ fn parse_raw_tokens(
     source: &str,
     raw_tokens: Vec<ExprToken>,
     has_unknown: bool,
-    numbers: tcl_dialect::NumberSyntax,
+    grammar: tcl_dialect::LexerGrammar,
     expr_grammar_base: Option<tcl_dialect::TclVersion>,
     function_syntax: NativeFunctionCallSyntax,
 ) -> ExprNode {
@@ -664,7 +659,7 @@ fn parse_raw_tokens(
         };
     }
 
-    let mut parser = PrattParser::new(&tokens, numbers, expr_grammar_base);
+    let mut parser = PrattParser::new(&tokens, grammar, expr_grammar_base);
     parser.function_syntax = function_syntax;
     match parser.expression(0) {
         Ok(result) if parser.pos >= tokens.len() => result,
@@ -683,11 +678,15 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
     // instead — the one way codegen and the lexer could disagree again.
     let resolved = profile.unwrap_or_else(|| DialectProfile::plain_tcl());
     let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
+    let grammar = tcl_dialect::LexerGrammar {
+        numbers: numbers_for(profile, resolved),
+        ..resolved.grammar
+    };
     parse_raw_tokens(
         source,
         raw_tokens,
         has_unknown,
-        numbers_for(profile, resolved),
+        grammar,
         resolved.expr_grammar_base,
         ExprParseContext::for_profile(resolved)
             .native_syntax
@@ -852,6 +851,52 @@ pub fn expr_cache_len_for_tests() -> usize {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn all_expression_ingress_keeps_selected_reference_roots_and_close_rules() {
+        // Implementation contract: naming.expression.selected-reference-root
+        // docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md
+        for version in TclVersion::ALL {
+            let profile = DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let context = ExprParseContext::for_profile(profile);
+            for (source, expected) in [
+                ("${scalar(open}", "scalar(open"),
+                ("${scalar(open)tail}", "scalar(open)tail"),
+                ("${arr(key)}", "arr"),
+                ("$arr(key)", "arr"),
+                ("${arr(inner)(key)}", "arr"),
+                ("${cash$name}", "cash$name"),
+                ("${café🙂(key)}", "café🙂"),
+            ] {
+                for node in [
+                    parse_expr_for_profile(source, Some(profile)),
+                    parse_expr_with_grammar(source, &profile.grammar),
+                    parse_expr_with_syntax_context(source, &context),
+                ] {
+                    assert!(
+                        matches!(node, ExprNode::Var { text, name, .. } if text == source && name == expected)
+                    );
+                }
+            }
+            for style in [
+                tcl_dialect::BracedVarStyle::FirstClose,
+                tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ] {
+                let mut selected = *profile;
+                selected.grammar.braced_var = style;
+                let context = ExprParseContext::for_profile(&selected);
+                for (source, accepts) in [("${a{b}", !style.nests()), ("${a{b}c}", style.nests())] {
+                    for node in [
+                        parse_expr_for_profile(source, Some(&selected)),
+                        parse_expr_with_grammar(source, &selected.grammar),
+                        parse_expr_with_syntax_context(source, &context),
+                    ] {
+                        assert_eq!(matches!(node, ExprNode::Var { .. }), accepts);
+                    }
+                }
+            }
+        }
+    }
+
     use super::*;
     use crate::expr::ast::*;
 

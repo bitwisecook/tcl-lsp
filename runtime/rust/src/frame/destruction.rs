@@ -17,6 +17,7 @@ use tcl_runtime_api::VarId;
 pub(super) struct DetachedArray {
     pub(super) values: BTreeMap<Vec<u8>, *mut TclObj>,
     pub(super) retired: BTreeSet<Vec<u8>>,
+    pub(super) element_ids: BTreeMap<Vec<u8>, VarId>,
     pub(super) entry_order: tcl_core_types::NativeEntryLedger,
     pub(super) native_keys: super::native_element_entry::NativeElementEntries,
 }
@@ -232,6 +233,19 @@ impl RetainedArrayCell {
         self.id
     }
 
+    /// The member allocation belongs to this selected generation, even while
+    /// its root name holds a replacement array with the same written key.
+    pub(crate) fn trace_member_identity(&self, element: &[u8]) -> Option<VarId> {
+        let contents = self.contents.borrow();
+        if let Some(detached) = contents.detached_arrays.get(&self.id) {
+            detached.element_ids.get(element).copied()
+        } else if contents.binding_id == Some(self.id) && contents.rmw_array_epoch == self.epoch {
+            contents.element_ids.get(element).copied()
+        } else {
+            None
+        }
+    }
+
     fn members<'a>(
         &self,
         contents: &'a CellContents,
@@ -442,6 +456,39 @@ impl RetainedArrayCell {
 }
 
 impl VarTable {
+    /// Retire only the selected namespace binding after its unset callbacks.
+    /// A refill of that physical cell is discarded without another trace walk;
+    /// a different same-spelled binding cannot be retired by this receipt.
+    pub(crate) fn retire_namespace_binding(&mut self, name: &[u8], identity: VarId) -> bool {
+        let Some(slot) = self.lookup_slot(name) else {
+            return false;
+        };
+        let contents = Rc::clone(&self.cells[slot].contents);
+        if contents.borrow().binding_id != Some(identity) {
+            return false;
+        }
+        self.retire_native_entry(name);
+        self.retire_jim_key(name);
+        let (value, default) = {
+            let mut contents = contents.borrow_mut();
+            contents.rmw_retirement = Some(VarError::DeletedNamespace);
+            contents.native_member_keys.clear();
+            (contents.var.take(), contents.array_default.take())
+        };
+        if let Some(value) = value {
+            value.release();
+        }
+        if let Some(default) = default {
+            // SAFETY: the original array default owns these two references.
+            unsafe {
+                obj::decr_ref_count(default);
+                obj::decr_ref_count(default);
+            }
+        }
+        self.cells[slot] = Cell::empty(name);
+        true
+    }
+
     pub(crate) fn capture_array_cell(&self, name: &[u8]) -> Option<RetainedArrayCell> {
         let contents = self.contents(name)?.clone();
         let borrowed = contents.borrow();
@@ -473,11 +520,13 @@ impl VarTable {
             entry_order.select_recipe(self.hash_recipe.get());
             // Undefined physical shells were recorded when originally allocated.
             let native_keys = std::mem::take(&mut contents.native_member_keys);
+            let element_ids = std::mem::take(&mut contents.element_ids);
             contents.detached_arrays.insert(
                 selected.id,
                 DetachedArray {
                     values: members,
                     retired: BTreeSet::new(),
+                    element_ids,
                     entry_order,
                     native_keys,
                 },
@@ -506,6 +555,31 @@ impl VarTable {
 mod tests {
     use super::*;
     use crate::obj::Owned;
+
+    #[test]
+    fn namespace_retirement_discards_only_the_selected_actual_root() {
+        // naming.variable.original-owner-array-trace-retirement-horizon
+        // docs/design/analysis/name-resolution-proofs/variable-original-owner-array-trace-retirement-horizon.md
+        // Rust physical receipt/refill control, not a native cell observation.
+        crate::counters::reset();
+        {
+            let mut table = VarTable::default();
+            let value = Owned::fresh(obj::new_wide_int_obj(1));
+            table.store_scalar(b"x", value.as_ptr()).unwrap();
+            let receiver = table.capture_receiver(b"x", None).unwrap();
+            let original = receiver.binding_id().unwrap();
+            assert!(table.retire_namespace_binding(b"x", original));
+            assert_eq!(receiver.read(), Err(VarError::DeletedNamespace));
+            table.store_scalar(b"x", value.as_ptr()).unwrap();
+            let replacement = table.binding_id(b"x").unwrap();
+            assert_ne!(original, replacement);
+            assert!(!table.retire_namespace_binding(b"x", original));
+            assert_eq!(table.load_scalar(b"x"), Some(value.as_ptr()));
+            assert!(table.retire_namespace_binding(b"x", replacement));
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+        assert_eq!(crate::counters::double_free_count(), 0);
+    }
 
     #[test]
     fn weak_search_tracks_native_invalidation_without_retaining_the_array() {

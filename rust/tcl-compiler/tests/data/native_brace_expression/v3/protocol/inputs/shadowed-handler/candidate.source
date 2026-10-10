@@ -1,0 +1,1 @@
+proc expr {args} {return $args}; expr {1 + 2}

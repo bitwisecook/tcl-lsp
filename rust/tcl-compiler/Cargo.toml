@@ -56,5 +56,6 @@ workspace = true
 [dev-dependencies]
 tcl-test-support = { path = "../tcl-test-support" }
 tcl-vm = { path = "../tcl-vm" }
+serde_json = { workspace = true }
 temp-env = "0.3"
 rayon = "1"

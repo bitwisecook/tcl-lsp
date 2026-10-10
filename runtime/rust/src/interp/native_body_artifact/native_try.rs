@@ -434,6 +434,30 @@ impl Interp {
     }
 }
 
+impl TryOperation {
+    pub(super) fn compaction_hazards(
+        &self,
+    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
+        let dynamic = self.recipe.body.script.is_none()
+            || self
+                .recipe
+                .handlers
+                .iter()
+                .filter_map(|handler| handler.body.as_ref())
+                .any(|body| body.script.is_none())
+            || self
+                .recipe
+                .finally
+                .as_ref()
+                .is_some_and(|body| body.script.is_none());
+        if dynamic {
+            vec![tcl_registry::native_compiler_pass::NativeCompilerPassHazard::ScriptEvaluation]
+        } else {
+            Vec::new()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -453,6 +477,9 @@ mod tests {
     }
     #[test]
     fn compiled_try_matches_original_native_handlers_fallthrough_and_finally() {
+        // naming.try-original-compiler-topology
+        // docs/design/analysis/name-resolution-proofs/try-original-compiler-topology.md
+        // Cases19..39 compare reached guest completions, never a host refusal.
         let cases = include_str!("../../../tests/data/native_compiled_try/cases.tsv");
         for (profile, observations) in [
             (
@@ -489,6 +516,11 @@ mod tests {
                     .collect::<Vec<_>>();
                 assert_eq!(row[0].parse::<usize>().unwrap(), index);
                 let code = interp.eval_str(b"p");
+                assert!(
+                    !interp.host_refusal_pending(),
+                    "{profile} {label}: {:?}",
+                    interp.native_access_refusal()
+                );
                 assert_eq!(
                     code.as_int(),
                     row[1].parse::<i64>().unwrap(),
@@ -515,30 +547,6 @@ mod tests {
                     );
                 }
             }
-        }
-    }
-}
-
-impl TryOperation {
-    pub(super) fn compaction_hazards(
-        &self,
-    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
-        let dynamic = self.recipe.body.script.is_none()
-            || self
-                .recipe
-                .handlers
-                .iter()
-                .filter_map(|handler| handler.body.as_ref())
-                .any(|body| body.script.is_none())
-            || self
-                .recipe
-                .finally
-                .as_ref()
-                .is_some_and(|body| body.script.is_none());
-        if dynamic {
-            vec![tcl_registry::native_compiler_pass::NativeCompilerPassHazard::ScriptEvaluation]
-        } else {
-            Vec::new()
         }
     }
 }

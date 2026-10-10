@@ -467,6 +467,21 @@ pub fn collect_opaque_callee_name_args(
     cfg: &crate::cfg::Function,
     resolvable: &dyn Fn(&str) -> bool,
 ) -> HashSet<String> {
+    collect_positioned_opaque_callee_name_args(cfg, &|statement| match statement {
+        crate::ir::Statement::Call { command, .. }
+        | crate::ir::Statement::Barrier { command, .. } => resolvable(command),
+        _ => false,
+    })
+}
+
+/// Opaque-callee source arguments at each original executable invocation.
+/// The consumer retains its actual statement/tokens and independently decides
+/// body availability; a final display-name set cannot supply positioned lookup.
+#[must_use]
+pub fn collect_positioned_opaque_callee_name_args(
+    cfg: &crate::cfg::Function,
+    resolvable: &dyn Fn(&crate::ir::Statement) -> bool,
+) -> HashSet<String> {
     use crate::ir::Statement;
     let mut out = HashSet::new();
     for block in cfg.blocks.values() {
@@ -481,7 +496,7 @@ pub fn collect_opaque_callee_name_args(
             };
             // A dynamic head (`$cmd …`) is handled by the dynamic-name
             // barrier, not here; an empty head is not a call.
-            if command.is_empty() || command.contains(['$', '[']) || resolvable(command) {
+            if command.is_empty() || command.contains(['$', '[']) || resolvable(stmt) {
                 continue;
             }
             out.extend(args.iter().filter(|a| is_literal_var_name(a)).cloned());
@@ -554,45 +569,30 @@ pub fn resolve_call_target<S: std::hash::BuildHasher>(
     resolve_internal_call(command, caller_qname, known)
 }
 
-/// The command a [`ArgRole::CommandPrefix`](tcl_registry::ArgRole::CommandPrefix)
-/// argument names, or `None` when this scan cannot tell.
-///
-/// A callback prefix is normally a literal list whose first element is the
-/// command (`lsort -command {compare -nocase}`, `trace add variable v write
-/// cb`). When it was *built* by a registry-declared prefix builder
-/// (`-command [list cb $x]`, [`tcl_registry::Traits::BUILDS_COMMAND_PREFIX`])
-/// the command is that builder's own first argument instead — a shape a plain
-/// "first whitespace-separated word" read gets wrong, yielding `[list`.
-/// Any other command substitution computed the prefix, and its head is
-/// genuinely unknown.
-///
-/// The one place that answers this question, shared by the two consumers that
-/// need it: this module's own call-graph builder
-/// ([`scan_call_facts`], which records the callback as a reachability edge)
-/// and [`crate::call_site_scan`] (which records it as a call site whose
-/// arguments the runtime supplies). Fixing them independently is what let the
-/// `[list cb]` shape be handled in one and not the other; one primitive means
-/// a new prefix-building shape lands in both at once. Neither consumer names
-/// a command — the builder is recognised by its registry trait.
+/// Head of a literal Tcl callback-list value under the selected grammar.
+/// Braces, quotes and escapes belong to list syntax; bracket text in a literal
+/// value remains data. Executed builders require original source receipts.
 #[must_use]
 pub fn command_prefix_head(
     registry: &tcl_registry::CommandRegistry,
     prefix: &str,
 ) -> Option<String> {
-    if let Some((builder, built)) = crate::value_shapes::parse_command_substitution_with_config(
+    command_prefix_literal_head(
+        tcl_syntax::word_rules::WordValueRules::from_config(&tcl_lexer::LexerConfig::for_profile(
+            registry.profile(),
+        )),
         prefix,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    ) {
-        let bare = builder.strip_prefix("::").unwrap_or(builder.as_str());
-        if registry.get(bare).is_some_and(|spec| {
-            spec.traits
-                .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
-        }) {
-            return built.first().cloned();
-        }
-        return None;
-    }
-    prefix.split_whitespace().next().map(ToOwned::to_owned)
+    )
+}
+pub(crate) fn command_prefix_literal_head(
+    rules: tcl_syntax::word_rules::WordValueRules,
+    prefix: &str,
+) -> Option<String> {
+    rules
+        .split_list(prefix)
+        .ok()?
+        .first()
+        .map(ToString::to_string)
 }
 
 /// Return the namespace segments of a qualified proc name —
@@ -1179,6 +1179,8 @@ fn build_method_summaries(
                     dialect,
                     identities,
                     declared,
+                    source_input: ir_module.source_metadata_input.as_ref(),
+                    source_procedures: &ir_module.procedures,
                 },
                 &mut facts,
                 &mut written_ivars,
@@ -1279,6 +1281,8 @@ struct MethodScan<'a> {
     identities: &'a crate::realm::CommandBindingRealm,
     /// The document's own command declarations — see [`ProcScan::declared`].
     declared: Option<&'a tcl_registry::model::DeclaredSurface>,
+    source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+    source_procedures: &'a HashMap<String, crate::ir::Procedure>,
 }
 
 fn scan_method_body_facts(
@@ -1294,6 +1298,8 @@ fn scan_method_body_facts(
         dialect,
         identities,
         declared,
+        source_input,
+        source_procedures,
     } = scan;
     let params: HashSet<String> = body_def.params.iter().cloned().collect();
     if matches!(
@@ -1322,6 +1328,8 @@ fn scan_method_body_facts(
         identities,
         declared,
         positioned_substitutions: false,
+        source_input,
+        source_procedures,
     };
     scan_script(&body_def.body, ctx, facts, 0);
     // Fall-through exit is non-constant (O103); see `scan_proc`.
@@ -1331,16 +1339,89 @@ fn scan_method_body_facts(
     // Instance-variable writes mutate object state and survive the call —
     // so a method that writes any in-scope instance var is impure even
     // though the write looks like a plain local `set`.
-    if !body_def.instance_vars.is_empty() {
+    if body_def.body.executed_source.is_some() {
+        if original_method_has_outward_write(&body_def.body, registry, source_input) {
+            facts.local_pure = false;
+            facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
+        }
+    } else if !body_def.instance_vars.is_empty() {
         collect_instance_var_writes(&body_def.body, &body_def.instance_vars, written_ivars, 0);
         collect_possible_instance_var_writes(
             &body_def.body,
             &body_def.instance_vars,
             registry,
-            dialect,
+            source_input,
             written_ivars,
         );
     }
+}
+
+/// Original object writes are selected from actual operand/context owners.
+/// Missing normal binding evidence remains a hazard, never a private local.
+fn original_method_has_outward_write(
+    script: &crate::ir::Script,
+    registry: &tcl_registry::CommandRegistry,
+    source_input: Option<&crate::analyser::ResolvedAnalysisInput>,
+) -> bool {
+    let Some(context) = source_input.map(crate::analyser::ResolvedAnalysisInput::context_registry)
+    else {
+        return true;
+    };
+    let metadata = Some(context.as_ref().into());
+    let mut pending = vec![(script, 0)];
+    while let Some((script, depth)) = pending.pop() {
+        if MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth) {
+            return true;
+        }
+        for statement in &script.statements {
+            let tokens = script.retained_source_tokens_for_statement(statement);
+            if let Some(names) = tokens.and_then(|tokens| {
+                crate::registry_invocation::possible_variable_name_operands_with_metadata_context(
+                    registry, metadata, tokens,
+                )
+            }) {
+                if names
+                    .unresolved_roles()
+                    .any(|role| role == tcl_registry::ArgRole::VarWrite)
+                {
+                    return true;
+                }
+                if names.contents_write_operands().next().is_some() {
+                    let Some(tokens) = tokens else {
+                        return true;
+                    };
+                    let Some(binding) = tokens.source_binding.as_ref() else {
+                        return true;
+                    };
+                    let Some(normal) = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                        registry, metadata, tokens,
+                    ) else {
+                        return true;
+                    };
+                    let context = binding
+                        .normal_variable_continuation()
+                        .unwrap_or(&binding.variable_context);
+                    let writes = normal.mutation_places(context, registry);
+                    if writes.is_empty()
+                        || writes.iter().any(|place| {
+                            place.dynamic || place.observed || place.cell.as_ref().is_none_or(|cell|
+                            !matches!(&cell.owner, crate::place::CellOwner::Activation(identity)
+                                if context.activation.as_ref() == Some(identity)))
+                        })
+                    {
+                        return true;
+                    }
+                }
+            }
+            pending.extend(
+                statement
+                    .child_scripts()
+                    .into_iter()
+                    .map(|child| (child, depth + 1)),
+            );
+        }
+    }
+    false
 }
 
 /// Candidate name operands identify possible instance-write hazards, even
@@ -1349,13 +1430,16 @@ fn collect_possible_instance_var_writes(
     script: &crate::ir::Script,
     ivars: &HashSet<String>,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    source_input: Option<&crate::analyser::ResolvedAnalysisInput>,
     out: &mut HashSet<String>,
 ) {
     use crate::registry_invocation::EffectiveInvocationWord;
-    let context = dialect
-        .or_else(|| registry.profile())
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let Some(context) = source_input.map(crate::analyser::ResolvedAnalysisInput::context_registry)
+    else {
+        out.extend(ivars.iter().cloned());
+        return;
+    };
+    let metadata = Some(context.as_ref().into());
     let mut pending = vec![(script, 0)];
     while let Some((script, depth)) = pending.pop() {
         if MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth) {
@@ -1363,8 +1447,8 @@ fn collect_possible_instance_var_writes(
         }
         for statement in &script.statements {
             if let Some(names) = statement.tokens().and_then(|tokens| {
-                crate::registry_invocation::possible_variable_name_operands(
-                    registry, context, tokens,
+                crate::registry_invocation::possible_variable_name_operands_with_metadata_context(
+                    registry, metadata, tokens,
                 )
             }) {
                 for operand in names.contents_write_operands() {
@@ -1379,6 +1463,7 @@ fn collect_possible_instance_var_writes(
                         | EffectiveInvocationWord::Dynamic
                         | EffectiveInvocationWord::Expanded
                         | EffectiveInvocationWord::KnownExpansion(_)
+                        | EffectiveInvocationWord::KnownByteExpansion(_)
                         | EffectiveInvocationWord::Opaque => out.extend(ivars.iter().cloned()),
                     }
                 }
@@ -1552,6 +1637,8 @@ fn scan_all_procs(
                 object_types,
                 identities,
                 declared,
+                source_input: ir_module.source_metadata_input.as_ref(),
+                source_procedures: &ir_module.procedures,
             }),
         );
     }
@@ -1572,6 +1659,8 @@ struct ProcScan<'a> {
     /// The document's own command declarations (`# tcl-lsp: stub`), unioned
     /// with the catalogue through [`ScanCtx::surface`].
     declared: Option<&'a tcl_registry::model::DeclaredSurface>,
+    source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+    source_procedures: &'a HashMap<String, crate::ir::Procedure>,
 }
 
 fn compute_all_transitive_calls(
@@ -1807,6 +1896,8 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
         object_types,
         identities,
         declared,
+        source_input,
+        source_procedures,
     } = scan;
     let mut facts = LocalFacts {
         local_pure: true,
@@ -1823,6 +1914,8 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
         identities,
         declared,
         positioned_substitutions: false,
+        source_input,
+        source_procedures,
     };
     scan_script(&proc.body, ctx, &mut facts, 0);
     // If the body can fall off the end, its implicit exit returns the
@@ -1847,19 +1940,11 @@ struct ScanCtx<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     params: &'a HashSet<String>,
-    /// Object-handle → candidate class names for this module
-    /// ([`crate::object_types::object_handle_classes`]), so a `$g walk …
-    /// -command cb` instance-method dispatch resolves its callback to a
-    /// call-graph edge.  Empty when built without a `CompilationUnit`.
+    /// Reporting candidates for standalone Logical method summaries; source
+    /// receiver and callback ownership comes from retained original receipts.
     object_types: &'a HashMap<String, HashSet<String>>,
-    /// The document's statically proven command-identity facts
-    /// ([`crate::realm`]), so a call's side-effect classification,
-    /// callback-prefix layout, and body / lambda / expression recursion are
-    /// chosen by the command a head *is* rather than the one it is spelled as.
-    ///
-    /// Read *unpositioned*: this scan walks lowered `Statement::Call`s and
-    /// re-segments body text at offset 0, so no document-absolute offset
-    /// exists at the point of the query.  Empty for an IR-only caller.
+    /// The original realm supplies positioned bindings and entered-child
+    /// inventories. Raw legacy IR has no original site or Native lookup grant.
     identities: &'a crate::realm::CommandBindingRealm,
     /// The document's own command declarations (`# tcl-lsp: stub` blocks and
     /// `<dialect>.tcl.stubs` sidecars). A stub states the same kind of fact a
@@ -1871,9 +1956,16 @@ struct ScanCtx<'a> {
     /// Substitutions of the current retained invocation were already scanned
     /// from exact source carriers; raw text must not regain declined semantics.
     positioned_substitutions: bool,
+    source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+    source_procedures: &'a HashMap<String, crate::ir::Procedure>,
 }
 
 impl<'a> ScanCtx<'a> {
+    fn metadata_context(&self) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
+        self.source_input
+            .map(crate::analyser::ResolvedAnalysisInput::context_registry)
+    }
+
     /// The command surface this scan resolves argument roles against: the
     /// catalogue generation plus the document's own declarations.
     fn surface(&self) -> tcl_registry::model::DocumentCommandSurface<'a> {
@@ -1953,7 +2045,12 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     // rejects dynamic `$cb` / bracketed heads), mirroring the reference
     // extractor's bareword guard.
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    for (idx, _appended) in ctx.surface().command_prefixes(resolved, &arg_strs) {
+    for (idx, _appended) in ctx
+        .surface()
+        .command_prefixes(resolved, &arg_strs)
+        .into_iter()
+        .filter(|_| !ctx.positioned_substitutions)
+    {
         if let Some(word) = args.get(idx).and_then(|a| command_prefix_head(registry, a))
             && is_plain_proc_name(&word)
             && let Some(target) = resolve_internal_call(&word, caller, known)
@@ -1966,13 +2063,15 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         .iter()
         .map(|value| tcl_registry::InvocationWord::Literal(value))
         .collect();
-    scan_candidate_method_callbacks(
-        extract_var_name(command).unwrap_or(command),
-        &arg_strs,
-        &words,
-        ctx,
-        facts,
-    );
+    if !ctx.positioned_substitutions {
+        scan_candidate_method_callbacks(
+            extract_var_name(command).unwrap_or(command),
+            &arg_strs,
+            &words,
+            ctx,
+            facts,
+        );
+    }
 
     // A call that resolves to an internal proc contributes ONLY a
     // call-graph edge — its purity / effects flow through the
@@ -2212,12 +2311,11 @@ fn scan_role_code_arguments(
     let surface = ctx.surface();
     let resolved: &str = ctx.identities.resolve_unpositioned(command).spec_name();
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let context = ctx.metadata_context();
     let structured = tokens.map(|tokens| {
-        crate::registry_invocation::resolve_command_tokens(
+        crate::registry_invocation::resolve_command_tokens_with_metadata_context(
             ctx.registry,
-            ctx.dialect
-                .or_else(|| ctx.registry.profile())
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+            context.as_deref().map(Into::into),
             tokens,
         )
     });
@@ -2297,52 +2395,6 @@ fn scan_role_code_arguments(
     {
         if let Some(expr_text) = args.get(index) {
             scan_value_substitutions(strip_one_brace_layer(expr_text), ctx, facts, 0);
-        }
-    }
-}
-
-/// Structured roles retain argv positions even when a captured prefix has no
-/// presentation. Only separately proved body values can be re-segmented.
-fn scan_resolved_role_code_arguments(
-    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
-    ctx: ScanCtx<'_>,
-    facts: &mut LocalFacts,
-) {
-    use tcl_registry::{ArgRole, Traits};
-    let metadata = &invocation.facts;
-    if !metadata.arg_roles_complete
-        || metadata.traits.intersects(
-            tcl_registry::traits::FRAME_REACH_TRAITS
-                .union(Traits::DEFINES_PROCEDURE)
-                .union(Traits::DECLARES_NAMESPACE),
-        )
-    {
-        return;
-    }
-    for (index, role) in &metadata.arg_roles {
-        let index = metadata.argument_offset + usize::from(*index);
-        if matches!(role, ArgRole::Name | ArgRole::NamespaceName)
-            && invocation
-                .argument_literal(index)
-                .is_none_or(|name| name.starts_with("::"))
-        {
-            return;
-        }
-    }
-    for (index, role) in &metadata.arg_roles {
-        let index = metadata.argument_offset + usize::from(*index);
-        if !matches!(role, ArgRole::Body | ArgRole::Expr) {
-            continue;
-        }
-        let Some(value) = invocation.argument_literal(index) else {
-            facts.has_unknown_calls = true;
-            facts.local_pure = false;
-            continue;
-        };
-        match role {
-            ArgRole::Body => scan_source_for_calls(&value, ctx, facts, 0),
-            ArgRole::Expr => scan_value_substitutions(&value, ctx, facts, 0),
-            _ => unreachable!("only executable language roles selected above"),
         }
     }
 }
@@ -2491,14 +2543,15 @@ fn scan_normal_visible_writes(
     ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
 ) {
+    let Some(context) = ctx.metadata_context() else {
+        return;
+    };
     let Some(binding) = tokens.source_binding.as_ref() else {
         return;
     };
-    let Some(normal) = crate::registry_invocation::normal_transfer_invocation(
+    let Some(normal) = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
         ctx.registry,
-        ctx.dialect
-            .or_else(|| ctx.registry.profile())
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+        Some(context.as_ref().into()),
         tokens,
     ) else {
         return;
@@ -2552,58 +2605,29 @@ fn scan_candidate_method_callbacks(
     }
 }
 
-/// Candidate callback reachability reads original ordinary source words when
-/// the opaque receiver prevents a reached argv snapshot. Source substitutions
-/// remain dynamic; this projection never grants handler entry or effects.
+/// Original callback source targets contribute possible call-graph edges.
+/// Whole installer, builder, frame descriptor and declaration geometry retain
+/// their own obligations; receiver labels never select a callback procedure.
 fn scan_positioned_candidate_callbacks(
     tokens: &crate::ir::CommandTokens,
     ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
 ) {
-    if tokens.synthetic.is_some()
-        || tokens.words().len() != tokens.argv.len()
-        || tokens
-            .words()
-            .iter()
-            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
-    {
+    let Some(rows) = ctx.source_input.and_then(|input| {
+        ctx.identities
+            .original_source_callback_targets_for_tokens(input, tokens)
+    }) else {
         return;
+    };
+    for row in rows {
+        if let Some(target) = row
+            .target()
+            .and_then(|target| target.original_ir_procedure_name(ctx.source_procedures))
+            .filter(|target| ctx.known.contains(*target))
+        {
+            facts.direct_calls.insert(target.to_owned());
+        }
     }
-    let Some(head) = tokens.words().first() else {
-        return;
-    };
-    let frozen = tokens
-        .source_binding
-        .as_ref()
-        .filter(|binding| binding.evaluated_argument_values.len() + 1 == tokens.words().len());
-    let receiver = head
-        .sole_variable_substitution()
-        .and_then(|(spelling, _)| extract_var_name(spelling))
-        .or_else(|| frozen.and_then(|binding| binding.evaluated_command_word()))
-        .or_else(|| crate::registry_invocation::invocation_word(head).literal());
-    let Some(receiver) = receiver else {
-        return;
-    };
-    let words: Vec<_> = tokens.words()[1..]
-        .iter()
-        .enumerate()
-        .map(|(index, word)| {
-            frozen
-                .and_then(|binding| binding.evaluated_argument_values[index].as_deref())
-                .map_or_else(
-                    || crate::registry_invocation::invocation_word(word),
-                    tcl_registry::InvocationWord::Literal,
-                )
-        })
-        .collect();
-    // The spelling view is diagnostic-only. Structured words keep unknown
-    // runtime operands opaque to literal-sensitive callback selectors.
-    let spellings: Vec<_> = tokens.words()[1..]
-        .iter()
-        .map(crate::ir::WordExpr::legacy_text)
-        .collect();
-    let arguments: Vec<_> = spellings.iter().map(String::as_str).collect();
-    scan_candidate_method_callbacks(receiver, &arguments, &words, ctx, facts);
 }
 
 /// Successful handler entry can contribute a possible call edge without
@@ -2613,13 +2637,16 @@ fn scan_normal_procedure_caller(
     ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
 ) {
-    if let Some(call) = crate::registry_invocation::normal_user_procedure_invocation(
-        ctx.registry,
-        ctx.dialect
-            .or_else(|| ctx.registry.profile())
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-        tokens,
-    ) && let Some(callee) = resolve_internal_call(&call.target, ctx.caller, ctx.known)
+    let Some(context) = ctx.metadata_context() else {
+        return;
+    };
+    if let Some(call) =
+        crate::registry_invocation::normal_user_procedure_invocation_with_metadata_context(
+            ctx.registry,
+            Some(context.as_ref().into()),
+            tokens,
+        )
+        && let Some(callee) = resolve_internal_call(&call.target, ctx.caller, ctx.known)
     {
         // A possible successful handler entry contributes a call-graph edge.
         // Compiler/completion uncertainty below still withdraws effects and purity.
@@ -2638,14 +2665,13 @@ fn scan_positioned_reachability(
     };
     scan_normal_procedure_caller(tokens, ctx, facts);
     scan_positioned_candidate_callbacks(tokens, ctx, facts);
-    if let Some((reads, writes)) =
-        crate::registry_invocation::possible_normal_handler_effect_regions(
-            ctx.registry,
-            ctx.dialect
-                .or_else(|| ctx.registry.profile())
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-            tokens,
-        )
+    if let Some(context) = ctx.metadata_context()
+        && let Some((reads, writes)) =
+            crate::registry_invocation::possible_normal_handler_effect_regions_with_metadata_context(
+                ctx.registry,
+                Some(context.as_ref().into()),
+                tokens,
+            )
     {
         facts.effect_reads |= reads;
         facts.effect_writes |= writes;
@@ -2660,6 +2686,10 @@ fn scan_positioned_reachability(
             facts.direct_calls.insert(callee);
         }
     }
+    // naming.compiler.original-positioned-child-body-reachability
+    // docs/design/analysis/name-resolution-proofs/compiler-original-positioned-child-body-reachability.md
+    // Each child retains its actual target, source offset and entered owner.
+    // Re-segmenting an argument value cannot donate a nested command's roles.
     if let Some(site) = binding.invocation_site() {
         for child in ctx.identities.possible_entered_body_invocations(site) {
             for target in child.execution_targets() {
@@ -2715,16 +2745,21 @@ fn scan_positioned_invocation(
     // The exact point binding supersedes a whole-document assistance join.
     let positioned = ScanCtx {
         identities: crate::realm::CommandBindingRealm::none(),
+        positioned_substitutions: true,
         ..ctx
     };
     if target.registry_backed {
-        let Some(resolved) = crate::registry_invocation::resolved_statement_invocation(
-            ctx.registry,
-            ctx.dialect
-                .or_else(|| ctx.registry.profile())
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
-            stmt,
-        ) else {
+        let Some(context) = ctx.metadata_context() else {
+            scan_unproved_invocation(args, positioned, facts);
+            return true;
+        };
+        let Some(resolved) =
+            crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+                ctx.registry,
+                Some(context.as_ref().into()),
+                stmt,
+            )
+        else {
             scan_unproved_invocation(args, ctx, facts);
             return true;
         };
@@ -2746,7 +2781,6 @@ fn scan_positioned_invocation(
             // query cannot invent bytes for a captured unmaterialised value.
             scan_unproved_invocation(args, positioned, facts);
         }
-        scan_resolved_role_code_arguments(&resolved, positioned, facts);
     } else if let Some(target) = resolve_internal_call(&target.command, ctx.caller, ctx.known) {
         facts.direct_calls.insert(target);
         for arg in args {
@@ -3756,12 +3790,26 @@ mod tests {
     ) -> Vec<String> {
         let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
         let ir = crate::lowering::lower_to_ir(src, registry);
+        let identities = crate::realm::document_realm_bindings_with_source_entry(
+            src,
+            ir.lexer_config,
+            registry,
+            &ir.source_entry,
+        );
+        let identities = ir.source_metadata_input.as_ref().map_or_else(
+            || identities.clone(),
+            |input| {
+                identities
+                    .clone()
+                    .with_resolved_analysis_input(input.clone())
+            },
+        );
         let ia = build_interprocedural_analysis(
             &ir,
             registry,
             Some(dialect),
             ObjectTypeMap::none(),
-            crate::realm::CommandBindingRealm::none(),
+            &identities,
             None,
         );
         let mut calls: Vec<String> = ia
@@ -3773,13 +3821,39 @@ mod tests {
         calls
     }
 
-    /// A procedure invoked only through a `CommandPrefix`-role callback is a
-    /// real caller. A bare-word prefix produces an
-    /// edge; a prefix *built* by a registry-declared builder (`[list cb]`,
-    /// `Traits::BUILDS_COMMAND_PREFIX`) did not — the head read as `[list`
-    /// and failed the bareword guard, so a callback-only proc looked dead.
-    /// Both shapes now route through the one shared
-    /// [`command_prefix_head`] primitive.
+    #[test]
+    fn original_positioned_child_bodies_preserve_replacements_and_aliases() {
+        // naming.compiler.original-positioned-child-body-reachability
+        // docs/design/analysis/name-resolution-proofs/compiler-original-positioned-child-body-reachability.md
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        for (setup, body, expected) in [
+            ("", "catch {leaf}", true),
+            (
+                "proc catch {payload} {return $payload}",
+                "catch {leaf}",
+                false,
+            ),
+            ("interp alias {} held {} catch", "held {leaf}", true),
+            ("rename catch held", "held {leaf}", true),
+            (
+                "proc held {payload} {return $payload}",
+                "held {leaf}",
+                false,
+            ),
+        ] {
+            let source =
+                format!("proc leaf {{}} {{}}; {setup}; proc caller {{}} {{time {{{body}}}}}");
+            assert_eq!(
+                calls_of(&source, "::caller", profile).contains(&"::leaf".to_owned()),
+                expected,
+                "{source}"
+            );
+        }
+    }
+
+    /// Literal callback values and authentic selected builders supply possible
+    /// reachability edges independently of future execution and frame entry.
     #[test]
     fn command_prefix_callbacks_are_call_graph_edges_in_every_shape() {
         for prefix in ["cb", "{cb -nocase}", "[list cb]", "[list cb extra]"] {
@@ -3799,6 +3873,40 @@ mod tests {
     }
 
     /// The `trace add variable … command cb` shape.
+    #[test]
+    fn original_callback_reachability_distinguishes_literal_values_and_selected_builders() {
+        // naming.source.original-callback-procedure-target
+        // docs/design/analysis/name-resolution-proofs/source-original-callback-procedure-target.md
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        for setup in ["", "rename list make", "interp alias {} make {} list"] {
+            let builder = if setup.is_empty() { "list" } else { "make" };
+            let source = format!(
+                "proc cb {{args}} {{}}; {setup}; proc go {{x}} {{lsort -command [{builder} cb $x] {{3 1 2}}}}"
+            );
+            assert!(
+                calls_of(&source, "::go", profile).contains(&"::cb".to_owned()),
+                "{source}"
+            );
+        }
+        for setup in ["proc list args {}", "rename list {}", "rename cb {}"] {
+            let source = format!(
+                "proc cb {{args}} {{}}; {setup}; proc go {{x}} {{lsort -command [list cb $x] {{3 1 2}}}}"
+            );
+            assert!(
+                !calls_of(&source, "::go", profile).contains(&"::cb".to_owned()),
+                "{source}"
+            );
+        }
+        let source = "proc cb args {}; proc {[list} args {}; proc go {} {lsort -command {[list cb]} {3 1 2}}";
+        let calls = calls_of(source, "::go", profile);
+        assert!(calls.contains(&"::[list".to_owned()), "{calls:?}");
+        assert!(!calls.contains(&"::cb".to_owned()));
+        let source =
+            "proc {cb name} args {}; proc go {} {lsort -command {{cb name} BAKED} {3 1 2}}";
+        assert!(calls_of(source, "::go", profile).contains(&"::cb name".to_owned()));
+    }
+
     #[test]
     fn a_trace_callback_is_a_call_graph_edge() {
         let src = "proc cb {args} { return 0 }\n\
@@ -3869,9 +3977,25 @@ mod tests {
         );
         assert_eq!(
             command_prefix_head(&registry, "[list cb $x]").as_deref(),
-            Some("cb"),
+            Some("[list"),
         );
-        assert_eq!(command_prefix_head(&registry, "[pick]"), None);
+        assert_eq!(
+            command_prefix_head(&registry, "[pick]").as_deref(),
+            Some("[pick]")
+        );
+        assert_eq!(
+            command_prefix_head(&registry, "{cb name} tail").as_deref(),
+            Some("cb name")
+        );
+        assert_eq!(
+            command_prefix_head(&registry, "\"cb name\" tail").as_deref(),
+            Some("cb name")
+        );
+        assert_eq!(
+            command_prefix_head(&registry, r"cb\ name tail").as_deref(),
+            Some("cb name")
+        );
+        assert_eq!(command_prefix_head(&registry, "{unterminated"), None);
     }
 
     /// The interprocedural call-graph scanners each need a depth cap —
@@ -3900,6 +4024,8 @@ mod tests {
             identities: crate::realm::CommandBindingRealm::none(),
             declared: None,
             positioned_substitutions: false,
+            source_input: None,
+            source_procedures: &HashMap::new(),
         };
 
         // A 3000-deep `ExprNode` tree (nested unary `!` over `$x`).

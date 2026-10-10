@@ -36,6 +36,7 @@ tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-version = { path = "../tcl-version" }
 tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
 tcl-registry = { path = "../tcl-registry" }
 # SpecTcl runtime spec packs: discovery, load, and workspace-scope insertion
 # into the per-profile cached registry (docs/design/registry/spec-packs.md).

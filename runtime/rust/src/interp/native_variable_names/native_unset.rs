@@ -50,7 +50,7 @@ impl Interp {
                 return Ok(None);
             };
             Ok(self
-                .capture_original_c_selection(original, &selected, purpose)?
+                .capture_original_c_parts_selection(original, element, &selected, purpose)?
                 .map(|(receiver, home)| OriginalCVariableCapture {
                     receiver,
                     home,
@@ -113,7 +113,7 @@ impl Interp {
             Err(crate::frame::VarError::NameProtocolUnavailable) => {
                 return Err(self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("actual indexed unset receiver").into(),
-                ))
+                ));
             }
             Err(error) => {
                 return self.finish_original_unset_failure(
@@ -121,7 +121,7 @@ impl Interp {
                     complain,
                     unset_reason(error),
                     Site::NameLookup,
-                )
+                );
             }
         };
         self.unset_original_c_capture(capture, report, complain)
@@ -178,7 +178,7 @@ impl Interp {
             Err(crate::frame::VarError::NameProtocolUnavailable) => {
                 return Err(self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("selected unset receiver").into(),
-                ))
+                ));
             }
             Err(error) => {
                 return self.finish_original_unset_failure(
@@ -186,17 +186,21 @@ impl Interp {
                     complain,
                     unset_reason(error),
                     Site::NameLookup,
-                )
+                );
             }
         };
         if observes {
-            self.fire_original_c_unset_callbacks(
+            self.fire_selected_unset_callbacks(
                 &capture.home,
                 &capture.root,
                 capture.element.as_deref(),
                 &spelling,
                 !report.combined,
             );
+        } else {
+            // Destruction retires read/write registrations even when no unset
+            // callback needs the original name, including an active read trace.
+            self.detach_destroyed_trace_group(&capture.home, capture.element.as_deref());
         }
         if self.host_refusal_pending() {
             return Err(Code::Error);
@@ -252,49 +256,6 @@ impl Interp {
             }
         };
         Err(self.original_c_variable_failure_input(input, unset_purpose(true), reason, site))
-    }
-
-    fn fire_original_c_unset_callbacks(
-        &mut self,
-        home: &crate::vars::TraceHome,
-        root: &[u8],
-        element: Option<&[u8]>,
-        spelling: &[u8],
-        separate: bool,
-    ) {
-        let mut access = self.trace_access(spelling, root, element, home, true);
-        if separate && element.is_some() {
-            access.reported = root.to_vec();
-        }
-        let mut callbacks = Vec::new();
-        if access.match_elem.is_some() && access.whole_array {
-            let array = crate::cmd_trace::VarTraceScope::cell(
-                &home.base,
-                None,
-                home.ns,
-                home.level,
-                home.binding_id,
-            );
-            if !self.active_var_trace_scopes.borrow().contains(&array) {
-                callbacks.extend(self.cell_unset_traces(
-                    home,
-                    None,
-                    &access.reported,
-                    access.report_elem.as_deref().unwrap_or_default(),
-                ));
-            }
-        }
-        callbacks.extend(self.cell_unset_traces(
-            home,
-            access.match_elem.as_deref(),
-            &access.reported,
-            access.report_elem.as_deref().unwrap_or_default(),
-        ));
-        // The destroyed Var's registrations retire before guest callbacks;
-        // registrations made by a callback belong to the new live generation.
-        self.detach_destroyed_trace_group(home, access.match_elem.as_deref());
-        self.fire_unset_callbacks(callbacks);
-        self.fire_native_error_variable_trace(home, &access, b"unset");
     }
 }
 

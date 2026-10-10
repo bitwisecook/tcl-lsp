@@ -43,35 +43,41 @@ pub fn inline_variable(
     registry: &CommandRegistry,
     line_index: &LineIndex,
 ) -> Option<Refactoring> {
-    // The document's own lexing grammar — `analysis.dialect` carries the
-    // name the host analysed this document under (issue: dialect-drift).
-    let config =
-        LexerConfig::from_grammar(crate::environment_for_dialect(&analysis.dialect).grammar());
-    let cmd = find_command_at(source, cursor, Some("set"), registry, config)?;
-    if cmd.texts.len() < 3 {
-        return None; // `set var` read form — nothing to inline
+    let config = analysis.body_lexer_config?;
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+        return None;
     }
-    let var_name = cmd.texts[1].clone();
+    let cmd = if analysis.allows_lexical_declaration_advice() {
+        find_command_at(source, cursor, None, registry, config)?
+    } else {
+        super::find_original_command_at(source, cursor, analysis)?
+    };
+    let (var_name, ref_span, value_index) = if analysis.allows_lexical_declaration_advice() {
+        if cmd.name() != "set" || cmd.texts.len() != 3 {
+            return None;
+        }
+        let var_name = cmd.texts[1].clone();
+        let cmd_line = line_index.line_at(cmd.span.start());
+        let definition = walk_scopes(&analysis.global_scope)
+            .into_iter()
+            .find(|definition| {
+                definition.name == var_name
+                    && line_index.line_at(definition.definition_span.start()) == cmd_line
+            })?;
+        let [reference] = definition.references.as_slice() else {
+            return None;
+        };
+        (var_name, *reference, 2)
+    } else {
+        original_inline_binding(source, analysis, &cmd)?
+    };
 
     // The value word, verbatim from source (widened to include any
     // closing quote / brace / bracket).
-    let value_tok = cmd.argv[2];
+    let value_tok = *cmd.argv.get(value_index)?;
     let value_start = value_tok.span.start() as usize;
     let value_end = token_end_offset(source, value_tok) as usize;
     let value_text = source.get(value_start..value_end)?;
-
-    // Locate the var definition whose defining line matches the `set`
-    // command's line.
-    let cmd_line = line_index.line_at(cmd.span.start());
-    let var_def = walk_scopes(&analysis.global_scope).into_iter().find(|vd| {
-        vd.name == var_name && line_index.line_at(vd.definition_span.start()) == cmd_line
-    })?;
-
-    // Only inline when used exactly once.
-    if var_def.references.len() != 1 {
-        return None;
-    }
-    let ref_span = var_def.references[0];
 
     // Delete the `set` command, and with it the whole line when the
     // command is alone on one: the leading indentation belongs to the
@@ -100,7 +106,7 @@ pub fn inline_variable(
     // Resolve the reference's VAR token + enclosing word so we know,
     // from the tokens alone, whether the reference is a standalone word
     // or interpolated inside a larger word.
-    let ctx = reference_token(source, ref_span.start(), registry, config)?;
+    let ctx = reference_token(source, ref_span.start(), registry, config, analysis)?;
 
     // The `$var` / `${var}` span to replace.  The VAR token starts at
     // `$`; its end omits the braced form's `}`, so re-add it.
@@ -154,6 +160,203 @@ pub fn inline_variable(
     })
 }
 
+/// Source selection and rendering data, without a runtime name lookup grant.
+struct OriginalInlineContext<'a> {
+    image: tcl_lexer::SourceImage,
+    config: LexerConfig,
+    registry: &'a CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+    original: tcl_compiler::ir::CommandTokens,
+    offset: u32,
+}
+
+type OriginalInlineBinding = (String, tcl_lexer::Span, usize);
+
+/// A literal setter and its single physical value read. Name geometry alone
+/// cannot establish store preservation, observers or reaching contents.
+fn original_inline_binding(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &SegmentedCommand,
+) -> Option<OriginalInlineBinding> {
+    use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    let context = OriginalInlineContext {
+        image: tcl_lexer::SourceImage::document(source),
+        config: analysis.body_lexer_config?,
+        registry: analysis.resolved_registry()?,
+        profile: analysis.resolved_profile()?,
+        original: tcl_compiler::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            analysis.body_lexer_config?,
+            command,
+        ),
+        offset: command.span.start(),
+    };
+    let unit = CompilationUnit::build_with_options(
+        source,
+        UnitBuildOptions {
+            registry: context.registry,
+            config: context.config,
+            dialect: Some(context.profile),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        },
+    );
+    let mut selected = None;
+    for function in unit.analysable_body_function_units() {
+        let opaque = function.cfg.has_opaque_native_accesses();
+        let barrier = function.dynamic_barrier_blocks_value_motion();
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+            eprintln!(
+                "ORIGINAL_INLINE_FUNCTION offset={} opaque={opaque} barrier={barrier} blocks={}",
+                context.offset,
+                function.ssa.blocks.len()
+            );
+        }
+        if opaque || barrier {
+            continue;
+        }
+        for (&block, body) in &function.ssa.blocks {
+            for index in 0..body.statements.len() {
+                if let Some(candidate) = point_inline_binding(&context, function, block, index) {
+                    if selected.is_some() {
+                        return None;
+                    }
+                    selected = Some(candidate);
+                }
+            }
+        }
+    }
+    selected
+}
+
+fn point_inline_binding(
+    context: &OriginalInlineContext<'_>,
+    function: &tcl_compiler::compilation_unit::FunctionUnit,
+    block: tcl_compiler::cfg::BlockId,
+    index: usize,
+) -> Option<OriginalInlineBinding> {
+    use tcl_compiler::ir::{WordExpr, WordPart};
+    use tcl_compiler::ssa::SsaSourceView;
+    let view = SsaSourceView::at_statement(&function.ssa, block, index);
+    let tokens = view.source_tokens()?;
+    if function
+        .abs_span(tokens.words().first()?.source().span)
+        .start()
+        != context.offset
+    {
+        return None;
+    }
+    let normal = tcl_compiler::registry_invocation::normal_transfer_invocation(
+        context.registry,
+        Some(tcl_registry::model::semantic::SemanticContext::for_profile(
+            context.profile,
+        )),
+        tokens,
+    );
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        eprintln!(
+            "ORIGINAL_INLINE_POINT offset={} normal={} binding={} handler={} continuation={}",
+            context.offset,
+            normal.is_some(),
+            tokens.source_binding.is_some(),
+            tokens
+                .source_binding
+                .as_ref()
+                .is_some_and(|binding| binding.proved_handler_target().is_some()),
+            tokens
+                .source_binding
+                .as_ref()
+                .is_some_and(|binding| binding.normal_variable_continuation().is_some())
+        );
+    }
+    let normal = normal?;
+    let value_index = normal
+        .written_argument(normal.stored_value_argument()?)?
+        .checked_add(1)?;
+    let value = context.original.words().get(value_index)?;
+    if !matches!(
+        value,
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+    ) && !matches!(value, WordExpr::Template { parts, .. } if parts.iter().all(|part| matches!(part, WordPart::Text { .. })))
+    {
+        return None;
+    }
+    normal.stored_value_word(
+        &tokens.source_binding.as_ref()?.variable_context,
+        context.registry,
+    )?;
+    let statement = function.ssa.blocks.get(&block)?.statements.get(index)?;
+    let mut selected = None;
+    for (&symbol, &version) in &statement.defs {
+        if let Some((label, read_span)) =
+            value_read_binding(context, function, view, block, index, symbol, version)
+        {
+            if selected.is_some() {
+                return None;
+            }
+            selected = Some((label, read_span, value_index));
+        }
+    }
+    selected
+}
+
+fn value_read_binding(
+    context: &OriginalInlineContext<'_>,
+    function: &tcl_compiler::compilation_unit::FunctionUnit,
+    view: tcl_compiler::ssa::SsaSourceView<'_>,
+    block: tcl_compiler::cfg::BlockId,
+    index: usize,
+    symbol: tcl_compiler::ssa::Symbol,
+    version: tcl_compiler::ssa::Version,
+) -> Option<(String, tcl_lexer::Span)> {
+    use tcl_compiler::def_use::{DefKind, UseKind};
+    use tcl_compiler::ssa::SsaSourceView;
+    let definition = view.original_definition_name(symbol, context.registry)?;
+    let input = definition.original_name_input();
+    let key = input.original_word_key()?;
+    if key.source_image() != &context.image
+        || key.lexer_config() != context.config
+        || !view.normal_store_contents_preserved(symbol, context.registry)
+    {
+        return None;
+    }
+    let chain = function
+        .def_use
+        .chains
+        .get(&(definition.cell().clone(), version))?;
+    let [use_site] = chain.uses.as_slice() else {
+        return None;
+    };
+    if chain.definition.kind != DefKind::Statement
+        || use_site.kind != UseKind::Operand
+        || use_site.block != chain.definition.block
+    {
+        return None;
+    }
+    let use_index = usize::try_from(use_site.statement_index)
+        .ok()
+        .filter(|use_index| *use_index > index)?;
+    let use_view = SsaSourceView::at_statement(&function.ssa, block, use_index);
+    let use_tokens = use_view.source_tokens()?;
+    let mut reads = use_tokens.variable_accesses.iter().filter(|access| {
+        use_view
+            .replaceable_read_at(&access.source, &access.original_spelling, context.registry)
+            .is_some_and(|reference| {
+                reference.symbol == symbol && reference.version == Some(version)
+            })
+    });
+    let read = reads.next()?;
+    if reads.next().is_some() {
+        return None;
+    }
+    let label = tcl_syntax::native_string::resident_name_label(input.bytes());
+    Some((label, function.abs_span(read.source.span)))
+}
+
 /// Resolved reference context — the VAR token, whether it is its own
 /// word, and the enclosing word's start offset.
 struct RefContext {
@@ -169,8 +372,13 @@ fn reference_token(
     ref_off: u32,
     registry: &CommandRegistry,
     config: LexerConfig,
+    analysis: &AnalysisResult,
 ) -> Option<RefContext> {
-    let cmd = find_command_at(source, ref_off, None, registry, config)?;
+    let cmd = if analysis.allows_lexical_declaration_advice() {
+        find_command_at(source, ref_off, None, registry, config)?
+    } else {
+        super::find_original_command_at(source, ref_off, analysis)?
+    };
     resolve_in_command(source, &cmd, ref_off, config, 0)
 }
 
@@ -288,6 +496,8 @@ mod tests {
     /// is that 80 levels return at all, not what they return.
     #[test]
     fn deeply_nested_namespaces_survive_scope_walk() {
+        // Implementation contract: naming.source.recursive-driver-state-transport
+        // docs/design/analysis/name-resolution-proofs/recursive-driver-state-transport.md
         const DEPTH: usize = 80;
         let mut source = String::new();
         for i in 0..DEPTH {
@@ -307,6 +517,59 @@ mod tests {
         let applied = run(source, 0).expect("result");
         assert!(!applied.contains("set name"), "{applied:?}");
         assert!(applied.contains("\"hello\""), "{applied:?}");
+    }
+
+    #[test]
+    fn original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps() {
+        // Implementation contract: naming.refactor.original-variable-inline-permission
+        // docs/design/analysis/name-resolution-proofs/original-variable-inline-permission.md
+        // Native proof: naming.refactor.variable-inline-literal-source-values
+        // docs/design/analysis/name-resolution-proofs/inline-variable-literal-source-values.md
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let source = "set café 7\nputs ${café}";
+            let mut analysis = Analyser::new().analyse(source, dialect);
+            analysis.global_scope.variables.clear();
+            let registry = analysis.resolved_registry().unwrap();
+            let index = LineIndex::new(source);
+            let change = inline_variable(source, 0, &analysis, registry, &index).expect(dialect);
+            assert_eq!(change.apply(source), "puts 7", "{dialect}");
+            assert!(inline_variable("# stale source", 0, &analysis, registry, &index).is_none());
+        }
+    }
+
+    #[test]
+    fn original_inline_variable_rejects_reassigned_cells_observers_and_value_effect_movement() {
+        // Implementation contract: naming.refactor.original-variable-inline-permission
+        // docs/design/analysis/name-resolution-proofs/original-variable-inline-permission.md
+        // Native proof: naming.refactor.variable-inline-reassignment-read
+        // docs/design/analysis/name-resolution-proofs/inline-variable-reassignment-read.md
+        // Native proof: naming.refactor.variable-inline-callee-upvar-read
+        // docs/design/analysis/name-resolution-proofs/inline-variable-callee-upvar-read.md
+        // Native proof: naming.refactor.variable-inline-modern-read-observer
+        // docs/design/analysis/name-resolution-proofs/inline-variable-modern-read-observer.md
+        // Native proof: naming.refactor.variable-inline-legacy-read-observer
+        // docs/design/analysis/name-resolution-proofs/inline-variable-legacy-read-observer.md
+        for source in [
+            "set x 1; set x 2; puts $x",
+            "set x [incr counter]; puts $x",
+            "set x 1; unset x; set x 2; puts $x",
+            "proc observer {args} {puts observed}; trace variable x r observer; set x 1; puts $x",
+            "set x 1; upvar #0 x alias; set alias 2; puts $x",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let cursor = u32::try_from(source.find("set x").unwrap()).unwrap();
+            assert!(
+                inline_variable(
+                    source,
+                    cursor,
+                    &analysis,
+                    analysis.resolved_registry().unwrap(),
+                    &LineIndex::new(source)
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]
@@ -340,11 +603,13 @@ mod tests {
     fn inline_into_command_substitution() {
         // The only use sits inside `[…]`, so the reference resolves through
         // the substitution's own command.
-        let source = "set timeout 30\nset result [http::geturl $url -timeout $timeout]";
+        let source = "set timeout 30\nset result [list URL -timeout $timeout]";
         assert_eq!(
             run(source, 0).as_deref(),
-            Some("set result [http::geturl $url -timeout 30]")
+            Some("set result [list URL -timeout 30]")
         );
+        let unproved = "set timeout 30\nset result [http::geturl $url -timeout $timeout]";
+        assert!(run(unproved, 0).is_none());
     }
 
     #[test]
@@ -368,10 +633,10 @@ mod tests {
     #[test]
     fn inline_keeps_the_following_line_indentation() {
         // Deleting the `set` line must take its indentation with it.
-        let source = "proc p {} {\n    set timeout 30\n    puts $timeout\n}";
+        let source = "proc p {} {\n    set timeout 30\n    puts $timeout\n}\np";
         assert_eq!(
             run(source, 16).as_deref(),
-            Some("proc p {} {\n    puts 30\n}")
+            Some("proc p {} {\n    puts 30\n}\np")
         );
     }
 

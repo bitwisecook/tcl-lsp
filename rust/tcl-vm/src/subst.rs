@@ -498,7 +498,7 @@ fn validate_arena(arena: &tcl_lexer::word_parts::ExecutablePartArena) -> Result<
 struct WordEvaluationFrame {
     list: tcl_lexer::word_parts::PartListId,
     next: usize,
-    result: Option<Value>,
+    values: Vec<Value>,
     read_after: Option<tcl_lexer::Span>,
 }
 
@@ -512,7 +512,7 @@ fn evaluate_arena(
     let mut frames = vec![WordEvaluationFrame {
         list: arena.root(),
         next: 0,
-        result: None,
+        values: Vec::new(),
         read_after: None,
     }];
     loop {
@@ -548,7 +548,7 @@ fn evaluate_arena(
                     let child = WordEvaluationFrame {
                         list: *index,
                         next: 0,
-                        result: None,
+                        values: Vec::new(),
                         read_after: Some(*name),
                     };
                     frames.push(child);
@@ -581,9 +581,7 @@ fn evaluate_arena(
             }
         } else {
             let completed = frames.pop().expect("completed evaluation frame");
-            let value = completed
-                .result
-                .unwrap_or_else(|| Value::from_native_string_bytes(&b""[..]));
+            let value = concatenate_word_values(vm, completed.values)?;
             let Some(name) = completed.read_after else {
                 return Ok(value);
             };
@@ -594,18 +592,37 @@ fn evaluate_arena(
             )
             .map_err(TclError::from_completion)?
         };
-        let result = &mut frames.last_mut().expect("parent evaluation frame").result;
-        *result = Some(match result.take() {
-            None => value,
-            Some(previous) => {
-                // Materialisation follows completion of the next component,
-                // matching the compiler's concatenation evaluation order.
-                let mut bytes = materialise_word_component(vm, &previous)?.to_vec();
-                bytes.extend_from_slice(&materialise_word_component(vm, &value)?);
-                Value::from_native_string_bytes(bytes)
-            }
-        });
+        frames
+            .last_mut()
+            .expect("parent evaluation frame")
+            .values
+            .push(value);
     }
+}
+
+/// Complete the compiler's word before reaching concatenation getters. The
+/// actual C instruction recipe remains independent of source text decoding.
+fn concatenate_word_values(vm: &mut Vm, mut values: Vec<Value>) -> Result<Value, TclError> {
+    if values.len() == 1 {
+        return Ok(values.pop().expect("sole completed word component"));
+    }
+    if let Some(protocol) = vm
+        .actual_native_invocation_dialect()
+        .native_string_protocol()
+        .filter(|protocol| protocol.tcl_version().is_some())
+    {
+        return tcl_cmd_core::native_cat::concatenate_compiled(
+            &crate::value::VmAppendObjects,
+            protocol,
+            &values,
+        )
+        .map_err(Into::into);
+    }
+    let mut bytes = Vec::new();
+    for value in values {
+        bytes.extend_from_slice(&materialise_word_component(vm, &value)?);
+    }
+    Ok(Value::from_native_string_bytes(bytes))
 }
 
 fn materialise_word_component(vm: &mut Vm, value: &Value) -> Result<std::rc::Rc<[u8]>, TclError> {
@@ -626,6 +643,112 @@ mod tests {
     use crate::interp::Vm;
     use crate::value::Value;
     use tcl_dialect::{ArrayIndexSyntax, BracedVarStyle};
+
+    #[test]
+    fn compiled_word_parts_match_original_native_concatenation_windows() {
+        // Native proof: naming.word-and-subst.original-concatenation
+        // docs/design/analysis/name-resolution-proofs/word-and-subst-original-concatenation.md
+        // This owner consumes compiled-word components, not the independently
+        // cached subst command. Observe headers before requesting result bytes.
+        let rows = include_str!(
+            "../../tcl-cmd-core/tests/data/native_word_subst_concatenation/observations.tsv"
+        );
+        for (engine, version) in [
+            ("tcl8.4", "8.4.20"),
+            ("tcl8.5", "8.5.19"),
+            ("tcl8.6", "8.6.18"),
+            ("tcl9.0", "9.0.4"),
+            ("tcl9.1", "9.1.0"),
+        ] {
+            for kind in 0..8 {
+                let mut vm = crate::native_fixture::core(
+                    tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
+                );
+                let dialect = vm.actual_native_invocation_dialect();
+                let protocol = dialect.native_string_protocol().unwrap();
+                let x = match kind {
+                    0 => Value::new_native_string_bytes(b"A".as_slice()),
+                    1 => Value::from_native_unicode_units(std::rc::Rc::from([0, 0xd800]), dialect)
+                        .unwrap(),
+                    2 => Value::new_native_string_bytes(b"A\0B".as_slice()),
+                    3 => Value::byte_array(b"\0\xff".as_slice()),
+                    4 => Value::new_native_string_bytes(b"\xff\xed\xa0\x80".as_slice()),
+                    5 => Value::native_list_constructor(Vec::new(), protocol),
+                    6 => Value::native_double(1.5, dialect),
+                    7 => Value::new_native_string_bytes(b"".as_slice()),
+                    _ => unreachable!(),
+                };
+                let y = match kind {
+                    1 => Value::new_native_string_bytes(b"".as_slice()),
+                    3 => Value::byte_array(b"\0\xff".as_slice()),
+                    _ => Value::new_native_string_bytes(b"A".as_slice()),
+                };
+                vm.set_var_bytes(b"x", x.clone()).unwrap();
+                vm.set_var_bytes(b"y", y.clone()).unwrap();
+                for repetition in 0..2 {
+                    let expected = rows
+                        .lines()
+                        .skip(1)
+                        .map(|row| row.split('\t').collect::<Vec<_>>())
+                        .find(|row| {
+                            row[0] == version
+                                && row[1] == kind.to_string()
+                                && row[2] == "0"
+                                && row[3] == repetition.to_string()
+                        })
+                        .unwrap();
+                    let context = format!("{engine}/{kind}/{repetition}");
+                    assert_eq!(
+                        x.native_object_type_name(),
+                        expected[6],
+                        "{context} x before"
+                    );
+                    assert_eq!(
+                        usize::from(x.resident_string_bytes().is_some()).to_string(),
+                        expected[7],
+                        "{context} x before storage"
+                    );
+                    let result = super::subst_word_bytes(b"${x}${y}", &mut vm).unwrap();
+                    assert_eq!(
+                        result.native_object_type_name(),
+                        expected[10],
+                        "{context} result primary"
+                    );
+                    assert_eq!(
+                        usize::from(result.resident_string_bytes().is_some()).to_string(),
+                        expected[11],
+                        "{context} result storage"
+                    );
+                    assert_eq!(
+                        usize::from(result.is_same_object(&x)).to_string(),
+                        expected[12],
+                        "{context} x identity"
+                    );
+                    assert_eq!(
+                        usize::from(result.is_same_object(&y)).to_string(),
+                        expected[13],
+                        "{context} y identity"
+                    );
+                    assert_eq!(
+                        x.native_object_type_name(),
+                        expected[14],
+                        "{context} x after"
+                    );
+                    assert_eq!(
+                        usize::from(x.resident_string_bytes().is_some()).to_string(),
+                        expected[15],
+                        "{context} x after storage"
+                    );
+                    let bytes = vm.native_name_operand_bytes(&result).unwrap();
+                    let hex = bytes
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>();
+                    assert_eq!(hex, expected[18], "{context} value");
+                }
+            }
+        }
+    }
 
     #[test]
     fn compiled_byte_words_preserve_opaque_results_and_bare_dollar_data() {

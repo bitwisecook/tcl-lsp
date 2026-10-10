@@ -40,6 +40,8 @@ fn decode(hex: &str) -> Vec<u8> {
         .collect()
 }
 
+// Native proof: naming.variable.dictionary-scope-trace-phase-order
+// docs/design/analysis/name-resolution-proofs/variable.dictionary-scope-trace-phase-order.md
 #[test]
 fn dictionary_scope_reads_match_64_native_callback_windows() {
     let mut compared = 0;

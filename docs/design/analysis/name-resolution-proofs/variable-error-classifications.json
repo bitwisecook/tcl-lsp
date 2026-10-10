@@ -1,0 +1,56 @@
+[
+  {
+    "path": "rust/tcl-registry/tests/data/native_error_variables/manifest.json",
+    "sha256": "b4b56484236768bafb41b9f74cc262693d2172ff6e1dfff3b90ea9210e806bbc",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.error-globals-bootstrap-and-legacy-copy"
+    ],
+    "reason": "Inspected original probe, exact provider capture and immutable output rows; one narrowly scoped error-variable/object/phase question."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_error_variables/info-append-manifest.json",
+    "sha256": "9bdc22e97e6fc37c4c03843f577657ec7831648cf0fc5e8cd78530e498510c3f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.error-info-append-original-object"
+    ],
+    "reason": "Inspected original probe, exact provider capture and immutable output rows; one narrowly scoped error-variable/object/phase question."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_error_variables/producers-manifest.json",
+    "sha256": "a69004c9aac5b891e466c6da2e254baee81260a046bbe8aef2e225275d47cc98",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.error-producer-reset-callback-order"
+    ],
+    "reason": "Inspected original probe, exact provider capture and immutable output rows; one narrowly scoped error-variable/object/phase question."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_error_variables/producer-script-traces-manifest.json",
+    "sha256": "2e35c2a3c555bbf1c771fce64dfae1e72524fa64a685b95ebf2902f3e37b25d9",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.error-producer-script-trace-reset-order"
+    ],
+    "reason": "Inspected original probe, exact provider capture and immutable output rows; one narrowly scoped error-variable/object/phase question."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_error_variables/reset-episodes-manifest.json",
+    "sha256": "38b32ca3b24b6ab3f53f4c851e18e9719f30b4fa1ed652b4b4b6441e021d9e18",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.error-reset-distinct-episodes"
+    ],
+    "reason": "Inspected original probe, exact provider capture and immutable output rows; one narrowly scoped error-variable/object/phase question."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-manifest.json",
+    "sha256": "b3a659666e6cbe6bbb60152b5e29442088dddea7748258fe51ad0de43891b71e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.empty-vector-reset-result-and-error-episode"
+    ],
+    "reason": "Inspected original probe, exact provider capture and immutable output rows; one narrowly scoped error-variable/object/phase question."
+  }
+]

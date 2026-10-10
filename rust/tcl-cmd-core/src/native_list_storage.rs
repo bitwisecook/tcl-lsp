@@ -62,13 +62,16 @@ pub struct NativeListRangeStorage {
     pub string: NativeListStringState,
 }
 
-/// Result header and backing mutation selected by the actual opcode protocol.
+/// Result header and backing mutation selected by the actual range protocol.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NativeListRangeAction {
     /// Retain the original empty header without changing its primary.
     OriginalEmpty,
     /// Allocate native `Tcl_NewObj` without a List primary.
     FreshEmpty,
+    /// C9 command range installs an empty List store of capacity one.
+    /// This is distinct from an opcode's native `Tcl_NewObj` result.
+    EmptyList,
     /// Allocate a genuine new store owning these original members.
     FreshMembers(Range<usize>),
     /// Retain the complete original store and its existing span.
@@ -112,6 +115,73 @@ pub fn range_action(
     let range = usize::try_from(first).expect("clamped native first")
         ..usize::try_from(last + 1).expect("clamped native last");
     range_storage_action(version, range, storage)
+}
+
+/// Select the reached ordinary C command range after both original index
+/// getters. C9's `TclListObjRange` always installs a List primary, including
+/// an empty range; the immediate opcode has its separate early empty result.
+///
+/// # Errors
+/// A C9 span decision needs the originally issued allocation extent.
+pub fn command_range_action(
+    version: TclVersion,
+    first: i64,
+    last: i64,
+    storage: NativeListRangeStorage,
+) -> Result<NativeListRangeAction, ValueError> {
+    let end = storage.length as i128 - 1;
+    let first = i128::from(first).max(0);
+    let last = i128::from(last).min(end);
+    if first > last {
+        return Ok(if version >= TclVersion::V9_0 {
+            NativeListRangeAction::EmptyList
+        } else {
+            NativeListRangeAction::FreshEmpty
+        });
+    }
+    let range = usize::try_from(first).expect("clamped native first")
+        ..usize::try_from(last + 1).expect("clamped native last");
+    // C8.6's command worker copies a shared member store as well as a
+    // shared header. The immediate opcode's existing transaction differs.
+    if version == TclVersion::V8_6 && storage.store_shared {
+        return Ok(NativeListRangeAction::FreshMembers(range));
+    }
+    range_storage_action(version, range, storage)
+}
+
+/// Original selected range door, independently of the physical adapter.
+#[derive(Clone, Copy, Debug)]
+pub enum NativeListRangeSelection {
+    /// Compiler-issued immediate coordinates.
+    Immediate(NativeCompiledListRange),
+    /// Both original command index objects have already been converted.
+    Command {
+        /// Reached first index getter result.
+        first: i64,
+        /// Reached last index getter result.
+        last: i64,
+    },
+}
+impl NativeListRangeSelection {
+    /// Decide a transaction from physical state before any result hold.
+    ///
+    /// # Errors
+    /// Required original allocation geometry is absent.
+    pub fn action(
+        self,
+        version: TclVersion,
+        storage: NativeListRangeStorage,
+    ) -> Result<NativeListRangeAction, ValueError> {
+        match self {
+            Self::Immediate(coordinates) => range_action(version, coordinates, storage),
+            Self::Command { first, last } => command_range_action(version, first, last, storage),
+        }
+    }
+    /// Whether the immediate opcode's canonical-empty short circuit applies.
+    #[must_use]
+    pub const fn is_immediate(self) -> bool {
+        matches!(self, Self::Immediate(_))
+    }
 }
 
 /// Select a validated range of the current `ListStore`. Private pure deletion
@@ -361,7 +431,51 @@ mod tests {
         }
     }
     #[test]
+    fn command_empty_range_keeps_c9_list_birth_separate_from_opcode_empty() {
+        // naming.list.original-range-objects-and-instructions
+        // docs/design/analysis/name-resolution-proofs/list.original-range-objects-and-instructions.md
+        // Actual R3 has no listRangeImm in either C9 captured instruction stream.
+        for (version, fixture) in [
+            (
+                TclVersion::V9_0,
+                include_str!("../../tcl-registry/tests/data/native_list_operations/9.0.4.txt"),
+            ),
+            (
+                TclVersion::V9_1,
+                include_str!("../../tcl-registry/tests/data/native_list_operations/9.1.0.txt"),
+            ),
+        ] {
+            let row = fixture
+                .lines()
+                .find(|line| line.starts_with("R|3|"))
+                .unwrap();
+            let fields = row.split('|').collect::<Vec<_>>();
+            assert_eq!(&fields[3..6], &["list", "0", "1"]);
+            assert!(!fields[7].contains("listRangeImm"));
+            let state = shared(3, 3);
+            assert_eq!(
+                command_range_action(version, 12, 2, state).unwrap(),
+                NativeListRangeAction::EmptyList
+            );
+            assert_eq!(
+                range_action(version, coordinates(12, -2), state).unwrap(),
+                NativeListRangeAction::FreshEmpty
+            );
+        }
+        assert_eq!(
+            command_range_action(TclVersion::V8_6, 12, 2, shared(3, 3)).unwrap(),
+            NativeListRangeAction::FreshEmpty
+        );
+    }
+
+    #[test]
     fn range_storage_geometry_matches_288_actual_c9_owner_windows() {
+        // Native proof naming.list-storage.original-whole-header-publication:
+        // docs/design/analysis/name-resolution-proofs/list-storage-original-whole-header-publication.md
+        // Native proof naming.list-storage.original-prefix-and-span-geometry:
+        // docs/design/analysis/name-resolution-proofs/list-storage-original-prefix-and-span-geometry.md
+        // Native proof naming.list-storage.original-shared-header-versus-store:
+        // docs/design/analysis/name-resolution-proofs/list-storage-original-shared-header-versus-store.md
         for (version, fixture) in [
             (
                 TclVersion::V9_0,

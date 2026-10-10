@@ -1,0 +1,11 @@
+{
+  "provider": "8.5.19",
+  "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+  "file_sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+  "lines": [
+    2268,
+    2284
+  ],
+  "snippet": "Tcl_ListObjCmd(\n    ClientData dummy,\t\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    register int objc,\t\t/* Number of arguments. */\n    register Tcl_Obj *const objv[])\n\t\t\t\t/* The argument objects. */\n{\n    /*\n     * If there are no list elements, the result is an empty object.\n     * Otherwise set the interpreter's result object to be a list object.\n     */\n\n    if (objc > 1) {\n\tTcl_SetObjResult(interp, Tcl_NewListObj((objc-1), &(objv[1])));\n    }\n    return TCL_OK;\n}\n",
+  "snippet_sha256": "82e203af72a5fe8fe67d7f38e7502546cd76c2742ef9ec1b7250c2dd6dd5c6bb"
+}

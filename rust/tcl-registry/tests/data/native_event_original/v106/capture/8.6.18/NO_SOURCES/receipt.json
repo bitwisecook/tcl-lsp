@@ -1,0 +1,17 @@
+{
+  "id": "NO_SOURCES",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.6.18/probe",
+    "5"
+  ],
+  "timeout_seconds": 2,
+  "process_status": "external-timeout",
+  "process_exit": null,
+  "stdout_sha256": "164fc8880ce0548cdef20aee9da61fb97fb4d86cb29f6eec39aee873a87b7bdb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e362e3138",
+    "NO_SOURCES_INPUT|0|767761697420616273656e74"
+  ],
+  "reported_version": "8.6.18"
+}

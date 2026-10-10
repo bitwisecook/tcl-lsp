@@ -269,14 +269,16 @@ fn array_op_after_trace(
     rest: &[Value],
     target: Option<&ArrayTarget>,
 ) -> Completion<Value> {
-    if let Some(result) = tcl_cmd_core::native_array_search::dispatch(vm, sub, rest, target) {
+    if let Some(result) =
+        tcl_cmd_core::native_array_search::dispatch_bytes(vm, sub.as_bytes(), rest, target)
+    {
         return match result {
             Ok(value) => ok(value),
             Err(error) => completion_from_cmd_error(vm, error),
         };
     }
     // The read-side + `unset` live in the shared core.
-    if let Some(result) = tcl_cmd_core::array::dispatch_at(vm, sub, rest, target) {
+    if let Some(result) = tcl_cmd_core::array::dispatch_bytes_at(vm, sub.as_bytes(), rest, target) {
         return match result {
             Ok(result) => settle_array_read_result(vm, result),
             Err(e) => completion_from_cmd_error(vm, e),
@@ -286,110 +288,7 @@ fn array_op_after_trace(
     // command), `array for` (iterates a body), and the unknown-subcommand message.
     match sub {
         "set" => match rest {
-            [n, list] => {
-                // C's `Tcl_ArrayObjCmd` set path resolves the target through
-                // the standard variable lookup *before* it looks at the list,
-                // and that lookup parses the name: an element-form name yields
-                // a scalar element cell, never an array, so the command refuses
-                // it. The check therefore precedes both the list
-                // parse and the even-length test.
-                //
-                // Oracle, identical on tclsh 8.4.20 / 8.5.19 / 8.6.14 / 9.0.4 /
-                // 9.1 (`catch` result : message):
-                //
-                //   array set (x) {a 1}     -> 1:can't set "(x)": variable isn't array
-                //   array set (x) {}        -> 1:can't set "(x)": variable isn't array
-                //   array set (x) {a}       -> 1:can't set "(x)": variable isn't array
-                //   array set (x) "a \{b"   -> 1:can't set "(x)": variable isn't array
-                //   array set arr(k) {a 1}  -> 1:can't set "arr(k)": variable isn't array
-                //   array set {arr(k)} {a 1}-> 1:can't set "arr(k)": variable isn't array
-                //   array set okarr {a}     -> 1:list must have an even number of elements
-                //   array set {a)b} {a 1}   -> 0:            (a `)` with no `(` is a name)
-                //   array set {a(b} {a 1}   -> 0:            (an unclosed `(` is a name)
-                //
-                // 8.6+ also carry `errorCode` `TCL LOOKUP VARNAME <name>` (8.4 /
-                // 8.5: `NONE`); the VM's shared `TCL LOOKUP VARNAME` spelling
-                // omits the trailing name element here as it does at its
-                // sibling site (`missing_parent_ns`).
-                let name = match vm.native_name_operand_bytes(n) {
-                    Ok(name) => name,
-                    Err(error) => {
-                        return vm.refuse_host_command(format!(
-                            "native array name is unavailable: {error:?}"
-                        ));
-                    }
-                };
-                let target = match VarStore::array_target_bytes(
-                    vm,
-                    tcl_runtime_api::FrameId(vm.current_level()),
-                    &name,
-                ) {
-                    Ok(target) => target,
-                    Err(error) => return completion_from_cmd_error(vm, error.into()),
-                };
-                if let Err(error) = VarStore::array_key_bytes_checked_at(vm, &target) {
-                    return completion_from_cmd_error(vm, error.into());
-                }
-                let Some(policy) = vm.name_policy_protocol() else {
-                    return vm
-                        .refuse_host_command("native array name policy is unavailable".into());
-                };
-                if !vm.dictionary_variable_containers()
-                    && policy
-                        .recipe()
-                        .combined_variable_input(&name)
-                        .element()
-                        .is_some()
-                {
-                    return match vm.ensure_array_bytes(&name) {
-                        Err(error) => error,
-                        Ok(()) => {
-                            vm.refuse_host_command("array element cannot own an array".into())
-                        }
-                    };
-                }
-                let items = match tcl_syntax::value::ValueOps::list_elements(vm, list) {
-                    Ok(i) => i,
-                    Err(e) => return completion_from_cmd_error(vm, e.into()),
-                };
-                if items.len() % 2 != 0 {
-                    return completion_from_cmd_error(
-                        vm,
-                        tcl_cmd_core::CmdError::argument_format(
-                            "list must have an even number of elements",
-                        ),
-                    );
-                }
-                if items.is_empty() {
-                    // `array set a {}` still materialises an empty array; onto an
-                    // existing scalar it errors. C words *this* case as the
-                    // command (`can't array set "a"`), distinct from the
-                    // per-element `set` message taken on a non-empty list.
-                    if let Err(e) = vm.ensure_array_bytes(&name) {
-                        return e;
-                    }
-                } else {
-                    // Write element by element so a scalar target fails at the
-                    // *element* write — naming `a(key)`, as C's `TclArraySet`
-                    // does — rather than pre-checked under the bare name.
-                    let mut i = 0;
-                    while i + 1 < items.len() {
-                        let key = match vm.native_name_operand_bytes(&items[i]) {
-                            Ok(key) => key,
-                            Err(error) => {
-                                return vm.refuse_host_command(format!(
-                                    "native array key is unavailable: {error:?}"
-                                ));
-                            }
-                        };
-                        if let Err(e) = vm.set_array_elem_bytes(&name, &key, items[i + 1].clone()) {
-                            return e;
-                        }
-                        i += 2;
-                    }
-                }
-                ok(Value::empty())
-            }
+            [n, list] => array_set_after_trace(vm, n, list),
             _ => crate::command::native_wrong_arguments_message(
                 vm,
                 "wrong # args: should be \"array set arrayName list\"",
@@ -405,6 +304,102 @@ fn array_op_after_trace(
             b"::tcl::array",
         )),
     }
+}
+
+fn array_set_after_trace(vm: &mut Vm, n: &Value, list: &Value) -> Completion<Value> {
+    // C's `Tcl_ArrayObjCmd` set path resolves the target through
+    // the standard variable lookup *before* it looks at the list,
+    // and that lookup parses the name: an element-form name yields
+    // a scalar element cell, never an array, so the command refuses
+    // it. The check therefore precedes both the list
+    // parse and the even-length test.
+    //
+    // Oracle, identical on tclsh 8.4.20 / 8.5.19 / 8.6.14 / 9.0.4 /
+    // 9.1 (`catch` result : message):
+    //
+    //   array set (x) {a 1}     -> 1:can't set "(x)": variable isn't array
+    //   array set (x) {}        -> 1:can't set "(x)": variable isn't array
+    //   array set (x) {a}       -> 1:can't set "(x)": variable isn't array
+    //   array set (x) "a \{b"   -> 1:can't set "(x)": variable isn't array
+    //   array set arr(k) {a 1}  -> 1:can't set "arr(k)": variable isn't array
+    //   array set {arr(k)} {a 1}-> 1:can't set "arr(k)": variable isn't array
+    //   array set okarr {a}     -> 1:list must have an even number of elements
+    //   array set {a)b} {a 1}   -> 0:            (a `)` with no `(` is a name)
+    //   array set {a(b} {a 1}   -> 0:            (an unclosed `(` is a name)
+    //
+    // 8.6+ also carry `errorCode` `TCL LOOKUP VARNAME <name>` (8.4 /
+    // 8.5: `NONE`); the VM's shared `TCL LOOKUP VARNAME` spelling
+    // omits the trailing name element here as it does at its
+    // sibling site (`missing_parent_ns`).
+    let name = match vm.native_name_operand_bytes(n) {
+        Ok(name) => name,
+        Err(error) => {
+            return vm.refuse_host_command(format!("native array name is unavailable: {error:?}"));
+        }
+    };
+    let target =
+        match VarStore::array_target_bytes(vm, tcl_runtime_api::FrameId(vm.current_level()), &name)
+        {
+            Ok(target) => target,
+            Err(error) => return completion_from_cmd_error(vm, error.into()),
+        };
+    if let Err(error) = VarStore::array_key_bytes_checked_at(vm, &target) {
+        return completion_from_cmd_error(vm, error.into());
+    }
+    let Some(policy) = vm.name_policy_protocol() else {
+        return vm.refuse_host_command("native array name policy is unavailable".into());
+    };
+    if !vm.dictionary_variable_containers()
+        && policy
+            .recipe()
+            .combined_variable_input(&name)
+            .element()
+            .is_some()
+    {
+        return match vm.ensure_array_bytes(&name) {
+            Err(error) => error,
+            Ok(()) => vm.refuse_host_command("array element cannot own an array".into()),
+        };
+    }
+    let items = match tcl_syntax::value::ValueOps::list_elements(vm, list) {
+        Ok(i) => i,
+        Err(e) => return completion_from_cmd_error(vm, e.into()),
+    };
+    if items.len() % 2 != 0 {
+        return completion_from_cmd_error(
+            vm,
+            tcl_cmd_core::CmdError::argument_format("list must have an even number of elements"),
+        );
+    }
+    if items.is_empty() {
+        // `array set a {}` still materialises an empty array; onto an
+        // existing scalar it errors. C words *this* case as the
+        // command (`can't array set "a"`), distinct from the
+        // per-element `set` message taken on a non-empty list.
+        if let Err(e) = vm.ensure_array_bytes(&name) {
+            return e;
+        }
+    } else {
+        // Write element by element so a scalar target fails at the
+        // *element* write — naming `a(key)`, as C's `TclArraySet`
+        // does — rather than pre-checked under the bare name.
+        let mut i = 0;
+        while i + 1 < items.len() {
+            let key = match vm.native_name_operand_bytes(&items[i]) {
+                Ok(key) => key,
+                Err(error) => {
+                    return vm.refuse_host_command(format!(
+                        "native array key is unavailable: {error:?}"
+                    ));
+                }
+            };
+            if let Err(e) = vm.set_array_elem_bytes(&name, &key, items[i + 1].clone()) {
+                return e;
+            }
+            i += 2;
+        }
+    }
+    ok(Value::empty())
 }
 
 fn array_trace_target(vm: &Vm, sub: &str, rest: &[Value]) -> Option<Value> {

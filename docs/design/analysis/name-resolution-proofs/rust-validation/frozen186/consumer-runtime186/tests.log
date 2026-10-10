@@ -1,0 +1,35 @@
+
+running 16 tests
+test cmd_array::tests::variable_container_storage_matches_all_native_columns ... FAILED
+test cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter ... ok
+test cmd_oo::native_properties::tests::default_property_methods_retain_original_clientdata_and_leave_its_primary ... ok
+test cmd_oo::native_properties::tests::opaque_property_lookup_uses_original_accessor_members ... ok
+test cmd_oo::native_properties::tests::property_headers_and_temporary_tables_retain_original_members ... ok
+test cmd_oo::native_property_counted_tests::original_property_names_and_values_match_native_c9_counted_access ... ok
+test cmd_proc::native_apply_original_tests::original_lambda_namespace_objects_match_constructor_and_getter_controls ... ok
+test cmd_proc::native_lambda_tests::lambda_conversion_errors_match_original_counted_values_and_parameter_frames ... ok
+test cmd_proc::native_static_original_tests::original_jim_static_links_match_native_frame_storage_reuse_boundaries ... ok
+test cmd_var::tests::captured_increment_receivers_match_actual_native_releases ... ok
+test interp::native_procedure_resources::callable_tests::original_lambda_primary_reuses_its_proc_and_compiled_body_without_a_command_binding ... ok
+test interp::native_script::tests::jim_control_body_preserves_original_source_in_error_frames ... ok
+test interp::native_variable_names::tests::list_assignment_arity_matches_current_jim_original_source_controls ... ok
+test interp::native_variable_names::tests::list_assignment_arity_matches_five_original_source_controls ... ok
+test interp::native_variable_names::tests::recreated_element_read_trace_matches_five_original_source_controls ... ok
+test obj::native_property_name::tests::original_property_name_duplicate_reuses_and_releases_accessor_children ... ok
+
+failures:
+
+---- cmd_array::tests::variable_container_storage_matches_all_native_columns stdout ----
+
+thread 'cmd_array::tests::variable_container_storage_matches_all_native_columns' (679007) panicked at src/cmd_array.rs:834:21:
+assertion `left == right` failed: jim case 8: if {[llength [info commands dict]] == 0} {list UNAVAILABLE} else {array set blocked {k OLD};set d {first NEW second OTHER};set ok BEFORE;set entered 0;set c [catch {dict update d first ok second blocked {set entered 1}} r];list $c $ok $entered [catch {set blocked} v] $v}
+  left: [49, 32, 66, 69, 70, 79, 82, 69, 32, 48, 32, 48, 32, 123, 107, 32, 79, 76, 68, 125]
+ right: [48, 32, 78, 69, 87, 32, 49, 32, 48, 32, 79, 84, 72, 69, 82]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    cmd_array::tests::variable_container_storage_matches_all_native_columns
+
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 1215 filtered out; finished in 20.99s
+

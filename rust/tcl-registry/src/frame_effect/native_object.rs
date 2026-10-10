@@ -52,19 +52,7 @@ pub struct NativeFrameLevelResolution {
     pub target: usize,
 }
 
-/// A reached guest failure, independently of host capability refusals.
-#[derive(Debug, Clone)]
-pub enum NativeFrameLevelFailure {
-    /// Native frame lookup failed; reporting uses the actual `CString` prefix.
-    BadLevel {
-        /// Original reported selector, or the omitted-level default `1`.
-        name: Vec<u8>,
-        /// Native C8.6+ publishes the structured lookup code.
-        lookup_code: bool,
-    },
-    /// Legacy digit-first lookup propagates a temporary Int getter failure.
-    Primitive(Box<NativeScalarGetterError>),
-}
+pub use tcl_syntax::native_frame_error::NativeFrameLevelFailure;
 
 impl NativeFrameLevelProtocol {
     /// C9's single pure script operand probes list length before frame conversion.
@@ -109,14 +97,39 @@ impl NativeFrameLevelProtocol {
         current: usize,
         original: &mut O,
     ) -> Result<Result<NativeFrameLevelResolution, NativeFrameLevelFailure>, O::Error> {
+        self.resolve_object_with_requirement(current, original, false)
+    }
+
+    /// Resolve an operand that the command's genuine argc already requires as
+    /// a level. A non-level value cannot become an omitted caller/default here.
+    /// Original conversion/cache order remains the same as the leading probe.
+    ///
+    /// # Errors
+    /// Host/native storage refusals remain outside reached guest failures.
+    pub fn resolve_required_object<O: NativeFrameLevelObject>(
+        self,
+        current: usize,
+        original: &mut O,
+    ) -> Result<Result<NativeFrameLevelResolution, NativeFrameLevelFailure>, O::Error> {
+        // naming.variable.original-upvar-and-exists-completion-and-name-windows
+        // docs/design/analysis/name-resolution-proofs/variable.original-upvar-and-exists-completion-and-name-windows.md
+        self.resolve_object_with_requirement(current, original, true)
+    }
+
+    fn resolve_object_with_requirement<O: NativeFrameLevelObject>(
+        self,
+        current: usize,
+        original: &mut O,
+        required: bool,
+    ) -> Result<Result<NativeFrameLevelResolution, NativeFrameLevelFailure>, O::Error> {
         if self.is_jim084() {
             return self.resolve_jim_object(current, original);
         }
         let version = self.tcl_version().expect("selected C frame recipe");
         if self.probes_integer_first() {
-            self.resolve_c_integer_first(current, original, version)
+            self.resolve_c_integer_first(current, original, version, required)
         } else {
-            self.resolve_c_string_first(current, original, version)
+            self.resolve_c_string_first(current, original, version, required)
         }
     }
 
@@ -151,6 +164,7 @@ impl NativeFrameLevelProtocol {
         current: usize,
         original: &mut O,
         version: TclVersion,
+        required: bool,
     ) -> Result<Result<NativeFrameLevelResolution, NativeFrameLevelFailure>, O::Error> {
         let integer = original.native_frame_probe(NativeScalarGetterKind::Int)?;
         if let Ok(level) = integer {
@@ -183,9 +197,9 @@ impl NativeFrameLevelProtocol {
         };
         Ok(self.finish(
             current,
-            (!is_level).then_some((true, 1)),
-            false,
-            if is_level { prefix } else { b"1" },
+            (!is_level && !required).then_some((true, 1)),
+            required,
+            if is_level || required { prefix } else { b"1" },
         ))
     }
 
@@ -194,6 +208,7 @@ impl NativeFrameLevelProtocol {
         current: usize,
         original: &mut O,
         version: TclVersion,
+        required: bool,
     ) -> Result<Result<NativeFrameLevelResolution, NativeFrameLevelFailure>, O::Error> {
         let name = original.native_frame_string()?;
         let prefix = c_prefix(&name);
@@ -226,7 +241,7 @@ impl NativeFrameLevelProtocol {
                 Err(record) => return Ok(Err(NativeFrameLevelFailure::Primitive(record))),
             }
         }
-        Ok(self.finish(current, Some((true, 1)), false, prefix))
+        Ok(self.finish(current, (!required).then_some((true, 1)), required, prefix))
     }
 
     fn absolute_suffix<O: NativeFrameLevelObject>(
@@ -280,6 +295,7 @@ impl NativeFrameLevelProtocol {
             .map(|target| NativeFrameLevelResolution { explicit, target })
             .ok_or_else(|| NativeFrameLevelFailure::BadLevel {
                 name: name.to_vec(),
+                string_result: self.bad_level_string_result(),
                 lookup_code: self
                     .tcl_version()
                     .is_some_and(|version| version >= TclVersion::V8_6),

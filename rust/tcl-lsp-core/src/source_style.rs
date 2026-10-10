@@ -56,10 +56,9 @@
 //! character outside the W112 remove-fix (issue 186).
 //! Character columns are UTF-16 code units, matching the LSP convention.
 //!
-//! The W112 / W115 quick-fixes are carried on
-//! [`StyleDiagnostic::fix`] but not yet surfaced as code actions —
-//! the code-action wiring is a separate concern, same posture as
-//! the optimiser O-code fixes.  The W111 line length is configurable
+//! W112 / W115 corrections are carried on [`StyleDiagnostic::fix`].
+//! The W115 source action obtains its comment facts from the same actual
+//! analysis facade as diagnostics. The W111 line length is configurable
 //! (`tclLsp.style.lineLength`, resolved per folder by the server and
 //! passed into [`style_diagnostics`]); the expected line ending is
 //! still the default `\n`.  Per-code on/off is handled by the
@@ -69,7 +68,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
-use tcl_compiler::analyser::line_suppressed;
+use tcl_compiler::analyser::{AnalysisResult, line_suppressed};
 
 use crate::definition::{LspRange, utf16_len};
 
@@ -284,18 +283,51 @@ pub fn check_comment_continuation_for_dialect(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<StyleDiagnostic> {
-    let lines: Vec<&str> = source.split('\n').collect();
     let profile = dialect;
     let comments = tcl_compiler::analyser::utils::script_comment_facts(
         source,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
         crate::registry_for_dialect_profile(profile),
     );
+    comment_continuation_diagnostics(source, &comments)
+}
+
+/// Original physical comment facts from the caller's complete current analysis.
+/// Conditional and reference-only schemas supply source syntax only. No
+/// command dispatch, entered frame or rewrite equivalence follows from them.
+#[must_use]
+pub fn comment_facts_from_analysis(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<tcl_compiler::analyser::utils::ScriptCommentFact>> {
+    // naming.core.original-comment-source-context
+    // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+    tcl_compiler::analyser::utils::script_comment_facts_from_analysis(source, analysis)
+}
+
+/// W115 under the actual source image, full lexer policy and retained context.
+/// Unavailable or stale source ownership yields no diagnostic or correction.
+#[must_use]
+pub fn check_comment_continuation_from_analysis(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Vec<StyleDiagnostic> {
+    let Some(comments) = comment_facts_from_analysis(source, analysis) else {
+        return Vec::new();
+    };
+    comment_continuation_diagnostics(source, &comments)
+}
+
+fn comment_continuation_diagnostics(
+    source: &str,
+    comments: &[tcl_compiler::analyser::utils::ScriptCommentFact],
+) -> Vec<StyleDiagnostic> {
+    let lines: Vec<&str> = source.split('\n').collect();
     let mut out = Vec::new();
 
     let mut i = 0usize;
     while i < lines.len() {
-        let Some(run_end) = comment_continuation_run_with_facts(&lines, &comments, i) else {
+        let Some(run_end) = comment_continuation_run_with_facts(&lines, comments, i) else {
             i += 1;
             continue;
         };
@@ -431,6 +463,53 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
     decode: Option<&crate::source_decode::DecodeReport>,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<StyleDiagnostic> {
+    style_diagnostics_with_comment_check(
+        source,
+        line_length,
+        line_ending,
+        disabled,
+        suppressed,
+        decode,
+        |lines_source| check_comment_continuation_for_dialect(lines_source, dialect),
+    )
+}
+
+/// Style diagnostics with W115 bound to the actual retained analysis.
+///
+/// The canonical host line model normalises lone CR to LF before analysis;
+/// W115 requires that exact normalised image to match the retained input.
+/// W118 and encoding checks keep the supplied physical text and bytes.
+/// A missing W115 source receipt does not suppress independent text checks.
+#[must_use]
+pub fn style_diagnostics_from_analysis<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
+    source: &str,
+    line_length: usize,
+    line_ending: &str,
+    disabled: &HashSet<String, SD>,
+    suppressed: &HashMap<i32, HashSet<String, I>, H>,
+    decode: Option<&crate::source_decode::DecodeReport>,
+    analysis: &AnalysisResult,
+) -> Vec<StyleDiagnostic> {
+    style_diagnostics_with_comment_check(
+        source,
+        line_length,
+        line_ending,
+        disabled,
+        suppressed,
+        decode,
+        |lines_source| check_comment_continuation_from_analysis(lines_source, analysis),
+    )
+}
+
+fn style_diagnostics_with_comment_check<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
+    source: &str,
+    line_length: usize,
+    line_ending: &str,
+    disabled: &HashSet<String, SD>,
+    suppressed: &HashMap<i32, HashSet<String, I>, H>,
+    decode: Option<&crate::source_decode::DecodeReport>,
+    comment_check: impl FnOnce(&str) -> Vec<StyleDiagnostic>,
+) -> Vec<StyleDiagnostic> {
     let mut out = Vec::new();
 
     // The line-oriented lints below split on `\n`, so a lone `\r` — a line
@@ -466,10 +545,7 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
         push_line_suppressed(check_trailing_whitespace(&lines_source), &mut out);
     }
     if enabled("W115") {
-        push_line_suppressed(
-            check_comment_continuation_for_dialect(&lines_source, dialect),
-            &mut out,
-        );
+        push_line_suppressed(comment_check(&lines_source), &mut out);
     }
     if enabled("W118") {
         out.extend(check_line_endings(source, line_ending));
@@ -695,6 +771,208 @@ mod tests {
         assert_eq!(diags[0].range.start_line, 2);
         let fix = diags[0].fix.as_ref().expect("W115 has an action vector");
         assert!(fix.new_text.contains("# puts hidden"), "{fix:?}");
+    }
+
+    fn original_comment_registry() -> tcl_registry::CommandRegistry {
+        fn reference_only(
+            _args: tcl_registry::InvocationArguments<'_>,
+        ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
+            vec![(0, tcl_registry::ScriptTiming::ReferenceOnly)]
+        }
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "hold-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, tcl_registry::ArgRole::Body)],
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        registry.insert(tcl_registry::CommandSpec {
+            name: "reference-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, tcl_registry::ArgRole::Body)],
+            script_timing_resolver: Some(reference_only),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        registry
+    }
+
+    fn original_comment_analysis(source: &str) -> AnalysisResult {
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let config = tcl_lexer::LexerConfig {
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        crate::source_structure::analyse_document(
+            source,
+            profile,
+            &original_comment_registry(),
+            config,
+        )
+    }
+
+    #[test]
+    fn original_comment_facts_keep_actual_registry_config_and_reference_syntax() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "hold-script {\n    # café 😀 \\\n    puts hidden\n    puts visible\n}\nreference-script {\n    # reference \\\n    format hidden\n    format visible\n}\n";
+        let analysis = original_comment_analysis(source);
+        let facts = comment_facts_from_analysis(source, &analysis).unwrap();
+        assert_eq!(
+            facts.iter().map(|fact| fact.line).collect::<Vec<_>>(),
+            [1, 6]
+        );
+        for fact in &facts {
+            assert_eq!(source.get(fact.span.as_range()), Some(fact.text.as_str()));
+        }
+        assert!(analysis.body_lexer_config.unwrap().strict_quoting);
+        let diags = check_comment_continuation_from_analysis(source, &analysis);
+        assert_eq!(diags.len(), 2);
+        assert_eq!(diags[0].range.start_line, 1);
+        assert_eq!(
+            diags[0].fix.as_ref().unwrap().new_text,
+            "    # café 😀\n    # puts hidden"
+        );
+        let mut evaluated = Vec::new();
+        crate::executable_regions::visit_analysis_executable_commands(
+            source,
+            &analysis,
+            &mut |command, _, _| {
+                evaluated.push(command.span.start());
+                false
+            },
+        );
+        let positive = u32::try_from(source.find("puts visible").unwrap()).unwrap();
+        assert!(
+            evaluated.contains(&positive),
+            "the actual potential Body positive must be visited: {evaluated:?}"
+        );
+        let reference_content = source.find("    # reference").unwrap();
+        assert!(
+            !evaluated
+                .iter()
+                .any(|&offset| { usize::try_from(offset).unwrap() >= reference_content }),
+            "reference-only comment syntax must not supply evaluation authority"
+        );
+        assert!(
+            check_comment_continuation_for_dialect(source, crate::profile_for_dialect("tcl8.6"))
+                .is_empty(),
+            "the static dialect store does not contain these actual custom schemas"
+        );
+    }
+
+    #[test]
+    fn original_comment_facts_share_genuine_stub_body_source_geometry() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {script:body}\n# tcl-lsp: stubs-end\nhold {\n    # café 😀 \\\n    puts hidden\n}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let facts = comment_facts_from_analysis(source, &analysis).unwrap();
+        let fact = facts.iter().find(|fact| fact.line == 4).unwrap();
+        assert_eq!(source.get(fact.span.as_range()), Some(fact.text.as_str()));
+        let diags = check_comment_continuation_from_analysis(source, &analysis);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].range.start_line, 4);
+        for suffix in [
+            "hold $script",
+            r#"hold "\u0023 note \\\nputs hidden\n""#,
+            "proc hold {value} {}\nhold {\n# note \\\nputs hidden\n}",
+        ] {
+            let changed = format!(
+                "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {{script:body}}\n# tcl-lsp: stubs-end\n{suffix}"
+            );
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(&changed, "tcl8.6");
+            assert!(
+                check_comment_continuation_from_analysis(&changed, &analysis).is_empty(),
+                "{suffix}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_comment_facts_refuse_stale_source_input_and_config() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "hold-script {\n# note \\\nputs hidden\n}\n";
+        let analysis = original_comment_analysis(source);
+        assert_eq!(
+            comment_facts_from_analysis(source, &analysis)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(comment_facts_from_analysis(&format!("{source} "), &analysis).is_none());
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting = false;
+        assert!(comment_facts_from_analysis(source, &changed).is_none());
+        let mut changed = analysis.clone();
+        changed.resolved_input = None;
+        assert!(comment_facts_from_analysis(source, &changed).is_none());
+        assert!(comment_facts_from_analysis(source, &AnalysisResult::default()).is_none());
+        let mut changed = analysis.clone();
+        let profile = crate::profile_for_dialect("tcl8.6");
+        changed.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::context_for_profile(profile),
+            analysis.body_lexer_config.unwrap(),
+        ));
+        assert!(
+            comment_facts_from_analysis(source, &changed).is_none(),
+            "same nominal dialect does not preserve the actual command store"
+        );
+    }
+
+    #[test]
+    fn original_comment_facts_do_not_invent_body_or_physical_line_mapping() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        for source in [
+            "unknown-body {\n# note \\\nputs hidden\n}\n",
+            "proc hold-script {value} {}\nhold-script {\n# note \\\nputs hidden\n}\n",
+            r#"hold-script "\u0023 note \\\nputs hidden\n""#,
+            "hold-script {\n# note \\\nputs hidden\n}suffix\n",
+            "hold-script {# inline \\\nputs hidden\n}\n",
+        ] {
+            let analysis = original_comment_analysis(source);
+            assert!(
+                check_comment_continuation_from_analysis(source, &analysis).is_empty(),
+                "{source:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_style_orchestrator_keeps_actual_normalised_image_and_independent_checks() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "hold-script {\r# café 😀 \\\nputs 😀\r}\r";
+        let normalised = tcl_lexer::normalise_lone_cr(source);
+        let analysis = original_comment_analysis(&normalised);
+        let diags = style_diagnostics_from_analysis(
+            source,
+            DEFAULT_LINE_LENGTH,
+            DEFAULT_LINE_ENDING,
+            &no_disable(),
+            &no_suppress(),
+            None,
+            &analysis,
+        );
+        let warning = diags.iter().find(|diag| diag.code == "W115").unwrap();
+        assert_eq!(warning.range.start_line, 1);
+        assert_eq!(warning.range.end_line, 2);
+        assert_eq!(warning.range.end_character, 7);
+        assert!(diags.iter().any(|diag| diag.code == "W118"));
+        let stale = style_diagnostics_from_analysis(
+            &format!("{source} "),
+            DEFAULT_LINE_LENGTH,
+            DEFAULT_LINE_ENDING,
+            &no_disable(),
+            &no_suppress(),
+            None,
+            &analysis,
+        );
+        assert!(!stale.iter().any(|diag| diag.code == "W115"));
+        assert!(stale.iter().any(|diag| diag.code == "W118"));
     }
 
     #[test]

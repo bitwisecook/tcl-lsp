@@ -1,0 +1,17 @@
+
+running 1 test
+test analyser::handlers::original_registry_symbol_tests::original_formal_counts_survive_procedure_and_signature_records ... 
+thread 'analyser::handlers::original_registry_symbol_tests::original_formal_counts_survive_procedure_and_signature_records' (646839) panicked at rust/tcl-compiler/src/analyser/handlers.rs:18620:13:
+assertion `left == right` failed
+  left: OriginalSource
+ right: Unknown
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::handlers::original_registry_symbol_tests::original_formal_counts_survive_procedure_and_signature_records
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8255 filtered out; finished in 28.86s
+

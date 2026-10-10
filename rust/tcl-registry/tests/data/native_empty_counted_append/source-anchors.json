@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "proof": "naming.object.original-empty-counted-append",
+  "source_anchors": [
+    {
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.4.20/generic/tclStringObj.c",
+      "function": "Tcl_AppendToObj",
+      "lines": [
+        1086,
+        1123
+      ],
+      "source_sha256": "a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c",
+      "snippet": "Tcl_AppendToObj(objPtr, bytes, length)\n    register Tcl_Obj *objPtr;\t/* Points to the object to append to. */\n    CONST char *bytes;\t\t/* Points to the bytes to append to the\n\t\t\t\t * object. */\n    register int length;\t/* The number of bytes to append from\n\t\t\t\t * \"bytes\". If < 0, then append all bytes\n\t\t\t\t * up to NULL byte. */\n{\n    String *stringPtr;\n\n    if (Tcl_IsShared(objPtr)) {\n\tpanic(\"Tcl_AppendToObj called with shared object\");\n    }\n    \n    SetStringFromAny(NULL, objPtr);\n\n    if (length < 0) {\n\tlength = (bytes ? strlen(bytes) : 0);\n    }\n    if (length == 0) {\n\treturn;\n    }\n\n    /*\n     * If objPtr has a valid Unicode rep, then append the Unicode\n     * conversion of \"bytes\" to the objPtr's Unicode rep, otherwise\n     * append \"bytes\" to objPtr's string rep.\n     */\n\n    stringPtr = GET_STRING(objPtr);\n    if (stringPtr->hasUnicode != 0) {\n\tAppendUtfToUnicodeRep(objPtr, bytes, length);\n\n\tstringPtr = GET_STRING(objPtr);\n    } else {\n\tAppendUtfToUtfRep(objPtr, bytes, length);\n    }\n}\n",
+      "snippet_sha256": "060d4535189ef28a05c01ded0e00df45efe12d9514eebd9abbb01fd386456388",
+      "evidence": "empty-append-source-0"
+    },
+    {
+      "provider": "tcl8.5",
+      "version": "8.5.19",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.5.19/generic/tclStringObj.c",
+      "function": "Tcl_AppendLimitedToObj",
+      "lines": [
+        1107,
+        1169
+      ],
+      "source_sha256": "d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449",
+      "snippet": "Tcl_AppendLimitedToObj(\n    register Tcl_Obj *objPtr,\t/* Points to the object to append to. */\n    const char *bytes,\t\t/* Points to the bytes to append to the\n\t\t\t\t * object. */\n    register int length,\t/* The number of bytes available to be\n\t\t\t\t * appended from \"bytes\". If < 0, then all\n\t\t\t\t * bytes up to a NUL byte are available. */\n    register int limit,\t\t/* The maximum number of bytes to append to\n\t\t\t\t * the object. */\n    const char *ellipsis)\t/* Ellipsis marker string, appended to the\n\t\t\t\t * object to indicate not all available bytes\n\t\t\t\t * at \"bytes\" were appended. */\n{\n    String *stringPtr;\n    int toCopy = 0;\n\n    if (Tcl_IsShared(objPtr)) {\n\tTcl_Panic(\"%s called with shared object\", \"Tcl_AppendLimitedToObj\");\n    }\n\n    SetStringFromAny(NULL, objPtr);\n\n    if (length < 0) {\n\tlength = (bytes ? strlen(bytes) : 0);\n    }\n    if (length == 0) {\n\treturn;\n    }\n\n    if (length <= limit) {\n\ttoCopy = length;\n    } else {\n\tif (ellipsis == NULL) {\n\t    ellipsis = \"...\";\n\t}\n\ttoCopy = (bytes == NULL) ? limit\n\t\t: Tcl_UtfPrev(bytes+limit+1-strlen(ellipsis), bytes) - bytes;\n    }\n\n    /*\n     * If objPtr has a valid Unicode rep, then append the Unicode conversion\n     * of \"bytes\" to the objPtr's Unicode rep, otherwise append \"bytes\" to\n     * objPtr's string rep.\n     */\n\n    stringPtr = GET_STRING(objPtr);\n    if (stringPtr->hasUnicode != 0) {\n\tAppendUtfToUnicodeRep(objPtr, bytes, toCopy);\n    } else {\n\tAppendUtfToUtfRep(objPtr, bytes, toCopy);\n    }\n\n    if (length <= limit) {\n\treturn;\n    }\n\n    stringPtr = GET_STRING(objPtr);\n    if (stringPtr->hasUnicode != 0) {\n\tAppendUtfToUnicodeRep(objPtr, ellipsis, -1);\n    } else {\n\tAppendUtfToUtfRep(objPtr, ellipsis, -1);\n    }\n}\n",
+      "snippet_sha256": "2a05dcf8cfce9a91340c2a7f37c4863ff9931ce1e4a15227da67a798a2545a18",
+      "evidence": "empty-append-source-1"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.6.18/generic/tclStringObj.c",
+      "function": "Tcl_AppendLimitedToObj",
+      "lines": [
+        1193,
+        1263
+      ],
+      "source_sha256": "d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9",
+      "snippet": "Tcl_AppendLimitedToObj(\n    Tcl_Obj *objPtr,\t\t/* Points to the object to append to. */\n    const char *bytes,\t\t/* Points to the bytes to append to the\n\t\t\t\t * object. */\n    int length,\t\t/* The number of bytes available to be\n\t\t\t\t * appended from \"bytes\". If -1, then\n\t\t\t\t * all bytes up to a NUL byte are available. */\n    int limit,\t\t/* The maximum number of bytes to append to\n\t\t\t\t * the object. */\n    const char *ellipsis)\t/* Ellipsis marker string, appended to the\n\t\t\t\t * object to indicate not all available bytes\n\t\t\t\t * at \"bytes\" were appended. */\n{\n    String *stringPtr;\n    int toCopy = 0;\n    int eLen = 0;\n\n    if (length < 0) {\n\tlength = (bytes ? strlen(bytes) : 0);\n    }\n    if (length == 0) {\n\treturn;\n    }\n    if (limit <= 0) {\n\treturn;\n    }\n\n    if (length <= limit) {\n\ttoCopy = length;\n    } else {\n\tif (ellipsis == NULL) {\n\t    ellipsis = \"...\";\n\t}\n\teLen = strlen(ellipsis);\n\twhile (eLen > limit) {\n\t    eLen = TclUtfPrev(ellipsis+eLen, ellipsis) - ellipsis;\n\t}\n\n\ttoCopy = TclUtfPrev(bytes+limit+1-eLen, bytes) - bytes;\n    }\n\n    /*\n     * If objPtr has a valid Unicode rep, then append the Unicode conversion\n     * of \"bytes\" to the objPtr's Unicode rep, otherwise append \"bytes\" to\n     * objPtr's string rep.\n     */\n\n    if (Tcl_IsShared(objPtr)) {\n\tTcl_Panic(\"%s called with shared object\", \"Tcl_AppendLimitedToObj\");\n    }\n\n    SetStringFromAny(NULL, objPtr);\n    stringPtr = GET_STRING(objPtr);\n\n    if (stringPtr->hasUnicode && stringPtr->numChars > 0) {\n\tAppendUtfToUnicodeRep(objPtr, bytes, toCopy);\n    } else {\n\tAppendUtfToUtfRep(objPtr, bytes, toCopy);\n    }\n\n    if (length <= limit) {\n\treturn;\n    }\n\n    stringPtr = GET_STRING(objPtr);\n    if (stringPtr->hasUnicode && (stringPtr->numChars > 0)) {\n\tAppendUtfToUnicodeRep(objPtr, ellipsis, eLen);\n    } else {\n\tAppendUtfToUtfRep(objPtr, ellipsis, eLen);\n    }\n}\n",
+      "snippet_sha256": "8f08b2def6d344b2ccc74647d718f97eff9ef182f3aed9d19b6741c7b7f58aba",
+      "evidence": "empty-append-source-2"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl9.0.4/generic/tclStringObj.c",
+      "function": "Tcl_AppendLimitedToObj",
+      "lines": [
+        1203,
+        1279
+      ],
+      "source_sha256": "d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4",
+      "snippet": "Tcl_AppendLimitedToObj(\n    Tcl_Obj *objPtr,\t\t/* Points to the object to append to. */\n    const char *bytes,\t\t/* Points to the bytes to append to the\n\t\t\t\t * object. */\n    Tcl_Size length,\t\t/* The number of bytes available to be\n\t\t\t\t * appended from \"bytes\". If < 0, then\n\t\t\t\t * all bytes up to a NUL byte are available. */\n    Tcl_Size limit,\t\t/* The maximum number of bytes to append to\n\t\t\t\t * the object. */\n    const char *ellipsis)\t/* Ellipsis marker string, appended to the\n\t\t\t\t * object to indicate not all available bytes\n\t\t\t\t * at \"bytes\" were appended. */\n{\n    String *stringPtr;\n    Tcl_Size toCopy = 0;\n    Tcl_Size eLen = 0;\n\n    if (length < 0) {\n\tlength = (bytes ? strlen(bytes) : 0);\n    }\n    if (length == 0) {\n\treturn;\n    }\n    if (limit <= 0) {\n\treturn;\n    }\n\n    if (length <= limit) {\n\ttoCopy = length;\n    } else {\n\tif (ellipsis == NULL) {\n\t    ellipsis = \"...\";\n\t}\n\teLen = strlen(ellipsis);\n\twhile (eLen > limit) {\n\t    eLen = Tcl_UtfPrev(ellipsis+eLen, ellipsis) - ellipsis;\n\t}\n\n\ttoCopy = Tcl_UtfPrev(bytes+limit+1-eLen, bytes) - bytes;\n    }\n\n    /*\n     * If objPtr has a valid Unicode rep, then append the Unicode conversion\n     * of \"bytes\" to the objPtr's Unicode rep, otherwise append \"bytes\" to\n     * objPtr's string rep.\n     */\n\n    if (Tcl_IsShared(objPtr)) {\n\tTcl_Panic(\"%s called with shared object\", \"Tcl_AppendLimitedToObj\");\n    }\n\n    SetStringFromAny(NULL, objPtr);\n    stringPtr = GET_STRING(objPtr);\n\n    /* If appended string starts with a continuation byte or a lower surrogate,\n     * force objPtr to unicode representation. See [7f1162a867] */\n    if (bytes && ISCONTINUATION(bytes)) {\n\tTcl_GetUnicode(objPtr);\n\tstringPtr = GET_STRING(objPtr);\n    }\n    if (stringPtr->hasUnicode && (stringPtr->numChars > 0)) {\n\tAppendUtfToUnicodeRep(objPtr, bytes, toCopy);\n    } else {\n\tAppendUtfToUtfRep(objPtr, bytes, toCopy);\n    }\n\n    if (length <= limit) {\n\treturn;\n    }\n\n    stringPtr = GET_STRING(objPtr);\n    if (stringPtr->hasUnicode && (stringPtr->numChars > 0)) {\n\tAppendUtfToUnicodeRep(objPtr, ellipsis, eLen);\n    } else {\n\tAppendUtfToUtfRep(objPtr, ellipsis, eLen);\n    }\n}\n",
+      "snippet_sha256": "f471adc4d10d3ef0668796f7a4ef0bd47f0b14edbb40bb2f7ed97661daa2ba3f",
+      "evidence": "empty-append-source-3"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl9.1.0/generic/tclStringObj.c",
+      "function": "Tcl_AppendLimitedToObj",
+      "lines": [
+        1206,
+        1282
+      ],
+      "source_sha256": "d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8",
+      "snippet": "Tcl_AppendLimitedToObj(\n    Tcl_Obj *objPtr,\t\t/* Points to the object to append to. */\n    const char *bytes,\t\t/* Points to the bytes to append to the\n\t\t\t\t * object. */\n    Tcl_Size length,\t\t/* The number of bytes available to be\n\t\t\t\t * appended from \"bytes\". If < 0, then\n\t\t\t\t * all bytes up to a NUL byte are available. */\n    Tcl_Size limit,\t\t/* The maximum number of bytes to append to\n\t\t\t\t * the object. */\n    const char *ellipsis)\t/* Ellipsis marker string, appended to the\n\t\t\t\t * object to indicate not all available bytes\n\t\t\t\t * at \"bytes\" were appended. */\n{\n    String *stringPtr;\n    Tcl_Size toCopy = 0;\n    Tcl_Size eLen = 0;\n\n    if (length < 0) {\n\tlength = (bytes ? strlen(bytes) : 0);\n    }\n    if (length == 0) {\n\treturn;\n    }\n    if (limit <= 0) {\n\treturn;\n    }\n\n    if (length <= limit) {\n\ttoCopy = length;\n    } else {\n\tif (ellipsis == NULL) {\n\t    ellipsis = \"...\";\n\t}\n\teLen = strlen(ellipsis);\n\twhile (eLen > limit) {\n\t    eLen = Tcl_UtfPrev(ellipsis+eLen, ellipsis) - ellipsis;\n\t}\n\n\ttoCopy = Tcl_UtfPrev(bytes+limit+1-eLen, bytes) - bytes;\n    }\n\n    /*\n     * If objPtr has a valid Unicode rep, then append the Unicode conversion\n     * of \"bytes\" to the objPtr's Unicode rep, otherwise append \"bytes\" to\n     * objPtr's string rep.\n     */\n\n    if (Tcl_IsShared(objPtr)) {\n\tTcl_Panic(\"%s called with shared object\", \"Tcl_AppendLimitedToObj\");\n    }\n\n    SetStringFromAny(NULL, objPtr);\n    stringPtr = GET_STRING(objPtr);\n\n    /* If appended string starts with a continuation byte or a lower surrogate,\n     * force objPtr to unicode representation. See [7f1162a867] */\n    if (bytes && ISCONTINUATION(bytes)) {\n\tTcl_GetUnicode(objPtr);\n\tstringPtr = GET_STRING(objPtr);\n    }\n    if (stringPtr->hasUnicode && (stringPtr->numChars > 0)) {\n\tAppendUtfToUnicodeRep(objPtr, bytes, toCopy);\n    } else {\n\tAppendUtfToUtfRep(objPtr, bytes, toCopy);\n    }\n\n    if (length <= limit) {\n\treturn;\n    }\n\n    stringPtr = GET_STRING(objPtr);\n    if (stringPtr->hasUnicode && (stringPtr->numChars > 0)) {\n\tAppendUtfToUnicodeRep(objPtr, ellipsis, eLen);\n    } else {\n\tAppendUtfToUtfRep(objPtr, ellipsis, eLen);\n    }\n}\n",
+      "snippet_sha256": "f471adc4d10d3ef0668796f7a4ef0bd47f0b14edbb40bb2f7ed97661daa2ba3f",
+      "evidence": "empty-append-source-4"
+    }
+  ]
+}

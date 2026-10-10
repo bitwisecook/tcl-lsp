@@ -1,0 +1,17 @@
+{
+  "question": "naming.diagnostics.original-matcher-output-retention",
+  "problem": "Independent fresh capability-aware alias/rename continuation of public matcher output retention. Does the supported original alias API retain regexp captured operands and absent/existing outputs, while moved stock calls and replacements follow their public output behaviour?",
+  "relationship": "Independent source, not a correction to original317 capture; original Jim first16 successful rows and subsequent wrongarity error remain retained.",
+  "channel": "Fixed ASCII LF source-file CLI, public catch code/result/info exists/stored values and alias capability observation only. No native argv/object/cell or entered frame inference.",
+  "source_sha256": "09e745443d4899e2e5e7839c33ca62a114b6fcc8a5ef2c2b12ad0c96a4e75b08",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested",
+  "alias_recipe": "Same public capability choice as original native255: standalone alias when present, otherwise interp alias API. Both branches retained verbatim."
+}

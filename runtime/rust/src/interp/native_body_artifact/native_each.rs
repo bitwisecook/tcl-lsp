@@ -4,8 +4,8 @@
 use super::*;
 use tcl_registry::native_control_compilation::{NativeControlCompilation, NativeControlOutcome};
 use tcl_registry::native_each_compilation::{
-    NativeCompiledEachStorage as Storage, NativeEachCollection, NativeEachInstruction,
-    native_compiled_each_storage,
+    native_compiled_each_storage, NativeCompiledEachStorage as Storage, NativeEachCollection,
+    NativeEachInstruction,
 };
 
 pub(super) struct EachOperation {

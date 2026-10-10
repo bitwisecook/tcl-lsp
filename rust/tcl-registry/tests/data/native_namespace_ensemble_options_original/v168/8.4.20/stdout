@@ -1,0 +1,15 @@
+version 8.4.20
+observation capability status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation create-bare status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation invoke-bare-created status 1 result {invalid command name "::r2286_nestedBare"} errorCode NONE
+observation create-immediate-option status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation create-dash-command-map status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation configure-command-name-map-data status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation configure-unqualified-map-data status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation configure-command-name-namespace-data status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation configure-option-after-command status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation configure-invalid-option-after-command status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation exists-dash-map-is-command-name status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation exists-dash-namespace-is-command-name status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation exists-does-not-scan-options status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+observation create-rejects-configure-only-option status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE

@@ -1,0 +1,74 @@
+
+running 33 tests
+test compiler_snapshot_memo_tests::original_callback_alias_database_refuses_deleted_and_unowned_horizons ... ok
+test compiler_snapshot_memo_tests::original_callback_alias_diagnostics_keep_target_and_separate_counts ... ok
+test compiler_snapshot_memo_tests::original_callback_alias_external_headers_use_held_target_slot ... ok
+test tests::callback_arity_args_catchall_is_silent ... ok
+test tests::callback_arity_braced_prefix_bakes_extra_args_exact_match_is_silent ... ok
+test tests::callback_arity_braced_prefix_bakes_extra_args_too_few ... ok
+test tests::callback_arity_braced_prefix_bakes_extra_args_too_many ... ok
+test tests::callback_arity_braced_prefix_dynamic_head_is_never_checked ... ok
+test tests::callback_arity_correct_is_silent ... ok
+test tests::callback_arity_mime_getbody_command_atleast_one ... FAILED
+test tests::callback_arity_mismatch_draws_e002 ... ok
+test tests::callback_arity_namespace_unknown_relative_trigger_does_not_borrow_installer_frame ... ok
+test tests::callback_arity_namespace_unknown_zero_param_draws_e003 ... FAILED
+test tests::callback_arity_option_value_exactly_checked ... FAILED
+test tests::callback_arity_package_unknown_variadic_handler_is_silent ... ok
+test tests::callback_arity_struct_graph_walk_command_checked ... FAILED
+test tests::callback_arity_struct_tree_walkproc_checked ... FAILED
+test tests::callback_arity_tcllib_calculus_func_arity_checked ... ok
+test tests::callback_arity_tk_scale_command_arity_checked ... ok
+test tests::callback_arity_too_many_draws_e003 ... ok
+test tests::callback_arity_unavailable_package_descriptors_do_not_select_local_headers ... ok
+test tests::callback_arity_unknown_appended_never_fires ... ok
+test tests::execution_trace_dynamic_and_malformed_operation_lists_abstain ... ok
+test tests::execution_trace_source_counts_keep_unavailable_future_frame ... ok
+test tests::formal_count_project_headers_keep_the_selected_c_and_jim_contract ... ok
+test tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input ... ok
+test tests::mixed_execution_trace_source_counts_do_not_issue_a_future_lookup ... ok
+test tests::original_callback_diagnostics_keep_typed_subject_and_ignore_mutable_counts ... ok
+test tests::original_callback_missing_future_lookup_declines_reporting_candidates ... ok
+test tests::original_callback_signature_gap_retains_disjoint_source_headers ... ok
+test tests::original_callback_signature_query_updates_headers_without_tail_substitution ... ok
+test tests::original_project_headers_keep_opaque_slots_and_body_free_arity ... ok
+test tests::qualified_callback_arity_keeps_same_tailed_namespaces_separate ... ok
+
+failures:
+
+---- tests::callback_arity_mime_getbody_command_atleast_one stdout ----
+
+thread 'tests::callback_arity_mime_getbody_command_atleast_one' (775662) panicked at rust/tcl-lsp-db/src/lib.rs:8817:9:
+a 0-param mime -command callback must draw E003; got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- tests::callback_arity_namespace_unknown_zero_param_draws_e003 stdout ----
+
+thread 'tests::callback_arity_namespace_unknown_zero_param_draws_e003' (775745) panicked at rust/tcl-lsp-db/src/lib.rs:8659:9:
+a 0-param `namespace unknown` handler must draw E003; got [("E003", "Too many arguments for '::h': expected at most 0, got 1")]
+
+---- tests::callback_arity_option_value_exactly_checked stdout ----
+
+thread 'tests::callback_arity_option_value_exactly_checked' (775852) panicked at rust/tcl-lsp-db/src/lib.rs:8784:9:
+a 1-param -tlspolicy callback (2 appended) must draw E003; got []
+
+---- tests::callback_arity_struct_graph_walk_command_checked stdout ----
+
+thread 'tests::callback_arity_struct_graph_walk_command_checked' (775868) panicked at rust/tcl-lsp-db/src/lib.rs:8848:9:
+a 2-param graph walk -command callback (3 appended) must draw E003; got []
+
+---- tests::callback_arity_struct_tree_walkproc_checked stdout ----
+
+thread 'tests::callback_arity_struct_tree_walkproc_checked' (775884) panicked at rust/tcl-lsp-db/src/lib.rs:8869:9:
+a 2-param tree walkproc callback (3 appended) must draw E003; got []
+
+
+failures:
+    tests::callback_arity_mime_getbody_command_atleast_one
+    tests::callback_arity_namespace_unknown_zero_param_draws_e003
+    tests::callback_arity_option_value_exactly_checked
+    tests::callback_arity_struct_graph_walk_command_checked
+    tests::callback_arity_struct_tree_walkproc_checked
+
+test result: FAILED. 28 passed; 5 failed; 0 ignored; 0 measured; 81 filtered out; finished in 140.49s
+

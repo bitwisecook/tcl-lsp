@@ -1,0 +1,38 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_namespace_alias_settlement/manifest.json",
+    "sha256": "7c39e18ba5d7d3ded4aeaae7d112ba160e0fab9c86038a5954d6326fae0535d6",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.namespace-alias-settlement-after-store"
+    ],
+    "reason": "Inspected exact script/cases and original per-engine completion/diagnostic/argument-forwarding observations."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_jim_alias_read/provenance.json",
+    "sha256": "0a47b4d99f3909b44f6f2e15369503d080b156882cef6329b416bd7268c6ca3d",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.alias-target-read-diagnostic-and-completion"
+    ],
+    "reason": "Inspected exact script/cases and original per-engine completion/diagnostic/argument-forwarding observations."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_upvar_arguments/manifest.json",
+    "sha256": "13464962121fe902ff87cd5377c28ec8671ce8bb64fb0fce5f0c880923a9d8e8",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.namespace-upvar-original-argument-grammar"
+    ],
+    "reason": "Inspected exact script/cases and original per-engine completion/diagnostic/argument-forwarding observations."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding-manifest.json",
+    "sha256": "76c297ce53f034ee8f3eb0532f9b890af4881762e4167f80a8424ee6a342ac2b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.jim-namespace-upvar-root-worker-forwarding"
+    ],
+    "reason": "Inspected exact script/cases and original per-engine completion/diagnostic/argument-forwarding observations."
+  }
+]

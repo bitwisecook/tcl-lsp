@@ -1,0 +1,9 @@
+error writing "stdout": invalid or incomplete multibyte or wide character
+    while executing
+"puts [list $name $code $result]"
+    (procedure "row" line 3)
+    invoked from within
+"row import-same-namespace {
+    namespace eval ::Scope88A {namespace import ::Scope88A::p\uD801}
+}"
+    (file "/workspace/.proofs/current-namespace-byte-controls88/cases.tcl" line 60)

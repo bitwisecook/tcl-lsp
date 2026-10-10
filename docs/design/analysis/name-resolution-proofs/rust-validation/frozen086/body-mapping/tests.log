@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.09s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-7785890902098edc)
+
+running 1 test
+test command_binding::executed_script_source::tests::original_body_value_mapping_keeps_native_units_and_original_channels_separate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8032 filtered out; finished in 0.00s
+

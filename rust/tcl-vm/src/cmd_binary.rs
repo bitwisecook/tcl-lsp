@@ -223,21 +223,15 @@ fn binary_wrong_args(
 /// Resolve a `binary` ensemble word, or the ensemble's own miss sentence.
 fn resolve_binary_sub(
     subs: &'static [&'static str],
-    word: &str,
+    word: &[u8],
     prefixes: bool,
     ns: &[u8],
-) -> Result<&'static str, String> {
-    match tcl_cmd_core::ensemble::resolve_subcommand(subs, word.as_bytes(), prefixes) {
+) -> Result<&'static str, Vec<u8>> {
+    match tcl_cmd_core::ensemble::resolve_subcommand(subs, word, prefixes) {
         Some(index) => Ok(subs[index]),
-        None => Err(
-            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                word.as_bytes(),
-                prefixes,
-                ns,
-            ))
-            .into_owned(),
-        ),
+        None => Err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+            subs, word, prefixes, ns,
+        )),
     }
 }
 
@@ -263,7 +257,11 @@ fn cmd_binary(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         }
     } else {
-        match resolve_binary_sub(subs, &sub.to_str(), true, b"::tcl::binary") {
+        let bytes = match vm.native_name_operand_bytes(sub) {
+            Ok(bytes) => bytes,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        match resolve_binary_sub(subs, &bytes, true, b"::tcl::binary") {
             Ok(name) => name,
             Err(m) => return err(m),
         }
@@ -287,12 +285,11 @@ fn binary_encode(vm: &mut Vm, rest: &[Value], invocation: BinaryInvocation) -> C
             "wrong # args: should be \"binary encode format ?options? data\"",
         );
     };
-    let canon = match resolve_binary_sub(
-        BINARY_FORMATS,
-        &fmt.to_str(),
-        false,
-        b"::tcl::binary::encode",
-    ) {
+    let bytes = match vm.native_name_operand_bytes(fmt) {
+        Ok(bytes) => bytes,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let canon = match resolve_binary_sub(BINARY_FORMATS, &bytes, false, b"::tcl::binary::encode") {
         Ok(name) => name,
         Err(m) => return err(m),
     };
@@ -413,12 +410,11 @@ fn binary_decode(vm: &mut Vm, rest: &[Value], invocation: BinaryInvocation) -> C
             "wrong # args: should be \"binary decode format ?options? data\"",
         );
     };
-    let canon = match resolve_binary_sub(
-        BINARY_FORMATS,
-        &fmt.to_str(),
-        false,
-        b"::tcl::binary::decode",
-    ) {
+    let bytes = match vm.native_name_operand_bytes(fmt) {
+        Ok(bytes) => bytes,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let canon = match resolve_binary_sub(BINARY_FORMATS, &bytes, false, b"::tcl::binary::decode") {
         Ok(name) => name,
         Err(m) => return err(m),
     };
